@@ -1,0 +1,55 @@
+import { Property } from "@shared/schema";
+import { Card } from "@/components/ui/card";
+import { Bed, Bath, Maximize2 } from "lucide-react";
+
+interface PropertyCardProps {
+  property: Property;
+  onClick?: () => void;
+}
+
+export default function PropertyCard({ property, onClick }: PropertyCardProps) {
+  return (
+    <Card
+      className="overflow-hidden cursor-pointer hover-elevate active-elevate-2 transition-shadow"
+      onClick={onClick}
+      data-testid={`card-property-${property.id}`}
+    >
+      <div className="aspect-[4/3] overflow-hidden bg-muted">
+        <img
+          src={property.imageUrl || ''}
+          alt={property.address}
+          className="w-full h-full object-cover"
+          data-testid={`img-property-${property.id}`}
+        />
+      </div>
+      <div className="p-4">
+        <div className="text-xl font-bold text-foreground mb-1" data-testid={`text-price-${property.id}`}>
+          ${property.price.toLocaleString()}
+        </div>
+        <div className="text-base font-medium text-foreground mb-3" data-testid={`text-address-${property.id}`}>
+          {property.address}
+        </div>
+        <div className="text-sm text-muted-foreground mb-2">
+          {property.city}, {property.state} {property.zipCode}
+        </div>
+        <div className="flex items-center gap-4 text-sm text-foreground">
+          <div className="flex items-center gap-1" data-testid={`text-beds-${property.id}`}>
+            <Bed className="w-4 h-4 text-muted-foreground" />
+            <span>{property.bedrooms} bd</span>
+          </div>
+          <div className="flex items-center gap-1" data-testid={`text-baths-${property.id}`}>
+            <Bath className="w-4 h-4 text-muted-foreground" />
+            <span>{property.bathrooms} ba</span>
+          </div>
+          <div className="flex items-center gap-1" data-testid={`text-sqft-${property.id}`}>
+            <Maximize2 className="w-4 h-4 text-muted-foreground" />
+            <span>{property.squareFeet.toLocaleString()} sqft</span>
+          </div>
+        </div>
+        <div className="text-sm text-muted-foreground mt-2">
+          {property.propertyType}
+        </div>
+      </div>
+    </Card>
+  );
+}
