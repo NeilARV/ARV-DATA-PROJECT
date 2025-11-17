@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CloudUpload, FileText, X } from "lucide-react";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { InsertProperty } from "@shared/schema";
 
 interface UploadDialogProps {
@@ -54,21 +55,56 @@ export default function UploadDialog({
   };
 
   const handleFile = (file: File) => {
-    if (!file.name.endsWith('.csv')) {
-      setError('Please upload a CSV file');
+    const isCSV = file.name.endsWith('.csv');
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    
+    if (!isCSV && !isExcel) {
+      setError('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
       return;
     }
 
     setFile(file);
     setError(null);
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
+    if (isCSV) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          processData(results.data);
+        },
+        error: (err) => {
+          setError('Error reading CSV file');
+          console.error('File read error:', err);
+        },
+      });
+    } else {
+      // Handle Excel files
+      const reader = new FileReader();
+      reader.onload = (e) => {
         try {
-          const properties = results.data
-            .map((row: any) => ({
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          processData(jsonData);
+        } catch (err) {
+          setError('Error reading Excel file');
+          console.error('Excel read error:', err);
+        }
+      };
+      reader.onerror = () => {
+        setError('Error reading Excel file');
+      };
+      reader.readAsBinaryString(file);
+    }
+  };
+
+  const processData = (data: any[]) => {
+    try {
+      const properties = data
+        .map((row: any) => ({
               address: row.address || row.Address,
               city: row.city || row.City,
               state: row.state || row.State,
@@ -103,17 +139,11 @@ export default function UploadDialog({
             return;
           }
           
-          setParsedData(properties);
-        } catch (err) {
-          setError('Error parsing CSV file. Please check the format.');
-          console.error('Parse error:', err);
-        }
-      },
-      error: (err) => {
-        setError('Error reading CSV file');
-        console.error('File read error:', err);
-      },
-    });
+      setParsedData(properties);
+    } catch (err) {
+      setError('Error parsing file. Please check the format.');
+      console.error('Parse error:', err);
+    }
   };
 
   const handleUpload = () => {
@@ -153,7 +183,7 @@ export default function UploadDialog({
             >
               <CloudUpload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-base mb-2">
-                Drag and drop your CSV file here, or{" "}
+                Drag and drop your CSV or Excel file here, or{" "}
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="text-primary hover:underline"
@@ -163,12 +193,12 @@ export default function UploadDialog({
                 </button>
               </p>
               <p className="text-sm text-muted-foreground">
-                CSV file with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, latitude, longitude, propertyOwner, companyContactName, companyContactEmail, purchasePrice, dateSold
+                CSV or Excel file (.csv, .xlsx, .xls) with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, latitude, longitude, propertyOwner, companyContactName, companyContactEmail, purchasePrice, dateSold
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileInput}
                 className="hidden"
                 data-testid="input-file"
