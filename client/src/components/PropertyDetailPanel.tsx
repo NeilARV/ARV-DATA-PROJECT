@@ -74,6 +74,12 @@ export default function PropertyDetailPanel({
           </div>
         </div>
 
+        {property.yearBuilt && (
+          <div className="text-sm text-muted-foreground">
+            Built in {property.yearBuilt}
+          </div>
+        )}
+
         <Card className="p-4">
           <div className="space-y-3">
             <div className="flex justify-between py-2 border-b border-border">
@@ -128,12 +134,6 @@ export default function PropertyDetailPanel({
                   </span>
                 </div>
               </>
-            )}
-            {property.yearBuilt && (
-              <div className="flex justify-between py-2">
-                <span className="text-muted-foreground text-sm">Year Built</span>
-                <span className="font-medium text-sm">{property.yearBuilt}</span>
-              </div>
             )}
           </div>
         </Card>
