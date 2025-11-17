@@ -198,6 +198,10 @@ export default function Home() {
       return false;
     }
 
+    if (filters.zipCode && filters.zipCode.trim() !== '') {
+      if (property.zipCode !== filters.zipCode.trim()) return false;
+    }
+
     return true;
   });
 

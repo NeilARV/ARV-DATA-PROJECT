@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import { X } from "lucide-react";
 
 interface FilterSidebarProps {
@@ -15,6 +16,7 @@ export interface PropertyFilters {
   bedrooms: string;
   bathrooms: string;
   propertyTypes: string[];
+  zipCode: string;
 }
 
 const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo'];
@@ -26,6 +28,7 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [zipCode, setZipCode] = useState('');
 
   const handleApply = () => {
     onFilterChange?.({
@@ -34,8 +37,9 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
+      zipCode: zipCode,
     });
-    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes });
+    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode });
   };
 
   const handleReset = () => {
@@ -43,6 +47,7 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
+    setZipCode('');
     console.log('Filters reset');
   };
 
@@ -130,6 +135,17 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
               </label>
             ))}
           </div>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Zip Code</Label>
+          <Input
+            type="text"
+            placeholder="Enter zip code"
+            value={zipCode}
+            onChange={(e) => setZipCode(e.target.value)}
+            data-testid="input-zipcode"
+          />
         </div>
       </div>
 
