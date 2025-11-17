@@ -1,8 +1,8 @@
-# Property Listing Platform
+# ARV DATA - Property Listing Platform
 
 ## Overview
 
-A real estate property listing platform built with React, Express, and PostgreSQL. The application provides dual-view property browsing (map and grid layouts), interactive filtering, CSV/Excel data upload capabilities, and company contact management. Designed with a clean, data-focused interface inspired by Redfin's approach to real estate applications.
+A real estate property listing platform built with React, Express, and PostgreSQL. The application provides dual-view property browsing (map and grid layouts), interactive filtering, CSV/Excel data upload capabilities, and company contact management. Designed with a clean, data-focused interface inspired by Redfin's approach to real estate applications. Branded as "ARV DATA" with custom logo.
 
 ## User Preferences
 
