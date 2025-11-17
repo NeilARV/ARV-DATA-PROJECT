@@ -24,6 +24,14 @@ const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo'];
 const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
+const SAN_DIEGO_ZIP_CODES = [
+  '92101', '92102', '92103', '92104', '92105', '92106', '92107', '92108', '92109', '92110',
+  '92111', '92113', '92114', '92115', '92116', '92117', '92119', '92120', '92121', '92122',
+  '92123', '92124', '92126', '92127', '92128', '92129', '92130', '92131', '92132', '92134',
+  '92135', '92136', '92139', '92140', '92145', '92147', '92154', '92155', '92161', '92179',
+  '92182'
+];
+
 export default function FilterSidebar({ onClose, onFilterChange, availableZipCodes = [] }: FilterSidebarProps) {
   const [priceRange, setPriceRange] = useState([0, 2000000]);
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
@@ -65,7 +73,8 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
   const handleZipCodeChange = (value: string) => {
     setZipCode(value);
     if (value.length > 0) {
-      const matches = availableZipCodes
+      const allZipCodes = Array.from(new Set([...SAN_DIEGO_ZIP_CODES, ...availableZipCodes])).sort();
+      const matches = allZipCodes
         .filter(zip => zip.startsWith(value))
         .slice(0, 10);
       setFilteredZipCodes(matches);
