@@ -28,10 +28,18 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
     if (center && zoom) {
       map.setView(center, zoom);
     } else if (properties.length > 0) {
-      const bounds = L.latLngBounds(
-        properties.map(p => [p.latitude, p.longitude])
+      // Filter properties with valid coordinates
+      const validProperties = properties.filter(p => 
+        p.latitude != null && p.longitude != null && 
+        !isNaN(p.latitude) && !isNaN(p.longitude)
       );
-      map.fitBounds(bounds, { padding: [50, 50] });
+      
+      if (validProperties.length > 0) {
+        const bounds = L.latLngBounds(
+          validProperties.map(p => [p.latitude!, p.longitude!])
+        );
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
     }
   }, [properties, center, zoom, map]);
 
@@ -44,6 +52,12 @@ export default function PropertyMap({
   center = [37.7749, -122.4194], 
   zoom = 12 
 }: PropertyMapProps) {
+  // Filter properties with valid coordinates for rendering on map
+  const validProperties = properties.filter(p => 
+    p.latitude != null && p.longitude != null && 
+    !isNaN(p.latitude) && !isNaN(p.longitude)
+  );
+
   return (
     <div className="w-full h-full" data-testid="map-container">
       <MapContainer
@@ -56,11 +70,11 @@ export default function PropertyMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapBounds properties={properties} center={center} zoom={zoom} />
-        {properties.map((property) => (
+        <MapBounds properties={validProperties} center={center} zoom={zoom} />
+        {validProperties.map((property) => (
           <Marker
             key={property.id}
-            position={[property.latitude, property.longitude]}
+            position={[property.latitude!, property.longitude!]}
             icon={customIcon}
             eventHandlers={{
               click: () => onPropertyClick?.(property),
