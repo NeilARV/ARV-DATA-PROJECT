@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Property } from '@shared/schema';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import './PropertyMap.css';
 
 const customIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -64,7 +65,11 @@ export default function PropertyMap({
               click: () => onPropertyClick?.(property),
             }}
           >
-            <Popup>
+            <Popup 
+              autoPan={true}
+              autoPanPadding={[100, 100]}
+              offset={[-120, 0]}
+            >
               <div className="min-w-[200px]" data-testid={`popup-property-${property.id}`}>
                 <div className="font-bold text-base mb-1">
                   ${property.price.toLocaleString()}
