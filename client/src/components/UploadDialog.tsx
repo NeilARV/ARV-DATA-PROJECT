@@ -67,27 +67,42 @@ export default function UploadDialog({
       skipEmptyLines: true,
       complete: (results) => {
         try {
-          const properties = results.data.map((row: any) => ({
-            address: row.address || row.Address,
-            city: row.city || row.City,
-            state: row.state || row.State,
-            zipCode: row.zipCode || row.ZipCode || row.zip_code || row.Zip,
-            price: parseFloat(row.price || row.Price),
-            bedrooms: parseInt(row.bedrooms || row.Bedrooms || row.beds),
-            bathrooms: parseFloat(row.bathrooms || row.Bathrooms || row.baths),
-            squareFeet: parseInt(row.squareFeet || row.SquareFeet || row.sqft || row.square_feet),
-            propertyType: row.propertyType || row.PropertyType || row.type || 'Single Family',
-            imageUrl: row.imageUrl || row.ImageUrl || row.image || null,
-            latitude: parseFloat(row.latitude || row.Latitude || row.lat),
-            longitude: parseFloat(row.longitude || row.Longitude || row.lng || row.lon),
-            description: row.description || row.Description || null,
-            yearBuilt: row.yearBuilt || row.YearBuilt || row.year_built ? parseInt(row.yearBuilt || row.YearBuilt || row.year_built) : null,
-            propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || null,
-            companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
-            companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
-            purchasePrice: row.purchasePrice || row.PurchasePrice || row.purchase_price ? parseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price) : null,
-            dateSold: row.dateSold || row.DateSold || row.date_sold || null,
-          }));
+          const properties = results.data
+            .map((row: any) => ({
+              address: row.address || row.Address,
+              city: row.city || row.City,
+              state: row.state || row.State,
+              zipCode: row.zipCode || row.ZipCode || row.zip_code || row.Zip,
+              price: parseFloat(row.price || row.Price),
+              bedrooms: parseInt(row.bedrooms || row.Bedrooms || row.beds),
+              bathrooms: parseFloat(row.bathrooms || row.Bathrooms || row.baths),
+              squareFeet: parseInt(row.squareFeet || row.SquareFeet || row.sqft || row.square_feet),
+              propertyType: row.propertyType || row.PropertyType || row.type || 'Single Family',
+              imageUrl: row.imageUrl || row.ImageUrl || row.image || null,
+              latitude: parseFloat(row.latitude || row.Latitude || row.lat),
+              longitude: parseFloat(row.longitude || row.Longitude || row.lng || row.lon),
+              description: row.description || row.Description || null,
+              yearBuilt: row.yearBuilt || row.YearBuilt || row.year_built ? parseInt(row.yearBuilt || row.YearBuilt || row.year_built) : null,
+              propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || null,
+              companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
+              companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
+              purchasePrice: row.purchasePrice || row.PurchasePrice || row.purchase_price ? parseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price) : null,
+              dateSold: row.dateSold || row.DateSold || row.date_sold || null,
+            }))
+            .filter((prop: any) => {
+              // Validate required fields
+              const hasValidCoordinates = !isNaN(prop.latitude) && !isNaN(prop.longitude);
+              const hasValidPrice = !isNaN(prop.price);
+              const hasAddress = prop.address && prop.address.trim() !== '';
+              
+              return hasValidCoordinates && hasValidPrice && hasAddress;
+            });
+          
+          if (properties.length === 0) {
+            setError('No valid properties found. Please ensure your CSV has address, price, latitude, and longitude columns.');
+            return;
+          }
+          
           setParsedData(properties);
         } catch (err) {
           setError('Error parsing CSV file. Please check the format.');
