@@ -102,18 +102,32 @@ export default function PropertyDetailPanel({
               </div>
             )}
             {property.dateSold && (
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground text-sm">Date Sold</span>
-                <span className="font-medium text-sm">
-                  {(() => {
-                    const date = new Date(property.dateSold);
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const year = date.getFullYear();
-                    return `${month}-${day}-${year}`;
-                  })()}
-                </span>
-              </div>
+              <>
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground text-sm">Date Sold</span>
+                  <span className="font-medium text-sm">
+                    {(() => {
+                      const date = new Date(property.dateSold);
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const day = String(date.getDate()).padStart(2, '0');
+                      const year = date.getFullYear();
+                      return `${month}-${day}-${year}`;
+                    })()}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground text-sm">Days Owned</span>
+                  <span className="font-medium text-sm">
+                    {(() => {
+                      const soldDate = new Date(property.dateSold);
+                      const today = new Date();
+                      const diffTime = Math.abs(today.getTime() - soldDate.getTime());
+                      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                      return diffDays;
+                    })()}
+                  </span>
+                </div>
+              </>
             )}
             {property.yearBuilt && (
               <div className="flex justify-between py-2">
