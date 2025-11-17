@@ -117,31 +117,30 @@ export default function UploadDialog({
               squareFeet: parseInt(row.squareFeet || row.SquareFeet || row.sqft || row.square_feet),
               propertyType: row.propertyType || row.PropertyType || row.type || 'Single Family',
               imageUrl: row.imageUrl || row.ImageUrl || row.image || null,
-              latitude: parseFloat(row.latitude || row.Latitude || row.lat),
-              longitude: parseFloat(row.longitude || row.Longitude || row.lng || row.lon),
+              latitude: row.latitude || row.Latitude || row.lat ? parseFloat(row.latitude || row.Latitude || row.lat) : null,
+              longitude: row.longitude || row.Longitude || row.lng || row.lon ? parseFloat(row.longitude || row.Longitude || row.lng || row.lon) : null,
               description: row.description || row.Description || null,
               yearBuilt: row.yearBuilt || row.YearBuilt || row.year_built ? parseInt(row.yearBuilt || row.YearBuilt || row.year_built) : null,
-              propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || null,
+              propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || row.company || row.Company || null,
               companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
               companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
               purchasePrice: row.purchasePrice || row.PurchasePrice || row.purchase_price ? parseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price) : null,
               dateSold: row.dateSold || row.DateSold || row.date_sold || null,
             }))
             .filter((prop: any) => {
-              // Validate required fields
-              const hasValidCoordinates = !isNaN(prop.latitude) && !isNaN(prop.longitude);
+              // Only require address and price (lat/lng will be geocoded if missing)
               const hasValidPrice = !isNaN(prop.price);
               const hasAddress = prop.address && prop.address.trim() !== '';
               
-              return hasValidCoordinates && hasValidPrice && hasAddress;
+              return hasValidPrice && hasAddress;
             });
           
           if (properties.length === 0) {
-            setError('No valid properties found. Please ensure your CSV has address, price, latitude, and longitude columns.');
+            setError('No valid properties found. Please ensure your file has address and price columns.');
             return;
           }
           
-      setParsedData(properties);
+      setParsedData(properties as InsertProperty[]);
     } catch (err) {
       setError('Error parsing file. Please check the format.');
       console.error('Parse error:', err);
@@ -205,7 +204,7 @@ export default function UploadDialog({
                 </button>
               </p>
               <p className="text-sm text-muted-foreground">
-                CSV or Excel file (.csv, .xlsx, .xls) with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, latitude, longitude, propertyOwner, companyContactName, companyContactEmail, purchasePrice, dateSold
+                CSV or Excel file (.csv, .xlsx, .xls) with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, propertyOwner (optional: latitude, longitude, companyContactName, companyContactEmail, purchasePrice, dateSold)
               </p>
               <input
                 ref={fileInputRef}
