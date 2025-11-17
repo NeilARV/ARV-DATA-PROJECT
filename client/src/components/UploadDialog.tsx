@@ -11,6 +11,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { InsertProperty } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface UploadDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ export default function UploadDialog({
   onClose,
   onSuccess,
 }: UploadDialogProps) {
+  const { toast } = useToast();
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<InsertProperty[] | null>(null);
@@ -103,8 +105,58 @@ export default function UploadDialog({
     }
   };
 
+  // Smart field name mapping - recognizes common variations
+  const fieldMappings: Record<string, string[]> = {
+    address: ['address', 'addr', 'street', 'streetaddress', 'street address', 'property address', 'location'],
+    city: ['city', 'town', 'municipality'],
+    state: ['state', 'st', 'province'],
+    zipCode: ['zipcode', 'zip', 'zip code', 'postalcode', 'postal code', 'postcode'],
+    price: ['price', 'salesprice', 'sales price', 'saleprice', 'sale price', 'selling price', 'sellingprice', 'listprice', 'list price', 'amount', 'cost'],
+    bedrooms: ['bedrooms', 'beds', 'bed', 'br', 'bedroom', 'numberofbedrooms', 'number of bedrooms'],
+    bathrooms: ['bathrooms', 'baths', 'bath', 'ba', 'bathroom', 'numberofbathrooms', 'number of bathrooms'],
+    squareFeet: ['squarefeet', 'sqft', 'sq ft', 'square feet', 'squarefootage', 'square footage', 'size', 'area'],
+    propertyType: ['propertytype', 'property type', 'type', 'hometype', 'home type', 'dwelling type', 'dwellingtype'],
+    imageUrl: ['imageurl', 'image', 'photo', 'picture', 'imagelink', 'image url'],
+    latitude: ['latitude', 'lat'],
+    longitude: ['longitude', 'lng', 'lon', 'long'],
+    description: ['description', 'desc', 'details', 'notes', 'comments'],
+    yearBuilt: ['yearbuilt', 'year built', 'built', 'year', 'construction year', 'constructionyear'],
+    propertyOwner: ['propertyowner', 'property owner', 'owner', 'company', 'seller', 'vendor'],
+    companyContactName: ['companycontactname', 'company contact name', 'contactname', 'contact name', 'contact'],
+    companyContactEmail: ['companycontactemail', 'company contact email', 'contactemail', 'contact email', 'email'],
+    purchasePrice: ['purchaseprice', 'purchase price', 'bought price', 'boughtprice', 'acquisition price', 'acquisitionprice'],
+    dateSold: ['datesold', 'date sold', 'solddate', 'sold date', 'saledate', 'sale date', 'closing date', 'closingdate', 'settlement date', 'settlementdate'],
+  };
+
+  // Normalize field name for matching
+  const normalizeFieldName = (name: string): string => {
+    return name.toLowerCase().replace(/[\s_-]/g, '');
+  };
+
+  // Find the value from row using field mapping
+  const findFieldValue = (row: any, targetField: string): any => {
+    const variations = fieldMappings[targetField] || [targetField];
+    
+    for (const key of Object.keys(row)) {
+      const normalizedKey = normalizeFieldName(key);
+      if (variations.some(v => normalizeFieldName(v) === normalizedKey)) {
+        return row[key];
+      }
+    }
+    
+    return null;
+  };
+
   const processData = (data: any[]) => {
     try {
+      if (data.length === 0) {
+        setError('The file appears to be empty. Please provide a file with property data.');
+        return;
+      }
+
+      // Get column names from first row to help with error messages
+      const columnNames = data.length > 0 ? Object.keys(data[0]) : [];
+
       const properties = data
         .map((row: any) => {
           // Helper to safely parse numbers
@@ -121,25 +173,25 @@ export default function UploadDialog({
           };
 
           return {
-            address: row.address || row.Address || '',
-            city: row.city || row.City || '',
-            state: row.state || row.State || 'CA',
-            zipCode: row.zipCode || row.ZipCode || row.zip_code || row.Zip || '',
-            price: safeParseFloat(row.price || row.Price) || 0,
-            bedrooms: safeParseInt(row.bedrooms || row.Bedrooms || row.beds) || 3,
-            bathrooms: safeParseFloat(row.bathrooms || row.Bathrooms || row.baths) || 2,
-            squareFeet: safeParseInt(row.squareFeet || row.SquareFeet || row.sqft || row.square_feet) || 1500,
-            propertyType: row.propertyType || row.PropertyType || row.type || 'Single Family',
-            imageUrl: row.imageUrl || row.ImageUrl || row.image || null,
-            latitude: safeParseFloat(row.latitude || row.Latitude || row.lat),
-            longitude: safeParseFloat(row.longitude || row.Longitude || row.lng || row.lon),
-            description: row.description || row.Description || null,
-            yearBuilt: safeParseInt(row.yearBuilt || row.YearBuilt || row.year_built),
-            propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || row.company || row.Company || null,
-            companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
-            companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
-            purchasePrice: safeParseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price),
-            dateSold: row.dateSold || row.DateSold || row.date_sold || null,
+            address: findFieldValue(row, 'address') || '',
+            city: findFieldValue(row, 'city') || '',
+            state: findFieldValue(row, 'state') || 'CA',
+            zipCode: findFieldValue(row, 'zipCode') || '',
+            price: safeParseFloat(findFieldValue(row, 'price')) || 0,
+            bedrooms: safeParseInt(findFieldValue(row, 'bedrooms')) || 3,
+            bathrooms: safeParseFloat(findFieldValue(row, 'bathrooms')) || 2,
+            squareFeet: safeParseInt(findFieldValue(row, 'squareFeet')) || 1500,
+            propertyType: findFieldValue(row, 'propertyType') || 'Single Family',
+            imageUrl: findFieldValue(row, 'imageUrl') || null,
+            latitude: safeParseFloat(findFieldValue(row, 'latitude')),
+            longitude: safeParseFloat(findFieldValue(row, 'longitude')),
+            description: findFieldValue(row, 'description') || null,
+            yearBuilt: safeParseInt(findFieldValue(row, 'yearBuilt')),
+            propertyOwner: findFieldValue(row, 'propertyOwner') || null,
+            companyContactName: findFieldValue(row, 'companyContactName') || null,
+            companyContactEmail: findFieldValue(row, 'companyContactEmail') || null,
+            purchasePrice: safeParseFloat(findFieldValue(row, 'purchasePrice')),
+            dateSold: findFieldValue(row, 'dateSold') || null,
           };
         })
         .filter((prop: any) => {
@@ -151,7 +203,27 @@ export default function UploadDialog({
         });
           
       if (properties.length === 0) {
-        setError('No valid properties found. Please ensure your file has "address" and "price" columns with valid data.');
+        // Check what's missing to provide helpful error message
+        const hasAddressColumn = columnNames.some(col => 
+          fieldMappings.address.some(variation => normalizeFieldName(variation) === normalizeFieldName(col))
+        );
+        const hasPriceColumn = columnNames.some(col => 
+          fieldMappings.price.some(variation => normalizeFieldName(variation) === normalizeFieldName(col))
+        );
+        
+        let errorMsg = 'No valid properties found. ';
+        if (!hasAddressColumn && !hasPriceColumn) {
+          errorMsg += 'Your file is missing both "address" and "price" columns. ';
+        } else if (!hasAddressColumn) {
+          errorMsg += 'Could not find an address column. Try using "address", "street address", or similar. ';
+        } else if (!hasPriceColumn) {
+          errorMsg += 'Could not find a price column. Try using "price", "sales price", "sale price", or similar. ';
+        } else {
+          errorMsg += 'The address or price values appear to be invalid or empty. ';
+        }
+        errorMsg += `\n\nYour file has these columns: ${columnNames.join(', ')}`;
+        
+        setError(errorMsg);
         return;
       }
           
@@ -168,7 +240,22 @@ export default function UploadDialog({
       setError(null);
       
       try {
-        await apiRequest("POST", "/api/properties/upload", parsedData);
+        const response = await apiRequest("POST", "/api/properties/upload", parsedData) as any;
+        
+        // Show warning toast if some addresses couldn't be geocoded
+        if (response.warnings) {
+          toast({
+            title: "Upload Complete with Warnings",
+            description: response.warnings.message,
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "Upload Successful",
+            description: `Successfully uploaded ${response.count} propert${response.count === 1 ? 'y' : 'ies'}`,
+          });
+        }
+        
         onSuccess?.();
         handleClose();
       } catch (err: any) {

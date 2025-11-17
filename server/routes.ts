@@ -66,6 +66,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Expected an array of properties" });
       }
 
+      const geocodingWarnings: string[] = [];
+
       // Auto-populate company contact and geocode if needed
       const enrichedProperties = await Promise.all(
         propertiesToUpload.map(async (prop) => {
@@ -78,8 +80,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               enriched.latitude = coords.lat;
               enriched.longitude = coords.lng;
             } else {
-              console.warn(`Could not geocode address: ${prop.address}`);
-              return null; // Skip this property
+              // Use fallback coordinates (San Francisco Bay Area) when geocoding fails
+              // This prevents properties from being dropped
+              console.warn(`Could not geocode address: ${prop.address} - using fallback coordinates`);
+              geocodingWarnings.push(prop.address);
+              enriched.latitude = 37.7749; // San Francisco
+              enriched.longitude = -122.4194;
             }
           }
           
@@ -101,15 +107,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
-      // Filter out failed geocodes
-      const validProperties = enrichedProperties.filter(p => p !== null);
+      const inserted = await db.insert(properties).values(enrichedProperties).returning();
       
-      if (validProperties.length === 0) {
-        return res.status(400).json({ message: "No valid properties could be geocoded" });
+      const response: any = { 
+        count: inserted.length, 
+        properties: inserted 
+      };
+      
+      if (geocodingWarnings.length > 0) {
+        response.warnings = {
+          message: `Could not find exact coordinates for ${geocodingWarnings.length} propert${geocodingWarnings.length === 1 ? 'y' : 'ies'}. Using approximate location. Please update manually if needed.`,
+          addresses: geocodingWarnings
+        };
       }
-
-      const inserted = await db.insert(properties).values(validProperties).returning();
-      res.json({ count: inserted.length, properties: inserted, skipped: propertiesToUpload.length - validProperties.length });
+      
+      res.json(response);
     } catch (error) {
       console.error('Error uploading properties:', error);
       res.status(500).json({ message: "Error uploading properties" });
