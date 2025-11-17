@@ -84,20 +84,20 @@ export default function UploadDialog({
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
+          const workbook = XLSX.read(data, { type: 'array' });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet);
           processData(jsonData);
         } catch (err) {
-          setError('Error reading Excel file');
+          setError('Error reading Excel file. Please make sure it has the correct format.');
           console.error('Excel read error:', err);
         }
       };
       reader.onerror = () => {
         setError('Error reading Excel file');
       };
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
     }
   };
 
