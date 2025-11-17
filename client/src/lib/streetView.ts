@@ -1,10 +1,11 @@
 /**
- * Fetches a Google Street View Static API URL for a property address from the backend
+ * Generates a proxied Google Street View image URL for a property address
+ * The image is served through our backend to keep the API key secure
  * @param address - Full street address
  * @param city - City name
  * @param state - State abbreviation
  * @param size - Image size in format "widthxheight" (default: "600x400")
- * @returns Promise that resolves to Street View image URL
+ * @returns Street View image URL (proxied through backend)
  */
 export async function getStreetViewUrl(
   address: string,
@@ -20,16 +21,10 @@ export async function getStreetViewUrl(
       size
     });
     
-    const response = await fetch(`/api/streetview?${params}`);
-    if (!response.ok) {
-      console.warn('Failed to fetch Street View URL');
-      return '';
-    }
-    
-    const data = await response.json();
-    return data.url || '';
+    // Return the proxied URL directly - backend will serve the image
+    return `/api/streetview?${params}`;
   } catch (error) {
-    console.error('Error fetching Street View URL:', error);
+    console.error('Error generating Street View URL:', error);
     return '';
   }
 }
