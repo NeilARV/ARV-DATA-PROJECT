@@ -106,39 +106,54 @@ export default function UploadDialog({
   const processData = (data: any[]) => {
     try {
       const properties = data
-        .map((row: any) => ({
-              address: row.address || row.Address,
-              city: row.city || row.City,
-              state: row.state || row.State,
-              zipCode: row.zipCode || row.ZipCode || row.zip_code || row.Zip,
-              price: parseFloat(row.price || row.Price),
-              bedrooms: parseInt(row.bedrooms || row.Bedrooms || row.beds),
-              bathrooms: parseFloat(row.bathrooms || row.Bathrooms || row.baths),
-              squareFeet: parseInt(row.squareFeet || row.SquareFeet || row.sqft || row.square_feet),
-              propertyType: row.propertyType || row.PropertyType || row.type || 'Single Family',
-              imageUrl: row.imageUrl || row.ImageUrl || row.image || null,
-              latitude: row.latitude || row.Latitude || row.lat ? parseFloat(row.latitude || row.Latitude || row.lat) : null,
-              longitude: row.longitude || row.Longitude || row.lng || row.lon ? parseFloat(row.longitude || row.Longitude || row.lng || row.lon) : null,
-              description: row.description || row.Description || null,
-              yearBuilt: row.yearBuilt || row.YearBuilt || row.year_built ? parseInt(row.yearBuilt || row.YearBuilt || row.year_built) : null,
-              propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || row.company || row.Company || null,
-              companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
-              companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
-              purchasePrice: row.purchasePrice || row.PurchasePrice || row.purchase_price ? parseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price) : null,
-              dateSold: row.dateSold || row.DateSold || row.date_sold || null,
-            }))
-            .filter((prop: any) => {
-              // Only require address and price (lat/lng will be geocoded if missing)
-              const hasValidPrice = !isNaN(prop.price);
-              const hasAddress = prop.address && prop.address.trim() !== '';
-              
-              return hasValidPrice && hasAddress;
-            });
+        .map((row: any) => {
+          // Helper to safely parse numbers
+          const safeParseFloat = (val: any) => {
+            if (val === null || val === undefined || val === '') return null;
+            const parsed = parseFloat(val);
+            return isNaN(parsed) ? null : parsed;
+          };
           
-          if (properties.length === 0) {
-            setError('No valid properties found. Please ensure your file has address and price columns.');
-            return;
-          }
+          const safeParseInt = (val: any) => {
+            if (val === null || val === undefined || val === '') return null;
+            const parsed = parseInt(val);
+            return isNaN(parsed) ? null : parsed;
+          };
+
+          return {
+            address: row.address || row.Address || '',
+            city: row.city || row.City || '',
+            state: row.state || row.State || 'CA',
+            zipCode: row.zipCode || row.ZipCode || row.zip_code || row.Zip || '',
+            price: safeParseFloat(row.price || row.Price) || 0,
+            bedrooms: safeParseInt(row.bedrooms || row.Bedrooms || row.beds) || 3,
+            bathrooms: safeParseFloat(row.bathrooms || row.Bathrooms || row.baths) || 2,
+            squareFeet: safeParseInt(row.squareFeet || row.SquareFeet || row.sqft || row.square_feet) || 1500,
+            propertyType: row.propertyType || row.PropertyType || row.type || 'Single Family',
+            imageUrl: row.imageUrl || row.ImageUrl || row.image || null,
+            latitude: safeParseFloat(row.latitude || row.Latitude || row.lat),
+            longitude: safeParseFloat(row.longitude || row.Longitude || row.lng || row.lon),
+            description: row.description || row.Description || null,
+            yearBuilt: safeParseInt(row.yearBuilt || row.YearBuilt || row.year_built),
+            propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || row.company || row.Company || null,
+            companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
+            companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
+            purchasePrice: safeParseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price),
+            dateSold: row.dateSold || row.DateSold || row.date_sold || null,
+          };
+        })
+        .filter((prop: any) => {
+          // Only require address and price (lat/lng will be geocoded if missing)
+          const hasValidPrice = prop.price > 0;
+          const hasAddress = prop.address && prop.address.trim() !== '';
+          
+          return hasValidPrice && hasAddress;
+        });
+          
+      if (properties.length === 0) {
+        setError('No valid properties found. Please ensure your file has "address" and "price" columns with valid data.');
+        return;
+      }
           
       setParsedData(properties as InsertProperty[]);
     } catch (err) {
