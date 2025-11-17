@@ -82,6 +82,11 @@ export default function UploadDialog({
             longitude: parseFloat(row.longitude || row.Longitude || row.lng || row.lon),
             description: row.description || row.Description || null,
             yearBuilt: row.yearBuilt || row.YearBuilt || row.year_built ? parseInt(row.yearBuilt || row.YearBuilt || row.year_built) : null,
+            propertyOwner: row.propertyOwner || row.PropertyOwner || row.property_owner || null,
+            companyContactName: row.companyContactName || row.CompanyContactName || row.company_contact_name || row.contactName || null,
+            companyContactEmail: row.companyContactEmail || row.CompanyContactEmail || row.company_contact_email || row.contactEmail || null,
+            purchasePrice: row.purchasePrice || row.PurchasePrice || row.purchase_price ? parseFloat(row.purchasePrice || row.PurchasePrice || row.purchase_price) : null,
+            dateSold: row.dateSold || row.DateSold || row.date_sold || null,
           }));
           setParsedData(properties);
         } catch (err) {
@@ -143,7 +148,7 @@ export default function UploadDialog({
                 </button>
               </p>
               <p className="text-sm text-muted-foreground">
-                CSV file with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, latitude, longitude
+                CSV file with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, latitude, longitude, propertyOwner, companyContactName, companyContactEmail, purchasePrice, dateSold
               </p>
               <input
                 ref={fileInputRef}

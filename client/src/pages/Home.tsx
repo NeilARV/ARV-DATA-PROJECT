@@ -34,6 +34,11 @@ const MOCK_PROPERTIES: Property[] = [
     longitude: -122.4194,
     description: 'Stunning modern home in the heart of San Francisco.',
     yearBuilt: 2018,
+    propertyOwner: 'Smith Family Trust',
+    companyContactName: 'John Smith',
+    companyContactEmail: 'john.smith@example.com',
+    purchasePrice: 1100000,
+    dateSold: '2023-06-15',
   },
   {
     id: '2',
@@ -51,6 +56,11 @@ const MOCK_PROPERTIES: Property[] = [
     longitude: -122.4144,
     description: 'Charming townhouse with modern updates.',
     yearBuilt: 2015,
+    propertyOwner: 'Johnson Properties LLC',
+    companyContactName: 'Emily Johnson',
+    companyContactEmail: 'emily@johnsonproperties.com',
+    purchasePrice: 875000,
+    dateSold: '2022-11-20',
   },
   {
     id: '3',
@@ -68,6 +78,11 @@ const MOCK_PROPERTIES: Property[] = [
     longitude: -122.2712,
     description: 'Contemporary condo with city views.',
     yearBuilt: 2020,
+    propertyOwner: 'Bay Area Investments',
+    companyContactName: 'Michael Chen',
+    companyContactEmail: 'mchen@bayareainvest.com',
+    purchasePrice: 650000,
+    dateSold: '2023-01-10',
   },
   {
     id: '4',
@@ -85,6 +100,11 @@ const MOCK_PROPERTIES: Property[] = [
     longitude: -122.2730,
     description: 'Spacious family home near UC Berkeley.',
     yearBuilt: 2010,
+    propertyOwner: 'Rodriguez Family',
+    companyContactName: 'Maria Rodriguez',
+    companyContactEmail: 'maria.rodriguez@gmail.com',
+    purchasePrice: 1300000,
+    dateSold: '2021-08-05',
   },
   {
     id: '5',
@@ -102,6 +122,11 @@ const MOCK_PROPERTIES: Property[] = [
     longitude: -121.8863,
     description: 'Beautiful craftsman in quiet neighborhood.',
     yearBuilt: 2012,
+    propertyOwner: 'SJ Realty Group',
+    companyContactName: 'David Park',
+    companyContactEmail: 'dpark@sjrealty.com',
+    purchasePrice: 800000,
+    dateSold: '2022-03-22',
   },
   {
     id: '6',
@@ -119,6 +144,11 @@ const MOCK_PROPERTIES: Property[] = [
     longitude: -122.1430,
     description: 'Luxurious Mediterranean villa with premium finishes.',
     yearBuilt: 2019,
+    propertyOwner: 'Tech Ventures LLC',
+    companyContactName: 'Sarah Williams',
+    companyContactEmail: 'swilliams@techventures.com',
+    purchasePrice: 1950000,
+    dateSold: '2023-09-12',
   },
 ];
 
@@ -137,6 +167,11 @@ export default function Home() {
       imageUrl: prop.imageUrl ?? null,
       description: prop.description ?? null,
       yearBuilt: prop.yearBuilt ?? null,
+      propertyOwner: prop.propertyOwner ?? null,
+      companyContactName: prop.companyContactName ?? null,
+      companyContactEmail: prop.companyContactEmail ?? null,
+      purchasePrice: prop.purchasePrice ?? null,
+      dateSold: prop.dateSold ?? null,
     }));
     setProperties([...properties, ...newProperties]);
     console.log('Properties uploaded:', newProperties.length);

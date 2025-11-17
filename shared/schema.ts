@@ -19,6 +19,11 @@ export const properties = pgTable("properties", {
   longitude: real("longitude").notNull(),
   description: text("description"),
   yearBuilt: integer("year_built"),
+  propertyOwner: text("property_owner"),
+  companyContactName: text("company_contact_name"),
+  companyContactEmail: text("company_contact_email"),
+  purchasePrice: real("purchase_price"),
+  dateSold: text("date_sold"),
 });
 
 export const insertPropertySchema = createInsertSchema(properties).omit({

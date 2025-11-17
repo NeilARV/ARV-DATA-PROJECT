@@ -80,29 +80,41 @@ export default function PropertyDetailPanel({
               <span className="text-muted-foreground text-sm">Property Type</span>
               <span className="font-medium text-sm">{property.propertyType}</span>
             </div>
-            {property.yearBuilt && (
+            {property.propertyOwner && (
               <div className="flex justify-between py-2 border-b border-border">
+                <span className="text-muted-foreground text-sm">Property Owner</span>
+                <span className="font-medium text-sm">{property.propertyOwner}</span>
+              </div>
+            )}
+            {property.companyContactName && (
+              <div className="py-2 border-b border-border">
+                <div className="text-muted-foreground text-sm mb-1">Company Contact</div>
+                <div className="font-medium text-sm">{property.companyContactName}</div>
+                {property.companyContactEmail && (
+                  <div className="text-sm text-muted-foreground">{property.companyContactEmail}</div>
+                )}
+              </div>
+            )}
+            {property.purchasePrice && (
+              <div className="flex justify-between py-2 border-b border-border">
+                <span className="text-muted-foreground text-sm">Purchase Price</span>
+                <span className="font-medium text-sm">${property.purchasePrice.toLocaleString()}</span>
+              </div>
+            )}
+            {property.dateSold && (
+              <div className="flex justify-between py-2 border-b border-border">
+                <span className="text-muted-foreground text-sm">Date Sold</span>
+                <span className="font-medium text-sm">{property.dateSold}</span>
+              </div>
+            )}
+            {property.yearBuilt && (
+              <div className="flex justify-between py-2">
                 <span className="text-muted-foreground text-sm">Year Built</span>
                 <span className="font-medium text-sm">{property.yearBuilt}</span>
               </div>
             )}
-            <div className="flex justify-between py-2">
-              <span className="text-muted-foreground text-sm">Price per Sqft</span>
-              <span className="font-medium text-sm">
-                ${Math.round(property.price / property.squareFeet).toLocaleString()}
-              </span>
-            </div>
           </div>
         </Card>
-
-        <div>
-          <h3 className="font-semibold mb-2">Description</h3>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            {property.description || 
-              `Beautiful ${property.propertyType.toLowerCase()} located in ${property.city}, ${property.state}. This property features ${property.bedrooms} bedrooms and ${property.bathrooms} bathrooms with ${property.squareFeet.toLocaleString()} square feet of living space.`
-            }
-          </p>
-        </div>
       </div>
     </div>
   );
