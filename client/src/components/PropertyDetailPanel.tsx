@@ -1,6 +1,6 @@
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Bed, Bath, Maximize2, MapPin, X } from "lucide-react";
+import { Bed, Bath, Maximize2, MapPin, X, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 interface PropertyDetailPanelProps {
@@ -72,13 +72,16 @@ export default function PropertyDetailPanel({
               <div className="text-xs text-muted-foreground">Sqft</div>
             </div>
           </div>
+          {property.yearBuilt && (
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <div className="font-semibold">{property.yearBuilt}</div>
+                <div className="text-xs text-muted-foreground">Year Built</div>
+              </div>
+            </div>
+          )}
         </div>
-
-        {property.yearBuilt && (
-          <div className="text-sm text-muted-foreground">
-            Built in {property.yearBuilt}
-          </div>
-        )}
 
         <Card className="p-4">
           <div className="space-y-3">
