@@ -91,7 +91,57 @@ export default function UploadDialog({
           const workbook = XLSX.read(data, { type: 'array' });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          // Get range to find actual data
+          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+          
+          // Try to find the header row by looking for rows with actual data
+          let headerRowIndex = 0;
+          let jsonData: any[] = [];
+          
+          for (let rowIndex = range.s.r; rowIndex <= Math.min(range.s.r + 10, range.e.r); rowIndex++) {
+            const testData = XLSX.utils.sheet_to_json(worksheet, { 
+              range: rowIndex,
+              defval: '' 
+            });
+            
+            if (testData.length > 0) {
+              const firstRow = testData[0] as any;
+              const keys = Object.keys(firstRow);
+              
+              // Check if this row has meaningful column names (not just __EMPTY)
+              const hasRealHeaders = keys.some(key => 
+                !key.startsWith('__EMPTY') && 
+                key.trim() !== '' &&
+                typeof firstRow[key] === 'string' &&
+                firstRow[key].trim() !== ''
+              );
+              
+              if (hasRealHeaders) {
+                headerRowIndex = rowIndex;
+                jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                  range: rowIndex,
+                  defval: ''
+                });
+                break;
+              }
+            }
+          }
+          
+          // If no header row found, try with default parsing but filter out __EMPTY columns
+          if (jsonData.length === 0) {
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+            jsonData = rawData.map((row: any) => {
+              const cleanedRow: any = {};
+              Object.keys(row).forEach(key => {
+                if (!key.startsWith('__EMPTY')) {
+                  cleanedRow[key] = row[key];
+                }
+              });
+              return cleanedRow;
+            });
+          }
+          
           processData(jsonData);
         } catch (err) {
           setError('Error reading Excel file. Please make sure it has the correct format.');
