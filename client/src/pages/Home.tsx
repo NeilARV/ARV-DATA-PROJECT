@@ -4,10 +4,11 @@ import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
 import PropertyCard from "@/components/PropertyCard";
 import PropertyMap from "@/components/PropertyMap";
 import PropertyDetailModal from "@/components/PropertyDetailModal";
+import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import UploadDialog from "@/components/UploadDialog";
 import { Property, InsertProperty } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Filter, X } from "lucide-react";
+import { Filter } from "lucide-react";
 
 import propertyImage1 from '@assets/generated_images/Modern_suburban_family_home_ea49b726.png';
 import propertyImage2 from '@assets/generated_images/Luxury_ranch_style_home_5e6e8db5.png';
@@ -196,14 +197,24 @@ export default function Home() {
             </div>
           )}
 
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden flex">
             {viewMode === "map" ? (
-              <PropertyMap
-                properties={filteredProperties}
-                onPropertyClick={setSelectedProperty}
-              />
+              <>
+                {selectedProperty && (
+                  <PropertyDetailPanel
+                    property={selectedProperty}
+                    onClose={() => setSelectedProperty(null)}
+                  />
+                )}
+                <div className="flex-1">
+                  <PropertyMap
+                    properties={filteredProperties}
+                    onPropertyClick={setSelectedProperty}
+                  />
+                </div>
+              </>
             ) : (
-              <div className="h-full overflow-y-auto p-6">
+              <div className="h-full overflow-y-auto p-6 flex-1">
                 <div className="mb-4">
                   <h2 className="text-2xl font-semibold mb-1">
                     {filteredProperties.length} Properties
@@ -227,11 +238,13 @@ export default function Home() {
         </div>
       </div>
 
-      <PropertyDetailModal
-        property={selectedProperty}
-        open={!!selectedProperty}
-        onClose={() => setSelectedProperty(null)}
-      />
+      {viewMode === "grid" && (
+        <PropertyDetailModal
+          property={selectedProperty}
+          open={!!selectedProperty}
+          onClose={() => setSelectedProperty(null)}
+        />
+      )}
 
       <UploadDialog
         open={showUploadDialog}
