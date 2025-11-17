@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 interface FilterSidebarProps {
   onClose?: () => void;
   onFilterChange?: (filters: PropertyFilters) => void;
+  availableZipCodes?: string[];
 }
 
 export interface PropertyFilters {
@@ -23,12 +24,16 @@ const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo'];
 const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
-export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebarProps) {
+export default function FilterSidebar({ onClose, onFilterChange, availableZipCodes = [] }: FilterSidebarProps) {
   const [priceRange, setPriceRange] = useState([0, 2000000]);
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [zipCode, setZipCode] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredZipCodes, setFilteredZipCodes] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const handleApply = () => {
     onFilterChange?.({
@@ -57,6 +62,40 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
     );
   };
 
+  const handleZipCodeChange = (value: string) => {
+    setZipCode(value);
+    if (value.length > 0) {
+      const matches = availableZipCodes
+        .filter(zip => zip.startsWith(value))
+        .slice(0, 10);
+      setFilteredZipCodes(matches);
+      setShowSuggestions(matches.length > 0);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectZipCode = (zip: string) => {
+    setZipCode(zip);
+    setShowSuggestions(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className="w-80 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
       <div className="flex items-center justify-between p-4 border-b border-border">
@@ -69,6 +108,41 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="relative">
+          <Label className="text-sm font-medium mb-2 block">Zip Code</Label>
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder="Enter zip code"
+            value={zipCode}
+            onChange={(e) => handleZipCodeChange(e.target.value)}
+            onFocus={() => {
+              if (zipCode.length > 0 && filteredZipCodes.length > 0) {
+                setShowSuggestions(true);
+              }
+            }}
+            data-testid="input-zipcode"
+          />
+          {showSuggestions && filteredZipCodes.length > 0 && (
+            <div
+              ref={suggestionsRef}
+              className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
+              data-testid="zipcode-suggestions"
+            >
+              {filteredZipCodes.map((zip) => (
+                <div
+                  key={zip}
+                  className="px-3 py-2 cursor-pointer hover-elevate text-sm"
+                  onClick={() => selectZipCode(zip)}
+                  data-testid={`suggestion-${zip}`}
+                >
+                  {zip}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div>
           <Label className="text-sm font-medium mb-4 block">Price Range</Label>
           <div className="mb-2 text-sm text-muted-foreground">
@@ -135,17 +209,6 @@ export default function FilterSidebar({ onClose, onFilterChange }: FilterSidebar
               </label>
             ))}
           </div>
-        </div>
-
-        <div>
-          <Label className="text-sm font-medium mb-2 block">Zip Code</Label>
-          <Input
-            type="text"
-            placeholder="Enter zip code"
-            value={zipCode}
-            onChange={(e) => setZipCode(e.target.value)}
-            data-testid="input-zipcode"
-          />
         </div>
       </div>
 

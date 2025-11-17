@@ -177,6 +177,8 @@ export default function Home() {
     console.log('Properties uploaded:', newProperties.length);
   };
 
+  const availableZipCodes = Array.from(new Set(properties.map(p => p.zipCode))).sort();
+
   const filteredProperties = properties.filter(property => {
     if (!filters) return true;
 
@@ -218,6 +220,7 @@ export default function Home() {
           <FilterSidebar
             onClose={() => setShowFilters(false)}
             onFilterChange={setFilters}
+            availableZipCodes={availableZipCodes}
           />
         )}
 
