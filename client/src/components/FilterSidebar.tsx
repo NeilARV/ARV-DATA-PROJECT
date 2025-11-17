@@ -201,6 +201,16 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
     const zipOnly = zipWithCity.split(' - ')[0];
     setZipCode(zipOnly);
     setShowSuggestions(false);
+    
+    // Immediately apply the zip code filter
+    onFilterChange?.({
+      minPrice: priceRange[0],
+      maxPrice: priceRange[1],
+      bedrooms: selectedBedrooms,
+      bathrooms: selectedBathrooms,
+      propertyTypes: selectedTypes,
+      zipCode: zipOnly,
+    });
   };
 
   useEffect(() => {
