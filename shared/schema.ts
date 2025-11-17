@@ -26,9 +26,22 @@ export const properties = pgTable("properties", {
   dateSold: text("date_sold"),
 });
 
+export const companyContacts = pgTable("company_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyName: text("company_name").notNull().unique(),
+  contactName: text("contact_name").notNull(),
+  contactEmail: text("contact_email"),
+});
+
 export const insertPropertySchema = createInsertSchema(properties).omit({
+  id: true,
+});
+
+export const insertCompanyContactSchema = createInsertSchema(companyContacts).omit({
   id: true,
 });
 
 export type InsertProperty = z.infer<typeof insertPropertySchema>;
 export type Property = typeof properties.$inferSelect;
+export type CompanyContact = typeof companyContacts.$inferSelect;
+export type InsertCompanyContact = z.infer<typeof insertCompanyContactSchema>;

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
 import PropertyCard from "@/components/PropertyCard";
@@ -6,9 +7,10 @@ import PropertyMap from "@/components/PropertyMap";
 import PropertyDetailModal from "@/components/PropertyDetailModal";
 import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import UploadDialog from "@/components/UploadDialog";
-import { Property, InsertProperty } from "@shared/schema";
+import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 import propertyImage1 from '@assets/generated_images/Modern_suburban_family_home_ea49b726.png';
 import propertyImage2 from '@assets/generated_images/Luxury_ranch_style_home_5e6e8db5.png';
@@ -157,26 +159,18 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [properties, setProperties] = useState<Property[]>(MOCK_PROPERTIES);
   const [filters, setFilters] = useState<PropertyFilters | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
 
-  const handleUpload = (uploadedProperties: InsertProperty[]) => {
-    const newProperties: Property[] = uploadedProperties.map((prop, idx) => ({
-      ...prop,
-      id: `uploaded-${Date.now()}-${idx}`,
-      imageUrl: prop.imageUrl ?? null,
-      description: prop.description ?? null,
-      yearBuilt: prop.yearBuilt ?? null,
-      propertyOwner: prop.propertyOwner ?? null,
-      companyContactName: prop.companyContactName ?? null,
-      companyContactEmail: prop.companyContactEmail ?? null,
-      purchasePrice: prop.purchasePrice ?? null,
-      dateSold: prop.dateSold ?? null,
-    }));
-    setProperties([...properties, ...newProperties]);
-    console.log('Properties uploaded:', newProperties.length);
+  // Fetch properties from backend
+  const { data: properties = [], isLoading } = useQuery<Property[]>({
+    queryKey: ["/api/properties"],
+  });
+
+  const handleUploadSuccess = () => {
+    // Refresh properties after upload
+    queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
   };
 
   const availableZipCodes = Array.from(new Set(properties.map(p => p.zipCode))).sort();
@@ -321,7 +315,7 @@ export default function Home() {
       <UploadDialog
         open={showUploadDialog}
         onClose={() => setShowUploadDialog(false)}
-        onUpload={handleUpload}
+        onSuccess={handleUploadSuccess}
       />
     </div>
   );

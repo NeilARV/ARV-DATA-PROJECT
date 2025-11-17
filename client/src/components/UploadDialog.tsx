@@ -6,26 +6,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CloudUpload, FileText, X } from "lucide-react";
+import { CloudUpload, FileText, X, Loader2 } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { InsertProperty } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
 interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
-  onUpload?: (properties: InsertProperty[]) => void;
+  onSuccess?: () => void;
 }
 
 export default function UploadDialog({
   open,
   onClose,
-  onUpload,
+  onSuccess,
 }: UploadDialogProps) {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<InsertProperty[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -146,11 +148,21 @@ export default function UploadDialog({
     }
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (parsedData) {
-      onUpload?.(parsedData);
-      console.log('Uploading properties:', parsedData);
-      handleClose();
+      setIsUploading(true);
+      setError(null);
+      
+      try {
+        await apiRequest("POST", "/api/properties/upload", parsedData);
+        onSuccess?.();
+        handleClose();
+      } catch (err: any) {
+        setError(err.message || "Failed to upload properties");
+        console.error("Upload error:", err);
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -265,11 +277,29 @@ export default function UploadDialog({
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleClose} className="flex-1" data-testid="button-cancel-upload">
+              <Button 
+                variant="outline" 
+                onClick={handleClose} 
+                className="flex-1" 
+                disabled={isUploading}
+                data-testid="button-cancel-upload"
+              >
                 Cancel
               </Button>
-              <Button onClick={handleUpload} className="flex-1" data-testid="button-confirm-upload">
-                Upload {parsedData.length} Properties
+              <Button 
+                onClick={handleUpload} 
+                className="flex-1" 
+                disabled={isUploading}
+                data-testid="button-confirm-upload"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  `Upload ${parsedData.length} Properties`
+                )}
               </Button>
             </div>
           </div>
