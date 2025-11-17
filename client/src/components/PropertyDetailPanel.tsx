@@ -34,8 +34,11 @@ export default function PropertyDetailPanel({
         </div>
 
         <div>
-          <div className="text-2xl font-bold text-foreground mb-2" data-testid="text-panel-price">
-            ${property.price.toLocaleString()}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">Last Sale Price:</span>
+            <span className="text-2xl font-bold text-foreground" data-testid="text-panel-price">
+              ${property.purchasePrice ? property.purchasePrice.toLocaleString() : property.price.toLocaleString()}
+            </span>
           </div>
           
           <div className="text-base font-medium text-foreground mb-1">
@@ -50,34 +53,34 @@ export default function PropertyDetailPanel({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <Bed className="w-5 h-5 text-muted-foreground" />
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1">
+            <Bed className="w-4 h-4 text-muted-foreground" />
             <div>
-              <div className="font-semibold" data-testid="text-panel-beds">{property.bedrooms}</div>
-              <div className="text-xs text-muted-foreground">Bedrooms</div>
+              <div className="font-semibold text-sm" data-testid="text-panel-beds">{property.bedrooms}</div>
+              <div className="text-xs text-muted-foreground">Beds</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Bath className="w-5 h-5 text-muted-foreground" />
+          <div className="flex items-center gap-1">
+            <Bath className="w-4 h-4 text-muted-foreground" />
             <div>
-              <div className="font-semibold" data-testid="text-panel-baths">{property.bathrooms}</div>
-              <div className="text-xs text-muted-foreground">Bathrooms</div>
+              <div className="font-semibold text-sm" data-testid="text-panel-baths">{property.bathrooms}</div>
+              <div className="text-xs text-muted-foreground">Baths</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Maximize2 className="w-5 h-5 text-muted-foreground" />
+          <div className="flex items-center gap-1">
+            <Maximize2 className="w-4 h-4 text-muted-foreground" />
             <div>
-              <div className="font-semibold" data-testid="text-panel-sqft">{property.squareFeet.toLocaleString()}</div>
+              <div className="font-semibold text-sm" data-testid="text-panel-sqft">{property.squareFeet.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">Sqft</div>
             </div>
           </div>
           {property.yearBuilt && (
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-muted-foreground" />
+            <div className="flex items-center gap-1">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
               <div>
-                <div className="font-semibold">{property.yearBuilt}</div>
-                <div className="text-xs text-muted-foreground">Year Built</div>
+                <div className="font-semibold text-sm">{property.yearBuilt}</div>
+                <div className="text-xs text-muted-foreground">Built</div>
               </div>
             </div>
           )}
