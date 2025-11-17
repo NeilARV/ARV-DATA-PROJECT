@@ -1,0 +1,9 @@
+address,city,state,zipCode,price,bedrooms,bathrooms,squareFeet,propertyType,latitude,longitude,propertyOwner,companyContactName,companyContactEmail,purchasePrice,dateSold,yearBuilt
+123 La Jolla Shores Dr,La Jolla,CA,92037,2500000,4,3.5,3200,Single Family,32.8501,-117.2563,Smith Family Trust,John Smith,john.smith@example.com,2200000,01-15-2023,2015
+456 Pacific Beach Dr,San Diego,CA,92109,1850000,3,2.5,2400,Townhouse,32.7940,-117.2348,Johnson Properties LLC,Emily Johnson,emily@johnsonproperties.com,1650000,03-22-2022,2018
+789 Downtown Loft,San Diego,CA,92101,950000,2,2,1600,Condo,32.7157,-117.1611,Downtown Investors,Michael Chen,mchen@dti.com,825000,06-10-2023,2020
+234 Mission Valley Way,San Diego,CA,92108,1275000,3,2,2000,Single Family,32.7739,-117.1628,Wilson Family,Sarah Wilson,swilson@email.com,1100000,11-05-2022,2012
+567 Carmel Valley Rd,San Diego,CA,92130,2100000,5,4,3800,Single Family,32.9341,-117.2133,Tech Ventures LLC,David Park,dpark@techventures.com,1850000,09-12-2023,2019
+890 Mira Mesa Blvd,San Diego,CA,92126,725000,3,2,1800,Townhouse,32.9147,-117.1439,Real Estate Holdings,Lisa Martinez,lmartinez@reh.com,650000,04-18-2023,2016
+345 El Cajon Blvd,El Cajon,CA,92021,625000,3,2,1650,Single Family,32.7948,-116.9625,Brown Trust,Robert Brown,rbrown@email.com,550000,02-28-2023,2010
+678 Chula Vista Ave,Chula Vista,CA,91910,795000,4,3,2200,Single Family,32.6401,-117.0842,Garcia Family,Maria Garcia,mgarcia@email.com,700000,07-14-2022,2014
