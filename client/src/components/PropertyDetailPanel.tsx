@@ -104,7 +104,15 @@ export default function PropertyDetailPanel({
             {property.dateSold && (
               <div className="flex justify-between py-2 border-b border-border">
                 <span className="text-muted-foreground text-sm">Date Sold</span>
-                <span className="font-medium text-sm">{property.dateSold}</span>
+                <span className="font-medium text-sm">
+                  {(() => {
+                    const date = new Date(property.dateSold);
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const year = date.getFullYear();
+                    return `${month}-${day}-${year}`;
+                  })()}
+                </span>
               </div>
             )}
             {property.yearBuilt && (
