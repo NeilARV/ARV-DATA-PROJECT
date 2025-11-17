@@ -23,6 +23,11 @@ Preferred communication style: Simple, everyday language.
 - Material Design principles adapted for real estate data density
 - Inter font family for optimal data-dense interfaces
 - Custom CSS variables system for theming with dark mode support
+- ARV DATA brand colors:
+  - Primary brand blue: #69C9E1 (RGB: 105, 201, 225 / HSL: 192 67% 65%)
+  - Primary text/dark: #231F20 (RGB: 35, 31, 32)
+  - Light gray: #EAEAEA (RGB: 234, 234, 234)
+  - White: #FFFFFF
 
 **State Management**
 - TanStack Query (React Query) for server state management and data fetching
