@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Map, Grid3x3, CloudUpload, Search, Moon, Sun } from "lucide-react";
 import { useState, useEffect } from "react";
+import logoUrl from "@assets/arv-data-logo.png";
 
 interface HeaderProps {
   viewMode: "map" | "grid";
@@ -44,11 +45,14 @@ export default function Header({
 
   return (
     <header className="h-16 border-b border-border bg-background flex items-center px-4 gap-4" data-testid="header-main">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-          <Map className="w-5 h-5 text-primary-foreground" />
-        </div>
-        <h1 className="text-lg font-semibold hidden sm:block">PropertyFinder</h1>
+      <div className="flex items-center gap-3">
+        <img 
+          src={logoUrl} 
+          alt="ARV DATA" 
+          className="h-10 w-auto"
+          data-testid="img-logo"
+        />
+        <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
       </div>
 
       <form onSubmit={handleSearch} className="flex-1 max-w-md">

@@ -25,9 +25,7 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
   const map = useMap();
   
   useEffect(() => {
-    if (center && zoom) {
-      map.setView(center, zoom);
-    } else if (properties.length > 0) {
+    if (properties.length > 0) {
       // Filter properties with valid coordinates
       const validProperties = properties.filter(p => 
         p.latitude != null && p.longitude != null && 
@@ -35,11 +33,18 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
       );
       
       if (validProperties.length > 0) {
+        // Fit bounds to valid properties
         const bounds = L.latLngBounds(
           validProperties.map(p => [p.latitude!, p.longitude!])
         );
         map.fitBounds(bounds, { padding: [50, 50] });
+      } else if (center && zoom) {
+        // Reset to default view when no valid coordinates exist
+        map.setView(center, zoom);
       }
+    } else if (center && zoom) {
+      // No properties at all, use default view
+      map.setView(center, zoom);
     }
   }, [properties, center, zoom, map]);
 
