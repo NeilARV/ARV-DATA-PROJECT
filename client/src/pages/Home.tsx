@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
 import PropertyCard from "@/components/PropertyCard";
@@ -159,6 +159,8 @@ export default function Home() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [properties, setProperties] = useState<Property[]>(MOCK_PROPERTIES);
   const [filters, setFilters] = useState<PropertyFilters | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
+  const [mapZoom, setMapZoom] = useState<number>(12);
 
   const handleUpload = (uploadedProperties: InsertProperty[]) => {
     const newProperties: Property[] = uploadedProperties.map((prop, idx) => ({
@@ -178,6 +180,32 @@ export default function Home() {
   };
 
   const availableZipCodes = Array.from(new Set(properties.map(p => p.zipCode))).sort();
+
+  useEffect(() => {
+    const fetchZipCodeLocation = async () => {
+      if (filters?.zipCode && filters.zipCode.trim() !== '') {
+        try {
+          const response = await fetch(`https://api.zippopotam.us/us/${filters.zipCode.trim()}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.places && data.places.length > 0) {
+              const lat = parseFloat(data.places[0].latitude);
+              const lng = parseFloat(data.places[0].longitude);
+              setMapCenter([lat, lng]);
+              setMapZoom(13);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching zip code location:', error);
+        }
+      } else {
+        setMapCenter(undefined);
+        setMapZoom(12);
+      }
+    };
+
+    fetchZipCodeLocation();
+  }, [filters?.zipCode]);
 
   const filteredProperties = properties.filter(property => {
     if (!filters) return true;
@@ -252,6 +280,8 @@ export default function Home() {
                   <PropertyMap
                     properties={filteredProperties}
                     onPropertyClick={setSelectedProperty}
+                    center={mapCenter}
+                    zoom={mapZoom}
                   />
                 </div>
               </>

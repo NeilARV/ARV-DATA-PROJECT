@@ -21,17 +21,19 @@ interface PropertyMapProps {
   zoom?: number;
 }
 
-function MapBounds({ properties }: { properties: Property[] }) {
+function MapBounds({ properties, center, zoom }: { properties: Property[], center?: [number, number], zoom?: number }) {
   const map = useMap();
   
   useEffect(() => {
-    if (properties.length > 0) {
+    if (center && zoom) {
+      map.setView(center, zoom);
+    } else if (properties.length > 0) {
       const bounds = L.latLngBounds(
         properties.map(p => [p.latitude, p.longitude])
       );
       map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [properties, map]);
+  }, [properties, center, zoom, map]);
 
   return null;
 }
@@ -54,7 +56,7 @@ export default function PropertyMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {properties.length > 0 && <MapBounds properties={properties} />}
+        <MapBounds properties={properties} center={center} zoom={zoom} />
         {properties.map((property) => (
           <Marker
             key={property.id}
