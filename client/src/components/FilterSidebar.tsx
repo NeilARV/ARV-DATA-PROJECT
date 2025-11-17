@@ -17,7 +17,7 @@ export interface PropertyFilters {
   propertyTypes: string[];
 }
 
-const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo', 'Multi-Family'];
+const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo'];
 const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
