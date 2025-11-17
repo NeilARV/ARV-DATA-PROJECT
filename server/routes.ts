@@ -139,6 +139,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Street View image URL for a property address
+  app.get("/api/streetview", async (req, res) => {
+    try {
+      const { address, city, state, size = "600x400" } = req.query;
+      
+      if (!address) {
+        return res.status(400).json({ message: "Address parameter is required" });
+      }
+
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        console.error('GOOGLE_API_KEY not configured');
+        return res.status(500).json({ message: "Street View service not configured" });
+      }
+
+      // Combine address components for the location parameter
+      const locationParts = [address];
+      if (city) locationParts.push(city);
+      if (state) locationParts.push(state);
+      const location = locationParts.join(', ');
+      
+      const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=${size}&location=${encodeURIComponent(location)}&key=${apiKey}`;
+      
+      res.json({ url: streetViewUrl });
+    } catch (error) {
+      console.error('Error generating Street View URL:', error);
+      res.status(500).json({ message: "Error generating Street View URL" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

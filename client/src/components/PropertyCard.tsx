@@ -1,6 +1,8 @@
 import { Property } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Bed, Bath, Maximize2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getStreetViewUrl } from "@/lib/streetView";
 
 interface PropertyCardProps {
   property: Property;
@@ -8,6 +10,20 @@ interface PropertyCardProps {
 }
 
 export default function PropertyCard({ property, onClick }: PropertyCardProps) {
+  const [imageUrl, setImageUrl] = useState(property.imageUrl || '');
+
+  useEffect(() => {
+    // If no custom image URL, fetch Street View image
+    if (!property.imageUrl) {
+      getStreetViewUrl(property.address, property.city, property.state, "400x300")
+        .then(url => {
+          if (url) {
+            setImageUrl(url);
+          }
+        });
+    }
+  }, [property.address, property.city, property.state, property.imageUrl]);
+
   return (
     <Card
       className="overflow-hidden cursor-pointer hover-elevate active-elevate-2 transition-shadow"
@@ -15,12 +31,18 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
       data-testid={`card-property-${property.id}`}
     >
       <div className="aspect-[4/3] overflow-hidden bg-muted">
-        <img
-          src={property.imageUrl || ''}
-          alt={property.address}
-          className="w-full h-full object-cover"
-          data-testid={`img-property-${property.id}`}
-        />
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={property.address}
+            className="w-full h-full object-cover"
+            data-testid={`img-property-${property.id}`}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+            No image available
+          </div>
+        )}
       </div>
       <div className="p-4">
         <div className="text-xl font-bold text-foreground mb-1" data-testid={`text-price-${property.id}`}>

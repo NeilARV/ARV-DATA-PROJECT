@@ -2,6 +2,8 @@ import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Bed, Bath, Maximize2, MapPin, X, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { getStreetViewUrl } from "@/lib/streetView";
 
 interface PropertyDetailPanelProps {
   property: Property | null;
@@ -12,6 +14,23 @@ export default function PropertyDetailPanel({
   property,
   onClose,
 }: PropertyDetailPanelProps) {
+  const [imageUrl, setImageUrl] = useState('');
+
+  useEffect(() => {
+    if (property) {
+      if (property.imageUrl) {
+        setImageUrl(property.imageUrl);
+      } else {
+        getStreetViewUrl(property.address, property.city, property.state, "400x300")
+          .then(url => {
+            if (url) {
+              setImageUrl(url);
+            }
+          });
+      }
+    }
+  }, [property]);
+
   if (!property) return null;
 
   return (
@@ -25,12 +44,18 @@ export default function PropertyDetailPanel({
 
       <div className="p-4 space-y-4">
         <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted">
-          <img
-            src={property.imageUrl || ''}
-            alt={property.address}
-            className="w-full h-full object-cover"
-            data-testid="img-property-panel"
-          />
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={property.address}
+              className="w-full h-full object-cover"
+              data-testid="img-property-panel"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+              Loading...
+            </div>
+          )}
         </div>
 
         <div>

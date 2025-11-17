@@ -4,8 +4,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Bed, Bath, Maximize2, MapPin, Calendar } from "lucide-react";
+import { Bed, Bath, Maximize2, MapPin } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getStreetViewUrl } from "@/lib/streetView";
 
 interface PropertyDetailModalProps {
   property: Property | null;
@@ -18,6 +21,23 @@ export default function PropertyDetailModal({
   open,
   onClose,
 }: PropertyDetailModalProps) {
+  const [imageUrl, setImageUrl] = useState('');
+
+  useEffect(() => {
+    if (property) {
+      if (property.imageUrl) {
+        setImageUrl(property.imageUrl);
+      } else {
+        getStreetViewUrl(property.address, property.city, property.state, "800x450")
+          .then(url => {
+            if (url) {
+              setImageUrl(url);
+            }
+          });
+      }
+    }
+  }, [property]);
+
   if (!property) return null;
 
   return (
@@ -27,16 +47,25 @@ export default function PropertyDetailModal({
           <DialogTitle className="text-2xl font-semibold">
             {property.address}
           </DialogTitle>
+          <DialogDescription>
+            {property.city}, {property.state} {property.zipCode}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           <div className="aspect-[16/9] overflow-hidden rounded-lg bg-muted">
-            <img
-              src={property.imageUrl || ''}
-              alt={property.address}
-              className="w-full h-full object-cover"
-              data-testid="img-property-detail"
-            />
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={property.address}
+                className="w-full h-full object-cover"
+                data-testid="img-property-detail"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                Loading Street View...
+              </div>
+            )}
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -109,9 +138,11 @@ export default function PropertyDetailModal({
                 <div className="text-sm text-muted-foreground">
                   <div>{property.address}</div>
                   <div>{property.city}, {property.state} {property.zipCode}</div>
-                  <div className="mt-2 text-xs">
-                    Coordinates: {property.latitude.toFixed(4)}, {property.longitude.toFixed(4)}
-                  </div>
+                  {property.latitude !== null && property.longitude !== null && (
+                    <div className="mt-2 text-xs">
+                      Coordinates: {property.latitude.toFixed(4)}, {property.longitude.toFixed(4)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
