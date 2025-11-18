@@ -330,7 +330,7 @@ export default function Home() {
                 )}
                 <div className="flex-1">
                   <PropertyMap
-                    properties={filteredProperties}
+                    properties={sortedProperties}
                     onPropertyClick={setSelectedProperty}
                     center={mapCenter}
                     zoom={mapZoom}
@@ -351,15 +351,13 @@ export default function Home() {
                     </h2>
                     <p className="text-muted-foreground">
                       {selectedCompany ? (
-                        <Button
-                          variant="link"
-                          size="sm"
+                        <button
                           onClick={() => setSelectedCompany(null)}
-                          className="p-0 h-auto text-primary"
+                          className="text-primary hover:underline text-sm"
                           data-testid="button-clear-company-filter"
                         >
                           Clear company filter
-                        </Button>
+                        </button>
                       ) : (
                         "Find your perfect home"
                       )}
