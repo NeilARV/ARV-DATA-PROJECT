@@ -1,9 +1,9 @@
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Bed, Bath, Maximize2, MapPin, X, Calendar } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Bed, Bath, Maximize2, MapPin, X, Calendar, Building2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
+import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 
 interface PropertyDetailPanelProps {
   property: Property | null;
@@ -33,6 +33,10 @@ export default function PropertyDetailPanel({
 
   if (!property) return null;
 
+  const pricePerSqft = Math.round(property.price / property.squareFeet);
+  const formattedDateSold = formatDate(property.dateSold);
+  const daysOwned = calculateDaysOwned(property.dateSold);
+
   return (
     <div className="w-96 h-full bg-background border-r border-border overflow-y-auto" data-testid="panel-property-detail">
       <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center justify-between">
@@ -58,116 +62,101 @@ export default function PropertyDetailPanel({
           )}
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">Last Sale Price:</span>
-            <span className="text-2xl font-bold text-foreground" data-testid="text-panel-price">
-              ${property.purchasePrice ? property.purchasePrice.toLocaleString() : property.price.toLocaleString()}
-            </span>
-          </div>
-          
-          <div className="text-base font-medium text-foreground mb-1">
-            {property.address}
+        <div className="space-y-3">
+          <div className="text-2xl font-bold" data-testid="text-panel-price">
+            ${property.price.toLocaleString()}
           </div>
 
-          <div className="flex items-center gap-1 text-muted-foreground text-sm">
-            <MapPin className="w-4 h-4" />
-            <span>
+          <div>
+            <div className="text-base font-medium">{property.address}</div>
+            <div className="text-sm text-muted-foreground">
               {property.city}, {property.state} {property.zipCode}
-            </span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-1">
-            <Bed className="w-4 h-4 text-muted-foreground" />
-            <div>
-              <div className="font-semibold text-sm" data-testid="text-panel-beds">{property.bedrooms}</div>
-              <div className="text-xs text-muted-foreground">Beds</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Bath className="w-4 h-4 text-muted-foreground" />
-            <div>
-              <div className="font-semibold text-sm" data-testid="text-panel-baths">{property.bathrooms}</div>
-              <div className="text-xs text-muted-foreground">Baths</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Maximize2 className="w-4 h-4 text-muted-foreground" />
-            <div>
-              <div className="font-semibold text-sm" data-testid="text-panel-sqft">{property.squareFeet.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">Sqft</div>
-            </div>
-          </div>
-          {property.yearBuilt && (
+          <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <Bed className="w-4 h-4" />
+              <span data-testid="text-panel-beds">{property.bedrooms} bd</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Bath className="w-4 h-4" />
+              <span data-testid="text-panel-baths">{property.bathrooms} ba</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Maximize2 className="w-4 h-4" />
+              <span data-testid="text-panel-sqft">{property.squareFeet.toLocaleString()} sqft</span>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="font-semibold text-sm">{property.yearBuilt}</div>
-                <div className="text-xs text-muted-foreground">Built</div>
+                <div className="text-xs text-muted-foreground mb-1">Property Type</div>
+                <div className="font-medium text-sm">{property.propertyType}</div>
+              </div>
+
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Price per Sqft</div>
+                <div className="font-medium text-sm">${pricePerSqft}</div>
               </div>
             </div>
-          )}
-        </div>
 
-        <Card className="p-4">
-          <div className="space-y-3">
-            <div className="flex justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground text-sm">Property Type</span>
-              <span className="font-medium text-sm">{property.propertyType}</span>
-            </div>
             {property.propertyOwner && (
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground text-sm">Property Owner</span>
-                <span className="font-medium text-sm">{property.propertyOwner}</span>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Property Owner</div>
+                <div className="flex items-start gap-1">
+                  <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span className="font-medium text-sm" data-testid="text-property-owner">{property.propertyOwner}</span>
+                </div>
               </div>
             )}
+
             {property.companyContactName && (
-              <div className="py-2 border-b border-border">
-                <div className="text-muted-foreground text-sm mb-1">Company Contact</div>
-                <div className="font-medium text-sm">{property.companyContactName}</div>
-                {property.companyContactEmail && (
-                  <div className="text-sm text-muted-foreground">{property.companyContactEmail}</div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Company Contact</div>
+                <div className="font-medium text-sm" data-testid="text-company-contact">
+                  {property.companyContactName}
+                </div>
+              </div>
+            )}
+
+            {formattedDateSold && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Date Sold</div>
+                  <div className="flex items-start gap-1">
+                    <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                    <span className="font-medium text-sm">{formattedDateSold}</span>
+                  </div>
+                </div>
+
+                {daysOwned !== null && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">Days Owned</div>
+                    <div className="font-medium text-sm">{daysOwned} days</div>
+                  </div>
                 )}
               </div>
             )}
-            {property.purchasePrice && (
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground text-sm">Purchase Price</span>
-                <span className="font-medium text-sm">${property.purchasePrice.toLocaleString()}</span>
+
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Location</div>
+              <div className="flex items-start gap-1 text-sm">
+                <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <div>{property.address}</div>
+                  <div className="text-muted-foreground">{property.city}, {property.state} {property.zipCode}</div>
+                  {property.latitude !== null && property.longitude !== null && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Coordinates: {property.latitude.toFixed(6)}, {property.longitude.toFixed(6)}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-            {property.dateSold && (
-              <>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <span className="text-muted-foreground text-sm">Date Sold</span>
-                  <span className="font-medium text-sm">
-                    {(() => {
-                      const date = new Date(property.dateSold);
-                      const month = String(date.getMonth() + 1).padStart(2, '0');
-                      const day = String(date.getDate()).padStart(2, '0');
-                      const year = date.getFullYear();
-                      return `${month}-${day}-${year}`;
-                    })()}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <span className="text-muted-foreground text-sm">Days Owned</span>
-                  <span className="font-medium text-sm">
-                    {(() => {
-                      const soldDate = new Date(property.dateSold);
-                      const today = new Date();
-                      const diffTime = Math.abs(today.getTime() - soldDate.getTime());
-                      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                      return diffDays;
-                    })()}
-                  </span>
-                </div>
-              </>
-            )}
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
