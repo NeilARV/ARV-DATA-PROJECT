@@ -12,6 +12,13 @@ import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import propertyImage1 from '@assets/generated_images/Modern_suburban_family_home_ea49b726.png';
 import propertyImage2 from '@assets/generated_images/Luxury_ranch_style_home_5e6e8db5.png';
@@ -155,6 +162,8 @@ const MOCK_PROPERTIES: Property[] = [
   },
 ];
 
+type SortOption = "recently-sold" | "price-high-low" | "price-low-high";
+
 export default function Home() {
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("filters");
@@ -163,6 +172,7 @@ export default function Home() {
   const [filters, setFilters] = useState<PropertyFilters | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
+  const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
 
   // Fetch properties from backend
   const { data: properties = [], isLoading } = useQuery<Property[]>({
@@ -228,6 +238,22 @@ export default function Home() {
     }
 
     return true;
+  });
+
+  const sortedProperties = [...filteredProperties].sort((a, b) => {
+    switch (sortBy) {
+      case "recently-sold":
+        if (!a.dateSold && !b.dateSold) return 0;
+        if (!a.dateSold) return 1;
+        if (!b.dateSold) return -1;
+        return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
+      case "price-high-low":
+        return b.price - a.price;
+      case "price-low-high":
+        return a.price - b.price;
+      default:
+        return 0;
+    }
   });
 
   return (
@@ -299,16 +325,37 @@ export default function Home() {
               </>
             ) : (
               <div className="h-full overflow-y-auto p-6 flex-1">
-                <div className="mb-4">
-                  <h2 className="text-2xl font-semibold mb-1">
-                    {filteredProperties.length} Properties
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Find your perfect home
-                  </p>
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold mb-1">
+                      {sortedProperties.length} Properties
+                    </h2>
+                    <p className="text-muted-foreground">
+                      Find your perfect home
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Sort by:</span>
+                    <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                      <SelectTrigger className="w-[180px]" data-testid="select-sort">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="recently-sold" data-testid="sort-recently-sold">
+                          Recently Sold
+                        </SelectItem>
+                        <SelectItem value="price-high-low" data-testid="sort-price-high-low">
+                          Price: High to Low
+                        </SelectItem>
+                        <SelectItem value="price-low-high" data-testid="sort-price-low-high">
+                          Price: Low to High
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredProperties.map((property) => (
+                  {sortedProperties.map((property) => (
                     <PropertyCard
                       key={property.id}
                       property={property}
