@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { X } from "lucide-react";
+import { X, Building2 } from "lucide-react";
 
 interface FilterSidebarProps {
   onClose?: () => void;
   onFilterChange?: (filters: PropertyFilters) => void;
   availableZipCodes?: string[];
+  onSwitchToDirectory?: () => void;
 }
 
 export interface PropertyFilters {
@@ -142,7 +143,7 @@ const SAN_DIEGO_ZIP_CODES = [
   { zip: '92672', city: 'San Clemente' },
 ];
 
-export default function FilterSidebar({ onClose, onFilterChange, availableZipCodes = [] }: FilterSidebarProps) {
+export default function FilterSidebar({ onClose, onFilterChange, availableZipCodes = [], onSwitchToDirectory }: FilterSidebarProps) {
   const [priceRange, setPriceRange] = useState([0, 2000000]);
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
@@ -231,13 +232,30 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
 
   return (
     <div className="w-80 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <h2 className="text-lg font-semibold">Filters</h2>
-        {onClose && (
-          <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-filters">
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex gap-2">
+            <Button variant="default" size="sm" data-testid="button-tab-filters">
+              Filters
+            </Button>
+            {onSwitchToDirectory && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onSwitchToDirectory}
+                data-testid="button-tab-directory"
+              >
+                <Building2 className="w-4 h-4 mr-1" />
+                Directory
+              </Button>
+            )}
+          </div>
+          {onClose && (
+            <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-filters">
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
+import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyCard from "@/components/PropertyCard";
 import PropertyMap from "@/components/PropertyMap";
 import PropertyDetailModal from "@/components/PropertyDetailModal";
@@ -9,7 +10,7 @@ import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import UploadDialog from "@/components/UploadDialog";
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Filter } from "lucide-react";
+import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 import propertyImage1 from '@assets/generated_images/Modern_suburban_family_home_ea49b726.png';
@@ -156,7 +157,7 @@ const MOCK_PROPERTIES: Property[] = [
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
-  const [showFilters, setShowFilters] = useState(true);
+  const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("filters");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [filters, setFilters] = useState<PropertyFilters | null>(null);
@@ -238,25 +239,42 @@ export default function Home() {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        {showFilters && (
+        {sidebarView === "filters" && (
           <FilterSidebar
-            onClose={() => setShowFilters(false)}
+            onClose={() => setSidebarView("none")}
             onFilterChange={setFilters}
             availableZipCodes={availableZipCodes}
+            onSwitchToDirectory={() => setSidebarView("directory")}
+          />
+        )}
+        
+        {sidebarView === "directory" && (
+          <CompanyDirectory
+            onClose={() => setSidebarView("none")}
+            onSwitchToFilters={() => setSidebarView("filters")}
           />
         )}
 
         <div className="flex-1 flex flex-col">
-          {!showFilters && (
-            <div className="p-2 border-b border-border">
+          {sidebarView === "none" && (
+            <div className="p-2 border-b border-border flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowFilters(true)}
+                onClick={() => setSidebarView("filters")}
                 data-testid="button-show-filters"
               >
                 <Filter className="w-4 h-4 mr-2" />
-                Show Filters
+                Filters
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSidebarView("directory")}
+                data-testid="button-show-directory"
+              >
+                <Building2 className="w-4 h-4 mr-2" />
+                Directory
               </Button>
             </div>
           )}
