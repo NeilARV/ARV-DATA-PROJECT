@@ -145,6 +145,38 @@ export default function PropertyDetailModal({
                   )}
                 </div>
               </div>
+
+              {(property.propertyOwner || property.companyContactName || property.companyContactEmail) && (
+                <div className="mt-6">
+                  <h3 className="font-semibold text-lg mb-3">Owner Information</h3>
+                  <div className="space-y-2 text-sm">
+                    {property.propertyOwner && (
+                      <div>
+                        <span className="text-muted-foreground">Owner: </span>
+                        <span className="font-medium" data-testid="text-property-owner">{property.propertyOwner}</span>
+                      </div>
+                    )}
+                    {property.companyContactName && (
+                      <div>
+                        <span className="text-muted-foreground">Contact: </span>
+                        <span className="font-medium" data-testid="text-company-contact">{property.companyContactName}</span>
+                      </div>
+                    )}
+                    {property.companyContactEmail && (
+                      <div>
+                        <span className="text-muted-foreground">Email: </span>
+                        <a 
+                          href={`mailto:${property.companyContactEmail}`}
+                          className="font-medium text-primary hover:underline"
+                          data-testid="link-company-email"
+                        >
+                          {property.companyContactEmail}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
