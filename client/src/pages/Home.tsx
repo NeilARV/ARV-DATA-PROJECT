@@ -170,6 +170,7 @@ export default function Home() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [filters, setFilters] = useState<PropertyFilters | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
@@ -213,6 +214,12 @@ export default function Home() {
   }, [filters?.zipCode]);
 
   const filteredProperties = properties.filter(property => {
+    // Apply company filter first if one is selected
+    if (selectedCompany && property.propertyOwner !== selectedCompany) {
+      return false;
+    }
+
+    // Then apply regular filters
     if (!filters) return true;
 
     if (property.price < filters.minPrice || property.price > filters.maxPrice) {
@@ -239,6 +246,12 @@ export default function Home() {
 
     return true;
   });
+
+  const handleCompanySelect = (companyName: string) => {
+    setSelectedCompany(companyName);
+    setSidebarView("none"); // Close the directory
+    // Keep the user in their current view mode (map or grid)
+  };
 
   const sortedProperties = [...filteredProperties].sort((a, b) => {
     switch (sortBy) {
@@ -278,6 +291,7 @@ export default function Home() {
           <CompanyDirectory
             onClose={() => setSidebarView("none")}
             onSwitchToFilters={() => setSidebarView("filters")}
+            onCompanySelect={handleCompanySelect}
           />
         )}
 
@@ -329,9 +343,26 @@ export default function Home() {
                   <div>
                     <h2 className="text-2xl font-semibold mb-1">
                       {sortedProperties.length} Properties
+                      {selectedCompany && (
+                        <span className="text-base font-normal text-muted-foreground ml-2">
+                          owned by {selectedCompany}
+                        </span>
+                      )}
                     </h2>
                     <p className="text-muted-foreground">
-                      Find your perfect home
+                      {selectedCompany ? (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => setSelectedCompany(null)}
+                          className="p-0 h-auto text-primary"
+                          data-testid="button-clear-company-filter"
+                        >
+                          Clear company filter
+                        </Button>
+                      ) : (
+                        "Find your perfect home"
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
