@@ -7,10 +7,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CloudUpload, FileText, X, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { InsertProperty } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { InsertProperty, insertPropertySchema } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { parseDate } from "@/lib/dateUtils";
 
@@ -31,7 +38,44 @@ export default function UploadDialog({
   const [parsedData, setParsedData] = useState<InsertProperty[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Form for manual entry
+  const form = useForm<InsertProperty>({
+    resolver: zodResolver(insertPropertySchema.extend({
+      // Make optional fields that can be left blank
+      latitude: insertPropertySchema.shape.latitude.optional(),
+      longitude: insertPropertySchema.shape.longitude.optional(),
+      imageUrl: insertPropertySchema.shape.imageUrl.optional(),
+      description: insertPropertySchema.shape.description.optional(),
+      yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
+      propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
+      companyContactName: insertPropertySchema.shape.companyContactName.optional(),
+      companyContactEmail: insertPropertySchema.shape.companyContactEmail.optional(),
+      purchasePrice: insertPropertySchema.shape.purchasePrice.optional(),
+      dateSold: insertPropertySchema.shape.dateSold.optional(),
+    })),
+    defaultValues: {
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      price: 0,
+      bedrooms: 0,
+      bathrooms: 0,
+      squareFeet: 0,
+      propertyType: "Single Family",
+      imageUrl: "",
+      description: "",
+      yearBuilt: undefined,
+      propertyOwner: "",
+      companyContactName: "",
+      companyContactEmail: "",
+      purchasePrice: undefined,
+      dateSold: "",
+    },
+  });
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -323,144 +367,499 @@ export default function UploadDialog({
     }
   };
 
+  const handleManualSubmit = async (data: InsertProperty) => {
+    setIsManualSubmitting(true);
+    setError(null);
+
+    try {
+      await apiRequest("POST", "/api/properties", data);
+      
+      toast({
+        title: "Property Added",
+        description: "Property has been successfully added to the database.",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      form.reset();
+      onSuccess?.();
+      handleClose();
+    } catch (err: any) {
+      const errorMessage = err.message || "Failed to add property";
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsManualSubmitting(false);
+    }
+  };
+
   const handleClose = () => {
     setFile(null);
     setParsedData(null);
     setError(null);
     setDragActive(false);
+    form.reset();
     onClose();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl" data-testid="dialog-upload">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-upload">
         <DialogHeader>
-          <DialogTitle>Upload Property Data</DialogTitle>
+          <DialogTitle>Add Property Data</DialogTitle>
         </DialogHeader>
 
-        {!parsedData ? (
-          <div>
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragActive ? "border-primary bg-primary/5" : "border-border"
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              data-testid="dropzone-upload"
-            >
-              <CloudUpload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-base mb-2">
-                Drag and drop your CSV or Excel file here, or{" "}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-primary hover:underline"
-                  data-testid="button-browse"
-                >
-                  browse
-                </button>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                CSV or Excel file (.csv, .xlsx, .xls) with columns: address, city, state, zipCode, price, bedrooms, bathrooms, squareFeet, propertyType, propertyOwner (optional: latitude, longitude, companyContactName, companyContactEmail, purchasePrice, dateSold)
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileInput}
-                className="hidden"
-                data-testid="input-file"
-              />
-            </div>
+        <Tabs defaultValue="file" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="file" data-testid="tab-file-upload">File Upload</TabsTrigger>
+            <TabsTrigger value="manual" data-testid="tab-manual-entry">Manual Entry</TabsTrigger>
+          </TabsList>
 
-            {file && !error && (
-              <div className="mt-4 flex items-center gap-2 p-3 bg-muted rounded-lg">
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm flex-1">{file.name}</span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setFile(null);
-                    setParsedData(null);
-                  }}
+          <TabsContent value="file" className="mt-4">
+            {!parsedData ? (
+              <div>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    dragActive ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  data-testid="dropzone-upload"
                 >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-
-            {error && (
-              <div className="mt-4 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div>
-            <div className="bg-muted rounded-lg p-4 mb-4">
-              <h3 className="font-semibold mb-2">Preview</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Found {parsedData.length} properties
-              </p>
-              <div className="max-h-60 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border">
-                    <tr>
-                      <th className="text-left py-2">Address</th>
-                      <th className="text-left py-2">Price</th>
-                      <th className="text-left py-2">Beds</th>
-                      <th className="text-left py-2">Baths</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.slice(0, 5).map((prop, idx) => (
-                      <tr key={idx} className="border-b border-border">
-                        <td className="py-2">{prop.address}</td>
-                        <td className="py-2">${prop.price.toLocaleString()}</td>
-                        <td className="py-2">{prop.bedrooms}</td>
-                        <td className="py-2">{prop.bathrooms}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {parsedData.length > 5 && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    And {parsedData.length - 5} more...
+                  <CloudUpload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-base mb-2">
+                    Drag and drop your CSV or Excel file here, or{" "}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-primary hover:underline"
+                      data-testid="button-browse"
+                    >
+                      browse
+                    </button>
                   </p>
+                  <p className="text-sm text-muted-foreground">
+                    CSV or Excel file (.csv, .xlsx, .xls)
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileInput}
+                    className="hidden"
+                    data-testid="input-file"
+                  />
+                </div>
+
+                {file && !error && (
+                  <div className="mt-4 flex items-center gap-2 p-3 bg-muted rounded-lg">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm flex-1">{file.name}</span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        setFile(null);
+                        setParsedData(null);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="mt-4 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+                    {error}
+                  </div>
                 )}
               </div>
-            </div>
+            ) : (
+              <div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold mb-2">Preview</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Found {parsedData.length} properties
+                  </p>
+                  <div className="max-h-60 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="border-b border-border">
+                        <tr>
+                          <th className="text-left py-2">Address</th>
+                          <th className="text-left py-2">Price</th>
+                          <th className="text-left py-2">Beds</th>
+                          <th className="text-left py-2">Baths</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedData.slice(0, 5).map((prop, idx) => (
+                          <tr key={idx} className="border-b border-border">
+                            <td className="py-2">{prop.address}</td>
+                            <td className="py-2">${prop.price.toLocaleString()}</td>
+                            <td className="py-2">{prop.bedrooms}</td>
+                            <td className="py-2">{prop.bathrooms}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {parsedData.length > 5 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        And {parsedData.length - 5} more...
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleClose} 
-                className="flex-1" 
-                disabled={isUploading}
-                data-testid="button-cancel-upload"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleUpload} 
-                className="flex-1" 
-                disabled={isUploading}
-                data-testid="button-confirm-upload"
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  `Upload ${parsedData.length} Properties`
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleClose} 
+                    className="flex-1" 
+                    disabled={isUploading}
+                    data-testid="button-cancel-upload"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleUpload} 
+                    className="flex-1" 
+                    disabled={isUploading}
+                    data-testid="button-confirm-upload"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      `Upload ${parsedData.length} Properties`
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="manual" className="mt-4">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleManualSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Address *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="123 Main St" data-testid="input-address" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="San Diego" data-testid="input-city" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="state"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>State *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="CA" maxLength={2} data-testid="input-state" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="zipCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Zip Code *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="92126" data-testid="input-manual-zipcode" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="propertyType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Property Type *</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-property-type">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Single Family">Single Family</SelectItem>
+                            <SelectItem value="Condo">Condo</SelectItem>
+                            <SelectItem value="Townhouse">Townhouse</SelectItem>
+                            <SelectItem value="Multi-Family">Multi-Family</SelectItem>
+                            <SelectItem value="Land">Land</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="500000"
+                            value={field.value || ""}
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            data-testid="input-manual-price"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bedrooms"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bedrooms *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="3"
+                            value={field.value || ""}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                            data-testid="input-manual-bedrooms"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="bathrooms"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bathrooms *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            step="0.5"
+                            placeholder="2"
+                            value={field.value || ""}
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            data-testid="input-manual-bathrooms"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="squareFeet"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Square Feet *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="1500"
+                            value={field.value || ""}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                            data-testid="input-manual-squarefeet"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="yearBuilt"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Year Built</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="number" 
+                            placeholder="2000"
+                            value={field.value || ""}
+                            onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            data-testid="input-yearbuilt"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="propertyOwner"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Property Owner</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="John Doe" data-testid="input-owner" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="companyContactName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Contact Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="ABC Realty" data-testid="input-company-contact" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="companyContactEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Contact Email</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="email" placeholder="contact@company.com" data-testid="input-company-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="purchasePrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Purchase Price</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="450000"
+                            value={field.value ?? ""}
+                            onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            data-testid="input-purchase-price"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="dateSold"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date Sold</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="date" data-testid="input-date-sold" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} placeholder="Property details..." rows={3} data-testid="input-description" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+                    {error}
+                  </div>
                 )}
-              </Button>
-            </div>
-          </div>
-        )}
+
+                <div className="flex gap-2 pt-4">
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    onClick={handleClose} 
+                    className="flex-1" 
+                    disabled={isManualSubmitting}
+                    data-testid="button-cancel-manual"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit"
+                    className="flex-1" 
+                    disabled={isManualSubmitting}
+                    data-testid="button-submit-manual"
+                  >
+                    {isManualSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      "Add Property"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

@@ -64,6 +64,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Create a single property
+  app.post("/api/properties", async (req, res) => {
+    try {
+      console.log("POST /api/properties - Raw request body:", JSON.stringify(req.body, null, 2));
+      
+      // Validate request body with Zod schema
+      const validation = insertPropertySchema.safeParse(req.body);
+      if (!validation.success) {
+        console.error("Validation errors:", JSON.stringify(validation.error.errors, null, 2));
+        return res.status(400).json({ 
+          message: "Invalid property data",
+          errors: validation.error.errors
+        });
+      }
+
+      const propertyData = validation.data;
+      console.log("Validated property data:", JSON.stringify(propertyData, null, 2));
+      let enriched = { ...propertyData };
+      
+      // Geocode if lat/lng not provided or invalid
+      const hasValidCoords = propertyData.latitude != null && 
+                             propertyData.longitude != null && 
+                             !isNaN(Number(propertyData.latitude)) && 
+                             !isNaN(Number(propertyData.longitude));
+
+      if (!hasValidCoords) {
+        console.log(`Geocoding address: ${propertyData.address}, ${propertyData.city}, ${propertyData.state} ${propertyData.zipCode}`);
+        const coords = await geocodeAddress(propertyData.address, propertyData.city, propertyData.state, propertyData.zipCode);
+        if (coords) {
+          enriched.latitude = coords.lat;
+          enriched.longitude = coords.lng;
+        } else {
+          // Geocoding failed - allow property creation without coordinates
+          console.warn(`Geocoding unavailable for: ${propertyData.address}. Property will be created without map coordinates.`);
+          enriched.latitude = null;
+          enriched.longitude = null;
+        }
+      } else {
+        console.log(`Using provided coordinates for: ${propertyData.address} (${propertyData.latitude}, ${propertyData.longitude})`);
+      }
+      
+      // Look up company contact
+      if (propertyData.propertyOwner) {
+        const contact = await db
+          .select()
+          .from(companyContacts)
+          .where(eq(companyContacts.companyName, propertyData.propertyOwner))
+          .limit(1);
+        
+        if (contact.length > 0) {
+          enriched.companyContactName = contact[0].contactName;
+          enriched.companyContactEmail = contact[0].contactEmail;
+        }
+      }
+      
+      const [inserted] = await db.insert(properties).values(enriched).returning();
+      console.log(`Property created: ${inserted.address} (ID: ${inserted.id})`);
+      
+      // Add warning in response if coordinates are missing
+      if (!inserted.latitude || !inserted.longitude) {
+        res.json({
+          ...inserted,
+          _warning: "Property created without map coordinates. Enable Google Geocoding API or provide latitude/longitude to display on map."
+        });
+      } else {
+        res.json(inserted);
+      }
+    } catch (error) {
+      console.error('Error creating property:', error);
+      res.status(500).json({ message: "Error creating property" });
+    }
+  });
+
   // Upload properties
   app.post("/api/properties/upload", async (req, res) => {
     try {
