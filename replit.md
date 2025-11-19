@@ -59,10 +59,12 @@ Preferred communication style: Simple, everyday language.
   - `GET /api/company-contacts` - Fetch company contacts
 
 **Geocoding Integration**
-- OpenStreetMap Nominatim API for address-to-coordinates conversion
-- Free service, no API key required
+- **Google Maps Geocoding API** for accurate address-to-coordinates conversion (replaced OpenStreetMap Nov 2025)
+- Uses existing GOOGLE_API_KEY environment variable
 - Automatic geocoding on property creation
-- Fallback handling for failed geocoding attempts
+- **No fallback coordinates** - properties that fail geocoding are rejected from upload with clear error messages
+- Cleanup endpoint available at `POST /api/properties/cleanup-geocoding` to fix legacy bad coordinates
+- Note: Requires Geocoding API to be enabled in Google Cloud Console
 
 ### Data Storage
 
@@ -118,10 +120,11 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Third-Party APIs
-- **OpenStreetMap Nominatim** - Free geocoding service for address-to-coordinate conversion
-  - No authentication required
-  - Rate-limited but sufficient for typical usage
-  - Fallback strategy needed for production scale
+- **Google Maps Geocoding API** - Professional geocoding service for accurate address-to-coordinate conversion
+  - Uses GOOGLE_API_KEY environment variable
+  - Requires Geocoding API enabled in Google Cloud Console
+  - Highly accurate results, no fallback strategy needed
+  - Same API key also powers Street View integration
 
 ### Database Services
 - **Neon Serverless PostgreSQL** - Cloud-hosted database
