@@ -350,7 +350,23 @@ export default function UploadDialog({
       try {
         const response = await apiRequest("POST", "/api/properties/upload", parsedData) as any;
         
-        // Show warning toast if some addresses couldn't be geocoded
+        // Check if NO properties were uploaded (complete failure)
+        if (response.count === 0) {
+          const errorMsg = response.warnings 
+            ? response.warnings.message 
+            : "No properties were uploaded. Please check your data and try again.";
+          
+          setError(errorMsg);
+          toast({
+            title: "Upload Failed",
+            description: errorMsg,
+            variant: "destructive",
+          });
+          // Keep dialog open so user can see the error
+          return;
+        }
+        
+        // Some or all properties uploaded successfully
         if (response.warnings) {
           toast({
             title: "Upload Complete with Warnings",
