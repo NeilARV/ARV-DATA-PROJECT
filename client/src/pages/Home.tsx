@@ -250,6 +250,9 @@ export default function Home() {
   const handleCompanySelect = (companyName: string) => {
     setSelectedCompany(companyName);
     setSidebarView("none"); // Close the directory
+    // Reset map center/zoom so the map auto-fits to the filtered properties
+    setMapCenter(undefined);
+    setMapZoom(12);
     // Keep the user in their current view mode (map or grid)
   };
 
@@ -352,7 +355,11 @@ export default function Home() {
                     <p className="text-muted-foreground">
                       {selectedCompany ? (
                         <button
-                          onClick={() => setSelectedCompany(null)}
+                          onClick={() => {
+                            setSelectedCompany(null);
+                            setMapCenter(undefined);
+                            setMapZoom(12);
+                          }}
                           className="text-primary hover:underline text-sm"
                           data-testid="button-clear-company-filter"
                         >
