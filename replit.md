@@ -39,7 +39,15 @@ Preferred communication style: Simple, everyday language.
 - Grid view with responsive card layouts
 - Advanced filtering sidebar (price range, bedrooms, bathrooms, property types, zip codes)
 - CSV/Excel file upload with client-side parsing (PapaParse, XLSX)
-- Property detail modal and side panel views
+  - Automatic Excel serial date conversion to ISO strings
+  - Intelligent field recognition for property data
+  - Batch geocoding with Google Maps API
+- Property sorting options:
+  - Recently Sold (newest first)
+  - Days Held (longest ownership duration first)
+  - Price: High to Low
+  - Price: Low to High
+- Property detail modal and side panel views with Google Street View integration
 - Theme toggle (light/dark mode with localStorage persistence)
 
 ### Backend Architecture
@@ -57,6 +65,9 @@ Preferred communication style: Simple, everyday language.
   - `POST /api/properties` - Create single property (with geocoding)
   - `POST /api/properties/bulk` - Bulk property upload
   - `GET /api/company-contacts` - Fetch company contacts
+  - `POST /api/properties/cleanup-geocoding` - Fix properties with fallback coordinates
+  - `POST /api/properties/cleanup-dates` - Convert Excel serial dates to ISO strings
+  - `GET /api/streetview` - Proxy Google Street View images
 
 **Geocoding Integration**
 - **Google Maps Geocoding API** for accurate address-to-coordinates conversion (replaced OpenStreetMap Nov 2025)
@@ -142,6 +153,7 @@ Preferred communication style: Simple, everyday language.
 - **PapaParse** - CSV parsing library for file uploads
 - **XLSX** - Excel file reading/writing library
 - **date-fns** - Date formatting and manipulation
+- Custom date utilities (`client/src/lib/dateUtils.ts`) - Converts Excel serial dates to ISO strings during upload
 
 ### Development Tools
 - **Replit Plugins** - Runtime error modal, cartographer, dev banner
