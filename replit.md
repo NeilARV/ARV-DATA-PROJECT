@@ -2,7 +2,7 @@
 
 ## Overview
 
-A real estate property listing platform built with React, Express, and PostgreSQL. The application provides dual-view property browsing (map and grid layouts), interactive filtering, CSV/Excel data upload capabilities, and company contact management. Designed with a clean, data-focused interface inspired by Redfin's approach to real estate applications. Branded as "ARV DATA" with custom logo.
+A real estate property listing platform built with React, Express, and PostgreSQL. The application provides tri-view property browsing (map, grid, and table layouts), interactive filtering, CSV/Excel data upload capabilities, and company contact management. Designed with a clean, data-focused interface inspired by Redfin's approach to real estate applications. Branded as "ARV DATA" with custom logo.
 
 ## User Preferences
 
@@ -35,8 +35,10 @@ Preferred communication style: Simple, everyday language.
 - No global state management library (relying on React Query's cache)
 
 **Key Features**
-- Interactive map view using Leaflet for geospatial property visualization
-- Grid view with responsive card layouts
+- **Three View Modes**:
+  - Map view: Interactive Leaflet map for geospatial property visualization
+  - Grid view: Responsive card layouts with property cards
+  - Table view: Comprehensive data table with sortable columns
 - Advanced filtering sidebar (price range, bedrooms, bathrooms, property types, zip codes)
 - **Data Upload Methods**:
   - CSV/Excel file upload with client-side parsing (PapaParse, XLSX)
@@ -48,11 +50,15 @@ Preferred communication style: Simple, everyday language.
     - Smart numeric field handling (no snap-to-zero during editing)
     - Required field validation on submit
     - Optional geocoding integration
-- Property sorting options:
+- Property sorting options (Grid view):
   - Recently Sold (newest first)
   - Days Held (longest ownership duration first)
   - Price: High to Low
   - Price: Low to High
+- Property table sorting (Table view):
+  - All columns are sortable with ascending/descending order
+  - Column-aware sorting: numeric columns (price, bedrooms, bathrooms, sqft) and dates sorted correctly
+  - Visual indicators show active sort column and direction
 - Property detail modal and side panel views with Google Street View integration
 - Company directory with contact request functionality
   - Searchable directory of 258 company contacts
