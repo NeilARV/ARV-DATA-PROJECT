@@ -5,6 +5,7 @@ import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
 import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyCard from "@/components/PropertyCard";
 import PropertyMap from "@/components/PropertyMap";
+import PropertyTable from "@/components/PropertyTable";
 import PropertyDetailModal from "@/components/PropertyDetailModal";
 import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import UploadDialog from "@/components/UploadDialog";
@@ -165,7 +166,7 @@ const MOCK_PROPERTIES: Property[] = [
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<"map" | "grid">("map");
+  const [viewMode, setViewMode] = useState<"map" | "grid" | "table">("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("filters");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -352,6 +353,42 @@ export default function Home() {
                   />
                 </div>
               </>
+            ) : viewMode === "table" ? (
+              <div className="h-full overflow-y-auto p-6 flex-1">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold mb-1">
+                      {sortedProperties.length} Properties
+                      {selectedCompany && (
+                        <span className="text-base font-normal text-muted-foreground ml-2">
+                          owned by {selectedCompany}
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {selectedCompany ? (
+                        <button
+                          onClick={() => {
+                            setSelectedCompany(null);
+                            setMapCenter(undefined);
+                            setMapZoom(12);
+                          }}
+                          className="text-primary hover:underline text-sm"
+                          data-testid="button-clear-company-filter"
+                        >
+                          Clear company filter
+                        </button>
+                      ) : (
+                        "View all properties in table format"
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <PropertyTable
+                  properties={sortedProperties}
+                  onPropertyClick={setSelectedProperty}
+                />
+              </div>
             ) : (
               <div className="h-full overflow-y-auto p-6 flex-1">
                 <div className="mb-4 flex items-start justify-between gap-4">
@@ -420,7 +457,7 @@ export default function Home() {
         </div>
       </div>
 
-      {viewMode === "grid" && (
+      {(viewMode === "grid" || viewMode === "table") && (
         <PropertyDetailModal
           property={selectedProperty}
           open={!!selectedProperty}

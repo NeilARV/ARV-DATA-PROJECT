@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, CloudUpload, Search, Moon, Sun } from "lucide-react";
+import { Map, Grid3x3, Table2, CloudUpload, Search, Moon, Sun } from "lucide-react";
 import { useState, useEffect } from "react";
 import logoUrl from "@assets/arv-data-logo.png";
 
 interface HeaderProps {
-  viewMode: "map" | "grid";
-  onViewModeChange: (mode: "map" | "grid") => void;
+  viewMode: "map" | "grid" | "table";
+  onViewModeChange: (mode: "map" | "grid" | "table") => void;
   onUploadClick: () => void;
   onSearch?: (query: string) => void;
 }
@@ -75,7 +75,7 @@ export default function Header({
             variant={viewMode === "map" ? "default" : "ghost"}
             size="sm"
             onClick={() => onViewModeChange("map")}
-            className="rounded-r-none"
+            className="rounded-r-none border-r"
             data-testid="button-view-map"
           >
             <Map className="w-4 h-4 mr-1" />
@@ -85,11 +85,21 @@ export default function Header({
             variant={viewMode === "grid" ? "default" : "ghost"}
             size="sm"
             onClick={() => onViewModeChange("grid")}
-            className="rounded-l-none"
+            className="rounded-none border-r"
             data-testid="button-view-grid"
           >
             <Grid3x3 className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Grid</span>
+          </Button>
+          <Button
+            variant={viewMode === "table" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => onViewModeChange("table")}
+            className="rounded-l-none"
+            data-testid="button-view-table"
+          >
+            <Table2 className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Table</span>
           </Button>
         </div>
 
