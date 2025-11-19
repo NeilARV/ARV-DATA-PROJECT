@@ -123,18 +123,16 @@ export default function PropertyDetailModal({
               {property.companyContactName && (
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground mb-1">Company Contact</div>
-                  <div className="flex items-center gap-3">
-                    <div className="font-medium" data-testid="text-company-contact">
-                      {property.companyContactName}
-                    </div>
-                    <Button 
-                      size="sm"
-                      variant="default"
-                      data-testid="button-request-contact"
-                    >
-                      Request Contact Information
-                    </Button>
+                  <div className="font-medium mb-2" data-testid="text-company-contact">
+                    {property.companyContactName}
                   </div>
+                  <Button 
+                    size="sm"
+                    variant="default"
+                    data-testid="button-request-contact"
+                  >
+                    Request Contact
+                  </Button>
                 </div>
               )}
 
