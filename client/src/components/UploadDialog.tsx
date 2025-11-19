@@ -16,6 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { z } from "zod";
 import { InsertProperty, insertPropertySchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -41,30 +42,37 @@ export default function UploadDialog({
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form for manual entry
-  const form = useForm<InsertProperty>({
-    resolver: zodResolver(insertPropertySchema.extend({
-      // Make optional fields that can be left blank
-      latitude: insertPropertySchema.shape.latitude.optional(),
-      longitude: insertPropertySchema.shape.longitude.optional(),
-      imageUrl: insertPropertySchema.shape.imageUrl.optional(),
-      description: insertPropertySchema.shape.description.optional(),
-      yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
-      propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
-      companyContactName: insertPropertySchema.shape.companyContactName.optional(),
-      companyContactEmail: insertPropertySchema.shape.companyContactEmail.optional(),
-      purchasePrice: insertPropertySchema.shape.purchasePrice.optional(),
-      dateSold: insertPropertySchema.shape.dateSold.optional(),
-    })),
+  // Form for manual entry - Derived from insertPropertySchema with numeric fields accepting undefined during editing
+  const manualEntrySchema = insertPropertySchema.extend({
+    // Allow numeric fields to be undefined during editing (will be converted to 0 on submit)
+    price: insertPropertySchema.shape.price.or(z.undefined()),
+    bedrooms: insertPropertySchema.shape.bedrooms.or(z.undefined()),
+    bathrooms: insertPropertySchema.shape.bathrooms.or(z.undefined()),
+    squareFeet: insertPropertySchema.shape.squareFeet.or(z.undefined()),
+    // Make optional fields that can be left blank
+    latitude: insertPropertySchema.shape.latitude.optional(),
+    longitude: insertPropertySchema.shape.longitude.optional(),
+    imageUrl: insertPropertySchema.shape.imageUrl.optional(),
+    description: insertPropertySchema.shape.description.optional(),
+    yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
+    propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
+    companyContactName: insertPropertySchema.shape.companyContactName.optional(),
+    companyContactEmail: insertPropertySchema.shape.companyContactEmail.optional(),
+    purchasePrice: insertPropertySchema.shape.purchasePrice.optional(),
+    dateSold: insertPropertySchema.shape.dateSold.optional(),
+  });
+
+  const form = useForm<z.infer<typeof manualEntrySchema>>({
+    resolver: zodResolver(manualEntrySchema),
     defaultValues: {
       address: "",
       city: "",
       state: "",
       zipCode: "",
-      price: 0,
-      bedrooms: 0,
-      bathrooms: 0,
-      squareFeet: 0,
+      price: undefined,
+      bedrooms: undefined,
+      bathrooms: undefined,
+      squareFeet: undefined,
       propertyType: "Single Family",
       imageUrl: "",
       description: "",
@@ -367,12 +375,43 @@ export default function UploadDialog({
     }
   };
 
-  const handleManualSubmit = async (data: InsertProperty) => {
+  const handleManualSubmit = async (data: z.infer<typeof manualEntrySchema>) => {
     setIsManualSubmitting(true);
     setError(null);
 
     try {
-      await apiRequest("POST", "/api/properties", data);
+      // Validate required numeric fields - don't allow undefined
+      if (data.price === undefined || data.price === null) {
+        form.setError("price", { message: "Price is required" });
+        setIsManualSubmitting(false);
+        return;
+      }
+      if (data.bedrooms === undefined || data.bedrooms === null) {
+        form.setError("bedrooms", { message: "Bedrooms is required" });
+        setIsManualSubmitting(false);
+        return;
+      }
+      if (data.bathrooms === undefined || data.bathrooms === null) {
+        form.setError("bathrooms", { message: "Bathrooms is required" });
+        setIsManualSubmitting(false);
+        return;
+      }
+      if (data.squareFeet === undefined || data.squareFeet === null) {
+        form.setError("squareFeet", { message: "Square Feet is required" });
+        setIsManualSubmitting(false);
+        return;
+      }
+
+      // All required fields present - create property data
+      const propertyData: InsertProperty = {
+        ...data,
+        price: data.price,
+        bedrooms: data.bedrooms,
+        bathrooms: data.bathrooms,
+        squareFeet: data.squareFeet,
+      };
+
+      await apiRequest("POST", "/api/properties", propertyData);
       
       toast({
         title: "Property Added",
@@ -643,13 +682,7 @@ export default function UploadDialog({
                             value={field.value ?? ""}
                             onChange={e => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? "" : Number(val));
-                            }}
-                            onBlur={() => {
-                              // Convert empty to 0 on blur for validation
-                              if (field.value === "" || field.value === null || field.value === undefined) {
-                                field.onChange(0);
-                              }
+                              field.onChange(val === "" ? undefined : Number(val));
                             }}
                             data-testid="input-manual-price"
                           />
@@ -672,12 +705,7 @@ export default function UploadDialog({
                             value={field.value ?? ""}
                             onChange={e => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? "" : Number(val));
-                            }}
-                            onBlur={() => {
-                              if (field.value === "" || field.value === null || field.value === undefined) {
-                                field.onChange(0);
-                              }
+                              field.onChange(val === "" ? undefined : Number(val));
                             }}
                             data-testid="input-manual-bedrooms"
                           />
@@ -701,12 +729,7 @@ export default function UploadDialog({
                             value={field.value ?? ""}
                             onChange={e => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? "" : Number(val));
-                            }}
-                            onBlur={() => {
-                              if (field.value === "" || field.value === null || field.value === undefined) {
-                                field.onChange(0);
-                              }
+                              field.onChange(val === "" ? undefined : Number(val));
                             }}
                             data-testid="input-manual-bathrooms"
                           />
@@ -729,12 +752,7 @@ export default function UploadDialog({
                             value={field.value ?? ""}
                             onChange={e => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? "" : Number(val));
-                            }}
-                            onBlur={() => {
-                              if (field.value === "" || field.value === null || field.value === undefined) {
-                                field.onChange(0);
-                              }
+                              field.onChange(val === "" ? undefined : Number(val));
                             }}
                             data-testid="input-manual-squarefeet"
                           />

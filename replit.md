@@ -38,16 +38,30 @@ Preferred communication style: Simple, everyday language.
 - Interactive map view using Leaflet for geospatial property visualization
 - Grid view with responsive card layouts
 - Advanced filtering sidebar (price range, bedrooms, bathrooms, property types, zip codes)
-- CSV/Excel file upload with client-side parsing (PapaParse, XLSX)
-  - Automatic Excel serial date conversion to ISO strings
-  - Intelligent field recognition for property data
-  - Batch geocoding with Google Maps API
+- **Data Upload Methods**:
+  - CSV/Excel file upload with client-side parsing (PapaParse, XLSX)
+    - Automatic Excel serial date conversion to ISO strings
+    - Intelligent field recognition for property data
+    - Batch geocoding with Google Maps API
+  - Manual property entry form (tabbed interface)
+    - Complete form with all required and optional fields
+    - Smart numeric field handling (no snap-to-zero during editing)
+    - Required field validation on submit
+    - Optional geocoding integration
 - Property sorting options:
   - Recently Sold (newest first)
   - Days Held (longest ownership duration first)
   - Price: High to Low
   - Price: Low to High
 - Property detail modal and side panel views with Google Street View integration
+- Company directory with contact request functionality
+  - Searchable directory of 258 company contacts
+  - Property count display per company
+  - Sorting options (alphabetical, most/fewest properties)
+  - "Request Contact Information" feature
+    - mailto: link to neil@arvfinance.com
+    - "Copy Email" button as reliable fallback
+    - Form collects requester name, email, and optional message
 - Theme toggle (light/dark mode with localStorage persistence)
 
 ### Backend Architecture

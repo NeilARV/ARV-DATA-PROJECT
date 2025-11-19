@@ -117,40 +117,43 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   };
 
   const handleContactRequest = (data: ContactRequestForm) => {
-    const subject = encodeURIComponent("Contact Information Request");
-    const body = encodeURIComponent(
+    const subject = "Contact Information Request";
+    const body = 
       `Hello,\n\n` +
       `I would like to request contact information.\n\n` +
       `Name: ${data.name}\n` +
       `Email: ${data.email}\n` +
       `${data.message ? `Message: ${data.message}\n` : ''}` +
-      `\nThank you.`
-    );
+      `\nThank you.`;
     
-    const mailtoLink = `mailto:neil@arvfinance.com?subject=${subject}&body=${body}`;
+    const mailtoLink = `mailto:neil@arvfinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
-    // Try to open mailto: link
-    const opened = window.open(mailtoLink, '_self');
+    // Attempt to open mailto: link
+    window.location.href = mailtoLink;
     
-    // Check if it failed (returns null when blocked)
-    if (opened === null || opened === undefined) {
-      toast({
-        title: "Email Client Not Available",
-        description: "Please email neil@arvfinance.com directly with your contact information. Include your name, email, and message.",
-        variant: "destructive",
-      });
-      // Keep dialog open so user can copy their info
-      return;
-    }
-    
-    // Success - close dialog and show confirmation
+    // Show success message and close dialog
     toast({
       title: "Opening Email Client",
-      description: "Your default email client will open with a pre-filled message to neil@arvfinance.com.",
+      description: "Your default email client will open. If it doesn't, please use the 'Copy Email' button to get the address.",
     });
     
     setRequestDialogOpen(false);
     form.reset();
+  };
+
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText("neil@arvfinance.com").then(() => {
+      toast({
+        title: "Email Copied",
+        description: "neil@arvfinance.com has been copied to your clipboard.",
+      });
+    }).catch(() => {
+      toast({
+        title: "Copy Failed",
+        description: "Please manually copy: neil@arvfinance.com",
+        variant: "destructive",
+      });
+    });
   };
 
   return (
@@ -343,25 +346,37 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                 )}
               />
 
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    data-testid="button-submit-request"
+                  >
+                    <Mail className="w-4 h-4 mr-2" />
+                    Send Request
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCopyEmail}
+                    className="flex-1"
+                    data-testid="button-copy-email"
+                  >
+                    Copy Email
+                  </Button>
+                </div>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => {
                     setRequestDialogOpen(false);
                     form.reset();
                   }}
-                  className="flex-1"
+                  className="w-full"
                   data-testid="button-cancel-request"
                 >
                   Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1"
-                  data-testid="button-submit-request"
-                >
-                  Send Request
                 </Button>
               </div>
             </form>
