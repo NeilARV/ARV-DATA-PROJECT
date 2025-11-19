@@ -6,6 +6,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Bed, Bath, Maximize2, MapPin, Building2, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
@@ -122,8 +123,17 @@ export default function PropertyDetailModal({
               {property.companyContactName && (
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground mb-1">Company Contact</div>
-                  <div className="font-medium" data-testid="text-company-contact">
-                    {property.companyContactName}
+                  <div className="flex items-center gap-3">
+                    <div className="font-medium" data-testid="text-company-contact">
+                      {property.companyContactName}
+                    </div>
+                    <Button 
+                      size="sm"
+                      variant="default"
+                      data-testid="button-request-contact"
+                    >
+                      Request Contact Information
+                    </Button>
                   </div>
                 </div>
               )}

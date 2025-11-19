@@ -806,7 +806,7 @@ export default function UploadDialog({
                       <FormItem className="col-span-2">
                         <FormLabel>Property Owner</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="John Doe" data-testid="input-owner" />
+                          <Input {...field} value={field.value || ""} placeholder="John Doe" data-testid="input-owner" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -820,7 +820,7 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Company Contact Name</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="ABC Realty" data-testid="input-company-contact" />
+                          <Input {...field} value={field.value || ""} placeholder="ABC Realty" data-testid="input-company-contact" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -834,7 +834,7 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Company Contact Email</FormLabel>
                         <FormControl>
-                          <Input {...field} type="email" placeholder="contact@company.com" data-testid="input-company-email" />
+                          <Input {...field} value={field.value || ""} type="email" placeholder="contact@company.com" data-testid="input-company-email" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -868,7 +868,7 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Date Sold</FormLabel>
                         <FormControl>
-                          <Input {...field} type="date" data-testid="input-date-sold" />
+                          <Input {...field} value={field.value || ""} type="date" data-testid="input-date-sold" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -882,7 +882,7 @@ export default function UploadDialog({
                       <FormItem className="col-span-2">
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea {...field} placeholder="Property details..." rows={3} data-testid="input-description" />
+                          <Textarea {...field} value={field.value || ""} placeholder="Property details..." rows={3} data-testid="input-description" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
