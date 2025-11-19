@@ -218,6 +218,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Remove duplicate properties - Keep only the one with correct coordinates
+  app.post("/api/properties/cleanup-duplicates", async (_req, res) => {
+    try {
+      const allProps = await db.select().from(properties);
+      
+      // Group properties by address
+      const propertyGroups = new Map<string, typeof allProps>();
+      for (const prop of allProps) {
+        const key = `${prop.address}|${prop.city}|${prop.state}|${prop.zipCode}`;
+        const group = propertyGroups.get(key) || [];
+        group.push(prop);
+        propertyGroups.set(key, group);
+      }
+
+      // Find duplicates
+      const duplicateGroups = Array.from(propertyGroups.entries())
+        .filter(([, group]) => group.length > 1);
+
+      console.log(`Found ${duplicateGroups.length} addresses with duplicates`);
+
+      let deletedCount = 0;
+      const deletedAddresses: string[] = [];
+
+      for (const [key, group] of duplicateGroups) {
+        // Sort by priority: properties with SF fallback coords should be deleted
+        const sorted = group.sort((a, b) => {
+          const aIsBad = a.latitude && a.longitude && 
+            Math.abs(a.latitude - 37.7749) < 0.0001 && 
+            Math.abs(a.longitude + 122.4194) < 0.0001;
+          const bIsBad = b.latitude && b.longitude && 
+            Math.abs(b.latitude - 37.7749) < 0.0001 && 
+            Math.abs(b.longitude + 122.4194) < 0.0001;
+          
+          // Bad coords should be deleted (sort to end)
+          if (aIsBad && !bIsBad) return 1;
+          if (!aIsBad && bIsBad) return -1;
+          return 0;
+        });
+
+        // Keep the first (best) one, delete the rest
+        const toKeep = sorted[0];
+        const toDelete = sorted.slice(1);
+
+        for (const prop of toDelete) {
+          await db.delete(properties).where(eq(properties.id, prop.id));
+          deletedCount++;
+          console.log(`Deleted duplicate: ${prop.address} (ID: ${prop.id}, coords: ${prop.latitude}, ${prop.longitude})`);
+        }
+
+        if (toDelete.length > 0) {
+          deletedAddresses.push(`${toKeep.address}, ${toKeep.city}, ${toKeep.state} ${toKeep.zipCode}`);
+        }
+      }
+
+      res.json({
+        duplicateAddresses: duplicateGroups.length,
+        duplicatesDeleted: deletedCount,
+        cleanedAddresses: deletedAddresses
+      });
+    } catch (error) {
+      console.error('Error cleaning up duplicates:', error);
+      res.status(500).json({ message: "Error cleaning up duplicates" });
+    }
+  });
+
   // Clean up bad geocoding - Re-geocode properties with San Francisco fallback coordinates
   app.post("/api/properties/cleanup-geocoding", async (_req, res) => {
     try {
