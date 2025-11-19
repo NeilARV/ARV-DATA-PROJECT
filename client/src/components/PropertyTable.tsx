@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -17,7 +17,7 @@ interface PropertyTableProps {
   onPropertyClick: (property: Property) => void;
 }
 
-type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squareFeet" | "propertyType" | "dateSold" | "propertyOwner";
+type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squareFeet" | "propertyType" | "dateSold" | "propertyOwner" | "daysOwned";
 type SortDirection = "asc" | "desc";
 
 export default function PropertyTable({ properties, onPropertyClick }: PropertyTableProps) {
@@ -34,8 +34,17 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
   };
 
   const sortedProperties = [...properties].sort((a, b) => {
-    let aValue: any = a[sortColumn];
-    let bValue: any = b[sortColumn];
+    let aValue: any;
+    let bValue: any;
+
+    // Special handling for calculated columns
+    if (sortColumn === "daysOwned") {
+      aValue = calculateDaysOwned(a.dateSold) ?? -1;
+      bValue = calculateDaysOwned(b.dateSold) ?? -1;
+    } else {
+      aValue = a[sortColumn];
+      bValue = b[sortColumn];
+    }
 
     // Handle null/undefined values
     if (aValue == null && bValue == null) return 0;
@@ -43,7 +52,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
     if (bValue == null) return -1;
 
     // Column-specific sorting logic
-    if (sortColumn === "price" || sortColumn === "squareFeet" || sortColumn === "bedrooms" || sortColumn === "bathrooms") {
+    if (sortColumn === "price" || sortColumn === "squareFeet" || sortColumn === "bedrooms" || sortColumn === "bathrooms" || sortColumn === "daysOwned") {
       // Numeric columns
       aValue = Number(aValue);
       bValue = Number(bValue);
@@ -112,6 +121,9 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
             <TableHead className="min-w-[120px]">
               <SortButton column="dateSold">Date Sold</SortButton>
             </TableHead>
+            <TableHead className="text-center">
+              <SortButton column="daysOwned">Days Owned</SortButton>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -150,11 +162,18 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
+              <TableCell className="text-center">
+                {calculateDaysOwned(property.dateSold) !== null ? (
+                  `${calculateDaysOwned(property.dateSold)} days`
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
             </TableRow>
           ))}
           {sortedProperties.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                 No properties found
               </TableCell>
             </TableRow>
