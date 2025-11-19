@@ -162,7 +162,7 @@ const MOCK_PROPERTIES: Property[] = [
   },
 ];
 
-type SortOption = "recently-sold" | "price-high-low" | "price-low-high";
+type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<"map" | "grid">("map");
@@ -256,6 +256,9 @@ export default function Home() {
     // Keep the user in their current view mode (map or grid)
   };
 
+  // Calculate current time once for deterministic sorting
+  const now = Date.now();
+  
   const sortedProperties = [...filteredProperties].sort((a, b) => {
     switch (sortBy) {
       case "recently-sold":
@@ -263,6 +266,15 @@ export default function Home() {
         if (!a.dateSold) return 1;
         if (!b.dateSold) return -1;
         return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
+      case "days-held":
+        if (!a.dateSold && !b.dateSold) return 0;
+        if (!a.dateSold) return 1;
+        if (!b.dateSold) return -1;
+        // Calculate days held (from date sold to now)
+        const aDaysHeld = now - new Date(a.dateSold).getTime();
+        const bDaysHeld = now - new Date(b.dateSold).getTime();
+        // Sort from longest to shortest
+        return bDaysHeld - aDaysHeld;
       case "price-high-low":
         return b.price - a.price;
       case "price-low-high":
@@ -379,6 +391,9 @@ export default function Home() {
                       <SelectContent>
                         <SelectItem value="recently-sold" data-testid="sort-recently-sold">
                           Recently Sold
+                        </SelectItem>
+                        <SelectItem value="days-held" data-testid="sort-days-held">
+                          Days Held
                         </SelectItem>
                         <SelectItem value="price-high-low" data-testid="sort-price-high-low">
                           Price: High to Low

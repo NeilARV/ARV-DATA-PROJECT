@@ -12,6 +12,7 @@ import * as XLSX from "xlsx";
 import { InsertProperty } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { parseDate } from "@/lib/dateUtils";
 
 interface UploadDialogProps {
   open: boolean;
@@ -241,7 +242,12 @@ export default function UploadDialog({
             companyContactName: findFieldValue(row, 'companyContactName') || null,
             companyContactEmail: findFieldValue(row, 'companyContactEmail') || null,
             purchasePrice: safeParseFloat(findFieldValue(row, 'purchasePrice')),
-            dateSold: findFieldValue(row, 'dateSold') || null,
+            dateSold: (() => {
+              const dateValue = findFieldValue(row, 'dateSold');
+              if (!dateValue) return null;
+              const parsedDate = parseDate(dateValue);
+              return parsedDate ? parsedDate.toISOString() : null;
+            })(),
           };
         })
         .filter((prop: any) => {

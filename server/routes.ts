@@ -160,6 +160,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to parse Excel serial dates
+  function parseExcelDate(value: string | null): string | null {
+    if (!value) return null;
+    
+    // Check if it's an Excel serial number (pure numeric string)
+    if (/^\d+(\.\d+)?$/.test(value)) {
+      const num = parseFloat(value);
+      if (num > 0 && num < 100000) {
+        // Excel serial date: number of days since December 30, 1899
+        const excelEpoch = new Date(1899, 11, 30);
+        const date = new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+        
+        // Validate the parsed date is reasonable
+        if (date.getFullYear() >= 1900 && date.getFullYear() <= 2100) {
+          return date.toISOString();
+        }
+      }
+    }
+    
+    // Try parsing as existing ISO string or return as-is
+    return value;
+  }
+
+  // Clean up bad date formats - Convert Excel serial dates to ISO strings
+  app.post("/api/properties/cleanup-dates", async (_req, res) => {
+    try {
+      const allProps = await db.select().from(properties);
+      // Find properties with Excel serial date format (numeric strings like "45961")
+      const badDates = allProps.filter(p => 
+        p.dateSold && /^\d+(\.\d+)?$/.test(p.dateSold)
+      );
+
+      console.log(`Found ${badDates.length} properties with Excel serial dates`);
+      
+      let fixed = 0;
+
+      for (const prop of badDates) {
+        const isoDate = parseExcelDate(prop.dateSold);
+        if (isoDate && isoDate !== prop.dateSold) {
+          await db
+            .update(properties)
+            .set({ dateSold: isoDate })
+            .where(eq(properties.id, prop.id));
+          fixed++;
+          console.log(`Fixed date for ${prop.address}: ${prop.dateSold} -> ${isoDate}`);
+        }
+      }
+
+      res.json({
+        totalBadDates: badDates.length,
+        fixed: fixed
+      });
+    } catch (error) {
+      console.error('Error cleaning up dates:', error);
+      res.status(500).json({ message: "Error cleaning up dates" });
+    }
+  });
+
   // Clean up bad geocoding - Re-geocode properties with San Francisco fallback coordinates
   app.post("/api/properties/cleanup-geocoding", async (_req, res) => {
     try {
