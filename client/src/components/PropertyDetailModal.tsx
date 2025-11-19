@@ -7,6 +7,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import { Bed, Bath, Maximize2, MapPin, Building2, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
@@ -24,6 +27,10 @@ export default function PropertyDetailModal({
   onClose,
 }: PropertyDetailModalProps) {
   const [imageUrl, setImageUrl] = useState('');
+  const [showContactDialog, setShowContactDialog] = useState(false);
+  const [requestName, setRequestName] = useState('');
+  const [requestEmail, setRequestEmail] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     if (property) {
@@ -39,6 +46,38 @@ export default function PropertyDetailModal({
       }
     }
   }, [property]);
+
+  const handleRequestContact = () => {
+    setShowContactDialog(true);
+  };
+
+  const handleSubmitRequest = () => {
+    if (!requestName.trim() || !requestEmail.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide both your name and email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create mailto link
+    const subject = `Contact Request for ${property?.companyContactName || 'Property'}`;
+    const body = `Name: ${requestName}\nEmail: ${requestEmail}\n\nRequesting contact information for:\nProperty: ${property?.address}\nCompany Contact: ${property?.companyContactName}`;
+    const mailtoLink = `mailto:neil@arvfinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    window.location.href = mailtoLink;
+    
+    toast({
+      title: "Request Sent",
+      description: "Your contact request has been sent to neil@arvfinance.com",
+    });
+
+    // Reset and close
+    setShowContactDialog(false);
+    setRequestName('');
+    setRequestEmail('');
+  };
 
   if (!property) return null;
 
@@ -129,6 +168,7 @@ export default function PropertyDetailModal({
                   <Button 
                     size="sm"
                     variant="default"
+                    onClick={handleRequestContact}
                     data-testid="button-request-contact"
                   >
                     Request Contact
@@ -165,6 +205,61 @@ export default function PropertyDetailModal({
           </div>
         </div>
       </DialogContent>
+
+      {/* Contact Request Dialog */}
+      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
+        <DialogContent className="max-w-md" data-testid="dialog-contact-request">
+          <DialogHeader>
+            <DialogTitle>Where do we send this info?</DialogTitle>
+            <DialogDescription>
+              Please provide your contact information so we can send you the details.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="request-name">Name</Label>
+              <Input
+                id="request-name"
+                placeholder="Your name"
+                value={requestName}
+                onChange={(e) => setRequestName(e.target.value)}
+                data-testid="input-request-name"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="request-email">Email</Label>
+              <Input
+                id="request-email"
+                type="email"
+                placeholder="your@email.com"
+                value={requestEmail}
+                onChange={(e) => setRequestEmail(e.target.value)}
+                data-testid="input-request-email"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowContactDialog(false)}
+              className="flex-1"
+              data-testid="button-cancel-request"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitRequest}
+              className="flex-1"
+              data-testid="button-submit-request"
+            >
+              Submit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
