@@ -20,34 +20,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Geocode an address to get lat/lng
+  // Geocode an address to get lat/lng using Google Maps Geocoding API
   async function geocodeAddress(address: string, city?: string, state?: string, zipCode?: string): Promise<{ lat: number; lng: number } | null> {
     try {
-      // Build search query
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        console.error('GOOGLE_API_KEY not configured');
+        return null;
+      }
+
+      // Build search query with full address components
       const parts = [address];
       if (city) parts.push(city);
       if (state) parts.push(state);
       if (zipCode) parts.push(zipCode);
       const query = parts.join(', ');
       
-      // Use OpenStreetMap Nominatim API (free, no API key required)
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-        {
-          headers: {
-            'User-Agent': 'PropertyListingApp/1.0'
-          }
-        }
-      );
+      // Use Google Maps Geocoding API for accurate results
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+      const response = await fetch(url);
       
       if (response.ok) {
         const data = await response.json();
-        if (data.length > 0) {
+        if (data.status === 'OK' && data.results.length > 0) {
+          const location = data.results[0].geometry.location;
+          console.log(`Geocoded: ${query} -> ${location.lat}, ${location.lng}`);
           return {
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon)
+            lat: location.lat,
+            lng: location.lng
           };
+        } else {
+          console.warn(`Geocoding failed for: ${query} (Status: ${data.status}${data.error_message ? ', Error: ' + data.error_message : ''})`);
         }
+      } else {
+        const errorBody = await response.text();
+        console.error(`Geocoding HTTP error for: ${query} (Status: ${response.status}, Body: ${errorBody.substring(0, 200)})`);
       }
       
       return null;
@@ -66,58 +73,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Expected an array of properties" });
       }
 
-      const geocodingWarnings: string[] = [];
+      const geocodingFailures: string[] = [];
+      const successfulProperties: any[] = [];
 
       // Auto-populate company contact and geocode if needed
-      const enrichedProperties = await Promise.all(
-        propertiesToUpload.map(async (prop) => {
-          let enriched = { ...prop };
-          
-          // Geocode if lat/lng not provided
-          if (!prop.latitude || !prop.longitude || isNaN(prop.latitude) || isNaN(prop.longitude)) {
-            const coords = await geocodeAddress(prop.address, prop.city, prop.state, prop.zipCode);
-            if (coords) {
-              enriched.latitude = coords.lat;
-              enriched.longitude = coords.lng;
-            } else {
-              // Use fallback coordinates (San Francisco Bay Area) when geocoding fails
-              // This prevents properties from being dropped
-              console.warn(`Could not geocode address: ${prop.address} - using fallback coordinates`);
-              geocodingWarnings.push(prop.address);
-              enriched.latitude = 37.7749; // San Francisco
-              enriched.longitude = -122.4194;
-            }
+      for (const prop of propertiesToUpload) {
+        let enriched = { ...prop };
+        let shouldInsert = true;
+        
+        // Geocode if lat/lng not provided
+        if (!prop.latitude || !prop.longitude || isNaN(prop.latitude) || isNaN(prop.longitude)) {
+          const coords = await geocodeAddress(prop.address, prop.city, prop.state, prop.zipCode);
+          if (coords) {
+            enriched.latitude = coords.lat;
+            enriched.longitude = coords.lng;
+          } else {
+            // REMOVED DANGEROUS FALLBACK - Don't insert properties with bad coordinates
+            console.warn(`Geocoding failed for: ${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
+            geocodingFailures.push(`${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
+            shouldInsert = false;
           }
+        }
+        
+        // Look up company contact
+        if (shouldInsert && prop.propertyOwner) {
+          const contact = await db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.companyName, prop.propertyOwner))
+            .limit(1);
           
-          // Look up company contact
-          if (prop.propertyOwner) {
-            const contact = await db
-              .select()
-              .from(companyContacts)
-              .where(eq(companyContacts.companyName, prop.propertyOwner))
-              .limit(1);
-            
-            if (contact.length > 0) {
-              enriched.companyContactName = contact[0].contactName;
-              enriched.companyContactEmail = contact[0].contactEmail;
-            }
+          if (contact.length > 0) {
+            enriched.companyContactName = contact[0].contactName;
+            enriched.companyContactEmail = contact[0].contactEmail;
           }
-          
-          return enriched;
-        })
-      );
+        }
+        
+        if (shouldInsert) {
+          successfulProperties.push(enriched);
+        }
+      }
 
-      const inserted = await db.insert(properties).values(enrichedProperties).returning();
+      const inserted = successfulProperties.length > 0 
+        ? await db.insert(properties).values(successfulProperties).returning()
+        : [];
       
       const response: any = { 
-        count: inserted.length, 
-        properties: inserted 
+        count: inserted.length,
+        properties: inserted,
+        total: propertiesToUpload.length
       };
       
-      if (geocodingWarnings.length > 0) {
+      if (geocodingFailures.length > 0) {
         response.warnings = {
-          message: `Could not find exact coordinates for ${geocodingWarnings.length} propert${geocodingWarnings.length === 1 ? 'y' : 'ies'}. Using approximate location. Please update manually if needed.`,
-          addresses: geocodingWarnings
+          message: `Failed to geocode ${geocodingFailures.length} propert${geocodingFailures.length === 1 ? 'y' : 'ies'}. ${geocodingFailures.length === 1 ? 'This property was' : 'These properties were'} not imported. Please verify the addresses and try again.`,
+          failedAddresses: geocodingFailures
         };
       }
       
@@ -147,6 +157,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching company contacts:', error);
       res.status(500).json({ message: "Error fetching company contacts" });
+    }
+  });
+
+  // Clean up bad geocoding - Re-geocode properties with San Francisco fallback coordinates
+  app.post("/api/properties/cleanup-geocoding", async (_req, res) => {
+    try {
+      // Find properties with the old SF fallback coordinates (37.7749, -122.4194)
+      const allProps = await db.select().from(properties);
+      const badCoords = allProps.filter(p => 
+        (p.latitude && p.longitude && 
+         Math.abs(p.latitude - 37.7749) < 0.0001 && 
+         Math.abs(p.longitude + 122.4194) < 0.0001)
+      );
+
+      console.log(`Found ${badCoords.length} properties with fallback SF coordinates`);
+      
+      const fixed: string[] = [];
+      const stillFailed: string[] = [];
+
+      for (const prop of badCoords) {
+        const coords = await geocodeAddress(prop.address, prop.city, prop.state, prop.zipCode);
+        if (coords) {
+          await db
+            .update(properties)
+            .set({ latitude: coords.lat, longitude: coords.lng })
+            .where(eq(properties.id, prop.id));
+          fixed.push(`${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
+          console.log(`Fixed: ${prop.address} -> ${coords.lat}, ${coords.lng}`);
+        } else {
+          stillFailed.push(`${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
+        }
+      }
+
+      res.json({
+        totalBadCoordinates: badCoords.length,
+        fixed: fixed.length,
+        stillFailed: stillFailed.length,
+        fixedAddresses: fixed,
+        failedAddresses: stillFailed
+      });
+    } catch (error) {
+      console.error('Error cleaning up geocoding:', error);
+      res.status(500).json({ message: "Error cleaning up geocoding" });
     }
   });
 
