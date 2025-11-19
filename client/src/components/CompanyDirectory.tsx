@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, MessageSquare } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import {
@@ -12,8 +12,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
 
 type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties";
+
+const contactRequestSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  message: z.string().min(10, "Message must be at least 10 characters").optional(),
+});
+
+type ContactRequestForm = z.infer<typeof contactRequestSchema>;
 
 interface CompanyDirectoryProps {
   onClose?: () => void;
@@ -24,6 +51,17 @@ interface CompanyDirectoryProps {
 export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("alphabetical");
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const { toast } = useToast();
+
+  const form = useForm<ContactRequestForm>({
+    resolver: zodResolver(contactRequestSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      message: "",
+    },
+  });
 
   const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
     queryKey: ["/api/company-contacts"],
@@ -78,6 +116,43 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     }
   };
 
+  const handleContactRequest = (data: ContactRequestForm) => {
+    const subject = encodeURIComponent("Contact Information Request");
+    const body = encodeURIComponent(
+      `Hello,\n\n` +
+      `I would like to request contact information.\n\n` +
+      `Name: ${data.name}\n` +
+      `Email: ${data.email}\n` +
+      `${data.message ? `Message: ${data.message}\n` : ''}` +
+      `\nThank you.`
+    );
+    
+    const mailtoLink = `mailto:neil@arvfinance.com?subject=${subject}&body=${body}`;
+    
+    // Try to open mailto: link
+    const opened = window.open(mailtoLink, '_self');
+    
+    // Check if it failed (returns null when blocked)
+    if (opened === null || opened === undefined) {
+      toast({
+        title: "Email Client Not Available",
+        description: "Please email neil@arvfinance.com directly with your contact information. Include your name, email, and message.",
+        variant: "destructive",
+      });
+      // Keep dialog open so user can copy their info
+      return;
+    }
+    
+    // Success - close dialog and show confirmation
+    toast({
+      title: "Opening Email Client",
+      description: "Your default email client will open with a pre-filled message to neil@arvfinance.com.",
+    });
+    
+    setRequestDialogOpen(false);
+    form.reset();
+  };
+
   return (
     <div className="w-80 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
       <div className="p-4 border-b border-border">
@@ -107,6 +182,17 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       </div>
 
       <div className="p-4 border-b border-border space-y-3">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setRequestDialogOpen(true)}
+          className="w-full"
+          data-testid="button-request-contact"
+        >
+          <MessageSquare className="w-4 h-4 mr-2" />
+          Request Contact Information
+        </Button>
+
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -203,6 +289,85 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           {filteredCompanies.length} {filteredCompanies.length === 1 ? 'company' : 'companies'}
         </div>
       </div>
+
+      <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+        <DialogContent data-testid="dialog-request-contact">
+          <DialogHeader>
+            <DialogTitle>Request Contact Information</DialogTitle>
+            <DialogDescription>
+              Send a contact information request to neil@arvfinance.com. Your default email client will open with a pre-filled message.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleContactRequest)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="John Doe" data-testid="input-request-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your Email *</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" placeholder="john@example.com" data-testid="input-request-email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="message"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Message (Optional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Additional details..." data-testid="input-request-message" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setRequestDialogOpen(false);
+                    form.reset();
+                  }}
+                  className="flex-1"
+                  data-testid="button-cancel-request"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  data-testid="button-submit-request"
+                >
+                  Send Request
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

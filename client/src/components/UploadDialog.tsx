@@ -640,8 +640,17 @@ export default function UploadDialog({
                           <Input 
                             type="number" 
                             placeholder="500000"
-                            value={field.value || ""}
-                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            value={field.value ?? ""}
+                            onChange={e => {
+                              const val = e.target.value;
+                              field.onChange(val === "" ? "" : Number(val));
+                            }}
+                            onBlur={() => {
+                              // Convert empty to 0 on blur for validation
+                              if (field.value === "" || field.value === null || field.value === undefined) {
+                                field.onChange(0);
+                              }
+                            }}
                             data-testid="input-manual-price"
                           />
                         </FormControl>
@@ -660,8 +669,16 @@ export default function UploadDialog({
                           <Input 
                             type="number" 
                             placeholder="3"
-                            value={field.value || ""}
-                            onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                            value={field.value ?? ""}
+                            onChange={e => {
+                              const val = e.target.value;
+                              field.onChange(val === "" ? "" : Number(val));
+                            }}
+                            onBlur={() => {
+                              if (field.value === "" || field.value === null || field.value === undefined) {
+                                field.onChange(0);
+                              }
+                            }}
                             data-testid="input-manual-bedrooms"
                           />
                         </FormControl>
@@ -681,8 +698,16 @@ export default function UploadDialog({
                             type="number" 
                             step="0.5"
                             placeholder="2"
-                            value={field.value || ""}
-                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            value={field.value ?? ""}
+                            onChange={e => {
+                              const val = e.target.value;
+                              field.onChange(val === "" ? "" : Number(val));
+                            }}
+                            onBlur={() => {
+                              if (field.value === "" || field.value === null || field.value === undefined) {
+                                field.onChange(0);
+                              }
+                            }}
                             data-testid="input-manual-bathrooms"
                           />
                         </FormControl>
@@ -701,8 +726,16 @@ export default function UploadDialog({
                           <Input 
                             type="number" 
                             placeholder="1500"
-                            value={field.value || ""}
-                            onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                            value={field.value ?? ""}
+                            onChange={e => {
+                              const val = e.target.value;
+                              field.onChange(val === "" ? "" : Number(val));
+                            }}
+                            onBlur={() => {
+                              if (field.value === "" || field.value === null || field.value === undefined) {
+                                field.onChange(0);
+                              }
+                            }}
                             data-testid="input-manual-squarefeet"
                           />
                         </FormControl>
