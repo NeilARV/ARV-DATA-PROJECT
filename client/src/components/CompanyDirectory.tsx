@@ -185,17 +185,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       </div>
 
       <div className="p-4 border-b border-border space-y-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setRequestDialogOpen(true)}
-          className="w-full"
-          data-testid="button-request-contact"
-        >
-          <MessageSquare className="w-4 h-4 mr-2" />
-          Request Contact Information
-        </Button>
-
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
