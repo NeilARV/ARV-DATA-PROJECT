@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, Table2, CloudUpload, Search, Moon, Sun } from "lucide-react";
+import { Map, Grid3x3, Table2, CloudUpload, Search, Moon, Sun, Settings } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
 
 interface HeaderProps {
@@ -19,6 +20,7 @@ export default function Header({
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     const isDarkMode = document.documentElement.classList.contains('dark');
@@ -106,6 +108,16 @@ export default function Header({
         <Button onClick={onUploadClick} size="sm" data-testid="button-upload">
           <CloudUpload className="w-4 h-4 mr-1" />
           <span className="hidden sm:inline">Upload</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setLocation('/admin')}
+          data-testid="button-admin"
+        >
+          <Settings className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">Admin</span>
         </Button>
 
         <Button

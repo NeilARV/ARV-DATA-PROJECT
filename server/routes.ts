@@ -222,6 +222,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a single property by ID
+  app.delete("/api/properties/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await db.delete(properties).where(eq(properties.id, id)).returning();
+      
+      if (deleted.length === 0) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+      
+      res.json({ message: "Property deleted successfully", property: deleted[0] });
+    } catch (error) {
+      console.error('Error deleting property:', error);
+      res.status(500).json({ message: "Error deleting property" });
+    }
+  });
+
   // Get all company contacts
   app.get("/api/company-contacts", async (_req, res) => {
     try {

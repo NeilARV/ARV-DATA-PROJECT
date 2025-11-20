@@ -1,0 +1,362 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { Property } from "@shared/schema";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import UploadDialog from "@/components/UploadDialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function Admin() {
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
+
+  const { data: properties, isLoading } = useQuery<Property[]>({
+    queryKey: ["/api/properties"],
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/properties");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      toast({
+        title: "Success",
+        description: "All properties have been deleted",
+      });
+      setDeleteAllDialogOpen(false);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete properties",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteSingleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/properties/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      toast({
+        title: "Success",
+        description: "Property has been deleted",
+      });
+      setPropertyToDelete(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete property",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteAll = () => {
+    deleteAllMutation.mutate();
+  };
+
+  const handleDeleteSingle = (id: string) => {
+    deleteSingleMutation.mutate(id);
+  };
+
+  return (
+    <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <div className="mb-8">
+        <Button
+          variant="ghost"
+          onClick={() => setLocation('/')}
+          className="mb-4"
+          data-testid="button-back-home"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Properties
+        </Button>
+        <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
+          Admin Panel
+        </h1>
+        <p className="text-muted-foreground">
+          Manage your property data: upload, view, and delete properties
+        </p>
+      </div>
+
+      <Tabs defaultValue="upload" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsTrigger value="upload" data-testid="tab-upload">
+            <CloudUpload className="w-4 h-4 mr-2" />
+            Upload Data
+          </TabsTrigger>
+          <TabsTrigger value="manage" data-testid="tab-manage">
+            <Database className="w-4 h-4 mr-2" />
+            Manage Properties
+          </TabsTrigger>
+          <TabsTrigger value="delete-all" data-testid="tab-delete-all">
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete All Data
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="upload">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Property Data</CardTitle>
+              <CardDescription>
+                Import properties from CSV or Excel files, or add them manually
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <CloudUpload className="w-16 h-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold">Upload Properties</h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  Click the button below to upload a CSV or Excel file containing property data,
+                  or manually enter individual properties.
+                </p>
+                <Button
+                  size="lg"
+                  onClick={() => setUploadDialogOpen(true)}
+                  data-testid="button-open-upload"
+                >
+                  <CloudUpload className="w-5 h-5 mr-2" />
+                  Upload Properties
+                </Button>
+                {properties && (
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Current database: {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="manage">
+          <Card>
+            <CardHeader>
+              <CardTitle>Manage Properties</CardTitle>
+              <CardDescription>
+                View and delete individual properties from your database
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !properties || properties.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <Database className="w-16 h-16 text-muted-foreground" />
+                  <p className="text-muted-foreground">No properties in database</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => setUploadDialogOpen(true)}
+                    data-testid="button-upload-first"
+                  >
+                    <CloudUpload className="w-4 h-4 mr-2" />
+                    Upload Properties
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Total: {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
+                    </p>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[600px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background">
+                          <TableRow>
+                            <TableHead className="min-w-[200px]">Address</TableHead>
+                            <TableHead className="min-w-[100px]">City</TableHead>
+                            <TableHead className="text-right">Price</TableHead>
+                            <TableHead className="text-center">Beds</TableHead>
+                            <TableHead className="text-center">Baths</TableHead>
+                            <TableHead className="w-[100px]">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {properties.map((property) => (
+                            <TableRow key={property.id} data-testid={`row-property-${property.id}`}>
+                              <TableCell className="font-medium">
+                                <div>{property.address}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {property.state} {property.zipCode}
+                                </div>
+                              </TableCell>
+                              <TableCell>{property.city}</TableCell>
+                              <TableCell className="text-right font-semibold">
+                                ${property.price.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-center">{property.bedrooms}</TableCell>
+                              <TableCell className="text-center">{property.bathrooms}</TableCell>
+                              <TableCell>
+                                <AlertDialog
+                                  open={propertyToDelete === property.id}
+                                  onOpenChange={(open) => {
+                                    if (!open) setPropertyToDelete(null);
+                                  }}
+                                >
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => setPropertyToDelete(property.id)}
+                                      data-testid={`button-delete-${property.id}`}
+                                    >
+                                      <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Property?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete {property.address}?
+                                        This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel data-testid="button-cancel-delete">
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteSingle(property.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        data-testid="button-confirm-delete"
+                                      >
+                                        {deleteSingleMutation.isPending ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Deleting...
+                                          </>
+                                        ) : (
+                                          "Delete"
+                                        )}
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="delete-all">
+          <Card>
+            <CardHeader>
+              <CardTitle>Delete All Properties</CardTitle>
+              <CardDescription>
+                Remove all properties from your database
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center justify-center py-12 gap-6">
+                <div className="rounded-full bg-destructive/10 p-6">
+                  <AlertTriangle className="w-12 h-12 text-destructive" />
+                </div>
+                <div className="text-center max-w-md">
+                  <h3 className="text-xl font-semibold mb-2">Danger Zone</h3>
+                  <p className="text-muted-foreground mb-6">
+                    This will permanently delete all {properties?.length || 0} properties from your database.
+                    This action cannot be undone.
+                  </p>
+                  {properties && properties.length > 0 ? (
+                    <AlertDialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="lg"
+                          data-testid="button-open-delete-all"
+                        >
+                          <Trash2 className="w-5 h-5 mr-2" />
+                          Delete All Properties
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete all {properties.length} properties from your database.
+                            This action cannot be undone. You will need to re-upload your data if you want to restore it.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel data-testid="button-cancel-delete-all">
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDeleteAll}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            data-testid="button-confirm-delete-all"
+                          >
+                            {deleteAllMutation.isPending ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              "Yes, Delete Everything"
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <p className="text-muted-foreground">No properties to delete</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <UploadDialog
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+        }}
+      />
+    </div>
+  );
+}

@@ -69,6 +69,11 @@ Preferred communication style: Simple, everyday language.
     - "Copy Email" button as reliable fallback
     - Form collects requester name, email, and optional message
 - Theme toggle (light/dark mode with localStorage persistence)
+- **Admin Panel** (accessible via `/admin` route):
+  - Upload Data tab: CSV/Excel file upload and manual property entry
+  - Manage Properties tab: View all properties with individual delete buttons
+  - Delete All Data tab: Nuclear option to clear entire database with confirmation dialog
+  - Navigation: "Admin" button in main header, "Back to Properties" button in admin panel
 
 ### Backend Architecture
 
