@@ -72,12 +72,17 @@ Preferred communication style: Simple, everyday language.
 - **Admin Panel** (accessible via `/admin` route with passcode protection):
   - **Authentication**: Secured with server-side session-based authentication
     - Passcode stored in ADMIN_PASSCODE environment variable
+    - SESSION_SECRET required for session signing (server exits if missing)
     - HTTP-only cookie session with 24-hour timeout
+    - Cookie security: `secure` flag set to true in production, false in development
+    - AdminLogin component with server-side passcode verification
     - All admin API routes protected with requireAdminAuth middleware
+    - Logout functionality with session destruction and cookie clearing
+    - Query cache invalidation on login/logout for proper state management
   - Upload Data tab: CSV/Excel file upload and manual property entry
   - Manage Properties tab: View all properties with individual delete buttons
   - Delete All Data tab: Nuclear option to clear entire database with confirmation dialog
-  - Navigation: "Admin" button in main header, "Back to Properties" button in admin panel
+  - Navigation: "Admin" button in main header, "Back to Properties" and "Logout" buttons in admin panel
 
 ### Backend Architecture
 
