@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Property } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import AdminLogin from "@/components/AdminLogin";
 import {
   Table,
   TableBody,
@@ -35,9 +36,30 @@ export default function Admin() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/admin/status', {
+          credentials: 'include',
+        });
+        const data = await response.json();
+        setIsAuthenticated(data.authenticated);
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const { data: properties, isLoading } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
+    enabled: isAuthenticated,
   });
 
   const deleteAllMutation = useMutation({
@@ -90,18 +112,99 @@ export default function Admin() {
     deleteSingleMutation.mutate(id);
   };
 
+  const handleAuthenticate = async (passcode: string) => {
+    try {
+      const response = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ passcode }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setIsAuthenticated(true);
+        // Invalidate and refetch properties after authentication
+        await queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+        toast({
+          title: "Access Granted",
+          description: "Welcome to the admin panel",
+        });
+      } else {
+        toast({
+          title: "Access Denied",
+          description: "Incorrect passcode. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect passcode. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/admin/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        setIsAuthenticated(false);
+        // Clear all cached queries on logout
+        queryClient.clear();
+        toast({
+          title: "Logged Out",
+          description: "You have been logged out of the admin panel",
+        });
+      }
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast({
+        title: "Error",
+        description: "Failed to log out",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (isVerifying) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin onAuthenticate={handleAuthenticate} />;
+  }
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
       <div className="mb-8">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation('/')}
-          className="mb-4"
-          data-testid="button-back-home"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Properties
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => setLocation('/')}
+            data-testid="button-back-home"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Properties
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            data-testid="button-logout"
+          >
+            Logout
+          </Button>
+        </div>
         <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
           Admin Panel
         </h1>

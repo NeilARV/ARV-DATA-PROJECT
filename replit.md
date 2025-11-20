@@ -69,7 +69,11 @@ Preferred communication style: Simple, everyday language.
     - "Copy Email" button as reliable fallback
     - Form collects requester name, email, and optional message
 - Theme toggle (light/dark mode with localStorage persistence)
-- **Admin Panel** (accessible via `/admin` route):
+- **Admin Panel** (accessible via `/admin` route with passcode protection):
+  - **Authentication**: Secured with server-side session-based authentication
+    - Passcode stored in ADMIN_PASSCODE environment variable
+    - HTTP-only cookie session with 24-hour timeout
+    - All admin API routes protected with requireAdminAuth middleware
   - Upload Data tab: CSV/Excel file upload and manual property entry
   - Manage Properties tab: View all properties with individual delete buttons
   - Delete All Data tab: Nuclear option to clear entire database with confirmation dialog

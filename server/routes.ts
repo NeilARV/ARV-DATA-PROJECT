@@ -1,13 +1,68 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./storage";
 import { properties, companyContacts, insertPropertySchema } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 
+// Middleware to check admin authentication
+function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.session.isAdminAuthenticated) {
+    next();
+  } else {
+    res.status(401).json({ message: "Unauthorized - Admin authentication required" });
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Seed company contacts on startup
   await seedCompanyContacts();
+
+  // Verify admin passcode and create session
+  app.post("/api/admin/verify", async (req, res) => {
+    try {
+      const { passcode } = req.body;
+      const adminPasscode = process.env.ADMIN_PASSCODE;
+      
+      if (!adminPasscode) {
+        return res.status(500).json({ message: "Admin passcode not configured" });
+      }
+      
+      if (passcode === adminPasscode) {
+        req.session.isAdminAuthenticated = true;
+        res.json({ success: true });
+      } else {
+        res.status(401).json({ success: false, message: "Incorrect passcode" });
+      }
+    } catch (error) {
+      console.error('Error verifying admin passcode:', error);
+      res.status(500).json({ message: "Error verifying passcode" });
+    }
+  });
+
+  // Check admin authentication status
+  app.get("/api/admin/status", async (req, res) => {
+    res.json({ authenticated: !!req.session.isAdminAuthenticated });
+  });
+
+  // Logout admin
+  app.post("/api/admin/logout", async (req, res) => {
+    // Destroy the session completely
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ message: "Error logging out" });
+      }
+      // Clear the session cookie with same settings as session middleware
+      res.clearCookie('connect.sid', {
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+      });
+      res.json({ success: true });
+    });
+  });
 
   // Get all properties
   app.get("/api/properties", async (_req, res) => {
@@ -64,8 +119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Create a single property
-  app.post("/api/properties", async (req, res) => {
+  // Create a single property (requires admin auth)
+  app.post("/api/properties", requireAdminAuth, async (req, res) => {
     try {
       console.log("POST /api/properties - Raw request body:", JSON.stringify(req.body, null, 2));
       
@@ -137,8 +192,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload properties
-  app.post("/api/properties/upload", async (req, res) => {
+  // Upload properties (requires admin auth)
+  app.post("/api/properties/upload", requireAdminAuth, async (req, res) => {
     try {
       const propertiesToUpload = req.body;
       
@@ -211,8 +266,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete all properties
-  app.delete("/api/properties", async (_req, res) => {
+  // Delete all properties (requires admin auth)
+  app.delete("/api/properties", requireAdminAuth, async (_req, res) => {
     try {
       await db.delete(properties);
       res.json({ message: "All properties deleted" });
@@ -222,8 +277,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete a single property by ID
-  app.delete("/api/properties/:id", async (req, res) => {
+  // Delete a single property by ID (requires admin auth)
+  app.delete("/api/properties/:id", requireAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await db.delete(properties).where(eq(properties.id, id)).returning();
@@ -273,8 +328,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return value;
   }
 
-  // Clean up bad date formats - Convert Excel serial dates to ISO strings
-  app.post("/api/properties/cleanup-dates", async (_req, res) => {
+  // Clean up bad date formats - Convert Excel serial dates to ISO strings (requires admin auth)
+  app.post("/api/properties/cleanup-dates", requireAdminAuth, async (_req, res) => {
     try {
       const allProps = await db.select().from(properties);
       // Find properties with Excel serial date format (numeric strings like "45961")
@@ -308,8 +363,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Remove duplicate properties - Keep only the one with correct coordinates
-  app.post("/api/properties/cleanup-duplicates", async (_req, res) => {
+  // Remove duplicate properties - Keep only the one with correct coordinates (requires admin auth)
+  app.post("/api/properties/cleanup-duplicates", requireAdminAuth, async (_req, res) => {
     try {
       const allProps = await db.select().from(properties);
       
@@ -373,8 +428,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Clean up bad geocoding - Re-geocode properties with San Francisco fallback coordinates
-  app.post("/api/properties/cleanup-geocoding", async (_req, res) => {
+  // Clean up bad geocoding - Re-geocode properties with San Francisco fallback coordinates (requires admin auth)
+  app.post("/api/properties/cleanup-geocoding", requireAdminAuth, async (_req, res) => {
     try {
       // Find properties with the old SF fallback coordinates (37.7749, -122.4194)
       const allProps = await db.select().from(properties);
