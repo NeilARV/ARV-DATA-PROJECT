@@ -118,11 +118,11 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
             <TableHead className="min-w-[150px]">
               <SortButton column="propertyOwner">Owner</SortButton>
             </TableHead>
-            <TableHead className="min-w-[120px]">
-              <SortButton column="dateSold">Date Sold</SortButton>
-            </TableHead>
             <TableHead className="text-center">
               <SortButton column="daysOwned">Days Owned</SortButton>
+            </TableHead>
+            <TableHead className="min-w-[120px]">
+              <SortButton column="dateSold">Date Sold</SortButton>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -155,16 +155,16 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell>
-                {property.dateSold ? (
-                  formatDate(property.dateSold)
+              <TableCell className="text-center">
+                {calculateDaysOwned(property.dateSold) !== null ? (
+                  `${calculateDaysOwned(property.dateSold)} days`
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell className="text-center">
-                {calculateDaysOwned(property.dateSold) !== null ? (
-                  `${calculateDaysOwned(property.dateSold)} days`
+              <TableCell>
+                {property.dateSold ? (
+                  formatDate(property.dateSold)
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
