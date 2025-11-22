@@ -74,11 +74,12 @@ Preferred communication style: Simple, everyday language.
     - Passcode stored in ADMIN_PASSCODE environment variable
     - SESSION_SECRET required for session signing (server exits if missing)
     - HTTP-only cookie session with 24-hour timeout
-    - Cookie security: `secure` flag set to true in production, false in development
+    - Cookie security: `secure` flag set to true in production, `sameSite: 'lax'` for proper cookie handling
     - AdminLogin component with server-side passcode verification
     - All admin API routes protected with requireAdminAuth middleware
     - Logout functionality with session destruction and cookie clearing
     - Query cache invalidation on login/logout for proper state management
+    - **Bug Fix (Nov 22, 2025)**: Added explicit `sameSite: 'lax'` to session cookies to fix delete functionality in production
   - Upload Data tab: CSV/Excel file upload and manual property entry
   - Manage Properties tab: View all properties with individual delete buttons
   - Delete All Data tab: Nuclear option to clear entire database with confirmation dialog
