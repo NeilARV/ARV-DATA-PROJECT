@@ -277,7 +277,7 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <Button 
-          variant="outline" 
+          variant="default" 
           onClick={handleClearAll} 
           className="w-full"
           data-testid="button-clear-all-filters"
