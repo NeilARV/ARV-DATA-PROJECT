@@ -216,7 +216,7 @@ export default function Home() {
 
   const filteredProperties = properties.filter(property => {
     // Apply company filter first if one is selected
-    if (selectedCompany && property.propertyOwner !== selectedCompany) {
+    if (selectedCompany && property.propertyOwner?.trim() !== selectedCompany) {
       return false;
     }
 

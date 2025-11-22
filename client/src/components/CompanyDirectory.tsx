@@ -75,7 +75,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const companiesWithCounts = useMemo(() => {
     return companies.map(company => {
       const propertyCount = properties.filter(
-        p => p.propertyOwner === company.companyName
+        p => p.propertyOwner?.trim() === company.companyName
       ).length;
       return { ...company, propertyCount };
     });
