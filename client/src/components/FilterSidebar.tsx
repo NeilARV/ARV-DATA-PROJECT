@@ -175,6 +175,23 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
     console.log('Filters reset');
   };
 
+  const handleClearAll = () => {
+    setPriceRange([0, 2000000]);
+    setSelectedBedrooms('Any');
+    setSelectedBathrooms('Any');
+    setSelectedTypes([]);
+    setZipCode('');
+    onFilterChange?.({
+      minPrice: 0,
+      maxPrice: 2000000,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
+      zipCode: '',
+    });
+    console.log('All filters cleared');
+  };
+
   const togglePropertyType = (type: string) => {
     setSelectedTypes(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
@@ -259,6 +276,15 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <Button 
+          variant="outline" 
+          onClick={handleClearAll} 
+          className="w-full"
+          data-testid="button-clear-all-filters"
+        >
+          Clear All Filters
+        </Button>
+
         <div className="relative">
           <Label className="text-sm font-medium mb-2 block">Zip Code</Label>
           <Input
