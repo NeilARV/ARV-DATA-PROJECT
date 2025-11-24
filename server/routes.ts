@@ -2,14 +2,16 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./storage";
 import { properties, companyContacts, insertPropertySchema } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, gt, lt } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 
 // Middleware to check admin authentication
 function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
+  console.log(`[AUTH CHECK] Path: ${req.path}, Authenticated: ${!!req.session.isAdminAuthenticated}, Session ID: ${req.sessionID}`);
   if (req.session.isAdminAuthenticated) {
     next();
   } else {
+    console.error(`[AUTH DENIED] Unauthorized access attempt to ${req.path}, Session: ${JSON.stringify(req.session)}`);
     res.status(401).json({ message: "Unauthorized - Admin authentication required" });
   }
 }
@@ -281,16 +283,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/properties/:id", requireAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;
+      console.log(`[DELETE] Attempting to delete property ID: ${id}`);
       const deleted = await db.delete(properties).where(eq(properties.id, id)).returning();
       
       if (deleted.length === 0) {
+        console.warn(`[DELETE] Property not found: ${id}`);
         return res.status(404).json({ message: "Property not found" });
       }
       
+      console.log(`[DELETE] Successfully deleted property: ${deleted[0].address}`);
       res.json({ message: "Property deleted successfully", property: deleted[0] });
     } catch (error) {
-      console.error('Error deleting property:', error);
-      res.status(500).json({ message: "Error deleting property" });
+      console.error('[DELETE ERROR]', error);
+      res.status(500).json({ message: `Error deleting property: ${error instanceof Error ? error.message : 'Unknown error'}` });
+    }
+  });
+
+  // Debug endpoint to find problematic properties (for admin use only)
+  app.get("/api/debug/bad-coords", requireAdminAuth, async (_req, res) => {
+    try {
+      const badCoordProperties = await db
+        .select()
+        .from(properties)
+        .where(
+          and(
+            gt(properties.latitude, 36.5),
+            lt(properties.latitude, 38.5),
+            gt(properties.longitude, -124),
+            lt(properties.longitude, -121)
+          )
+        );
+      
+      res.json({
+        count: badCoordProperties.length,
+        properties: badCoordProperties,
+        message: "Properties with potential coordinate issues found"
+      });
+    } catch (error) {
+      console.error('[DEBUG ERROR]', error);
+      res.status(500).json({ message: "Error fetching debug info" });
+    }
+  });
+
+  // Delete problematic properties by ID (for admin cleanup)
+  app.post("/api/debug/delete-bad-coords", requireAdminAuth, async (req, res) => {
+    try {
+      const { propertyIds } = req.body;
+      if (!Array.isArray(propertyIds)) {
+        return res.status(400).json({ message: "Expected array of property IDs" });
+      }
+
+      let deletedCount = 0;
+      for (const id of propertyIds) {
+        const result = await db.delete(properties).where(eq(properties.id, id)).returning();
+        if (result.length > 0) deletedCount++;
+      }
+
+      res.json({ message: `Deleted ${deletedCount} properties`, deletedCount });
+    } catch (error) {
+      console.error('[DEBUG DELETE ERROR]', error);
+      res.status(500).json({ message: "Error deleting properties" });
     }
   });
 

@@ -25,6 +25,13 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
+// Set longer timeout for large uploads and processing
+app.use((req, res, next) => {
+  req.setTimeout(5 * 60 * 1000); // 5 minute timeout for uploads
+  res.setTimeout(5 * 60 * 1000);
+  next();
+});
+
 // Enforce SESSION_SECRET is set
 if (!process.env.SESSION_SECRET) {
   console.error('FATAL: SESSION_SECRET environment variable is not set. This is required for secure admin authentication.');
@@ -35,13 +42,14 @@ if (!process.env.SESSION_SECRET) {
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
+    resave: true,  // Save session on every request to ensure persistence
+    saveUninitialized: true,  // Create session immediately
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Explicitly set sameSite for better cookie handling
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/',
     },
   })
 );
