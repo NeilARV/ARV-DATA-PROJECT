@@ -33,6 +33,12 @@ export const companyContacts = pgTable("company_contacts", {
   contactEmail: text("contact_email"),
 });
 
+export const sessions = pgTable("sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: text("sess").notNull(),
+  expire: integer("expire").notNull(),
+});
+
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
 });

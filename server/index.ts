@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { NeonSessionStore } from "./session-store";
 
 const app = express();
 
@@ -38,12 +39,25 @@ if (!process.env.SESSION_SECRET) {
   process.exit(1);
 }
 
+// Create database-backed session store for production persistence
+const sessionStore = new NeonSessionStore({ 
+  ttl: 24 * 60 * 60 * 1000  // 24 hour session lifetime
+});
+
+// Clean up expired sessions every hour
+setInterval(() => {
+  sessionStore.cleanup().catch(err => 
+    console.error('[SessionStore] Cleanup error:', err)
+  );
+}, 60 * 60 * 1000);
+
 // Session middleware for admin authentication
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET,
-    resave: true,  // Save session on every request to ensure persistence
-    saveUninitialized: true,  // Create session immediately
+    resave: false,  // Don't save session if unmodified (store handles it)
+    saveUninitialized: false,  // Don't create session until something stored
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

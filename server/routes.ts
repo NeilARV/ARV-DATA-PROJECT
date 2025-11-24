@@ -4,6 +4,7 @@ import { db } from "./storage";
 import { properties, companyContacts, insertPropertySchema } from "@shared/schema";
 import { eq, and, gt, lt } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
+import pLimit from "p-limit";
 
 // Middleware to check admin authentication
 function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
@@ -194,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload properties (requires admin auth)
+  // Upload properties with chunked processing and controlled concurrency (requires admin auth)
   app.post("/api/properties/upload", requireAdminAuth, async (req, res) => {
     try {
       const propertiesToUpload = req.body;
@@ -203,55 +204,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Expected an array of properties" });
       }
 
+      console.log(`[UPLOAD] Starting upload of ${propertiesToUpload.length} properties`);
+      
       const geocodingFailures: string[] = [];
       const successfulProperties: any[] = [];
-
-      // Auto-populate company contact and geocode if needed
-      for (const prop of propertiesToUpload) {
-        let enriched = { ...prop };
-        let shouldInsert = true;
+      
+      // Limit concurrent geocoding to 5 requests at a time to avoid overwhelming the API
+      const limit = pLimit(5);
+      const CHUNK_SIZE = 50;
+      
+      // Process properties in chunks to avoid timeouts
+      for (let i = 0; i < propertiesToUpload.length; i += CHUNK_SIZE) {
+        const chunk = propertiesToUpload.slice(i, i + CHUNK_SIZE);
+        console.log(`[UPLOAD] Processing chunk ${Math.floor(i / CHUNK_SIZE) + 1}/${Math.ceil(propertiesToUpload.length / CHUNK_SIZE)} (${chunk.length} properties)`);
         
-        // Geocode if lat/lng not provided
-        if (!prop.latitude || !prop.longitude || isNaN(prop.latitude) || isNaN(prop.longitude)) {
-          const coords = await geocodeAddress(prop.address, prop.city, prop.state, prop.zipCode);
-          if (coords) {
-            enriched.latitude = coords.lat;
-            enriched.longitude = coords.lng;
-          } else {
-            // REMOVED DANGEROUS FALLBACK - Don't insert properties with bad coordinates
-            console.warn(`Geocoding failed for: ${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
-            geocodingFailures.push(`${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
-            shouldInsert = false;
+        // Process chunk with controlled concurrency
+        const geocodingTasks = chunk.map((prop) => 
+          limit(async () => {
+            let enriched = { ...prop };
+            let shouldInsert = true;
+            
+            // Geocode if lat/lng not provided or invalid
+            if (!prop.latitude || !prop.longitude || isNaN(prop.latitude) || isNaN(prop.longitude)) {
+              const coords = await geocodeAddress(prop.address, prop.city, prop.state, prop.zipCode);
+              if (coords) {
+                enriched.latitude = coords.lat;
+                enriched.longitude = coords.lng;
+              } else {
+                console.warn(`Geocoding failed for: ${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
+                geocodingFailures.push(`${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`);
+                shouldInsert = false;
+              }
+            }
+            
+            // Look up company contact
+            if (shouldInsert && prop.propertyOwner) {
+              try {
+                const contact = await db
+                  .select()
+                  .from(companyContacts)
+                  .where(eq(companyContacts.companyName, prop.propertyOwner))
+                  .limit(1);
+                
+                if (contact.length > 0) {
+                  enriched.companyContactName = contact[0].contactName;
+                  enriched.companyContactEmail = contact[0].contactEmail;
+                }
+              } catch (contactError) {
+                console.error(`Error looking up contact for ${prop.propertyOwner}:`, contactError);
+              }
+            }
+            
+            return { enriched, shouldInsert };
+          })
+        );
+        
+        // Wait for all geocoding tasks in this chunk to complete
+        const results = await Promise.all(geocodingTasks);
+        
+        // Collect successful properties from this chunk
+        results.forEach(({ enriched, shouldInsert }) => {
+          if (shouldInsert) {
+            successfulProperties.push(enriched);
           }
-        }
+        });
         
-        // Look up company contact
-        if (shouldInsert && prop.propertyOwner) {
-          const contact = await db
-            .select()
-            .from(companyContacts)
-            .where(eq(companyContacts.companyName, prop.propertyOwner))
-            .limit(1);
+        // Insert this chunk into database immediately to avoid memory buildup
+        if (results.some(r => r.shouldInsert)) {
+          const chunkToInsert = results
+            .filter(r => r.shouldInsert)
+            .map(r => r.enriched);
           
-          if (contact.length > 0) {
-            enriched.companyContactName = contact[0].contactName;
-            enriched.companyContactEmail = contact[0].contactEmail;
+          if (chunkToInsert.length > 0) {
+            await db.insert(properties).values(chunkToInsert);
+            console.log(`[UPLOAD] Inserted ${chunkToInsert.length} properties from chunk`);
           }
-        }
-        
-        if (shouldInsert) {
-          successfulProperties.push(enriched);
         }
       }
-
-      const inserted = successfulProperties.length > 0 
-        ? await db.insert(properties).values(successfulProperties).returning()
-        : [];
+      
+      console.log(`[UPLOAD] Upload complete: ${successfulProperties.length} properties inserted, ${geocodingFailures.length} failed`);
       
       const response: any = { 
-        count: inserted.length,
-        properties: inserted,
-        total: propertiesToUpload.length
+        count: successfulProperties.length,
+        total: propertiesToUpload.length,
+        success: true
       };
       
       if (geocodingFailures.length > 0) {
@@ -263,7 +299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(response);
     } catch (error) {
-      console.error('Error uploading properties:', error);
+      console.error('[UPLOAD ERROR]', error);
       res.status(500).json({ message: "Error uploading properties" });
     }
   });
