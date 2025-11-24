@@ -39,6 +39,7 @@ export default function UploadDialog({
   const [parsedData, setParsedData] = useState<InsertProperty[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>("");
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -346,9 +347,10 @@ export default function UploadDialog({
     if (parsedData) {
       setIsUploading(true);
       setError(null);
+      setUploadStatus(`Processing ${parsedData.length} properties... this may take a few minutes`);
       
       try {
-        const response = await apiRequest("POST", "/api/properties/upload", parsedData) as any;
+        const response = await apiRequest("POST", "/api/properties/upload", parsedData, 15 * 60 * 1000) as any;
         
         // Check if NO properties were uploaded (complete failure)
         if (response.count === 0) {
@@ -383,10 +385,17 @@ export default function UploadDialog({
         onSuccess?.();
         handleClose();
       } catch (err: any) {
-        setError(err.message || "Failed to upload properties");
+        const errorMsg = err.message || "Failed to upload properties";
+        setError(errorMsg);
         console.error("Upload error:", err);
+        toast({
+          title: "Upload Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
       } finally {
         setIsUploading(false);
+        setUploadStatus("");
       }
     }
   };
@@ -568,6 +577,13 @@ export default function UploadDialog({
                     )}
                   </div>
                 </div>
+
+                {uploadStatus && (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-200 rounded-md text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                    <span>{uploadStatus}</span>
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <Button 

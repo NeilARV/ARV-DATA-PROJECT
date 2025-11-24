@@ -28,8 +28,8 @@ app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // Set longer timeout for large uploads and processing
 app.use((req, res, next) => {
-  req.setTimeout(5 * 60 * 1000); // 5 minute timeout for uploads
-  res.setTimeout(5 * 60 * 1000);
+  req.setTimeout(15 * 60 * 1000); // 15 minute timeout for uploads
+  res.setTimeout(15 * 60 * 1000);
   next();
 });
 
