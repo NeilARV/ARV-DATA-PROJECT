@@ -347,15 +347,33 @@ export default function UploadDialog({
     if (parsedData) {
       setIsUploading(true);
       setError(null);
-      setUploadStatus(`Processing ${parsedData.length} properties... this may take a few minutes`);
       
       try {
-        const response = await apiRequest("POST", "/api/properties/upload", parsedData, 15 * 60 * 1000) as any;
+        let totalUploaded = 0;
+        let allWarnings: string[] = [];
+        const BATCH_SIZE = 25; // Upload 25 properties per request to keep payload small
+        
+        // Split into smaller batches and upload each one
+        for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
+          const batch = parsedData.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(parsedData.length / BATCH_SIZE);
+          
+          setUploadStatus(`Uploading batch ${batchNum}/${totalBatches} (${batch.length} properties)...`);
+          
+          const response = await apiRequest("POST", "/api/properties/upload", batch, 15 * 60 * 1000) as any;
+          
+          totalUploaded += response.count || 0;
+          
+          if (response.warnings?.failedAddresses) {
+            allWarnings.push(...response.warnings.failedAddresses);
+          }
+        }
         
         // Check if NO properties were uploaded (complete failure)
-        if (response.count === 0) {
-          const errorMsg = response.warnings 
-            ? response.warnings.message 
+        if (totalUploaded === 0) {
+          const errorMsg = allWarnings.length > 0
+            ? `Failed to geocode addresses: ${allWarnings.slice(0, 3).join(', ')}${allWarnings.length > 3 ? '...' : ''}`
             : "No properties were uploaded. Please check your data and try again.";
           
           setError(errorMsg);
@@ -364,21 +382,20 @@ export default function UploadDialog({
             description: errorMsg,
             variant: "destructive",
           });
-          // Keep dialog open so user can see the error
           return;
         }
         
         // Some or all properties uploaded successfully
-        if (response.warnings) {
+        if (allWarnings.length > 0) {
           toast({
             title: "Upload Complete with Warnings",
-            description: response.warnings.message,
+            description: `Uploaded ${totalUploaded} propert${totalUploaded === 1 ? 'y' : 'ies'} but failed to geocode ${allWarnings.length} address${allWarnings.length === 1 ? '' : 'es'}`,
             variant: "default",
           });
         } else {
           toast({
             title: "Upload Successful",
-            description: `Successfully uploaded ${response.count} propert${response.count === 1 ? 'y' : 'ies'}`,
+            description: `Successfully uploaded ${totalUploaded} propert${totalUploaded === 1 ? 'y' : 'ies'}`,
           });
         }
         
