@@ -82,6 +82,8 @@ Preferred communication style: Simple, everyday language.
     - **Bug Fix (Nov 22, 2025)**: Added explicit `sameSite: 'lax'` to session cookies to fix delete functionality in production
   - Upload Data tab: CSV/Excel file upload and manual property entry
   - Manage Properties tab: View, edit, and delete individual properties
+    - **Search functionality**: Real-time search across address, city, state, zip code, and owner
+    - Shows "Showing X of Y properties" when filtering, with empty state message when no matches
     - Edit functionality: Click pencil icon to open edit dialog
     - Tabbed edit form: Basic (address, type, beds/baths), Details (price, dates), Owner (company dropdown), Location (coordinates)
     - Owner changes automatically update company contact info
