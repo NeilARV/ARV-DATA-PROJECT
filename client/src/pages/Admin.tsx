@@ -24,7 +24,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft, Pencil } from "lucide-react";
+import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft, Pencil, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/UploadDialog";
@@ -40,6 +41,7 @@ export default function Admin() {
   const [propertyToEdit, setPropertyToEdit] = useState<Property | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -63,6 +65,24 @@ export default function Admin() {
     queryKey: ["/api/properties"],
     enabled: isAuthenticated,
   });
+
+  // Filter properties based on search query
+  const filteredProperties = properties?.filter((property) => {
+    if (!searchQuery.trim()) return true;
+    
+    const query = searchQuery.toLowerCase().trim();
+    const searchableFields = [
+      property.address,
+      property.city,
+      property.state,
+      property.zipCode,
+      property.propertyOwner,
+    ].filter(Boolean);
+    
+    return searchableFields.some((field) => 
+      field?.toLowerCase().includes(query)
+    );
+  }) ?? [];
 
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
@@ -293,9 +313,34 @@ export default function Admin() {
                 </div>
               ) : (
                 <div>
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 space-y-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by address, city, state, zip code, or owner..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-9"
+                        data-testid="input-search-properties"
+                      />
+                      {searchQuery && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                          onClick={() => setSearchQuery("")}
+                          data-testid="button-clear-search"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
-                      Total: {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
+                      {searchQuery ? (
+                        <>Showing {filteredProperties.length} of {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}</>
+                      ) : (
+                        <>Total: {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}</>
+                      )}
                     </p>
                   </div>
                   <div className="border rounded-lg overflow-hidden">
@@ -312,7 +357,13 @@ export default function Admin() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {properties.map((property) => (
+                          {filteredProperties.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                No properties match your search
+                              </TableCell>
+                            </TableRow>
+                          ) : filteredProperties.map((property) => (
                             <TableRow key={property.id} data-testid={`row-property-${property.id}`}>
                               <TableCell className="font-medium">
                                 <div>{property.address}</div>

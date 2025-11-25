@@ -430,8 +430,8 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
                     <FormItem>
                       <FormLabel>Property Owner / Company</FormLabel>
                       <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value || ""}
+                        onValueChange={(value) => field.onChange(value === "__none__" ? null : value)} 
+                        value={field.value || "__none__"}
                       >
                         <FormControl>
                           <SelectTrigger data-testid="select-edit-owner">
@@ -439,7 +439,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="max-h-60">
-                          <SelectItem value="">No Owner</SelectItem>
+                          <SelectItem value="__none__">No Owner</SelectItem>
                           {companies.map((company) => (
                             <SelectItem key={company.id} value={company.companyName}>
                               {company.companyName}
