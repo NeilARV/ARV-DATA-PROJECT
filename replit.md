@@ -81,7 +81,10 @@ Preferred communication style: Simple, everyday language.
     - Query cache invalidation on login/logout for proper state management
     - **Bug Fix (Nov 22, 2025)**: Added explicit `sameSite: 'lax'` to session cookies to fix delete functionality in production
   - Upload Data tab: CSV/Excel file upload and manual property entry
-  - Manage Properties tab: View all properties with individual delete buttons
+  - Manage Properties tab: View, edit, and delete individual properties
+    - Edit functionality: Click pencil icon to open edit dialog
+    - Tabbed edit form: Basic (address, type, beds/baths), Details (price, dates), Owner (company dropdown), Location (coordinates)
+    - Owner changes automatically update company contact info
   - Delete All Data tab: Nuclear option to clear entire database with confirmation dialog
   - Navigation: "Admin" button in main header, "Back to Properties" and "Logout" buttons in admin panel
 
@@ -98,6 +101,8 @@ Preferred communication style: Simple, everyday language.
 - Primary endpoints:
   - `GET /api/properties` - Fetch all properties
   - `POST /api/properties` - Create single property (with geocoding)
+  - `PATCH /api/properties/:id` - Update property fields (Zod-validated, admin auth required)
+  - `DELETE /api/properties/:id` - Delete single property (admin auth required)
   - `POST /api/properties/bulk` - Bulk property upload
   - `GET /api/company-contacts` - Fetch company contacts
   - `POST /api/properties/cleanup-geocoding` - Fix properties with fallback coordinates
