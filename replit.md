@@ -69,6 +69,16 @@ Preferred communication style: Simple, everyday language.
     - "Copy Email" button as reliable fallback
     - Form collects requester name, email, and optional message
 - Theme toggle (light/dark mode with localStorage persistence)
+- **User Authentication System** (Added Nov 2025):
+  - User signup with first name, last name, phone, email, and password
+  - Secure password storage with bcrypt hashing (10 salt rounds)
+  - Session-based authentication storing userId
+  - Login/Signup buttons in header for unauthenticated users
+  - User menu dropdown showing name/email with logout option for authenticated users
+  - 60-second timer on first visit prompts unauthenticated users to create account
+  - SignupDialog and LoginDialog components with form validation
+  - useAuth hook for frontend authentication state management
+  - Authentication endpoints: /api/auth/signup, /api/auth/login, /api/auth/logout, /api/auth/me
 - **Admin Panel** (accessible via `/admin` route with passcode protection):
   - **Authentication**: Secured with server-side session-based authentication
     - Passcode stored in ADMIN_PASSCODE environment variable
@@ -87,6 +97,7 @@ Preferred communication style: Simple, everyday language.
     - Edit functionality: Click pencil icon to open edit dialog
     - Tabbed edit form: Basic (address, type, beds/baths), Details (price, dates), Owner (company dropdown), Location (coordinates)
     - Owner changes automatically update company contact info
+  - Users tab: View all registered users with name, email, phone, and registration date
   - Delete All Data tab: Nuclear option to clear entire database with confirmation dialog
   - Navigation: "Admin" button in main header, "Back to Properties" and "Logout" buttons in admin panel
 
@@ -110,6 +121,11 @@ Preferred communication style: Simple, everyday language.
   - `POST /api/properties/cleanup-geocoding` - Fix properties with fallback coordinates
   - `POST /api/properties/cleanup-dates` - Convert Excel serial dates to ISO strings
   - `GET /api/streetview` - Proxy Google Street View images
+  - `POST /api/auth/signup` - Create user account
+  - `POST /api/auth/login` - Login user
+  - `POST /api/auth/logout` - Logout user
+  - `GET /api/auth/me` - Get current authenticated user
+  - `GET /api/admin/users` - Fetch all users (admin auth required)
 
 **Geocoding Integration**
 - **Google Maps Geocoding API** for accurate address-to-coordinates conversion (replaced OpenStreetMap Nov 2025)
