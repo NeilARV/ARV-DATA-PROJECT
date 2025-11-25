@@ -24,13 +24,23 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft, Pencil, Search, X } from "lucide-react";
+import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft, Pencil, Search, X, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/UploadDialog";
 import EditPropertyDialog from "@/components/EditPropertyDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { format } from "date-fns";
+
+interface AdminUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+}
 
 export default function Admin() {
   const { toast } = useToast();
@@ -63,6 +73,11 @@ export default function Admin() {
 
   const { data: properties, isLoading } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
+    queryKey: ["/api/admin/users"],
     enabled: isAuthenticated,
   });
 
@@ -236,7 +251,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="upload" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className="grid w-full grid-cols-4 mb-8">
           <TabsTrigger value="upload" data-testid="tab-upload">
             <CloudUpload className="w-4 h-4 mr-2" />
             Upload Data
@@ -244,6 +259,10 @@ export default function Admin() {
           <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
             Manage Properties
+          </TabsTrigger>
+          <TabsTrigger value="users" data-testid="tab-users">
+            <Users className="w-4 h-4 mr-2" />
+            Users
           </TabsTrigger>
           <TabsTrigger value="delete-all" data-testid="tab-delete-all">
             <Trash2 className="w-4 h-4 mr-2" />
@@ -433,6 +452,65 @@ export default function Admin() {
                                     </AlertDialogContent>
                                   </AlertDialog>
                                 </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="users">
+          <Card>
+            <CardHeader>
+              <CardTitle>Registered Users</CardTitle>
+              <CardDescription>
+                View all users who have signed up for an account
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingUsers ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !users || users.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <Users className="w-16 h-16 text-muted-foreground" />
+                  <p className="text-muted-foreground">No users have signed up yet</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Total: {users.length} user{users.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[600px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background">
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>Signed Up</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users.map((user) => (
+                            <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                              <TableCell className="font-medium">
+                                {user.firstName} {user.lastName}
+                              </TableCell>
+                              <TableCell>{user.email}</TableCell>
+                              <TableCell>{user.phone}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {format(new Date(user.createdAt), 'MMM d, yyyy h:mm a')}
                               </TableCell>
                             </TableRow>
                           ))}

@@ -9,10 +9,13 @@ import PropertyTable from "@/components/PropertyTable";
 import PropertyDetailModal from "@/components/PropertyDetailModal";
 import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import UploadDialog from "@/components/UploadDialog";
+import SignupDialog from "@/components/SignupDialog";
+import LoginDialog from "@/components/LoginDialog";
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import {
   Select,
   SelectContent,
@@ -175,6 +178,18 @@ export default function Home() {
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
+  
+  const [showSignupDialog, setShowSignupDialog] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  
+  const { user, isAuthenticated } = useAuth();
+  const { shouldShowSignup, dismissPrompt } = useSignupPrompt();
+  
+  useEffect(() => {
+    if (shouldShowSignup && !isAuthenticated) {
+      setShowSignupDialog(true);
+    }
+  }, [shouldShowSignup, isAuthenticated]);
 
   // Fetch properties from backend
   const { data: properties = [], isLoading } = useQuery<Property[]>({
@@ -304,6 +319,8 @@ export default function Home() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onUploadClick={() => setShowUploadDialog(true)}
+        onLoginClick={() => setShowLoginDialog(true)}
+        onSignupClick={() => setShowSignupDialog(true)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -482,6 +499,32 @@ export default function Home() {
         open={showUploadDialog}
         onClose={() => setShowUploadDialog(false)}
         onSuccess={handleUploadSuccess}
+      />
+
+      <SignupDialog
+        open={showSignupDialog}
+        onClose={() => {
+          setShowSignupDialog(false);
+          dismissPrompt();
+        }}
+        onSuccess={() => {
+          setShowSignupDialog(false);
+          dismissPrompt();
+        }}
+        onSwitchToLogin={() => {
+          setShowSignupDialog(false);
+          setShowLoginDialog(true);
+        }}
+      />
+
+      <LoginDialog
+        open={showLoginDialog}
+        onClose={() => setShowLoginDialog(false)}
+        onSuccess={() => setShowLoginDialog(false)}
+        onSwitchToSignup={() => {
+          setShowLoginDialog(false);
+          setShowSignupDialog(true);
+        }}
       />
     </div>
   );

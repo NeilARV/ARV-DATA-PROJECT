@@ -1,15 +1,25 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, Table2, CloudUpload, Search, Moon, Sun, Settings } from "lucide-react";
+import { Map, Grid3x3, Table2, CloudUpload, Search, Moon, Sun, Settings, LogIn, User, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
+import { useAuth, AuthUser } from "@/hooks/use-auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   viewMode: "map" | "grid" | "table";
   onViewModeChange: (mode: "map" | "grid" | "table") => void;
   onUploadClick: () => void;
   onSearch?: (query: string) => void;
+  onLoginClick?: () => void;
+  onSignupClick?: () => void;
 }
 
 export default function Header({
@@ -17,10 +27,13 @@ export default function Header({
   onViewModeChange,
   onUploadClick,
   onSearch,
+  onLoginClick,
+  onSignupClick,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
   const [, setLocation] = useLocation();
+  const { user, isAuthenticated, logout, isLoggingOut } = useAuth();
 
   useEffect(() => {
     const isDarkMode = document.documentElement.classList.contains('dark');
@@ -119,6 +132,53 @@ export default function Header({
           <Settings className="w-4 h-4 mr-1" />
           <span className="hidden sm:inline">Admin</span>
         </Button>
+
+        {isAuthenticated && user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-user-menu">
+                <User className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">{user.firstName}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <div className="px-2 py-1.5 text-sm font-medium">
+                {user.firstName} {user.lastName}
+              </div>
+              <div className="px-2 py-1 text-xs text-muted-foreground">
+                {user.email}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => logout()}
+                disabled={isLoggingOut}
+                data-testid="button-user-logout"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                {isLoggingOut ? "Signing out..." : "Sign out"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onLoginClick}
+              data-testid="button-login"
+            >
+              <LogIn className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Sign in</span>
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={onSignupClick}
+              data-testid="button-signup"
+            >
+              Sign up
+            </Button>
+          </div>
+        )}
 
         <Button
           variant="ghost"
