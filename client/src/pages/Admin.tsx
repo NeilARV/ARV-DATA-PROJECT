@@ -24,10 +24,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft } from "lucide-react";
+import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft, Pencil } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/UploadDialog";
+import EditPropertyDialog from "@/components/EditPropertyDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Admin() {
@@ -36,6 +37,7 @@ export default function Admin() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
+  const [propertyToEdit, setPropertyToEdit] = useState<Property | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
 
@@ -268,7 +270,7 @@ export default function Admin() {
             <CardHeader>
               <CardTitle>Manage Properties</CardTitle>
               <CardDescription>
-                View and delete individual properties from your database
+                View, edit, and delete individual properties from your database
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -306,7 +308,7 @@ export default function Admin() {
                             <TableHead className="text-right">Price</TableHead>
                             <TableHead className="text-center">Beds</TableHead>
                             <TableHead className="text-center">Baths</TableHead>
-                            <TableHead className="w-[100px]">Actions</TableHead>
+                            <TableHead className="w-[120px]">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -325,51 +327,61 @@ export default function Admin() {
                               <TableCell className="text-center">{property.bedrooms}</TableCell>
                               <TableCell className="text-center">{property.bathrooms}</TableCell>
                               <TableCell>
-                                <AlertDialog
-                                  open={propertyToDelete === property.id}
-                                  onOpenChange={(open) => {
-                                    if (!open) setPropertyToDelete(null);
-                                  }}
-                                >
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setPropertyToDelete(property.id)}
-                                      data-testid={`button-delete-${property.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4 text-destructive" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete Property?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete {property.address}?
-                                        This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel data-testid="button-cancel-delete">
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteSingle(property.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        data-testid="button-confirm-delete"
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setPropertyToEdit(property)}
+                                    data-testid={`button-edit-${property.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4 text-muted-foreground" />
+                                  </Button>
+                                  <AlertDialog
+                                    open={propertyToDelete === property.id}
+                                    onOpenChange={(open) => {
+                                      if (!open) setPropertyToDelete(null);
+                                    }}
+                                  >
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setPropertyToDelete(property.id)}
+                                        data-testid={`button-delete-${property.id}`}
                                       >
-                                        {deleteSingleMutation.isPending ? (
-                                          <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Deleting...
-                                          </>
-                                        ) : (
-                                          "Delete"
-                                        )}
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Property?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete {property.address}?
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel data-testid="button-cancel-delete">
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteSingle(property.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          data-testid="button-confirm-delete"
+                                        >
+                                          {deleteSingleMutation.isPending ? (
+                                            <>
+                                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                              Deleting...
+                                            </>
+                                          ) : (
+                                            "Delete"
+                                          )}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -459,6 +471,12 @@ export default function Admin() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
         }}
+      />
+
+      <EditPropertyDialog
+        property={propertyToEdit}
+        open={!!propertyToEdit}
+        onClose={() => setPropertyToEdit(null)}
       />
     </div>
   );

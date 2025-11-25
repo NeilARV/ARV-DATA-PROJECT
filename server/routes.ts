@@ -5,6 +5,28 @@ import { properties, companyContacts, insertPropertySchema } from "@shared/schem
 import { eq, and, gt, lt } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 import pLimit from "p-limit";
+import { z } from "zod";
+
+// Zod schema for partial property updates with proper validation
+const updatePropertySchema = z.object({
+  address: z.string().min(1, "Address is required").optional(),
+  city: z.string().min(1, "City is required").optional(),
+  state: z.string().min(1, "State is required").optional(),
+  zipCode: z.string().min(1, "Zip code is required").optional(),
+  price: z.coerce.number().min(0, "Price must be positive").optional(),
+  bedrooms: z.coerce.number().int().min(0, "Bedrooms must be 0 or more").optional(),
+  bathrooms: z.coerce.number().min(0, "Bathrooms must be 0 or more").optional(),
+  squareFeet: z.coerce.number().int().min(0, "Square feet must be positive").optional(),
+  propertyType: z.string().min(1, "Property type is required").optional(),
+  imageUrl: z.string().nullable().optional(),
+  latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
+  longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
+  description: z.string().nullable().optional(),
+  yearBuilt: z.coerce.number().int().min(1800).max(2100).nullable().optional(),
+  propertyOwner: z.string().nullable().optional(),
+  purchasePrice: z.coerce.number().min(0).nullable().optional(),
+  dateSold: z.string().nullable().optional(),
+}).strict();
 
 // Middleware to check admin authentication
 function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
@@ -332,6 +354,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('[DELETE ERROR]', error);
       res.status(500).json({ message: `Error deleting property: ${error instanceof Error ? error.message : 'Unknown error'}` });
+    }
+  });
+
+  // Update a single property by ID (requires admin auth)
+  app.patch("/api/properties/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const rawUpdates = req.body;
+      
+      console.log(`[UPDATE] Attempting to update property ID: ${id}`);
+      console.log(`[UPDATE] Raw updates:`, JSON.stringify(rawUpdates, null, 2));
+      
+      // Validate request body with Zod schema
+      const validation = updatePropertySchema.safeParse(rawUpdates);
+      if (!validation.success) {
+        console.error("[UPDATE] Validation errors:", JSON.stringify(validation.error.errors, null, 2));
+        return res.status(400).json({ 
+          message: "Invalid update data",
+          errors: validation.error.errors 
+        });
+      }
+      
+      const updates = validation.data;
+      
+      // Ensure we have something to update
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+      
+      // Check if property exists
+      const existing = await db.select().from(properties).where(eq(properties.id, id)).limit(1);
+      if (existing.length === 0) {
+        console.warn(`[UPDATE] Property not found: ${id}`);
+        return res.status(404).json({ message: "Property not found" });
+      }
+      
+      // If propertyOwner changed, update company contact info
+      const finalUpdates: Record<string, any> = { ...updates };
+      if (updates.propertyOwner !== undefined) {
+        if (updates.propertyOwner) {
+          const contact = await db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.companyName, updates.propertyOwner))
+            .limit(1);
+          
+          if (contact.length > 0) {
+            finalUpdates.companyContactName = contact[0].contactName;
+            finalUpdates.companyContactEmail = contact[0].contactEmail;
+          } else {
+            // Clear contact info if owner changed to unknown company
+            finalUpdates.companyContactName = null;
+            finalUpdates.companyContactEmail = null;
+          }
+        } else {
+          // Clear contact info if owner removed
+          finalUpdates.companyContactName = null;
+          finalUpdates.companyContactEmail = null;
+        }
+      }
+      
+      console.log(`[UPDATE] Validated updates:`, JSON.stringify(finalUpdates, null, 2));
+      
+      // Perform the update
+      const [updated] = await db
+        .update(properties)
+        .set(finalUpdates)
+        .where(eq(properties.id, id))
+        .returning();
+      
+      console.log(`[UPDATE] Successfully updated property: ${updated.address}`);
+      res.json(updated);
+    } catch (error) {
+      console.error('[UPDATE ERROR]', error);
+      res.status(500).json({ message: `Error updating property: ${error instanceof Error ? error.message : 'Unknown error'}` });
     }
   });
 
