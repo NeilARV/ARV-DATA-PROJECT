@@ -1,14 +1,26 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { X, Building2 } from "lucide-react";
+import { X, Building2, ArrowUpDown, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+export interface ZipCodeWithCount {
+  zipCode: string;
+  count: number;
+  city?: string;
+}
 
 interface FilterSidebarProps {
   onClose?: () => void;
   onFilterChange?: (filters: PropertyFilters) => void;
-  availableZipCodes?: string[];
+  zipCodesWithCounts?: ZipCodeWithCount[];
   onSwitchToDirectory?: () => void;
 }
 
@@ -143,16 +155,43 @@ const SAN_DIEGO_ZIP_CODES = [
   { zip: '92672', city: 'San Clemente' },
 ];
 
-export default function FilterSidebar({ onClose, onFilterChange, availableZipCodes = [], onSwitchToDirectory }: FilterSidebarProps) {
+type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
+
+export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
   const [priceRange, setPriceRange] = useState([0, 2000000]);
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [zipCode, setZipCode] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [filteredZipCodes, setFilteredZipCodes] = useState<string[]>([]);
+  const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
+  const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  const sortedZipCodes = useMemo(() => {
+    const enrichedZips = zipCodesWithCounts.map(z => ({
+      ...z,
+      city: SAN_DIEGO_ZIP_CODES.find(sd => sd.zip === z.zipCode)?.city || 'Unknown'
+    }));
+    
+    switch (zipCodeSort) {
+      case "most-properties":
+        return [...enrichedZips].sort((a, b) => b.count - a.count);
+      case "fewest-properties":
+        return [...enrichedZips].sort((a, b) => a.count - b.count);
+      case "alphabetical":
+        return [...enrichedZips].sort((a, b) => a.zipCode.localeCompare(b.zipCode));
+      default:
+        return enrichedZips;
+    }
+  }, [zipCodesWithCounts, zipCodeSort]);
+
+  const zipCodeSortLabels: Record<ZipCodeSortOption, string> = {
+    "most-properties": "Most Properties",
+    "fewest-properties": "Fewest Properties",
+    "alphabetical": "Alphabetical"
+  };
 
   const handleApply = () => {
     onFilterChange?.({
@@ -201,23 +240,20 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
   const handleZipCodeChange = (value: string) => {
     setZipCode(value);
     if (value.length > 0) {
-      const allZipCodesWithNames = SAN_DIEGO_ZIP_CODES.map(z => `${z.zip} - ${z.city}`);
-      const propertyZips = availableZipCodes.map(z => `${z} - Property`);
-      const allOptions = Array.from(new Set([...allZipCodesWithNames, ...propertyZips])).sort();
-      
-      const matches = allOptions
-        .filter(option => option.startsWith(value))
+      const matches = sortedZipCodes
+        .filter(z => z.zipCode.startsWith(value) || z.city?.toLowerCase().includes(value.toLowerCase()))
         .slice(0, 10);
       setFilteredZipCodes(matches);
       setShowSuggestions(matches.length > 0);
     } else {
+      // Show all sorted zip codes when input is empty but focused
+      setFilteredZipCodes(sortedZipCodes.slice(0, 10));
       setShowSuggestions(false);
     }
   };
 
-  const selectZipCode = (zipWithCity: string) => {
-    const zipOnly = zipWithCity.split(' - ')[0];
-    setZipCode(zipOnly);
+  const selectZipCode = (zipCodeData: ZipCodeWithCount) => {
+    setZipCode(zipCodeData.zipCode);
     setShowSuggestions(false);
     
     // Immediately apply the zip code filter
@@ -227,7 +263,7 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
-      zipCode: zipOnly,
+      zipCode: zipCodeData.zipCode,
     });
   };
 
@@ -286,15 +322,49 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
         </Button>
 
         <div className="relative">
-          <Label className="text-sm font-medium mb-2 block">Zip Code</Label>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-medium">Zip Code</Label>
+            {zipCodesWithCounts.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="button-zipcode-sort">
+                    <ArrowUpDown className="w-3 h-3" />
+                    {zipCodeSortLabels[zipCodeSort]}
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => setZipCodeSort("most-properties")}
+                    data-testid="sort-most-properties"
+                  >
+                    Most Properties
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setZipCodeSort("fewest-properties")}
+                    data-testid="sort-fewest-properties"
+                  >
+                    Fewest Properties
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setZipCodeSort("alphabetical")}
+                    data-testid="sort-alphabetical"
+                  >
+                    Alphabetical
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
           <Input
             ref={inputRef}
             type="text"
-            placeholder="Enter zip code"
+            placeholder="Enter zip code or city"
             value={zipCode}
             onChange={(e) => handleZipCodeChange(e.target.value)}
             onFocus={() => {
-              if (zipCode.length > 0 && filteredZipCodes.length > 0) {
+              if (sortedZipCodes.length > 0) {
+                setFilteredZipCodes(sortedZipCodes.slice(0, 10));
                 setShowSuggestions(true);
               }
             }}
@@ -306,14 +376,20 @@ export default function FilterSidebar({ onClose, onFilterChange, availableZipCod
               className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
               data-testid="zipcode-suggestions"
             >
-              {filteredZipCodes.map((zip) => (
+              {filteredZipCodes.map((z) => (
                 <div
-                  key={zip}
-                  className="px-3 py-2 cursor-pointer hover-elevate text-sm"
-                  onClick={() => selectZipCode(zip)}
-                  data-testid={`suggestion-${zip}`}
+                  key={z.zipCode}
+                  className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center justify-between"
+                  onClick={() => selectZipCode(z)}
+                  data-testid={`suggestion-${z.zipCode}`}
                 >
-                  {zip}
+                  <span>
+                    <span className="font-medium">{z.zipCode}</span>
+                    <span className="text-muted-foreground ml-2">{z.city}</span>
+                  </span>
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    {z.count} {z.count === 1 ? 'property' : 'properties'}
+                  </span>
                 </div>
               ))}
             </div>

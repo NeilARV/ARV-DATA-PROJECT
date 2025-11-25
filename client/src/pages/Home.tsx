@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
@@ -186,7 +186,17 @@ export default function Home() {
     queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
   };
 
-  const availableZipCodes = Array.from(new Set(properties.map(p => p.zipCode))).sort();
+  // Calculate zip codes with property counts
+  const zipCodesWithCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    properties.forEach(p => {
+      counts[p.zipCode] = (counts[p.zipCode] || 0) + 1;
+    });
+    return Object.entries(counts).map(([zipCode, count]) => ({
+      zipCode,
+      count
+    }));
+  }, [properties]);
 
   useEffect(() => {
     const fetchZipCodeLocation = async () => {
@@ -298,7 +308,7 @@ export default function Home() {
           <FilterSidebar
             onClose={() => setSidebarView("none")}
             onFilterChange={setFilters}
-            availableZipCodes={availableZipCodes}
+            zipCodesWithCounts={zipCodesWithCounts}
             onSwitchToDirectory={() => setSidebarView("directory")}
           />
         )}
