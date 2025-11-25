@@ -209,9 +209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const geocodingFailures: string[] = [];
       const successfulProperties: any[] = [];
       
-      // Limit concurrent geocoding to 5 requests at a time to avoid overwhelming the API
-      const limit = pLimit(5);
-      const CHUNK_SIZE = 50;
+      // Limit concurrent geocoding to 3 requests at a time for production reliability
+      const limit = pLimit(3);
+      const CHUNK_SIZE = 20;
       
       // Process properties in chunks to avoid timeouts
       for (let i = 0; i < propertiesToUpload.length; i += CHUNK_SIZE) {

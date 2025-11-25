@@ -3,6 +3,8 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { NeonSessionStore } from "./session-store";
+import { db } from "./storage";
+import { sessions } from "@shared/schema";
 
 const app = express();
 
@@ -99,6 +101,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Verify sessions table is accessible on startup
+  try {
+    const existingSessions = await db.select().from(sessions).limit(1);
+    console.log(`[Startup] Sessions table verified. Found ${existingSessions.length} existing sessions.`);
+  } catch (error) {
+    console.error('[Startup] ERROR: Sessions table not accessible. Run npm run db:push to create it.');
+    console.error('[Startup] Session error details:', error);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

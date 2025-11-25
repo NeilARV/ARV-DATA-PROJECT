@@ -71,12 +71,14 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     queryKey: ["/api/properties"],
   });
 
-  // Calculate property counts for each company
+  // Calculate property counts for each company (case-insensitive comparison with null safety)
   const companiesWithCounts = useMemo(() => {
     return companies.map(company => {
-      const propertyCount = properties.filter(
-        p => p.propertyOwner?.trim() === company.companyName
-      ).length;
+      const companyNameLower = company.companyName.toLowerCase();
+      const propertyCount = properties.filter(p => {
+        const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
+        return ownerName === companyNameLower;
+      }).length;
       return { ...company, propertyCount };
     });
   }, [companies, properties]);

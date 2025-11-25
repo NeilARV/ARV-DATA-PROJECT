@@ -225,9 +225,12 @@ export default function Home() {
   }, [filters?.zipCode]);
 
   const filteredProperties = properties.filter(property => {
-    // Apply company filter first if one is selected
-    if (selectedCompany && property.propertyOwner?.trim() !== selectedCompany) {
-      return false;
+    // Apply company filter first if one is selected (case-insensitive comparison with null safety)
+    if (selectedCompany) {
+      const ownerName = (property.propertyOwner ?? "").trim().toLowerCase();
+      if (ownerName !== selectedCompany.toLowerCase()) {
+        return false;
+      }
     }
 
     // Then apply regular filters

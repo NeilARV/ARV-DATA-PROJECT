@@ -351,7 +351,7 @@ export default function UploadDialog({
       try {
         let totalUploaded = 0;
         let allWarnings: string[] = [];
-        const BATCH_SIZE = 25; // Upload 25 properties per request to keep payload small
+        const BATCH_SIZE = 10; // Upload 10 properties per request for production reliability
         
         // Split into smaller batches and upload each one
         for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
