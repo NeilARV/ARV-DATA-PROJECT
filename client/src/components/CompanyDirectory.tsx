@@ -74,10 +74,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   // Calculate property counts for each company (case-insensitive comparison with null safety)
   const companiesWithCounts = useMemo(() => {
     return companies.map(company => {
-      const companyNameLower = company.companyName.toLowerCase();
+      const companyNameNormalized = company.companyName.trim().toLowerCase();
       const propertyCount = properties.filter(p => {
         const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
-        return ownerName === companyNameLower;
+        return ownerName === companyNameNormalized;
       }).length;
       return { ...company, propertyCount };
     });

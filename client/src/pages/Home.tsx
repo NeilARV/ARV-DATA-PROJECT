@@ -280,6 +280,8 @@ export default function Home() {
   });
 
   const handleCompanySelect = (companyName: string) => {
+    // Clear any existing filters first so only company filter applies
+    setFilters(null);
     setSelectedCompany(companyName);
     setSidebarView("none"); // Close the directory
     // Reset map center/zoom so the map auto-fits to the filtered properties
