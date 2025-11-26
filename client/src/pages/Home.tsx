@@ -287,6 +287,31 @@ export default function Home() {
     // Keep the user in their current view mode (map or grid)
   };
 
+  const handleLeaderboardCompanyClick = (companyName: string) => {
+    // Clear any existing filters first
+    setFilters(null);
+    setSelectedCompany(companyName);
+    setSidebarView("none");
+    setMapCenter(undefined);
+    setMapZoom(12);
+  };
+
+  const handleLeaderboardZipCodeClick = (zipCode: string) => {
+    // Clear company filter and set zip code filter
+    setSelectedCompany(null);
+    setFilters({
+      minPrice: 0,
+      maxPrice: 5000000,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
+      zipCode: zipCode,
+    });
+    setSidebarView("none");
+    setMapCenter(undefined);
+    setMapZoom(12);
+  };
+
   // Calculate current time once for deterministic sorting
   const now = Date.now();
   
@@ -532,6 +557,8 @@ export default function Home() {
       <LeaderboardDialog
         open={showLeaderboardDialog}
         onOpenChange={setShowLeaderboardDialog}
+        onCompanyClick={handleLeaderboardCompanyClick}
+        onZipCodeClick={handleLeaderboardZipCodeClick}
       />
     </div>
   );

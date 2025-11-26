@@ -12,9 +12,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface LeaderboardDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCompanyClick?: (companyName: string) => void;
+  onZipCodeClick?: (zipCode: string) => void;
 }
 
-export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDialogProps) {
+export default function LeaderboardDialog({ 
+  open, 
+  onOpenChange,
+  onCompanyClick,
+  onZipCodeClick,
+}: LeaderboardDialogProps) {
   const { data: properties, isLoading } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
   });
@@ -52,6 +59,20 @@ export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDia
   const topCompanies = getTopCompanies();
   const topZipCodes = getTopZipCodes();
 
+  const handleCompanyClick = (companyName: string) => {
+    if (onCompanyClick) {
+      onCompanyClick(companyName);
+      onOpenChange(false);
+    }
+  };
+
+  const handleZipCodeClick = (zipCode: string) => {
+    if (onZipCodeClick) {
+      onZipCodeClick(zipCode);
+      onOpenChange(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -62,7 +83,11 @@ export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDia
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+        <p className="text-sm text-muted-foreground">
+          Click on any entry to view those properties
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-lg font-semibold border-b pb-2">
               <Building2 className="w-5 h-5 text-primary" />
@@ -79,9 +104,10 @@ export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDia
             ) : (
               <div className="space-y-1">
                 {topCompanies.map((company) => (
-                  <div
+                  <button
                     key={company.name}
-                    className="flex items-center justify-between p-2 rounded-md bg-muted/50 hover-elevate"
+                    onClick={() => handleCompanyClick(company.name)}
+                    className="w-full flex items-center justify-between p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer text-left transition-colors"
                     data-testid={`leaderboard-company-${company.rank}`}
                   >
                     <div className="flex items-center gap-3">
@@ -100,7 +126,7 @@ export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDia
                     <span className="text-sm font-semibold text-primary">
                       {company.count} {company.count === 1 ? 'property' : 'properties'}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -122,9 +148,10 @@ export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDia
             ) : (
               <div className="space-y-1">
                 {topZipCodes.map((zip) => (
-                  <div
+                  <button
                     key={zip.zipCode}
-                    className="flex items-center justify-between p-2 rounded-md bg-muted/50 hover-elevate"
+                    onClick={() => handleZipCodeClick(zip.zipCode)}
+                    className="w-full flex items-center justify-between p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer text-left transition-colors"
                     data-testid={`leaderboard-zip-${zip.rank}`}
                   >
                     <div className="flex items-center gap-3">
@@ -143,7 +170,7 @@ export default function LeaderboardDialog({ open, onOpenChange }: LeaderboardDia
                     <span className="text-sm font-semibold text-primary">
                       {zip.count} {zip.count === 1 ? 'property' : 'properties'}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
