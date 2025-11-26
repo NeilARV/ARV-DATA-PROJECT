@@ -91,7 +91,7 @@ export default function LeaderboardDialog({
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-lg font-semibold border-b pb-2">
               <Building2 className="w-5 h-5 text-primary" />
-              Top 10 Property Owners
+              Top 10 Flipping Companies
             </div>
             {isLoading ? (
               <div className="space-y-2">
