@@ -72,11 +72,11 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           {property.propertyType}
         </div>
         {property.propertyOwner && (
-          <div className="flex items-start gap-1 mt-3 pt-3 border-t">
-            <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
+          <div className="flex items-start gap-2 mt-3 pt-3 border-t">
+            <Building2 className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
+            <div>
               <div className="text-xs text-muted-foreground">Owner</div>
-              <div className="font-medium text-foreground" data-testid={`text-owner-${property.id}`}>
+              <div className="font-semibold text-base text-primary" data-testid={`text-owner-${property.id}`}>
                 {property.propertyOwner}
               </div>
             </div>
