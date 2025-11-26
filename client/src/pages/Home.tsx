@@ -245,7 +245,8 @@ export default function Home() {
     // Apply company filter first if one is selected (case-insensitive comparison with null safety)
     if (selectedCompany) {
       const ownerName = (property.propertyOwner ?? "").trim().toLowerCase();
-      if (ownerName !== selectedCompany.toLowerCase()) {
+      const selectedName = selectedCompany.trim().toLowerCase();
+      if (ownerName !== selectedName) {
         return false;
       }
     }

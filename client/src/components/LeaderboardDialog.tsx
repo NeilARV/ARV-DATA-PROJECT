@@ -32,7 +32,8 @@ export default function LeaderboardDialog({
     
     const companyCounts: Record<string, number> = {};
     properties.forEach((property) => {
-      const owner = property.propertyOwner || "Unknown";
+      // Trim whitespace to properly aggregate companies with trailing spaces
+      const owner = (property.propertyOwner || "Unknown").trim();
       companyCounts[owner] = (companyCounts[owner] || 0) + 1;
     });
 
