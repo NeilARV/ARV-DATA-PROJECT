@@ -318,7 +318,6 @@ export default function Home() {
       <Header
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        onUploadClick={() => setShowUploadDialog(true)}
         onLoginClick={() => setShowLoginDialog(true)}
         onSignupClick={() => setShowSignupDialog(true)}
       />

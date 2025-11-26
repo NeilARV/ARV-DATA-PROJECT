@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, Table2, CloudUpload, Search, Moon, Sun, Settings, LogIn, User, LogOut } from "lucide-react";
+import { Map, Grid3x3, Table2, Search, Moon, Sun, Settings, LogIn, User, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
@@ -16,7 +16,6 @@ import {
 interface HeaderProps {
   viewMode: "map" | "grid" | "table";
   onViewModeChange: (mode: "map" | "grid" | "table") => void;
-  onUploadClick: () => void;
   onSearch?: (query: string) => void;
   onLoginClick?: () => void;
   onSignupClick?: () => void;
@@ -25,7 +24,6 @@ interface HeaderProps {
 export default function Header({
   viewMode,
   onViewModeChange,
-  onUploadClick,
   onSearch,
   onLoginClick,
   onSignupClick,
@@ -117,11 +115,6 @@ export default function Header({
             <span className="hidden sm:inline">Table</span>
           </Button>
         </div>
-
-        <Button onClick={onUploadClick} size="sm" data-testid="button-upload">
-          <CloudUpload className="w-4 h-4 mr-1" />
-          <span className="hidden sm:inline">Upload</span>
-        </Button>
 
         <Button
           variant="outline"
