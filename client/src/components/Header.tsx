@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, Table2, Search, Moon, Sun, Settings, LogIn, User, LogOut } from "lucide-react";
+import { Map, Grid3x3, Table2, Search, Moon, Sun, Settings, LogIn, User, LogOut, Trophy } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
@@ -19,6 +19,7 @@ interface HeaderProps {
   onSearch?: (query: string) => void;
   onLoginClick?: () => void;
   onSignupClick?: () => void;
+  onLeaderboardClick?: () => void;
 }
 
 export default function Header({
@@ -27,6 +28,7 @@ export default function Header({
   onSearch,
   onLoginClick,
   onSignupClick,
+  onLeaderboardClick,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
@@ -115,6 +117,16 @@ export default function Header({
             <span className="hidden sm:inline">Table</span>
           </Button>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onLeaderboardClick}
+          data-testid="button-leaderboard"
+        >
+          <Trophy className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">Leaderboard</span>
+        </Button>
 
         <Button
           variant="outline"

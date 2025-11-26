@@ -11,6 +11,7 @@ import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import UploadDialog from "@/components/UploadDialog";
 import SignupDialog from "@/components/SignupDialog";
 import LoginDialog from "@/components/LoginDialog";
+import LeaderboardDialog from "@/components/LeaderboardDialog";
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
@@ -181,6 +182,7 @@ export default function Home() {
   
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
   
   const { user, isAuthenticated } = useAuth();
   const { shouldShowSignup, dismissPrompt } = useSignupPrompt();
@@ -320,6 +322,7 @@ export default function Home() {
         onViewModeChange={setViewMode}
         onLoginClick={() => setShowLoginDialog(true)}
         onSignupClick={() => setShowSignupDialog(true)}
+        onLeaderboardClick={() => setShowLeaderboardDialog(true)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -524,6 +527,11 @@ export default function Home() {
           setShowLoginDialog(false);
           setShowSignupDialog(true);
         }}
+      />
+
+      <LeaderboardDialog
+        open={showLeaderboardDialog}
+        onOpenChange={setShowLeaderboardDialog}
       />
     </div>
   );
