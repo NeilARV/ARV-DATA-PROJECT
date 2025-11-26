@@ -8,6 +8,7 @@ import { Trophy, Building2, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Property } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCityForZipCode } from "@/lib/zipCodes";
 
 interface LeaderboardDialogProps {
   open: boolean;
@@ -163,9 +164,16 @@ export default function LeaderboardDialog({
                       }`}>
                         {zip.rank}
                       </span>
-                      <span className="font-medium text-sm">
-                        {zip.zipCode}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm">
+                          {zip.zipCode}
+                        </span>
+                        {getCityForZipCode(zip.zipCode) && (
+                          <span className="text-xs text-muted-foreground">
+                            {getCityForZipCode(zip.zipCode)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className="text-sm font-semibold text-primary">
                       {zip.count} {zip.count === 1 ? 'property' : 'properties'}
