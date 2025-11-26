@@ -55,7 +55,7 @@ export default function PropertyMap({
   properties, 
   onPropertyClick, 
   center = [37.7749, -122.4194], 
-  zoom = 12 
+  zoom = 14 
 }: PropertyMapProps) {
   // Filter properties with valid coordinates for rendering on map
   const validProperties = properties.filter(p => 
