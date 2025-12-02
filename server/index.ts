@@ -8,6 +8,8 @@ import { sessions } from "@shared/schema";
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -61,6 +63,7 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,  // Don't save session if unmodified (store handles it)
     saveUninitialized: false,  // Don't create session until something stored
+    proxy: true,
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
