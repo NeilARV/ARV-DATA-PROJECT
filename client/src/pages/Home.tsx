@@ -409,7 +409,7 @@ export default function Home() {
                 data-testid="button-show-directory"
               >
                 <Building2 className="w-4 h-4 mr-2" />
-                Directory
+                Investor Profiles
               </Button>
             </div>
           )}
