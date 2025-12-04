@@ -8,9 +8,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { CloudUpload, FileText, X, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,8 +70,10 @@ export default function UploadDialog({
     description: insertPropertySchema.shape.description.optional(),
     yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
     propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
-    companyContactName: insertPropertySchema.shape.companyContactName.optional(),
-    companyContactEmail: insertPropertySchema.shape.companyContactEmail.optional(),
+    companyContactName:
+      insertPropertySchema.shape.companyContactName.optional(),
+    companyContactEmail:
+      insertPropertySchema.shape.companyContactEmail.optional(),
     purchasePrice: insertPropertySchema.shape.purchasePrice.optional(),
     dateSold: insertPropertySchema.shape.dateSold.optional(),
   });
@@ -113,11 +128,11 @@ export default function UploadDialog({
   };
 
   const handleFile = (file: File) => {
-    const isCSV = file.name.endsWith('.csv');
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-    
+    const isCSV = file.name.endsWith(".csv");
+    const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
+
     if (!isCSV && !isExcel) {
-      setError('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+      setError("Please upload a CSV or Excel file (.csv, .xlsx, .xls)");
       return;
     }
 
@@ -132,8 +147,8 @@ export default function UploadDialog({
           processData(results.data);
         },
         error: (err) => {
-          setError('Error reading CSV file');
-          console.error('File read error:', err);
+          setError("Error reading CSV file");
+          console.error("File read error:", err);
         },
       });
     } else {
@@ -142,68 +157,75 @@ export default function UploadDialog({
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, { type: "array" });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
-          
+
           // Get range to find actual data
-          const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-          
+          const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
+
           // Try to find the header row by looking for rows with actual data
           let headerRowIndex = 0;
           let jsonData: any[] = [];
-          
-          for (let rowIndex = range.s.r; rowIndex <= Math.min(range.s.r + 10, range.e.r); rowIndex++) {
-            const testData = XLSX.utils.sheet_to_json(worksheet, { 
+
+          for (
+            let rowIndex = range.s.r;
+            rowIndex <= Math.min(range.s.r + 10, range.e.r);
+            rowIndex++
+          ) {
+            const testData = XLSX.utils.sheet_to_json(worksheet, {
               range: rowIndex,
-              defval: '' 
+              defval: "",
             });
-            
+
             if (testData.length > 0) {
               const firstRow = testData[0] as any;
               const keys = Object.keys(firstRow);
-              
+
               // Check if this row has meaningful column names (not just __EMPTY)
-              const hasRealHeaders = keys.some(key => 
-                !key.startsWith('__EMPTY') && 
-                key.trim() !== '' &&
-                typeof firstRow[key] === 'string' &&
-                firstRow[key].trim() !== ''
+              const hasRealHeaders = keys.some(
+                (key) =>
+                  !key.startsWith("__EMPTY") &&
+                  key.trim() !== "" &&
+                  typeof firstRow[key] === "string" &&
+                  firstRow[key].trim() !== "",
               );
-              
+
               if (hasRealHeaders) {
                 headerRowIndex = rowIndex;
-                jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                jsonData = XLSX.utils.sheet_to_json(worksheet, {
                   range: rowIndex,
-                  defval: ''
+                  defval: "",
                 });
                 break;
               }
             }
           }
-          
+
           // If no header row found, try with default parsing but filter out __EMPTY columns
           if (jsonData.length === 0) {
-            const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
             jsonData = rawData.map((row: any) => {
               const cleanedRow: any = {};
-              Object.keys(row).forEach(key => {
-                if (!key.startsWith('__EMPTY')) {
+              Object.keys(row).forEach((key) => {
+                if (!key.startsWith("__EMPTY")) {
                   cleanedRow[key] = row[key];
                 }
               });
               return cleanedRow;
             });
           }
-          
+
           processData(jsonData);
         } catch (err) {
-          setError('Error reading Excel file. Please make sure it has the correct format.');
-          console.error('Excel read error:', err);
+          setError(
+            "Error reading Excel file. Please make sure it has the correct format.",
+          );
+          console.error("Excel read error:", err);
         }
       };
       reader.onerror = () => {
-        setError('Error reading Excel file');
+        setError("Error reading Excel file");
       };
       reader.readAsArrayBuffer(file);
     }
@@ -211,135 +233,379 @@ export default function UploadDialog({
 
   // Smart field name mapping - recognizes common variations
   const fieldMappings: Record<string, string[]> = {
-    address: ['address', 'addr', 'street', 'streetaddress', 'street address', 'property address', 'location'],
-    city: ['city', 'town', 'municipality'],
-    state: ['state', 'st', 'province'],
-    zipCode: ['zipcode', 'zip', 'zip code', 'postalcode', 'postal code', 'postcode'],
-    price: ['price', 'salesprice', 'sales price', 'saleprice', 'sale price', 'selling price', 'sellingprice', 'listprice', 'list price', 'amount', 'cost'],
-    bedrooms: ['bedrooms', 'beds', 'bed', 'br', 'bedroom', 'numberofbedrooms', 'number of bedrooms'],
-    bathrooms: ['bathrooms', 'baths', 'bath', 'ba', 'bathroom', 'numberofbathrooms', 'number of bathrooms'],
-    squareFeet: ['squarefeet', 'sqft', 'sq ft', 'square feet', 'squarefootage', 'square footage', 'size', 'area'],
-    propertyType: ['propertytype', 'property type', 'type', 'hometype', 'home type', 'dwelling type', 'dwellingtype'],
-    imageUrl: ['imageurl', 'image', 'photo', 'picture', 'imagelink', 'image url'],
-    latitude: ['latitude', 'lat'],
-    longitude: ['longitude', 'lng', 'lon', 'long'],
-    description: ['description', 'desc', 'details', 'notes', 'comments'],
-    yearBuilt: ['yearbuilt', 'year built', 'built', 'year', 'construction year', 'constructionyear'],
-    propertyOwner: ['propertyowner', 'property owner', 'owner', 'ownername', 'owner name', 'company', 'companyname', 'company name', 'seller', 'vendor', 'sellername', 'seller name'],
-    companyContactName: ['companycontactname', 'company contact name', 'contactname', 'contact name', 'contact', 'contactperson', 'contact person', 'representative', 'rep'],
-    companyContactEmail: ['companycontactemail', 'company contact email', 'contactemail', 'contact email', 'email'],
-    purchasePrice: ['purchaseprice', 'purchase price', 'bought price', 'boughtprice', 'acquisition price', 'acquisitionprice'],
-    dateSold: ['datesold', 'date sold', 'solddate', 'sold date', 'saledate', 'sale date', 'closing date', 'closingdate', 'settlement date', 'settlementdate'],
+    address: [
+      "address",
+      "addr",
+      "street",
+      "streetaddress",
+      "street address",
+      "property address",
+      "location",
+    ],
+    city: ["city", "town", "municipality"],
+    state: ["state", "st", "province"],
+    zipCode: [
+      "zipcode",
+      "zip",
+      "zip code",
+      "postalcode",
+      "postal code",
+      "postcode",
+    ],
+    price: [
+      "price",
+      "salesprice",
+      "sales price",
+      "saleprice",
+      "sale price",
+      "selling price",
+      "sellingprice",
+      "listprice",
+      "list price",
+      "amount",
+      "cost",
+    ],
+    bedrooms: [
+      "bedrooms",
+      "beds",
+      "bed",
+      "br",
+      "bedroom",
+      "numberofbedrooms",
+      "number of bedrooms",
+    ],
+    bathrooms: [
+      "bathrooms",
+      "baths",
+      "bath",
+      "ba",
+      "bathroom",
+      "numberofbathrooms",
+      "number of bathrooms",
+    ],
+    squareFeet: [
+      "squarefeet",
+      "sqft",
+      "sq ft",
+      "square feet",
+      "squarefootage",
+      "square footage",
+      "size",
+      "area",
+    ],
+    propertyType: [
+      "propertytype",
+      "property type",
+      "type",
+      "hometype",
+      "home type",
+      "dwelling type",
+      "dwellingtype",
+    ],
+    imageUrl: [
+      "imageurl",
+      "image",
+      "photo",
+      "picture",
+      "imagelink",
+      "image url",
+    ],
+    latitude: ["latitude", "lat"],
+    longitude: ["longitude", "lng", "lon", "long"],
+    description: ["description", "desc", "details", "notes", "comments"],
+    yearBuilt: [
+      "yearbuilt",
+      "year built",
+      "built",
+      "year",
+      "construction year",
+      "constructionyear",
+    ],
+    propertyOwner: [
+      "propertyowner",
+      "property owner",
+      "owner",
+      "ownername",
+      "owner name",
+      "company",
+      "companyname",
+      "company name",
+      "seller",
+      "vendor",
+      "sellername",
+      "seller name",
+    ],
+    companyContactName: [
+      "companycontactname",
+      "company contact name",
+      "contactname",
+      "contact name",
+      "contact",
+      "contactperson",
+      "contact person",
+      "representative",
+      "rep",
+    ],
+    companyContactEmail: [
+      "companycontactemail",
+      "company contact email",
+      "contactemail",
+      "contact email",
+      "email",
+    ],
+    purchasePrice: [
+      "purchaseprice",
+      "purchase price",
+      "bought price",
+      "boughtprice",
+      "acquisition price",
+      "acquisitionprice",
+    ],
+    dateSold: [
+      "datesold",
+      "date sold",
+      "solddate",
+      "sold date",
+      "saledate",
+      "sale date",
+      "closing date",
+      "closingdate",
+      "settlement date",
+      "settlementdate",
+    ],
   };
 
   // Normalize field name for matching
   const normalizeFieldName = (name: string): string => {
-    return name.toLowerCase().replace(/[\s_-]/g, '');
+    return name.toLowerCase().replace(/[\s_-]/g, "");
   };
 
   // Find the value from row using field mapping
   const findFieldValue = (row: any, targetField: string): any => {
     const variations = fieldMappings[targetField] || [targetField];
-    
+
     for (const key of Object.keys(row)) {
       const normalizedKey = normalizeFieldName(key);
-      if (variations.some(v => normalizeFieldName(v) === normalizedKey)) {
+      if (variations.some((v) => normalizeFieldName(v) === normalizedKey)) {
         return row[key];
       }
     }
-    
+
     return null;
   };
 
+  // Old process Data function that was removing 2 properties during bulk uploads
+  
+  // const processData = (data: any[]) => {
+  //   try {
+  //     if (data.length === 0) {
+  //       setError(
+  //         "The file appears to be empty. Please provide a file with property data.",
+  //       );
+  //       return;
+  //     }
+
+  //     // Get column names from first row to help with error messages
+  //     const columnNames = data.length > 0 ? Object.keys(data[0]) : [];
+
+  //     const properties = data
+  //       .map((row: any) => {
+  //         // Helper to safely parse numbers
+  //         const safeParseFloat = (val: any) => {
+  //           if (val === null || val === undefined || val === "") return null;
+  //           const parsed = parseFloat(val);
+  //           return isNaN(parsed) ? null : parsed;
+  //         };
+
+  //         const safeParseInt = (val: any) => {
+  //           if (val === null || val === undefined || val === "") return null;
+  //           const parsed = parseInt(val);
+  //           return isNaN(parsed) ? null : parsed;
+  //         };
+
+  //         return {
+  //           address: findFieldValue(row, "address") || "",
+  //           city: findFieldValue(row, "city") || "",
+  //           state: findFieldValue(row, "state") || "CA",
+  //           zipCode: findFieldValue(row, "zipCode") || "",
+  //           price: safeParseFloat(findFieldValue(row, "price")) || 0,
+  //           bedrooms: safeParseInt(findFieldValue(row, "bedrooms")) || 3,
+  //           bathrooms: safeParseFloat(findFieldValue(row, "bathrooms")) || 2,
+  //           squareFeet: safeParseInt(findFieldValue(row, "squareFeet")) || 1500,
+  //           propertyType:
+  //             findFieldValue(row, "propertyType") || "Single Family",
+  //           imageUrl: findFieldValue(row, "imageUrl") || null,
+  //           latitude: safeParseFloat(findFieldValue(row, "latitude")),
+  //           longitude: safeParseFloat(findFieldValue(row, "longitude")),
+  //           description: findFieldValue(row, "description") || null,
+  //           yearBuilt: safeParseInt(findFieldValue(row, "yearBuilt")),
+  //           propertyOwner: findFieldValue(row, "propertyOwner") || null,
+  //           companyContactName:
+  //             findFieldValue(row, "companyContactName") || null,
+  //           companyContactEmail:
+  //             findFieldValue(row, "companyContactEmail") || null,
+  //           purchasePrice: safeParseFloat(findFieldValue(row, "purchasePrice")),
+  //           dateSold: (() => {
+  //             const dateValue = findFieldValue(row, "dateSold");
+  //             if (!dateValue) return null;
+  //             const parsedDate = parseDate(dateValue);
+  //             return parsedDate ? parsedDate.toISOString() : null;
+  //           })(),
+  //         };
+  //       })
+  //       .filter((prop: any) => {
+  //         // Only require address and price (lat/lng will be geocoded if missing)
+  //         const hasValidPrice = prop.price > 0;
+  //         const hasAddress = prop.address && prop.address.trim() !== "";
+  //         return hasValidPrice && hasAddress;
+  //       });
+
+  //     if (properties.length === 0) {
+  //       // Check what's missing to provide helpful error message
+  //       const hasAddressColumn = columnNames.some((col) =>
+  //         fieldMappings.address.some(
+  //           (variation) =>
+  //             normalizeFieldName(variation) === normalizeFieldName(col),
+  //         ),
+  //       );
+  //       const hasPriceColumn = columnNames.some((col) =>
+  //         fieldMappings.price.some(
+  //           (variation) =>
+  //             normalizeFieldName(variation) === normalizeFieldName(col),
+  //         ),
+  //       );
+
+  //       let errorMsg = "No valid properties found. ";
+  //       if (!hasAddressColumn && !hasPriceColumn) {
+  //         errorMsg +=
+  //           'Your file is missing both "address" and "price" columns. ';
+  //       } else if (!hasAddressColumn) {
+  //         errorMsg +=
+  //           'Could not find an address column. Try using "address", "street address", or similar. ';
+  //       } else if (!hasPriceColumn) {
+  //         errorMsg +=
+  //           'Could not find a price column. Try using "price", "sales price", "sale price", or similar. ';
+  //       } else {
+  //         errorMsg +=
+  //           "The address or price values appear to be invalid or empty. ";
+  //       }
+  //       errorMsg += `\n\nYour file has these columns: ${columnNames.join(", ")}`;
+
+  //       setError(errorMsg);
+  //       return;
+  //     }
+
+  //     setParsedData(properties as InsertProperty[]);
+  //   } catch (err) {
+  //     setError("Error parsing file. Please check the format.");
+  //     console.error("Parse error:", err);
+  //   }
+  // };
+
+  // New processData function with improved handling of CSV format (no longer removes 2 properties)
   const processData = (data: any[]) => {
     try {
+
       if (data.length === 0) {
-        setError('The file appears to be empty. Please provide a file with property data.');
+        setError("The file appears to be empty. Please provide a file with property data.");
         return;
       }
 
-      // Get column names from first row to help with error messages
-      const columnNames = data.length > 0 ? Object.keys(data[0]) : [];
+      // Helper to safely parse numbers
+      const safeParseFloat = (val: any) => {
+        if (val === null || val === undefined || val === "") return null;
+        // Remove $ and commas from currency strings
+        const cleaned = String(val).replace(/[$,*]/g, '');
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? null : parsed;
+      };
+
+      // Get all keys to find __EMPTY columns
+      const allKeys = data.length > 0 ? Object.keys(data[0]) : [];
+      const emptyKeys = allKeys.filter(key => key.startsWith('__EMPTY'));
 
       const properties = data
-        .map((row: any) => {
-          // Helper to safely parse numbers
-          const safeParseFloat = (val: any) => {
-            if (val === null || val === undefined || val === '') return null;
-            const parsed = parseFloat(val);
-            return isNaN(parsed) ? null : parsed;
-          };
-          
-          const safeParseInt = (val: any) => {
-            if (val === null || val === undefined || val === '') return null;
-            const parsed = parseInt(val);
-            return isNaN(parsed) ? null : parsed;
-          };
+        .map((row: any, index: number) => {
+          // If data is in __EMPTY columns, use those instead
+          let ownerName, address, city, zipCode, saleDate, salePrice;
+
+          if (emptyKeys.length > 0) {
+            // Data is in __EMPTY columns - map them positionally
+            // Based on your structure: OWNER NAME, ADDRESS, CITY, ZIP CODE, SALE DATE, SALE PRICE
+            const values = emptyKeys.map(key => row[key]);
+
+            // Try to find which __EMPTY columns have the actual data
+            // Look for a pattern: address-like string, city, zipcode, price
+            ownerName = values[0] || row['OWNER NAME'];
+            address = values[1] || row['ADDRESS'];
+            city = values[2] || row['CITY'];
+            zipCode = values[3] || row['ZIP CODE'];
+            saleDate = values[4] || row['SALE DATE'];
+            salePrice = values[5] || row['SALE PRICE'];
+          } else {
+            // Use regular columns
+            ownerName = findFieldValue(row, "propertyOwner");
+            address = findFieldValue(row, "address");
+            city = findFieldValue(row, "city");
+            zipCode = findFieldValue(row, "zipCode");
+            saleDate = findFieldValue(row, "dateSold");
+            salePrice = findFieldValue(row, "price");
+          }
 
           return {
-            address: findFieldValue(row, 'address') || '',
-            city: findFieldValue(row, 'city') || '',
-            state: findFieldValue(row, 'state') || 'CA',
-            zipCode: findFieldValue(row, 'zipCode') || '',
-            price: safeParseFloat(findFieldValue(row, 'price')) || 0,
-            bedrooms: safeParseInt(findFieldValue(row, 'bedrooms')) || 3,
-            bathrooms: safeParseFloat(findFieldValue(row, 'bathrooms')) || 2,
-            squareFeet: safeParseInt(findFieldValue(row, 'squareFeet')) || 1500,
-            propertyType: findFieldValue(row, 'propertyType') || 'Single Family',
-            imageUrl: findFieldValue(row, 'imageUrl') || null,
-            latitude: safeParseFloat(findFieldValue(row, 'latitude')),
-            longitude: safeParseFloat(findFieldValue(row, 'longitude')),
-            description: findFieldValue(row, 'description') || null,
-            yearBuilt: safeParseInt(findFieldValue(row, 'yearBuilt')),
-            propertyOwner: findFieldValue(row, 'propertyOwner') || null,
-            companyContactName: findFieldValue(row, 'companyContactName') || null,
-            companyContactEmail: findFieldValue(row, 'companyContactEmail') || null,
-            purchasePrice: safeParseFloat(findFieldValue(row, 'purchasePrice')),
+            address: address || "",
+            city: city || "",
+            state: "CA", // Default to CA
+            zipCode: String(zipCode || "").trim(),
+            price: safeParseFloat(salePrice) || 0,
+            bedrooms: 3, // Default values since not in CSV
+            bathrooms: 2,
+            squareFeet: 1500,
+            propertyType: "Single Family",
+            imageUrl: null,
+            latitude: null,
+            longitude: null,
+            description: null,
+            yearBuilt: null,
+            propertyOwner: ownerName || null,
+            companyContactName: null,
+            companyContactEmail: null,
+            purchasePrice: null,
             dateSold: (() => {
-              const dateValue = findFieldValue(row, 'dateSold');
-              if (!dateValue) return null;
-              const parsedDate = parseDate(dateValue);
+              if (!saleDate) return null;
+              const parsedDate = parseDate(saleDate);
               return parsedDate ? parsedDate.toISOString() : null;
             })(),
           };
         })
         .filter((prop: any) => {
-          // Only require address and price (lat/lng will be geocoded if missing)
+          // Filter out company header rows and empty rows
           const hasValidPrice = prop.price > 0;
-          const hasAddress = prop.address && prop.address.trim() !== '';
-          
-          return hasValidPrice && hasAddress;
+          const hasAddress = prop.address && prop.address.trim() !== "";
+          const hasCity = prop.city && prop.city.trim() !== "";
+
+          // Also filter out rows where address looks like it's just a company name repeated
+          const addressLooksValid = hasAddress && 
+            prop.address.length > 5 && 
+            !prop.address.toLowerCase().includes('acropolis') &&
+            !prop.address.toLowerCase().includes('rich montano');
+
+          return hasValidPrice && addressLooksValid && hasCity;
         });
-          
+
+      console.log("Valid properties after filtering:", properties.length);
+      console.log("Sample property:", properties[0]);
+
       if (properties.length === 0) {
-        // Check what's missing to provide helpful error message
-        const hasAddressColumn = columnNames.some(col => 
-          fieldMappings.address.some(variation => normalizeFieldName(variation) === normalizeFieldName(col))
-        );
-        const hasPriceColumn = columnNames.some(col => 
-          fieldMappings.price.some(variation => normalizeFieldName(variation) === normalizeFieldName(col))
-        );
-        
-        let errorMsg = 'No valid properties found. ';
-        if (!hasAddressColumn && !hasPriceColumn) {
-          errorMsg += 'Your file is missing both "address" and "price" columns. ';
-        } else if (!hasAddressColumn) {
-          errorMsg += 'Could not find an address column. Try using "address", "street address", or similar. ';
-        } else if (!hasPriceColumn) {
-          errorMsg += 'Could not find a price column. Try using "price", "sales price", "sale price", or similar. ';
-        } else {
-          errorMsg += 'The address or price values appear to be invalid or empty. ';
-        }
-        errorMsg += `\n\nYour file has these columns: ${columnNames.join(', ')}`;
-        
-        setError(errorMsg);
+        const columnNames = data.length > 0 ? Object.keys(data[0]) : [];
+        setError(`No valid properties found. Columns found: ${columnNames.join(", ")}`);
         return;
       }
-          
+
       setParsedData(properties as InsertProperty[]);
     } catch (err) {
-      setError('Error parsing file. Please check the format.');
-      console.error('Parse error:', err);
+      setError("Error parsing file. Please check the format.");
+      console.error("Parse error:", err);
     }
   };
 
@@ -347,35 +613,47 @@ export default function UploadDialog({
     if (parsedData) {
       setIsUploading(true);
       setError(null);
-      
+
       try {
         let totalUploaded = 0;
         let allWarnings: string[] = [];
         const BATCH_SIZE = 10; // Upload 10 properties per request for production reliability
-        
+
         // Split into smaller batches and upload each one
         for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
           const batch = parsedData.slice(i, i + BATCH_SIZE);
           const batchNum = Math.floor(i / BATCH_SIZE) + 1;
           const totalBatches = Math.ceil(parsedData.length / BATCH_SIZE);
-          
-          setUploadStatus(`Uploading batch ${batchNum}/${totalBatches} (${batch.length} properties)...`);
-          
-          const response = await apiRequest("POST", "/api/properties/upload", batch, 15 * 60 * 1000) as any;
-          
-          totalUploaded += response.count || 0;
-          
+
+          setUploadStatus(
+            `Uploading batch ${batchNum}/${totalBatches} (${batch.length} properties)...`,
+          );
+
+          const response = (await apiRequest(
+            "POST",
+            "/api/properties/upload",
+            batch,
+            15 * 60 * 1000,
+          )) as any;
+
+          const data = await response.json();
+
+          totalUploaded += data.count || 0;
+
           if (response.warnings?.failedAddresses) {
             allWarnings.push(...response.warnings.failedAddresses);
           }
         }
-        
+
+        console.log("Total Uploaded: ", totalUploaded);
+
         // Check if NO properties were uploaded (complete failure)
         if (totalUploaded === 0) {
-          const errorMsg = allWarnings.length > 0
-            ? `Failed to geocode addresses: ${allWarnings.slice(0, 3).join(', ')}${allWarnings.length > 3 ? '...' : ''}`
-            : "No properties were uploaded. Please check your data and try again.";
-          
+          const errorMsg =
+            allWarnings.length > 0
+              ? `Failed to geocode addresses: ${allWarnings.slice(0, 3).join(", ")}${allWarnings.length > 3 ? "..." : ""}`
+              : "No properties were uploaded. Please check your data and try again.";
+
           setError(errorMsg);
           toast({
             title: "Upload Failed",
@@ -384,21 +662,21 @@ export default function UploadDialog({
           });
           return;
         }
-        
+
         // Some or all properties uploaded successfully
         if (allWarnings.length > 0) {
           toast({
             title: "Upload Complete with Warnings",
-            description: `Uploaded ${totalUploaded} propert${totalUploaded === 1 ? 'y' : 'ies'} but failed to geocode ${allWarnings.length} address${allWarnings.length === 1 ? '' : 'es'}`,
+            description: `Uploaded ${totalUploaded} propert${totalUploaded === 1 ? "y" : "ies"} but failed to geocode ${allWarnings.length} address${allWarnings.length === 1 ? "" : "es"}`,
             variant: "default",
           });
         } else {
           toast({
             title: "Upload Successful",
-            description: `Successfully uploaded ${totalUploaded} propert${totalUploaded === 1 ? 'y' : 'ies'}`,
+            description: `Successfully uploaded ${totalUploaded} propert${totalUploaded === 1 ? "y" : "ies"}`,
           });
         }
-        
+
         onSuccess?.();
         handleClose();
       } catch (err: any) {
@@ -417,7 +695,9 @@ export default function UploadDialog({
     }
   };
 
-  const handleManualSubmit = async (data: z.infer<typeof manualEntrySchema>) => {
+  const handleManualSubmit = async (
+    data: z.infer<typeof manualEntrySchema>,
+  ) => {
     setIsManualSubmitting(true);
     setError(null);
 
@@ -454,7 +734,7 @@ export default function UploadDialog({
       };
 
       await apiRequest("POST", "/api/properties", propertyData);
-      
+
       toast({
         title: "Property Added",
         description: "Property has been successfully added to the database.",
@@ -488,15 +768,22 @@ export default function UploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-upload">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        data-testid="dialog-upload"
+      >
         <DialogHeader>
           <DialogTitle>Add Property Data</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="file" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="file" data-testid="tab-file-upload">File Upload</TabsTrigger>
-            <TabsTrigger value="manual" data-testid="tab-manual-entry">Manual Entry</TabsTrigger>
+            <TabsTrigger value="file" data-testid="tab-file-upload">
+              File Upload
+            </TabsTrigger>
+            <TabsTrigger value="manual" data-testid="tab-manual-entry">
+              Manual Entry
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="file" className="mt-4">
@@ -580,7 +867,9 @@ export default function UploadDialog({
                         {parsedData.slice(0, 5).map((prop, idx) => (
                           <tr key={idx} className="border-b border-border">
                             <td className="py-2">{prop.address}</td>
-                            <td className="py-2">${prop.price.toLocaleString()}</td>
+                            <td className="py-2">
+                              ${prop.price.toLocaleString()}
+                            </td>
                             <td className="py-2">{prop.bedrooms}</td>
                             <td className="py-2">{prop.bathrooms}</td>
                           </tr>
@@ -603,18 +892,18 @@ export default function UploadDialog({
                 )}
 
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleClose} 
-                    className="flex-1" 
+                  <Button
+                    variant="outline"
+                    onClick={handleClose}
+                    className="flex-1"
                     disabled={isUploading}
                     data-testid="button-cancel-upload"
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleUpload} 
-                    className="flex-1" 
+                  <Button
+                    onClick={handleUpload}
+                    className="flex-1"
                     disabled={isUploading}
                     data-testid="button-confirm-upload"
                   >
@@ -634,7 +923,10 @@ export default function UploadDialog({
 
           <TabsContent value="manual" className="mt-4">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleManualSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(handleManualSubmit)}
+                className="space-y-4"
+              >
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -643,7 +935,11 @@ export default function UploadDialog({
                       <FormItem className="col-span-2">
                         <FormLabel>Address *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="123 Main St" data-testid="input-address" />
+                          <Input
+                            {...field}
+                            placeholder="123 Main St"
+                            data-testid="input-address"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -657,7 +953,11 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>City *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="San Diego" data-testid="input-city" />
+                          <Input
+                            {...field}
+                            placeholder="San Diego"
+                            data-testid="input-city"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -671,7 +971,12 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>State *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="CA" maxLength={2} data-testid="input-state" />
+                          <Input
+                            {...field}
+                            placeholder="CA"
+                            maxLength={2}
+                            data-testid="input-state"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -685,7 +990,11 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Zip Code *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="92126" data-testid="input-manual-zipcode" />
+                          <Input
+                            {...field}
+                            placeholder="92126"
+                            data-testid="input-manual-zipcode"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -698,17 +1007,24 @@ export default function UploadDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Property Type *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-property-type">
                               <SelectValue placeholder="Select type" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Single Family">Single Family</SelectItem>
+                            <SelectItem value="Single Family">
+                              Single Family
+                            </SelectItem>
                             <SelectItem value="Condo">Condo</SelectItem>
                             <SelectItem value="Townhouse">Townhouse</SelectItem>
-                            <SelectItem value="Multi-Family">Multi-Family</SelectItem>
+                            <SelectItem value="Multi-Family">
+                              Multi-Family
+                            </SelectItem>
                             <SelectItem value="Land">Land</SelectItem>
                             <SelectItem value="Other">Other</SelectItem>
                           </SelectContent>
@@ -725,13 +1041,15 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Price *</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             placeholder="500000"
                             value={field.value ?? ""}
-                            onChange={e => {
+                            onChange={(e) => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? undefined : Number(val));
+                              field.onChange(
+                                val === "" ? undefined : Number(val),
+                              );
                             }}
                             data-testid="input-manual-price"
                           />
@@ -748,13 +1066,15 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Bedrooms *</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             placeholder="3"
                             value={field.value ?? ""}
-                            onChange={e => {
+                            onChange={(e) => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? undefined : Number(val));
+                              field.onChange(
+                                val === "" ? undefined : Number(val),
+                              );
                             }}
                             data-testid="input-manual-bedrooms"
                           />
@@ -771,14 +1091,16 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Bathrooms *</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             step="0.5"
                             placeholder="2"
                             value={field.value ?? ""}
-                            onChange={e => {
+                            onChange={(e) => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? undefined : Number(val));
+                              field.onChange(
+                                val === "" ? undefined : Number(val),
+                              );
                             }}
                             data-testid="input-manual-bathrooms"
                           />
@@ -795,13 +1117,15 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Square Feet *</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             placeholder="1500"
                             value={field.value ?? ""}
-                            onChange={e => {
+                            onChange={(e) => {
                               const val = e.target.value;
-                              field.onChange(val === "" ? undefined : Number(val));
+                              field.onChange(
+                                val === "" ? undefined : Number(val),
+                              );
                             }}
                             data-testid="input-manual-squarefeet"
                           />
@@ -818,12 +1142,18 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Year Built</FormLabel>
                         <FormControl>
-                          <Input 
-                            {...field} 
-                            type="number" 
+                          <Input
+                            {...field}
+                            type="number"
                             placeholder="2000"
                             value={field.value || ""}
-                            onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value
+                                  ? parseInt(e.target.value)
+                                  : undefined,
+                              )
+                            }
                             data-testid="input-yearbuilt"
                           />
                         </FormControl>
@@ -839,7 +1169,12 @@ export default function UploadDialog({
                       <FormItem className="col-span-2">
                         <FormLabel>Property Owner</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} placeholder="John Doe" data-testid="input-owner" />
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            placeholder="John Doe"
+                            data-testid="input-owner"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -853,7 +1188,12 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Company Contact Name</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} placeholder="ABC Realty" data-testid="input-company-contact" />
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            placeholder="ABC Realty"
+                            data-testid="input-company-contact"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -867,7 +1207,13 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Company Contact Email</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} type="email" placeholder="contact@company.com" data-testid="input-company-email" />
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            type="email"
+                            placeholder="contact@company.com"
+                            data-testid="input-company-email"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -881,11 +1227,17 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Purchase Price</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             placeholder="450000"
                             value={field.value ?? ""}
-                            onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value
+                                  ? parseFloat(e.target.value)
+                                  : undefined,
+                              )
+                            }
                             data-testid="input-purchase-price"
                           />
                         </FormControl>
@@ -901,7 +1253,12 @@ export default function UploadDialog({
                       <FormItem>
                         <FormLabel>Date Sold</FormLabel>
                         <FormControl>
-                          <Input {...field} value={field.value || ""} type="date" data-testid="input-date-sold" />
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            type="date"
+                            data-testid="input-date-sold"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -915,7 +1272,13 @@ export default function UploadDialog({
                       <FormItem className="col-span-2">
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea {...field} value={field.value || ""} placeholder="Property details..." rows={3} data-testid="input-description" />
+                          <Textarea
+                            {...field}
+                            value={field.value || ""}
+                            placeholder="Property details..."
+                            rows={3}
+                            data-testid="input-description"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -930,19 +1293,19 @@ export default function UploadDialog({
                 )}
 
                 <div className="flex gap-2 pt-4">
-                  <Button 
+                  <Button
                     type="button"
-                    variant="outline" 
-                    onClick={handleClose} 
-                    className="flex-1" 
+                    variant="outline"
+                    onClick={handleClose}
+                    className="flex-1"
                     disabled={isManualSubmitting}
                     data-testid="button-cancel-manual"
                   >
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     type="submit"
-                    className="flex-1" 
+                    className="flex-1"
                     disabled={isManualSubmitting}
                     data-testid="button-submit-manual"
                   >

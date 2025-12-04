@@ -24,13 +24,30 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CloudUpload, Trash2, Loader2, Database, AlertTriangle, ArrowLeft, Pencil, Search, X, Users } from "lucide-react";
+import {
+  CloudUpload,
+  Trash2,
+  Loader2,
+  Database,
+  AlertTriangle,
+  ArrowLeft,
+  Pencil,
+  Search,
+  X,
+  Users,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/UploadDialog";
 import EditPropertyDialog from "@/components/EditPropertyDialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { format } from "date-fns";
 
 interface AdminUser {
@@ -56,13 +73,13 @@ export default function Admin() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/admin/status', {
-          credentials: 'include',
+        const response = await fetch("/api/admin/status", {
+          credentials: "include",
         });
         const data = await response.json();
         setIsAuthenticated(data.authenticated);
       } catch (error) {
-        console.error('Error checking auth status:', error);
+        console.error("Error checking auth status:", error);
         setIsAuthenticated(false);
       } finally {
         setIsVerifying(false);
@@ -82,22 +99,23 @@ export default function Admin() {
   });
 
   // Filter properties based on search query
-  const filteredProperties = properties?.filter((property) => {
-    if (!searchQuery.trim()) return true;
-    
-    const query = searchQuery.toLowerCase().trim();
-    const searchableFields = [
-      property.address,
-      property.city,
-      property.state,
-      property.zipCode,
-      property.propertyOwner,
-    ].filter(Boolean);
-    
-    return searchableFields.some((field) => 
-      field?.toLowerCase().includes(query)
-    );
-  }) ?? [];
+  const filteredProperties =
+    properties?.filter((property) => {
+      if (!searchQuery.trim()) return true;
+
+      const query = searchQuery.toLowerCase().trim();
+      const searchableFields = [
+        property.address,
+        property.city,
+        property.state,
+        property.zipCode,
+        property.propertyOwner,
+      ].filter(Boolean);
+
+      return searchableFields.some((field) =>
+        field?.toLowerCase().includes(query),
+      );
+    }) ?? [];
 
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
@@ -151,15 +169,15 @@ export default function Admin() {
 
   const handleAuthenticate = async (passcode: string) => {
     try {
-      const response = await fetch('/api/admin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      const response = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ passcode }),
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         setIsAuthenticated(true);
         // Invalidate and refetch properties after authentication
@@ -186,11 +204,11 @@ export default function Admin() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/admin/logout', {
-        method: 'POST',
-        credentials: 'include',
+      const response = await fetch("/api/admin/logout", {
+        method: "POST",
+        credentials: "include",
       });
-      
+
       if (response.ok) {
         setIsAuthenticated(false);
         // Clear all cached queries on logout
@@ -201,7 +219,7 @@ export default function Admin() {
         });
       }
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error("Error logging out:", error);
       toast({
         title: "Error",
         description: "Failed to log out",
@@ -228,7 +246,7 @@ export default function Admin() {
         <div className="flex items-center justify-between mb-4">
           <Button
             variant="ghost"
-            onClick={() => setLocation('/')}
+            onClick={() => setLocation("/")}
             data-testid="button-back-home"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -283,8 +301,9 @@ export default function Admin() {
                 <CloudUpload className="w-16 h-16 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold">Upload Properties</h3>
                 <p className="text-muted-foreground text-center max-w-md">
-                  Click the button below to upload a CSV or Excel file containing property data,
-                  or manually enter individual properties.
+                  Click the button below to upload a CSV or Excel file
+                  containing property data, or manually enter individual
+                  properties.
                 </p>
                 <Button
                   size="lg"
@@ -296,7 +315,8 @@ export default function Admin() {
                 </Button>
                 {properties && (
                   <p className="text-sm text-muted-foreground mt-4">
-                    Current database: {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
+                    Current database: {properties.length} propert
+                    {properties.length === 1 ? "y" : "ies"}
                   </p>
                 )}
               </div>
@@ -320,7 +340,9 @@ export default function Admin() {
               ) : !properties || properties.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
                   <Database className="w-16 h-16 text-muted-foreground" />
-                  <p className="text-muted-foreground">No properties in database</p>
+                  <p className="text-muted-foreground">
+                    No properties in database
+                  </p>
                   <Button
                     variant="outline"
                     onClick={() => setUploadDialogOpen(true)}
@@ -356,9 +378,16 @@ export default function Admin() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {searchQuery ? (
-                        <>Showing {filteredProperties.length} of {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}</>
+                        <>
+                          Showing {filteredProperties.length} of{" "}
+                          {properties.length} propert
+                          {properties.length === 1 ? "y" : "ies"}
+                        </>
                       ) : (
-                        <>Total: {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}</>
+                        <>
+                          Total: {properties.length} propert
+                          {properties.length === 1 ? "y" : "ies"}
+                        </>
                       )}
                     </p>
                   </div>
@@ -367,8 +396,12 @@ export default function Admin() {
                       <Table>
                         <TableHeader className="sticky top-0 bg-background">
                           <TableRow>
-                            <TableHead className="min-w-[200px]">Address</TableHead>
-                            <TableHead className="min-w-[100px]">City</TableHead>
+                            <TableHead className="min-w-[200px]">
+                              Address
+                            </TableHead>
+                            <TableHead className="min-w-[100px]">
+                              City
+                            </TableHead>
                             <TableHead className="text-right">Price</TableHead>
                             <TableHead className="text-center">Beds</TableHead>
                             <TableHead className="text-center">Baths</TableHead>
@@ -378,83 +411,104 @@ export default function Admin() {
                         <TableBody>
                           {filteredProperties.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                              <TableCell
+                                colSpan={6}
+                                className="text-center py-8 text-muted-foreground"
+                              >
                                 No properties match your search
                               </TableCell>
                             </TableRow>
-                          ) : filteredProperties.map((property) => (
-                            <TableRow key={property.id} data-testid={`row-property-${property.id}`}>
-                              <TableCell className="font-medium">
-                                <div>{property.address}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {property.state} {property.zipCode}
-                                </div>
-                              </TableCell>
-                              <TableCell>{property.city}</TableCell>
-                              <TableCell className="text-right font-semibold">
-                                ${property.price.toLocaleString()}
-                              </TableCell>
-                              <TableCell className="text-center">{property.bedrooms}</TableCell>
-                              <TableCell className="text-center">{property.bathrooms}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setPropertyToEdit(property)}
-                                    data-testid={`button-edit-${property.id}`}
-                                  >
-                                    <Pencil className="w-4 h-4 text-muted-foreground" />
-                                  </Button>
-                                  <AlertDialog
-                                    open={propertyToDelete === property.id}
-                                    onOpenChange={(open) => {
-                                      if (!open) setPropertyToDelete(null);
-                                    }}
-                                  >
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => setPropertyToDelete(property.id)}
-                                        data-testid={`button-delete-${property.id}`}
-                                      >
-                                        <Trash2 className="w-4 h-4 text-destructive" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Delete Property?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Are you sure you want to delete {property.address}?
-                                          This action cannot be undone.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel data-testid="button-cancel-delete">
-                                          Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() => handleDeleteSingle(property.id)}
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                          data-testid="button-confirm-delete"
+                          ) : (
+                            filteredProperties.map((property) => (
+                              <TableRow
+                                key={property.id}
+                                data-testid={`row-property-${property.id}`}
+                              >
+                                <TableCell className="font-medium">
+                                  <div>{property.address}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {property.state} {property.zipCode}
+                                  </div>
+                                </TableCell>
+                                <TableCell>{property.city}</TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  ${property.price.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {property.bedrooms}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {property.bathrooms}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        setPropertyToEdit(property)
+                                      }
+                                      data-testid={`button-edit-${property.id}`}
+                                    >
+                                      <Pencil className="w-4 h-4 text-muted-foreground" />
+                                    </Button>
+                                    <AlertDialog
+                                      open={propertyToDelete === property.id}
+                                      onOpenChange={(open) => {
+                                        if (!open) setPropertyToDelete(null);
+                                      }}
+                                    >
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() =>
+                                            setPropertyToDelete(property.id)
+                                          }
+                                          data-testid={`button-delete-${property.id}`}
                                         >
-                                          {deleteSingleMutation.isPending ? (
-                                            <>
-                                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                              Deleting...
-                                            </>
-                                          ) : (
-                                            "Delete"
-                                          )}
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                                          <Trash2 className="w-4 h-4 text-destructive" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>
+                                            Delete Property?
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to delete{" "}
+                                            {property.address}? This action
+                                            cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel data-testid="button-cancel-delete">
+                                            Cancel
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() =>
+                                              handleDeleteSingle(property.id)
+                                            }
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            data-testid="button-confirm-delete"
+                                          >
+                                            {deleteSingleMutation.isPending ? (
+                                              <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Deleting...
+                                              </>
+                                            ) : (
+                                              "Delete"
+                                            )}
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -481,13 +535,15 @@ export default function Admin() {
               ) : !users || users.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
                   <Users className="w-16 h-16 text-muted-foreground" />
-                  <p className="text-muted-foreground">No users have signed up yet</p>
+                  <p className="text-muted-foreground">
+                    No users have signed up yet
+                  </p>
                 </div>
               ) : (
                 <div>
                   <div className="mb-4">
                     <p className="text-sm text-muted-foreground">
-                      Total: {users.length} user{users.length === 1 ? '' : 's'}
+                      Total: {users.length} user{users.length === 1 ? "" : "s"}
                     </p>
                   </div>
                   <div className="border rounded-lg overflow-hidden">
@@ -503,14 +559,20 @@ export default function Admin() {
                         </TableHeader>
                         <TableBody>
                           {users.map((user) => (
-                            <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                            <TableRow
+                              key={user.id}
+                              data-testid={`row-user-${user.id}`}
+                            >
                               <TableCell className="font-medium">
                                 {user.firstName} {user.lastName}
                               </TableCell>
                               <TableCell>{user.email}</TableCell>
                               <TableCell>{user.phone}</TableCell>
                               <TableCell className="text-muted-foreground">
-                                {format(new Date(user.createdAt), 'MMM d, yyyy h:mm a')}
+                                {format(
+                                  new Date(user.createdAt),
+                                  "MMM d, yyyy h:mm a",
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -540,11 +602,14 @@ export default function Admin() {
                 <div className="text-center max-w-md">
                   <h3 className="text-xl font-semibold mb-2">Danger Zone</h3>
                   <p className="text-muted-foreground mb-6">
-                    This will permanently delete all {properties?.length || 0} properties from your database.
-                    This action cannot be undone.
+                    This will permanently delete all {properties?.length || 0}{" "}
+                    properties from your database. This action cannot be undone.
                   </p>
                   {properties && properties.length > 0 ? (
-                    <AlertDialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+                    <AlertDialog
+                      open={deleteAllDialogOpen}
+                      onOpenChange={setDeleteAllDialogOpen}
+                    >
                       <AlertDialogTrigger asChild>
                         <Button
                           variant="destructive"
@@ -557,10 +622,14 @@ export default function Admin() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogTitle>
+                            Are you absolutely sure?
+                          </AlertDialogTitle>
                           <AlertDialogDescription>
-                            This will permanently delete all {properties.length} properties from your database.
-                            This action cannot be undone. You will need to re-upload your data if you want to restore it.
+                            This will permanently delete all {properties.length}{" "}
+                            properties from your database. This action cannot be
+                            undone. You will need to re-upload your data if you
+                            want to restore it.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -585,7 +654,9 @@ export default function Admin() {
                       </AlertDialogContent>
                     </AlertDialog>
                   ) : (
-                    <p className="text-muted-foreground">No properties to delete</p>
+                    <p className="text-muted-foreground">
+                      No properties to delete
+                    </p>
                   )}
                 </div>
               </div>

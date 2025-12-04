@@ -462,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Limit concurrent geocoding to 3 requests at a time for production reliability
       const limit = pLimit(3);
-      const CHUNK_SIZE = 20;
+      const CHUNK_SIZE = 10;
 
       // Process properties in chunks to avoid timeouts
       for (let i = 0; i < propertiesToUpload.length; i += CHUNK_SIZE) {
@@ -571,7 +571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
 
-      res.json(response);
+      res.status(200).json(response);
     } catch (error) {
       console.error("[UPLOAD ERROR]", error);
       res.status(500).json({ message: "Error uploading properties" });
@@ -613,11 +613,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("[DELETE ERROR]", error);
-      res
-        .status(500)
-        .json({
-          message: `Error deleting property: ${error instanceof Error ? error.message : "Unknown error"}`,
-        });
+      res.status(500).json({
+        message: `Error deleting property: ${error instanceof Error ? error.message : "Unknown error"}`,
+      });
     }
   });
 
@@ -702,11 +700,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (error) {
       console.error("[UPDATE ERROR]", error);
-      res
-        .status(500)
-        .json({
-          message: `Error updating property: ${error instanceof Error ? error.message : "Unknown error"}`,
-        });
+      res.status(500).json({
+        message: `Error updating property: ${error instanceof Error ? error.message : "Unknown error"}`,
+      });
     }
   });
 

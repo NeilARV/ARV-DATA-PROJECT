@@ -8,28 +8,30 @@ import { sessions } from "@shared/schema";
 
 const app = express();
 
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
-declare module 'http' {
+declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown
+    rawBody: unknown;
   }
 }
 
-declare module 'express-session' {
+declare module "express-session" {
   interface SessionData {
     isAdminAuthenticated?: boolean;
     userId?: string;
   }
 }
 
-app.use(express.json({
-  limit: '50mb',
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+app.use(
+  express.json({
+    limit: "50mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
+app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
 // Set longer timeout for large uploads and processing
 app.use((req, res, next) => {
@@ -40,38 +42,43 @@ app.use((req, res, next) => {
 
 // Enforce SESSION_SECRET is set
 if (!process.env.SESSION_SECRET) {
-  console.error('FATAL: SESSION_SECRET environment variable is not set. This is required for secure admin authentication.');
+  console.error(
+    "FATAL: SESSION_SECRET environment variable is not set. This is required for secure admin authentication.",
+  );
   process.exit(1);
 }
 
 // Create database-backed session store for production persistence
-const sessionStore = new NeonSessionStore({ 
-  ttl: 24 * 60 * 60 * 1000  // 24 hour session lifetime
+const sessionStore = new NeonSessionStore({
+  ttl: 24 * 60 * 60 * 1000, // 24 hour session lifetime
 });
 
 // Clean up expired sessions every hour
-setInterval(() => {
-  sessionStore.cleanup().catch(err => 
-    console.error('[SessionStore] Cleanup error:', err)
-  );
-}, 60 * 60 * 1000);
+setInterval(
+  () => {
+    sessionStore
+      .cleanup()
+      .catch((err) => console.error("[SessionStore] Cleanup error:", err));
+  },
+  60 * 60 * 1000,
+);
 
 // Session middleware for admin authentication
 app.use(
   session({
     store: sessionStore,
     secret: process.env.SESSION_SECRET,
-    resave: false,  // Don't save session if unmodified (store handles it)
-    saveUninitialized: false,  // Don't create session until something stored
+    resave: false, // Don't save session if unmodified (store handles it)
+    saveUninitialized: false, // Don't create session until something stored
     proxy: true,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      path: '/',
+      path: "/",
     },
-  })
+  }),
 );
 
 app.use((req, res, next) => {
@@ -108,10 +115,14 @@ app.use((req, res, next) => {
   // Verify sessions table is accessible on startup
   try {
     const existingSessions = await db.select().from(sessions).limit(1);
-    console.log(`[Startup] Sessions table verified. Found ${existingSessions.length} existing sessions.`);
+    console.log(
+      `[Startup] Sessions table verified. Found ${existingSessions.length} existing sessions.`,
+    );
   } catch (error) {
-    console.error('[Startup] ERROR: Sessions table not accessible. Run npm run db:push to create it.');
-    console.error('[Startup] Session error details:', error);
+    console.error(
+      "[Startup] ERROR: Sessions table not accessible. Run npm run db:push to create it.",
+    );
+    console.error("[Startup] Session error details:", error);
   }
 
   const server = await registerRoutes(app);
@@ -137,12 +148,15 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  const port = parseInt(process.env.PORT || "5000", 10);
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    },
+    () => {
+      log(`serving on port ${port}`);
+    },
+  );
 })();

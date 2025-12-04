@@ -32,8 +32,10 @@ export async function apiRequest(
     return res;
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timeout after ${timeoutMs / 1000 / 60} minutes. The upload took too long. Try uploading fewer properties at once.`);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `Request timeout after ${timeoutMs / 1000 / 60} minutes. The upload took too long. Try uploading fewer properties at once.`,
+      );
     }
     throw error;
   }
