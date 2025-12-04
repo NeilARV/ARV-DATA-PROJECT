@@ -299,7 +299,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 data-testid="button-tab-directory"
               >
                 <Building2 className="w-4 h-4 mr-1" />
-                Directory
+                Investor Profiles
               </Button>
             )}
           </div>

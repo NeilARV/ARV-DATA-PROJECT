@@ -175,7 +175,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
               </Button>
             )}
             <Button variant="default" size="sm" data-testid="button-tab-directory">
-              Directory
+              Investor Profiles
             </Button>
           </div>
           {onClose && (
