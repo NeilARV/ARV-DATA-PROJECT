@@ -20,6 +20,7 @@ interface HeaderProps {
   onLoginClick?: () => void;
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
+  onLogoClick?: () => void;
 }
 
 export default function Header({
@@ -29,6 +30,7 @@ export default function Header({
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
+  onLogoClick,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
@@ -60,7 +62,11 @@ export default function Header({
 
   return (
     <header className="h-16 border-b border-border bg-background flex items-center px-4 gap-4" data-testid="header-main">
-      <div className="flex items-center gap-3">
+      <button 
+        className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+        onClick={onLogoClick}
+        data-testid="button-logo-home"
+      >
         <img 
           src={logoUrl} 
           alt="ARV DATA" 
@@ -68,7 +74,7 @@ export default function Header({
           data-testid="img-logo"
         />
         <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
-      </div>
+      </button>
 
       <form onSubmit={handleSearch} className="flex-1 max-w-md">
         <div className="relative">

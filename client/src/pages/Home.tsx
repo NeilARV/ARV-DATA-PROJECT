@@ -315,6 +315,18 @@ export default function Home() {
     setMapZoom(12);
   };
 
+  const handleLogoClick = () => {
+    // Reset everything to default state (like first visit)
+    setViewMode("map");
+    setSidebarView("filters");
+    setFilters(null);
+    setSelectedCompany(null);
+    setSelectedProperty(null);
+    setMapCenter(undefined);
+    setMapZoom(14);
+    setSortBy("recently-sold");
+  };
+
   // Calculate current time once for deterministic sorting
   const now = Date.now();
   
@@ -351,6 +363,7 @@ export default function Home() {
         onLoginClick={() => setShowLoginDialog(true)}
         onSignupClick={() => setShowSignupDialog(true)}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
+        onLogoClick={handleLogoClick}
       />
 
       <div className="flex-1 flex overflow-hidden">
