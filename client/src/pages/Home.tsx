@@ -283,11 +283,11 @@ export default function Home() {
     // Clear any existing filters first so only company filter applies
     setFilters(null);
     setSelectedCompany(companyName);
-    setSidebarView("none"); // Close the directory
+    // Keep the directory open on the left, switch to map view on the right
+    setViewMode("map");
     // Reset map center/zoom so the map auto-fits to the filtered properties
     setMapCenter(undefined);
-    setMapZoom(12);
-    // Keep the user in their current view mode (map or grid)
+    setMapZoom(14);
   };
 
   const handleLeaderboardCompanyClick = (companyName: string) => {

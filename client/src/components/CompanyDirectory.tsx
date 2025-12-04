@@ -50,7 +50,7 @@ interface CompanyDirectoryProps {
 
 export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<DirectorySortOption>("alphabetical");
+  const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const { toast } = useToast();
 
