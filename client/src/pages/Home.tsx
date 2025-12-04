@@ -327,6 +327,12 @@ export default function Home() {
     setSortBy("recently-sold");
   };
 
+  const handleViewModeChange = (mode: "map" | "grid" | "table") => {
+    // Clear selected property when switching views to avoid modal popping up
+    setSelectedProperty(null);
+    setViewMode(mode);
+  };
+
   // Calculate current time once for deterministic sorting
   const now = Date.now();
   
@@ -359,7 +365,7 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <Header
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
         onLoginClick={() => setShowLoginDialog(true)}
         onSignupClick={() => setShowSignupDialog(true)}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
