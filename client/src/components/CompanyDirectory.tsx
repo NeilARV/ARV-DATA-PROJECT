@@ -387,16 +387,32 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                     {/* 90-Day Acquisition Activity */}
                     {(() => {
                       const companyNameNormalized = company.companyName.trim().toLowerCase();
-                      const ninetyDaysAgo = subDays(new Date(), 90);
+                      const now = new Date();
                       
-                      // Get properties for this company in the last 90 days
+                      // Get the last 3 complete months (excluding current month)
+                      // In December, show Sep, Oct, Nov
+                      const months: { key: string; start: Date; end: Date }[] = [];
+                      for (let i = 3; i >= 1; i--) {
+                        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+                        months.push({
+                          key: format(monthDate, 'MMM'),
+                          start: monthDate,
+                          end: monthEnd
+                        });
+                      }
+                      
+                      // Get properties for this company in the last 3 complete months
+                      const threeMonthsAgo = months[0].start;
+                      const endOfLastMonth = months[2].end;
+                      
                       const companyProperties = properties.filter(p => {
                         const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
                         if (ownerName !== companyNameNormalized) return false;
                         if (!p.dateSold) return false;
                         try {
                           const date = parseISO(p.dateSold);
-                          return isValid(date) && isAfter(date, ninetyDaysAgo);
+                          return isValid(date) && isAfter(date, threeMonthsAgo) && !isAfter(date, endOfLastMonth);
                         } catch {
                           return false;
                         }
@@ -404,14 +420,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       
                       // Group by month
                       const monthlyData: Record<string, number> = {};
-                      const now = new Date();
-                      
-                      // Initialize last 3 months
-                      for (let i = 2; i >= 0; i--) {
-                        const monthDate = subDays(now, i * 30);
-                        const monthKey = format(monthDate, 'MMM');
-                        monthlyData[monthKey] = 0;
-                      }
+                      months.forEach(m => {
+                        monthlyData[m.key] = 0;
+                      });
                       
                       companyProperties.forEach(p => {
                         if (p.dateSold) {
@@ -427,9 +438,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         }
                       });
                       
-                      const chartData = Object.entries(monthlyData).map(([month, count]) => ({
-                        month,
-                        count
+                      const chartData = months.map(m => ({
+                        month: m.key,
+                        count: monthlyData[m.key]
                       }));
                       
                       const totalLast90Days = companyProperties.length;
