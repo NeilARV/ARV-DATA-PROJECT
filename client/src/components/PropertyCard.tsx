@@ -1,8 +1,9 @@
 import { Property } from "@shared/schema";
 import { Card } from "@/components/ui/card";
-import { Bed, Bath, Maximize2, Building2 } from "lucide-react";
+import { Bed, Bath, Maximize2, Building2, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
+import { format, parseISO, isValid } from "date-fns";
 
 interface PropertyCardProps {
   property: Property;
@@ -45,8 +46,25 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
         )}
       </div>
       <div className="p-4">
-        <div className="text-xl font-bold text-foreground mb-1" data-testid={`text-price-${property.id}`}>
-          ${property.price.toLocaleString()}
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-xl font-bold text-foreground" data-testid={`text-price-${property.id}`}>
+            ${property.price.toLocaleString()}
+          </div>
+          {property.dateSold && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground" data-testid={`text-date-sold-${property.id}`}>
+              <Calendar className="w-3.5 h-3.5" />
+              <span>
+                {(() => {
+                  try {
+                    const date = parseISO(property.dateSold);
+                    return isValid(date) ? format(date, 'MMM d, yyyy') : property.dateSold;
+                  } catch {
+                    return property.dateSold;
+                  }
+                })()}
+              </span>
+            </div>
+          )}
         </div>
         <div className="text-base font-medium text-foreground mb-3" data-testid={`text-address-${property.id}`}>
           {property.address}
