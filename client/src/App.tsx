@@ -21,7 +21,8 @@ function Router() {
 function App() {
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
+    // Default to dark mode unless user explicitly chose light
+    if (savedTheme !== 'light') {
       document.documentElement.classList.add('dark');
     }
   }, []);
