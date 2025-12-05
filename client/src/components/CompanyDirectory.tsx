@@ -230,7 +230,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             {searchQuery ? "No companies found" : "No companies in directory"}
           </div>
         ) : (
-          filteredCompanies.map((company) => (
+          filteredCompanies.map((company, index) => (
             <Card
               key={company.id}
               className="p-3 hover-elevate active-elevate-2 cursor-pointer transition-all"
@@ -240,6 +240,11 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
+                    {sortBy === "most-properties" && index < 25 && (
+                      <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${index + 1}`}>
+                        {index + 1}.
+                      </span>
+                    )}
                     <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
