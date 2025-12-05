@@ -45,7 +45,7 @@ const companyProfiles: Record<string, {
   acquisitionsAssociate?: string;
   acquisitionsAssociateEmail?: string;
 }> = {
-  "New Beginnings Ventures": {
+  "New Beginnings Ventures LLC": {
     instagram: "https://www.instagram.com/sundaehq/?hl=en",
     acquisitionsAssociate: "Christian Galino",
     acquisitionsAssociateEmail: "cgalindo@sundae.com",
