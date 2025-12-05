@@ -53,8 +53,8 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           {property.dateSold && (
             <div className="flex flex-col items-end text-sm" data-testid={`text-date-sold-${property.id}`}>
               <span className="text-xs text-muted-foreground">Date Sold</span>
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Calendar className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1 text-foreground">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>
                   {(() => {
                     try {
