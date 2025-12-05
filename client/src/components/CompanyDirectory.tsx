@@ -39,10 +39,12 @@ type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properti
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
+  principal?: string;
   acquisitionsAssociate?: string;
   acquisitionsAssociateEmail?: string;
 }> = {
   "New Beginnings Ventures LLC": {
+    principal: "Josh Stech",
     acquisitionsAssociate: "Christian Galino",
     acquisitionsAssociateEmail: "cgalindo@sundae.com",
   },
@@ -358,6 +360,17 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         <span className="font-bold text-primary">#{ranking}</span>
                       </span>
                     </div>
+                    
+                    {/* Principal */}
+                    {profile?.principal && (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-primary" />
+                        <span className="text-sm">
+                          <span className="text-muted-foreground">Principal: </span>
+                          <span className="font-medium text-foreground">{profile.principal}</span>
+                        </span>
+                      </div>
+                    )}
                     
                     {/* Acquisitions Associate */}
                     {profile?.acquisitionsAssociate && (
