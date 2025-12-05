@@ -51,18 +51,21 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
             ${property.price.toLocaleString()}
           </div>
           {property.dateSold && (
-            <div className="flex items-center gap-1 text-sm text-muted-foreground" data-testid={`text-date-sold-${property.id}`}>
-              <Calendar className="w-3.5 h-3.5" />
-              <span>
-                {(() => {
-                  try {
-                    const date = parseISO(property.dateSold);
-                    return isValid(date) ? format(date, 'MMM d, yyyy') : property.dateSold;
-                  } catch {
-                    return property.dateSold;
-                  }
-                })()}
-              </span>
+            <div className="flex flex-col items-end text-sm" data-testid={`text-date-sold-${property.id}`}>
+              <span className="text-xs text-muted-foreground">Date Sold</span>
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>
+                  {(() => {
+                    try {
+                      const date = parseISO(property.dateSold);
+                      return isValid(date) ? format(date, 'MMM d, yyyy') : property.dateSold;
+                    } catch {
+                      return property.dateSold;
+                    }
+                  })()}
+                </span>
+              </div>
             </div>
           )}
         </div>
