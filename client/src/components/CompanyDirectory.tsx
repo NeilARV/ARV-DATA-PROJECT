@@ -2,8 +2,10 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, MessageSquare, ChevronDown, ChevronUp, Trophy, Home } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, MessageSquare, ChevronDown, ChevronUp, Trophy, Home, TrendingUp } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { subDays, parseISO, isValid, format, isAfter } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -381,6 +383,112 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         )}
                       </div>
                     )}
+                    
+                    {/* 90-Day Acquisition Activity */}
+                    {(() => {
+                      const companyNameNormalized = company.companyName.trim().toLowerCase();
+                      const ninetyDaysAgo = subDays(new Date(), 90);
+                      
+                      // Get properties for this company in the last 90 days
+                      const companyProperties = properties.filter(p => {
+                        const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
+                        if (ownerName !== companyNameNormalized) return false;
+                        if (!p.dateSold) return false;
+                        try {
+                          const date = parseISO(p.dateSold);
+                          return isValid(date) && isAfter(date, ninetyDaysAgo);
+                        } catch {
+                          return false;
+                        }
+                      });
+                      
+                      // Group by month
+                      const monthlyData: Record<string, number> = {};
+                      const now = new Date();
+                      
+                      // Initialize last 3 months
+                      for (let i = 2; i >= 0; i--) {
+                        const monthDate = subDays(now, i * 30);
+                        const monthKey = format(monthDate, 'MMM');
+                        monthlyData[monthKey] = 0;
+                      }
+                      
+                      companyProperties.forEach(p => {
+                        if (p.dateSold) {
+                          try {
+                            const date = parseISO(p.dateSold);
+                            if (isValid(date)) {
+                              const monthKey = format(date, 'MMM');
+                              if (monthlyData[monthKey] !== undefined) {
+                                monthlyData[monthKey]++;
+                              }
+                            }
+                          } catch {}
+                        }
+                      });
+                      
+                      const chartData = Object.entries(monthlyData).map(([month, count]) => ({
+                        month,
+                        count
+                      }));
+                      
+                      const totalLast90Days = companyProperties.length;
+                      const avgPerMonth = totalLast90Days > 0 ? (totalLast90Days / 3).toFixed(1) : "0";
+                      
+                      return (
+                        <div className="space-y-2 pt-2 border-t border-border">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-medium text-foreground">90-Day Acquisition Activity</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Last 90 days: </span>
+                              <span className="font-semibold text-foreground">{totalLast90Days}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Avg/month: </span>
+                              <span className="font-semibold text-foreground">{avgPerMonth}</span>
+                            </div>
+                          </div>
+                          
+                          {totalLast90Days > 0 ? (
+                            <div className="h-20 w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+                                  <XAxis 
+                                    dataKey="month" 
+                                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                  />
+                                  <YAxis hide />
+                                  <Tooltip 
+                                    contentStyle={{ 
+                                      backgroundColor: 'hsl(var(--background))',
+                                      border: '1px solid hsl(var(--border))',
+                                      borderRadius: '6px',
+                                      fontSize: '12px'
+                                    }}
+                                    formatter={(value: number) => [`${value} properties`, 'Acquired']}
+                                  />
+                                  <Bar 
+                                    dataKey="count" 
+                                    fill="hsl(var(--primary))" 
+                                    radius={[4, 4, 0, 0]}
+                                  />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground italic">
+                              No acquisitions in the last 90 days
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
