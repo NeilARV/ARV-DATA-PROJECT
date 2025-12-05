@@ -361,16 +361,16 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       </span>
                     </div>
                     
-                    {/* Principal */}
-                    {profile?.principal && (
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-primary" />
-                        <span className="text-sm">
-                          <span className="text-muted-foreground">Principal: </span>
-                          <span className="font-medium text-foreground">{profile.principal}</span>
+                    {/* Principal - use profile override, or fall back to company contact name */}
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        <span className="text-muted-foreground">Principal: </span>
+                        <span className="font-medium text-foreground">
+                          {profile?.principal || company.contactName || "Not Available"}
                         </span>
-                      </div>
-                    )}
+                      </span>
+                    </div>
                     
                     {/* Acquisitions Associate */}
                     {profile?.acquisitionsAssociate && (
