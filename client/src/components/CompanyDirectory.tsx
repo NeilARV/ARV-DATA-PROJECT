@@ -2,8 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, MessageSquare, ChevronDown, ChevronUp, Trophy, Home, ExternalLink } from "lucide-react";
-import { SiInstagram, SiLinkedin, SiFacebook } from "react-icons/si";
+import { X, Building2, Mail, User, Search, Filter, MessageSquare, ChevronDown, ChevronUp, Trophy, Home } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -36,17 +35,12 @@ import { useToast } from "@/hooks/use-toast";
 
 type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties";
 
-// Social media and profile data for known companies
+// Profile data for known companies
 const companyProfiles: Record<string, {
-  instagram?: string;
-  linkedin?: string;
-  facebook?: string;
-  website?: string;
   acquisitionsAssociate?: string;
   acquisitionsAssociateEmail?: string;
 }> = {
   "New Beginnings Ventures LLC": {
-    instagram: "https://www.instagram.com/sundaehq/?hl=en",
     acquisitionsAssociate: "Christian Galino",
     acquisitionsAssociateEmail: "cgalindo@sundae.com",
   },
@@ -362,59 +356,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         <span className="font-bold text-primary">#{ranking}</span>
                       </span>
                     </div>
-                    
-                    {/* Social Media Links */}
-                    {profile && (profile.instagram || profile.linkedin || profile.facebook || profile.website) && (
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground">Social Media</div>
-                        <div className="flex items-center gap-3">
-                          {profile.instagram && (
-                            <a
-                              href={profile.instagram}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-pink-500 hover:text-pink-400 transition-colors"
-                              data-testid="link-instagram"
-                            >
-                              <SiInstagram className="w-5 h-5" />
-                            </a>
-                          )}
-                          {profile.linkedin && (
-                            <a
-                              href={profile.linkedin}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-500 transition-colors"
-                              data-testid="link-linkedin"
-                            >
-                              <SiLinkedin className="w-5 h-5" />
-                            </a>
-                          )}
-                          {profile.facebook && (
-                            <a
-                              href={profile.facebook}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-500 hover:text-blue-400 transition-colors"
-                              data-testid="link-facebook"
-                            >
-                              <SiFacebook className="w-5 h-5" />
-                            </a>
-                          )}
-                          {profile.website && (
-                            <a
-                              href={profile.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                              data-testid="link-website"
-                            >
-                              <ExternalLink className="w-5 h-5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )}
                     
                     {/* Acquisitions Associate */}
                     {profile?.acquisitionsAssociate && (
