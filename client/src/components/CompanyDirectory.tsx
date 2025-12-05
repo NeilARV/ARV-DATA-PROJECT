@@ -159,7 +159,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   };
 
   return (
-    <div className="w-80 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
+    <div className="w-96 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex gap-2">
