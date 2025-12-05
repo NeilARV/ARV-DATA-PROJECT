@@ -2,9 +2,11 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, MessageSquare } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, MessageSquare, ChevronDown, ChevronUp, Trophy, Home, ExternalLink } from "lucide-react";
+import { SiInstagram, SiLinkedin, SiFacebook } from "react-icons/si";
 import { CompanyContact, Property } from "@shared/schema";
 import { Card } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -34,6 +36,21 @@ import { useToast } from "@/hooks/use-toast";
 
 type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties";
 
+// Social media and profile data for known companies
+const companyProfiles: Record<string, {
+  instagram?: string;
+  linkedin?: string;
+  facebook?: string;
+  website?: string;
+  acquisitionsAssociate?: string;
+}> = {
+  "New Beginnings Ventures": {
+    instagram: "https://www.instagram.com/sundaehq/?hl=en",
+    acquisitionsAssociate: "",
+  },
+  // Add more company profiles here as needed
+};
+
 const contactRequestSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
@@ -52,6 +69,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const { toast } = useToast();
 
   const form = useForm<ContactRequestForm>({
@@ -112,7 +130,20 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     return filtered;
   }, [companiesWithCounts, searchQuery, sortBy]);
 
+  // Calculate rankings based on property count (sorted by most properties)
+  const companyRankings = useMemo(() => {
+    const sorted = [...companiesWithCounts].sort((a, b) => b.propertyCount - a.propertyCount);
+    const rankings: Record<string, number> = {};
+    sorted.forEach((company, index) => {
+      rankings[company.companyName] = index + 1;
+    });
+    return rankings;
+  }, [companiesWithCounts]);
+
   const handleCompanyClick = (companyName: string) => {
+    // Toggle expanded state
+    setExpandedCompany(prev => prev === companyName ? null : companyName);
+    // Also filter properties on the map
     if (onCompanySelect) {
       onCompanySelect(companyName);
     }
@@ -230,56 +261,165 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             {searchQuery ? "No companies found" : "No companies in directory"}
           </div>
         ) : (
-          filteredCompanies.map((company, index) => (
-            <Card
-              key={company.id}
-              className="p-3 hover-elevate active-elevate-2 cursor-pointer transition-all"
-              onClick={() => handleCompanyClick(company.companyName)}
-              data-testid={`card-company-${company.id}`}
-            >
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 flex-1 min-w-0">
-                    {sortBy === "most-properties" && index < 25 && (
-                      <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${index + 1}`}>
-                        {index + 1}.
-                      </span>
-                    )}
-                    <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
-                        {company.companyName}
+          filteredCompanies.map((company, index) => {
+            const isExpanded = expandedCompany === company.companyName;
+            const profile = companyProfiles[company.companyName];
+            const ranking = companyRankings[company.companyName] || 0;
+            
+            return (
+              <div key={company.id}>
+                <Card
+                  className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isExpanded ? 'ring-2 ring-primary' : ''}`}
+                  onClick={() => handleCompanyClick(company.companyName)}
+                  data-testid={`card-company-${company.id}`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        {sortBy === "most-properties" && index < 25 && (
+                          <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${index + 1}`}>
+                            {index + 1}.
+                          </span>
+                        )}
+                        <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
+                            {company.companyName}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {company.propertyCount > 0 && (
+                          <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
+                            {company.propertyCount} {company.propertyCount === 1 ? 'property' : 'properties'}
+                          </div>
+                        )}
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
                       </div>
                     </div>
-                  </div>
-                  {company.propertyCount > 0 && (
-                    <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
-                      {company.propertyCount} {company.propertyCount === 1 ? 'property' : 'properties'}
+                    
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <User className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate" data-testid="text-contact-name">{company.contactName}</span>
                     </div>
-                  )}
-                </div>
+                    
+                    {company.contactEmail && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                        <a
+                          href={`mailto:${company.contactEmail}`}
+                          className="text-primary hover:underline truncate"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid="link-contact-email"
+                        >
+                          {company.contactEmail}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </Card>
                 
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate" data-testid="text-contact-name">{company.contactName}</span>
-                </div>
-                
-                {company.contactEmail && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-                    <a
-                      href={`mailto:${company.contactEmail}`}
-                      className="text-primary hover:underline truncate"
-                      onClick={(e) => e.stopPropagation()}
-                      data-testid="link-contact-email"
-                    >
-                      {company.contactEmail}
-                    </a>
+                {/* Expandable Profile Section */}
+                {isExpanded && (
+                  <div 
+                    className="mt-1 mb-2 ml-4 p-3 bg-muted/50 rounded-md border border-border space-y-3"
+                    onClick={(e) => e.stopPropagation()}
+                    data-testid={`profile-${company.id}`}
+                  >
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Investor Profile
+                    </div>
+                    
+                    {/* Properties Owned */}
+                    <div className="flex items-center gap-2">
+                      <Home className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        <span className="font-semibold text-foreground">{company.propertyCount}</span>
+                        <span className="text-muted-foreground"> Properties Owned</span>
+                      </span>
+                    </div>
+                    
+                    {/* Market Ranking */}
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        <span className="text-muted-foreground">Market Ranking: </span>
+                        <span className="font-bold text-primary">#{ranking}</span>
+                      </span>
+                    </div>
+                    
+                    {/* Social Media Links */}
+                    {profile && (profile.instagram || profile.linkedin || profile.facebook || profile.website) && (
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Social Media</div>
+                        <div className="flex items-center gap-3">
+                          {profile.instagram && (
+                            <a
+                              href={profile.instagram}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-pink-500 hover:text-pink-400 transition-colors"
+                              data-testid="link-instagram"
+                            >
+                              <SiInstagram className="w-5 h-5" />
+                            </a>
+                          )}
+                          {profile.linkedin && (
+                            <a
+                              href={profile.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-500 transition-colors"
+                              data-testid="link-linkedin"
+                            >
+                              <SiLinkedin className="w-5 h-5" />
+                            </a>
+                          )}
+                          {profile.facebook && (
+                            <a
+                              href={profile.facebook}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-400 transition-colors"
+                              data-testid="link-facebook"
+                            >
+                              <SiFacebook className="w-5 h-5" />
+                            </a>
+                          )}
+                          {profile.website && (
+                            <a
+                              href={profile.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                              data-testid="link-website"
+                            >
+                              <ExternalLink className="w-5 h-5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Acquisitions Associate */}
+                    {profile?.acquisitionsAssociate && (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-primary" />
+                        <span className="text-sm">
+                          <span className="text-muted-foreground">Acquisitions Associate: </span>
+                          <span className="font-medium text-foreground">{profile.acquisitionsAssociate}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            </Card>
-          ))
+            );
+          })
         )}
       </div>
 
