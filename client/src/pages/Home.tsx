@@ -171,7 +171,7 @@ type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<"map" | "grid" | "table">("map");
-  const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("filters");
+  const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [filters, setFilters] = useState<PropertyFilters | null>(null);
@@ -318,7 +318,7 @@ export default function Home() {
   const handleLogoClick = () => {
     // Reset everything to default state (like first visit)
     setViewMode("map");
-    setSidebarView("filters");
+    setSidebarView("directory");
     setFilters(null);
     setSelectedCompany(null);
     setSelectedProperty(null);
