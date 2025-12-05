@@ -43,10 +43,12 @@ const companyProfiles: Record<string, {
   facebook?: string;
   website?: string;
   acquisitionsAssociate?: string;
+  acquisitionsAssociateEmail?: string;
 }> = {
   "New Beginnings Ventures": {
     instagram: "https://www.instagram.com/sundaehq/?hl=en",
-    acquisitionsAssociate: "",
+    acquisitionsAssociate: "Christian Galino",
+    acquisitionsAssociateEmail: "cgalindo@sundae.com",
   },
   // Add more company profiles here as needed
 };
@@ -343,6 +345,15 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       </span>
                     </div>
                     
+                    {/* YTD Properties Sold */}
+                    <div className="flex items-center gap-2">
+                      <Home className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        <span className="text-muted-foreground">YTD Properties Sold: </span>
+                        <span className="italic text-muted-foreground">Coming Soon</span>
+                      </span>
+                    </div>
+                    
                     {/* Market Ranking */}
                     <div className="flex items-center gap-2">
                       <Trophy className="w-4 h-4 text-primary" />
@@ -407,12 +418,26 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                     
                     {/* Acquisitions Associate */}
                     {profile?.acquisitionsAssociate && (
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-primary" />
-                        <span className="text-sm">
-                          <span className="text-muted-foreground">Acquisitions Associate: </span>
-                          <span className="font-medium text-foreground">{profile.acquisitionsAssociate}</span>
-                        </span>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-primary" />
+                          <span className="text-sm">
+                            <span className="text-muted-foreground">Acquisitions Associate: </span>
+                            <span className="font-medium text-foreground">{profile.acquisitionsAssociate}</span>
+                          </span>
+                        </div>
+                        {profile.acquisitionsAssociateEmail && (
+                          <div className="flex items-center gap-2 ml-6">
+                            <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                            <a
+                              href={`mailto:${profile.acquisitionsAssociateEmail}`}
+                              className="text-sm text-primary hover:underline"
+                              data-testid="link-acquisitions-email"
+                            >
+                              {profile.acquisitionsAssociateEmail}
+                            </a>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
