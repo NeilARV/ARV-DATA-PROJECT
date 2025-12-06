@@ -35,6 +35,7 @@ import {
   Search,
   X,
   Users,
+  Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -326,11 +327,20 @@ export default function Admin() {
 
         <TabsContent value="manage">
           <Card>
-            <CardHeader>
-              <CardTitle>Manage Properties</CardTitle>
-              <CardDescription>
-                View, edit, and delete individual properties from your database
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Manage Properties</CardTitle>
+                <CardDescription>
+                  View, edit, and delete individual properties from your database
+                </CardDescription>
+              </div>
+              <Button
+                onClick={() => setUploadDialogOpen(true)}
+                data-testid="button-add-property"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Property
+              </Button>
             </CardHeader>
             <CardContent>
               {isLoading ? (
