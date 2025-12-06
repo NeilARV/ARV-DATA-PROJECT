@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
-type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties";
+type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "new-buyers";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -90,27 +90,76 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   });
 
   // Calculate property counts for each company (case-insensitive comparison with null safety)
+  // Also calculate if they're a "new buyer" (no purchases in prior 2 months, but purchased in most recent complete month)
   const companiesWithCounts = useMemo(() => {
+    const now = new Date();
+    
+    // Most recent complete month (e.g., November if we're in December)
+    const recentMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const recentMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    
+    // Prior 2 months (e.g., September and October if we're in December)
+    const priorPeriodStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    const priorPeriodEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
+    
     return companies.map(company => {
       const companyNameNormalized = company.companyName.trim().toLowerCase();
-      const propertyCount = properties.filter(p => {
+      
+      const companyProperties = properties.filter(p => {
         const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
         return ownerName === companyNameNormalized;
+      });
+      
+      const propertyCount = companyProperties.length;
+      
+      // Count purchases in most recent complete month
+      const recentMonthPurchases = companyProperties.filter(p => {
+        if (!p.dateSold) return false;
+        try {
+          const date = parseISO(p.dateSold);
+          return isValid(date) && date >= recentMonthStart && date <= recentMonthEnd;
+        } catch {
+          return false;
+        }
       }).length;
-      return { ...company, propertyCount };
+      
+      // Count purchases in the 2 months before the most recent month
+      const priorPeriodPurchases = companyProperties.filter(p => {
+        if (!p.dateSold) return false;
+        try {
+          const date = parseISO(p.dateSold);
+          return isValid(date) && date >= priorPeriodStart && date <= priorPeriodEnd;
+        } catch {
+          return false;
+        }
+      }).length;
+      
+      // A "new buyer" has purchases in the most recent month but none in the prior 2 months
+      const isNewBuyer = recentMonthPurchases > 0 && priorPeriodPurchases === 0;
+      
+      return { ...company, propertyCount, isNewBuyer, recentMonthPurchases };
     });
   }, [companies, properties]);
 
   const filteredCompanies = useMemo(() => {
     let filtered = companiesWithCounts.filter(company => {
-      if (!searchQuery.trim()) return true;
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = (
+          company.companyName.toLowerCase().includes(query) ||
+          company.contactName.toLowerCase().includes(query) ||
+          (company.contactEmail && company.contactEmail.toLowerCase().includes(query))
+        );
+        if (!matchesSearch) return false;
+      }
       
-      const query = searchQuery.toLowerCase();
-      return (
-        company.companyName.toLowerCase().includes(query) ||
-        company.contactName.toLowerCase().includes(query) ||
-        (company.contactEmail && company.contactEmail.toLowerCase().includes(query))
-      );
+      // For "new-buyers", only show companies that are new buyers
+      if (sortBy === "new-buyers" && !company.isNewBuyer) {
+        return false;
+      }
+      
+      return true;
     });
 
     // Apply sorting
@@ -122,6 +171,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           return b.propertyCount - a.propertyCount;
         case "fewest-properties":
           return a.propertyCount - b.propertyCount;
+        case "new-buyers":
+          // Sort by most recent purchases first
+          return b.recentMonthPurchases - a.recentMonthPurchases;
         default:
           return 0;
       }
@@ -245,6 +297,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
               </SelectItem>
               <SelectItem value="fewest-properties" data-testid="sort-fewest-properties">
                 Fewest Properties
+              </SelectItem>
+              <SelectItem value="new-buyers" data-testid="sort-new-buyers">
+                New Buyers
               </SelectItem>
             </SelectContent>
           </Select>
