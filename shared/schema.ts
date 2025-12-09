@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   isAdmin: boolean("is_admin").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  isAdmin: boolean("is_admin").notNull().default(false),
 });
 
 export const properties = pgTable("properties", {
