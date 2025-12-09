@@ -34,6 +34,7 @@ export const properties = pgTable("properties", {
   companyContactEmail: text("company_contact_email"),
   purchasePrice: real("purchase_price"),
   dateSold: text("date_sold"),
+  status: text("status").default("in-renovation"),
 });
 
 export const companyContacts = pgTable("company_contacts", {

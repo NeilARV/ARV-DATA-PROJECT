@@ -4,15 +4,36 @@ import { Property } from '@shared/schema';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const customIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [-120, -34],
-  shadowSize: [41, 41]
-});
+const createColoredIcon = (color: string) => {
+  const svgIcon = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="41">
+      <path fill="${color}" stroke="#333" stroke-width="1" d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 24 12 24s12-16.8 12-24c0-6.6-5.4-12-12-12z"/>
+      <circle fill="#fff" cx="12" cy="12" r="5"/>
+    </svg>
+  `;
+  return new L.Icon({
+    iconUrl: `data:image/svg+xml;base64,${btoa(svgIcon)}`,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [-120, -34],
+  });
+};
+
+const blueIcon = createColoredIcon('#69C9E1');
+const greenIcon = createColoredIcon('#22C55E');
+const charcoalIcon = createColoredIcon('#4B5563');
+
+const getIconForStatus = (status: string | null | undefined) => {
+  switch (status) {
+    case 'on-market':
+      return greenIcon;
+    case 'sold':
+      return charcoalIcon;
+    case 'in-renovation':
+    default:
+      return blueIcon;
+  }
+};
 
 interface PropertyMapProps {
   properties: Property[];
@@ -80,7 +101,7 @@ export default function PropertyMap({
           <Marker
             key={property.id}
             position={[property.latitude!, property.longitude!]}
-            icon={customIcon}
+            icon={getIconForStatus(property.status)}
             eventHandlers={{
               click: () => onPropertyClick?.(property),
             }}
