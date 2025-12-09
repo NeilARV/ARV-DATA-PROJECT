@@ -54,6 +54,7 @@ const MOCK_PROPERTIES: Property[] = [
     companyContactEmail: 'john.smith@example.com',
     purchasePrice: 1100000,
     dateSold: '2023-06-15',
+    status: 'in-renovation',
   },
   {
     id: '2',
@@ -76,6 +77,7 @@ const MOCK_PROPERTIES: Property[] = [
     companyContactEmail: 'emily@johnsonproperties.com',
     purchasePrice: 875000,
     dateSold: '2022-11-20',
+    status: 'in-renovation',
   },
   {
     id: '3',
@@ -98,6 +100,7 @@ const MOCK_PROPERTIES: Property[] = [
     companyContactEmail: 'mchen@bayareainvest.com',
     purchasePrice: 650000,
     dateSold: '2023-01-10',
+    status: 'in-renovation',
   },
   {
     id: '4',
@@ -120,6 +123,7 @@ const MOCK_PROPERTIES: Property[] = [
     companyContactEmail: 'maria.rodriguez@gmail.com',
     purchasePrice: 1300000,
     dateSold: '2021-08-05',
+    status: 'in-renovation',
   },
   {
     id: '5',
@@ -142,6 +146,7 @@ const MOCK_PROPERTIES: Property[] = [
     companyContactEmail: 'dpark@sjrealty.com',
     purchasePrice: 800000,
     dateSold: '2022-03-22',
+    status: 'in-renovation',
   },
   {
     id: '6',
@@ -164,6 +169,7 @@ const MOCK_PROPERTIES: Property[] = [
     companyContactEmail: 'swilliams@techventures.com',
     purchasePrice: 1950000,
     dateSold: '2023-09-12',
+    status: 'in-renovation',
   },
 ];
 
@@ -174,7 +180,15 @@ export default function Home() {
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [filters, setFilters] = useState<PropertyFilters | null>(null);
+  const [filters, setFilters] = useState<PropertyFilters>({
+    minPrice: 0,
+    maxPrice: 5000000,
+    bedrooms: 'Any',
+    bathrooms: 'Any',
+    propertyTypes: [],
+    zipCode: '',
+    statusFilters: ['in-renovation'],
+  });
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
@@ -251,9 +265,7 @@ export default function Home() {
       }
     }
 
-    // Then apply regular filters
-    if (!filters) return true;
-
+    // Apply regular filters
     if (property.price < filters.minPrice || property.price > filters.maxPrice) {
       return false;
     }
@@ -276,12 +288,26 @@ export default function Home() {
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
+    // Filter by status
+    if (filters.statusFilters && filters.statusFilters.length > 0) {
+      const propertyStatus = property.status || 'in-renovation';
+      if (!filters.statusFilters.includes(propertyStatus)) return false;
+    }
+
     return true;
   });
 
   const handleCompanySelect = (companyName: string) => {
-    // Clear any existing filters first so only company filter applies
-    setFilters(null);
+    // Keep status filters but clear other filters when selecting a company
+    setFilters(prev => ({
+      minPrice: 0,
+      maxPrice: 5000000,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
+      zipCode: '',
+      statusFilters: prev.statusFilters,
+    }));
     setSelectedCompany(companyName);
     // Keep the directory open on the left, switch to map view on the right
     setViewMode("map");
@@ -291,8 +317,16 @@ export default function Home() {
   };
 
   const handleLeaderboardCompanyClick = (companyName: string) => {
-    // Clear any existing filters first
-    setFilters(null);
+    // Keep status filters but clear other filters
+    setFilters(prev => ({
+      minPrice: 0,
+      maxPrice: 5000000,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
+      zipCode: '',
+      statusFilters: prev.statusFilters,
+    }));
     setSelectedCompany(companyName);
     setSidebarView("none");
     setMapCenter(undefined);
@@ -309,6 +343,7 @@ export default function Home() {
       bathrooms: 'Any',
       propertyTypes: [],
       zipCode: zipCode,
+      statusFilters: ["in-renovation", "on-market", "sold"],
     });
     setSidebarView("none");
     setMapCenter(undefined);
@@ -319,7 +354,15 @@ export default function Home() {
     // Reset everything to default state (like first visit)
     setViewMode("map");
     setSidebarView("directory");
-    setFilters(null);
+    setFilters({
+      minPrice: 0,
+      maxPrice: 5000000,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
+      zipCode: '',
+      statusFilters: ['in-renovation'],
+    });
     setSelectedCompany(null);
     setSelectedProperty(null);
     setMapCenter(undefined);

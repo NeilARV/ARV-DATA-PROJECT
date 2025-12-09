@@ -31,6 +31,7 @@ export interface PropertyFilters {
   bathrooms: string;
   propertyTypes: string[];
   zipCode: string;
+  statusFilters: string[];
 }
 
 const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo'];
@@ -178,6 +179,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       } else {
         next.add(status);
       }
+      // Immediately apply filter when status changes
+      onFilterChange?.({
+        minPrice: priceRange[0],
+        maxPrice: priceRange[1],
+        bedrooms: selectedBedrooms,
+        bathrooms: selectedBathrooms,
+        propertyTypes: selectedTypes,
+        zipCode: zipCode,
+        statusFilters: Array.from(next),
+      });
       return next;
     });
   };
@@ -214,8 +225,9 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
       zipCode: zipCode,
+      statusFilters: Array.from(statusFilters),
     });
-    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode });
+    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, statusFilters: Array.from(statusFilters) });
   };
 
   const handleReset = () => {
@@ -233,6 +245,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
     setZipCode('');
+    setStatusFilters(new Set(["in-renovation"]));
     onFilterChange?.({
       minPrice: 0,
       maxPrice: 2000000,
@@ -240,6 +253,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       bathrooms: 'Any',
       propertyTypes: [],
       zipCode: '',
+      statusFilters: ["in-renovation"],
     });
     console.log('All filters cleared');
   };
@@ -277,6 +291,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
       zipCode: zipCodeData.zipCode,
+      statusFilters: Array.from(statusFilters),
     });
   };
 
