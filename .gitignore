@@ -6,4 +6,4 @@ vite.config.ts.*
 *.tar.gz
 
 // ignore env files
-*.env
+.env*

@@ -69,7 +69,7 @@ export default function Header({
       >
         <img 
           src={logoUrl} 
-          alt="ARV TEST DATA" 
+          alt="ARV DATA" 
           className="h-10 w-auto"
           data-testid="img-logo"
         />
