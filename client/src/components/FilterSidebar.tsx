@@ -166,8 +166,21 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
   const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["in-renovation"]));
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  };
 
   const sortedZipCodes = useMemo(() => {
     const enrichedZips = zipCodesWithCounts.map(z => ({
@@ -308,6 +321,37 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               <X className="w-4 h-4" />
             </Button>
           )}
+        </div>
+        
+        {/* Status Filter Toggles */}
+        <div className="flex gap-2 mt-3">
+          <Button
+            size="sm"
+            variant={statusFilters.has("in-renovation") ? "default" : "outline"}
+            onClick={() => toggleStatusFilter("in-renovation")}
+            className={statusFilters.has("in-renovation") ? "bg-primary hover:bg-primary/90" : ""}
+            data-testid="button-filter-in-renovation"
+          >
+            In Renovation
+          </Button>
+          <Button
+            size="sm"
+            variant={statusFilters.has("on-market") ? "default" : "outline"}
+            onClick={() => toggleStatusFilter("on-market")}
+            className={statusFilters.has("on-market") ? "bg-primary hover:bg-primary/90" : ""}
+            data-testid="button-filter-on-market"
+          >
+            On Market
+          </Button>
+          <Button
+            size="sm"
+            variant={statusFilters.has("sold") ? "default" : "outline"}
+            onClick={() => toggleStatusFilter("sold")}
+            className={statusFilters.has("sold") ? "bg-primary hover:bg-primary/90" : ""}
+            data-testid="button-filter-sold"
+          >
+            Sold
+          </Button>
         </div>
       </div>
 
