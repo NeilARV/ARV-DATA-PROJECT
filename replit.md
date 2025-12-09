@@ -39,7 +39,16 @@ Preferred communication style: Simple, everyday language.
   - Map view: Interactive Leaflet map for geospatial property visualization
   - Grid view: Responsive card layouts with property cards
   - Table view: Comprehensive data table with sortable columns
-- Advanced filtering sidebar (price range, bedrooms, bathrooms, property types, zip codes)
+- Advanced filtering sidebar (price range, bedrooms, bathrooms, property types, zip codes, status)
+- **Property Status Filtering** (Added Dec 2025):
+  - Three status types: In Renovation (default), On Market, Sold
+  - Multi-select toggle buttons in both Filters and Investor Profiles sidebars
+  - Color-coded map markers:
+    - Blue (#69C9E1): In Renovation
+    - Green (#22C55E): On Market
+    - Charcoal gray (#4B5563): Sold
+  - Default filter shows only "In Renovation" properties
+  - Status filters persist across company/zip code selections
 - **Data Upload Methods**:
   - CSV/Excel file upload with client-side parsing (PapaParse, XLSX)
     - Automatic Excel serial date conversion to ISO strings
