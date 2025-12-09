@@ -322,9 +322,20 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             </Button>
           )}
         </div>
-        
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <Button 
+          variant="default" 
+          onClick={handleClearAll} 
+          className="w-full"
+          data-testid="button-clear-all-filters"
+        >
+          Clear All Filters
+        </Button>
+
         {/* Status Filter Toggles */}
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2">
           <Button
             size="sm"
             variant={statusFilters.has("in-renovation") ? "default" : "outline"}
@@ -353,17 +364,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             Sold
           </Button>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        <Button 
-          variant="default" 
-          onClick={handleClearAll} 
-          className="w-full"
-          data-testid="button-clear-all-filters"
-        >
-          Clear All Filters
-        </Button>
 
         <div className="relative">
           <div className="flex items-center justify-between mb-2">
