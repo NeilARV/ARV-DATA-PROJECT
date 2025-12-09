@@ -82,9 +82,9 @@ export default function Header({
         onClick={onLogoClick}
         data-testid="button-logo-home"
       >
-        <img
-          src={logoUrl}
-          alt="ARV DATA"
+        <img 
+          src={logoUrl} 
+          alt="ARV DATA" 
           className="h-10 w-auto"
           data-testid="img-logo"
         />
