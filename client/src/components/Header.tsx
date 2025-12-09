@@ -1,6 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, Table2, Search, Moon, Sun, Settings, LogIn, User, LogOut, Trophy } from "lucide-react";
+import {
+  Map,
+  Grid3x3,
+  Table2,
+  Search,
+  Moon,
+  Sun,
+  Settings,
+  LogIn,
+  User,
+  LogOut,
+  Trophy,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
@@ -38,7 +50,7 @@ export default function Header({
   const { user, isAuthenticated, logout, isLoggingOut } = useAuth();
 
   useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
+    const isDarkMode = document.documentElement.classList.contains("dark");
     setIsDark(isDarkMode);
   }, []);
 
@@ -46,23 +58,26 @@ export default function Header({
     const newIsDark = !isDark;
     setIsDark(newIsDark);
     if (newIsDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
   };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch?.(searchQuery);
-    console.log('Search:', searchQuery);
+    console.log("Search:", searchQuery);
   };
 
   return (
-    <header className="h-16 border-b border-border bg-background flex items-center px-4 gap-4" data-testid="header-main">
-      <button 
+    <header
+      className="h-16 border-b border-border bg-background flex items-center px-4 gap-4"
+      data-testid="header-main"
+    >
+      <button
         className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
         onClick={onLogoClick}
         data-testid="button-logo-home"
@@ -137,7 +152,7 @@ export default function Header({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setLocation('/admin')}
+          onClick={() => setLocation("/admin")}
           data-testid="button-admin"
         >
           <Settings className="w-4 h-4 mr-1" />
@@ -147,7 +162,11 @@ export default function Header({
         {isAuthenticated && user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-user-menu">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-user-menu"
+              >
                 <User className="w-4 h-4 mr-1" />
                 <span className="hidden sm:inline">{user.firstName}</span>
               </Button>
@@ -160,7 +179,7 @@ export default function Header({
                 {user.email}
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => logout()}
                 disabled={isLoggingOut}
                 data-testid="button-user-logout"
@@ -172,17 +191,17 @@ export default function Header({
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-1">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={onLoginClick}
               data-testid="button-login"
             >
               <LogIn className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Sign in</span>
             </Button>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={onSignupClick}
               data-testid="button-signup"
             >
