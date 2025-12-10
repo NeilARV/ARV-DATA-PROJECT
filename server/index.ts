@@ -5,7 +5,6 @@ import { setupVite, serveStatic, log } from "./vite";
 import { NeonSessionStore } from "./session-store";
 import { db } from "./storage";
 import { sessions } from "@shared/schema";
-import 'dotenv/config'
 
 const app = express();
 
