@@ -5,6 +5,7 @@ import { Property } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import AdminLogin from "@/components/AdminLogin";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Table,
   TableBody,
@@ -63,40 +64,51 @@ interface AdminUser {
 export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { user, isLoading: isLoadingUser, isAuthenticated: isUserAuthenticated } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
   const [propertyToEdit, setPropertyToEdit] = useState<Property | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAdminStatus = async () => {
       try {
         const response = await fetch("/api/admin/status", {
           credentials: "include",
         });
         const data = await response.json();
-        setIsAuthenticated(data.authenticated);
+        setIsAdmin(data.isAdmin);
+        
+        // If user is logged in but not admin, show dialog
+        if (data.authenticated && !data.isAdmin) {
+          setAccessDeniedDialogOpen(true);
+        }
       } catch (error) {
-        console.error("Error checking auth status:", error);
-        setIsAuthenticated(false);
+        console.error("Error checking admin status:", error);
+        setIsAdmin(false);
       } finally {
         setIsVerifying(false);
       }
     };
-    checkAuth();
-  }, []);
+    
+    // Wait for user auth to load first
+    if (!isLoadingUser) {
+      checkAdminStatus();
+    }
+  }, [isLoadingUser]);
 
   const { data: properties, isLoading } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
-    enabled: isAuthenticated,
+    enabled: isAdmin,
   });
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
     queryKey: ["/api/admin/users"],
-    enabled: isAuthenticated,
+    enabled: isAdmin,
   });
 
   // Filter properties based on search query
@@ -168,56 +180,23 @@ export default function Admin() {
     deleteSingleMutation.mutate(id);
   };
 
-  const handleAuthenticate = async (passcode: string) => {
-    try {
-      const response = await fetch("/api/admin/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ passcode }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setIsAuthenticated(true);
-        // Invalidate and refetch properties after authentication
-        await queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
-        toast({
-          title: "Access Granted",
-          description: "Welcome to the admin panel",
-        });
-      } else {
-        toast({
-          title: "Access Denied",
-          description: "Incorrect passcode. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Access Denied",
-        description: "Incorrect passcode. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/admin/logout", {
+      // Use the regular user logout endpoint
+      const response = await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
 
       if (response.ok) {
-        setIsAuthenticated(false);
+        setIsAdmin(false);
         // Clear all cached queries on logout
         queryClient.clear();
         toast({
           title: "Logged Out",
-          description: "You have been logged out of the admin panel",
+          description: "You have been logged out",
         });
+        setLocation("/");
       }
     } catch (error) {
       console.error("Error logging out:", error);
@@ -229,7 +208,7 @@ export default function Admin() {
     }
   };
 
-  if (isVerifying) {
+  if (isVerifying || isLoadingUser) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -237,8 +216,47 @@ export default function Admin() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <AdminLogin onAuthenticate={handleAuthenticate} />;
+  // Show AdminLogin only if user is not authenticated
+  // If authenticated but not admin, we'll show the access denied dialog
+  if (!isUserAuthenticated) {
+    return <AdminLogin />;
+  }
+
+  // If user is authenticated but not admin, show dialog and don't render admin content
+  if (!isAdmin) {
+    return (
+      <AlertDialog 
+        open={accessDeniedDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            // Redirect when dialog is closed (by any means)
+            setLocation("/");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Access Denied
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You do not have admin privileges to access this page. Please contact an administrator if you believe this is an error.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => {
+                setAccessDeniedDialogOpen(false);
+                setLocation("/");
+              }}
+            >
+              Go to Home Page
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
   }
 
   return (

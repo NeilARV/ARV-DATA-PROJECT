@@ -1,29 +1,12 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock, AlertCircle } from "lucide-react";
+import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
-interface AdminLoginProps {
-  onAuthenticate: (passcode: string) => void;
-}
-
-export default function AdminLogin({ onAuthenticate }: AdminLoginProps) {
-  const [passcode, setPasscode] = useState("");
-  const [error, setError] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passcode.trim()) {
-      onAuthenticate(passcode);
-      setError(false);
-    }
-  };
-
-  const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPasscode(e.target.value);
-    setError(false);
-  };
+export default function AdminLogin() {
+  const [, setLocation] = useLocation();
+  const { user, isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
@@ -34,39 +17,47 @@ export default function AdminLogin({ onAuthenticate }: AdminLoginProps) {
               <Lock className="w-8 h-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Admin Access</CardTitle>
+          <CardTitle className="text-2xl">Admin Access Required</CardTitle>
           <CardDescription>
-            Enter your passcode to access the admin panel
+            {!isAuthenticated
+              ? "Please log in to access the admin panel"
+              : "You do not have admin privileges to access this page"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Input
-                type="password"
-                placeholder="Enter passcode"
-                value={passcode}
-                onChange={handlePasscodeChange}
-                className={error ? "border-destructive" : ""}
-                autoFocus
-                data-testid="input-admin-passcode"
-              />
-              {error && (
-                <div className="flex items-center gap-2 mt-2 text-sm text-destructive">
+          <div className="space-y-4">
+            {!isAuthenticated ? (
+              <>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <AlertCircle className="w-4 h-4" />
-                  <span>Incorrect passcode. Please try again.</span>
+                  <span>You must be logged in to access the admin panel.</span>
                 </div>
-              )}
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={!passcode.trim()}
-              data-testid="button-admin-login"
-            >
-              Access Admin Panel
-            </Button>
-          </form>
+                <Button
+                  className="w-full"
+                  onClick={() => setLocation("/")}
+                  data-testid="button-go-home"
+                >
+                  Go to Home Page
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>
+                    {user?.firstName} {user?.lastName} does not have admin privileges.
+                  </span>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => setLocation("/")}
+                  data-testid="button-go-home"
+                >
+                  Go to Home Page
+                </Button>
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
