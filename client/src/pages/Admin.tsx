@@ -80,8 +80,11 @@ export default function Admin() {
         const response = await fetch("/api/admin/status", {
           credentials: "include",
         });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
-        setIsAdmin(data.isAdmin);
+        setIsAdmin(data.isAdmin ?? false);
         
         // If user is logged in but not admin, show dialog
         if (data.authenticated && !data.isAdmin) {
@@ -95,11 +98,20 @@ export default function Admin() {
       }
     };
     
-    // Wait for user auth to load first
+    // Wait for user auth to load first, then check admin status
     if (!isLoadingUser) {
       checkAdminStatus();
     }
+    // If isLoadingUser is true, we'll wait for it to become false
+    // The effect will re-run when isLoadingUser changes
   }, [isLoadingUser]);
+
+  // Ensure dialog opens if user becomes authenticated but not admin
+  useEffect(() => {
+    if (isUserAuthenticated && !isAdmin && !isVerifying) {
+      setAccessDeniedDialogOpen(true);
+    }
+  }, [isUserAuthenticated, isAdmin, isVerifying]);
 
   const { data: properties, isLoading } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
@@ -223,7 +235,7 @@ export default function Admin() {
   }
 
   // If user is authenticated but not admin, show dialog and don't render admin content
-  if (!isAdmin) {
+  if (!isAdmin && isUserAuthenticated) {
     return (
       <AlertDialog 
         open={accessDeniedDialogOpen} 
