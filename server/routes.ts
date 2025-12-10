@@ -56,16 +56,18 @@ const updatePropertySchema = z
   .strict();
 
 // Middleware to check admin authentication
-async function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
+async function requireAdminAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     // Check if user is logged in
     if (!req.session.userId) {
       console.error(
         `[AUTH DENIED] No user session for ${req.path}, Session ID: ${req.sessionID}`,
       );
-      return res
-        .status(401)
-        .json({ message: "Unauthorized - Please log in" });
+      return res.status(401).json({ message: "Unauthorized - Please log in" });
     }
 
     // Check if user is admin
@@ -113,14 +115,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(users.id, req.session.userId))
         .limit(1);
 
-      const isAdmin = user?.isAdmin ?? false;
+      const isAdmin = user?.isAdmin;
       res.json({ authenticated: !!req.session.userId, isAdmin });
     } catch (error) {
       console.error("Error checking admin status:", error);
       res.status(500).json({ message: "Error checking admin status" });
     }
   });
-
 
   // ============== USER AUTHENTICATION ROUTES ==============
 
