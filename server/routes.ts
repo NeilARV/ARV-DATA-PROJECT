@@ -14,6 +14,9 @@ import { seedCompanyContacts } from "./seed-companies";
 import pLimit from "p-limit";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+
+dotenv.config()
 
 // Zod schema for partial property updates with proper validation
 const updatePropertySchema = z
