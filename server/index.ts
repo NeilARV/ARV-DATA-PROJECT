@@ -7,6 +7,8 @@ import { db } from "./storage";
 import { sessions } from "@shared/schema";
 import dotenv from "dotenv";
 
+dotenv.config()
+
 const app = express();
 
 app.set("trust proxy", 1);
