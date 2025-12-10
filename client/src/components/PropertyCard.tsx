@@ -62,7 +62,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
               className="flex flex-col items-end text-sm"
               data-testid={`text-date-sold-${property.id}`}
             >
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm font-semibold text-muted-foreground">
                 Purchased Date
               </span>
               <div className="flex items-center gap-1 text-foreground">

@@ -178,7 +178,7 @@ export default function PropertyDetailPanel({
             {formattedDateSold && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">Purchased Date</div>
+                  <div className="text-sm font-semibold text-muted-foreground mb-1">Purchased Date</div>
                   <div className="flex items-start gap-1">
                     <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                     <span className="font-medium text-sm">{formattedDateSold}</span>
