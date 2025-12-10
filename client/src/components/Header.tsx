@@ -1,17 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Map, Grid3x3, Table2, Search, Moon, Sun, Settings, LogIn, User, LogOut, Trophy } from "lucide-react";
+import {
+  Map,
+  Grid3x3,
+  Table2,
+  Search,
+  Moon,
+  Sun,
+  Settings,
+  LogIn,
+  User,
+  LogOut,
+  Trophy,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
 import { useAuth, AuthUser } from "@/hooks/use-auth";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface HeaderProps {
   viewMode: "map" | "grid" | "table";
@@ -35,10 +42,11 @@ export default function Header({
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
   const [, setLocation] = useLocation();
-  const { user, isAuthenticated, logout, isLoggingOut } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
+    const isDarkMode = document.documentElement.classList.contains("dark");
     setIsDark(isDarkMode);
   }, []);
 
@@ -46,23 +54,53 @@ export default function Header({
     const newIsDark = !isDark;
     setIsDark(newIsDark);
     if (newIsDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
   };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     onSearch?.(searchQuery);
-    console.log('Search:', searchQuery);
+    console.log("Search:", searchQuery);
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Use the regular user logout endpoint
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        // Clear all cached queries on logout
+        queryClient.clear();
+        toast({
+          title: "Logged Out",
+          description: "You have been logged out",
+        });
+        setLocation("/");
+      }
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log out",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <header className="h-16 border-b border-border bg-background flex items-center px-4 gap-4" data-testid="header-main">
-      <button 
+    <header
+      className="h-16 border-b border-border bg-background flex items-center px-4 gap-4"
+      data-testid="header-main"
+    >
+      <button
         className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
         onClick={onLogoClick}
         data-testid="button-logo-home"
@@ -137,7 +175,7 @@ export default function Header({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setLocation('/admin')}
+          onClick={() => setLocation("/admin")}
           data-testid="button-admin"
         >
           <Settings className="w-4 h-4 mr-1" />
@@ -145,44 +183,34 @@ export default function Header({
         </Button>
 
         {isAuthenticated && user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-user-menu">
-                <User className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">{user.firstName}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <div className="px-2 py-1.5 text-sm font-medium">
-                {user.firstName} {user.lastName}
-              </div>
-              <div className="px-2 py-1 text-xs text-muted-foreground">
-                {user.email}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => logout()}
-                disabled={isLoggingOut}
-                data-testid="button-user-logout"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                {isLoggingOut ? "Signing out..." : "Sign out"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <>
+            <Button variant="outline" size="sm" data-testid="button-user-menu">
+              <User className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">{user.firstName}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
+          </>
         ) : (
           <div className="flex items-center gap-1">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={onLoginClick}
               data-testid="button-login"
             >
               <LogIn className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Sign in</span>
             </Button>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={onSignupClick}
               data-testid="button-signup"
             >

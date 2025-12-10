@@ -56,19 +56,43 @@ const updatePropertySchema = z
   .strict();
 
 // Middleware to check admin authentication
-function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
-  console.log(
-    `[AUTH CHECK] Path: ${req.path}, Authenticated: ${!!req.session.isAdminAuthenticated}, Session ID: ${req.sessionID}`,
-  );
-  if (req.session.isAdminAuthenticated) {
-    next();
-  } else {
-    console.error(
-      `[AUTH DENIED] Unauthorized access attempt to ${req.path}, Session: ${JSON.stringify(req.session)}`,
+async function requireAdminAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    // Check if user is logged in
+    if (!req.session.userId) {
+      console.error(
+        `[AUTH DENIED] No user session for ${req.path}, Session ID: ${req.sessionID}`,
+      );
+      return res.status(401).json({ message: "Unauthorized - Please log in" });
+    }
+
+    // Check if user is admin
+    const [user] = await db
+      .select({ isAdmin: users.isAdmin })
+      .from(users)
+      .where(eq(users.id, req.session.userId))
+      .limit(1);
+
+    if (!user || !user.isAdmin) {
+      console.error(
+        `[AUTH DENIED] User ${req.session.userId} is not an admin for ${req.path}`,
+      );
+      return res
+        .status(403)
+        .json({ message: "Forbidden - Admin access required" });
+    }
+
+    console.log(
+      `[AUTH GRANTED] Admin user ${req.session.userId} accessing ${req.path}`,
     );
-    res
-      .status(401)
-      .json({ message: "Unauthorized - Admin authentication required" });
+    next();
+  } catch (error) {
+    console.error("[AUTH ERROR]", error);
+    res.status(500).json({ message: "Error checking admin status" });
   }
 }
 
@@ -76,52 +100,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Seed company contacts on startup
   await seedCompanyContacts();
 
-  // Verify admin passcode and create session
-  app.post("/api/admin/verify", async (req, res) => {
-    try {
-      const { passcode } = req.body;
-      const adminPasscode = process.env.ADMIN_PASSCODE;
-
-      if (!adminPasscode) {
-        return res
-          .status(500)
-          .json({ message: "Admin passcode not configured" });
-      }
-
-      if (passcode === adminPasscode) {
-        req.session.isAdminAuthenticated = true;
-        res.json({ success: true });
-      } else {
-        res.status(401).json({ success: false, message: "Incorrect passcode" });
-      }
-    } catch (error) {
-      console.error("Error verifying admin passcode:", error);
-      res.status(500).json({ message: "Error verifying passcode" });
-    }
-  });
-
   // Check admin authentication status
   app.get("/api/admin/status", async (req, res) => {
-    res.json({ authenticated: !!req.session.isAdminAuthenticated });
-  });
-
-  // Logout admin
-  app.post("/api/admin/logout", async (req, res) => {
-    // Destroy the session completely
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("Error destroying session:", err);
-        return res.status(500).json({ message: "Error logging out" });
+    try {
+      // Check if user is logged in
+      if (!req.session.userId) {
+        return res.json({ authenticated: false, isAdmin: false });
       }
-      // Clear the session cookie with same settings as session middleware
-      res.clearCookie("connect.sid", {
-        path: "/",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-      });
-      res.json({ success: true });
-    });
+
+      // Check if user is admin
+      const [user] = await db
+        .select({ isAdmin: users.isAdmin })
+        .from(users)
+        .where(eq(users.id, req.session.userId))
+        .limit(1);
+
+      const isAdmin = user?.isAdmin;
+      res.json({ authenticated: !!req.session.userId, isAdmin });
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+      res.status(500).json({ message: "Error checking admin status" });
+    }
   });
 
   // ============== USER AUTHENTICATION ROUTES ==============
