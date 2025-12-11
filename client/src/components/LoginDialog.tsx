@@ -32,12 +32,13 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 interface LoginDialogProps {
   open: boolean;
+  forced?: boolean;
   onClose: () => void;
   onSuccess: () => void;
   onSwitchToSignup: () => void;
 }
 
-export default function LoginDialog({ open, onClose, onSuccess, onSwitchToSignup }: LoginDialogProps) {
+export default function LoginDialog({ open, forced = false, onClose, onSuccess, onSwitchToSignup }: LoginDialogProps) {
   const { toast } = useToast();
   
   const form = useForm<LoginFormData>({
@@ -76,8 +77,30 @@ export default function LoginDialog({ open, onClose, onSuccess, onSwitchToSignup
   };
 
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog 
+      open={open} 
+      onOpenChange={(isOpen) => {
+        // Prevent closing if forced
+        if (!isOpen && !forced) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent 
+        className={forced ? "sm:max-w-md [&>button]:hidden" : "sm:max-w-md"}
+        onPointerDownOutside={(e) => {
+          // Prevent closing on outside click if forced
+          if (forced) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Prevent closing on escape if forced
+          if (forced) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle data-testid="heading-login">Sign In</DialogTitle>
           <DialogDescription>

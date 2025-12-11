@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,12 +39,13 @@ type SignupFormData = z.infer<typeof signupSchema>;
 
 interface SignupDialogProps {
   open: boolean;
+  forced?: boolean;
   onClose: () => void;
   onSuccess: () => void;
   onSwitchToLogin: () => void;
 }
 
-export default function SignupDialog({ open, onClose, onSuccess, onSwitchToLogin }: SignupDialogProps) {
+export default function SignupDialog({ open, forced = false, onClose, onSuccess, onSwitchToLogin }: SignupDialogProps) {
   const { toast } = useToast();
   
   const form = useForm<SignupFormData>({
@@ -94,8 +94,30 @@ export default function SignupDialog({ open, onClose, onSuccess, onSwitchToLogin
   };
 
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog 
+      open={open} 
+      onOpenChange={(isOpen) => {
+        // Prevent closing if forced
+        if (!isOpen && !forced) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent 
+        className={forced ? "sm:max-w-md [&>button]:hidden" : "sm:max-w-md"}
+        onPointerDownOutside={(e) => {
+          // Prevent closing on outside click if forced
+          if (forced) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Prevent closing on escape if forced
+          if (forced) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle data-testid="heading-signup">Create Your Account</DialogTitle>
           <DialogDescription>

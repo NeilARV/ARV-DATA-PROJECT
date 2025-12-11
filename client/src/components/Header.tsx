@@ -42,7 +42,7 @@ export default function Header({
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
   const [, setLocation] = useLocation();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -70,21 +70,14 @@ export default function Header({
 
   const handleLogout = async () => {
     try {
-      // Use the regular user logout endpoint
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
+      
+      logout();
+      toast({
+        title: "Logged Out",
+        description: "You have been logged out",
       });
+      setLocation("/");
 
-      if (response.ok) {
-        // Clear all cached queries on logout
-        queryClient.clear();
-        toast({
-          title: "Logged Out",
-          description: "You have been logged out",
-        });
-        setLocation("/");
-      }
     } catch (error) {
       console.error("Error logging out:", error);
       toast({

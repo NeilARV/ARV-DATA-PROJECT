@@ -25,154 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import propertyImage1 from '@assets/generated_images/Modern_suburban_family_home_ea49b726.png';
-import propertyImage2 from '@assets/generated_images/Luxury_ranch_style_home_5e6e8db5.png';
-import propertyImage3 from '@assets/generated_images/Contemporary_urban_townhouse_e2993c21.png';
-import propertyImage4 from '@assets/generated_images/Classic_colonial_home_f380dc3d.png';
-import propertyImage5 from '@assets/generated_images/Craftsman_style_bungalow_2cb4e86f.png';
-import propertyImage6 from '@assets/generated_images/Mediterranean_villa_home_96a33131.png';
-
-const MOCK_PROPERTIES: Property[] = [
-  {
-    id: '1',
-    address: '123 Maple Street',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94102',
-    price: 1250000,
-    bedrooms: 4,
-    bathrooms: 2.5,
-    squareFeet: 2400,
-    propertyType: 'Single Family',
-    imageUrl: propertyImage1,
-    latitude: 37.7749,
-    longitude: -122.4194,
-    description: 'Stunning modern home in the heart of San Francisco.',
-    yearBuilt: 2018,
-    propertyOwner: 'Smith Family Trust',
-    companyContactName: 'John Smith',
-    companyContactEmail: 'john.smith@example.com',
-    purchasePrice: 1100000,
-    dateSold: '2023-06-15',
-    status: 'in-renovation',
-  },
-  {
-    id: '2',
-    address: '456 Oak Avenue',
-    city: 'San Francisco',
-    state: 'CA',
-    zipCode: '94103',
-    price: 980000,
-    bedrooms: 3,
-    bathrooms: 2,
-    squareFeet: 1800,
-    propertyType: 'Townhouse',
-    imageUrl: propertyImage2,
-    latitude: 37.7699,
-    longitude: -122.4144,
-    description: 'Charming townhouse with modern updates.',
-    yearBuilt: 2015,
-    propertyOwner: 'Johnson Properties LLC',
-    companyContactName: 'Emily Johnson',
-    companyContactEmail: 'emily@johnsonproperties.com',
-    purchasePrice: 875000,
-    dateSold: '2022-11-20',
-    status: 'in-renovation',
-  },
-  {
-    id: '3',
-    address: '789 Pine Street',
-    city: 'Oakland',
-    state: 'CA',
-    zipCode: '94612',
-    price: 725000,
-    bedrooms: 2,
-    bathrooms: 2,
-    squareFeet: 1400,
-    propertyType: 'Condo',
-    imageUrl: propertyImage3,
-    latitude: 37.8044,
-    longitude: -122.2712,
-    description: 'Contemporary condo with city views.',
-    yearBuilt: 2020,
-    propertyOwner: 'Bay Area Investments',
-    companyContactName: 'Michael Chen',
-    companyContactEmail: 'mchen@bayareainvest.com',
-    purchasePrice: 650000,
-    dateSold: '2023-01-10',
-    status: 'in-renovation',
-  },
-  {
-    id: '4',
-    address: '321 Elm Boulevard',
-    city: 'Berkeley',
-    state: 'CA',
-    zipCode: '94704',
-    price: 1450000,
-    bedrooms: 5,
-    bathrooms: 3,
-    squareFeet: 3200,
-    propertyType: 'Single Family',
-    imageUrl: propertyImage4,
-    latitude: 37.8715,
-    longitude: -122.2730,
-    description: 'Spacious family home near UC Berkeley.',
-    yearBuilt: 2010,
-    propertyOwner: 'Rodriguez Family',
-    companyContactName: 'Maria Rodriguez',
-    companyContactEmail: 'maria.rodriguez@gmail.com',
-    purchasePrice: 1300000,
-    dateSold: '2021-08-05',
-    status: 'in-renovation',
-  },
-  {
-    id: '5',
-    address: '654 Cedar Lane',
-    city: 'San Jose',
-    state: 'CA',
-    zipCode: '95113',
-    price: 890000,
-    bedrooms: 3,
-    bathrooms: 2.5,
-    squareFeet: 2000,
-    propertyType: 'Townhouse',
-    imageUrl: propertyImage5,
-    latitude: 37.3382,
-    longitude: -121.8863,
-    description: 'Beautiful craftsman in quiet neighborhood.',
-    yearBuilt: 2012,
-    propertyOwner: 'SJ Realty Group',
-    companyContactName: 'David Park',
-    companyContactEmail: 'dpark@sjrealty.com',
-    purchasePrice: 800000,
-    dateSold: '2022-03-22',
-    status: 'in-renovation',
-  },
-  {
-    id: '6',
-    address: '987 Birch Drive',
-    city: 'Palo Alto',
-    state: 'CA',
-    zipCode: '94301',
-    price: 2100000,
-    bedrooms: 4,
-    bathrooms: 3.5,
-    squareFeet: 3500,
-    propertyType: 'Single Family',
-    imageUrl: propertyImage6,
-    latitude: 37.4419,
-    longitude: -122.1430,
-    description: 'Luxurious Mediterranean villa with premium finishes.',
-    yearBuilt: 2019,
-    propertyOwner: 'Tech Ventures LLC',
-    companyContactName: 'Sarah Williams',
-    companyContactEmail: 'swilliams@techventures.com',
-    purchasePrice: 1950000,
-    dateSold: '2023-09-12',
-    status: 'in-renovation',
-  },
-];
-
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
 export default function Home() {
@@ -197,15 +49,17 @@ export default function Home() {
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
+  const [isDialogForced, setIsDialogForced] = useState(false);
   
   const { user, isAuthenticated } = useAuth();
-  const { shouldShowSignup, dismissPrompt } = useSignupPrompt();
+  const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
   
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
       setShowSignupDialog(true);
+      setIsDialogForced(isForced);
     }
-  }, [shouldShowSignup, isAuthenticated]);
+  }, [shouldShowSignup, isAuthenticated, isForced]);
 
   // Fetch properties from backend
   const { data: properties = [], isLoading } = useQuery<Property[]>({
@@ -409,8 +263,18 @@ export default function Home() {
       <Header
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
-        onLoginClick={() => setShowLoginDialog(true)}
-        onSignupClick={() => setShowSignupDialog(true)}
+        onLoginClick={() => {
+          // Header button click: user-initiated, so only force if already in forced state
+          // If not forced yet, allow dismissable dialog
+          setShowLoginDialog(true);
+          setShowSignupDialog(false);
+        }}
+        onSignupClick={() => {
+          // Header button click: user-initiated, so only force if already in forced state
+          // If not forced yet (before 1 minute), allow dismissable dialog
+          setShowSignupDialog(true);
+          setShowLoginDialog(false);
+        }}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
         onLogoClick={handleLogoClick}
       />
@@ -595,15 +459,21 @@ export default function Home() {
 
       <SignupDialog
         open={showSignupDialog}
+        forced={isDialogForced}
         onClose={() => {
-          setShowSignupDialog(false);
-          dismissPrompt();
+          // Only allow closing if not forced
+          if (!isDialogForced) {
+            setShowSignupDialog(false);
+            dismissPrompt();
+          }
         }}
         onSuccess={() => {
           setShowSignupDialog(false);
+          setIsDialogForced(false);
           dismissPrompt();
         }}
         onSwitchToLogin={() => {
+          // When switching, maintain forced state
           setShowSignupDialog(false);
           setShowLoginDialog(true);
         }}
@@ -611,9 +481,19 @@ export default function Home() {
 
       <LoginDialog
         open={showLoginDialog}
-        onClose={() => setShowLoginDialog(false)}
-        onSuccess={() => setShowLoginDialog(false)}
+        forced={isDialogForced}
+        onClose={() => {
+          // Only allow closing if not forced
+          if (!isDialogForced) {
+            setShowLoginDialog(false);
+          }
+        }}
+        onSuccess={() => {
+          setShowLoginDialog(false);
+          setIsDialogForced(false);
+        }}
         onSwitchToSignup={() => {
+          // When switching, maintain forced state
           setShowLoginDialog(false);
           setShowSignupDialog(true);
         }}
