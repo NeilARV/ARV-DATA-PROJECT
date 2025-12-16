@@ -927,68 +927,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
-  // Clean up bad geocoding - Re-geocode properties with San Francisco fallback coordinates (requires admin auth)
-  app.post(
-    "/api/properties/cleanup-geocoding",
-    requireAdminAuth,
-    async (_req, res) => {
-      try {
-        // Find properties with the old SF fallback coordinates (37.7749, -122.4194)
-        const allProps = await db.select().from(properties);
-        const badCoords = allProps.filter(
-          (p) =>
-            p.latitude &&
-            p.longitude &&
-            Math.abs(p.latitude - 37.7749) < 0.0001 &&
-            Math.abs(p.longitude + 122.4194) < 0.0001,
-        );
-
-        console.log(
-          `Found ${badCoords.length} properties with fallback SF coordinates`,
-        );
-
-        const fixed: string[] = [];
-        const stillFailed: string[] = [];
-
-        for (const prop of badCoords) {
-          const coords = await geocodeAddress(
-            prop.address,
-            prop.city,
-            prop.state,
-            prop.zipCode,
-          );
-          if (coords) {
-            await db
-              .update(properties)
-              .set({ latitude: coords.lat, longitude: coords.lng })
-              .where(eq(properties.id, prop.id));
-            fixed.push(
-              `${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`,
-            );
-            console.log(
-              `Fixed: ${prop.address} -> ${coords.lat}, ${coords.lng}`,
-            );
-          } else {
-            stillFailed.push(
-              `${prop.address}, ${prop.city}, ${prop.state} ${prop.zipCode}`,
-            );
-          }
-        }
-
-        res.json({
-          totalBadCoordinates: badCoords.length,
-          fixed: fixed.length,
-          stillFailed: stillFailed.length,
-          fixedAddresses: fixed,
-          failedAddresses: stillFailed,
-        });
-      } catch (error) {
-        console.error("Error cleaning up geocoding:", error);
-        res.status(500).json({ message: "Error cleaning up geocoding" });
-      }
-    },
-  );
-
   // Proxy Street View image to keep API key secure on server
   app.get("/api/streetview", async (req, res) => {
     try {
