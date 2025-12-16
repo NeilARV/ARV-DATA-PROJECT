@@ -708,65 +708,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Debug endpoint to find problematic properties (for admin use only)
-  app.get("/api/debug/bad-coords", requireAdminAuth, async (_req, res) => {
-    try {
-      const badCoordProperties = await db
-        .select()
-        .from(properties)
-        .where(
-          and(
-            gt(properties.latitude, 36.5),
-            lt(properties.latitude, 38.5),
-            gt(properties.longitude, -124),
-            lt(properties.longitude, -121),
-          ),
-        );
-
-      res.json({
-        count: badCoordProperties.length,
-        properties: badCoordProperties,
-        message: "Properties with potential coordinate issues found",
-      });
-    } catch (error) {
-      console.error("[DEBUG ERROR]", error);
-      res.status(500).json({ message: "Error fetching debug info" });
-    }
-  });
-
-  // Delete problematic properties by ID (for admin cleanup)
-  app.post(
-    "/api/debug/delete-bad-coords",
-    requireAdminAuth,
-    async (req, res) => {
-      try {
-        const { propertyIds } = req.body;
-        if (!Array.isArray(propertyIds)) {
-          return res
-            .status(400)
-            .json({ message: "Expected array of property IDs" });
-        }
-
-        let deletedCount = 0;
-        for (const id of propertyIds) {
-          const result = await db
-            .delete(properties)
-            .where(eq(properties.id, id))
-            .returning();
-          if (result.length > 0) deletedCount++;
-        }
-
-        res.json({
-          message: `Deleted ${deletedCount} properties`,
-          deletedCount,
-        });
-      } catch (error) {
-        console.error("[DEBUG DELETE ERROR]", error);
-        res.status(500).json({ message: "Error deleting properties" });
-      }
-    },
-  );
-
   // Get all company contacts
   app.get("/api/company-contacts", async (_req, res) => {
     try {
