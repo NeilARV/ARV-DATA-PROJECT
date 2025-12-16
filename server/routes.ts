@@ -929,6 +929,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /* SRF Analytics API calls */
+/* SRF Analytics API calls */
+  app.get("/api/sfr/data", async (req, res) => { 
+    try {
+      // Get API key from environment variable
+      const API_KEY = process.env.SFR_API_KEY!;
+      const API_URL = process.env.SFR_API_URL!;
+    
+      
+      const requestBody = {
+        "msa": "San Diego-Chula Vista-Carlsbad, CA",
+        "city": null,
+        "salesDate": {
+          "min": "2025-06-16",
+          "max": "2025-12-16"
+        },
+        "pagination": {
+          "page": 1,
+          "pageSize": 20
+        },
+        "sort": {
+          "field": "recording_date",
+          "direction": "asc"
+        }
+      };
+      
+      console.log("Making request to SRF API...");
+      console.log("Request body:", JSON.stringify(requestBody, null, 2));
+      
+      const response = await fetch(`${API_URL}/buyers/market/page`, {
+        method: 'POST',
+        headers: {
+          'X-API-TOKEN': API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log("SRF API response status:", response.status, response.statusText);
+      console.log("SRF API response headers:", Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("SRF API error response:", {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        return res.status(response.status).json({ 
+          message: "Error fetching SRF buyer data",
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+      }
+
+      const data = await response.json();
+      console.log("SRF Data Response received successfully");
+      res.status(200).json(data);
+    } catch (error) {
+      console.error("Error fetching SRF data:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error details:", errorMessage);
+      res.status(500).json({ 
+        message: "Error fetching SRF buyer data",
+        error: errorMessage
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

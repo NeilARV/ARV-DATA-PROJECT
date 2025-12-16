@@ -299,6 +299,21 @@ export default function Admin() {
         </p>
       </div>
 
+      {/* <button 
+        className="bg-red-600 text-white px-4 py-2 rounded mb-4"
+        onClick={async () => {
+          try {
+            const res = await apiRequest("GET", "/api/sfr/data");
+            const data = await res.json();
+            console.log("SFR Data Response:", data);
+          } catch (error) {
+            console.error("Error fetching SRF data:", error);
+          }
+        }}
+      >
+        TEST SRF API
+      </button> */}
+
       <Tabs defaultValue="upload" className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-8">
           <TabsTrigger value="upload" data-testid="tab-upload">
