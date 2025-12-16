@@ -44,6 +44,5 @@ integrations = ["javascript_mem_db:1.0.0"]
 [userenv]
 
 [userenv.shared]
-ADMIN_PASSCODE = "1234"
 
 [userenv.development]
