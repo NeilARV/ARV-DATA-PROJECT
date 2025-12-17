@@ -930,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* SRF Analytics API calls */
-  app.get("/api/sfr/data", async (req, res) => { 
+  app.get("/api/sfr/data", requireAdminAuth, async (req, res) => { 
 
     // Get API key from environment variable
     const API_KEY = process.env.SFR_API_KEY!;
@@ -989,7 +989,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           shouldContinue = false;
           break;
         }
-
+        
+        // Remove allData.push once uploading into db --> takes up too much memory
         allData.push(...data);
 
         // If we got less data than the total expected --> stop
@@ -1000,6 +1001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // @TODO: Save properties to database
+
         // @TODO: Update last updated date in database
 
       }

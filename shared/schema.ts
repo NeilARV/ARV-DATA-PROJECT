@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, real, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, real, integer, timestamp, boolean, serial, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -51,6 +51,15 @@ export const sessions = pgTable("sessions", {
   expire: integer("expire").notNull(),
 });
 
+export const sfrSyncState = pgTable("sfr_sync_state", {
+  id: serial("id").primaryKey(),
+  msa: varchar("msa", { length: 255}).notNull().unique(),
+  lastRecordingDate: date("last_recording_date"),
+  totalRecordsSynced: integer("total_records_synced").default(0).notNull(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: false}).defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
+})
+
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
 });
@@ -58,6 +67,14 @@ export const insertPropertySchema = createInsertSchema(properties).omit({
 export const insertCompanyContactSchema = createInsertSchema(companyContacts).omit({
   id: true,
 });
+
+export const insertSyncStateSchema = createInsertSchema(sfrSyncState, {
+  id: z.never(),
+  createdAt: z.never(),
+  lastSyncAt: z.never(),
+  totalRecordsSynced: z.number().int().optional(),
+  lastRecordingDate: z.coerce.date().optional(),
+})
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
