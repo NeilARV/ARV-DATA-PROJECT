@@ -16,26 +16,78 @@ export const users = pgTable("users", {
 
 export const properties = pgTable("properties", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // Address info
   address: text("address").notNull(),
   city: text("city").notNull(),
   state: text("state").notNull(),
   zipCode: text("zip_code").notNull(),
-  price: real("price").notNull(),
-  bedrooms: integer("bedrooms").notNull(),
-  bathrooms: real("bathrooms").notNull(),
-  squareFeet: integer("square_feet").notNull(),
+
+  // Core property details
+  price: real("price"), // nullable in DB
+  bedrooms: integer("bedrooms"),
+  bathrooms: real("bathrooms"),
+  squareFeet: integer("square_feet"),
   propertyType: text("property_type").notNull(),
+
   imageUrl: text("image_url"),
   latitude: real("latitude"),
   longitude: real("longitude"),
   description: text("description"),
   yearBuilt: integer("year_built"),
+
+  // Ownership / company
   propertyOwner: text("property_owner"),
   companyContactName: text("company_contact_name"),
   companyContactEmail: text("company_contact_email"),
+
+  // Purchase / sale
   purchasePrice: real("purchase_price"),
-  dateSold: text("date_sold"),
+  dateSold: date("date_sold"), // ✅ was text before — fixed
   status: text("status").default("in-renovation"),
+
+  // Buyer info
+  buyerName: text("buyer_name"),
+  buyerFormattedName: text("buyer_formatted_name"),
+  phone: text("phone"),
+
+  isCorporate: boolean("is_corporate"),
+  isCashBuyer: boolean("is_cash_buyer"),
+  isDiscountedPurchase: boolean("is_discounted_purchase"),
+  isPrivateLender: boolean("is_private_lender"),
+
+  buyerPropertiesCount: integer("buyer_properties_count"),
+  buyerTransactionsCount: integer("buyer_transactions_count"),
+  hasProfilePage: boolean("has_profile_page"),
+
+  // Seller / lender
+  sellerName: text("seller_name"),
+  lenderName: text("lender_name"),
+
+  // Exit info
+  exitValue: real("exit_value"),
+  exitBuyerName: text("exit_buyer_name"),
+  profitLoss: real("profit_loss"),
+  holdDays: integer("hold_days"),
+
+  // Financials
+  saleValue: real("sale_value"),
+  avmValue: real("avm_value"),
+  loanAmount: real("loan_amount"),
+
+  // SFR API IDs (unique in DB)
+  sfrPropertyId: integer("sfr_property_id").unique(),
+  sfrRecordId: integer("sfr_record_id").unique(),
+
+  // Market
+  msa: text("msa"),
+
+  // Dates
+  recordingDate: date("recording_date"),
+
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const companyContacts = pgTable("company_contacts", {
@@ -60,9 +112,17 @@ export const sfrSyncState = pgTable("sfr_sync_state", {
   createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
 })
 
+/* OLD INSERT SCHEMA FOR PROPERTIES */
+// export const insertPropertySchema = createInsertSchema(properties).omit({
+//   id: true,
+// });
+
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
+  createdAt: true,
+  updatedAt: true,
 });
+
 
 export const insertCompanyContactSchema = createInsertSchema(companyContacts).omit({
   id: true,

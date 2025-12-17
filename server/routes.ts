@@ -8,6 +8,7 @@ import {
   insertPropertySchema,
   insertUserSchema,
   loginSchema,
+  sfrSyncState,
 } from "@shared/schema";
 import { eq, and, gt, lt, desc } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
@@ -945,7 +946,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let shouldContinue = true;
     
     try {
-
       while (shouldContinue) {
         const requestBody = {
           "msa": "San Diego-Chula Vista-Carlsbad, CA",
