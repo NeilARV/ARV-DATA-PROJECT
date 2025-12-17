@@ -930,68 +930,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* SRF Analytics API calls */
-/* SRF Analytics API calls */
   app.get("/api/sfr/data", async (req, res) => { 
-    try {
-      // Get API key from environment variable
-      const API_KEY = process.env.SFR_API_KEY!;
-      const API_URL = process.env.SFR_API_URL!;
+
+    // Get API key from environment variable
+    const API_KEY = process.env.SFR_API_KEY!;
+    const API_URL = process.env.SFR_API_URL!;
+
+    const today = new Date().toISOString().split("T")[0];
+    // const minDate = "2025-06-16";
+    const minDate = "2025-12-03"
+
+    let allData: any[] = [];
+    let currentPage = 1;
+    let shouldContinue = true;
     
-      
-      const requestBody = {
-        "msa": "San Diego-Chula Vista-Carlsbad, CA",
-        "city": null,
-        "salesDate": {
-          "min": "2025-06-16",
-          "max": "2025-12-16"
-        },
-        "pagination": {
-          "page": 1,
-          "pageSize": 20
-        },
-        "sort": {
-          "field": "recording_date",
-          "direction": "asc"
+    try {
+
+      while (shouldContinue) {
+        const requestBody = {
+          "msa": "San Diego-Chula Vista-Carlsbad, CA",
+          "city": null,
+          "salesDate": {
+            "min": minDate,
+            "max": today
+          },
+          "pagination": {
+            "page": currentPage,
+            "pageSize": 20
+          },
+          "sort": {
+            "field": "recording_date",
+            "direction": "asc"
+          }
+        };
+        
+        const response = await fetch(`${API_URL}/buyers/market/page`, {
+          method: 'POST',
+          headers: {
+            'X-API-TOKEN': API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          return res.status(response.status).json({ 
+            message: "Error fetching SFR buyer data",
+            status: response.status,
+            error: errorText
+          });
         }
-      };
-      
-      console.log("Making request to SRF API...");
-      console.log("Request body:", JSON.stringify(requestBody, null, 2));
-      
-      const response = await fetch(`${API_URL}/buyers/market/page`, {
-        method: 'POST',
-        headers: {
-          'X-API-TOKEN': API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
 
-      console.log("SRF API response status:", response.status, response.statusText);
-      console.log("SRF API response headers:", Object.fromEntries(response.headers.entries()));
+        const data = await response.json();
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("SRF API error response:", {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText
-        });
-        return res.status(response.status).json({ 
-          message: "Error fetching SRF buyer data",
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText
-        });
+        // Check to make sure data is not empty
+        if (!data || data.length === 0) {
+          shouldContinue = false;
+          break;
+        }
+
+        allData.push(...data);
+
+        // If we got less data than the total expected --> stop
+        if (data.length < 100) {
+          shouldContinue = false;
+        } else {
+          currentPage++;
+        }
+
+        // @TODO: Save properties to database
+        // @TODO: Update last updated date in database
+
       }
-
-      const data = await response.json();
-      console.log("SRF Data Response received successfully");
-      res.status(200).json(data);
+      return res.status(200).json({
+        data: allData,
+        totalProcessed: allData.length, 
+        dateRange: {
+          from: minDate,
+          to: today
+        },
+        lastRecordingDate: null
+      });
+      
     } catch (error) {
       console.error("Error fetching SRF data:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Error details:", errorMessage);
       res.status(500).json({ 
         message: "Error fetching SRF buyer data",
         error: errorMessage
