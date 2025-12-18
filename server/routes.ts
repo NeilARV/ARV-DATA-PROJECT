@@ -17,6 +17,25 @@ import { z } from "zod";
 import { parseExcelDate } from "./utils/parseExcelDate";
 import { normalizeToTitleCase } from "./utils/normalizeToTitleCase";
 import { geocodeAddress } from "./utils/geocodeAddress";
+
+// Map varying property type strings (from SFR or other sources) to canonical app types
+function mapPropertyType(raw?: string | null) {
+  if (!raw || typeof raw !== 'string') return 'Single Family';
+  const s = raw.trim().toLowerCase();
+
+  // Common mappings
+  if (s.includes('single') && s.includes('family')) return 'Single Family';
+  if (s.includes('condo') || s.includes('condominium')) return 'Condo';
+  if (s.includes('town') && s.includes('house')) return 'Townhouse';
+  if (s.includes('townhouse')) return 'Townhouse';
+  //if (s.includes('duplex') || s.includes('triplex') || s.includes('multi') || s.includes('multi-family')) return 'Multi Family';
+  //if (s.includes('mobile') || s.includes('manufactured')) return 'Mobile Home';
+  //if (s.includes('lot') || s.includes('land')) return 'Land';
+
+  // Fallback to a normalized title-case value
+  const title = normalizeToTitleCase(raw) || raw;
+  return title;
+}
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 
@@ -797,6 +816,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  // Cleanup property types to canonical values (admin only)
+  app.post(
+    "/api/properties/cleanup-property-types",
+    requireAdminAuth,
+    async (_req, res) => {
+      try {
+        const allProps = await db.select().from(properties);
+        let updated = 0;
+        const changed: Array<{ id: string | number; old: string | null; new: string }> = [];
+
+        for (const prop of allProps) {
+          const oldVal = prop.propertyType;
+          const canonical = mapPropertyType(oldVal || null);
+          if ((oldVal || "") !== canonical) {
+            await db
+              .update(properties)
+              .set({ propertyType: canonical })
+              .where(eq(properties.id, prop.id));
+            updated++;
+            changed.push({ id: prop.id as any, old: oldVal ?? null, new: canonical });
+            console.log(`Updated propertyType for ID ${prop.id}: ${oldVal} -> ${canonical}`);
+          }
+        }
+
+        res.json({ total: allProps.length, updated, sampleChanges: changed.slice(0, 20) });
+      } catch (error) {
+        console.error("Error cleaning up property types:", error);
+        res.status(500).json({ message: "Error cleaning up property types" });
+      }
+    },
+  );
+
   // Proxy Street View image to keep API key secure on server
   app.get("/api/streetview", async (req, res) => {
     try {
@@ -1002,7 +1053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               bedrooms: record.bedrooms || null,
               bathrooms: record.bathrooms || null,
               squareFeet: record.buildingArea || record.square_feet || record.sqft || null,
-              propertyType: record.propertyType || record.property_type || "Single Family",
+              propertyType: mapPropertyType(record.propertyType || record.property_type || null),
               purchasePrice: record.purchasePrice || record.purchase_price || null,
               dateSold: record.saleDate || record.sale_date || record.date_sold || null,
               status: record.status || "sold",
