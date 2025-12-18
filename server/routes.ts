@@ -1109,7 +1109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 try {
                   await db.insert(companyContacts).values({
                     companyName: normalizedCompanyName,
-                    contactName: contactName,
+                    contactName: null,
                     contactEmail: contactEmail,
                   });
                   totalContactsAdded++;
@@ -1123,7 +1123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 // Set property owner and contact info
                 propertyData.propertyOwner = normalizedCompanyName;
-                propertyData.companyContactName = contactName;
+                propertyData.companyContactName = null;
                 propertyData.companyContactEmail = contactEmail;
               } else {
                 // Use the existing contact's normalized name to ensure consistency

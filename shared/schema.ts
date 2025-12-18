@@ -92,7 +92,7 @@ export const properties = pgTable("properties", {
 export const companyContacts = pgTable("company_contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyName: text("company_name").notNull().unique(),
-  contactName: text("contact_name").notNull(),
+  contactName: text("contact_name"),
   contactEmail: text("contact_email"),
 });
 
