@@ -290,7 +290,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/properties", async (_req, res) => {
     try {
       const allProperties = await db.select().from(properties);
-      res.json(allProperties);
+      console.log("Properties Length: ", allProperties.length)
+      res.status(200).json(allProperties);
     } catch (error) {
       console.error("Error fetching properties:", error);
       res.status(500).json({ message: "Error fetching properties" });
@@ -997,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               city: normalizedCity,
               state: record.state || "CA",
               zipCode: record.zipCode || record.zip_code || record.zip || "",
-              price: record.saleValue || record.sale_value || record.sale_price || record.price || null,
+              price: record.avmValue || record.avm_value || record.price || null,
               bedrooms: record.bedrooms || null,
               bathrooms: record.bathrooms || null,
               squareFeet: record.buildingArea || record.square_feet || record.sqft || null,

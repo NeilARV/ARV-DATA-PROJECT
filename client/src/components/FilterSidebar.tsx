@@ -464,7 +464,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             value={priceRange}
             onValueChange={setPriceRange}
             min={0}
-            max={5000000}
+            max={10000000}
             step={50000}
             className="mb-2"
             data-testid="slider-price"

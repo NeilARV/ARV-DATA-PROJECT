@@ -109,11 +109,15 @@ export default function Home() {
     fetchZipCodeLocation();
   }, [filters?.zipCode]);
 
+  console.log("Properties: ", properties)
+
   const filteredProperties = properties.filter(property => {
     // Apply company filter first if one is selected (case-insensitive comparison with null safety)
     if (selectedCompany) {
-      const ownerName = (property.propertyOwner ?? "").trim().toLowerCase();
-      const selectedName = selectedCompany.trim().toLowerCase();
+      
+      const ownerName = (property.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+      const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
+      
       if (ownerName !== selectedName) {
         return false;
       }
@@ -123,9 +127,10 @@ export default function Home() {
     if (property.price < filters.minPrice || property.price > filters.maxPrice) {
       return false;
     }
-
+    
     if (filters.bedrooms !== 'Any') {
       const minBeds = parseInt(filters.bedrooms);
+
       if (property.bedrooms < minBeds) return false;
     }
 
@@ -150,6 +155,8 @@ export default function Home() {
 
     return true;
   });
+
+  console.log("Filtered Properties: ", filteredProperties)
 
   const handleCompanySelect = (companyName: string) => {
     // Keep status filters but clear other filters when selecting a company
