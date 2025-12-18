@@ -58,7 +58,6 @@ export const properties = pgTable("properties", {
 
   buyerPropertiesCount: integer("buyer_properties_count"),
   buyerTransactionsCount: integer("buyer_transactions_count"),
-  hasProfilePage: boolean("has_profile_page"),
 
   // Seller / lender
   sellerName: text("seller_name"),

@@ -10,7 +10,7 @@ import {
   loginSchema,
   sfrSyncState,
 } from "@shared/schema";
-import { eq, and, gt, lt, desc } from "drizzle-orm";
+import { eq, and, gt, lt, desc, sql } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 import pLimit from "p-limit";
 import { z } from "zod";
@@ -293,6 +293,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching properties" });
     }
   });
+
+  // Normalize text to Title Case (first letter of each word capitalized, rest lowercase)
+  // Special handling: "LLC" stays all caps
+  function normalizeToTitleCase(text: string | null | undefined): string | null {
+    if (!text || typeof text !== 'string') return null;
+    
+    return text
+      .trim()
+      .split(/\s+/)
+      .map(word => {
+        if (word.length === 0) return word;
+        
+        // Handle LLC - keep it all caps regardless of input case
+        const upperWord = word.toUpperCase();
+        if (upperWord === 'LLC') {
+          return 'LLC';
+        }
+        
+        // Capitalize first letter, lowercase the rest
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ');
+  }
 
   // Geocode an address to get lat/lng using Google Maps Geocoding API
   async function geocodeAddress(
@@ -930,25 +953,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /* SRF Analytics API calls */
+  /* SFR Analytics API calls */
   app.get("/api/sfr/data", requireAdminAuth, async (req, res) => { 
-
-    // Get API key from environment variable
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
+    const MSA = "San Diego-Chula Vista-Carlsbad, CA";
 
     const today = new Date().toISOString().split("T")[0];
-    // const minDate = "2025-06-16";
-    const minDate = "2025-12-03"
-
-    let allData: any[] = [];
-    let currentPage = 1;
-    let shouldContinue = true;
     
     try {
+      // Get or create sync state for this MSA
+      let syncState = await db
+        .select()
+        .from(sfrSyncState)
+        .where(eq(sfrSyncState.msa, MSA))
+        .limit(1);
+
+      let minDate: string;
+      let syncStateId: number;
+      let initialTotalSynced: number;
+
+      if (syncState.length === 0) {
+        // Create new sync state with default min date
+        minDate = "2025-12-03"; // Default start date
+        const [newSyncState] = await db
+          .insert(sfrSyncState)
+          .values({
+            msa: MSA,
+            lastRecordingDate: null,
+            totalRecordsSynced: 0,
+          })
+          .returning();
+        syncStateId = newSyncState.id;
+        initialTotalSynced = 0;
+      } else {
+        // Use last recording date as min date (inclusive), or default
+        const lastDate = syncState[0].lastRecordingDate;
+        if (lastDate) {
+          minDate = new Date(lastDate).toISOString().split("T")[0];
+        } else {
+          minDate = "2025-12-03"; // Default start date
+        }
+        syncStateId = syncState[0].id;
+        initialTotalSynced = syncState[0].totalRecordsSynced || 0;
+      }
+
+      console.log(`[SFR SYNC] Starting sync for ${MSA} from ${minDate} to ${today}`);
+
+      let currentPage = 1;
+      let shouldContinue = true;
+      let totalProcessed = 0;
+      let totalInserted = 0;
+      let totalUpdated = 0;
+      let totalContactsAdded = 0;
+      let latestRecordingDate: string | null = null;
+
+      // Process properties in batches to avoid memory issues
+      const BATCH_SIZE = 50;
+      let batchBuffer: any[] = [];
+
       while (shouldContinue) {
         const requestBody = {
-          "msa": "San Diego-Chula Vista-Carlsbad, CA",
+          "msa": MSA,
           "city": null,
           "salesDate": {
             "min": minDate,
@@ -956,7 +1022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           "pagination": {
             "page": currentPage,
-            "pageSize": 20
+            "pageSize": 100
           },
           "sort": {
             "field": "recording_date",
@@ -975,6 +1041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!response.ok) {
           const errorText = await response.text();
+          console.error(`[SFR SYNC] API error on page ${currentPage}:`, errorText);
           return res.status(response.status).json({ 
             message: "Error fetching SFR buyer data",
             status: response.status,
@@ -984,42 +1051,357 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const data = await response.json();
 
-        // Check to make sure data is not empty
-        if (!data || data.length === 0) {
+        // Check if data is empty
+        if (!data || !Array.isArray(data) || data.length === 0) {
+          console.log(`[SFR SYNC] No more data on page ${currentPage}, stopping`);
           shouldContinue = false;
           break;
         }
-        
-        // Remove allData.push once uploading into db --> takes up too much memory
-        allData.push(...data);
 
-        // If we got less data than the total expected --> stop
+        console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records`);
+        if (data.length > 0) {
+          console.log(`[SFR SYNC] Sample record structure:`, JSON.stringify(data[0], null, 2));
+        }
+
+        // Process each property
+        for (const record of data) {
+          try {
+            // Normalize text fields
+            const rawAddress = record.address || record.property_address || "";
+            const rawCity = record.city || "";
+            const rawBuyerName = record.buyerName || record.buyer_name || null;
+            const rawSellerName = record.sellerName || record.seller_name || null;
+            
+            const normalizedAddress = normalizeToTitleCase(rawAddress);
+            const normalizedCity = normalizeToTitleCase(rawCity);
+            
+            // Validate required fields
+            if (!normalizedAddress || normalizedAddress.trim() === "") {
+              console.warn(`[SFR SYNC] Skipping record with empty address:`, JSON.stringify(record, null, 2));
+              totalProcessed++;
+              continue;
+            }
+            
+            if (!normalizedCity || normalizedCity.trim() === "") {
+              console.warn(`[SFR SYNC] Skipping record with empty city:`, JSON.stringify(record, null, 2));
+              totalProcessed++;
+              continue;
+            }
+            
+            const propertyData: any = {
+              address: normalizedAddress,
+              city: normalizedCity,
+              state: record.state || "CA",
+              zipCode: record.zipCode || record.zip_code || record.zip || "",
+              price: record.saleValue || record.sale_value || record.sale_price || record.price || null,
+              bedrooms: record.bedrooms || null,
+              bathrooms: record.bathrooms || null,
+              squareFeet: record.buildingArea || record.square_feet || record.sqft || null,
+              propertyType: record.propertyType || record.property_type || "Single Family",
+              purchasePrice: record.purchasePrice || record.purchase_price || null,
+              dateSold: record.saleDate || record.sale_date || record.date_sold || null,
+              status: record.status || "sold",
+              
+              // Buyer info
+              buyerName: normalizeToTitleCase(rawBuyerName),
+              buyerFormattedName: normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name),
+              phone: record.phone || null,
+              isCorporate: record.isCorporate || record.is_corporate || false,
+              isCashBuyer: record.isCashBuyer || record.is_cash_buyer || false,
+              isDiscountedPurchase: record.isDiscountedPurchase || record.is_discounted_purchase || false,
+              isPrivateLender: record.isPrivateLender || record.is_private_lender || false,
+              buyerPropertiesCount: record.buyerPropertiesCount || record.buyer_properties_count || null,
+              buyerTransactionsCount: record.buyerTransactionsCount || record.buyer_transactions_count || null,
+              
+              // Seller/lender
+              sellerName: normalizeToTitleCase(rawSellerName),
+              lenderName: normalizeToTitleCase(record.lenderName || record.lender_name),
+              
+              // Exit info
+              exitValue: record.exitValue || record.exit_value || null,
+              exitBuyerName: normalizeToTitleCase(record.exitBuyerName || record.exit_buyer_name),
+              profitLoss: record.profitLoss || record.profit_loss || null,
+              holdDays: record.holdDays || record.hold_days || null,
+              
+              // Financials
+              saleValue: record.saleValue || record.sale_value || null,
+              avmValue: record.avmValue || record.avm_value || null,
+              loanAmount: record.loanAmount || record.loan_amount || null,
+              
+              // SFR API IDs
+              sfrPropertyId: record.propertyId || record.property_id || record.sfr_property_id || null,
+              sfrRecordId: record.id || record.record_id || record.sfr_record_id || null,
+              
+              // Market
+              msa: record.msa || MSA,
+              
+              // Dates
+              recordingDate: record.recordingDate || record.recording_date || null,
+              
+              // Coordinates
+              latitude: record.latitude || null,
+              longitude: record.longitude || null,
+              
+              // Additional fields
+              yearBuilt: record.yearBuilt || record.year_built || null,
+            };
+
+            // Track latest recording date
+            let recordingDateStr: string | null = null;
+            if (propertyData.recordingDate) {
+              if (propertyData.recordingDate instanceof Date) {
+                recordingDateStr = propertyData.recordingDate.toISOString().split("T")[0];
+              } else if (typeof propertyData.recordingDate === 'string') {
+                recordingDateStr = propertyData.recordingDate.split("T")[0];
+              }
+              
+              if (recordingDateStr && (!latestRecordingDate || recordingDateStr > latestRecordingDate)) {
+                latestRecordingDate = recordingDateStr;
+              }
+            }
+            
+            // Store recordingDate as date string
+            if (recordingDateStr) {
+              propertyData.recordingDate = recordingDateStr;
+            }
+
+            // Geocode if coordinates are missing
+            if ((!propertyData.latitude || !propertyData.longitude) && propertyData.address) {
+              const coords = await geocodeAddress(
+                propertyData.address,
+                propertyData.city,
+                propertyData.state,
+                propertyData.zipCode
+              );
+              if (coords) {
+                propertyData.latitude = coords.lat;
+                propertyData.longitude = coords.lng;
+              }
+            }
+
+            // Handle company contact
+            const rawCompanyName = record.buyerName || record.buyer_name;
+            const normalizedCompanyName = normalizeToTitleCase(rawCompanyName);
+            
+            if (normalizedCompanyName) {
+              const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyName;
+              const contactEmail = record.contactEmail || record.contact_email || null;
+
+              // Check if company contact already exists (case-insensitive comparison)
+              // Normalize existing company names for comparison to catch variations like "Llc" vs "LLC"
+              const normalizedCompanyNameLower = normalizedCompanyName.toLowerCase();
+              const allContacts = await db
+                .select()
+                .from(companyContacts);
+              
+              // Find existing contact by normalizing and comparing
+              const existingContact = allContacts.find(contact => {
+                const normalizedExisting = normalizeToTitleCase(contact.companyName);
+                return normalizedExisting && normalizedExisting.toLowerCase() === normalizedCompanyNameLower;
+              });
+
+              if (!existingContact) {
+                // Insert new company contact
+                try {
+                  await db.insert(companyContacts).values({
+                    companyName: normalizedCompanyName,
+                    contactName: contactName,
+                    contactEmail: contactEmail,
+                  });
+                  totalContactsAdded++;
+                  console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyName}`);
+                } catch (contactError: any) {
+                  // Ignore duplicate key errors (race condition)
+                  if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
+                    console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyName}:`, contactError);
+                  }
+                }
+                
+                // Set property owner and contact info
+                propertyData.propertyOwner = normalizedCompanyName;
+                propertyData.companyContactName = contactName;
+                propertyData.companyContactEmail = contactEmail;
+              } else {
+                // Use the existing contact's normalized name to ensure consistency
+                const existingNormalized = normalizeToTitleCase(existingContact.companyName);
+                console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (normalized: ${existingNormalized})`);
+                
+                // Set property owner and contact info using existing contact data
+                propertyData.propertyOwner = existingNormalized || normalizedCompanyName;
+                propertyData.companyContactName = existingContact.contactName || contactName;
+                propertyData.companyContactEmail = existingContact.contactEmail || contactEmail;
+              }
+            }
+
+            // Check for existing property by SFR IDs first
+            let existingProperty = null;
+            
+            if (propertyData.sfrPropertyId) {
+              const byPropertyId = await db
+                .select()
+                .from(properties)
+                .where(eq(properties.sfrPropertyId, propertyData.sfrPropertyId))
+                .limit(1);
+              if (byPropertyId.length > 0) {
+                existingProperty = byPropertyId[0];
+              }
+            }
+            
+            if (!existingProperty && propertyData.sfrRecordId) {
+              const byRecordId = await db
+                .select()
+                .from(properties)
+                .where(eq(properties.sfrRecordId, propertyData.sfrRecordId))
+                .limit(1);
+              if (byRecordId.length > 0) {
+                existingProperty = byRecordId[0];
+              }
+            }
+
+            // If no match by SFR IDs, check by address
+            if (!existingProperty && propertyData.address) {
+              const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
+              const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
+              
+              const byAddress = await db
+                .select()
+                .from(properties)
+                .where(
+                  and(
+                    sql`LOWER(TRIM(${properties.address})) = ${normalizedAddressForCompare}`,
+                    sql`LOWER(TRIM(${properties.city})) = ${normalizedCityForCompare}`,
+                    eq(properties.state, propertyData.state),
+                    eq(properties.zipCode, propertyData.zipCode)
+                  )
+                )
+                .limit(1);
+              if (byAddress.length > 0) {
+                existingProperty = byAddress[0];
+              }
+            }
+
+            if (existingProperty) {
+              // Update existing property if this record is more recent
+              const shouldUpdate = !existingProperty.recordingDate || 
+                (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
+              
+              if (shouldUpdate) {
+                const { id, createdAt, ...updateData } = propertyData;
+                updateData.updatedAt = sql`now()`;
+                
+                try {
+                  await db
+                    .update(properties)
+                    .set(updateData)
+                    .where(eq(properties.id, existingProperty.id));
+                  
+                  totalUpdated++;
+                  console.log(`[SFR SYNC] Updated property: ${propertyData.address} (ID: ${existingProperty.id})`);
+                } catch (updateError: any) {
+                  console.error(`[SFR SYNC] Error updating property ${propertyData.address}:`, updateError);
+                }
+              } else {
+                console.log(`[SFR SYNC] Skipping update for ${propertyData.address} - existing record is same or more recent`);
+              }
+            } else {
+              // Add to batch buffer for insertion
+              batchBuffer.push(propertyData);
+              console.log(`[SFR SYNC] Adding to batch buffer: ${propertyData.address}`);
+              
+              // Insert batch if full
+              if (batchBuffer.length >= BATCH_SIZE) {
+                try {
+                  await db.insert(properties).values(batchBuffer);
+                  totalInserted += batchBuffer.length;
+                  console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
+                  batchBuffer = [];
+                } catch (batchError: any) {
+                  console.error(`[SFR SYNC] Error inserting batch:`, batchError);
+                  // Try inserting individually
+                  for (const prop of batchBuffer) {
+                    try {
+                      await db.insert(properties).values([prop]);
+                      totalInserted++;
+                    } catch (individualError: any) {
+                      console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
+                    }
+                  }
+                  batchBuffer = [];
+                }
+              }
+            }
+
+            totalProcessed++;
+          } catch (propertyError: any) {
+            console.error(`[SFR SYNC] Error processing property:`, propertyError);
+            console.error(`[SFR SYNC] Record that caused error:`, JSON.stringify(record, null, 2));
+            totalProcessed++;
+          }
+        }
+
+        // Check if we should continue to next page
         if (data.length < 100) {
           shouldContinue = false;
         } else {
           currentPage++;
         }
-
-        // @TODO: Save properties to database
-
-        // @TODO: Update last updated date in database
-
       }
+
+      // Insert any remaining properties in buffer (after while loop ends)
+      if (batchBuffer.length > 0) {
+        try {
+          await db.insert(properties).values(batchBuffer);
+          totalInserted += batchBuffer.length;
+          console.log(`[SFR SYNC] Inserted final batch of ${batchBuffer.length} properties`);
+        } catch (batchError: any) {
+          console.error(`[SFR SYNC] Error inserting final batch:`, batchError);
+          // Try inserting individually
+          for (const prop of batchBuffer) {
+            try {
+              await db.insert(properties).values([prop]);
+              totalInserted++;
+            } catch (individualError: any) {
+              console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
+            }
+          }
+        }
+        batchBuffer = [];
+      }
+
+      // Update sync state with today's date as lastRecordingDate
+      const newTotalSynced = initialTotalSynced + totalProcessed;
+      
+      await db
+        .update(sfrSyncState)
+        .set({
+          lastRecordingDate: today, // Always set to today's date
+          totalRecordsSynced: newTotalSynced,
+          lastSyncAt: sql`now()`,
+        })
+        .where(eq(sfrSyncState.id, syncStateId));
+      
+      console.log(`[SFR SYNC] Updated sync state with lastRecordingDate: ${today}`);
+      console.log(`[SFR SYNC] Sync complete: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
+
       return res.status(200).json({
-        data: allData,
-        totalProcessed: allData.length, 
+        success: true,
+        totalProcessed,
+        totalInserted,
+        totalUpdated,
+        totalContactsAdded,
         dateRange: {
           from: minDate,
           to: today
         },
-        lastRecordingDate: null
+        lastRecordingDate: today,
+        msa: MSA,
       });
       
     } catch (error) {
-      console.error("Error fetching SRF data:", error);
+      console.error("[SFR SYNC] Error:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
-        message: "Error fetching SRF buyer data",
+        message: "Error syncing SFR buyer data",
         error: errorMessage
       });
     }

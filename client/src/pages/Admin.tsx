@@ -487,7 +487,7 @@ export default function Admin() {
                                 </TableCell>
                                 <TableCell>{property.city}</TableCell>
                                 <TableCell className="text-right font-semibold">
-                                  ${property.price.toLocaleString()}
+                                  ${property.price?.toLocaleString()}
                                 </TableCell>
                                 <TableCell className="text-center">
                                   {property.bedrooms}
