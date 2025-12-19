@@ -17,6 +17,7 @@ import { z } from "zod";
 import { parseExcelDate } from "./utils/parseExcelDate";
 import { normalizeToTitleCase } from "./utils/normalizeToTitleCase";
 import { geocodeAddress } from "./utils/geocodeAddress";
+import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "./utils/normalizeCompanyName";
 
 // Map varying property type strings (from SFR or other sources) to canonical app types
 function mapPropertyType(raw?: string | null) {
@@ -379,17 +380,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      // Look up company contact
+      // Look up company contact (using punctuation-insensitive comparison)
       if (propertyData.propertyOwner) {
-        const contact = await db
-          .select()
-          .from(companyContacts)
-          .where(eq(companyContacts.companyName, propertyData.propertyOwner))
-          .limit(1);
+        const normalizedOwnerForCompare = normalizeCompanyNameForComparison(propertyData.propertyOwner);
+        const allContacts = await db.select().from(companyContacts);
+        
+        const contact = allContacts.find(c => {
+          const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
+          return normalizedContact && normalizedContact === normalizedOwnerForCompare;
+        });
 
-        if (contact.length > 0) {
-          enriched.companyContactName = contact[0].contactName;
-          enriched.companyContactEmail = contact[0].contactEmail;
+        if (contact) {
+          enriched.companyContactName = contact.contactName;
+          enriched.companyContactEmail = contact.contactEmail;
+          // Use the existing contact's name for consistency
+          enriched.propertyOwner = contact.companyName;
         }
       }
 
@@ -477,18 +482,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
 
-            // Look up company contact
+            // Look up company contact (using punctuation-insensitive comparison)
             if (shouldInsert && prop.propertyOwner) {
               try {
-                const contact = await db
-                  .select()
-                  .from(companyContacts)
-                  .where(eq(companyContacts.companyName, prop.propertyOwner))
-                  .limit(1);
+                const normalizedOwnerForCompare = normalizeCompanyNameForComparison(prop.propertyOwner);
+                const allContacts = await db.select().from(companyContacts);
+                
+                const contact = allContacts.find(c => {
+                  const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
+                  return normalizedContact && normalizedContact === normalizedOwnerForCompare;
+                });
 
-                if (contact.length > 0) {
-                  enriched.companyContactName = contact[0].contactName;
-                  enriched.companyContactEmail = contact[0].contactEmail;
+                if (contact) {
+                  enriched.companyContactName = contact.contactName;
+                  enriched.companyContactEmail = contact.contactEmail;
+                  // Use the existing contact's name for consistency
+                  enriched.propertyOwner = contact.companyName;
                 }
               } catch (contactError) {
                 console.error(
@@ -632,19 +641,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Property not found" });
       }
 
-      // If propertyOwner changed, update company contact info
+      // If propertyOwner changed, update company contact info (using punctuation-insensitive comparison)
       const finalUpdates: Record<string, any> = { ...updates };
       if (updates.propertyOwner !== undefined) {
         if (updates.propertyOwner) {
-          const contact = await db
-            .select()
-            .from(companyContacts)
-            .where(eq(companyContacts.companyName, updates.propertyOwner))
-            .limit(1);
+          const normalizedOwnerForCompare = normalizeCompanyNameForComparison(updates.propertyOwner);
+          const allContacts = await db.select().from(companyContacts);
+          
+          const contact = allContacts.find(c => {
+            const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
+            return normalizedContact && normalizedContact === normalizedOwnerForCompare;
+          });
 
-          if (contact.length > 0) {
-            finalUpdates.companyContactName = contact[0].contactName;
-            finalUpdates.companyContactEmail = contact[0].contactEmail;
+          if (contact) {
+            finalUpdates.companyContactName = contact.contactName;
+            finalUpdates.companyContactEmail = contact.contactEmail;
+            // Use the existing contact's name for consistency
+            finalUpdates.propertyOwner = contact.companyName;
           } else {
             // Clear contact info if owner changed to unknown company
             finalUpdates.companyContactName = null;
@@ -973,7 +986,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           shouldContinue = false;
           break;
         }
-
+        
         console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records`);
         
         if (data.length > 0) {
@@ -1132,53 +1145,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Handle company contact
             const rawCompanyName = record.buyerName || null;
-            const normalizedCompanyName = normalizeToTitleCase(rawCompanyName);
+            const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(rawCompanyName);
             
-            if (normalizedCompanyName) {
-              const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyName;
+            if (normalizedCompanyNameForStorage) {
+              const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyNameForStorage;
               const contactEmail = record.contactEmail || record.contact_email || null;
 
-              // Check if company contact already exists (case-insensitive comparison)
-              // Normalize existing company names for comparison to catch variations like "Llc" vs "LLC"
-              const normalizedCompanyNameLower = normalizedCompanyName.toLowerCase();
+              // Check if company contact already exists using punctuation-insensitive comparison
+              const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
               const allContacts = await db
                 .select()
                 .from(companyContacts);
               
-              // Find existing contact by normalizing and comparing
+              // Find existing contact by normalizing and comparing (ignoring punctuation)
               const existingContact = allContacts.find(contact => {
-                const normalizedExisting = normalizeToTitleCase(contact.companyName);
-                return normalizedExisting && normalizedExisting.toLowerCase() === normalizedCompanyNameLower;
+                const normalizedExisting = normalizeCompanyNameForComparison(contact.companyName);
+                return normalizedExisting && normalizedExisting === normalizedCompanyNameForCompare;
               });
 
               if (!existingContact) {
-                // Insert new company contact
+                // Insert new company contact with normalized storage format
                 try {
                   await db.insert(companyContacts).values({
-                    companyName: normalizedCompanyName,
+                    companyName: normalizedCompanyNameForStorage,
                     contactName: null,
                     contactEmail: contactEmail,
                   });
                   totalContactsAdded++;
-                  console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyName}`);
+                  console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyNameForStorage}`);
                 } catch (contactError: any) {
                   // Ignore duplicate key errors (race condition)
                   if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
-                    console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyName}:`, contactError);
+                    console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyNameForStorage}:`, contactError);
                   }
                 }
                 
-                // Set property owner and contact info
-                propertyData.propertyOwner = normalizedCompanyName;
+                // Set property owner and contact info using normalized storage format
+                propertyData.propertyOwner = normalizedCompanyNameForStorage;
                 propertyData.companyContactName = null;
                 propertyData.companyContactEmail = contactEmail;
               } else {
-                // Use the existing contact's normalized name to ensure consistency
-                const existingNormalized = normalizeToTitleCase(existingContact.companyName);
-                console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (normalized: ${existingNormalized})`);
-                
+                // Use the existing contact's name to ensure consistency (use existing DB value)
+                console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (matched: ${normalizedCompanyNameForStorage})`);
+
                 // Set property owner and contact info using existing contact data
-                propertyData.propertyOwner = existingNormalized || normalizedCompanyName;
+                propertyData.propertyOwner = existingContact.companyName; // Use existing DB value for consistency
                 propertyData.companyContactName = existingContact.contactName || contactName;
                 propertyData.companyContactEmail = existingContact.contactEmail || contactEmail;
               }

@@ -1,5 +1,6 @@
 import { companyContacts } from "@shared/schema";
 import { db } from "./storage";
+import { normalizeCompanyNameForStorage, normalizeCompanyNameForComparison } from "./utils/normalizeCompanyName";
 
 const COMPANY_DATA = `Company	Owner
 1 Way Home Services, LLC	Sam Eram
@@ -266,31 +267,70 @@ export async function seedCompanyContacts() {
   console.log('Seeding company contacts...');
   
   const lines = COMPANY_DATA.split('\n').slice(1); // Skip header
-  const contacts = [];
+  const contactsMap = new Map<string, { companyName: string; contactName: string }>();
   
   for (const line of lines) {
     if (!line.trim()) continue;
     
     const parts = line.split('\t');
     if (parts.length >= 2) {
-      const companyName = parts[0].trim();
+      const rawCompanyName = parts[0].trim();
       const contactName = parts[1].trim();
       
-      if (companyName && contactName) {
-        contacts.push({
-          companyName,
-          contactName,
-          contactEmail: null,
-        });
+      if (rawCompanyName && contactName) {
+        // Normalize company name for storage
+        const normalizedCompanyName = normalizeCompanyNameForStorage(rawCompanyName);
+        if (!normalizedCompanyName) continue;
+        
+        // Use normalized name for comparison to detect duplicates
+        const normalizedForCompare = normalizeCompanyNameForComparison(normalizedCompanyName);
+        if (!normalizedForCompare) continue;
+        
+        // Check if we already have this company (ignoring punctuation/capitalization)
+        if (!contactsMap.has(normalizedForCompare)) {
+          contactsMap.set(normalizedForCompare, {
+            companyName: normalizedCompanyName,
+            contactName: contactName,
+          });
+        } else {
+          // If duplicate found, log it but keep the first occurrence
+          const existing = contactsMap.get(normalizedForCompare);
+          console.log(`[SEED] Duplicate company detected: "${rawCompanyName}" matches existing "${existing?.companyName}" - skipping`);
+        }
       }
     }
   }
   
-  console.log(`Inserting ${contacts.length} company contacts...`);
+  // Convert map to array
+  const contacts = Array.from(contactsMap.values()).map(c => ({
+    companyName: c.companyName,
+    contactName: c.contactName,
+    contactEmail: null,
+  }));
+  
+  console.log(`Inserting ${contacts.length} normalized company contacts (duplicates removed)...`);
   
   try {
-    await db.insert(companyContacts).values(contacts).onConflictDoNothing();
-    console.log('Company contacts seeded successfully!');
+    // Insert contacts one by one to handle conflicts gracefully
+    let inserted = 0;
+    let skipped = 0;
+    
+    for (const contact of contacts) {
+      try {
+        await db.insert(companyContacts).values(contact).onConflictDoNothing();
+        inserted++;
+      } catch (error: any) {
+        // Check if it's a duplicate key error
+        if (error?.code === '23505' || error?.message?.includes('duplicate') || error?.message?.includes('unique')) {
+          skipped++;
+          console.log(`[SEED] Skipping duplicate: ${contact.companyName}`);
+        } else {
+          console.error(`[SEED] Error inserting ${contact.companyName}:`, error);
+        }
+      }
+    }
+    
+    console.log(`Company contacts seeded successfully! Inserted: ${inserted}, Skipped: ${skipped}`);
   } catch (error) {
     console.error('Error seeding company contacts:', error);
   }
