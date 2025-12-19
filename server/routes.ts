@@ -736,118 +736,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
-  // Remove duplicate properties - Keep only the one with correct coordinates (requires admin auth)
-  app.post(
-    "/api/properties/cleanup-duplicates",
-    requireAdminAuth,
-    async (_req, res) => {
-      try {
-        const allProps = await db.select().from(properties);
-
-        // Group properties by address
-        const propertyGroups = new Map<string, typeof allProps>();
-        for (const prop of allProps) {
-          const key = `${prop.address}|${prop.city}|${prop.state}|${prop.zipCode}`;
-          const group = propertyGroups.get(key) || [];
-          group.push(prop);
-          propertyGroups.set(key, group);
-        }
-
-        // Find duplicates
-        const duplicateGroups = Array.from(propertyGroups.entries()).filter(
-          ([, group]) => group.length > 1,
-        );
-
-        console.log(
-          `Found ${duplicateGroups.length} addresses with duplicates`,
-        );
-
-        let deletedCount = 0;
-        const deletedAddresses: string[] = [];
-
-        for (const [key, group] of duplicateGroups) {
-          // Sort by priority: properties with SF fallback coords should be deleted
-          const sorted = group.sort((a, b) => {
-            const aIsBad =
-              a.latitude &&
-              a.longitude &&
-              Math.abs(a.latitude - 37.7749) < 0.0001 &&
-              Math.abs(a.longitude + 122.4194) < 0.0001;
-            const bIsBad =
-              b.latitude &&
-              b.longitude &&
-              Math.abs(b.latitude - 37.7749) < 0.0001 &&
-              Math.abs(b.longitude + 122.4194) < 0.0001;
-
-            // Bad coords should be deleted (sort to end)
-            if (aIsBad && !bIsBad) return 1;
-            if (!aIsBad && bIsBad) return -1;
-            return 0;
-          });
-
-          // Keep the first (best) one, delete the rest
-          const toKeep = sorted[0];
-          const toDelete = sorted.slice(1);
-
-          for (const prop of toDelete) {
-            await db.delete(properties).where(eq(properties.id, prop.id));
-            deletedCount++;
-            console.log(
-              `Deleted duplicate: ${prop.address} (ID: ${prop.id}, coords: ${prop.latitude}, ${prop.longitude})`,
-            );
-          }
-
-          if (toDelete.length > 0) {
-            deletedAddresses.push(
-              `${toKeep.address}, ${toKeep.city}, ${toKeep.state} ${toKeep.zipCode}`,
-            );
-          }
-        }
-
-        res.json({
-          duplicateAddresses: duplicateGroups.length,
-          duplicatesDeleted: deletedCount,
-          cleanedAddresses: deletedAddresses,
-        });
-      } catch (error) {
-        console.error("Error cleaning up duplicates:", error);
-        res.status(500).json({ message: "Error cleaning up duplicates" });
-      }
-    },
-  );
-
-  // Cleanup property types to canonical values (admin only)
-  app.post(
-    "/api/properties/cleanup-property-types",
-    requireAdminAuth,
-    async (_req, res) => {
-      try {
-        const allProps = await db.select().from(properties);
-        let updated = 0;
-        const changed: Array<{ id: string | number; old: string | null; new: string }> = [];
-
-        for (const prop of allProps) {
-          const oldVal = prop.propertyType;
-          const canonical = mapPropertyType(oldVal || null);
-          if ((oldVal || "") !== canonical) {
-            await db
-              .update(properties)
-              .set({ propertyType: canonical })
-              .where(eq(properties.id, prop.id));
-            updated++;
-            changed.push({ id: prop.id as any, old: oldVal ?? null, new: canonical });
-            console.log(`Updated propertyType for ID ${prop.id}: ${oldVal} -> ${canonical}`);
-          }
-        }
-
-        res.json({ total: allProps.length, updated, sampleChanges: changed.slice(0, 20) });
-      } catch (error) {
-        console.error("Error cleaning up property types:", error);
-        res.status(500).json({ message: "Error cleaning up property types" });
-      }
-    },
-  );
-
   // Proxy Street View image to keep API key secure on server
   app.get("/api/streetview", async (req, res) => {
     try {
@@ -917,17 +805,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const today = new Date().toISOString().split("T")[0];
     
+    // Sync state / counters exposed to outer scope so we can persist partial progress on failure
+    let minDate: string = "";
+    let syncStateId: number | null = null;
+    let initialTotalSynced: number = 0;
+    let syncState: any[] = [];
+
+    // Track counters accessible in catch/finalize
+    let currentPage = 1;
+    let shouldContinue = true;
+    let totalProcessed = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let totalContactsAdded = 0;
+    let latestRecordingDate: string | null = null;
+
+    // Helper to persist sync state on exit or failure. Accepts explicit options so it can be called from error/catch paths.
+    async function persistSyncStateExplicit(options: {
+      syncStateId?: number | null;
+      previousLastRecordingDate?: string | null;
+      initialTotalSynced?: number;
+      processed?: number;
+      finalRecordingDate?: string | null;
+    }) {
+      const {
+        syncStateId,
+        previousLastRecordingDate,
+        initialTotalSynced = 0,
+        processed = 0,
+        finalRecordingDate,
+      } = options || {};
+
+      if (!syncStateId) {
+        console.warn("[SFR SYNC] No syncStateId provided to persist state");
+        return previousLastRecordingDate || null;
+      }
+
+      const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
+      const toSet = finalRecordingDate || previousLastRecordingDate || null;
+
+      try {
+        await db
+          .update(sfrSyncState)
+          .set({
+            lastRecordingDate: toSet,
+            totalRecordsSynced: newTotalSynced,
+            lastSyncAt: sql`now()`,
+          })
+          .where(eq(sfrSyncState.id, syncStateId));
+
+        console.log(
+          `[SFR SYNC] Persisted sync state. lastRecordingDate: ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
+        );
+        return toSet;
+      } catch (e: any) {
+        console.error("[SFR SYNC] Failed to persist sync state:", e);
+        return toSet;
+      }
+    }
+
     try {
       // Get or create sync state for this MSA
-      let syncState = await db
+      syncState = await db
         .select()
         .from(sfrSyncState)
         .where(eq(sfrSyncState.msa, MSA))
         .limit(1);
 
-      let minDate: string;
-      let syncStateId: number;
-      let initialTotalSynced: number;
+
 
       if (syncState.length === 0) {
         // Create new sync state with default min date
@@ -955,14 +900,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`[SFR SYNC] Starting sync for ${MSA} from ${minDate} to ${today}`);
-
-      let currentPage = 1;
-      let shouldContinue = true;
-      let totalProcessed = 0;
-      let totalInserted = 0;
-      let totalUpdated = 0;
-      let totalContactsAdded = 0;
-      let latestRecordingDate: string | null = null;
 
       // Process properties in batches to avoid memory issues
       const BATCH_SIZE = 50;
@@ -998,6 +935,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`[SFR SYNC] API error on page ${currentPage}:`, errorText);
+          // Persist partial progress before returning
+          try {
+            const persistedDate = await persistSyncStateExplicit({
+              syncStateId,
+              previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
+              initialTotalSynced,
+              processed: totalProcessed,
+              finalRecordingDate: latestRecordingDate,
+            });
+            console.log(`[SFR SYNC] Persisted sync state due to API error. lastRecordingDate: ${persistedDate}`);
+          } catch (e) {
+            console.error("[SFR SYNC] Failed to persist state after API error:", e);
+          }
+
           return res.status(response.status).json({ 
             message: "Error fetching SFR buyer data",
             status: response.status,
@@ -1324,19 +1275,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         batchBuffer = [];
       }
 
-      // Update sync state with today's date as lastRecordingDate
-      const newTotalSynced = initialTotalSynced + totalProcessed;
-      
-      await db
-        .update(sfrSyncState)
-        .set({
-          lastRecordingDate: today, // Always set to today's date
-          totalRecordsSynced: newTotalSynced,
-          lastSyncAt: sql`now()`,
-        })
-        .where(eq(sfrSyncState.id, syncStateId));
-      
-      console.log(`[SFR SYNC] Updated sync state with lastRecordingDate: ${today}`);
+      // Persist final sync state (prefer latest processed recording date; do not advance if no records processed)
+      const persistedDate = await persistSyncStateExplicit({
+        syncStateId: syncStateId,
+        previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
+        initialTotalSynced: initialTotalSynced ?? 0,
+        processed: totalProcessed ?? 0,
+        finalRecordingDate: latestRecordingDate ?? null,
+      });
+
       console.log(`[SFR SYNC] Sync complete: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
 
       return res.status(200).json({
@@ -1347,14 +1294,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalContactsAdded,
         dateRange: {
           from: minDate,
-          to: today
+          to: latestRecordingDate || today
         },
-        lastRecordingDate: today,
+        lastRecordingDate: persistedDate,
         msa: MSA,
       });
       
     } catch (error) {
       console.error("[SFR SYNC] Error:", error);
+      try {
+        const persistedDate = await persistSyncStateExplicit({
+          syncStateId: syncStateId,
+          previousLastRecordingDate: syncState && syncState.length > 0 ? syncState[0].lastRecordingDate : null,
+          initialTotalSynced: initialTotalSynced ?? 0,
+          processed: totalProcessed ?? 0,
+          finalRecordingDate: latestRecordingDate ?? null,
+        });
+        console.log(`[SFR SYNC] Persisted sync state after failure. lastRecordingDate: ${persistedDate}`);
+      } catch (e) {
+        console.error("[SFR SYNC] Failed to persist sync state after error:", e);
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
         message: "Error syncing SFR buyer data",
