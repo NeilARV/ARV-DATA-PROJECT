@@ -299,7 +299,7 @@ export default function Admin() {
         </p>
       </div>
 
-      {/* <button 
+      <button 
         className="bg-red-600 text-white px-4 py-2 rounded mb-4"
         onClick={async () => {
           try {
@@ -312,7 +312,7 @@ export default function Admin() {
         }}
       >
         TEST SRF API
-      </button> */}
+      </button>
 
       <Tabs defaultValue="upload" className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-8">

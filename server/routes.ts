@@ -818,44 +818,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let totalInserted = 0;
     let totalUpdated = 0;
     let totalContactsAdded = 0;
-    let latestRecordingDate: string | null = null;
+    let latestSaleDate: string | null = null; // Track the saleDate of the last successfully processed property
 
     // Helper to persist sync state on exit or failure. Accepts explicit options so it can be called from error/catch paths.
+    // Stores saleDate - 1 day because the API range is non-inclusive
     async function persistSyncStateExplicit(options: {
       syncStateId?: number | null;
-      previousLastRecordingDate?: string | null;
+      previousLastSaleDate?: string | null;
       initialTotalSynced?: number;
       processed?: number;
-      finalRecordingDate?: string | null;
+      finalSaleDate?: string | null;
     }) {
       const {
         syncStateId,
-        previousLastRecordingDate,
+        previousLastSaleDate,
         initialTotalSynced = 0,
         processed = 0,
-        finalRecordingDate,
+        finalSaleDate,
       } = options || {};
 
       if (!syncStateId) {
         console.warn("[SFR SYNC] No syncStateId provided to persist state");
-        return previousLastRecordingDate || null;
+        return previousLastSaleDate || null;
       }
 
       const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
-      const toSet = finalRecordingDate || previousLastRecordingDate || null;
+      // Use the latest saleDate from processed properties, or keep the previous one if no new data
+      let toSet = finalSaleDate || previousLastSaleDate || null;
+      
+      // Subtract 1 day because the API range is non-inclusive (we want to start from the day after)
+      if (toSet) {
+        const date = new Date(toSet);
+        date.setDate(date.getDate() - 1);
+        toSet = date.toISOString().split("T")[0];
+      }
 
       try {
         await db
           .update(sfrSyncState)
           .set({
-            lastRecordingDate: toSet,
+            lastSaleDate: toSet, // Store saleDate - 1 day in lastSaleDate field
             totalRecordsSynced: newTotalSynced,
             lastSyncAt: sql`now()`,
           })
           .where(eq(sfrSyncState.id, syncStateId));
 
         console.log(
-          `[SFR SYNC] Persisted sync state. lastRecordingDate: ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
+          `[SFR SYNC] Persisted sync state. lastSaleDate (saleDate - 1): ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
         );
         return toSet;
       } catch (e: any) {
@@ -881,15 +890,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .insert(sfrSyncState)
           .values({
             msa: MSA,
-            lastRecordingDate: null,
+            lastSaleDate: null,
             totalRecordsSynced: 0,
           })
           .returning();
         syncStateId = newSyncState.id;
         initialTotalSynced = 0;
       } else {
-        // Use last recording date as min date (inclusive), or default
-        const lastDate = syncState[0].lastRecordingDate;
+        // Use last sale date as min date (stored value is already saleDate - 1, so use it directly)
+        const lastDate = syncState[0].lastSaleDate;
         if (lastDate) {
           minDate = new Date(lastDate).toISOString().split("T")[0];
         } else {
@@ -939,12 +948,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             const persistedDate = await persistSyncStateExplicit({
               syncStateId,
-              previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
+              previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
               initialTotalSynced,
               processed: totalProcessed,
-              finalRecordingDate: latestRecordingDate,
+              finalSaleDate: latestSaleDate,
             });
-            console.log(`[SFR SYNC] Persisted sync state due to API error. lastRecordingDate: ${persistedDate}`);
+            console.log(`[SFR SYNC] Persisted sync state due to API error. lastSaleDate: ${persistedDate}`);
           } catch (e) {
             console.error("[SFR SYNC] Failed to persist state after API error:", e);
           }
@@ -1061,17 +1070,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
               yearBuilt: record.yearBuilt || null,
             };
 
-            // Track latest recording date
+            // Track latest saleDate (not recordingDate) - this is what we'll store in lastSaleDate
+            // Extract saleDate from propertyData.dateSold (which comes from record.saleDate)
+            let saleDateStr: string | null = null;
+            if (propertyData.dateSold) {
+              if (propertyData.dateSold instanceof Date) {
+                saleDateStr = propertyData.dateSold.toISOString().split("T")[0];
+              } else if (typeof propertyData.dateSold === 'string') {
+                saleDateStr = propertyData.dateSold.split("T")[0];
+              }
+            }
+            
+            // Update latestSaleDate immediately for ALL processed records (even if we skip them later)
+            // This ensures we track the latest saleDate we've seen, regardless of whether we insert/update
+            if (saleDateStr && (!latestSaleDate || saleDateStr > latestSaleDate)) {
+              latestSaleDate = saleDateStr;
+            }
+            
+            // Store saleDate with property data for later use
+            if (saleDateStr) {
+              propertyData._saleDate = saleDateStr;
+            }
+            
+            // Track latest recording date for property data (for comparison purposes)
             let recordingDateStr: string | null = null;
             if (propertyData.recordingDate) {
               if (propertyData.recordingDate instanceof Date) {
                 recordingDateStr = propertyData.recordingDate.toISOString().split("T")[0];
               } else if (typeof propertyData.recordingDate === 'string') {
                 recordingDateStr = propertyData.recordingDate.split("T")[0];
-              }
-              
-              if (recordingDateStr && (!latestRecordingDate || recordingDateStr > latestRecordingDate)) {
-                latestRecordingDate = recordingDateStr;
               }
             }
             
@@ -1080,9 +1107,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               propertyData.recordingDate = recordingDateStr;
             }
 
-            // Skip non-corporate buyers — we only import corporate buyers
-            if (!propertyData.isCorporate) {
-              console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address}`);
+            // Skip non-corporate buyers — we only import corporate buyers and trusts
+            const isTrust = propertyData.buyerName && propertyData.buyerName.toLowerCase().includes('trust');
+            
+            if (!propertyData.isCorporate && !isTrust) {
+              console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
+              // Note: latestSaleDate was already updated above, so we still track it even for skipped records
               continue;
             }
 
@@ -1207,7 +1237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
               
               if (shouldUpdate) {
-                const { id, createdAt, ...updateData } = propertyData;
+                const { id, createdAt, _saleDate, ...updateData } = propertyData;
                 updateData.updatedAt = sql`now()`;
                 
                 try {
@@ -1217,32 +1247,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     .where(eq(properties.id, existingProperty.id));
                   
                   totalUpdated++;
-                  console.log(`[SFR SYNC] Updated property: ${propertyData.address} (ID: ${existingProperty.id})`);
+                  console.log(`[SFR SYNC] Updated property: ${propertyData.address} (ID: ${existingProperty.id}, saleDate: ${saleDateStr || 'N/A'})`);
+                  
+                  // Persist sync state periodically after successful updates (every 10 updates)
+                  if (totalUpdated % 10 === 0 && latestSaleDate) {
+                    try {
+                      await persistSyncStateExplicit({
+                        syncStateId,
+                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                        initialTotalSynced,
+                        processed: totalProcessed,
+                        finalSaleDate: latestSaleDate,
+                      });
+                    } catch (persistError) {
+                      console.error(`[SFR SYNC] Failed to persist state after periodic update:`, persistError);
+                    }
+                  }
                 } catch (updateError: any) {
                   console.error(`[SFR SYNC] Error updating property ${propertyData.address}:`, updateError);
                 }
               } else {
-                console.log(`[SFR SYNC] Skipping update for ${propertyData.address} - existing record is same or more recent`);
+                console.log(`[SFR SYNC] Skipping update for ${propertyData.address} - existing record is same or more recent (saleDate: ${saleDateStr || 'N/A'})`);
               }
             } else {
-              // Add to batch buffer for insertion
+              // Add to batch buffer for insertion (with _saleDate for tracking)
               batchBuffer.push(propertyData);
-              console.log(`[SFR SYNC] Adding to batch buffer: ${propertyData.address}`);
+              console.log(`[SFR SYNC] Adding to batch buffer: ${propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
               
               // Insert batch if full
               if (batchBuffer.length >= BATCH_SIZE) {
                 try {
-                  await db.insert(properties).values(batchBuffer);
+                  const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
+                  await db.insert(properties).values(batchToInsert);
                   totalInserted += batchBuffer.length;
                   console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
+                  
+                  // Persist sync state periodically after successful batch inserts
+                  if (latestSaleDate) {
+                    try {
+                      await persistSyncStateExplicit({
+                        syncStateId,
+                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                        initialTotalSynced,
+                        processed: totalProcessed,
+                        finalSaleDate: latestSaleDate,
+                      });
+                    } catch (persistError) {
+                      console.error(`[SFR SYNC] Failed to persist state after batch insert:`, persistError);
+                    }
+                  }
+                  
                   batchBuffer = [];
                 } catch (batchError: any) {
                   console.error(`[SFR SYNC] Error inserting batch:`, batchError);
                   // Try inserting individually
                   for (const prop of batchBuffer) {
                     try {
-                      await db.insert(properties).values([prop]);
+                      const { _saleDate, ...propToInsert } = prop;
+                      await db.insert(properties).values([propToInsert]);
                       totalInserted++;
+                      
+                      // Persist after each successful individual insert (for error recovery)
+                      if (prop._saleDate && latestSaleDate) {
+                        try {
+                          await persistSyncStateExplicit({
+                            syncStateId,
+                            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                            initialTotalSynced,
+                            processed: totalProcessed,
+                            finalSaleDate: latestSaleDate,
+                          });
+                        } catch (persistError) {
+                          console.error(`[SFR SYNC] Failed to persist state after individual insert:`, persistError);
+                        }
+                      }
                     } catch (individualError: any) {
                       console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
                     }
@@ -1271,16 +1349,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Insert any remaining properties in buffer (after while loop ends)
       if (batchBuffer.length > 0) {
         try {
-          await db.insert(properties).values(batchBuffer);
+          const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
+          await db.insert(properties).values(batchToInsert);
           totalInserted += batchBuffer.length;
           console.log(`[SFR SYNC] Inserted final batch of ${batchBuffer.length} properties`);
+          
+          // Note: latestSaleDate was already updated when we extracted saleDateStr, so no need to update again
         } catch (batchError: any) {
           console.error(`[SFR SYNC] Error inserting final batch:`, batchError);
           // Try inserting individually
           for (const prop of batchBuffer) {
             try {
-              await db.insert(properties).values([prop]);
+              const { _saleDate, ...propToInsert } = prop;
+              await db.insert(properties).values([propToInsert]);
               totalInserted++;
+              
+              // Persist after each successful individual insert (for error recovery)
+              if (latestSaleDate) {
+                try {
+                  await persistSyncStateExplicit({
+                    syncStateId,
+                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                    initialTotalSynced,
+                    processed: totalProcessed,
+                    finalSaleDate: latestSaleDate,
+                  });
+                } catch (persistError) {
+                  console.error(`[SFR SYNC] Failed to persist state after final individual insert:`, persistError);
+                }
+              }
             } catch (individualError: any) {
               console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
             }
@@ -1289,13 +1386,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         batchBuffer = [];
       }
 
-      // Persist final sync state (prefer latest processed recording date; do not advance if no records processed)
+      // Persist final sync state (use latest saleDate from processed properties, minus 1 day)
       const persistedDate = await persistSyncStateExplicit({
         syncStateId: syncStateId,
-        previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
+        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
         initialTotalSynced: initialTotalSynced ?? 0,
         processed: totalProcessed ?? 0,
-        finalRecordingDate: latestRecordingDate ?? null,
+        finalSaleDate: latestSaleDate ?? null,
       });
 
       console.log(`[SFR SYNC] Sync complete: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
@@ -1308,9 +1405,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalContactsAdded,
         dateRange: {
           from: minDate,
-          to: latestRecordingDate || today
+          to: latestSaleDate || today
         },
-        lastRecordingDate: persistedDate,
+        lastSaleDate: persistedDate,
         msa: MSA,
       });
       
@@ -1319,12 +1416,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const persistedDate = await persistSyncStateExplicit({
           syncStateId: syncStateId,
-          previousLastRecordingDate: syncState && syncState.length > 0 ? syncState[0].lastRecordingDate : null,
+          previousLastSaleDate: syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null,
           initialTotalSynced: initialTotalSynced ?? 0,
           processed: totalProcessed ?? 0,
-          finalRecordingDate: latestRecordingDate ?? null,
+          finalSaleDate: latestSaleDate ?? null,
         });
-        console.log(`[SFR SYNC] Persisted sync state after failure. lastRecordingDate: ${persistedDate}`);
+        console.log(`[SFR SYNC] Persisted sync state after failure. lastSaleDate: ${persistedDate}`);
       } catch (e) {
         console.error("[SFR SYNC] Failed to persist sync state after error:", e);
       }

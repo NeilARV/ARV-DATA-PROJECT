@@ -105,7 +105,7 @@ export const sessions = pgTable("sessions", {
 export const sfrSyncState = pgTable("sfr_sync_state", {
   id: serial("id").primaryKey(),
   msa: varchar("msa", { length: 255}).notNull().unique(),
-  lastRecordingDate: date("last_recording_date"),
+  lastSaleDate: date("last_sale_date"), // Changed from last_recording_date to last_sale_date
   totalRecordsSynced: integer("total_records_synced").default(0).notNull(),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: false}).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
@@ -132,7 +132,7 @@ export const insertSyncStateSchema = createInsertSchema(sfrSyncState, {
   createdAt: z.never(),
   lastSyncAt: z.never(),
   totalRecordsSynced: z.number().int().optional(),
-  lastRecordingDate: z.coerce.date().optional(),
+  lastSaleDate: z.coerce.date().optional(),
 })
 
 export const insertUserSchema = createInsertSchema(users).omit({
