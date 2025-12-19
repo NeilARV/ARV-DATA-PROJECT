@@ -966,6 +966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records`);
+        
         if (data.length > 0) {
           console.log(`[SFR SYNC] Sample record structure:`, JSON.stringify(data[0], null, 2));
         }
@@ -974,10 +975,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const record of data) {
           try {
             // Normalize text fields
-            const rawAddress = record.address || record.property_address || "";
+            const rawAddress = record.address || "";
             const rawCity = record.city || "";
-            const rawBuyerName = record.buyerName || record.buyer_name || null;
-            const rawSellerName = record.sellerName || record.seller_name || null;
+            const rawBuyerName = record.buyerName || null;
+            const rawSellerName = record.sellerName || null;
             
             const normalizedAddress = normalizeToTitleCase(rawAddress);
             const normalizedCity = normalizeToTitleCase(rawCity);
@@ -994,63 +995,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
               totalProcessed++;
               continue;
             }
+
+            let price: number = 0
+            if ((record.saleValue - record.avmValue) > 1000000) {
+              price = record.avmValue
+            } else {
+              price = record.saleValue
+            }
             
             const propertyData: any = {
               address: normalizedAddress,
               city: normalizedCity,
               state: record.state || "CA",
-              zipCode: record.zipCode || record.zip_code || record.zip || "",
-              price: record.avmValue || record.avm_value || record.price || null,
+              zipCode: record.zipCode || "",
+              price: price || null,
               bedrooms: record.bedrooms || null,
               bathrooms: record.bathrooms || null,
-              squareFeet: record.buildingArea || record.square_feet || record.sqft || null,
-              propertyType: mapPropertyType(record.propertyType || record.property_type || null),
-              purchasePrice: record.purchasePrice || record.purchase_price || null,
-              dateSold: record.saleDate || record.sale_date || record.date_sold || null,
-              status: record.status || "sold",
+              squareFeet: record.buildingArea || null,
+              propertyType: mapPropertyType(record.propertyType || null),
+              purchasePrice: record.purchasePrice || null,
+              dateSold: record.saleDate || null,
+              status: record.status || "in-renovation",
               
               // Buyer info
               buyerName: normalizeToTitleCase(rawBuyerName),
-              buyerFormattedName: normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name),
+              buyerFormattedName: normalizeToTitleCase(record.formattedBuyerName || ""),
               phone: record.phone || null,
-              isCorporate: record.isCorporate || record.is_corporate || false,
-              isCashBuyer: record.isCashBuyer || record.is_cash_buyer || false,
-              isDiscountedPurchase: record.isDiscountedPurchase || record.is_discounted_purchase || false,
-              isPrivateLender: record.isPrivateLender || record.is_private_lender || false,
-              buyerPropertiesCount: record.buyerPropertiesCount || record.buyer_properties_count || null,
-              buyerTransactionsCount: record.buyerTransactionsCount || record.buyer_transactions_count || null,
+              isCorporate: record.isCorporate || false,
+              isCashBuyer: record.isCashBuyer || false,
+              isDiscountedPurchase: record.isDiscountedPurchase || false,
+              isPrivateLender: record.isPrivateLender || false,
+              buyerPropertiesCount: record.buyerPropertiesCount || null,
+              buyerTransactionsCount: record.buyerTransactionsCount || null,
               
               // Seller/lender
               sellerName: normalizeToTitleCase(rawSellerName),
-              lenderName: normalizeToTitleCase(record.lenderName || record.lender_name),
+              lenderName: normalizeToTitleCase(record.lenderName),
               
               // Exit info
               exitValue: record.exitValue || record.exit_value || null,
-              exitBuyerName: normalizeToTitleCase(record.exitBuyerName || record.exit_buyer_name),
-              profitLoss: record.profitLoss || record.profit_loss || null,
-              holdDays: record.holdDays || record.hold_days || null,
+              exitBuyerName: normalizeToTitleCase(record.exitBuyerName),
+              profitLoss: record.profitLoss || null,
+              holdDays: record.holdDays || null,
               
               // Financials
-              saleValue: record.saleValue || record.sale_value || null,
-              avmValue: record.avmValue || record.avm_value || null,
-              loanAmount: record.loanAmount || record.loan_amount || null,
+              saleValue: record.saleValue || null,
+              avmValue: record.avmValue || null,
+              loanAmount: record.loanAmount || null,
               
               // SFR API IDs
-              sfrPropertyId: record.propertyId || record.property_id || record.sfr_property_id || null,
-              sfrRecordId: record.id || record.record_id || record.sfr_record_id || null,
+              sfrPropertyId: record.propertyId || null,
+              sfrRecordId: record.id || null,
               
               // Market
               msa: record.msa || MSA,
               
               // Dates
-              recordingDate: record.recordingDate || record.recording_date || null,
+              recordingDate: record.recordingDate || null,
               
               // Coordinates
               latitude: record.latitude || null,
               longitude: record.longitude || null,
               
               // Additional fields
-              yearBuilt: record.yearBuilt || record.year_built || null,
+              yearBuilt: record.yearBuilt || null,
             };
 
             // Track latest recording date
@@ -1072,6 +1080,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               propertyData.recordingDate = recordingDateStr;
             }
 
+            // Skip non-corporate buyers — we only import corporate buyers
+            if (!propertyData.isCorporate) {
+              console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address}`);
+              continue;
+            }
+
             // Geocode if coordinates are missing
             if ((!propertyData.latitude || !propertyData.longitude) && propertyData.address) {
               const coords = await geocodeAddress(
@@ -1087,7 +1101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             // Handle company contact
-            const rawCompanyName = record.buyerName || record.buyer_name;
+            const rawCompanyName = record.buyerName || null;
             const normalizedCompanyName = normalizeToTitleCase(rawCompanyName);
             
             if (normalizedCompanyName) {
