@@ -73,6 +73,7 @@ export default function Admin() {
   const [isVerifying, setIsVerifying] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
+  const [isRetrievingData, setIsRetrievingData] = useState(false);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -299,26 +300,15 @@ export default function Admin() {
         </p>
       </div>
 
-      <button 
-        className="bg-red-600 text-white px-4 py-2 rounded mb-4"
-        onClick={async () => {
-          try {
-            const res = await apiRequest("GET", "/api/sfr/data");
-            const data = await res.json();
-            console.log("SFR Data Response:", data);
-          } catch (error) {
-            console.error("Error fetching SRF data:", error);
-          }
-        }}
-      >
-        TEST SRF API
-      </button>
-
       <Tabs defaultValue="upload" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8">
+        <TabsList className="grid w-full grid-cols-5 mb-8">
           <TabsTrigger value="upload" data-testid="tab-upload">
             <CloudUpload className="w-4 h-4 mr-2" />
             Upload Data
+          </TabsTrigger>
+          <TabsTrigger value="retrieve" data-testid="tab-retrieve">
+            <Database className="w-4 h-4 mr-2" />
+            Retrieve Data
           </TabsTrigger>
           <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
@@ -358,6 +348,74 @@ export default function Admin() {
                 >
                   <CloudUpload className="w-5 h-5 mr-2" />
                   Upload Properties
+                </Button>
+                {properties && (
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Current database: {properties.length} propert
+                    {properties.length === 1 ? "y" : "ies"}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="retrieve">
+          <Card>
+            <CardHeader>
+              <CardTitle>Retrieve Property Data</CardTitle>
+              <CardDescription>
+                Fetch property data from the SFR Analytics API and sync it to your database
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <Database className="w-16 h-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold">Retrieve Data from API</h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  Click the button below to retrieve property data from the SFR Analytics API.
+                  The system will automatically sync new properties and update existing ones based on sale dates.
+                </p>
+                <Button
+                  size="lg"
+                  onClick={async () => {
+                    if (isRetrievingData) return; // Prevent multiple calls
+                    
+                    setIsRetrievingData(true);
+                    try {
+                      const res = await apiRequest("GET", "/api/sfr/data");
+                      const data = await res.json();
+                      console.log("SFR Data Response:", data);
+                      toast({
+                        title: "Data Retrieved Successfully",
+                        description: `Processed ${data.totalProcessed || 0} properties. Inserted: ${data.totalInserted || 0}, Updated: ${data.totalUpdated || 0}`,
+                      });
+                      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+                    } catch (error) {
+                      console.error("Error fetching SFR data:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to retrieve data from SFR API",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setIsRetrievingData(false);
+                    }
+                  }}
+                  disabled={isRetrievingData}
+                  data-testid="button-retrieve-sfr-data"
+                >
+                  {isRetrievingData ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Retrieving Data...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-5 h-5 mr-2" />
+                      Retrieve Data from API
+                    </>
+                  )}
                 </Button>
                 {properties && (
                   <p className="text-sm text-muted-foreground mt-4">
