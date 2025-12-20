@@ -24,10 +24,10 @@ export const properties = pgTable("properties", {
   zipCode: text("zip_code").notNull(),
 
   // Core property details
-  price: real("price"), // nullable in DB
-  bedrooms: integer("bedrooms"),
-  bathrooms: real("bathrooms"),
-  squareFeet: integer("square_feet"),
+  price: real("price").notNull(), // nullable in DB
+  bedrooms: integer("bedrooms").notNull(),
+  bathrooms: real("bathrooms").notNull(),
+  squareFeet: integer("square_feet").notNull(),
   propertyType: text("property_type").notNull(),
 
   imageUrl: text("image_url"),
