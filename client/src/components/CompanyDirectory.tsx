@@ -161,7 +161,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         const query = searchQuery.toLowerCase();
         const matchesSearch = (
           company.companyName.toLowerCase().includes(query) ||
-          company.contactName.toLowerCase().includes(query) ||
+          company?.contactName?.toLowerCase().includes(query) ||
           (company.contactEmail && company.contactEmail.toLowerCase().includes(query))
         );
         if (!matchesSearch) return false;

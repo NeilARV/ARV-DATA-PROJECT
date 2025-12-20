@@ -1120,10 +1120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               propertyData.recordingDate = recordingDateStr;
             }
 
-            // Skip non-corporate buyers — we only import corporate buyers and trusts
-            const isTrust = propertyData.buyerName && propertyData.buyerName.toLowerCase().includes('trust');
-            
-            if (!propertyData.isCorporate && !isTrust) {
+            // Skip non-corporate buyers — we only import corporate buyers and trusts            
+            if (!propertyData.isCorporate) {
               console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
               // Note: latestSaleDate was already updated above, so we still track it even for skipped records
               continue;
