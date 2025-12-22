@@ -95,7 +95,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   });
 
   const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
-    queryKey: ["/api/company-contacts"],
+    queryKey: ["/api/companies/contacts"],
   });
 
   const { data: properties = [] } = useQuery<Property[]>({
