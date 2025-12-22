@@ -262,9 +262,20 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const togglePropertyType = (type: string) => {
-    setSelectedTypes(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
+    setSelectedTypes(prev => {
+      const next = prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type];
+      // Immediately apply when property type changes
+      onFilterChange?.({
+        minPrice: priceRange[0],
+        maxPrice: noPriceLimit ? Number.MAX_SAFE_INTEGER : priceRange[1],
+        bedrooms: selectedBedrooms,
+        bathrooms: selectedBathrooms,
+        propertyTypes: next,
+        zipCode: zipCode,
+        statusFilters: Array.from(statusFilters),
+      });
+      return next;
+    });
   };
 
   const handleZipCodeChange = (value: string) => {
@@ -491,7 +502,19 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               </div>
               <Slider
                 value={priceRange}
-                onValueChange={setPriceRange}
+                onValueChange={(newRange) => {
+                  setPriceRange(newRange);
+                  // Immediately apply when slider changes
+                  onFilterChange?.({
+                    minPrice: newRange[0],
+                    maxPrice: newRange[1],
+                    bedrooms: selectedBedrooms,
+                    bathrooms: selectedBathrooms,
+                    propertyTypes: selectedTypes,
+                    zipCode: zipCode,
+                    statusFilters: Array.from(statusFilters),
+                  });
+                }}
                 min={0}
                 max={10000000}
                 step={50000}
@@ -515,7 +538,19 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 key={option}
                 variant={selectedBedrooms === option ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedBedrooms(option)}
+                onClick={() => {
+                  setSelectedBedrooms(option);
+                  // Immediately apply when bedrooms filter changes
+                  onFilterChange?.({
+                    minPrice: priceRange[0],
+                    maxPrice: noPriceLimit ? Number.MAX_SAFE_INTEGER : priceRange[1],
+                    bedrooms: option,
+                    bathrooms: selectedBathrooms,
+                    propertyTypes: selectedTypes,
+                    zipCode: zipCode,
+                    statusFilters: Array.from(statusFilters),
+                  });
+                }}
                 data-testid={`button-bedrooms-${option}`}
               >
                 {option}
@@ -532,7 +567,19 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 key={option}
                 variant={selectedBathrooms === option ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedBathrooms(option)}
+                onClick={() => {
+                  setSelectedBathrooms(option);
+                  // Immediately apply when bathrooms filter changes
+                  onFilterChange?.({
+                    minPrice: priceRange[0],
+                    maxPrice: noPriceLimit ? Number.MAX_SAFE_INTEGER : priceRange[1],
+                    bedrooms: selectedBedrooms,
+                    bathrooms: option,
+                    propertyTypes: selectedTypes,
+                    zipCode: zipCode,
+                    statusFilters: Array.from(statusFilters),
+                  });
+                }}
                 data-testid={`button-bathrooms-${option}`}
               >
                 {option}
