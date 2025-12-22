@@ -18,25 +18,9 @@ import { parseExcelDate } from "./utils/parseExcelDate";
 import { normalizeToTitleCase } from "./utils/normalizeToTitleCase";
 import { geocodeAddress } from "./utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "./utils/normalizeCompanyName";
+import { requireAdminAuth } from "./middleware/requireAdminAuth";
+import { mapPropertyType } from "./utils/mapPropertyType";
 
-// Map varying property type strings (from SFR or other sources) to canonical app types
-function mapPropertyType(raw?: string | null) {
-  if (!raw || typeof raw !== 'string') return 'Single Family';
-  const s = raw.trim().toLowerCase();
-
-  // Common mappings
-  if (s.includes('single') && s.includes('family')) return 'Single Family';
-  if (s.includes('condo') || s.includes('condominium')) return 'Condo';
-  if (s.includes('town') && s.includes('house')) return 'Townhouse';
-  if (s.includes('townhouse')) return 'Townhouse';
-  //if (s.includes('duplex') || s.includes('triplex') || s.includes('multi') || s.includes('multi-family')) return 'Multi Family';
-  //if (s.includes('mobile') || s.includes('manufactured')) return 'Mobile Home';
-  //if (s.includes('lot') || s.includes('land')) return 'Land';
-
-  // Fallback to a normalized title-case value
-  const title = normalizeToTitleCase(raw) || raw;
-  return title;
-}
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 
@@ -81,47 +65,6 @@ const updatePropertySchema = z
     dateSold: z.string().nullable().optional(),
   })
   .strict();
-
-// Middleware to check admin authentication
-async function requireAdminAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    // Check if user is logged in
-    if (!req.session.userId) {
-      console.error(
-        `[AUTH DENIED] No user session for ${req.path}, Session ID: ${req.sessionID}`,
-      );
-      return res.status(401).json({ message: "Unauthorized - Please log in" });
-    }
-
-    // Check if user is admin
-    const [user] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, req.session.userId))
-      .limit(1);
-
-    if (!user || !user.isAdmin) {
-      console.error(
-        `[AUTH DENIED] User ${req.session.userId} is not an admin for ${req.path}`,
-      );
-      return res
-        .status(403)
-        .json({ message: "Forbidden - Admin access required" });
-    }
-
-    console.log(
-      `[AUTH GRANTED] Admin user ${req.session.userId} accessing ${req.path}`,
-    );
-    next();
-  } catch (error) {
-    console.error("[AUTH ERROR]", error);
-    res.status(500).json({ message: "Error checking admin status" });
-  }
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Seed company contacts on startup
