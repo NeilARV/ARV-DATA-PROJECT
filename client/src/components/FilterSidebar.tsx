@@ -26,7 +26,7 @@ interface FilterSidebarProps {
 
 export interface PropertyFilters {
   minPrice: number;
-  maxPrice: number;
+  maxPrice: number; // Use Number.MAX_SAFE_INTEGER for "no limit"
   bedrooms: string;
   bathrooms: string;
   propertyTypes: string[];
@@ -159,7 +159,8 @@ const SAN_DIEGO_ZIP_CODES = [
 type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
 
 export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
-  const [priceRange, setPriceRange] = useState([0, 2000000]);
+  const [priceRange, setPriceRange] = useState([0, 10000000]);
+  const [noPriceLimit, setNoPriceLimit] = useState(true); // Default to no limit
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -182,7 +183,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       // Immediately apply filter when status changes
       onFilterChange?.({
         minPrice: priceRange[0],
-        maxPrice: priceRange[1],
+        maxPrice: noPriceLimit ? Number.MAX_SAFE_INTEGER : priceRange[1],
         bedrooms: selectedBedrooms,
         bathrooms: selectedBathrooms,
         propertyTypes: selectedTypes,
@@ -220,18 +221,19 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const handleApply = () => {
     onFilterChange?.({
       minPrice: priceRange[0],
-      maxPrice: priceRange[1],
+      maxPrice: noPriceLimit ? Number.MAX_SAFE_INTEGER : priceRange[1],
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
       zipCode: zipCode,
       statusFilters: Array.from(statusFilters),
     });
-    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, statusFilters: Array.from(statusFilters) });
+    console.log('Filters applied:', { priceRange, noPriceLimit, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, statusFilters: Array.from(statusFilters) });
   };
 
   const handleReset = () => {
-    setPriceRange([0, 2000000]);
+    setPriceRange([0, 10000000]);
+    setNoPriceLimit(true);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
@@ -240,7 +242,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const handleClearAll = () => {
-    setPriceRange([0, 2000000]);
+    setPriceRange([0, 10000000]);
+    setNoPriceLimit(true);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
@@ -248,7 +251,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setStatusFilters(new Set(["in-renovation"]));
     onFilterChange?.({
       minPrice: 0,
-      maxPrice: 2000000,
+      maxPrice: Number.MAX_SAFE_INTEGER,
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -286,7 +289,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     // Immediately apply the zip code filter
     onFilterChange?.({
       minPrice: priceRange[0],
-      maxPrice: priceRange[1],
+      maxPrice: noPriceLimit ? Number.MAX_SAFE_INTEGER : priceRange[1],
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
@@ -456,19 +459,52 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         </div>
 
         <div>
-          <Label className="text-sm font-medium mb-4 block">Price Range</Label>
-          <div className="mb-2 text-sm text-muted-foreground">
-            ${priceRange[0].toLocaleString()} - ${priceRange[1].toLocaleString()}
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-medium">Price Range</Label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={noPriceLimit}
+                onChange={(e) => {
+                  setNoPriceLimit(e.target.checked);
+                  // Immediately apply when toggled
+                  onFilterChange?.({
+                    minPrice: priceRange[0],
+                    maxPrice: e.target.checked ? Number.MAX_SAFE_INTEGER : priceRange[1],
+                    bedrooms: selectedBedrooms,
+                    bathrooms: selectedBathrooms,
+                    propertyTypes: selectedTypes,
+                    zipCode: zipCode,
+                    statusFilters: Array.from(statusFilters),
+                  });
+                }}
+                className="rounded border-border"
+                data-testid="checkbox-no-price-limit"
+              />
+              <span className="text-xs text-muted-foreground">No limit</span>
+            </label>
           </div>
-          <Slider
-            value={priceRange}
-            onValueChange={setPriceRange}
-            min={0}
-            max={10000000}
-            step={50000}
-            className="mb-2"
-            data-testid="slider-price"
-          />
+          {!noPriceLimit && (
+            <>
+              <div className="mb-2 text-sm text-muted-foreground">
+                ${priceRange[0].toLocaleString()} - ${priceRange[1].toLocaleString()}
+              </div>
+              <Slider
+                value={priceRange}
+                onValueChange={setPriceRange}
+                min={0}
+                max={10000000}
+                step={50000}
+                className="mb-2"
+                data-testid="slider-price"
+              />
+            </>
+          )}
+          {noPriceLimit && (
+            <div className="mb-2 text-sm text-muted-foreground">
+              ${priceRange[0].toLocaleString()} - No limit
+            </div>
+          )}
         </div>
 
         <div>
