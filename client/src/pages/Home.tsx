@@ -71,6 +71,17 @@ export default function Home() {
     queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
   };
 
+  // Calculate max price rounded up to nearest million
+  const maxPriceSlider = useMemo(() => {
+    if (properties.length === 0) return 10000000; // Default to 10M if no properties
+    
+    const maxPrice = Math.max(...properties.map(p => p.price || 0));
+    if (maxPrice === 0) return 10000000; // Default if all prices are 0
+    
+    // Round up to nearest million: Math.ceil(maxPrice / 1000000) * 1000000
+    return Math.ceil(maxPrice / 1000000) * 1000000;
+  }, [properties]);
+
   // Calculate zip codes with property counts
   const zipCodesWithCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -296,6 +307,7 @@ export default function Home() {
             onFilterChange={setFilters}
             zipCodesWithCounts={zipCodesWithCounts}
             onSwitchToDirectory={() => setSidebarView("directory")}
+            maxPriceSlider={maxPriceSlider}
           />
         )}
         

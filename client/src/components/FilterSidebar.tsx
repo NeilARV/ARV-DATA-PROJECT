@@ -22,6 +22,7 @@ interface FilterSidebarProps {
   onFilterChange?: (filters: PropertyFilters) => void;
   zipCodesWithCounts?: ZipCodeWithCount[];
   onSwitchToDirectory?: () => void;
+  maxPriceSlider?: number; // Dynamic max price for slider
 }
 
 export interface PropertyFilters {
@@ -158,8 +159,13 @@ const SAN_DIEGO_ZIP_CODES = [
 
 type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
 
-export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
-  const [priceRange, setPriceRange] = useState([0, 10000000]);
+export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, maxPriceSlider = 10000000 }: FilterSidebarProps) {
+  const [priceRange, setPriceRange] = useState([0, maxPriceSlider]);
+  
+  // Update price range when maxPriceSlider changes
+  useEffect(() => {
+    setPriceRange(prev => [prev[0], Math.min(prev[1], maxPriceSlider)]);
+  }, [maxPriceSlider]);
   const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -231,7 +237,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const handleReset = () => {
-    setPriceRange([0, 10000000]);
+    setPriceRange([0, maxPriceSlider]);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
@@ -240,7 +246,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const handleClearAll = () => {
-    setPriceRange([0, 10000000]);
+    setPriceRange([0, maxPriceSlider]);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
@@ -248,7 +254,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setStatusFilters(new Set(["in-renovation"]));
     onFilterChange?.({
       minPrice: 0,
-      maxPrice: 10000000,
+      maxPrice: maxPriceSlider,
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -487,7 +493,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               });
             }}
             min={0}
-            max={10000000}
+            max={maxPriceSlider}
             step={50000}
             className="mb-2"
             data-testid="slider-price"
