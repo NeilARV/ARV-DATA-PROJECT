@@ -22,7 +22,7 @@ export async function getStreetViewUrl(
     });
     
     // Return the proxied URL directly - backend will serve the image
-    return `/api/streetview?${params}`;
+    return `/api/properties/streetview?${params}`;
   } catch (error) {
     console.error('Error generating Street View URL:', error);
     return '';

@@ -411,4 +411,64 @@ router.post("/cleanup-dates", requireAdminAuth, async (_req, res) => {
 },
 );
 
+// Proxy Street View image to keep API key secure on server
+router.get("/streetview", async (req, res) => {
+    try {
+        const { address, city, state, size = "600x400" } = req.query;
+
+        if (!address) {
+            return res.status(400).json({ message: "Address parameter is required" });
+        }
+
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (!apiKey) {
+            console.error("GOOGLE_API_KEY not configured");
+            return res
+                .status(500)
+                .json({ message: "Street View service not configured" });
+            }
+
+        // Combine address components for the location parameter
+        const locationParts = [address];
+        if (city) locationParts.push(city);
+        if (state) locationParts.push(state);
+        const location = locationParts.join(", ");
+
+        const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=${size}&location=${encodeURIComponent(location)}&key=${apiKey}`;
+
+        console.log("Fetching Street View for:", location, "size:", size);
+
+        // Fetch the image from Google and proxy it to the client
+        const imageResponse = await fetch(streetViewUrl);
+
+        if (!imageResponse.ok) {
+            const responseText = await imageResponse.text();
+            console.error("Failed to fetch Street View image:", {
+                status: imageResponse.status,
+                statusText: imageResponse.statusText,
+                response: responseText.substring(0, 500), // First 500 chars of response
+                location,
+            });
+            return res
+                .status(404)
+                .json({ message: "Street View image not available" });
+        }
+
+        // Set appropriate headers and stream the image to the client
+        const contentType = imageResponse.headers.get("content-type");
+        if (contentType) {
+            res.setHeader("Content-Type", contentType);
+        }
+        
+        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
+
+        // Stream the image data to the response
+        const imageBuffer = await imageResponse.arrayBuffer();
+        res.send(Buffer.from(imageBuffer));
+    } catch (error) {
+        console.error("Error fetching Street View image:", error);
+        res.status(500).json({ message: "Error fetching Street View image" });
+    }
+});
+
 export default router
