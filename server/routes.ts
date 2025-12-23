@@ -287,7 +287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: normalizedEmail
       });
 
-      res.status(201).json({ 
+      return res.status(201).json({ 
         message: "Email added to whitelist successfully"
       });
     } catch (error) {
