@@ -34,7 +34,7 @@ export default function Home() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>({
     minPrice: 0,
-    maxPrice: Number.MAX_SAFE_INTEGER, // No default limit - show all properties
+    maxPrice: 10000000, // Default to max slider value
     bedrooms: 'Any',
     bathrooms: 'Any',
     propertyTypes: [],
@@ -124,14 +124,9 @@ export default function Home() {
     }
 
     // Apply regular filters with null safety
-    // Only filter by price if price is not null and maxPrice is not unlimited
-    if (property.price != null && filters.maxPrice < Number.MAX_SAFE_INTEGER) {
+    // Filter by price if price is not null
+    if (property.price != null) {
       if (property.price < filters.minPrice || property.price > filters.maxPrice) {
-        return false;
-      }
-    } else if (property.price != null && filters.maxPrice >= Number.MAX_SAFE_INTEGER) {
-      // If maxPrice is unlimited, only check minPrice
-      if (property.price < filters.minPrice) {
         return false;
       }
     }
@@ -170,7 +165,7 @@ export default function Home() {
     // Keep status filters but clear other filters when selecting a company
     setFilters(prev => ({
       minPrice: 0,
-      maxPrice: Number.MAX_SAFE_INTEGER, // No price limit
+      maxPrice: 10000000, // Default to max slider value
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -189,7 +184,7 @@ export default function Home() {
     // Keep status filters but clear other filters
     setFilters(prev => ({
       minPrice: 0,
-      maxPrice: Number.MAX_SAFE_INTEGER, // No price limit
+      maxPrice: 10000000, // Default to max slider value
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -207,7 +202,7 @@ export default function Home() {
     setSelectedCompany(null);
     setFilters({
       minPrice: 0,
-      maxPrice: Number.MAX_SAFE_INTEGER, // No price limit
+      maxPrice: 10000000, // Default to max slider value
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -225,7 +220,7 @@ export default function Home() {
     setSidebarView("directory");
     setFilters({
       minPrice: 0,
-      maxPrice: Number.MAX_SAFE_INTEGER, // No price limit
+      maxPrice: 10000000, // Default to max slider value
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
