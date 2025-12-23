@@ -34,7 +34,7 @@ export interface PropertyFilters {
   statusFilters: string[];
 }
 
-const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo'];
+const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo', 'Vacant Land'];
 const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 
