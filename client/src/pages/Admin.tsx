@@ -189,6 +189,16 @@ export default function Admin() {
   const addWhitelistMutation = useMutation({
     mutationFn: async (email: string) => {
       const response = await apiRequest("POST", "/api/admin/whitelist", { email });
+      console.log("[WHITELIST] response status:", response.status, "content-type:", response.headers.get("content-type"));
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await response.json();
+        return data;
+      } else {
+        const text = await response.text();
+        console.error("[WHITELIST] non-JSON response:", response.status, text);
+        throw new Error(text || `HTTP ${response.status}: ${response.statusText}`);
+      }
     },
     onSuccess: () => {
       toast({
