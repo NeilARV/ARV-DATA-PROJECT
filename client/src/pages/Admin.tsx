@@ -74,6 +74,7 @@ export default function Admin() {
   const [searchQuery, setSearchQuery] = useState("");
   const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
   const [isRetrievingData, setIsRetrievingData] = useState(false);
+  const [whitelistEmail, setWhitelistEmail] = useState("");
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -180,6 +181,42 @@ export default function Admin() {
       toast({
         title: "Error",
         description: "Failed to delete property",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addWhitelistMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const response = await apiRequest("POST", "/api/admin/whitelist", { email });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Email added to whitelist",
+      });
+      setWhitelistEmail("");
+    },
+    onError: (error: any) => {
+      // Parse error message from apiRequest format: "STATUS_CODE: JSON_STRING"
+      let errorMessage = "Failed to add email to whitelist";
+      if (error?.message) {
+        const match = error.message.match(/^\d+:\s*(.+)$/);
+        if (match) {
+          try {
+            const parsed = JSON.parse(match[1]);
+            errorMessage = parsed.message || errorMessage;
+          } catch {
+            errorMessage = match[1] || errorMessage;
+          }
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      toast({
+        title: "Error",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -641,6 +678,46 @@ export default function Admin() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-6 p-4 border rounded-lg bg-muted/50">
+                <h3 className="text-sm font-semibold mb-3">Add Email to Whitelist</h3>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    type="email"
+                    placeholder="Enter email address"
+                    value={whitelistEmail}
+                    onChange={(e) => setWhitelistEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && whitelistEmail.trim() && !addWhitelistMutation.isPending) {
+                        addWhitelistMutation.mutate(whitelistEmail.trim());
+                      }
+                    }}
+                    disabled={addWhitelistMutation.isPending}
+                    className="flex-1"
+                    data-testid="input-whitelist-email"
+                  />
+                  <Button
+                    onClick={() => {
+                      if (whitelistEmail.trim()) {
+                        addWhitelistMutation.mutate(whitelistEmail.trim());
+                      }
+                    }}
+                    disabled={!whitelistEmail.trim() || addWhitelistMutation.isPending}
+                    data-testid="button-add-whitelist"
+                  >
+                    {addWhitelistMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
               {isLoadingUsers ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
