@@ -9,6 +9,7 @@ import {
   insertUserSchema,
   loginSchema,
   sfrSyncState,
+  emailWhitelist,
 } from "@shared/schema";
 import { eq, and, gt, lt, desc, sql } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
@@ -107,6 +108,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { firstName, lastName, phone, email, password } = validation.data;
+
+      const whitelistUser = await db.select().from(emailWhitelist).where(eq(emailWhitelist.email, email.toLowerCase())).limit(1);
+
+      if (whitelistUser.length === 0) {
+        return res.status(403).json({message: "You are not authorized to sign up for this service."})
+      }
 
       // Check if email already exists
       const existingUser = await db
