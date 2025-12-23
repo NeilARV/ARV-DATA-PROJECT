@@ -101,7 +101,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
               <SortButton column="city">City</SortButton>
             </TableHead>
             <TableHead className="min-w-[120px]">
-              <SortButton column="price">Price</SortButton>
+              <SortButton column="price">Purchase Price</SortButton>
             </TableHead>
             <TableHead className="text-center">
               <SortButton column="bedrooms">Beds</SortButton>

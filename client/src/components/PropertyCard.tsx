@@ -51,22 +51,25 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
       </div>
       <div className="p-4">
         <div className="flex items-center justify-between mb-1">
-          <div
-            className="text-xl font-bold text-foreground"
-            data-testid={`text-price-${property.id}`}
-          >
-            ${property.price.toLocaleString()}
+          <div>
+            <p className="text-sm text-muted-foreground">Purchase Price</p>
+            <div
+              className="text-xl font-bold text-foreground"
+              data-testid={`text-price-${property.id}`}
+            >
+              ${property.price.toLocaleString()}
+            </div>
           </div>
           {property.dateSold && (
             <div
               className="flex flex-col items-end text-sm"
               data-testid={`text-date-sold-${property.id}`}
             >
-              <span className="text-sm font-semibold text-muted-foreground">
+              <span className="text-sm text-muted-foreground mb-1">
                 Purchased Date
               </span>
               <div className="flex items-center gap-1 text-foreground">
-                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground"/>
                 <span>
                   {(() => {
                     try {

@@ -109,10 +109,12 @@ export default function PropertyDetailPanel({
         </div>
 
         <div className="space-y-3">
-          <div className="text-2xl font-bold" data-testid="text-panel-price">
-            ${property.price.toLocaleString()}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Purchase Price</p>
+            <div className="text-2xl font-bold" data-testid="text-panel-price">
+              ${property.price.toLocaleString()}
+            </div>
           </div>
-
           <div>
             <div className="text-base font-medium">{property.address}</div>
             <div className="text-sm text-muted-foreground">
