@@ -189,7 +189,8 @@ export default function Admin() {
   const addWhitelistMutation = useMutation({
     mutationFn: async (email: string) => {
       const response = await apiRequest("POST", "/api/admin/whitelist", { email });
-      return response.json();
+      const data = await response.json();
+      return data;
     },
     onSuccess: () => {
       toast({
