@@ -280,37 +280,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             </Button>
           )}
         </div>
-        
-        {/* Status Filter Toggles */}
-        <div className="flex gap-2 mt-3">
-          <Button
-            size="sm"
-            variant={statusFilters.has("in-renovation") ? "default" : "outline"}
-            onClick={() => toggleStatusFilter("in-renovation")}
-            className={statusFilters.has("in-renovation") ? "bg-primary hover:bg-primary/90" : ""}
-            data-testid="button-filter-in-renovation"
-          >
-            In Renovation
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilters.has("on-market") ? "default" : "outline"}
-            onClick={() => toggleStatusFilter("on-market")}
-            className={statusFilters.has("on-market") ? "bg-primary hover:bg-primary/90" : ""}
-            data-testid="button-filter-on-market"
-          >
-            On Market
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilters.has("sold") ? "default" : "outline"}
-            onClick={() => toggleStatusFilter("sold")}
-            className={statusFilters.has("sold") ? "bg-primary hover:bg-primary/90" : ""}
-            data-testid="button-filter-sold"
-          >
-            Sold
-          </Button>
-        </div>
       </div>
 
       <div className="p-4 border-b border-border space-y-3">
