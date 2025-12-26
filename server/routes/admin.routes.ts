@@ -3,6 +3,7 @@ import { users } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
+import { insertEmailWhitelistSchema, emailWhitelist } from "@shared/schema";
 
 const router = Router();
 
@@ -49,5 +50,49 @@ router.get("/users", requireAdminAuth, async (_req, res) => {
         res.status(500).json({ message: "Error fetching users" });
     }
 });
+
+router.post("/whitelist", requireAdminAuth, async (req, res) => { 
+    try {
+        const validation = insertEmailWhitelistSchema.safeParse(req.body);
+
+        if (!validation.success) {
+            return res.status(400).json({
+                message: "Invalid email data", 
+                errors: validation.error.errors
+            });
+        }
+
+        const { email } = validation.data;
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Check if email already exists in whitelist
+        const existingWhitelistEntry = await db
+            .select()
+            .from(emailWhitelist)
+            .where(eq(emailWhitelist.email, normalizedEmail))
+            .limit(1);
+
+        if (existingWhitelistEntry.length > 0) {
+            return res.status(409).json({
+                message: "Email already exists in whitelist"
+            });
+        }
+
+        // Insert email to whitelist (id and created_at are auto-generated)
+        await db.insert(emailWhitelist).values({
+            email: normalizedEmail
+        });
+
+        return res.status(201).json({ 
+            message: "Email added to whitelist successfully"
+        });
+    } catch (error) {
+        console.error("Error adding email to whitelist:", error);
+        res.status(500).json({ 
+            message: "Error adding email to whitelist" 
+        });
+    }
+});
+
 
 export default router

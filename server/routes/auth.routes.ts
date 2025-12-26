@@ -2,6 +2,7 @@ import { Router } from "express";
 import { insertUserSchema, users, loginSchema } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "server/storage";
+import { emailWhitelist } from "@shared/schema";
 
 import bcrypt from "bcrypt";
 
@@ -87,14 +88,21 @@ router.get("/me", async (req, res) => {
 router.post("/signup", async (req, res) => {
     try {
         const validation = insertUserSchema.safeParse(req.body);
+
         if (!validation.success) {
-        return res.status(400).json({
-            message: "Invalid signup data",
-            errors: validation.error.errors,
-        });
+            return res.status(400).json({
+                message: "Invalid signup data",
+                errors: validation.error.errors,
+            });
         }
 
         const { firstName, lastName, phone, email, password } = validation.data;
+
+        const whitelistUser = await db.select().from(emailWhitelist).where(eq(emailWhitelist.email, email.toLowerCase())).limit(1);
+
+        if (whitelistUser.length === 0) {
+            return res.status(403).json({message: "You are not authorized to sign up for this service."})
+        }
 
         // Check if email already exists
         const existingUser = await db
