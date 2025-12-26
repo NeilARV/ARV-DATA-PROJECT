@@ -21,8 +21,8 @@ type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squ
 type SortDirection = "asc" | "desc";
 
 export default function PropertyTable({ properties, onPropertyClick }: PropertyTableProps) {
-  const [sortColumn, setSortColumn] = useState<SortColumn>("address");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
