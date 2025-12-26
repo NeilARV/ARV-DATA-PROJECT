@@ -105,10 +105,12 @@ export default function PropertyDetailModal({
           </div>
 
           <div className="space-y-3">
-            <div className="text-3xl font-bold" data-testid="text-detail-price">
-              ${property.price.toLocaleString()}
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Purchase Price</p>
+              <div className="text-3xl font-bold" data-testid="text-detail-price">
+                ${property.price.toLocaleString()}
+              </div>
             </div>
-
             <div>
               <div className="text-lg font-medium">{property.address}</div>
               <div className="text-muted-foreground">
@@ -178,7 +180,7 @@ export default function PropertyDetailModal({
 
               {formattedDateSold && (
                 <div>
-                  <div className="text-base font-semibold text-muted-foreground mb-1">Purchased Date</div>
+                  <div className="text-sm text-muted-foreground mb-1">Purchased Date</div>
                   <div className="flex items-start gap-1">
                     <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <span className="font-medium">{formattedDateSold}</span>

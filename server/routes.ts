@@ -9,6 +9,8 @@ import {
   insertUserSchema,
   loginSchema,
   sfrSyncState,
+  emailWhitelist,
+  insertEmailWhitelistSchema,
 } from "@shared/schema";
 import { eq, and, gt, lt, desc, sql } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
@@ -107,6 +109,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { firstName, lastName, phone, email, password } = validation.data;
+
+      const whitelistUser = await db.select().from(emailWhitelist).where(eq(emailWhitelist.email, email.toLowerCase())).limit(1);
+
+      if (whitelistUser.length === 0) {
+        return res.status(403).json({message: "You are not authorized to sign up for this service."})
+      }
 
       // Check if email already exists
       const existingUser = await db
@@ -244,6 +252,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Error fetching users" });
+    }
+  });
+
+  app.post("/api/admin/whitelist", requireAdminAuth, async (req, res) => { 
+    try {
+      const validation = insertEmailWhitelistSchema.safeParse(req.body);
+
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid email data", 
+          errors: validation.error.errors
+        });
+      }
+
+      const { email } = validation.data;
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if email already exists in whitelist
+      const existingWhitelistEntry = await db
+        .select()
+        .from(emailWhitelist)
+        .where(eq(emailWhitelist.email, normalizedEmail))
+        .limit(1);
+
+      if (existingWhitelistEntry.length > 0) {
+        return res.status(409).json({
+          message: "Email already exists in whitelist"
+        });
+      }
+
+      // Insert email to whitelist (id and created_at are auto-generated)
+      await db.insert(emailWhitelist).values({
+        email: normalizedEmail
+      });
+
+      return res.status(201).json({ 
+        message: "Email added to whitelist successfully"
+      });
+    } catch (error) {
+      console.error("Error adding email to whitelist:", error);
+      res.status(500).json({ 
+        message: "Error adding email to whitelist" 
+      });
     }
   });
 

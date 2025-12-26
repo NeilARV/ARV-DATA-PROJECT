@@ -50,38 +50,36 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
         )}
       </div>
       <div className="p-4">
-        <div className="flex items-center justify-between mb-1">
-          <div
-            className="text-xl font-bold text-foreground"
-            data-testid={`text-price-${property.id}`}
-          >
-            ${property.price.toLocaleString()}
-          </div>
-          {property.dateSold && (
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <p className="text-sm text-muted-foreground">Purchase Price</p>
             <div
-              className="flex flex-col items-end text-sm"
-              data-testid={`text-date-sold-${property.id}`}
+              className="text-xl font-bold text-foreground"
+              data-testid={`text-price-${property.id}`}
             >
-              <span className="text-sm font-semibold text-muted-foreground">
-                Purchased Date
-              </span>
-              <div className="flex items-center gap-1 text-foreground">
+              {`$${property.price.toLocaleString()}`}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-6 text-sm">
+            <div className="flex flex-col items-end" data-testid={`text-date-sold-${property.id}`}>
+              <span className="text-sm text-muted-foreground mb-1">Purchased Date</span>
+              <div className="flex items-center gap-1 font-semibold text-foreground">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>
                   {(() => {
                     try {
+                      if (!property.dateSold) return <span className="text-muted-foreground">—</span>;
                       const date = parseISO(property.dateSold);
-                      return isValid(date)
-                        ? format(date, "MMM d, yyyy")
-                        : property.dateSold;
+                      return isValid(date) ? format(date, "MMM d, yyyy") : property.dateSold;
                     } catch {
-                      return property.dateSold;
+                      return property.dateSold ?? <span className="text-muted-foreground">—</span>;
                     }
                   })()}
                 </span>
               </div>
             </div>
-          )}
+          </div>
         </div>
         <div
           className="text-base font-medium text-foreground mb-3"

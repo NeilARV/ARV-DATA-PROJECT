@@ -81,11 +81,60 @@ export default function SignupDialog({ open, forced = false, onClose, onSuccess,
       onSuccess();
     },
     onError: (error: any) => {
-      toast({
-        title: "Signup failed",
-        description: error.message || "An error occurred during signup",
-        variant: "destructive",
-      });
+      console.error("Signup error:", error);
+      
+      // Parse error message from apiRequest format: "STATUS_CODE: JSON_STRING"
+      // Example: "403: {"message":"You are not authorized to sign up for this service."}"
+      let errorMessage = "An error occurred during signup. Please try again.";
+      let statusCode: number | null = null;
+      
+      if (error.message) {
+        // Extract status code and message from the error string
+        const match = error.message.match(/^(\d+):\s*(.+)$/);
+        if (match) {
+          statusCode = parseInt(match[1], 10);
+          const responseText = match[2];
+          
+          // Try to parse as JSON
+          try {
+            const parsed = JSON.parse(responseText);
+            errorMessage = parsed.message || errorMessage;
+          } catch (e) {
+            // If not JSON, use the text as-is
+            errorMessage = responseText || errorMessage;
+          }
+        } else {
+          // If no status code pattern, use the message directly
+          errorMessage = error.message;
+        }
+      }
+      
+      // Show appropriate toast based on status code
+      if (statusCode === 403) {
+        toast({
+          title: "Access Denied",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else if (statusCode === 409) {
+        toast({
+          title: "Account Already Exists",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else if (statusCode === 400) {
+        toast({
+          title: "Invalid Data",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     },
   });
 

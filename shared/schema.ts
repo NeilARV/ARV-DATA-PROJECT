@@ -111,6 +111,12 @@ export const sfrSyncState = pgTable("sfr_sync_state", {
   createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
 })
 
+export const emailWhitelist = pgTable("email_whitelist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+})
+
 /* OLD INSERT SCHEMA FOR PROPERTIES */
 // export const insertPropertySchema = createInsertSchema(properties).omit({
 //   id: true,
@@ -142,6 +148,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
+
+export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
+  id: true,
+  createdAt: true,
+});
+
 
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),

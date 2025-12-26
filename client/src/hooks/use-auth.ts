@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { sessions } from "@shared/schema";
 
 export interface AuthUser {
   id: string;
@@ -38,7 +37,7 @@ export function useAuth() {
 }
 
 const VIEW_LIMIT_REACHED_KEY = "view_limit_reached";
-let SIGNUP_DELAY_MS = 60000; // 1 minute
+let SIGNUP_DELAY_MS = 30000; // 30 seconds
 
 export function useSignupPrompt() {
   const { isAuthenticated, isLoading } = useAuth();
