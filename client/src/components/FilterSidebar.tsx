@@ -236,16 +236,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, statusFilters: Array.from(statusFilters) });
   };
 
-  const handleReset = () => {
-    setPriceRange([0, maxPriceSlider]);
-    setSelectedBedrooms('Any');
-    setSelectedBathrooms('Any');
-    setSelectedTypes([]);
-    setZipCode('');
-    console.log('Filters reset');
-  };
-
-  const handleClearAll = () => {
+  const handleClearFilters = () => {
     setPriceRange([0, maxPriceSlider]);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
@@ -261,7 +252,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       zipCode: '',
       statusFilters: ["in-renovation"],
     });
-    console.log('All filters cleared');
   };
 
   const togglePropertyType = (type: string) => {
@@ -357,15 +347,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        <Button 
-          variant="default" 
-          onClick={handleClearAll} 
-          className="w-full"
-          data-testid="button-clear-all-filters"
-        >
-          Clear All Filters
-        </Button>
-
         {/* Status Filter Toggles */}
         <div className="flex gap-2">
           <Button
@@ -578,8 +559,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       </div>
 
       <div className="p-4 border-t border-border flex gap-2">
-        <Button variant="outline" onClick={handleReset} className="flex-1" data-testid="button-reset-filters">
-          Reset
+        <Button variant="outline" onClick={handleClearFilters} className="flex-1" data-testid="button-reset-filters">
+          Clear Filters
         </Button>
         <Button onClick={handleApply} className="flex-1" data-testid="button-apply-filters">
           Apply
