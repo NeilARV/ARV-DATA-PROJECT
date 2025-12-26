@@ -20,6 +20,16 @@ interface PropertyTableProps {
 type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squareFeet" | "propertyType" | "dateSold" | "propertyOwner" | "daysOwned";
 type SortDirection = "asc" | "desc";
 
+const getStreetName = (address?: string | null) => {
+  if (!address) return "";
+  let s = address;
+  // Remove common prefixes like "unit 5", "#5", "apt 3", "suite 200"
+  s = s.replace(/^\s*(?:unit|apt|suite|#)\s*\d+[-\w]*\s+/i, '');
+  // Remove leading house number with optional letter or hyphen (e.g., "123", "123A", "123-1")
+  s = s.replace(/^\s*\d+[-\w]*\s+/, '');
+  return s.toLowerCase().trim();
+};
+
 export default function PropertyTable({ properties, onPropertyClick }: PropertyTableProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -44,6 +54,12 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
     } else {
       aValue = a[sortColumn];
       bValue = b[sortColumn];
+    }
+
+    // If sorting by address, prefer the street name (strip leading numbers like house/unit)
+    if (sortColumn === "address") {
+      aValue = getStreetName(a.address);
+      bValue = getStreetName(b.address);
     }
 
     // Handle null/undefined values
