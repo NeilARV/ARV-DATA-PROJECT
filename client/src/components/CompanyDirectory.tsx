@@ -2,12 +2,11 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, MessageSquare, ChevronDown, ChevronUp, Trophy, Home, TrendingUp } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
-import { subDays, parseISO, isValid, format, isAfter } from "date-fns";
+import { parseISO, isValid, format, isAfter } from "date-fns";
 import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -62,7 +61,8 @@ type ContactRequestForm = z.infer<typeof contactRequestSchema>;
 interface CompanyDirectoryProps {
   onClose?: () => void;
   onSwitchToFilters?: () => void;
-  onCompanySelect?: (companyName: string) => void;
+  // Accept null to indicate clearing the selection
+  onCompanySelect?: (companyName: string | null) => void;
 }
 
 export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect }: CompanyDirectoryProps) {
@@ -206,12 +206,14 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   }, [companiesWithCounts]);
 
   const handleCompanyClick = (companyName: string) => {
-    // Toggle expanded state
-    setExpandedCompany(prev => prev === companyName ? null : companyName);
-    // Also filter properties on the map
-    if (onCompanySelect) {
-      onCompanySelect(companyName);
-    }
+    // Toggle expanded state and notify parent with the new state (null when collapsing)
+    setExpandedCompany(prev => {
+      const next = prev === companyName ? null : companyName;
+      if (onCompanySelect) {
+        onCompanySelect(next);
+      }
+      return next;
+    });
   };
 
   const handleContactRequest = (data: ContactRequestForm) => {

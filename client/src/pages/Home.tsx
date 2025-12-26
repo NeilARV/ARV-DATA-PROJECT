@@ -172,23 +172,43 @@ export default function Home() {
 
   console.log("Filtered Properties: ", filteredProperties)
 
-  const handleCompanySelect = (companyName: string) => {
-    // Keep status filters but clear other filters when selecting a company
-    setFilters(prev => ({
-      minPrice: 0,
-      maxPrice: 10000000, // Default to max slider value
-      bedrooms: 'Any',
-      bathrooms: 'Any',
-      propertyTypes: [],
-      zipCode: '',
-      statusFilters: prev.statusFilters,
-    }));
-    setSelectedCompany(companyName);
-    // Keep the directory open on the left, switch to map view on the right
-    setViewMode("map");
-    // Reset map center/zoom so the map auto-fits to the filtered properties
-    setMapCenter(undefined);
-    setMapZoom(14);
+  const handleCompanySelect = (companyName: string | null) => {
+    if (companyName) {
+      // Selecting a company: keep status filters but clear other filters
+      setFilters(prev => ({
+        minPrice: 0,
+        maxPrice: 10000000, // Default to max slider value
+        bedrooms: 'Any',
+        bathrooms: 'Any',
+        propertyTypes: [],
+        zipCode: '',
+        statusFilters: prev.statusFilters,
+      }));
+      setSelectedCompany(companyName);
+      // Only change map center/zoom if the user is currently on the map view
+      if (viewMode === "map") {
+        setMapCenter(undefined);
+        setMapZoom(14);
+      }
+    } else {
+      // Deselecting/clearing the company filter: show all properties again
+      setSelectedCompany(null);
+      // Reset map view to default only if currently on map view
+      if (viewMode === "map") {
+        setMapCenter(undefined);
+        setMapZoom(12);
+      }
+      // Also reset filters to the default 'show all' set (preserving any status filters)
+      setFilters(prev => ({
+        minPrice: 0,
+        maxPrice: 10000000,
+        bedrooms: 'Any',
+        bathrooms: 'Any',
+        propertyTypes: [],
+        zipCode: '',
+        statusFilters: prev.statusFilters,
+      }));
+    }
   };
 
   const handleLeaderboardCompanyClick = (companyName: string) => {
