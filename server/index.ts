@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -6,6 +7,8 @@ import { NeonSessionStore } from "./session-store";
 import { db } from "./storage";
 import { sessions } from "@shared/schema";
 import dotenv from "dotenv";
+
+import apiRoutes from "./routes/index"
 
 dotenv.config()
 
@@ -128,7 +131,10 @@ app.use((req, res, next) => {
     console.error("[Startup] Session error details:", error);
   }
 
-  const server = await registerRoutes(app);
+  // const server = await registerRoutes(app);
+
+  const server = createServer(app)
+  app.use("/api", apiRoutes);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -162,9 +168,7 @@ app.use((req, res, next) => {
         host: "0.0.0.0",
         reusePort: true,
       },
-      () => {
-        log(`serving on port ${port}`);
-      },
+      () => log(`serving on port ${port}`)
     );
   } else {
     // Local development - simpler approach

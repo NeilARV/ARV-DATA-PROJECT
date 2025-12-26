@@ -701,8 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Clean up bad date formats - Convert Excel serial dates to ISO strings (requires admin auth)
-  app.post(
-    "/api/properties/cleanup-dates",
+  app.post("/api/properties/cleanup-dates",
     requireAdminAuth,
     async (_req, res) => {
       try {

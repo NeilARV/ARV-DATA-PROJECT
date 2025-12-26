@@ -421,7 +421,7 @@ export default function Admin() {
                     
                     setIsRetrievingData(true);
                     try {
-                      const res = await apiRequest("GET", "/api/sfr/data");
+                      const res = await apiRequest("POST", "/api/data/sfr");
                       const data = await res.json();
                       console.log("SFR Data Response:", data);
                       toast({
