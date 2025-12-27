@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,14 +63,37 @@ interface CompanyDirectoryProps {
   onSwitchToFilters?: () => void;
   // Accept null to indicate clearing the selection
   onCompanySelect?: (companyName: string | null) => void;
+  // Controlled selected company so expanded state can be synced across views
+  selectedCompany?: string | null;
 }
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["in-renovation"]));
+
+  // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
+  useEffect(() => {
+    setExpandedCompany(selectedCompany ?? null);
+  }, [selectedCompany]);
+
+  // Refs to company DOM nodes so we can scroll them into view when selected
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Scroll the selected/expanded company into view when it changes
+  useEffect(() => {
+    if (expandedCompany) {
+      const el = itemRefs.current[expandedCompany];
+      if (el) {
+        // Slight timeout to ensure element is rendered and layout is settled
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 0);
+      }
+    }
+  }, [expandedCompany]);
   const { toast } = useToast();
 
   const toggleStatusFilter = (status: string) => {
@@ -337,7 +360,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             const ranking = companyRankings[company.companyName] || 0;
             
             return (
-              <div key={company.id}>
+              <div key={company.id} ref={(el) => (itemRefs.current[company.companyName] = el)}>
                 <Card
                   className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isExpanded ? 'ring-2 ring-primary' : ''}`}
                   onClick={() => handleCompanyClick(company.companyName)}

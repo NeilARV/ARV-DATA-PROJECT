@@ -336,6 +336,7 @@ export default function Home() {
             onClose={() => setSidebarView("none")}
             onSwitchToFilters={() => setSidebarView("filters")}
             onCompanySelect={handleCompanySelect}
+            selectedCompany={selectedCompany}
           />
         )}
 
