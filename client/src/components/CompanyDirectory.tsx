@@ -318,6 +318,12 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             className="pl-9"
             data-testid="input-directory-search"
           />
+          {searchQuery && (
+            <X 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setSearchQuery("")}
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-2">
