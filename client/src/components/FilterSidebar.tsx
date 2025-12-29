@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { X, Building2, ArrowUpDown, ChevronDown } from "lucide-react";
+import { X, Building2, ArrowUpDown, ChevronDown, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_ZIP_CODES } from "@/constants/filters.constants";
 
 export interface ZipCodeWithCount {
   zipCode: string;
@@ -34,128 +35,6 @@ export interface PropertyFilters {
   zipCode: string;
   statusFilters: string[];
 }
-
-const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo', 'Vacant Land'];
-const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
-const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
-
-const SAN_DIEGO_ZIP_CODES = [
-  { zip: '91901', city: 'Alpine' },
-  { zip: '91902', city: 'Bonita' },
-  { zip: '91905', city: 'Boulevard' },
-  { zip: '91906', city: 'Campo' },
-  { zip: '91910', city: 'Chula Vista' },
-  { zip: '91911', city: 'Chula Vista' },
-  { zip: '91913', city: 'Chula Vista' },
-  { zip: '91914', city: 'Chula Vista' },
-  { zip: '91915', city: 'Chula Vista' },
-  { zip: '91916', city: 'Descanso' },
-  { zip: '91917', city: 'Dulzura' },
-  { zip: '91931', city: 'Guatay' },
-  { zip: '91932', city: 'Imperial Beach' },
-  { zip: '91934', city: 'Jacumba' },
-  { zip: '91935', city: 'Jamul' },
-  { zip: '91941', city: 'La Mesa' },
-  { zip: '91942', city: 'La Mesa' },
-  { zip: '91945', city: 'Lemon Grove' },
-  { zip: '91948', city: 'Mount Laguna' },
-  { zip: '91950', city: 'National City' },
-  { zip: '91962', city: 'Pine Valley' },
-  { zip: '91963', city: 'Potrero' },
-  { zip: '91977', city: 'Spring Valley' },
-  { zip: '91978', city: 'Spring Valley' },
-  { zip: '91980', city: 'Tecate' },
-  { zip: '92003', city: 'Bonsall' },
-  { zip: '92004', city: 'Borrego Springs' },
-  { zip: '92007', city: 'Cardiff By The Sea' },
-  { zip: '92008', city: 'Carlsbad' },
-  { zip: '92009', city: 'Carlsbad' },
-  { zip: '92010', city: 'Carlsbad' },
-  { zip: '92011', city: 'Carlsbad' },
-  { zip: '92014', city: 'Del Mar' },
-  { zip: '92019', city: 'El Cajon' },
-  { zip: '92020', city: 'El Cajon' },
-  { zip: '92021', city: 'El Cajon' },
-  { zip: '92024', city: 'Encinitas' },
-  { zip: '92025', city: 'Escondido' },
-  { zip: '92026', city: 'Escondido' },
-  { zip: '92027', city: 'Escondido' },
-  { zip: '92029', city: 'Escondido' },
-  { zip: '92028', city: 'Fallbrook' },
-  { zip: '92036', city: 'Julian' },
-  { zip: '92037', city: 'La Jolla' },
-  { zip: '92092', city: 'La Jolla' },
-  { zip: '92093', city: 'La Jolla' },
-  { zip: '92040', city: 'Lakeside' },
-  { zip: '92054', city: 'Oceanside' },
-  { zip: '92055', city: 'Camp Pendleton' },
-  { zip: '92056', city: 'Oceanside' },
-  { zip: '92057', city: 'Oceanside' },
-  { zip: '92058', city: 'Oceanside' },
-  { zip: '92059', city: 'Pala' },
-  { zip: '92060', city: 'Palomar Mountain' },
-  { zip: '92061', city: 'Pauma Valley' },
-  { zip: '92064', city: 'Poway' },
-  { zip: '92065', city: 'Ramona' },
-  { zip: '92066', city: 'Ranchita' },
-  { zip: '92067', city: 'Rancho Santa Fe' },
-  { zip: '92091', city: 'Rancho Santa Fe' },
-  { zip: '92069', city: 'San Marcos' },
-  { zip: '92078', city: 'San Marcos' },
-  { zip: '92096', city: 'San Marcos' },
-  { zip: '92071', city: 'Santee' },
-  { zip: '92075', city: 'Solana Beach' },
-  { zip: '92070', city: 'Santa Ysabel' },
-  { zip: '92082', city: 'Valley Center' },
-  { zip: '92081', city: 'Vista' },
-  { zip: '92083', city: 'Vista' },
-  { zip: '92084', city: 'Vista' },
-  { zip: '92086', city: 'Warner Springs' },
-  { zip: '92101', city: 'San Diego - Downtown' },
-  { zip: '92102', city: 'San Diego - Golden Hill' },
-  { zip: '92103', city: 'San Diego - Hillcrest' },
-  { zip: '92104', city: 'San Diego - North Park' },
-  { zip: '92105', city: 'San Diego - City Heights' },
-  { zip: '92106', city: 'San Diego - Point Loma' },
-  { zip: '92107', city: 'San Diego - Ocean Beach' },
-  { zip: '92108', city: 'San Diego - Mission Valley' },
-  { zip: '92109', city: 'San Diego - Pacific Beach' },
-  { zip: '92110', city: 'San Diego - Old Town' },
-  { zip: '92111', city: 'San Diego - Linda Vista' },
-  { zip: '92113', city: 'San Diego - Logan Heights' },
-  { zip: '92114', city: 'San Diego - Encanto' },
-  { zip: '92115', city: 'San Diego - College Area' },
-  { zip: '92116', city: 'San Diego - Normal Heights' },
-  { zip: '92117', city: 'San Diego - Clairemont' },
-  { zip: '92119', city: 'San Diego - Navajo' },
-  { zip: '92120', city: 'San Diego - Grantville' },
-  { zip: '92121', city: 'San Diego - Sorrento Valley' },
-  { zip: '92122', city: 'San Diego - University City' },
-  { zip: '92123', city: 'San Diego - Serra Mesa' },
-  { zip: '92124', city: 'San Diego - Tierrasanta' },
-  { zip: '92126', city: 'San Diego - Mira Mesa' },
-  { zip: '92127', city: 'San Diego - Rancho Bernardo' },
-  { zip: '92128', city: 'San Diego - Carmel Mountain Ranch' },
-  { zip: '92129', city: 'San Diego - Rancho Peñasquitos' },
-  { zip: '92130', city: 'San Diego - Carmel Valley' },
-  { zip: '92131', city: 'San Diego - Scripps Ranch' },
-  { zip: '92132', city: 'San Diego' },
-  { zip: '92134', city: 'San Diego' },
-  { zip: '92135', city: 'San Diego' },
-  { zip: '92136', city: 'San Diego' },
-  { zip: '92139', city: 'San Diego' },
-  { zip: '92140', city: 'San Diego' },
-  { zip: '92145', city: 'San Diego' },
-  { zip: '92147', city: 'San Diego' },
-  { zip: '92154', city: 'San Diego' },
-  { zip: '92155', city: 'San Diego' },
-  { zip: '92161', city: 'San Diego' },
-  { zip: '92173', city: 'San Ysidro' },
-  { zip: '92179', city: 'San Diego' },
-  { zip: '92182', city: 'San Diego' },
-  { zip: '92118', city: 'Coronado' },
-  { zip: '92672', city: 'San Clemente' },
-];
 
 type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
 
@@ -283,6 +162,17 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       // Show all sorted zip codes when input is empty but focused
       setFilteredZipCodes(sortedZipCodes.slice(0, 10));
       setShowSuggestions(false);
+
+      // If the user cleared the zip input, notify parent to clear the zip filter
+      onFilterChange?.({
+        minPrice: priceRange[0],
+        maxPrice: priceRange[1],
+        bedrooms: selectedBedrooms,
+        bathrooms: selectedBathrooms,
+        propertyTypes: selectedTypes,
+        zipCode: '',
+        statusFilters: Array.from(statusFilters),
+      });
     }
   };
 
@@ -413,20 +303,33 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               </DropdownMenu>
             )}
           </div>
-          <Input
-            ref={inputRef}
-            type="text"
-            placeholder="Enter zip code or city"
-            value={zipCode}
-            onChange={(e) => handleZipCodeChange(e.target.value)}
-            onFocus={() => {
-              if (sortedZipCodes.length > 0) {
-                setFilteredZipCodes(sortedZipCodes.slice(0, 10));
-                setShowSuggestions(true);
-              }
-            }}
-            data-testid="input-zipcode"
-          />
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Enter zip code or city"
+              ref={inputRef}
+              value={zipCode}
+              onChange={(e) => {
+                handleZipCodeChange(e.target.value)
+              }}
+              onFocus={() => {
+                if (sortedZipCodes.length > 0) {
+                  setFilteredZipCodes(sortedZipCodes.slice(0, 10));
+                  setShowSuggestions(true);
+                }
+              }}
+              className="pl-9"
+              data-testid="input-zipcode"
+            />
+            {zipCode && (
+              <X 
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleZipCodeChange("")}
+              />
+            )}
+          </div>
           {showSuggestions && filteredZipCodes.length > 0 && (
             <div
               ref={suggestionsRef}
