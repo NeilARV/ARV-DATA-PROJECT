@@ -69,11 +69,11 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                 <span>
                   {(() => {
                     try {
-                      if (!property.dateSold) return <span className="text-muted-foreground">—</span>;
-                      const date = parseISO(property.dateSold);
-                      return isValid(date) ? format(date, "MMM d, yyyy") : property.dateSold;
+                      if (!property.recordingDate) return <span className="text-muted-foreground">—</span>;
+                      const date = parseISO(property.recordingDate);
+                      return isValid(date) ? format(date, "MMM d, yyyy") : property.recordingDate;
                     } catch {
-                      return property.dateSold ?? <span className="text-muted-foreground">—</span>;
+                      return property.recordingDate ?? <span className="text-muted-foreground">—</span>;
                     }
                   })()}
                 </span>
