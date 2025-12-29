@@ -804,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* SFR Analytics API calls */
-  app.get("/api/sfr/data", requireAdminAuth, async (req, res) => { 
+  app.get("/api/data/sfr", requireAdminAuth, async (req, res) => { 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
     const MSA = "San Diego-Chula Vista-Carlsbad, CA";
