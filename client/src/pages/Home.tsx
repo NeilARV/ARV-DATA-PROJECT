@@ -82,6 +82,36 @@ export default function Home() {
     return Math.ceil(maxPrice / 1000000) * 1000000;
   }, [properties]);
 
+  // Check if filters are active (not in initial state)
+  const hasActiveFilters = useMemo(() => {
+    const initialStatusFilters = ['in-renovation'];
+    return (
+      filters.minPrice > 0 ||
+      filters.maxPrice < maxPriceSlider ||
+      filters.bedrooms !== 'Any' ||
+      filters.bathrooms !== 'Any' ||
+      filters.propertyTypes.length > 0 ||
+      filters.zipCode !== '' ||
+      filters.statusFilters.length !== 1 ||
+      filters.statusFilters[0] !== 'in-renovation' ||
+      selectedCompany !== null
+    );
+  }, [filters, maxPriceSlider, selectedCompany]);
+
+  // Reset filters to initial state
+  const handleClearAllFilters = () => {
+    setFilters({
+      minPrice: 0,
+      maxPrice: maxPriceSlider,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
+      zipCode: '',
+      statusFilters: ['in-renovation'],
+    });
+    setSelectedCompany(null);
+  };
+
   // Calculate zip codes with property counts
   const zipCodesWithCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -354,6 +384,8 @@ export default function Home() {
                     onPropertyClick={setSelectedProperty}
                     center={mapCenter}
                     zoom={mapZoom}
+                    hasActiveFilters={hasActiveFilters}
+                    onClearFilters={handleClearAllFilters}
                   />
                 </div>
               </>

@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import { Property } from '@shared/schema';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -40,6 +42,8 @@ interface PropertyMapProps {
   onPropertyClick?: (property: Property) => void;
   center?: [number, number];
   zoom?: number;
+  hasActiveFilters?: boolean;
+  onClearFilters?: () => void;
 }
 
 function MapBounds({ properties, center, zoom }: { properties: Property[], center?: [number, number], zoom?: number }) {
@@ -76,7 +80,9 @@ export default function PropertyMap({
   properties, 
   onPropertyClick, 
   center = [37.7749, -122.4194], 
-  zoom = 14 
+  zoom = 14,
+  hasActiveFilters = false,
+  onClearFilters
 }: PropertyMapProps) {
   // Filter properties with valid coordinates for rendering on map
   const validProperties = properties.filter(p => 
@@ -85,7 +91,21 @@ export default function PropertyMap({
   );
 
   return (
-    <div className="w-full h-full" data-testid="map-container">
+    <div className="w-full h-full relative" data-testid="map-container">
+      {hasActiveFilters && onClearFilters && (
+        <div className="absolute top-4 right-4 z-[1000]">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onClearFilters}
+            className="shadow-lg"
+            data-testid="button-clear-filters-map"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Clear Filters
+          </Button>
+        </div>
+      )}
       <MapContainer
         center={center}
         zoom={zoom}
