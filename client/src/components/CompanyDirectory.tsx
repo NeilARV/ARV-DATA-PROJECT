@@ -117,9 +117,15 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     },
   });
 
+  // Old Route
   const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
     queryKey: ["/api/company-contacts"],
   });
+
+  // New Route (Not in use yet)
+  // const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
+  //   queryKey: ["/api/companies/contacts"],
+  // });
 
   const { data: properties = [] } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
