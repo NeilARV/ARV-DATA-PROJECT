@@ -393,6 +393,7 @@ export default function Home() {
                     zoom={mapZoom}
                     hasActiveFilters={hasActiveFilters}
                     onClearFilters={handleClearAllFilters}
+                    selectedProperty={selectedProperty}
                   />
                 </div>
               </>

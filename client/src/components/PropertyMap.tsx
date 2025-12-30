@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import { Property } from '@shared/schema';
 import L from 'leaflet';
@@ -24,11 +24,25 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#4B5563');
+const grayIcon = createColoredIcon('#808080');
 
-const getIconForStatus = (status: string | null | undefined) => {
+// Selected marker icons (with orange/yellow color to stand out)
+const selectedBlueIcon = createColoredIcon('#FFA500');
+const selectedGreenIcon = createColoredIcon('#FFA500');
+const selectedCharcoalIcon = createColoredIcon('#FFA500');
+const selectedGrayIcon = createColoredIcon('#FFA500');
+
+const getIconForStatus = (status: string | null | undefined, isSelected: boolean = false) => {
+  if (isSelected) {
+    // All selected markers use the same orange color for visibility
+    return selectedBlueIcon;
+  }
+  
   switch (status) {
     case 'on-market':
       return greenIcon;
+    case 'off-market':
+      return grayIcon;
     case 'sold':
       return charcoalIcon;
     case 'in-renovation':
@@ -44,12 +58,36 @@ interface PropertyMapProps {
   zoom?: number;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
+  selectedProperty?: Property | null;
 }
 
 function MapBounds({ properties, center, zoom }: { properties: Property[], center?: [number, number], zoom?: number }) {
   const map = useMap();
+  const previousPropertyIdsRef = useRef<string>('');
+  const previousCenterRef = useRef<[number, number] | undefined>(undefined);
   
   useEffect(() => {
+    // Create a sorted string of property IDs to compare
+    const currentPropertyIds = properties.map(p => p.id).sort().join(',');
+    
+    // Only refit bounds if the property set actually changed (not just a re-render)
+    const propertySetChanged = previousPropertyIdsRef.current !== currentPropertyIds;
+    previousPropertyIdsRef.current = currentPropertyIds;
+    
+    // Check if center changed
+    const centerChanged = center !== undefined && (
+      previousCenterRef.current === undefined ||
+      (center[0] !== previousCenterRef.current[0] || center[1] !== previousCenterRef.current[1])
+    );
+    
+    previousCenterRef.current = center;
+    
+    // If center is explicitly set (e.g., from zipcode selection), use it
+    if (center && zoom && centerChanged) {
+      map.setView(center, zoom);
+      return;
+    }
+    
     if (properties.length > 0) {
       // Filter properties with valid coordinates
       const validProperties = properties.filter(p => 
@@ -58,11 +96,14 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
       );
       
       if (validProperties.length > 0) {
-        // Fit bounds to valid properties
-        const bounds = L.latLngBounds(
-          validProperties.map(p => [p.latitude!, p.longitude!])
-        );
-        map.fitBounds(bounds, { padding: [50, 50] });
+        // Only fit bounds if the property set changed (filters applied, etc.)
+        // Don't refit when just selecting a property (which doesn't change the property set)
+        if (propertySetChanged && center === undefined) {
+          const bounds = L.latLngBounds(
+            validProperties.map(p => [p.latitude!, p.longitude!])
+          );
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
       } else if (center && zoom) {
         // Reset to default view when no valid coordinates exist
         map.setView(center, zoom);
@@ -79,10 +120,11 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
 export default function PropertyMap({ 
   properties, 
   onPropertyClick, 
-  center = [37.7749, -122.4194], 
+  center = [32.7157, -117.1611], 
   zoom = 14,
   hasActiveFilters = false,
-  onClearFilters
+  onClearFilters,
+  selectedProperty
 }: PropertyMapProps) {
   // Filter properties with valid coordinates for rendering on map
   const validProperties = properties.filter(p => 
@@ -117,16 +159,19 @@ export default function PropertyMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapBounds properties={validProperties} center={center} zoom={zoom} />
-        {validProperties.map((property) => (
-          <Marker
-            key={property.id}
-            position={[property.latitude!, property.longitude!]}
-            icon={getIconForStatus(property.status)}
-            eventHandlers={{
-              click: () => onPropertyClick?.(property),
-            }}
-          />
-        ))}
+        {validProperties.map((property) => {
+          const isSelected = selectedProperty?.id === property.id;
+          return (
+            <Marker
+              key={property.id}
+              position={[property.latitude!, property.longitude!]}
+              icon={getIconForStatus(property.status, isSelected)}
+              eventHandlers={{
+                click: () => onPropertyClick?.(property),
+              }}
+            />
+          );
+        })}
       </MapContainer>
     </div>
   );
