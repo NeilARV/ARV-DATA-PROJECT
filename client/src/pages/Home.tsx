@@ -82,9 +82,8 @@ export default function Home() {
     return Math.ceil(maxPrice / 1000000) * 1000000;
   }, [properties]);
 
-  // Check if filters are active (not in initial state)
+  // Check if filters are active (not in initial state) - excludes company selection
   const hasActiveFilters = useMemo(() => {
-    const initialStatusFilters = ['in-renovation'];
     return (
       filters.minPrice > 0 ||
       filters.maxPrice < maxPriceSlider ||
@@ -93,12 +92,11 @@ export default function Home() {
       filters.propertyTypes.length > 0 ||
       filters.zipCode !== '' ||
       filters.statusFilters.length !== 1 ||
-      filters.statusFilters[0] !== 'in-renovation' ||
-      selectedCompany !== null
+      filters.statusFilters[0] !== 'in-renovation'
     );
-  }, [filters, maxPriceSlider, selectedCompany]);
+  }, [filters, maxPriceSlider]);
 
-  // Reset filters to initial state
+  // Reset filters to initial state (does not clear company selection)
   const handleClearAllFilters = () => {
     setFilters({
       minPrice: 0,
@@ -109,7 +107,6 @@ export default function Home() {
       zipCode: '',
       statusFilters: ['in-renovation'],
     });
-    setSelectedCompany(null);
   };
 
   // Calculate zip codes with property counts
@@ -273,6 +270,16 @@ export default function Home() {
     setViewMode(mode);
   };
 
+  // Calculate total properties owned by selected company (before filters are applied)
+  const totalCompanyProperties = useMemo(() => {
+    if (!selectedCompany) return 0;
+    const companyNameNormalized = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
+    return properties.filter(p => {
+      const ownerName = (p.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+      return ownerName === companyNameNormalized;
+    }).length;
+  }, [properties, selectedCompany]);
+
   // Calculate current time once for deterministic sorting
   const now = Date.now();
   
@@ -394,30 +401,46 @@ export default function Home() {
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-semibold mb-1">
-                      {sortedProperties.length} Properties
+                      {selectedCompany && hasActiveFilters && totalCompanyProperties > 0
+                        ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
+                        : `${sortedProperties.length} Properties`}
                       {selectedCompany && (
                         <span className="text-base font-normal text-muted-foreground ml-2">
                           owned by {selectedCompany}
                         </span>
                       )}
                     </h2>
-                    <p className="text-muted-foreground">
-                      {selectedCompany ? (
-                        <button
-                          onClick={() => {
-                            setSelectedCompany(null);
-                            setMapCenter(undefined);
-                            setMapZoom(12);
-                          }}
-                          className="text-primary hover:underline text-sm"
-                          data-testid="button-clear-company-filter"
-                        >
-                          Clear company filter
-                        </button>
-                      ) : (
-                        "View all properties in table format"
-                      )}
-                    </p>
+                    {(selectedCompany || hasActiveFilters) && (
+                      <p className="text-muted-foreground">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          {selectedCompany && (
+                            <button
+                              onClick={() => {
+                                setSelectedCompany(null);
+                                setMapCenter(undefined);
+                                setMapZoom(12);
+                              }}
+                              className="text-primary hover:underline text-sm"
+                              data-testid="button-clear-company-filter"
+                            >
+                              Deselect Company
+                            </button>
+                          )}
+                          {selectedCompany && hasActiveFilters && (
+                            <span className="text-muted-foreground">•</span>
+                          )}
+                          {hasActiveFilters && (
+                            <button
+                              onClick={handleClearAllFilters}
+                              className="text-primary hover:underline text-sm"
+                              data-testid="button-clear-filters-table"
+                            >
+                              Clear Filters
+                            </button>
+                          )}
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </div>
                 <PropertyTable
@@ -430,30 +453,46 @@ export default function Home() {
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-semibold mb-1">
-                      {sortedProperties.length} Properties
+                      {selectedCompany && hasActiveFilters && totalCompanyProperties > 0
+                        ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
+                        : `${sortedProperties.length} Properties`}
                       {selectedCompany && (
                         <span className="text-base font-normal text-muted-foreground ml-2">
                           owned by {selectedCompany}
                         </span>
                       )}
                     </h2>
-                    <p className="text-muted-foreground">
-                      {selectedCompany ? (
-                        <button
-                          onClick={() => {
-                            setSelectedCompany(null);
-                            setMapCenter(undefined);
-                            setMapZoom(12);
-                          }}
-                          className="text-primary hover:underline text-sm"
-                          data-testid="button-clear-company-filter"
-                        >
-                          Clear company filter
-                        </button>
-                      ) : (
-                        "Find your perfect home"
-                      )}
-                    </p>
+                    {(selectedCompany || hasActiveFilters) && (
+                      <p className="text-muted-foreground">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          {selectedCompany && (
+                            <button
+                              onClick={() => {
+                                setSelectedCompany(null);
+                                setMapCenter(undefined);
+                                setMapZoom(12);
+                              }}
+                              className="text-primary hover:underline text-sm"
+                              data-testid="button-clear-company-filter"
+                            >
+                              Deselect Company
+                            </button>
+                          )}
+                          {selectedCompany && hasActiveFilters && (
+                            <span className="text-muted-foreground">•</span>
+                          )}
+                          {hasActiveFilters && (
+                            <button
+                              onClick={handleClearAllFilters}
+                              className="text-primary hover:underline text-sm"
+                              data-testid="button-clear-filters-grid"
+                            >
+                              Clear Filters
+                            </button>
+                          )}
+                        </span>
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Sort by:</span>
