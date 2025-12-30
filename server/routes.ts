@@ -887,8 +887,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(sfrSyncState.msa, MSA))
         .limit(1);
 
-
-
       if (syncState.length === 0) {
         // Create new sync state with default min date
         minDate = "2025-12-03"; // Default start date
@@ -1012,6 +1010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             let price: number = 0
+
             if ((record.saleValue - record.avmValue) > 1000000) {
               price = record.avmValue
             } else {
@@ -1235,8 +1234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             if (existingProperty) {
               // Update existing property if this record is more recent
-              const shouldUpdate = !existingProperty.recordingDate || 
-                (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
+              const shouldUpdate = !existingProperty.recordingDate || (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
               
               if (shouldUpdate) {
                 const { id, createdAt, _saleDate, ...updateData } = propertyData;
