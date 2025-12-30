@@ -24,6 +24,7 @@ interface FilterSidebarProps {
   zipCodesWithCounts?: ZipCodeWithCount[];
   onSwitchToDirectory?: () => void;
   maxPriceSlider?: number; // Dynamic max price for slider
+  filters?: PropertyFilters; // Controlled filters from parent
 }
 
 export interface PropertyFilters {
@@ -38,23 +39,35 @@ export interface PropertyFilters {
 
 type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
 
-export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, maxPriceSlider = 10000000 }: FilterSidebarProps) {
-  const [priceRange, setPriceRange] = useState([0, maxPriceSlider]);
+export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, maxPriceSlider = 10000000, filters }: FilterSidebarProps) {
+  const [priceRange, setPriceRange] = useState<[number, number]>([filters?.minPrice ?? 0, filters?.maxPrice ?? maxPriceSlider]);
   
   // Update price range when maxPriceSlider changes
   useEffect(() => {
     setPriceRange(prev => [prev[0], Math.min(prev[1], maxPriceSlider)]);
   }, [maxPriceSlider]);
-  const [selectedBedrooms, setSelectedBedrooms] = useState('Any');
-  const [selectedBathrooms, setSelectedBathrooms] = useState('Any');
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [zipCode, setZipCode] = useState('');
+
+  const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters?.bedrooms ?? 'Any');
+  const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters?.bathrooms ?? 'Any');
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(filters?.propertyTypes ?? []);
+  const [zipCode, setZipCode] = useState<string>(filters?.zipCode ?? '');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
   const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["in-renovation"]));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Sync local UI state when parent-controlled filters change (for persistence across view switches)
+  useEffect(() => {
+    if (!filters) return;
+    setPriceRange([filters.minPrice ?? 0, Math.min(filters.maxPrice ?? maxPriceSlider, maxPriceSlider)]);
+    setSelectedBedrooms(filters.bedrooms ?? 'Any');
+    setSelectedBathrooms(filters.bathrooms ?? 'Any');
+    setSelectedTypes(filters.propertyTypes ?? []);
+    setZipCode(filters.zipCode ?? '');
+    setStatusFilters(new Set(filters.statusFilters ?? []));
+  }, [filters, maxPriceSlider]);
 
   const toggleStatusFilter = (status: string) => {
     setStatusFilters(prev => {
@@ -364,7 +377,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
           <Slider
             value={priceRange}
             onValueChange={(newRange) => {
-              setPriceRange(newRange);
+              setPriceRange(newRange as [number, number]);
               // Immediately apply when slider changes
               onFilterChange?.({
                 minPrice: newRange[0],

@@ -174,16 +174,7 @@ export default function Home() {
 
   const handleCompanySelect = (companyName: string | null) => {
     if (companyName) {
-      // Selecting a company: keep status filters but clear other filters
-      setFilters(prev => ({
-        minPrice: 0,
-        maxPrice: 10000000, // Default to max slider value
-        bedrooms: 'Any',
-        bathrooms: 'Any',
-        propertyTypes: [],
-        zipCode: '',
-        statusFilters: prev.statusFilters,
-      }));
+      // Selecting a company: preserve all existing filters
       setSelectedCompany(companyName);
       // Only change map center/zoom if the user is currently on the map view
       if (viewMode === "map") {
@@ -191,37 +182,18 @@ export default function Home() {
         setMapZoom(14);
       }
     } else {
-      // Deselecting/clearing the company filter: show all properties again
+      // Deselecting/clearing the company filter: preserve all existing filters
       setSelectedCompany(null);
       // Reset map view to default only if currently on map view
       if (viewMode === "map") {
         setMapCenter(undefined);
         setMapZoom(12);
       }
-      // Also reset filters to the default 'show all' set (preserving any status filters)
-      setFilters(prev => ({
-        minPrice: 0,
-        maxPrice: 10000000,
-        bedrooms: 'Any',
-        bathrooms: 'Any',
-        propertyTypes: [],
-        zipCode: '',
-        statusFilters: prev.statusFilters,
-      }));
     }
   };
 
   const handleLeaderboardCompanyClick = (companyName: string) => {
-    // Keep status filters but clear other filters
-    setFilters(prev => ({
-      minPrice: 0,
-      maxPrice: 10000000, // Default to max slider value
-      bedrooms: 'Any',
-      bathrooms: 'Any',
-      propertyTypes: [],
-      zipCode: '',
-      statusFilters: prev.statusFilters,
-    }));
+    // Preserve all existing filters when selecting a company from leaderboard
     setSelectedCompany(companyName);
     setSidebarView("none");
     setMapCenter(undefined);
@@ -325,6 +297,7 @@ export default function Home() {
           <FilterSidebar
             onClose={() => setSidebarView("none")}
             onFilterChange={setFilters}
+            filters={filters}
             zipCodesWithCounts={zipCodesWithCounts}
             onSwitchToDirectory={() => setSidebarView("directory")}
             maxPriceSlider={maxPriceSlider}
@@ -337,6 +310,8 @@ export default function Home() {
             onSwitchToFilters={() => setSidebarView("filters")}
             onCompanySelect={handleCompanySelect}
             selectedCompany={selectedCompany}
+            filters={filters}
+            onFilterChange={setFilters}
           />
         )}
 

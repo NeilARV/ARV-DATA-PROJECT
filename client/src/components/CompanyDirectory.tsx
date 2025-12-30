@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import type { PropertyFilters } from "@/components/FilterSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,19 +66,28 @@ interface CompanyDirectoryProps {
   onCompanySelect?: (companyName: string | null) => void;
   // Controlled selected company so expanded state can be synced across views
   selectedCompany?: string | null;
+  // Optional: allow syncing status filters with parent filters
+  filters?: PropertyFilters;
+  onFilterChange?: (filters: PropertyFilters) => void;
 }
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, filters, onFilterChange }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(["in-renovation"]));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
 
   // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
   useEffect(() => {
     setExpandedCompany(selectedCompany ?? null);
   }, [selectedCompany]);
+
+  // Sync local status filter UI when parent filters change
+  useEffect(() => {
+    if (!filters) return;
+    setStatusFilters(new Set(filters.statusFilters ?? []));
+  }, [filters]);
 
   // Refs to company DOM nodes so we can scroll them into view when selected
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -104,6 +114,20 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       } else {
         next.add(status);
       }
+
+      // If parent provided a filter setter, update its statusFilters while preserving other values
+      if (onFilterChange) {
+        onFilterChange({
+          minPrice: filters?.minPrice ?? 0,
+          maxPrice: filters?.maxPrice ?? 10000000,
+          bedrooms: filters?.bedrooms ?? 'Any',
+          bathrooms: filters?.bathrooms ?? 'Any',
+          propertyTypes: filters?.propertyTypes ?? [],
+          zipCode: filters?.zipCode ?? '',
+          statusFilters: Array.from(next),
+        });
+      }
+
       return next;
     });
   };
