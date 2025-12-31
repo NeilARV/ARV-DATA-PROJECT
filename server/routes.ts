@@ -12,7 +12,7 @@ import {
   emailWhitelist,
   insertEmailWhitelistSchema,
 } from "@shared/schema";
-import { eq, and, gt, lt, or, desc, sql } from "drizzle-orm";
+import { eq, and, gt, lt, or, desc, sql, like } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 import pLimit from "p-limit";
 import { z } from "zod";
@@ -301,11 +301,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============== END USER AUTHENTICATION ROUTES ==============
 
   // Get all properties
-  app.get("/api/properties", async (_req, res) => {
+  app.get("/api/properties", async (req, res) => {
     try {
-      const allProperties = await db.select().from(properties);
-      console.log("Properties Length: ", allProperties.length)
-      res.status(200).json(allProperties);
+
+      const { search } = req.query;
+
+      if (!search) {
+        const allProperties = await db.select().from(properties);
+        console.log("Properties Length: ", allProperties.length)
+        return res.status(200).json(allProperties);
+      }
+
+      const normalizedSearch = search.toString().trim().toLowerCase();
+      const searchTerm = `%${normalizedSearch}%`;
+
+      const results = await db.select().from(properties).where(
+        or(
+          sql`LOWER(TRIM(${properties.address})) LIKE ${searchTerm}`,
+          sql`LOWER(TRIM(${properties.city})) LIKE ${searchTerm}`,
+          sql`LOWER(TRIM(${properties.state})) LIKE ${searchTerm}`,
+          sql`LOWER(TRIM(${properties.zipCode})) LIKE ${searchTerm}`
+        )
+      ).execute();
+
+      console.log("Properties Length: ", results.length)
+
+      res.status(200).json(results);
     } catch (error) {
       console.error("Error fetching properties:", error);
       res.status(500).json({ message: "Error fetching properties" });
