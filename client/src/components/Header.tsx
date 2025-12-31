@@ -25,6 +25,7 @@ interface HeaderProps {
   viewMode: "map" | "grid" | "table";
   onViewModeChange: (mode: "map" | "grid" | "table") => void;
   onSearch?: (query: string) => void;
+  onPropertySelect?: (propertyId: string) => void;
   onLoginClick?: () => void;
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
@@ -43,6 +44,7 @@ export default function Header({
   viewMode,
   onViewModeChange,
   onSearch,
+  onPropertySelect,
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
@@ -135,7 +137,14 @@ export default function Header({
     const formattedQuery = `${suggestion.address}, ${suggestion.city}, ${suggestion.state} ${suggestion.zipcode}`;
     setSearchQuery(formattedQuery);
     setShowSuggestions(false);
-    onSearch?.(formattedQuery);
+    
+    // If onPropertySelect is provided, fetch and open the property by ID
+    if (onPropertySelect) {
+      onPropertySelect(suggestion.id);
+    } else {
+      // Fallback to search if onPropertySelect is not provided
+      onSearch?.(formattedQuery);
+    }
   };
 
   const handleLogout = async () => {

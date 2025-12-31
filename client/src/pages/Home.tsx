@@ -311,6 +311,35 @@ export default function Home() {
     setViewMode(mode);
   };
 
+  // Handle property selection by ID (for search suggestions)
+  const handlePropertySelectById = async (propertyId: string) => {
+    try {
+      const response = await fetch(`/api/properties/${propertyId}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.error("Property not found");
+          return;
+        }
+        throw new Error(`Failed to fetch property: ${response.status}`);
+      }
+      
+      const property = await response.json();
+      setSelectedProperty(property);
+      
+      // If on map view, center on the property if it has coordinates
+      // If on grid/table view, the PropertyDetailModal will show automatically
+      if (viewMode === "map" && property.latitude && property.longitude) {
+        setMapCenter([property.latitude, property.longitude]);
+        setMapZoom(16);
+      }
+    } catch (error) {
+      console.error("Error fetching property by ID:", error);
+    }
+  };
+
   // Calculate total properties owned by selected company (before filters are applied)
   const totalCompanyProperties = useMemo(() => {
     if (!selectedCompany) return 0;
@@ -354,6 +383,7 @@ export default function Home() {
       <Header
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
+        onPropertySelect={handlePropertySelectById}
         onLoginClick={() => {
           // Header button click: user-initiated, so only force if already in forced state
           // If not forced yet, allow dismissable dialog

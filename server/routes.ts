@@ -373,6 +373,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get a single property by ID
+  app.get("/api/properties/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const [property] = await db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, id))
+        .limit(1);
+
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+
+      res.status(200).json(property);
+    } catch (error) {
+      console.error("Error fetching property:", error);
+      res.status(500).json({ message: "Error fetching property" });
+    }
+  });
+
   // Create a single property (requires admin auth)
   app.post("/api/properties", requireAdminAuth, async (req, res) => {
     try {
