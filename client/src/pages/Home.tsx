@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
@@ -53,6 +53,10 @@ export default function Home() {
   
   const { user, isAuthenticated } = useAuth();
   const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
+  const geolocationAttemptedRef = useRef(false);
+  
+  // San Diego default coordinates
+  const SAN_DIEGO_CENTER: [number, number] = [32.7157, -117.1611];
   
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
@@ -60,6 +64,43 @@ export default function Home() {
       setIsDialogForced(isForced);
     }
   }, [shouldShowSignup, isAuthenticated, isForced]);
+
+  // Get user's location on initial mount (only runs once)
+  useEffect(() => {
+    // Only attempt geolocation once on mount
+    if (geolocationAttemptedRef.current) {
+      return;
+    }
+
+    geolocationAttemptedRef.current = true;
+
+    // Check if geolocation is available
+    if (!navigator.geolocation) {
+      console.log('Geolocation is not supported by this browser. Using San Diego as default.');
+      setMapCenter(SAN_DIEGO_CENTER);
+      setMapZoom(12);
+      return;
+    }
+
+    // Request user's location with timeout
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setMapCenter([latitude, longitude]);
+        setMapZoom(12);
+      },
+      (error) => {
+        // Fall back to San Diego if geolocation fails or is denied
+        setMapCenter(SAN_DIEGO_CENTER);
+        setMapZoom(12);
+      },
+      {
+        enableHighAccuracy: false, // Use less accurate but faster method
+        timeout: 5000, // 5 second timeout
+        maximumAge: 300000, // Accept cached location up to 5 minutes old
+      }
+    );
+  }, []); // Empty dependency array - only runs once on mount
 
   // Fetch properties from backend
   const { data: properties = [], isLoading } = useQuery<Property[]>({
