@@ -804,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /* SFR Analytics API calls */
-  app.get("/api/data/sfr", requireAdminAuth, async (req, res) => { 
+  app.post("/api/data/sfr", requireAdminAuth, async (req, res) => { 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
     const MSA = "San Diego-Chula Vista-Carlsbad, CA";
@@ -913,6 +913,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`[SFR SYNC] Starting sync for ${MSA} from ${minDate} to ${today}`);
+
+      // Load all company contacts into memory once
+      const allContacts = await db.select().from(companyContacts);
+      const contactsMap = new Map<string, typeof allContacts[0]>();
+
+      for (const contact of allContacts) {
+        const normalizedKey = normalizeCompanyNameForComparison(contact.companyName);
+        if (normalizedKey) {
+          contactsMap.set(normalizedKey, contact);
+        }
+      }
+      console.log(`[SFR SYNC] Loaded ${contactsMap.size} company contacts into cache`);
 
       // Process properties in batches to avoid memory issues
       const BATCH_SIZE = 50;
@@ -1141,17 +1153,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyNameForStorage;
               const contactEmail = record.contactEmail || record.contact_email || null;
 
-              // Check if company contact already exists using punctuation-insensitive comparison
+              // Check if company contact already exists using in-memory cache
               const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
-              const allContacts = await db
-                .select()
-                .from(companyContacts);
-              
-              // Find existing contact by normalizing and comparing (ignoring punctuation)
-              const existingContact = allContacts.find(contact => {
-                const normalizedExisting = normalizeCompanyNameForComparison(contact.companyName);
-                return normalizedExisting && normalizedExisting === normalizedCompanyNameForCompare;
-              });
+              const existingContact = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
 
               if (!existingContact) {
                 // Insert new company contact with normalized storage format
