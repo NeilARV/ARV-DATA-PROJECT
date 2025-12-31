@@ -141,6 +141,7 @@ export default function Header({
     // If onPropertySelect is provided, fetch and open the property by ID
     if (onPropertySelect) {
       onPropertySelect(suggestion.id);
+      setSearchQuery("");
     } else {
       // Fallback to search if onPropertySelect is not provided
       onSearch?.(formattedQuery);
@@ -192,7 +193,7 @@ export default function Header({
           <Input
             ref={searchInputRef}
             type="search"
-            placeholder="Search by address or city..."
+            placeholder="Search by address"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
