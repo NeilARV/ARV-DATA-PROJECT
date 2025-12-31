@@ -1021,6 +1021,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               continue;
             }
 
+            const hasStreetNumber = /^\d+/.test(normalizedAddress)
+
+            if (!hasStreetNumber) {
+              console.warn(`[SFR SYNC] Skipping record with no street number`, JSON.stringify(record, null, 2))
+              totalProcessed++;
+              continue;
+            }
+
             let price: number = 0
 
             if ((record.saleValue - record.avmValue) > 1000000) {
