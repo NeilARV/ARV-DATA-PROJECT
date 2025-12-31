@@ -12,7 +12,7 @@ import {
   emailWhitelist,
   insertEmailWhitelistSchema,
 } from "@shared/schema";
-import { eq, and, gt, lt, desc, sql } from "drizzle-orm";
+import { eq, and, gt, lt, or, desc, sql } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 import pLimit from "p-limit";
 import { z } from "zod";
@@ -1200,47 +1200,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Check for existing property by SFR IDs first
             let existingProperty = null;
             
-            if (propertyData.sfrPropertyId) {
-              const byPropertyId = await db
-                .select()
-                .from(properties)
-                .where(eq(properties.sfrPropertyId, propertyData.sfrPropertyId))
-                .limit(1);
-              if (byPropertyId.length > 0) {
-                existingProperty = byPropertyId[0];
-              }
-            }
-            
-            if (!existingProperty && propertyData.sfrRecordId) {
-              const byRecordId = await db
-                .select()
-                .from(properties)
-                .where(eq(properties.sfrRecordId, propertyData.sfrRecordId))
-                .limit(1);
-              if (byRecordId.length > 0) {
-                existingProperty = byRecordId[0];
-              }
-            }
-
-            // If no match by SFR IDs, check by address
-            if (!existingProperty && propertyData.address) {
-              const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
-              const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
+            if (propertyData.sfrPropertyId || propertyData.sfrRecordId || propertyData.address) {
+              const conditions = [];
               
-              const byAddress = await db
-                .select()
-                .from(properties)
-                .where(
+              if (propertyData.sfrPropertyId) {
+                conditions.push(eq(properties.sfrPropertyId, propertyData.sfrPropertyId));
+              }
+              
+              if (propertyData.sfrRecordId) {
+                conditions.push(eq(properties.sfrRecordId, propertyData.sfrRecordId));
+              }
+              
+              if (propertyData.address) {
+                const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
+                const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
+                
+                conditions.push(
                   and(
                     sql`LOWER(TRIM(${properties.address})) = ${normalizedAddressForCompare}`,
                     sql`LOWER(TRIM(${properties.city})) = ${normalizedCityForCompare}`,
                     eq(properties.state, propertyData.state),
                     eq(properties.zipCode, propertyData.zipCode)
                   )
-                )
-                .limit(1);
-              if (byAddress.length > 0) {
-                existingProperty = byAddress[0];
+                );
+              }
+              
+              if (conditions.length > 0) {
+                const results = await db
+                  .select()
+                  .from(properties)
+                  .where(or(...conditions))
+                  .limit(1);
+                
+                if (results.length > 0) {
+                  existingProperty = results[0];
+                }
               }
             }
 
