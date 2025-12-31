@@ -19,6 +19,7 @@ import logoUrl from "@assets/arv-data-logo.png";
 import { useAuth, AuthUser } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { X } from "lucide-react";
 
 interface HeaderProps {
   viewMode: "map" | "grid" | "table";
@@ -118,6 +119,12 @@ export default function Header({
             className="pl-10"
             data-testid="input-search"
           />
+          {searchQuery && (
+            <X 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => setSearchQuery("")}
+            />
+          )}
         </div>
       </form>
 
