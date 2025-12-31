@@ -135,7 +135,7 @@ export default function PropertyMap({
   return (
     <div className="w-full h-full relative" data-testid="map-container">
       {hasActiveFilters && onClearFilters && (
-        <div className="absolute top-4 right-4 z-[1000]">
+        <div className="absolute top-4 right-4 z-[999]">
           <Button
             variant="default"
             size="sm"

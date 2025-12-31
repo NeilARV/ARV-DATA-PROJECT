@@ -13,7 +13,7 @@ import {
   LogOut,
   Trophy,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
 import { useAuth, AuthUser } from "@/hooks/use-auth";
@@ -31,6 +31,14 @@ interface HeaderProps {
   onLogoClick?: () => void;
 }
 
+interface PropertySuggestion {
+  id: string;
+  address: string;
+  city: string;
+  state: string;
+  zipcode: string;
+}
+
 export default function Header({
   viewMode,
   onViewModeChange,
@@ -42,6 +50,10 @@ export default function Header({
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
+  const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
@@ -49,6 +61,54 @@ export default function Header({
   useEffect(() => {
     const isDarkMode = document.documentElement.classList.contains("dark");
     setIsDark(isDarkMode);
+  }, []);
+
+  // Debounced API call for suggestions
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      const trimmedQuery = searchQuery.trim();
+      if (trimmedQuery.length < 2) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/properties/suggestions?search=${encodeURIComponent(trimmedQuery)}`,
+          { credentials: "include" }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSuggestions(data);
+          setShowSuggestions(data.length > 0);
+        }
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchSuggestions, 300); // 300ms debounce
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const toggleTheme = () => {
@@ -65,8 +125,17 @@ export default function Header({
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSuggestions(false);
     onSearch?.(searchQuery);
     console.log("Search:", searchQuery);
+  };
+
+  const selectSuggestion = (suggestion: PropertySuggestion) => {
+    // Format the suggestion as a search query (e.g., "123 Main St, San Diego, CA 92101")
+    const formattedQuery = `${suggestion.address}, ${suggestion.city}, ${suggestion.state} ${suggestion.zipcode}`;
+    setSearchQuery(formattedQuery);
+    setShowSuggestions(false);
+    onSearch?.(formattedQuery);
   };
 
   const handleLogout = async () => {
@@ -112,18 +181,56 @@ export default function Header({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             type="search"
             placeholder="Search by address or city..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              if (e.target.value.trim().length >= 2) {
+                // Suggestions will show via useEffect
+              } else {
+                setShowSuggestions(false);
+              }
+            }}
+            onFocus={() => {
+              if (suggestions.length > 0) {
+                setShowSuggestions(true);
+              }
+            }}
             className="pl-10"
             data-testid="input-search"
           />
           {searchQuery && (
             <X 
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
-              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors z-10"
+              onClick={() => {
+                setSearchQuery("");
+                setSuggestions([]);
+                setShowSuggestions(false);
+              }}
             />
+          )}
+          {showSuggestions && suggestions.length > 0 && (
+            <div
+              ref={suggestionsRef}
+              className="absolute z-[1001] w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
+              data-testid="search-suggestions"
+            >
+              {suggestions.map((suggestion) => (
+                <div
+                  key={suggestion.id}
+                  className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                  onClick={() => selectSuggestion(suggestion)}
+                  data-testid={`suggestion-${suggestion.id}`}
+                >
+                  <div className="font-medium">{suggestion.address}</div>
+                  <div className="text-muted-foreground text-xs">
+                    {suggestion.city}, {suggestion.state} {suggestion.zipcode}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </form>

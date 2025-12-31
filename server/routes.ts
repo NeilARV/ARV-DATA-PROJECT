@@ -333,6 +333,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/properties/suggestions", async (req, res) => {
+    try {
+      const { search } = req.query;
+      
+      if (!search || search.toString().trim().length < 2) {
+        return res.status(200).json([]);
+      }
+
+      const searchTerm = `%${search.toString().trim().toLowerCase()}%`
+
+          // Search all fields - no smart detection needed for suggestions
+      const results = await db
+        .select({
+          id: properties.id,
+          address: properties.address,
+          city: properties.city,
+          state: properties.state,
+          zipcode: properties.zipCode
+        })
+        .from(properties)
+        .where(
+          or(
+            sql`LOWER(TRIM(${properties.address})) LIKE ${searchTerm}`,
+            sql`LOWER(TRIM(${properties.city})) LIKE ${searchTerm}`,
+            sql`LOWER(TRIM(${properties.state})) LIKE ${searchTerm}`,
+            sql`LOWER(TRIM(${properties.zipCode})) LIKE ${searchTerm}`
+          )
+        )
+        .limit(10);
+
+        console.log("Results: ", results)
+
+        res.status(200).json(results);
+
+    } catch (error) {
+      console.error("Error fetching property suggestions:", error);
+      res.status(500).json({ message: "Error fetching property suggestions" });
+    }
+  });
+
   // Create a single property (requires admin auth)
   app.post("/api/properties", requireAdminAuth, async (req, res) => {
     try {
