@@ -22,6 +22,7 @@ export const properties = pgTable("properties", {
   city: text("city").notNull(),
   state: text("state").notNull(),
   zipCode: text("zip_code").notNull(),
+  county: text("county").notNull(),
 
   // Core property details
   price: real("price").notNull(), // nullable in DB
@@ -165,6 +166,7 @@ export const updatePropertySchema = z.object({
   city: z.string().min(1, "City is required").optional(),
   state: z.string().min(1, "State is required").optional(),
   zipCode: z.string().min(1, "Zip code is required").optional(),
+  county: z.string().min(1, "County is required").optional(),
   price: z.coerce.number().min(0, "Price must be positive").optional(),
   bedrooms: z.coerce
     .number()

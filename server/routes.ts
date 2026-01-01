@@ -22,9 +22,10 @@ import { geocodeAddress } from "./utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "./utils/normalizeCompanyName";
 import { requireAdminAuth } from "./middleware/requireAdminAuth";
 import { mapPropertyType } from "./utils/mapPropertyType";
-
+import { fetchCounty } from "./utils/fetchCounty";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
+import { count } from "console";
 
 dotenv.config()
 
@@ -35,6 +36,7 @@ const updatePropertySchema = z
     city: z.string().min(1, "City is required").optional(),
     state: z.string().min(1, "State is required").optional(),
     zipCode: z.string().min(1, "Zip code is required").optional(),
+    county: z.string().min(1, "County is required").optional(),
     price: z.coerce.number().min(0, "Price must be positive").optional(),
     bedrooms: z.coerce
       .number()
@@ -1134,6 +1136,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               city: normalizedCity,
               state: record.state || "CA",
               zipCode: record.zipCode || "",
+              county: "UNKNOWN",
+
               price: price || 0,
               bedrooms: record.bedrooms || 0,
               bathrooms: record.bathrooms || 0,
@@ -1243,6 +1247,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 propertyData.latitude = coords.lat;
                 propertyData.longitude = coords.lng;
               }
+            }
+
+            // Get county from longitude (x) and latitude (y) - do this after geocoding in case coordinates were just added
+            if (propertyData.latitude && propertyData.longitude) {
+              const county = await fetchCounty(propertyData.longitude, propertyData.latitude);
+              propertyData.county = county ? county : "UNKNOWN";
             }
 
             // Handle company contact
