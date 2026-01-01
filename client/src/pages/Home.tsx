@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SAN_DIEGO_ZIP_CODES } from "@/constants/filters.constants";
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
@@ -39,6 +40,7 @@ export default function Home() {
     bathrooms: 'Any',
     propertyTypes: [],
     zipCode: '',
+    city: undefined,
     statusFilters: ['in-renovation'],
   });
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
@@ -132,6 +134,7 @@ export default function Home() {
       filters.bathrooms !== 'Any' ||
       filters.propertyTypes.length > 0 ||
       filters.zipCode !== '' ||
+      filters.city !== undefined ||
       filters.statusFilters.length !== 1 ||
       filters.statusFilters[0] !== 'in-renovation'
     );
@@ -146,6 +149,7 @@ export default function Home() {
       bathrooms: 'Any',
       propertyTypes: [],
       zipCode: '',
+      city: undefined,
       statusFilters: ['in-renovation'],
     });
   };
@@ -163,8 +167,36 @@ export default function Home() {
   }, [properties]);
 
   useEffect(() => {
-    const fetchZipCodeLocation = async () => {
-      if (filters?.zipCode && filters.zipCode.trim() !== '') {
+    const fetchLocation = async () => {
+      // Handle city filter - find a zip code for the city and geocode it
+      if (filters?.city && filters.city.trim() !== '') {
+        // Get the first zip code for this city to use for geocoding
+        const cityZipCodes = SAN_DIEGO_ZIP_CODES.filter(z => {
+          if (filters.city === 'San Diego') {
+            return z.city.startsWith('San Diego');
+          } else {
+            return z.city === filters.city;
+          }
+        });
+        
+        if (cityZipCodes.length > 0) {
+          try {
+            const response = await fetch(`https://api.zippopotam.us/us/${cityZipCodes[0].zip}`);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.places && data.places.length > 0) {
+                const lat = parseFloat(data.places[0].latitude);
+                const lng = parseFloat(data.places[0].longitude);
+                setMapCenter([lat, lng]);
+                setMapZoom(12); // Zoom out a bit for city view
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching city location:', error);
+          }
+        }
+      } else if (filters?.zipCode && filters.zipCode.trim() !== '') {
+        // Handle zip code filter
         try {
           const response = await fetch(`https://api.zippopotam.us/us/${filters.zipCode.trim()}`);
           if (response.ok) {
@@ -185,8 +217,8 @@ export default function Home() {
       }
     };
 
-    fetchZipCodeLocation();
-  }, [filters?.zipCode]);
+    fetchLocation();
+  }, [filters?.zipCode, filters?.city]);
 
   console.log("Properties: ", properties)
 
@@ -225,7 +257,23 @@ export default function Home() {
       return false;
     }
 
-    if (filters.zipCode && filters.zipCode.trim() !== '') {
+    // Filter by zip code or city
+    if (filters.city && filters.city.trim() !== '') {
+      // If city filter is set, get all zip codes for that city
+      // For "San Diego", match all cities that start with "San Diego" (e.g., "San Diego - Downtown", "San Diego", etc.)
+      // For other cities, do exact match
+      const cityZipCodes = SAN_DIEGO_ZIP_CODES
+        .filter(z => {
+          if (filters.city === 'San Diego') {
+            return z.city.startsWith('San Diego');
+          } else {
+            return z.city === filters.city;
+          }
+        })
+        .map(z => z.zip);
+      if (!cityZipCodes.includes(property.zipCode)) return false;
+    } else if (filters.zipCode && filters.zipCode.trim() !== '') {
+      // If zip code filter is set, filter by zip code
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
@@ -278,6 +326,7 @@ export default function Home() {
       bathrooms: 'Any',
       propertyTypes: [],
       zipCode: zipCode,
+      city: undefined,
       statusFilters: ["in-renovation", "on-market", "sold"],
     });
     setSidebarView("none");
@@ -296,6 +345,7 @@ export default function Home() {
       bathrooms: 'Any',
       propertyTypes: [],
       zipCode: '',
+      city: undefined,
       statusFilters: ['in-renovation'],
     });
     setSelectedCompany(null);

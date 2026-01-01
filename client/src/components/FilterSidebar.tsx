@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { X, Building2, ArrowUpDown, ChevronDown, Search } from "lucide-react";
+import { X, Building2, ArrowUpDown, ChevronDown, Search, MapPin, Home } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,11 @@ export interface ZipCodeWithCount {
   zipCode: string;
   count: number;
   city?: string;
+}
+
+export interface CityWithCount {
+  city: string;
+  count: number;
 }
 
 interface FilterSidebarProps {
@@ -34,6 +39,7 @@ export interface PropertyFilters {
   bathrooms: string;
   propertyTypes: string[];
   zipCode: string;
+  city?: string; // Optional city filter
   statusFilters: string[];
 }
 
@@ -53,6 +59,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const [zipCode, setZipCode] = useState<string>(filters?.zipCode ?? '');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
+  const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
   const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +72,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setSelectedBedrooms(filters.bedrooms ?? 'Any');
     setSelectedBathrooms(filters.bathrooms ?? 'Any');
     setSelectedTypes(filters.propertyTypes ?? []);
-    setZipCode(filters.zipCode ?? '');
+    // If city is set, show city name; otherwise show zip code
+    setZipCode(filters.city ?? filters.zipCode ?? '');
     setStatusFilters(new Set(filters.statusFilters ?? []));
   }, [filters, maxPriceSlider]);
 
@@ -84,7 +92,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         bedrooms: selectedBedrooms,
         bathrooms: selectedBathrooms,
         propertyTypes: selectedTypes,
-        zipCode: zipCode,
+        zipCode: filters?.zipCode ?? zipCode,
+        city: filters?.city,
         statusFilters: Array.from(next),
       });
       return next;
@@ -109,6 +118,25 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     }
   }, [zipCodesWithCounts, zipCodeSort]);
 
+  // Calculate cities with counts (aggregate zip codes by city)
+  // Normalize San Diego city names - aggregate all "San Diego - *" variations into just "San Diego"
+  const citiesWithCounts = useMemo(() => {
+    const cityMap = new Map<string, number>();
+    
+    sortedZipCodes.forEach(zip => {
+      if (zip.city && zip.city !== 'Unknown') {
+        // Normalize San Diego city names (e.g., "San Diego - Downtown" -> "San Diego")
+        const normalizedCity = zip.city.startsWith('San Diego') ? 'San Diego' : zip.city;
+        const currentCount = cityMap.get(normalizedCity) || 0;
+        cityMap.set(normalizedCity, currentCount + zip.count);
+      }
+    });
+    
+    return Array.from(cityMap.entries())
+      .map(([city, count]) => ({ city, count }))
+      .sort((a, b) => a.city.localeCompare(b.city)); // Sort alphabetically
+  }, [sortedZipCodes]);
+
   const zipCodeSortLabels: Record<ZipCodeSortOption, string> = {
     "most-properties": "Most Properties",
     "fewest-properties": "Fewest Properties",
@@ -122,10 +150,11 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
-      zipCode: zipCode,
+      zipCode: filters?.zipCode ?? zipCode,
+      city: filters?.city,
       statusFilters: Array.from(statusFilters),
     });
-    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, statusFilters: Array.from(statusFilters) });
+    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, city: filters?.city, statusFilters: Array.from(statusFilters) });
   };
 
   const handleClearFilters = () => {
@@ -142,6 +171,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       bathrooms: 'Any',
       propertyTypes: [],
       zipCode: '',
+      city: undefined,
       statusFilters: ["in-renovation"],
     });
   };
@@ -156,7 +186,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         bedrooms: selectedBedrooms,
         bathrooms: selectedBathrooms,
         propertyTypes: next,
-        zipCode: zipCode,
+        zipCode: filters?.zipCode ?? zipCode,
+        city: filters?.city,
         statusFilters: Array.from(statusFilters),
       });
       return next;
@@ -166,17 +197,31 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const handleZipCodeChange = (value: string) => {
     setZipCode(value);
     if (value.length > 0) {
-      const matches = sortedZipCodes
-        .filter(z => z.zipCode.startsWith(value) || z.city?.toLowerCase().includes(value.toLowerCase()))
+      const lowerValue = value.toLowerCase();
+      
+      // Filter zip codes
+      const zipMatches = sortedZipCodes
+        .filter(z => z.zipCode.startsWith(value) || z.city?.toLowerCase().includes(lowerValue))
         .slice(0, 10);
-      setFilteredZipCodes(matches);
-      setShowSuggestions(matches.length > 0);
+      
+      // Filter cities (normalize San Diego when filtering)
+      const cityMatches = citiesWithCounts
+        .filter(c => {
+          const normalizedCityForFilter = c.city.startsWith('San Diego') ? 'San Diego' : c.city;
+          return normalizedCityForFilter.toLowerCase().includes(lowerValue);
+        })
+        .slice(0, 10);
+      
+      setFilteredZipCodes(zipMatches);
+      setFilteredCities(cityMatches);
+      setShowSuggestions(zipMatches.length > 0 || cityMatches.length > 0);
     } else {
-      // Show all sorted zip codes when input is empty but focused
+      // Show all sorted zip codes and cities when input is empty but focused
       setFilteredZipCodes(sortedZipCodes.slice(0, 10));
+      setFilteredCities(citiesWithCounts.slice(0, 10));
       setShowSuggestions(false);
 
-      // If the user cleared the zip input, notify parent to clear the zip filter
+      // If the user cleared the input, notify parent to clear both zip and city filters
       onFilterChange?.({
         minPrice: priceRange[0],
         maxPrice: priceRange[1],
@@ -184,6 +229,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         bathrooms: selectedBathrooms,
         propertyTypes: selectedTypes,
         zipCode: '',
+        city: undefined,
         statusFilters: Array.from(statusFilters),
       });
     }
@@ -193,7 +239,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setZipCode(zipCodeData.zipCode);
     setShowSuggestions(false);
     
-    // Immediately apply the zip code filter
+    // Immediately apply the zip code filter (clear city when zip code is selected)
     onFilterChange?.({
       minPrice: priceRange[0],
       maxPrice: priceRange[1],
@@ -201,6 +247,24 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
       zipCode: zipCodeData.zipCode,
+      city: undefined,
+      statusFilters: Array.from(statusFilters),
+    });
+  };
+
+  const selectCity = (cityData: CityWithCount) => {
+    setZipCode(cityData.city);
+    setShowSuggestions(false);
+    
+    // Immediately apply the city filter (clear zip code when city is selected)
+    onFilterChange?.({
+      minPrice: priceRange[0],
+      maxPrice: priceRange[1],
+      bedrooms: selectedBedrooms,
+      bathrooms: selectedBathrooms,
+      propertyTypes: selectedTypes,
+      zipCode: '',
+      city: cityData.city,
       statusFilters: Array.from(statusFilters),
     });
   };
@@ -222,7 +286,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   }, []);
 
   return (
-    <div className="w-96 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
+    <div className="w-[450px] h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex gap-2">
@@ -328,8 +392,9 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 handleZipCodeChange(e.target.value)
               }}
               onFocus={() => {
-                if (sortedZipCodes.length > 0) {
+                if (sortedZipCodes.length > 0 || citiesWithCounts.length > 0) {
                   setFilteredZipCodes(sortedZipCodes.slice(0, 10));
+                  setFilteredCities(citiesWithCounts.slice(0, 10));
                   setShowSuggestions(true);
                 }
               }}
@@ -343,12 +408,30 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               />
             )}
           </div>
-          {showSuggestions && filteredZipCodes.length > 0 && (
+          {showSuggestions && (filteredCities.length > 0 || filteredZipCodes.length > 0) && (
             <div
               ref={suggestionsRef}
               className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
               data-testid="zipcode-suggestions"
             >
+              {/* Show cities first */}
+              {filteredCities.map((city) => (
+                <div
+                  key={`city-${city.city}`}
+                  className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center justify-between"
+                  onClick={() => selectCity(city)}
+                  data-testid={`suggestion-city-${city.city}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Home className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">{city.city}</span>
+                  </span>
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    {city.count} {city.count === 1 ? 'property' : 'properties'}
+                  </span>
+                </div>
+              ))}
+              {/* Then show zip codes */}
               {filteredZipCodes.map((z) => (
                 <div
                   key={z.zipCode}
@@ -356,9 +439,12 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                   onClick={() => selectZipCode(z)}
                   data-testid={`suggestion-${z.zipCode}`}
                 >
-                  <span>
-                    <span className="font-medium">{z.zipCode}</span>
-                    <span className="text-muted-foreground ml-2">{z.city}</span>
+                  <span className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    <span>
+                      <span className="font-medium">{z.zipCode}</span>
+                      <span className="text-muted-foreground ml-2">{z.city}</span>
+                    </span>
                   </span>
                   <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                     {z.count} {z.count === 1 ? 'property' : 'properties'}
@@ -385,7 +471,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 bedrooms: selectedBedrooms,
                 bathrooms: selectedBathrooms,
                 propertyTypes: selectedTypes,
-                zipCode: zipCode,
+                zipCode: filters?.zipCode ?? zipCode,
+                city: filters?.city,
                 statusFilters: Array.from(statusFilters),
               });
             }}
@@ -414,7 +501,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                     bedrooms: option,
                     bathrooms: selectedBathrooms,
                     propertyTypes: selectedTypes,
-                    zipCode: zipCode,
+                    zipCode: filters?.zipCode ?? zipCode,
+                    city: filters?.city,
                     statusFilters: Array.from(statusFilters),
                   });
                 }}
@@ -443,7 +531,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                     bedrooms: selectedBedrooms,
                     bathrooms: option,
                     propertyTypes: selectedTypes,
-                    zipCode: zipCode,
+                    zipCode: filters?.zipCode ?? zipCode,
+                    city: filters?.city,
                     statusFilters: Array.from(statusFilters),
                   });
                 }}
