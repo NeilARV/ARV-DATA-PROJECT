@@ -304,29 +304,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/properties", async (req, res) => {
     try {
 
-      const { search } = req.query;
+      const { zipcode, city } = req.query;
 
-      if (!search) {
-        const allProperties = await db.select().from(properties);
-        console.log("Properties Length: ", allProperties.length)
-        return res.status(200).json(allProperties);
+      if (!zipcode && !city) {
+        const allProperties = await db.select().from(properties)
+        console.log("Properties Length (all):", allProperties.length);
+        return res.status(200).json(allProperties)
       }
 
-      const normalizedSearch = search.toString().trim().toLowerCase();
-      const searchTerm = `%${normalizedSearch}%`;
+      const conditions = []
 
-      const results = await db.select().from(properties).where(
-        or(
-          sql`LOWER(TRIM(${properties.address})) LIKE ${searchTerm}`,
-          sql`LOWER(TRIM(${properties.city})) LIKE ${searchTerm}`,
-          sql`LOWER(TRIM(${properties.state})) LIKE ${searchTerm}`,
-          sql`LOWER(TRIM(${properties.zipCode})) LIKE ${searchTerm}`
+      if (zipcode) {
+        const normalizedZipcode = zipcode.toString().trim()
+        conditions.push(
+          sql`TRIM(${properties.zipCode}) = ${normalizedZipcode}`
         )
-      ).execute();
+      }
+
+      if (city) {
+        const normalizedCity = city.toString().trim().toLowerCase()
+        conditions.push(
+          sql`LOWER(TRIM(${properties.city})) = ${normalizedCity}`
+        )
+      }
+
+      const whereClause = conditions.length > 1 ? or(...conditions) : conditions[0];
+
+      const results = await db.select().from(properties).where(whereClause).execute()
 
       console.log("Properties Length: ", results.length)
-
+      
       res.status(200).json(results);
+      
     } catch (error) {
       console.error("Error fetching properties:", error);
       res.status(500).json({ message: "Error fetching properties" });
