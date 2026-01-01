@@ -418,15 +418,15 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               {filteredCities.map((city) => (
                 <div
                   key={`city-${city.city}`}
-                  className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center justify-between"
+                  className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center justify-between gap-2"
                   onClick={() => selectCity(city)}
                   data-testid={`suggestion-city-${city.city}`}
                 >
-                  <span className="flex items-center gap-2">
-                    <Home className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">{city.city}</span>
+                  <span className="flex items-center gap-2 min-w-0 flex-1">
+                    <Home className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-medium truncate">{city.city}</span>
                   </span>
-                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                     {city.count} {city.count === 1 ? 'property' : 'properties'}
                   </span>
                 </div>
@@ -435,18 +435,18 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               {filteredZipCodes.map((z) => (
                 <div
                   key={z.zipCode}
-                  className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center justify-between"
+                  className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center justify-between gap-2"
                   onClick={() => selectZipCode(z)}
                   data-testid={`suggestion-${z.zipCode}`}
                 >
-                  <span className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span>
+                  <span className="flex items-center gap-2 min-w-0 flex-1">
+                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="truncate">
                       <span className="font-medium">{z.zipCode}</span>
                       <span className="text-muted-foreground ml-2">{z.city}</span>
                     </span>
                   </span>
-                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                     {z.count} {z.count === 1 ? 'property' : 'properties'}
                   </span>
                 </div>
