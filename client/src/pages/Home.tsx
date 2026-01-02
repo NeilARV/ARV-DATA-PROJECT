@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SAN_DIEGO_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
@@ -267,10 +267,20 @@ export default function Home() {
       
       // Handle city filter (medium priority)
       if (filters?.city && filters.city.trim() !== '') {
+        // Get the appropriate zip code list based on county
+        const countyName = filters?.county ?? 'San Diego';
+        const currentZipCodeList = countyName === 'Orange' 
+          ? ORANGE_ZIP_CODES 
+          : countyName === 'Los Angeles' 
+          ? LOS_ANGELES_ZIP_CODES 
+          : SAN_DIEGO_ZIP_CODES;
+        
         // Get the first zip code for this city to use for geocoding
-        const cityZipCodes = SAN_DIEGO_ZIP_CODES.filter(z => {
+        const cityZipCodes = currentZipCodeList.filter(z => {
           if (filters.city === 'San Diego') {
             return z.city.startsWith('San Diego');
+          } else if (filters.city === 'Los Angeles') {
+            return z.city.startsWith('Los Angeles') || z.city === 'Los Angeles';
           } else {
             return z.city === filters.city;
           }
@@ -321,6 +331,18 @@ export default function Home() {
     fetchLocation();
   }, [filters?.zipCode, filters?.city, filters?.county]);
 
+  // Get the appropriate zip code list based on county filter
+  const zipCodeList = useMemo(() => {
+    const countyName = filters.county ?? 'San Diego';
+    if (countyName === 'Orange') {
+      return ORANGE_ZIP_CODES;
+    } else if (countyName === 'Los Angeles') {
+      return LOS_ANGELES_ZIP_CODES;
+    } else {
+      return SAN_DIEGO_ZIP_CODES;
+    }
+  }, [filters.county]);
+
   // Filter map pins for map view (using minimal data)
   const filteredMapPins = useMemo(() => {
     return mapPins.filter(pin => {
@@ -359,10 +381,12 @@ export default function Home() {
 
       // Filter by zip code or city
       if (filters.city && filters.city.trim() !== '') {
-        const cityZipCodes = SAN_DIEGO_ZIP_CODES
+        const cityZipCodes = zipCodeList
           .filter(z => {
             if (filters.city === 'San Diego') {
               return z.city.startsWith('San Diego');
+            } else if (filters.city === 'Los Angeles') {
+              return z.city.startsWith('Los Angeles') || z.city === 'Los Angeles';
             } else {
               return z.city === filters.city;
             }
@@ -381,7 +405,7 @@ export default function Home() {
 
       return true;
     });
-  }, [mapPins, filters, selectedCompany]);
+  }, [mapPins, filters, selectedCompany, zipCodeList]);
 
 
   // Filter full properties for grid/table views
@@ -424,11 +448,14 @@ export default function Home() {
     if (filters.city && filters.city.trim() !== '') {
       // If city filter is set, get all zip codes for that city
       // For "San Diego", match all cities that start with "San Diego" (e.g., "San Diego - Downtown", "San Diego", etc.)
+      // For "Los Angeles", match all cities that start with "Los Angeles" or are exactly "Los Angeles"
       // For other cities, do exact match
-      const cityZipCodes = SAN_DIEGO_ZIP_CODES
+      const cityZipCodes = zipCodeList
         .filter(z => {
           if (filters.city === 'San Diego') {
             return z.city.startsWith('San Diego');
+          } else if (filters.city === 'Los Angeles') {
+            return z.city.startsWith('Los Angeles') || z.city === 'Los Angeles';
           } else {
             return z.city === filters.city;
           }

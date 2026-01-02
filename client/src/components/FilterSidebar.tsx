@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
 
 export interface ZipCodeWithCount {
   zipCode: string;
@@ -110,10 +110,22 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     });
   };
 
+  // Select the appropriate zip code list based on the county filter
+  const zipCodeList = useMemo(() => {
+    const countyName = filters?.county ?? 'San Diego';
+    if (countyName === 'Orange') {
+      return ORANGE_ZIP_CODES;
+    } else if (countyName === 'Los Angeles') {
+      return LOS_ANGELES_ZIP_CODES;
+    } else {
+      return SAN_DIEGO_ZIP_CODES;
+    }
+  }, [filters?.county]);
+
   const sortedZipCodes = useMemo(() => {
     const enrichedZips = zipCodesWithCounts.map(z => ({
       ...z,
-      city: SAN_DIEGO_ZIP_CODES.find(sd => sd.zip === z.zipCode)?.city || 'Unknown'
+      city: zipCodeList.find(zip => zip.zip === z.zipCode)?.city || 'Unknown'
     }));
     
     switch (zipCodeSort) {
@@ -126,7 +138,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       default:
         return enrichedZips;
     }
-  }, [zipCodesWithCounts, zipCodeSort]);
+  }, [zipCodesWithCounts, zipCodeSort, zipCodeList]);
 
   // Calculate cities with counts (aggregate zip codes by city)
   // Normalize San Diego city names - aggregate all "San Diego - *" variations into just "San Diego"

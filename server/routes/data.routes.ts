@@ -240,6 +240,12 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                     } else {
                         price = record.saleValue
                     }
+
+                    if (price <= 0) {
+                        console.warn(`[SFR SYNC] Skipping record with invalid price: ${price}`, JSON.stringify(record, null, 2))
+                        totalProcessed++;
+                        continue;
+                    }
                     
                     const propertyData: any = {
                         address: normalizedAddress,
