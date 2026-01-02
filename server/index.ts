@@ -132,14 +132,6 @@ app.use((req, res, next) => {
   // const server = await registerRoutes(app);
   
   app.use("/api", apiRoutes);
-
-  console.log("[Routes] Mounted routes:");
-  apiRoutes.stack?.forEach((r: any) => {
-    if (r.route?.path) {
-      console.log(`  - ${Object.keys(r.route.methods).join(', ').toUpperCase()} /api${r.route.path}`);
-    }
-  });
-
   const server = createServer(app)
 
   
