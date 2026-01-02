@@ -346,21 +346,13 @@ export default function Home() {
 
   const handleCompanySelect = (companyName: string | null) => {
     if (companyName) {
-      // Selecting a company: preserve all existing filters
+      // Selecting a company: preserve all existing filters and map position
       setSelectedCompany(companyName);
-      // Only change map center/zoom if the user is currently on the map view
-      if (viewMode === "map") {
-        setMapCenter(undefined);
-        setMapZoom(14);
-      }
+      // Do NOT change map center/zoom when selecting a company
     } else {
-      // Deselecting/clearing the company filter: preserve all existing filters
+      // Deselecting/clearing the company filter: preserve all existing filters and map position
       setSelectedCompany(null);
-      // Reset map view to default only if currently on map view
-      if (viewMode === "map") {
-        setMapCenter(undefined);
-        setMapZoom(12);
-      }
+      // Do NOT change map center/zoom when deselecting a company
     }
   };
 
@@ -368,8 +360,7 @@ export default function Home() {
     // Preserve all existing filters when selecting a company from leaderboard
     setSelectedCompany(companyName);
     setSidebarView("none");
-    setMapCenter(undefined);
-    setMapZoom(12);
+    // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
@@ -597,8 +588,7 @@ export default function Home() {
                             <button
                               onClick={() => {
                                 setSelectedCompany(null);
-                                setMapCenter(undefined);
-                                setMapZoom(12);
+                                // Do NOT change map center/zoom when deselecting a company
                               }}
                               className="text-primary hover:underline text-sm"
                               data-testid="button-clear-company-filter"
@@ -649,8 +639,7 @@ export default function Home() {
                             <button
                               onClick={() => {
                                 setSelectedCompany(null);
-                                setMapCenter(undefined);
-                                setMapZoom(12);
+                                // Do NOT change map center/zoom when deselecting a company
                               }}
                               className="text-primary hover:underline text-sm"
                               data-testid="button-clear-company-filter"
