@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAN_DIEGO_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
