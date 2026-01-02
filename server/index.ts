@@ -120,7 +120,7 @@ app.use((req, res, next) => {
   try {
     const existingSessions = await db.select().from(sessions).limit(1);
     console.log(
-      `[Startup] Sessions table verified. Found ${existingSessions.length} existing sessions. Testing Replit Dev Changes`,
+      `[Startup] Sessions table verified. Found ${existingSessions.length} existing sessions.`,
     );
   } catch (error) {
     console.error(
