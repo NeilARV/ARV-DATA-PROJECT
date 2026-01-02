@@ -119,3 +119,8 @@ export const SAN_DIEGO_ZIP_CODES = [
   { zip: '92118', city: 'Coronado' },
   { zip: '92672', city: 'San Clemente' },
 ];
+
+export const COUNTIES = [
+  {county: "San Diego", center: [32.7157, -117.1611]},
+  {county: "Orange", center: [33.7879, -117.8531]},
+]

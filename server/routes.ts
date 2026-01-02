@@ -306,15 +306,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/properties", async (req, res) => {
     try {
 
-      const { zipcode, city } = req.query;
+      const { zipcode, city, county } = req.query;
 
-      if (!zipcode && !city) {
+      if (!zipcode && !city && !county) {
         const allProperties = await db.select().from(properties)
         console.log("Properties Length (all):", allProperties.length);
         return res.status(200).json(allProperties)
       }
 
       const conditions = []
+
+      if (county) {
+        const normalizedCounty = county.toString().trim().toLowerCase()
+        conditions.push(
+          sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+        )
+      }
 
       if (zipcode) {
         const normalizedZipcode = zipcode.toString().trim()

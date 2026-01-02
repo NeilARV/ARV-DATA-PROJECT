@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SAN_DIEGO_ZIP_CODES } from "@/constants/filters.constants";
+import { SAN_DIEGO_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
@@ -41,6 +41,7 @@ export default function Home() {
     propertyTypes: [],
     zipCode: '',
     city: undefined,
+    county: 'San Diego', // Default to San Diego county
     statusFilters: ['in-renovation'],
   });
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
@@ -57,8 +58,16 @@ export default function Home() {
   const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
   const geolocationAttemptedRef = useRef(false);
   
-  // San Diego default coordinates
-  const SAN_DIEGO_CENTER: [number, number] = [32.7157, -117.1611];
+  // Helper function to get county center from COUNTIES array
+  const getCountyCenter = (countyName: string): [number, number] | undefined => {
+    const county = COUNTIES.find(c => c.county === countyName);
+    return county?.center as [number, number] | undefined;
+  };
+  
+  // Get default San Diego center from COUNTIES array
+  const getDefaultMapCenter = (): [number, number] => {
+    return getCountyCenter('San Diego') ?? [32.7157, -117.1611]; // Fallback if not found
+  };
   
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
@@ -79,7 +88,7 @@ export default function Home() {
     // Check if geolocation is available
     if (!navigator.geolocation) {
       console.log('Geolocation is not supported by this browser. Using San Diego as default.');
-      setMapCenter(SAN_DIEGO_CENTER);
+      setMapCenter(getDefaultMapCenter());
       setMapZoom(12);
       return;
     }
@@ -93,7 +102,7 @@ export default function Home() {
       },
       (error) => {
         // Fall back to San Diego if geolocation fails or is denied
-        setMapCenter(SAN_DIEGO_CENTER);
+        setMapCenter(getDefaultMapCenter());
         setMapZoom(12);
       },
       {
@@ -104,13 +113,33 @@ export default function Home() {
     );
   }, []); // Empty dependency array - only runs once on mount
 
-  // Fetch properties from backend
+  // Build query parameters based on county filter
+  const countyQueryParam = useMemo(() => {
+    const county = filters.county ?? 'San Diego';
+    return county ? `?county=${encodeURIComponent(county)}` : '';
+  }, [filters.county]);
+
+  // Build the API URL with county query parameter
+  const propertiesQueryUrl = useMemo(() => {
+    return `/api/properties${countyQueryParam}`;
+  }, [countyQueryParam]);
+
+  // Fetch properties from backend filtered by county
   const { data: properties = [], isLoading } = useQuery<Property[]>({
-    queryKey: ["/api/properties"],
+    queryKey: [propertiesQueryUrl],
+    queryFn: async () => {
+      const res = await fetch(propertiesQueryUrl, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch properties: ${res.status}`);
+      }
+      return res.json();
+    },
   });
 
   const handleUploadSuccess = () => {
-    // Refresh properties after upload
+    // Refresh properties after upload - invalidate all property queries
     queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
   };
 
@@ -135,6 +164,7 @@ export default function Home() {
       filters.propertyTypes.length > 0 ||
       filters.zipCode !== '' ||
       filters.city !== undefined ||
+      (filters.county !== undefined && filters.county !== 'San Diego') ||
       filters.statusFilters.length !== 1 ||
       filters.statusFilters[0] !== 'in-renovation'
     );
@@ -150,6 +180,7 @@ export default function Home() {
       propertyTypes: [],
       zipCode: '',
       city: undefined,
+      county: 'San Diego', // Reset to default San Diego county
       statusFilters: ['in-renovation'],
     });
   };
@@ -168,7 +199,28 @@ export default function Home() {
 
   useEffect(() => {
     const fetchLocation = async () => {
-      // Handle city filter - find a zip code for the city and geocode it
+      // Priority: zipcode > city > county (most specific to least specific)
+      
+      // Handle zip code filter (highest priority - most specific)
+      if (filters?.zipCode && filters.zipCode.trim() !== '') {
+        try {
+          const response = await fetch(`https://api.zippopotam.us/us/${filters.zipCode.trim()}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.places && data.places.length > 0) {
+              const lat = parseFloat(data.places[0].latitude);
+              const lng = parseFloat(data.places[0].longitude);
+              setMapCenter([lat, lng]);
+              setMapZoom(13); // Closer zoom for zip code
+              return; // Exit early, zipcode takes priority
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching zip code location:', error);
+        }
+      }
+      
+      // Handle city filter (medium priority)
       if (filters?.city && filters.city.trim() !== '') {
         // Get the first zip code for this city to use for geocoding
         const cityZipCodes = SAN_DIEGO_ZIP_CODES.filter(z => {
@@ -188,29 +240,33 @@ export default function Home() {
                 const lat = parseFloat(data.places[0].latitude);
                 const lng = parseFloat(data.places[0].longitude);
                 setMapCenter([lat, lng]);
-                setMapZoom(12); // Zoom out a bit for city view
+                setMapZoom(12); // Medium zoom for city view
+                return; // Exit early, city takes priority over county
               }
             }
           } catch (error) {
             console.error('Error fetching city location:', error);
           }
         }
-      } else if (filters?.zipCode && filters.zipCode.trim() !== '') {
-        // Handle zip code filter
-        try {
-          const response = await fetch(`https://api.zippopotam.us/us/${filters.zipCode.trim()}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.places && data.places.length > 0) {
-              const lat = parseFloat(data.places[0].latitude);
-              const lng = parseFloat(data.places[0].longitude);
-              setMapCenter([lat, lng]);
-              setMapZoom(13);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching zip code location:', error);
+      }
+      
+      // Handle county filter (lowest priority - most general)
+      // Only center on county if no zipcode or city is selected
+      if (filters?.county && filters.county.trim() !== '') {
+        const countyCenter = getCountyCenter(filters.county);
+        if (countyCenter) {
+          setMapCenter(countyCenter);
+          setMapZoom(10); // Wider zoom for county view
+          return; // Exit early
         }
+      }
+      
+      // Fallback: If no specific location filter, center on the default county (San Diego)
+      const defaultCounty = filters?.county ?? 'San Diego';
+      const countyCenter = getCountyCenter(defaultCounty);
+      if (countyCenter) {
+        setMapCenter(countyCenter);
+        setMapZoom(10);
       } else {
         setMapCenter(undefined);
         setMapZoom(12);
@@ -218,7 +274,7 @@ export default function Home() {
     };
 
     fetchLocation();
-  }, [filters?.zipCode, filters?.city]);
+  }, [filters?.zipCode, filters?.city, filters?.county]);
 
   console.log("Properties: ", properties)
 
@@ -327,6 +383,7 @@ export default function Home() {
       propertyTypes: [],
       zipCode: zipCode,
       city: undefined,
+      county: 'San Diego', // Preserve default county
       statusFilters: ["in-renovation", "on-market", "sold"],
     });
     setSidebarView("none");
@@ -346,6 +403,7 @@ export default function Home() {
       propertyTypes: [],
       zipCode: '',
       city: undefined,
+      county: 'San Diego', // Reset to default San Diego county
       statusFilters: ['in-renovation'],
     });
     setSelectedCompany(null);
