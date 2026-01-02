@@ -16,14 +16,63 @@ import { fetchCounty } from "server/utils/fetchCounty";
 const router = Router();
 
 /* SFR Analytics API calls */
-router.post("/sfr", requireAdminAuth, async (req, res) => { 
-    const API_KEY = process.env.SFR_API_KEY!;
-    const API_URL = process.env.SFR_API_URL!;
-    const MSA = "San Diego-Chula Vista-Carlsbad, CA";
 
-    const today = new Date().toISOString().split("T")[0];
+// Helper to persist sync state on exit or failure. Accepts explicit options so it can be called from error/catch paths.
+// Stores saleDate - 1 day because the API range is non-inclusive
+async function persistSyncStateExplicit(options: {
+    syncStateId?: number | null;
+    previousLastSaleDate?: string | null;
+    initialTotalSynced?: number;
+    processed?: number;
+    finalSaleDate?: string | null;
+}) {
+    const {
+        syncStateId,
+        previousLastSaleDate,
+        initialTotalSynced = 0,
+        processed = 0,
+        finalSaleDate,
+    } = options || {};
+
+    if (!syncStateId) {
+        console.warn("[SFR SYNC] No syncStateId provided to persist state");
+        return previousLastSaleDate || null;
+    }
+
+    const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
+    // Use the latest saleDate from processed properties, or keep the previous one if no new data
+    let toSet = finalSaleDate || previousLastSaleDate || null;
     
-    // Sync state / counters exposed to outer scope so we can persist partial progress on failure
+    // Subtract 1 day because the API range is non-inclusive (we want to start from the day after)
+    if (toSet) {
+        const date = new Date(toSet);
+        date.setDate(date.getDate() - 1);
+        toSet = date.toISOString().split("T")[0];
+    }
+
+    try {
+        await db
+            .update(sfrSyncState)
+            .set({
+                lastSaleDate: toSet, // Store saleDate - 1 day in lastSaleDate field
+                totalRecordsSynced: newTotalSynced,
+                lastSyncAt: sql`now()`,
+            })
+            .where(eq(sfrSyncState.id, syncStateId));
+
+        console.log(
+            `[SFR SYNC] Persisted sync state. lastSaleDate (saleDate - 1): ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
+        );
+        return toSet;
+    } catch (e: any) {
+        console.error("[SFR SYNC] Failed to persist sync state:", e);
+        return toSet;
+    }
+}
+
+// Sync function for a single MSA
+async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: string) {
+    // Sync state / counters for this MSA
     let minDate: string = "";
     let syncStateId: number | null = null;
     let initialTotalSynced: number = 0;
@@ -38,65 +87,12 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
     let totalContactsAdded = 0;
     let latestSaleDate: string | null = null; // Track the saleDate of the last successfully processed property
 
-    // Helper to persist sync state on exit or failure. Accepts explicit options so it can be called from error/catch paths.
-    // Stores saleDate - 1 day because the API range is non-inclusive
-    async function persistSyncStateExplicit(options: {
-        syncStateId?: number | null;
-        previousLastSaleDate?: string | null;
-        initialTotalSynced?: number;
-        processed?: number;
-        finalSaleDate?: string | null;
-    }) {
-        const {
-            syncStateId,
-            previousLastSaleDate,
-            initialTotalSynced = 0,
-            processed = 0,
-            finalSaleDate,
-        } = options || {};
-
-        if (!syncStateId) {
-            console.warn("[SFR SYNC] No syncStateId provided to persist state");
-            return previousLastSaleDate || null;
-        }
-
-        const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
-        // Use the latest saleDate from processed properties, or keep the previous one if no new data
-        let toSet = finalSaleDate || previousLastSaleDate || null;
-        
-        // Subtract 1 day because the API range is non-inclusive (we want to start from the day after)
-        if (toSet) {
-            const date = new Date(toSet);
-            date.setDate(date.getDate() - 1);
-            toSet = date.toISOString().split("T")[0];
-        }
-
-        try {
-            await db
-                .update(sfrSyncState)
-                .set({
-                    lastSaleDate: toSet, // Store saleDate - 1 day in lastSaleDate field
-                    totalRecordsSynced: newTotalSynced,
-                    lastSyncAt: sql`now()`,
-                })
-                .where(eq(sfrSyncState.id, syncStateId));
-
-            console.log(
-                `[SFR SYNC] Persisted sync state. lastSaleDate (saleDate - 1): ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
-            );
-            return toSet;
-        } catch (e: any) {
-            console.error("[SFR SYNC] Failed to persist sync state:", e);
-            return toSet;
-        }
-    }
-
     try {
         // Get or create sync state for this MSA
         syncState = await db
             .select()
             .from(sfrSyncState)
-            .where(eq(sfrSyncState.msa, MSA))
+            .where(eq(sfrSyncState.msa, msa))
             .limit(1);
 
         if (syncState.length === 0) {
@@ -105,7 +101,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
             const [newSyncState] = await db
                 .insert(sfrSyncState)
                 .values({
-                    msa: MSA,
+                    msa: msa,
                     lastSaleDate: null,
                     totalRecordsSynced: 0,
                 })
@@ -124,9 +120,9 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
             initialTotalSynced = syncState[0].totalRecordsSynced || 0;
         }
 
-        console.log(`[SFR SYNC] Starting sync for ${MSA} from ${minDate} to ${today}`);
+        console.log(`[SFR SYNC] Starting sync for ${msa} from ${minDate} to ${today}`);
 
-        // Load all company contacts into memory once
+        // Load all company contacts into memory once (shared across all MSAs)
         const allContacts = await db.select().from(companyContacts);
         const contactsMap = new Map<string, typeof allContacts[0]>();
 
@@ -144,7 +140,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
 
         while (shouldContinue) {
             const requestBody = {
-                "msa": MSA,
+                "msa": msa,
                 "city": null,
                 "salesDate": {
                     "min": minDate,
@@ -171,8 +167,8 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
         
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`[SFR SYNC] API error on page ${currentPage}:`, errorText);
-                // Persist partial progress before returning
+                console.error(`[SFR SYNC] API error on page ${currentPage} for ${msa}:`, errorText);
+                // Persist partial progress before throwing
                 try {
                     const persistedDate = await persistSyncStateExplicit({
                         syncStateId,
@@ -186,23 +182,19 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                     console.error("[SFR SYNC] Failed to persist state after API error:", e);
                 }
 
-                return res.status(response.status).json({ 
-                    message: "Error fetching SFR buyer data",
-                    status: response.status,
-                    error: errorText
-                });
+                throw new Error(`API error for ${msa}: ${response.status} - ${errorText}`);
             }
 
             const data = await response.json();
 
             // Check if data is empty
             if (!data || !Array.isArray(data) || data.length === 0) {
-                console.log(`[SFR SYNC] No more data on page ${currentPage}, stopping`);
+                console.log(`[SFR SYNC] No more data on page ${currentPage} for ${msa}, stopping`);
                 shouldContinue = false;
                 break;
             }
         
-            console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records`);
+            console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records for ${msa}`);
         
             if (data.length > 0) {
                 console.log(`[SFR SYNC] Sample record structure:`, JSON.stringify(data[0], null, 2));
@@ -296,7 +288,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                         sfrRecordId: record.id || null,
                         
                         // Market
-                        msa: record.msa || MSA,
+                        msa: record.msa || msa,
                         
                         // Dates
                         recordingDate: record.recordingDate || null,
@@ -620,10 +612,11 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
             finalSaleDate: latestSaleDate ?? null,
         });
 
-        console.log(`[SFR SYNC] Sync complete: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
+        console.log(`[SFR SYNC] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
 
-        return res.status(200).json({
+        return {
             success: true,
+            msa,
             totalProcessed,
             totalInserted,
             totalUpdated,
@@ -633,11 +626,10 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                 to: latestSaleDate || today
             },
             lastSaleDate: persistedDate,
-            msa: MSA,
-        });
+        };
         
     } catch (error) {
-        console.error("[SFR SYNC] Error:", error);
+        console.error(`[SFR SYNC] Error syncing ${msa}:`, error);
         try {
             const persistedDate = await persistSyncStateExplicit({
                 syncStateId: syncStateId,
@@ -646,10 +638,75 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                 processed: totalProcessed ?? 0,
                 finalSaleDate: latestSaleDate ?? null,
             });
-            console.log(`[SFR SYNC] Persisted sync state after failure. lastSaleDate: ${persistedDate}`);
+            console.log(`[SFR SYNC] Persisted sync state after failure for ${msa}. lastSaleDate: ${persistedDate}`);
         } catch (e) {
-            console.error("[SFR SYNC] Failed to persist sync state after error:", e);
+            console.error(`[SFR SYNC] Failed to persist sync state after error for ${msa}:`, e);
         }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Error syncing ${msa}: ${errorMessage}`);
+    }
+}
+
+router.post("/sfr", requireAdminAuth, async (req, res) => { 
+    const API_KEY = process.env.SFR_API_KEY!;
+    const API_URL = process.env.SFR_API_URL!;
+    const today = new Date().toISOString().split("T")[0];
+
+    try {
+        // Fetch all MSAs from the sync state table
+        const allSyncStates = await db
+            .select()
+            .from(sfrSyncState);
+
+        if (allSyncStates.length === 0) {
+            return res.status(400).json({ 
+                message: "No MSAs found in sync state table. Please add at least one MSA to sync.",
+                error: "No MSAs configured"
+            });
+        }
+
+        console.log(`[SFR SYNC] Found ${allSyncStates.length} MSA(s) to sync:`, allSyncStates.map(s => s.msa));
+
+        // Sync each MSA sequentially
+        const results = [];
+        const errors = [];
+
+        for (const syncState of allSyncStates) {
+            try {
+                console.log(`[SFR SYNC] Starting sync for MSA: ${syncState.msa}`);
+                const result = await syncMSA(syncState.msa, API_KEY, API_URL, today);
+                results.push(result);
+                console.log(`[SFR SYNC] Completed sync for MSA: ${syncState.msa}`);
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error(`[SFR SYNC] Failed to sync MSA ${syncState.msa}:`, errorMessage);
+                errors.push({
+                    msa: syncState.msa,
+                    error: errorMessage
+                });
+            }
+        }
+
+        // Calculate totals across all MSAs
+        const totalProcessed = results.reduce((sum, r) => sum + r.totalProcessed, 0);
+        const totalInserted = results.reduce((sum, r) => sum + r.totalInserted, 0);
+        const totalUpdated = results.reduce((sum, r) => sum + r.totalUpdated, 0);
+        const totalContactsAdded = results.reduce((sum, r) => sum + r.totalContactsAdded, 0);
+
+        console.log(`[SFR SYNC] All syncs complete. Total: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
+
+        return res.status(200).json({
+            success: true,
+            totalProcessed,
+            totalInserted,
+            totalUpdated,
+            totalContactsAdded,
+            results,
+            errors: errors.length > 0 ? errors : undefined,
+        });
+        
+    } catch (error) {
+        console.error("[SFR SYNC] Fatal error:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         res.status(500).json({ 
             message: "Error syncing SFR buyer data",
