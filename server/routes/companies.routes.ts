@@ -5,7 +5,7 @@ import { companyContacts } from "@shared/schema";
 const router = Router();
 
 // Get all company contacts
-router.get("/contacts", async (_req, res) => {
+router.get("/contacts", async (req, res) => {
     try {
         const allContacts = await db
             .select()
