@@ -119,12 +119,49 @@ export default function Home() {
     return county ? `?county=${encodeURIComponent(county)}` : '';
   }, [filters.county]);
 
-  // Build the API URL with county query parameter
+  // Build the API URL with county query parameter for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
     return `/api/properties${countyQueryParam}`;
   }, [countyQueryParam]);
 
-  // Fetch properties from backend filtered by county
+  // Build the API URL for map pins (minimal data for map view)
+  const mapPinsQueryUrl = useMemo(() => {
+    return `/api/properties/map${countyQueryParam}`;
+  }, [countyQueryParam]);
+
+  // Type for map pin data (minimal property data)
+  type MapPin = {
+    id: string;
+    latitude: number | null;
+    longitude: number | null;
+    address: string,
+    city: string;
+    zipcode: string;
+    county: string;
+    propertyType: string;
+    bedrooms: number;
+    bathrooms: number;
+    price: number;
+    status: string | null;
+    propertyOwner: string | null;
+  };
+
+  // Fetch map pins (minimal data) for map view
+  const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
+    queryKey: [mapPinsQueryUrl],
+    queryFn: async () => {
+      const res = await fetch(mapPinsQueryUrl, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch map pins: ${res.status}`);
+      }
+      return res.json();
+    },
+    enabled: viewMode === "map", // Only fetch when in map view
+  });
+
+  // Fetch full properties from backend filtered by county (for grid/table views)
   const { data: properties = [], isLoading } = useQuery<Property[]>({
     queryKey: [propertiesQueryUrl],
     queryFn: async () => {
@@ -136,23 +173,27 @@ export default function Home() {
       }
       return res.json();
     },
+    enabled: viewMode !== "map", // Only fetch when NOT in map view
   });
 
   const handleUploadSuccess = () => {
     // Refresh properties after upload - invalidate all property queries
-    queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+    //queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
   };
 
   // Calculate max price rounded up to nearest million
+  // Use map pins in map view, full properties in grid/table views
   const maxPriceSlider = useMemo(() => {
-    if (properties.length === 0) return 10000000; // Default to 10M if no properties
+    const dataSource = viewMode === "map" ? mapPins : properties;
+    if (dataSource.length === 0) return 10000000; // Default to 10M if no properties
     
-    const maxPrice = Math.max(...properties.map(p => p.price || 0));
+    const maxPrice = Math.max(...dataSource.map(p => p.price || 0));
     if (maxPrice === 0) return 10000000; // Default if all prices are 0
     
     // Round up to nearest million: Math.ceil(maxPrice / 1000000) * 1000000
     return Math.ceil(maxPrice / 1000000) * 1000000;
-  }, [properties]);
+  }, [properties, mapPins, viewMode]);
 
   // Check if filters are active (not in initial state) - excludes company selection
   const hasActiveFilters = useMemo(() => {
@@ -186,16 +227,19 @@ export default function Home() {
   };
 
   // Calculate zip codes with property counts
+  // Use map pins in map view, full properties in grid/table views
   const zipCodesWithCounts = useMemo(() => {
+    const dataSource = viewMode === "map" ? mapPins : properties;
     const counts: Record<string, number> = {};
-    properties.forEach(p => {
-      counts[p.zipCode] = (counts[p.zipCode] || 0) + 1;
+    dataSource.forEach(p => {
+      const zipCode = viewMode === "map" ? (p as MapPin).zipcode : (p as Property).zipCode;
+      counts[zipCode] = (counts[zipCode] || 0) + 1;
     });
     return Object.entries(counts).map(([zipCode, count]) => ({
       zipCode,
       count
     }));
-  }, [properties]);
+  }, [properties, mapPins, viewMode]);
 
   useEffect(() => {
     const fetchLocation = async () => {
@@ -276,8 +320,70 @@ export default function Home() {
     fetchLocation();
   }, [filters?.zipCode, filters?.city, filters?.county]);
 
-  console.log("Properties: ", properties)
+  // Filter map pins for map view (using minimal data)
+  const filteredMapPins = useMemo(() => {
+    return mapPins.filter(pin => {
+      // Apply company filter first if one is selected
+      if (selectedCompany) {
+        const ownerName = (pin.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+        const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (ownerName !== selectedName) {
+          return false;
+        }
+      }
 
+      // Filter by price
+      if (pin.price != null) {
+        if (pin.price < filters.minPrice || pin.price > filters.maxPrice) {
+          return false;
+        }
+      }
+
+      // Filter by bedrooms
+      if (filters.bedrooms !== 'Any') {
+        const minBeds = parseInt(filters.bedrooms);
+        if (pin.bedrooms < minBeds) return false;
+      }
+
+      // Filter by bathrooms
+      if (filters.bathrooms !== 'Any') {
+        const minBaths = parseInt(filters.bathrooms);
+        if (pin.bathrooms < minBaths) return false;
+      }
+
+      // Filter by property type
+      if (filters.propertyTypes.length > 0 && !filters.propertyTypes.includes(pin.propertyType)) {
+        return false;
+      }
+
+      // Filter by zip code or city
+      if (filters.city && filters.city.trim() !== '') {
+        const cityZipCodes = SAN_DIEGO_ZIP_CODES
+          .filter(z => {
+            if (filters.city === 'San Diego') {
+              return z.city.startsWith('San Diego');
+            } else {
+              return z.city === filters.city;
+            }
+          })
+          .map(z => z.zip);
+        if (!cityZipCodes.includes(pin.zipcode)) return false;
+      } else if (filters.zipCode && filters.zipCode.trim() !== '') {
+        if (pin.zipcode !== filters.zipCode.trim()) return false;
+      }
+
+      // Filter by status
+      if (filters.statusFilters && filters.statusFilters.length > 0) {
+        const propertyStatus = pin.status || 'in-renovation';
+        if (!filters.statusFilters.includes(propertyStatus)) return false;
+      }
+
+      return true;
+    });
+  }, [mapPins, filters, selectedCompany]);
+
+
+  // Filter full properties for grid/table views
   const filteredProperties = properties.filter(property => {
     // Apply company filter first if one is selected (case-insensitive comparison with null safety)
     if (selectedCompany) {
@@ -342,7 +448,6 @@ export default function Home() {
     return true;
   });
 
-  console.log("Filtered Properties: ", filteredProperties)
 
   const handleCompanySelect = (companyName: string | null) => {
     if (companyName) {
@@ -410,8 +515,8 @@ export default function Home() {
     setViewMode(mode);
   };
 
-  // Handle property selection by ID (for search suggestions)
-  const handlePropertySelectById = async (propertyId: string) => {
+  // Fetch full property data by ID
+  const fetchPropertyById = async (propertyId: string): Promise<Property | null> => {
     try {
       const response = await fetch(`/api/properties/${propertyId}`, {
         credentials: "include",
@@ -420,12 +525,22 @@ export default function Home() {
       if (!response.ok) {
         if (response.status === 404) {
           console.error("Property not found");
-          return;
+          return null;
         }
         throw new Error(`Failed to fetch property: ${response.status}`);
       }
       
-      const property = await response.json();
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching property by ID:", error);
+      return null;
+    }
+  };
+
+  // Handle property selection by ID (for search suggestions)
+  const handlePropertySelectById = async (propertyId: string) => {
+    const property = await fetchPropertyById(propertyId);
+    if (property) {
       setSelectedProperty(property);
       
       // If on map view, center on the property if it has coordinates
@@ -434,20 +549,28 @@ export default function Home() {
         setMapCenter([property.latitude, property.longitude]);
         setMapZoom(16);
       }
-    } catch (error) {
-      console.error("Error fetching property by ID:", error);
+    }
+  };
+
+  // Handle map pin click - fetch full property data
+  const handleMapPinClick = async (mapPin: MapPin) => {
+    const property = await fetchPropertyById(mapPin.id);
+    if (property) {
+      setSelectedProperty(property);
     }
   };
 
   // Calculate total properties owned by selected company (before filters are applied)
+  // Use map pins in map view, full properties in grid/table views
   const totalCompanyProperties = useMemo(() => {
     if (!selectedCompany) return 0;
     const companyNameNormalized = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
-    return properties.filter(p => {
+    const dataSource = viewMode === "map" ? mapPins : properties;
+    return dataSource.filter(p => {
       const ownerName = (p.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
       return ownerName === companyNameNormalized;
     }).length;
-  }, [properties, selectedCompany]);
+  }, [properties, mapPins, selectedCompany, viewMode]);
 
   // Calculate current time once for deterministic sorting
   const now = Date.now();
@@ -557,13 +680,14 @@ export default function Home() {
                 )}
                 <div className="flex-1">
                   <PropertyMap
-                    properties={sortedProperties}
-                    onPropertyClick={setSelectedProperty}
+                    mapPins={filteredMapPins}
+                    onPropertyClick={handleMapPinClick}
                     center={mapCenter}
                     zoom={mapZoom}
                     hasActiveFilters={hasActiveFilters}
                     onClearFilters={handleClearAllFilters}
                     selectedProperty={selectedProperty}
+                    isLoading={isLoadingMapPins}
                   />
                 </div>
               </>

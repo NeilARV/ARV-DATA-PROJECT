@@ -6,6 +6,22 @@ import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
+// Type for map pin data (minimal property data)
+export type MapPin = {
+  id: string;
+  latitude: number | null;
+  longitude: number | null;
+  city: string;
+  zipcode: string;
+  county: string;
+  propertyType: string;
+  bedrooms: number;
+  bathrooms: number;
+  price: number;
+  status: string | null;
+  propertyOwner: string | null;
+};
+
 const createColoredIcon = (color: string) => {
   const svgIcon = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="41">
@@ -52,23 +68,24 @@ const getIconForStatus = (status: string | null | undefined, isSelected: boolean
 };
 
 interface PropertyMapProps {
-  properties: Property[];
-  onPropertyClick?: (property: Property) => void;
+  mapPins: MapPin[];
+  onPropertyClick?: (mapPin: MapPin) => void;
   center?: [number, number];
   zoom?: number;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
   selectedProperty?: Property | null;
+  isLoading?: boolean;
 }
 
-function MapBounds({ properties, center, zoom }: { properties: Property[], center?: [number, number], zoom?: number }) {
+function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [number, number], zoom?: number }) {
   const map = useMap();
   const previousPropertyIdsRef = useRef<string>('');
   const previousCenterRef = useRef<[number, number] | undefined>(undefined);
   
   useEffect(() => {
     // Create a sorted string of property IDs to compare
-    const currentPropertyIds = properties.map(p => p.id).sort().join(',');
+    const currentPropertyIds = mapPins.map(p => p.id).sort().join(',');
     
     // Only refit bounds if the property set actually changed (not just a re-render)
     const propertySetChanged = previousPropertyIdsRef.current !== currentPropertyIds;
@@ -88,19 +105,19 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
       return;
     }
     
-    if (properties.length > 0) {
-      // Filter properties with valid coordinates
-      const validProperties = properties.filter(p => 
+    if (mapPins.length > 0) {
+      // Filter map pins with valid coordinates
+      const validPins = mapPins.filter(p => 
         p.latitude != null && p.longitude != null && 
         !isNaN(p.latitude) && !isNaN(p.longitude)
       );
       
-      if (validProperties.length > 0) {
+      if (validPins.length > 0) {
         // Only fit bounds if the property set changed (filters applied, etc.)
         // Don't refit when just selecting a property (which doesn't change the property set)
         if (propertySetChanged && center === undefined) {
           const bounds = L.latLngBounds(
-            validProperties.map(p => [p.latitude!, p.longitude!])
+            validPins.map(p => [p.latitude!, p.longitude!])
           );
           map.fitBounds(bounds, { padding: [50, 50] });
         }
@@ -112,22 +129,23 @@ function MapBounds({ properties, center, zoom }: { properties: Property[], cente
       // No properties at all, use default view
       map.setView(center, zoom);
     }
-  }, [properties, center, zoom, map]);
+  }, [mapPins, center, zoom, map]);
 
   return null;
 }
 
 export default function PropertyMap({ 
-  properties, 
+  mapPins, 
   onPropertyClick, 
   center = [32.7157, -117.1611], 
   zoom = 14,
   hasActiveFilters = false,
   onClearFilters,
-  selectedProperty
+  selectedProperty,
+  isLoading = false
 }: PropertyMapProps) {
-  // Filter properties with valid coordinates for rendering on map
-  const validProperties = properties.filter(p => 
+  // Filter map pins with valid coordinates for rendering on map
+  const validPins = mapPins.filter(p => 
     p.latitude != null && p.longitude != null && 
     !isNaN(p.latitude) && !isNaN(p.longitude)
   );
@@ -158,20 +176,26 @@ export default function PropertyMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapBounds properties={validProperties} center={center} zoom={zoom} />
-        {validProperties.map((property) => {
-          const isSelected = selectedProperty?.id === property.id;
-          return (
-            <Marker
-              key={property.id}
-              position={[property.latitude!, property.longitude!]}
-              icon={getIconForStatus(property.status, isSelected)}
-              eventHandlers={{
-                click: () => onPropertyClick?.(property),
-              }}
-            />
-          );
-        })}
+        <MapBounds mapPins={validPins} center={center} zoom={zoom} />
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[1000]">
+            <div className="text-muted-foreground">Loading map pins...</div>
+          </div>
+        ) : (
+          validPins.map((pin) => {
+            const isSelected = selectedProperty?.id === pin.id;
+            return (
+              <Marker
+                key={pin.id}
+                position={[pin.latitude!, pin.longitude!]}
+                icon={getIconForStatus(pin.status, isSelected)}
+                eventHandlers={{
+                  click: () => onPropertyClick?.(pin),
+                }}
+              />
+            );
+          })
+        )}
       </MapContainer>
     </div>
   );

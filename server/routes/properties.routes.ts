@@ -163,6 +163,53 @@ router.post("/", requireAdminAuth, async (req, res) => {
     }
 });
 
+// Get minimal property data for map pins
+router.get("/map", async (req, res) => {
+    try {
+        const { county } = req.query;
+
+        const conditions = [];
+
+        if (county) {
+            const normalizedCounty = county.toString().trim().toLowerCase();
+            conditions.push(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            );
+        }
+
+        const whereClause = conditions.length > 0 ? conditions[0] : undefined;
+
+        // Select only minimal fields needed for map pins and filtering
+        const query = db.select({
+            id: properties.id,
+            latitude: properties.latitude,
+            longitude: properties.longitude,
+            address: properties.address,
+            city: properties.city,
+            zipcode: properties.zipCode,
+            county: properties.county,
+            propertyType: properties.propertyType,
+            bedrooms: properties.bedrooms,
+            bathrooms: properties.bathrooms,
+            price: properties.price,
+            status: properties.status,
+            propertyOwner: properties.propertyOwner
+        }).from(properties);
+
+        const results = whereClause 
+            ? await query.where(whereClause).execute()
+            : await query.execute();
+
+        console.log("Properties map pins:", results.length);
+
+        res.status(200).json(results);
+
+    } catch (error) {
+        console.error("Error fetching properties map pins:", error);
+        res.status(500).json({ message: "Error fetching properties map pins" });
+    }
+});
+
 // Get property suggestions for search
 router.get("/suggestions", async (req, res) => {
     try {
