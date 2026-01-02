@@ -147,9 +147,26 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   // });
 
   // New Route (Not in use yet)
-  const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
+  const { data: companies = [], isLoading, error, isError } = useQuery<CompanyContact[]>({
     queryKey: ["/api/companies/contacts"],
+    onError: (error) => {
+      console.error("[CompanyDirectory] Error fetching companies:", error);
+    },
+    onSuccess: (data) => {
+      console.log("[CompanyDirectory] Successfully fetched companies:", data?.length || 0);
+    },
   });
+  
+  // Log companies data for debugging
+  useEffect(() => {
+    console.log("[CompanyDirectory] Companies data:", {
+      count: companies.length,
+      isLoading,
+      isError,
+      error: error?.message,
+      companies: companies.slice(0, 3).map(c => ({ id: c.id, name: c.companyName }))
+    });
+  }, [companies, isLoading, isError, error]);
 
   const { data: properties = [] } = useQuery<Property[]>({
     queryKey: ["/api/properties"],
@@ -381,13 +398,28 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {isLoading ? (
+        {isError ? (
+          <div className="text-center text-muted-foreground py-8">
+            <div className="text-red-500 mb-2">Error loading companies</div>
+            <div className="text-xs text-muted-foreground">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-2">
+              Check console for details
+            </div>
+          </div>
+        ) : isLoading ? (
           <div className="text-center text-muted-foreground py-8">
             Loading companies...
           </div>
         ) : filteredCompanies.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
             {searchQuery ? "No companies found" : "No companies in directory"}
+            {companies.length === 0 && !isLoading && (
+              <div className="text-xs text-muted-foreground mt-2">
+                API returned 0 companies. Check server logs.
+              </div>
+            )}
           </div>
         ) : (
           filteredCompanies.map((company, index) => {

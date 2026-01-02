@@ -131,6 +131,20 @@ app.use((req, res, next) => {
 
   // const server = await registerRoutes(app);
   
+  // Add request logging middleware specifically for debugging companies route
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/companies")) {
+      console.log("[REQUEST] Companies route request:", {
+        method: req.method,
+        path: req.path,
+        url: req.url,
+        originalUrl: req.originalUrl,
+        baseUrl: req.baseUrl,
+      });
+    }
+    next();
+  });
+  
   app.use("/api", apiRoutes);
   const server = createServer(app)
 
