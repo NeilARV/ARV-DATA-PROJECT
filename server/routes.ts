@@ -801,48 +801,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Clean up bad date formats - Convert Excel serial dates to ISO strings (requires admin auth)
-  app.post("/api/properties/cleanup-dates",
-    requireAdminAuth,
-    async (_req, res) => {
-      try {
-        const allProps = await db.select().from(properties);
-        // Find properties with Excel serial date format (numeric strings like "45961")
-        const badDates = allProps.filter(
-          (p) => p.dateSold && /^\d+(\.\d+)?$/.test(p.dateSold),
-        );
-
-        console.log(
-          `Found ${badDates.length} properties with Excel serial dates`,
-        );
-
-        let fixed = 0;
-
-        for (const prop of badDates) {
-          const isoDate = parseExcelDate(prop.dateSold);
-          if (isoDate && isoDate !== prop.dateSold) {
-            await db
-              .update(properties)
-              .set({ dateSold: isoDate })
-              .where(eq(properties.id, prop.id));
-            fixed++;
-            console.log(
-              `Fixed date for ${prop.address}: ${prop.dateSold} -> ${isoDate}`,
-            );
-          }
-        }
-
-        res.json({
-          totalBadDates: badDates.length,
-          fixed: fixed,
-        });
-      } catch (error) {
-        console.error("Error cleaning up dates:", error);
-        res.status(500).json({ message: "Error cleaning up dates" });
-      }
-    },
-  );
-
   // Proxy Street View image to keep API key secure on server
   app.get("/api/streetview", async (req, res) => {
     try {
