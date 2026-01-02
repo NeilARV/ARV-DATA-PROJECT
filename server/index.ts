@@ -132,9 +132,10 @@ app.use((req, res, next) => {
   }
 
   // const server = await registerRoutes(app);
-
-  const server = createServer(app)
+  
   app.use("/api", apiRoutes);
+  const server = createServer(app)
+
   
   // Log registered routes for debugging
   console.log("[Routes] API routes registered at /api");

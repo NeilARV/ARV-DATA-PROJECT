@@ -70,7 +70,7 @@ const updatePropertySchema = z
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Seed company contacts on startup
-  await seedCompanyContacts();
+  // await seedCompanyContacts();
 
   // Check admin authentication status
   app.get("/api/admin/status", async (req, res) => {
