@@ -5,22 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-
-// Type for map pin data (minimal property data)
-export type MapPin = {
-  id: string;
-  latitude: number | null;
-  longitude: number | null;
-  city: string;
-  zipcode: string;
-  county: string;
-  propertyType: string;
-  bedrooms: number;
-  bathrooms: number;
-  price: number;
-  status: string | null;
-  propertyOwner: string | null;
-};
+import type { MapPin } from "@/types/property";
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `

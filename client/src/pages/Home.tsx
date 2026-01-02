@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAN_DIEGO_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import type { MapPin } from "@/types/property";
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
@@ -128,23 +129,6 @@ export default function Home() {
   const mapPinsQueryUrl = useMemo(() => {
     return `/api/properties/map${countyQueryParam}`;
   }, [countyQueryParam]);
-
-  // Type for map pin data (minimal property data)
-  type MapPin = {
-    id: string;
-    latitude: number | null;
-    longitude: number | null;
-    address: string,
-    city: string;
-    zipcode: string;
-    county: string;
-    propertyType: string;
-    bedrooms: number;
-    bathrooms: number;
-    price: number;
-    status: string | null;
-    propertyOwner: string | null;
-  };
 
   // Fetch map pins (minimal data) for map view
   const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
