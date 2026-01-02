@@ -1,4 +1,4 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "./storage";
 import {
@@ -12,11 +12,10 @@ import {
   emailWhitelist,
   insertEmailWhitelistSchema,
 } from "@shared/schema";
-import { eq, and, gt, lt, or, desc, sql, like } from "drizzle-orm";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { seedCompanyContacts } from "./seed-companies";
 import pLimit from "p-limit";
 import { z } from "zod";
-import { parseExcelDate } from "./utils/parseExcelDate";
 import { normalizeToTitleCase } from "./utils/normalizeToTitleCase";
 import { geocodeAddress } from "./utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "./utils/normalizeCompanyName";
@@ -25,7 +24,6 @@ import { mapPropertyType } from "./utils/mapPropertyType";
 import { fetchCounty } from "./utils/fetchCounty";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
-import { count } from "console";
 
 dotenv.config()
 

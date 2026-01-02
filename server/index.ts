@@ -135,6 +135,16 @@ app.use((req, res, next) => {
 
   const server = createServer(app)
   app.use("/api", apiRoutes);
+  
+  // Log registered routes for debugging
+  console.log("[Routes] API routes registered at /api");
+  console.log("[Routes] Available endpoints:");
+  console.log("  - GET /api/companies/contacts");
+  console.log("  - GET /api/properties");
+  console.log("  - GET /api/properties/:id");
+  console.log("  - POST /api/auth/login");
+  console.log("  - POST /api/auth/signup");
+  console.log("  - GET /api/auth/me");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
