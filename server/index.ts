@@ -1,7 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import session from "express-session";
-import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { NeonSessionStore } from "./session-store";
 import { db } from "./storage";
@@ -130,10 +129,8 @@ app.use((req, res, next) => {
     console.error("[Startup] Session error details:", error);
   }
 
-  // const server = await registerRoutes(app);
-  
-  app.use("/api", apiRoutes);
   const server = createServer(app)
+  app.use("/api", apiRoutes);
 
   
   // Log registered routes for debugging
