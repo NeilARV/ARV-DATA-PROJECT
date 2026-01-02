@@ -131,10 +131,10 @@ app.use((req, res, next) => {
     console.error("[Startup] Session error details:", error);
   }
 
-  const server = await registerRoutes(app);
+  // const server = await registerRoutes(app);
 
-  // const server = createServer(app)
-  // app.use("/api", apiRoutes);
+  const server = createServer(app)
+  app.use("/api", apiRoutes);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

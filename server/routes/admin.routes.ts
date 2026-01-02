@@ -94,5 +94,4 @@ router.post("/whitelist", requireAdminAuth, async (req, res) => {
     }
 });
 
-
 export default router

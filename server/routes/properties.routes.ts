@@ -4,22 +4,80 @@ import { properties } from "@shared/schema";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertPropertySchema, companyContacts, updatePropertySchema } from "@shared/schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
-import { parseExcelDate } from "server/utils/parseExcelDate";
 import { normalizeCompanyNameForComparison } from "server/utils/normalizeCompanyName";
-import { eq } from "drizzle-orm";
+import { eq, sql, or } from "drizzle-orm";
 import pLimit from "p-limit";
 
 const router = Router();
 
 // Get all properties
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
     try {
-        const allProperties = await db.select().from(properties);
-        console.log("Properties Length: ", allProperties.length)
-        res.status(200).json(allProperties);
+
+        const { zipcode, city, county } = req.query;
+
+        if (!zipcode && !city && !county) {
+            const allProperties = await db.select().from(properties)
+            console.log("Properties Length (all):", allProperties.length);
+            return res.status(200).json(allProperties)
+        }
+
+        const conditions = []
+
+        if (county) {
+            const normalizedCounty = county.toString().trim().toLowerCase()
+            conditions.push(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            )
+        }
+
+        if (zipcode) {
+            const normalizedZipcode = zipcode.toString().trim()
+            conditions.push(
+                sql`TRIM(${properties.zipCode}) = ${normalizedZipcode}`
+            )
+        }
+
+        if (city) {
+            const normalizedCity = city.toString().trim().toLowerCase()
+            conditions.push(
+                sql`LOWER(TRIM(${properties.city})) = ${normalizedCity}`
+            )
+        }
+
+        const whereClause = conditions.length > 1 ? or(...conditions) : conditions[0];
+
+        const results = await db.select().from(properties).where(whereClause).execute()
+
+        console.log("Properties Length: ", results.length)
+        
+        res.status(200).json(results);
+      
     } catch (error) {
         console.error("Error fetching properties:", error);
         res.status(500).json({ message: "Error fetching properties" });
+    }
+});
+
+// Get a single property by ID
+router.get("/api/properties/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const [property] = await db
+            .select()
+            .from(properties)
+            .where(eq(properties.id, id))
+            .limit(1);
+
+        if (!property) {
+            return res.status(404).json({ message: "Property not found" });
+        }
+
+        res.status(200).json(property);
+    } catch (error) {
+        console.error("Error fetching property:", error);
+        res.status(500).json({ message: "Error fetching property" });
     }
 });
 
@@ -124,6 +182,43 @@ router.post("/", requireAdminAuth, async (req, res) => {
     } catch (error) {
         console.error("Error creating property:", error);
         res.status(500).json({ message: "Error creating property" });
+    }
+});
+
+// Get property suggestions for search
+router.get("/suggestions", async (req, res) => {
+    try {
+        const { search } = req.query;
+        
+        if (!search || search.toString().trim().length < 2) {
+            return res.status(200).json([]);
+        }
+
+        const searchTerm = `%${search.toString().trim().toLowerCase()}%`
+
+            // Search all fields - no smart detection needed for suggestions
+        const results = await db.select({
+            id: properties.id,
+            address: properties.address,
+            city: properties.city,
+            state: properties.state,
+            zipcode: properties.zipCode
+        })
+        .from(properties)
+        .where(
+            or(
+                sql`LOWER(TRIM(${properties.address})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${properties.city})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${properties.state})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${properties.zipCode})) LIKE ${searchTerm}`
+            )
+        ).limit(10);
+
+        res.status(200).json(results);
+
+    } catch (error) {
+        console.error("Error fetching property suggestions:", error);
+        res.status(500).json({ message: "Error fetching property suggestions" });
     }
 });
 
@@ -251,7 +346,7 @@ router.post("/upload", requireAdminAuth, async (req, res) => {
     }
 });
 
-  // Delete all properties (requires admin auth)
+// Delete all properties (requires admin auth)
 router.delete("/", requireAdminAuth, async (_req, res) => {
     try {
         await db.delete(properties);
@@ -375,41 +470,6 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
         });
     }
 });
-
-// Clean up bad date formats - Convert Excel serial dates to ISO strings (requires admin auth)
-router.post("/cleanup-dates", requireAdminAuth, async (_req, res) => {
-    try {
-        const allProps = await db.select().from(properties);
-        // Find properties with Excel serial date format (numeric strings like "45961")
-        const badDates = allProps.filter(
-            (p) => p.dateSold && /^\d+(\.\d+)?$/.test(p.dateSold),
-        );
-
-        console.log(`Found ${badDates.length} properties with Excel serial dates`);
-
-        let fixed = 0;
-
-        for (const prop of badDates) {
-            
-            const isoDate = parseExcelDate(prop.dateSold);
-            
-            if (isoDate && isoDate !== prop.dateSold) {
-                await db
-                    .update(properties)
-                    .set({ dateSold: isoDate })
-                    .where(eq(properties.id, prop.id));
-                fixed++;
-                console.log(`Fixed date for ${prop.address}: ${prop.dateSold} -> ${isoDate}`);
-            }
-        }
-
-        res.json({totalBadDates: badDates.length, fixed: fixed});
-    } catch (error) {
-        console.error("Error cleaning up dates:", error);
-        res.status(500).json({ message: "Error cleaning up dates" });
-    }
-},
-);
 
 // Proxy Street View image to keep API key secure on server
 router.get("/streetview", async (req, res) => {

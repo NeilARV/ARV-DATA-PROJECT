@@ -11,7 +11,9 @@ router.get("/contacts", async (_req, res) => {
             .select()
             .from(companyContacts)
             .orderBy(companyContacts.companyName);
+            
         res.json(allContacts);
+        
     } catch (error) {
         console.error("Error fetching company contacts:", error);
         res.status(500).json({ message: "Error fetching company contacts" });

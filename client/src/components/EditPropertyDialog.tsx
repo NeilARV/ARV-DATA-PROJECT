@@ -67,7 +67,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
   const [activeTab, setActiveTab] = useState("basic");
 
   const { data: companies = [] } = useQuery<CompanyContact[]>({
-    queryKey: ["/api/company/contacts"],
+    queryKey: ["/api/companies/contacts"],
     enabled: open,
   });
 

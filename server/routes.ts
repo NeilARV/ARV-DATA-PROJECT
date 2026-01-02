@@ -788,7 +788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all company contacts
-  app.get("/api/company-contacts", async (_req, res) => {
+  app.get("/api/companies/contacts", async (_req, res) => {
     try {
       const allContacts = await db
         .select()

@@ -5,12 +5,13 @@ import {
   companyContacts,
   sfrSyncState,
 } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or } from "drizzle-orm";
 import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { mapPropertyType } from "server/utils/mapPropertyType";
+import { fetchCounty } from "server/utils/fetchCounty";
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
     const MSA = "San Diego-Chula Vista-Carlsbad, CA";
 
     const today = new Date().toISOString().split("T")[0];
-
+    
     // Sync state / counters exposed to outer scope so we can persist partial progress on failure
     let minDate: string = "";
     let syncStateId: number | null = null;
@@ -93,12 +94,10 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
     try {
         // Get or create sync state for this MSA
         syncState = await db
-        .select()
-        .from(sfrSyncState)
-        .where(eq(sfrSyncState.msa, MSA))
-        .limit(1);
-
-
+            .select()
+            .from(sfrSyncState)
+            .where(eq(sfrSyncState.msa, MSA))
+            .limit(1);
 
         if (syncState.length === 0) {
             // Create new sync state with default min date
@@ -106,9 +105,9 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
             const [newSyncState] = await db
                 .insert(sfrSyncState)
                 .values({
-                msa: MSA,
-                lastSaleDate: null,
-                totalRecordsSynced: 0,
+                    msa: MSA,
+                    lastSaleDate: null,
+                    totalRecordsSynced: 0,
                 })
                 .returning();
             syncStateId = newSyncState.id;
@@ -127,6 +126,18 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
 
         console.log(`[SFR SYNC] Starting sync for ${MSA} from ${minDate} to ${today}`);
 
+        // Load all company contacts into memory once
+        const allContacts = await db.select().from(companyContacts);
+        const contactsMap = new Map<string, typeof allContacts[0]>();
+
+        for (const contact of allContacts) {
+            const normalizedKey = normalizeCompanyNameForComparison(contact.companyName);
+            if (normalizedKey) {
+                contactsMap.set(normalizedKey, contact);
+            }
+        }
+        console.log(`[SFR SYNC] Loaded ${contactsMap.size} company contacts into cache`);
+
         // Process properties in batches to avoid memory issues
         const BATCH_SIZE = 50;
         let batchBuffer: any[] = [];
@@ -136,28 +147,28 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                 "msa": MSA,
                 "city": null,
                 "salesDate": {
-                "min": minDate,
-                "max": today
+                    "min": minDate,
+                    "max": today
                 },
                 "pagination": {
-                "page": currentPage,
-                "pageSize": 100
+                    "page": currentPage,
+                    "pageSize": 100
                 },
                 "sort": {
-                "field": "recording_date",
-                "direction": "asc"
+                    "field": "recording_date",
+                    "direction": "asc"
                 }
             };
-            
+        
             const response = await fetch(`${API_URL}/buyers/market/page`, {
                 method: 'POST',
                 headers: {
-                'X-API-TOKEN': API_KEY,
-                'Content-Type': 'application/json'
+                    'X-API-TOKEN': API_KEY,
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(requestBody)
             });
-            
+        
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error(`[SFR SYNC] API error on page ${currentPage}:`, errorText);
@@ -176,9 +187,9 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                 }
 
                 return res.status(response.status).json({ 
-                message: "Error fetching SFR buyer data",
-                status: response.status,
-                error: errorText
+                    message: "Error fetching SFR buyer data",
+                    status: response.status,
+                    error: errorText
                 });
             }
 
@@ -192,7 +203,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
             }
         
             console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records`);
-            
+        
             if (data.length > 0) {
                 console.log(`[SFR SYNC] Sample record structure:`, JSON.stringify(data[0], null, 2));
             }
@@ -215,25 +226,36 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                         totalProcessed++;
                         continue;
                     }
-                
+                    
                     if (!normalizedCity || normalizedCity.trim() === "") {
                         console.warn(`[SFR SYNC] Skipping record with empty city:`, JSON.stringify(record, null, 2));
                         totalProcessed++;
                         continue;
                     }
 
+                    const hasStreetNumber = /^\d+/.test(normalizedAddress)
+
+                    if (!hasStreetNumber) {
+                        console.warn(`[SFR SYNC] Skipping record with no street number`, JSON.stringify(record, null, 2))
+                        totalProcessed++;
+                        continue;
+                    }
+
                     let price: number = 0
+
                     if ((record.saleValue - record.avmValue) > 1000000) {
                         price = record.avmValue
                     } else {
                         price = record.saleValue
                     }
-                
+                    
                     const propertyData: any = {
                         address: normalizedAddress,
                         city: normalizedCity,
                         state: record.state || "CA",
                         zipCode: record.zipCode || "",
+                        county: "UNKNOWN",
+
                         price: price || 0,
                         bedrooms: record.bedrooms || 0,
                         bathrooms: record.bathrooms || 0,
@@ -297,7 +319,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                             saleDateStr = propertyData.dateSold.split("T")[0];
                         }
                     }
-                
+                    
                     // Update latestSaleDate immediately for ALL processed records (even if we skip them later)
                     // This ensures we track the latest saleDate we've seen, regardless of whether we insert/update
                     if (saleDateStr && (!latestSaleDate || saleDateStr > latestSaleDate)) {
@@ -327,22 +349,27 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                     // Skip non-corporate buyers — we only import corporate buyers and trusts            
                     if (!propertyData.isCorporate) {
                         console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
-                        // Note: latestSaleDate was already updated above, so we still track it even for skipped records
                         continue;
                     }
 
                     // Geocode if coordinates are missing
                     if ((!propertyData.latitude || !propertyData.longitude) && propertyData.address) {
                         const coords = await geocodeAddress(
-                        propertyData.address,
-                        propertyData.city,
-                        propertyData.state,
-                        propertyData.zipCode
+                            propertyData.address,
+                            propertyData.city,
+                            propertyData.state,
+                            propertyData.zipCode
                         );
                         if (coords) {
-                        propertyData.latitude = coords.lat;
-                        propertyData.longitude = coords.lng;
+                            propertyData.latitude = coords.lat;
+                            propertyData.longitude = coords.lng;
                         }
+                    }
+
+                    // Get county from longitude (x) and latitude (y) - do this after geocoding in case coordinates were just added
+                    if (propertyData.latitude && propertyData.longitude) {
+                        const county = await fetchCounty(propertyData.longitude, propertyData.latitude);
+                        propertyData.county = county ? county : "UNKNOWN";
                     }
 
                     // Handle company contact
@@ -353,20 +380,12 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                         const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyNameForStorage;
                         const contactEmail = record.contactEmail || record.contact_email || null;
 
-                        // Check if company contact already exists using punctuation-insensitive comparison
+                        // Check if company contact already exists using in-memory cache
                         const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
-                        const allContacts = await db
-                        .select()
-                        .from(companyContacts);
-                        
-                        // Find existing contact by normalizing and comparing (ignoring punctuation)
-                        const existingContact = allContacts.find(contact => {
-                        const normalizedExisting = normalizeCompanyNameForComparison(contact.companyName);
-                        return normalizedExisting && normalizedExisting === normalizedCompanyNameForCompare;
-                        });
+                        const existingContact = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
 
                         if (!existingContact) {
-                        // Insert new company contact with normalized storage format
+                            // Insert new company contact with normalized storage format
                             try {
                                 await db.insert(companyContacts).values({
                                     companyName: normalizedCompanyNameForStorage,
@@ -381,7 +400,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                                     console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyNameForStorage}:`, contactError);
                                 }
                             }
-                        
+                            
                             // Set property owner and contact info using normalized storage format
                             propertyData.propertyOwner = normalizedCompanyNameForStorage;
                             propertyData.companyContactName = null;
@@ -400,81 +419,74 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                     // Check for existing property by SFR IDs first
                     let existingProperty = null;
                     
-                    if (propertyData.sfrPropertyId) {
-                        const byPropertyId = await db
-                        .select()
-                        .from(properties)
-                        .where(eq(properties.sfrPropertyId, propertyData.sfrPropertyId))
-                        .limit(1);
-                        if (byPropertyId.length > 0) {
-                        existingProperty = byPropertyId[0];
-                        }
-                    }
-                    
-                    if (!existingProperty && propertyData.sfrRecordId) {
-                        const byRecordId = await db
-                        .select()
-                        .from(properties)
-                        .where(eq(properties.sfrRecordId, propertyData.sfrRecordId))
-                        .limit(1);
-                        if (byRecordId.length > 0) {
-                        existingProperty = byRecordId[0];
-                        }
-                    }
-
-                    // If no match by SFR IDs, check by address
-                    if (!existingProperty && propertyData.address) {
-                        const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
-                        const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
+                    if (propertyData.sfrPropertyId || propertyData.sfrRecordId || propertyData.address) {
+                        const conditions = [];
                         
-                        const byAddress = await db
-                        .select()
-                        .from(properties)
-                        .where(
-                            and(
-                            sql`LOWER(TRIM(${properties.address})) = ${normalizedAddressForCompare}`,
-                            sql`LOWER(TRIM(${properties.city})) = ${normalizedCityForCompare}`,
-                            eq(properties.state, propertyData.state),
-                            eq(properties.zipCode, propertyData.zipCode)
-                            )
-                        )
-                        .limit(1);
-                        if (byAddress.length > 0) {
-                            existingProperty = byAddress[0];
+                        if (propertyData.sfrPropertyId) {
+                            conditions.push(eq(properties.sfrPropertyId, propertyData.sfrPropertyId));
+                        }
+                        
+                        if (propertyData.sfrRecordId) {
+                            conditions.push(eq(properties.sfrRecordId, propertyData.sfrRecordId));
+                        }
+                        
+                        if (propertyData.address) {
+                            const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
+                            const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
+                            
+                            conditions.push(
+                                and(
+                                    sql`LOWER(TRIM(${properties.address})) = ${normalizedAddressForCompare}`,
+                                    sql`LOWER(TRIM(${properties.city})) = ${normalizedCityForCompare}`,
+                                    eq(properties.state, propertyData.state),
+                                    eq(properties.zipCode, propertyData.zipCode)
+                                )
+                            );
+                        }
+                        
+                        if (conditions.length > 0) {
+                            const results = await db
+                                .select()
+                                .from(properties)
+                                .where(or(...conditions))
+                                .limit(1);
+                            
+                            if (results.length > 0) {
+                                existingProperty = results[0];
+                            }
                         }
                     }
 
                     if (existingProperty) {
                         // Update existing property if this record is more recent
-                        const shouldUpdate = !existingProperty.recordingDate || 
-                        (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
-                        
+                        const shouldUpdate = !existingProperty.recordingDate || (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
+                    
                         if (shouldUpdate) {
                             const { id, createdAt, _saleDate, ...updateData } = propertyData;
                             updateData.updatedAt = sql`now()`;
                             
                             try {
                                 await db
-                                .update(properties)
-                                .set(updateData)
-                                .where(eq(properties.id, existingProperty.id));
-                                
+                                    .update(properties)
+                                    .set(updateData)
+                                    .where(eq(properties.id, existingProperty.id));
+                            
                                 totalUpdated++;
                                 console.log(`[SFR SYNC] Updated property: ${propertyData.address} (ID: ${existingProperty.id}, saleDate: ${saleDateStr || 'N/A'})`);
-                                
+                            
                                 // Persist sync state periodically after successful updates (every 10 updates)
                                 if (totalUpdated % 10 === 0 && latestSaleDate) {
-                                try {
-                                    await persistSyncStateExplicit({
-                                        syncStateId,
-                                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                        initialTotalSynced,
-                                        processed: totalProcessed,
-                                        finalSaleDate: latestSaleDate,
-                                    });
-                                } catch (persistError) {
-                                    console.error(`[SFR SYNC] Failed to persist state after periodic update:`, persistError);
-                                }
+                                    try {
+                                        await persistSyncStateExplicit({
+                                            syncStateId,
+                                            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                                            initialTotalSynced,
+                                            processed: totalProcessed,
+                                            finalSaleDate: latestSaleDate,
+                                        });
+                                    } catch (persistError) {
+                                        console.error(`[SFR SYNC] Failed to persist state after periodic update:`, persistError);
+                                    }
                                 }
                             } catch (updateError: any) {
                                 console.error(`[SFR SYNC] Error updating property ${propertyData.address}:`, updateError);
@@ -489,62 +501,61 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
                         
                         // Insert batch if full
                         if (batchBuffer.length >= BATCH_SIZE) {
-                        try {
-                            const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
-                            await db.insert(properties).values(batchToInsert);
-                            totalInserted += batchBuffer.length;
-                            console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
-                            
-                            // Persist sync state periodically after successful batch inserts
-                            if (latestSaleDate) {
-                                try {
-                                    await persistSyncStateExplicit({
-                                    syncStateId,
-                                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                    initialTotalSynced,
-                                    processed: totalProcessed,
-                                    finalSaleDate: latestSaleDate,
-                                    });
-                                } catch (persistError) {
-                                    console.error(`[SFR SYNC] Failed to persist state after batch insert:`, persistError);
-                                }
-                            }
-                            
-                            batchBuffer = [];
-                        } catch (batchError: any) {
-                            console.error(`[SFR SYNC] Error inserting batch:`, batchError);
-                            // Try inserting individually
-                            for (const prop of batchBuffer) {
-                                try {
-                                    const { _saleDate, ...propToInsert } = prop;
-                                    await db.insert(properties).values([propToInsert]);
-                                    totalInserted++;
-                                    
-                                    // Persist after each successful individual insert (for error recovery)
-                                    if (prop._saleDate && latestSaleDate) {
-                                        try {
-                                            await persistSyncStateExplicit({
+                            try {
+                                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
+                                await db.insert(properties).values(batchToInsert);
+                                totalInserted += batchBuffer.length;
+                                console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
+                                
+                                // Persist sync state periodically after successful batch inserts
+                                if (latestSaleDate) {
+                                    try {
+                                        await persistSyncStateExplicit({
                                             syncStateId,
                                             previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
                                             initialTotalSynced,
                                             processed: totalProcessed,
                                             finalSaleDate: latestSaleDate,
-                                            });
-                                        } catch (persistError) {
-                                            console.error(`[SFR SYNC] Failed to persist state after individual insert:`, persistError);
-                                        }
+                                        });
+                                    } catch (persistError) {
+                                        console.error(`[SFR SYNC] Failed to persist state after batch insert:`, persistError);
                                     }
-                                } catch (individualError: any) {
-                                    console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
                                 }
+                                
+                                batchBuffer = [];
+                            } catch (batchError: any) {
+                                console.error(`[SFR SYNC] Error inserting batch:`, batchError);
+                                // Try inserting individually
+                                for (const prop of batchBuffer) {
+                                    try {
+                                        const { _saleDate, ...propToInsert } = prop;
+                                        await db.insert(properties).values([propToInsert]);
+                                        totalInserted++;
+                                        
+                                        // Persist after each successful individual insert (for error recovery)
+                                        if (prop._saleDate && latestSaleDate) {
+                                            try {
+                                                await persistSyncStateExplicit({
+                                                    syncStateId,
+                                                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                                                    initialTotalSynced,
+                                                    processed: totalProcessed,
+                                                    finalSaleDate: latestSaleDate,
+                                                });
+                                            } catch (persistError) {
+                                                console.error(`[SFR SYNC] Failed to persist state after individual insert:`, persistError);
+                                            }
+                                        }
+                                    } catch (individualError: any) {
+                                        console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
+                                    }
+                                }
+                                batchBuffer = [];
                             }
-                            batchBuffer = [];
-                        }
                         }
                     }
 
                     totalProcessed++;
-
                 } catch (propertyError: any) {
                     console.error(`[SFR SYNC] Error processing property:`, propertyError);
                     console.error(`[SFR SYNC] Record that caused error:`, JSON.stringify(record, null, 2));
