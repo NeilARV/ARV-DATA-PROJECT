@@ -118,11 +118,6 @@ export const emailWhitelist = pgTable("email_whitelist", {
   createdAt: timestamp("created_at").defaultNow(),
 })
 
-/* OLD INSERT SCHEMA FOR PROPERTIES */
-// export const insertPropertySchema = createInsertSchema(properties).omit({
-//   id: true,
-// });
-
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
   createdAt: true,

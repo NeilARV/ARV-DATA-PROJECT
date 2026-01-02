@@ -7,7 +7,6 @@ import { NeonSessionStore } from "./session-store";
 import { db } from "./storage";
 import { sessions } from "@shared/schema";
 import dotenv from "dotenv";
-
 import apiRoutes from "./routes/index"
 
 dotenv.config()
