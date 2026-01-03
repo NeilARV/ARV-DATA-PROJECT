@@ -146,9 +146,19 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   //   queryKey: ["/api/company-contacts"],
   // });
 
-  // New Route (Not in use yet)
+  // New Route - fetch companies filtered by county
+  const countyQueryParam = filters?.county ? `?county=${encodeURIComponent(filters.county)}` : '';
   const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
-    queryKey: ["/api/companies/contacts"],
+    queryKey: [`/api/companies/contacts${countyQueryParam}`],
+    queryFn: async () => {
+      const res = await fetch(`/api/companies/contacts${countyQueryParam}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch companies: ${res.status}`);
+      }
+      return res.json();
+    },
   });
 
   const { data: properties = [] } = useQuery<Property[]>({

@@ -377,6 +377,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                     if (normalizedCompanyNameForStorage) {
                         const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyNameForStorage;
                         const contactEmail = record.contactEmail || record.contact_email || null;
+                        const propertyCounty = propertyData.county && propertyData.county !== "UNKNOWN" ? propertyData.county : null;
 
                         // Check if company contact already exists using in-memory cache
                         const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
@@ -385,13 +386,28 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         if (!existingContact) {
                             // Insert new company contact with normalized storage format
                             try {
+                                // Create counties array with the property's county
+                                const countiesArray = propertyCounty ? [propertyCounty] : [];
+                                const countiesJson = JSON.stringify(countiesArray);
+
                                 await db.insert(companyContacts).values({
                                     companyName: normalizedCompanyNameForStorage,
                                     contactName: null,
                                     contactEmail: contactEmail,
+                                    counties: countiesJson,
                                 });
                                 totalContactsAdded++;
-                                console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyNameForStorage}`);
+                                console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyNameForStorage} with county: ${propertyCounty || 'none'}`);
+                                
+                                // Update the in-memory cache with the new contact
+                                const [newContact] = await db
+                                    .select()
+                                    .from(companyContacts)
+                                    .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
+                                    .limit(1);
+                                if (newContact && normalizedCompanyNameForCompare) {
+                                    contactsMap.set(normalizedCompanyNameForCompare, newContact);
+                                }
                             } catch (contactError: any) {
                                 // Ignore duplicate key errors (race condition)
                                 if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
@@ -406,6 +422,50 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         } else {
                             // Use the existing contact's name to ensure consistency (use existing DB value)
                             console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (matched: ${normalizedCompanyNameForStorage})`);
+
+                            // Update counties if we have a valid county and it's not already in the array
+                            if (propertyCounty && propertyCounty !== "UNKNOWN") {
+                                try {
+                                    // Parse existing counties JSON
+                                    let countiesArray: string[] = [];
+                                    if (existingContact.counties) {
+                                        try {
+                                            countiesArray = JSON.parse(existingContact.counties);
+                                        } catch (parseError) {
+                                            console.warn(`[SFR SYNC] Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
+                                            countiesArray = [];
+                                        }
+                                    }
+
+                                    // Check if county is already in the array (case-insensitive)
+                                    const countyLower = propertyCounty.toLowerCase();
+                                    const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+
+                                    if (!countyExists) {
+                                        // Add the new county to the array
+                                        countiesArray.push(propertyCounty);
+                                        const updatedCountiesJson = JSON.stringify(countiesArray);
+
+                                        // Update the contact in the database
+                                        await db
+                                            .update(companyContacts)
+                                            .set({ counties: updatedCountiesJson })
+                                            .where(eq(companyContacts.id, existingContact.id));
+
+                                        console.log(`[SFR SYNC] Updated company contact ${existingContact.companyName} with new county: ${propertyCounty}`);
+
+                                        // Update the in-memory cache
+                                        const updatedContact = { ...existingContact, counties: updatedCountiesJson };
+                                        if (normalizedCompanyNameForCompare) {
+                                            contactsMap.set(normalizedCompanyNameForCompare, updatedContact);
+                                        }
+                                    } else {
+                                        console.log(`[SFR SYNC] County ${propertyCounty} already exists for company ${existingContact.companyName}`);
+                                    }
+                                } catch (updateError: any) {
+                                    console.error(`[SFR SYNC] Error updating counties for company contact ${existingContact.companyName}:`, updateError);
+                                }
+                            }
 
                             // Set property owner and contact info using existing contact data
                             propertyData.propertyOwner = existingContact.companyName; // Use existing DB value for consistency
