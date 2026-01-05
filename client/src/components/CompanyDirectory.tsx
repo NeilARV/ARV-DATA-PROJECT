@@ -178,12 +178,25 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     const priorPeriodStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
     const priorPeriodEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
     
+    // Normalize county filter for comparison (case-insensitive, trimmed)
+    const selectedCountyNormalized = filters?.county 
+      ? filters.county.trim().toLowerCase() 
+      : null;
+    
     return companies.map(company => {
       const companyNameNormalized = company.companyName.trim().toLowerCase();
       
       const companyProperties = properties.filter(p => {
         const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
-        return ownerName === companyNameNormalized;
+        const ownerMatches = ownerName === companyNameNormalized;
+        
+        // If county filter is selected, also filter by county
+        if (selectedCountyNormalized && ownerMatches) {
+          const propertyCounty = (p.county ?? "").trim().toLowerCase();
+          return propertyCounty === selectedCountyNormalized;
+        }
+        
+        return ownerMatches;
       });
       
       const propertyCount = companyProperties.length;
@@ -215,7 +228,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       
       return { ...company, propertyCount, isNewBuyer, recentMonthPurchases };
     });
-  }, [companies, properties]);
+  }, [companies, properties, filters?.county]);
 
   const filteredCompanies = useMemo(() => {
     let filtered = companiesWithCounts.filter(company => {
@@ -558,9 +571,21 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       const threeMonthsAgo = months[0].start;
                       const endOfLastMonth = months[2].end;
                       
+                      // Normalize county filter for comparison (case-insensitive, trimmed)
+                      const selectedCountyNormalized = filters?.county 
+                        ? filters.county.trim().toLowerCase() 
+                        : null;
+                      
                       const companyProperties = properties.filter(p => {
                         const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
                         if (ownerName !== companyNameNormalized) return false;
+                        
+                        // If county filter is selected, also filter by county
+                        if (selectedCountyNormalized) {
+                          const propertyCounty = (p.county ?? "").trim().toLowerCase();
+                          if (propertyCounty !== selectedCountyNormalized) return false;
+                        }
+                        
                         if (!p.dateSold) return false;
                         try {
                           const date = parseISO(p.dateSold);
