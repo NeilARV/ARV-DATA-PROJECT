@@ -12,10 +12,10 @@ router.get("/contacts", async (req, res) => {
 
         if (!county) {
             // If no county filter, return all contacts
-            const allContacts = await db
-                .select()
-                .from(companyContacts)
-                .orderBy(companyContacts.companyName);
+        const allContacts = await db
+            .select()
+            .from(companyContacts)
+            .orderBy(companyContacts.companyName);
             
             console.log("Company contacts (all):", allContacts.length);
             return res.json(allContacts);

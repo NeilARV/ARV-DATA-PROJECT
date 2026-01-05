@@ -80,7 +80,15 @@ export default function Home() {
   }, [shouldShowSignup, isAuthenticated, isForced]);
 
   // Get user's location on initial mount (only runs once)
+  // TEMPORARILY DISABLED - Keep code for future use
   useEffect(() => {
+    // Use default San Diego center instead of geolocation
+    setMapCenter(getDefaultMapCenter());
+    setMapZoom(12);
+    return;
+
+    // DISABLED CODE BELOW - Uncomment to re-enable geolocation
+    /*
     // Only attempt geolocation once on mount
     if (geolocationAttemptedRef.current) {
       return;
@@ -114,6 +122,7 @@ export default function Home() {
         maximumAge: 300000, // Accept cached location up to 5 minutes old
       }
     );
+    */
   }, []); // Empty dependency array - only runs once on mount
 
   // Build query parameters based on county filter
