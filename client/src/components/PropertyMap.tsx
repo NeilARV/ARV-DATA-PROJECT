@@ -138,7 +138,7 @@ export default function PropertyMap({
   return (
     <div className="w-full h-full relative" data-testid="map-container">
       {hasActiveFilters && onClearFilters && (
-        <div className="absolute top-4 right-4 z-[999]">
+        <div className="absolute top-4 right-4 z-[501]">
           <Button
             variant="default"
             size="sm"
@@ -163,7 +163,7 @@ export default function PropertyMap({
         />
         <MapBounds mapPins={validPins} center={center} zoom={zoom} />
         {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[1000]">
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>
           </div>
         ) : (

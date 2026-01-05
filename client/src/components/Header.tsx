@@ -9,9 +9,10 @@ import {
   Sun,
   Settings,
   LogIn,
-  User,
   LogOut,
   Trophy,
+  Users,
+  Menu,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -54,8 +55,10 @@ export default function Header({
   const [isDark, setIsDark] = useState(false);
   const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
@@ -112,6 +115,23 @@ export default function Header({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Handle click outside to close menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showMenu]);
 
   const toggleTheme = () => {
     const newIsDark = !isDark;
@@ -170,161 +190,150 @@ export default function Header({
 
   return (
     <header
-      className="h-16 border-b border-border bg-background flex items-center px-4 gap-4"
+      className="h-16 border-b border-border bg-background flex items-center justify-between px-4 gap-4"
       data-testid="header-main"
     >
-      <button
-        className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
-        onClick={onLogoClick}
-        data-testid="button-logo-home"
-      >
-        <img 
-          src={logoUrl} 
-          alt="ARV DATA" 
-          className="h-10 w-auto"
-          data-testid="img-logo"
-        />
-        <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
-      </button>
-
-      <form onSubmit={handleSearch} className="flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            type="search"
-            placeholder="Search by address"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              if (e.target.value.trim().length >= 2) {
-                // Suggestions will show via useEffect
-              } else {
-                setShowSuggestions(false);
-              }
-            }}
-            onFocus={() => {
-              if (suggestions.length > 0) {
-                setShowSuggestions(true);
-              }
-            }}
-            className="pl-10"
-            data-testid="input-search"
+      {/* Left Section */}
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        <button
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer flex-shrink-0"
+          onClick={onLogoClick}
+          data-testid="button-logo-home"
+        >
+          <img 
+            src={logoUrl} 
+            alt="ARV DATA" 
+            className="h-10 w-auto"
+            data-testid="img-logo"
           />
-          {searchQuery && (
-            <X 
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors z-10"
-              onClick={() => {
-                setSearchQuery("");
-                setSuggestions([]);
-                setShowSuggestions(false);
+          <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
+        </button>
+
+        <form onSubmit={handleSearch} className="flex-1 max-w-md min-w-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              type="search"
+              placeholder="Search by address"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value.trim().length >= 2) {
+                  // Suggestions will show via useEffect
+                } else {
+                  setShowSuggestions(false);
+                }
               }}
+              onFocus={() => {
+                if (suggestions.length > 0) {
+                  setShowSuggestions(true);
+                }
+              }}
+              className="pl-10"
+              data-testid="input-search"
             />
-          )}
-          {showSuggestions && suggestions.length > 0 && (
-            <div
-              ref={suggestionsRef}
-              className="absolute z-[1001] w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
-              data-testid="search-suggestions"
-            >
-              {suggestions.map((suggestion) => (
-                <div
-                  key={suggestion.id}
-                  className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                  onClick={() => selectSuggestion(suggestion)}
-                  data-testid={`suggestion-${suggestion.id}`}
-                >
-                  <div className="font-medium">{suggestion.address}</div>
-                  <div className="text-muted-foreground text-xs">
-                    {suggestion.city}, {suggestion.state} {suggestion.zipcode}
+            {searchQuery && (
+              <X 
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors z-10"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSuggestions([]);
+                  setShowSuggestions(false);
+                }}
+              />
+            )}
+            {showSuggestions && suggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-[1001] w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
+                data-testid="search-suggestions"
+              >
+                {suggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                    onClick={() => selectSuggestion(suggestion)}
+                    data-testid={`suggestion-${suggestion.id}`}
+                  >
+                    <div className="font-medium">{suggestion.address}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {suggestion.city}, {suggestion.state} {suggestion.zipcode}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </form>
+                ))}
+              </div>
+            )}
+          </div>
+        </form>
 
-      <div className="flex items-center gap-2">
-        <div className="flex items-center border border-border rounded-md">
-          <Button
-            variant={viewMode === "map" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange("map")}
-            className="rounded-r-none border-r"
-            data-testid="button-view-map"
-          >
-            <Map className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Map</span>
-          </Button>
-          <Button
-            variant={viewMode === "grid" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange("grid")}
-            className="rounded-none border-r"
-            data-testid="button-view-grid"
-          >
-            <Grid3x3 className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Grid</span>
-          </Button>
-          <Button
-            variant={viewMode === "table" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange("table")}
-            className="rounded-l-none"
-            data-testid="button-view-table"
-          >
-            <Table2 className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Table</span>
-          </Button>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onLeaderboardClick}
-          data-testid="button-leaderboard"
-        >
-          <Trophy className="w-4 h-4 mr-1" />
-          <span className="hidden sm:inline">Leaderboard</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setLocation("/admin")}
-          data-testid="button-admin"
-        >
-          <Settings className="w-4 h-4 mr-1" />
-          <span className="hidden sm:inline">Admin</span>
-        </Button>
-
-        {isAuthenticated && user ? (
-          <>
-            <Button variant="outline" size="sm" data-testid="button-user-menu">
-              <User className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">{user.firstName}</span>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center border border-border rounded-md">
+            <Button
+              variant={viewMode === "map" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("map")}
+              className="rounded-r-none border-r"
+              data-testid="button-view-map"
+            >
+              <Map className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Map</span>
             </Button>
+            <Button
+              variant={viewMode === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("grid")}
+              className="rounded-none border-r"
+              data-testid="button-view-grid"
+            >
+              <Grid3x3 className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Grid</span>
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("table")}
+              className="rounded-l-none"
+              data-testid="button-view-table"
+            >
+              <Table2 className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Table</span>
+            </Button>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLeaderboardClick}
+            data-testid="button-leaderboard"
+          >
+            <Trophy className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Leaderboard</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="button-buyers-feed"
+          >
+            <Users className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Buyers Feed</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Right Section */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {!isAuthenticated ? (
+          <>
             <Button
               variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              data-testid="button-logout"
-            >
-              <LogOut className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Logout</span>
-            </Button>
-          </>
-        ) : (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
               size="sm"
               onClick={onLoginClick}
               data-testid="button-login"
             >
               <LogIn className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Sign in</span>
+              <span className="hidden sm:inline">Login</span>
             </Button>
             <Button
               size="sm"
@@ -333,17 +342,69 @@ export default function Header({
             >
               Sign up
             </Button>
-          </div>
-        )}
+          </>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              data-testid="button-theme-toggle"
+            >
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleTheme}
-          data-testid="button-theme-toggle"
-        >
-          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </Button>
+            {user && (
+              <div className="relative" ref={menuRef}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowMenu(!showMenu)}
+                  data-testid="button-menu-toggle"
+                >
+                  {showMenu ? (
+                    <X className="w-4 h-4" />
+                  ) : (
+                    <Menu className="w-4 h-4" />
+                  )}
+                </Button>
+                {showMenu && (
+                  <div
+                    className="absolute right-0 mt-2 w-48 bg-background border border-border rounded-md shadow-lg z-[502]"
+                    data-testid="menu-dropdown"
+                  >
+                    <div className="py-1">
+                      {user.isAdmin && (
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                          onClick={() => {
+                            setLocation("/admin");
+                            setShowMenu(false);
+                          }}
+                          data-testid="menu-item-admin"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Admin
+                        </button>
+                      )}
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        onClick={() => {
+                          handleLogout();
+                          setShowMenu(false);
+                        }}
+                        data-testid="menu-item-logout"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </header>
   );
