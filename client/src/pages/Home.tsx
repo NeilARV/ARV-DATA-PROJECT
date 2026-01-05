@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { fetchCounty } from "@shared/utils/fetchCounty";
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
@@ -80,15 +81,7 @@ export default function Home() {
   }, [shouldShowSignup, isAuthenticated, isForced]);
 
   // Get user's location on initial mount (only runs once)
-  // TEMPORARILY DISABLED - Keep code for future use
   useEffect(() => {
-    // Use default San Diego center instead of geolocation
-    setMapCenter(getDefaultMapCenter());
-    setMapZoom(12);
-    return;
-
-    // DISABLED CODE BELOW - Uncomment to re-enable geolocation
-    /*
     // Only attempt geolocation once on mount
     if (geolocationAttemptedRef.current) {
       return;
@@ -106,13 +99,51 @@ export default function Home() {
 
     // Request user's location with timeout
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
-        setMapCenter([latitude, longitude]);
-        setMapZoom(12);
+        
+        try {
+          // Reverse geocode to get county using US Census Bureau API
+          const userCounty = await fetchCounty(longitude, latitude);
+          
+          if (userCounty) {
+            // Check if user's county is in the enabled counties list
+            // Currently enabled: San Diego
+            // Future: Orange, Los Angeles, Denver (currently disabled in COUNTIES)
+            const enabledCounties = COUNTIES.map(c => c.county);
+            const isEnabledCounty = enabledCounties.some(
+              enabledCounty => enabledCounty.toLowerCase() === userCounty.toLowerCase()
+            );
+            
+            if (isEnabledCounty) {
+              // User is in an enabled county - center to their location
+              setMapCenter([latitude, longitude]);
+              setMapZoom(12);
+              console.log(`User located in ${userCounty} County - centering map to user location`);
+            } else {
+              // User is not in an enabled county - use default county center
+              const defaultCounty = enabledCounties[0] || 'San Diego';
+              const defaultCenter = getCountyCenter(defaultCounty) ?? getDefaultMapCenter();
+              setMapCenter(defaultCenter);
+              setMapZoom(12);
+              console.log(`User located in ${userCounty} County (not enabled) - using default center for ${defaultCounty}`);
+            }
+          } else {
+            // Reverse geocoding failed - center to user location anyway
+            console.warn('Failed to reverse geocode user location, centering to user coordinates');
+            setMapCenter([latitude, longitude]);
+            setMapZoom(12);
+          }
+        } catch (error) {
+          // Error fetching county - center to user location anyway
+          console.error('Error fetching county from user location:', error);
+          setMapCenter([latitude, longitude]);
+          setMapZoom(12);
+        }
       },
       (error) => {
         // Fall back to San Diego if geolocation fails or is denied
+        console.log('Geolocation failed or denied, using San Diego as default:', error);
         setMapCenter(getDefaultMapCenter());
         setMapZoom(12);
       },
@@ -122,7 +153,6 @@ export default function Home() {
         maximumAge: 300000, // Accept cached location up to 5 minutes old
       }
     );
-    */
   }, []); // Empty dependency array - only runs once on mount
 
   // Build query parameters based on county filter
