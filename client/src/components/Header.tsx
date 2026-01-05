@@ -30,6 +30,7 @@ interface HeaderProps {
   onLoginClick?: () => void;
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
+  onBuyersFeedClick?: () => void;
   onLogoClick?: () => void;
 }
 
@@ -49,6 +50,7 @@ export default function Header({
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
+  onBuyersFeedClick,
   onLogoClick,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -314,6 +316,7 @@ export default function Header({
           <Button
             variant="outline"
             size="sm"
+            onClick={onBuyersFeedClick}
             data-testid="button-buyers-feed"
           >
             <Users className="w-4 h-4 mr-1" />

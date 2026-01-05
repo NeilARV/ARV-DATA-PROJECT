@@ -12,6 +12,7 @@ import UploadDialog from "@/components/UploadDialog";
 import SignupDialog from "@/components/SignupDialog";
 import LoginDialog from "@/components/LoginDialog";
 import LeaderboardDialog from "@/components/LeaderboardDialog";
+import BuyersFeedDialog from "@/components/BuyersFeedDialog";
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
@@ -53,6 +54,7 @@ export default function Home() {
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
+  const [showBuyersFeedDialog, setShowBuyersFeedDialog] = useState(false);
   const [isDialogForced, setIsDialogForced] = useState(false);
   
   const { user, isAuthenticated } = useAuth();
@@ -496,6 +498,46 @@ export default function Home() {
     // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
+  const handleBuyersFeedCompanyClick = (companyName: string) => {
+    // Preserve all existing filters when selecting a company from buyers feed
+    setSelectedCompany(companyName);
+    // Keep the sidebar open and switch to directory view if not already there
+    if (sidebarView !== "directory") {
+      setSidebarView("directory");
+    }
+    
+    // Calculate map center and zoom based on company's properties
+    const companyNameNormalized = companyName.trim().toLowerCase().replace(/\s+/g, ' ');
+    const companyProperties = mapPins.filter(pin => {
+      const ownerName = (pin.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+      return ownerName === companyNameNormalized;
+    }).filter(pin => 
+      pin.latitude != null && 
+      pin.longitude != null && 
+      !isNaN(pin.latitude) && 
+      !isNaN(pin.longitude)
+    );
+
+    if (companyProperties.length === 0) {
+      // No valid properties found, don't change map
+      return;
+    }
+
+    if (companyProperties.length === 1) {
+      // Single property: center on it with slight zoom
+      const property = companyProperties[0];
+      setMapCenter([property.latitude!, property.longitude!]);
+      setMapZoom(16);
+    } else {
+      // Multiple properties: set center to undefined to let MapBounds component
+      // automatically fit bounds to show all properties
+      // The MapBounds component will detect the property set change and use fitBounds
+      setMapCenter(undefined);
+      // Set a default zoom that will be overridden by fitBounds
+      setMapZoom(12);
+    }
+  };
+
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
     // Clear company filter and set zip code filter
     setSelectedCompany(null);
@@ -647,6 +689,7 @@ export default function Home() {
           setShowLoginDialog(false);
         }}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
+        onBuyersFeedClick={() => setShowBuyersFeedDialog(true)}
         onLogoClick={handleLogoClick}
       />
 
@@ -914,6 +957,13 @@ export default function Home() {
         onOpenChange={setShowLeaderboardDialog}
         onCompanyClick={handleLeaderboardCompanyClick}
         onZipCodeClick={handleLeaderboardZipCodeClick}
+      />
+
+      <BuyersFeedDialog
+        open={showBuyersFeedDialog}
+        onOpenChange={setShowBuyersFeedDialog}
+        onCompanyClick={handleBuyersFeedCompanyClick}
+        county={filters.county}
       />
     </div>
   );
