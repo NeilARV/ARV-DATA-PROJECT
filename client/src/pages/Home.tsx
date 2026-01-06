@@ -243,14 +243,16 @@ export default function Home() {
     
     // Pagination - use current page state
     params.append('page', propertiesPage.toString());
-    params.append('limit', '10');
+    // Table view loads 20, grid view loads 10
+    const limit = viewMode === "table" ? "20" : "10";
+    params.append('limit', limit);
     
     // Sort by parameter
     params.append('sortBy', sortBy);
     
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompany, propertiesPage, sortBy]);
+  }, [filters, selectedCompany, propertiesPage, sortBy, viewMode]);
 
   // Build the API URL with all filter query parameters for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
@@ -295,7 +297,7 @@ export default function Home() {
 
   const totalFilteredProperties = propertiesResponse?.total ?? 0;
 
-  // Reset pagination when filters or view mode changes
+  // Reset pagination when filters, sortBy, or view mode changes
   useEffect(() => {
     if (viewMode !== "map" && viewMode !== "buyers-feed") {
       setPropertiesPage(1);
@@ -303,7 +305,7 @@ export default function Home() {
       setPropertiesHasMore(true);
       setIsLoadingMoreProperties(false);
     }
-  }, [filters, selectedCompany, viewMode]);
+  }, [filters, selectedCompany, viewMode, sortBy]);
 
   // Accumulate properties when new data arrives (for grid/table views)
   useEffect(() => {
