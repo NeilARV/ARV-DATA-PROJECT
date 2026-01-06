@@ -51,12 +51,19 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState<number>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
   
-  // Pagination state for infinite scroll
+  // Pagination state for infinite scroll (grid/table views)
   const [propertiesPage, setPropertiesPage] = useState(1);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [propertiesHasMore, setPropertiesHasMore] = useState(true);
   const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
   const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
+
+  // Pagination state for buyers feed view
+  const [buyersFeedPage, setBuyersFeedPage] = useState(1);
+  const [allBuyersFeedProperties, setAllBuyersFeedProperties] = useState<Property[]>([]);
+  const [buyersFeedHasMore, setBuyersFeedHasMore] = useState(true);
+  const [isLoadingMoreBuyersFeed, setIsLoadingMoreBuyersFeed] = useState(false);
+  const loadMoreBuyersFeedRef = useRef<HTMLDivElement>(null);
   
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -287,9 +294,9 @@ export default function Home() {
     }
   }, [filters, selectedCompany, viewMode]);
 
-  // Accumulate properties when new data arrives
+  // Accumulate properties when new data arrives (for grid/table views)
   useEffect(() => {
-    if (propertiesResponse && viewMode !== "map" && viewMode !== "buyers-feed") {
+    if (propertiesResponse && (viewMode === "grid" || viewMode === "table")) {
       if (propertiesPage === 1) {
         // First page - replace all
         setAllProperties(propertiesResponse.properties);
@@ -302,9 +309,9 @@ export default function Home() {
     }
   }, [propertiesResponse, propertiesPage, viewMode]);
 
-  // Intersection Observer for infinite scroll
+  // Intersection Observer for infinite scroll (grid/table views)
   useEffect(() => {
-    if (viewMode === "map" || viewMode === "buyers-feed") return;
+    if (viewMode !== "grid" && viewMode !== "table") return;
     if (!propertiesHasMore || isLoadingMoreProperties || isFetching) return;
     if (!loadMorePropertiesRef.current) return;
 
@@ -331,14 +338,83 @@ export default function Home() {
 
   const properties = allProperties; // Total properties matching all filters (county, price, etc.)
 
-  // Fetch buyers feed properties (all properties with dateSold, sorted by dateSold DESC)
-  const buyersFeedQueryUrl = useMemo(() => {
-    // Use the same county query param as regular properties, but add hasDateSold flag
-    // countyQueryParam already includes '?' if county exists, so we use '&' to append
-    return `/api/properties${countyQueryParam}${countyQueryParam ? '&' : '?'}hasDateSold=true`;
-  }, [countyQueryParam]);
+  // Build query parameters for buyers feed (same as grid view but with hasDateSold=true)
+  const buyersFeedQueryParam = useMemo(() => {
+    const params = new URLSearchParams();
+    
+    // County filter
+    if (filters.county) {
+      params.append('county', filters.county);
+    }
+    
+    // Zipcode filter
+    if (filters.zipCode && filters.zipCode.trim() !== '') {
+      params.append('zipcode', filters.zipCode.trim());
+    }
+    
+    // City filter
+    if (filters.city && filters.city.trim() !== '') {
+      params.append('city', filters.city.trim());
+    }
+    
+    // Price range filters
+    if (filters.minPrice > 0) {
+      params.append('minPrice', filters.minPrice.toString());
+    }
+    
+    if (filters.maxPrice < 10000000) {
+      params.append('maxPrice', filters.maxPrice.toString());
+    }
+    
+    // Bedrooms filter (only if not 'Any')
+    if (filters.bedrooms && filters.bedrooms !== 'Any') {
+      const bedroomsNum = filters.bedrooms.replace('+', '');
+      params.append('bedrooms', bedroomsNum);
+    }
+    
+    // Bathrooms filter (only if not 'Any')
+    if (filters.bathrooms && filters.bathrooms !== 'Any') {
+      const bathroomsNum = filters.bathrooms.replace('+', '');
+      params.append('bathrooms', bathroomsNum);
+    }
+    
+    // Property types filter (can have multiple)
+    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
+      filters.propertyTypes.forEach(type => {
+        params.append('propertyType', type);
+      });
+    }
+    
+    // Status filters (can have multiple)
+    if (filters.statusFilters && filters.statusFilters.length > 0) {
+      filters.statusFilters.forEach(status => {
+        params.append('status', status);
+      });
+    }
+    
+    // Company/Property Owner filter
+    if (selectedCompany) {
+      params.append('company', selectedCompany);
+    }
+    
+    // Only properties with dateSold
+    params.append('hasDateSold', 'true');
+    
+    // Pagination - use current page state
+    params.append('page', buyersFeedPage.toString());
+    params.append('limit', '20');
+    
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : '';
+  }, [filters, selectedCompany, buyersFeedPage]);
 
-  const { data: buyersFeedResponse } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
+  // Build the API URL for buyers feed
+  const buyersFeedQueryUrl = useMemo(() => {
+    return `/api/properties${buyersFeedQueryParam}`;
+  }, [buyersFeedQueryParam]);
+
+  // Fetch buyers feed properties with pagination
+  const { data: buyersFeedResponse, isLoading: isLoadingBuyersFeed, isFetching: isFetchingBuyersFeed } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
     queryKey: [buyersFeedQueryUrl],
     queryFn: async () => {
       const res = await fetch(buyersFeedQueryUrl, {
@@ -352,19 +428,61 @@ export default function Home() {
     enabled: viewMode === "buyers-feed",
   });
 
-  const buyersFeedPurchases = useMemo(() => {
-    const allProperties = buyersFeedResponse?.properties ?? [];
-    
-    // Filter to only properties with dateSold and sort by dateSold DESC (most recent first)
-    return allProperties
-      .filter((prop: Property) => prop.dateSold != null)
-      .sort((a: Property, b: Property) => {
-        if (!a.dateSold && !b.dateSold) return 0;
-        if (!a.dateSold) return 1;
-        if (!b.dateSold) return -1;
-        return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
-      });
-  }, [buyersFeedResponse]);
+  const totalBuyersFeedProperties = buyersFeedResponse?.total ?? 0;
+
+  // Reset pagination when filters or view mode changes for buyers feed
+  useEffect(() => {
+    if (viewMode === "buyers-feed") {
+      setBuyersFeedPage(1);
+      setAllBuyersFeedProperties([]);
+      setBuyersFeedHasMore(true);
+      setIsLoadingMoreBuyersFeed(false);
+    }
+  }, [filters, selectedCompany, viewMode]);
+
+  // Accumulate buyers feed properties when new data arrives
+  useEffect(() => {
+    if (buyersFeedResponse && viewMode === "buyers-feed") {
+      if (buyersFeedPage === 1) {
+        // First page - replace all
+        setAllBuyersFeedProperties(buyersFeedResponse.properties);
+      } else {
+        // Subsequent pages - append
+        setAllBuyersFeedProperties((prev) => [...prev, ...buyersFeedResponse.properties]);
+      }
+      setBuyersFeedHasMore(buyersFeedResponse.hasMore);
+      setIsLoadingMoreBuyersFeed(false);
+    }
+  }, [buyersFeedResponse, buyersFeedPage, viewMode]);
+
+  // Intersection Observer for infinite scroll in buyers feed
+  useEffect(() => {
+    if (viewMode !== "buyers-feed") return;
+    if (!buyersFeedHasMore || isLoadingMoreBuyersFeed || isFetchingBuyersFeed) return;
+    if (!loadMoreBuyersFeedRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && buyersFeedHasMore && !isLoadingMoreBuyersFeed && !isFetchingBuyersFeed) {
+          setIsLoadingMoreBuyersFeed(true);
+          setBuyersFeedPage((prev) => prev + 1);
+        }
+      },
+      { 
+        threshold: 0.1,
+        rootMargin: '100px'
+      }
+    );
+
+    const currentRef = loadMoreBuyersFeedRef.current;
+    observer.observe(currentRef);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [viewMode, buyersFeedHasMore, isLoadingMoreBuyersFeed, isFetchingBuyersFeed, allBuyersFeedProperties.length]);
+
+  const buyersFeedPurchases = allBuyersFeedProperties;
 
   const handleUploadSuccess = () => {
     // Refresh properties after upload - invalidate all property queries
@@ -981,10 +1099,71 @@ export default function Home() {
                   />
                 )}
                 <div className="h-full overflow-y-auto p-6 flex-1">
-                  <div className="mb-4">
-                    <h2 className="text-2xl font-semibold mb-1">
-                      {sortedProperties.length} Recent Purchases
-                    </h2>
+                  <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-semibold mb-1">
+                        {selectedCompany && totalCompanyProperties > 0
+                          ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
+                          : `${totalBuyersFeedProperties} Properties`}
+                        {selectedCompany && (
+                          <span className="text-base font-normal text-muted-foreground ml-2">
+                            owned by {selectedCompany}
+                          </span>
+                        )}
+                      </h2>
+                      {(selectedCompany || hasActiveFilters) && (
+                        <p className="text-muted-foreground">
+                          <span className="flex items-center gap-2 flex-wrap">
+                            {selectedCompany && (
+                              <button
+                                onClick={() => {
+                                  setSelectedCompany(null);
+                                  // Do NOT change map center/zoom when deselecting a company
+                                }}
+                                className="text-primary hover:underline text-sm"
+                                data-testid="button-clear-company-filter"
+                              >
+                                Deselect Company
+                              </button>
+                            )}
+                            {selectedCompany && hasActiveFilters && (
+                              <span className="text-muted-foreground">•</span>
+                            )}
+                            {hasActiveFilters && (
+                              <button
+                                onClick={handleClearAllFilters}
+                                className="text-primary hover:underline text-sm"
+                                data-testid="button-clear-filters-grid"
+                              >
+                                Clear Filters
+                              </button>
+                            )}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Sort by:</span>
+                      <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                        <SelectTrigger className="w-[180px]" data-testid="select-sort">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="recently-sold" data-testid="sort-recently-sold">
+                            Recently Sold
+                          </SelectItem>
+                          <SelectItem value="days-held" data-testid="sort-days-held">
+                            Days Held
+                          </SelectItem>
+                          <SelectItem value="price-high-low" data-testid="sort-price-high-low">
+                            Price: High to Low
+                          </SelectItem>
+                          <SelectItem value="price-low-high" data-testid="sort-price-low-high">
+                            Price: Low to High
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {sortedProperties.map((property) => (
@@ -995,6 +1174,14 @@ export default function Home() {
                       />
                     ))}
                   </div>
+                  {/* Infinite scroll trigger */}
+                  {buyersFeedHasMore && (
+                    <div ref={loadMoreBuyersFeedRef} className="h-20 flex items-center justify-center mt-4">
+                      {isLoadingMoreBuyersFeed && (
+                        <div className="text-muted-foreground">Loading more properties...</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
