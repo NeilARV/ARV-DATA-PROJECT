@@ -239,7 +239,7 @@ export default function Home() {
     
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompany]);
+  }, [filters, selectedCompany, propertiesPage]);
 
   // Build the API URL with all filter query parameters for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
@@ -301,8 +301,12 @@ export default function Home() {
         // First page - replace all
         setAllProperties(propertiesResponse.properties);
       } else {
-        // Subsequent pages - append
-        setAllProperties((prev) => [...prev, ...propertiesResponse.properties]);
+        // Subsequent pages - append, but filter out duplicates by ID
+        setAllProperties((prev) => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newProperties = propertiesResponse.properties.filter(p => !existingIds.has(p.id));
+          return [...prev, ...newProperties];
+        });
       }
       setPropertiesHasMore(propertiesResponse.hasMore);
       setIsLoadingMoreProperties(false);
@@ -447,8 +451,12 @@ export default function Home() {
         // First page - replace all
         setAllBuyersFeedProperties(buyersFeedResponse.properties);
       } else {
-        // Subsequent pages - append
-        setAllBuyersFeedProperties((prev) => [...prev, ...buyersFeedResponse.properties]);
+        // Subsequent pages - append, but filter out duplicates by ID
+        setAllBuyersFeedProperties((prev) => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newProperties = buyersFeedResponse.properties.filter(p => !existingIds.has(p.id));
+          return [...prev, ...newProperties];
+        });
       }
       setBuyersFeedHasMore(buyersFeedResponse.hasMore);
       setIsLoadingMoreBuyersFeed(false);
@@ -490,24 +498,14 @@ export default function Home() {
     queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
   };
 
-  // Calculate max price rounded up to nearest million
-  // Use map pins in map view, full properties in grid/table views
-  const maxPriceSlider = useMemo(() => {
-    const dataSource = viewMode === "map" ? mapPins : properties;
-    if (dataSource.length === 0) return 10000000; // Default to 10M if no properties
-    
-    const maxPrice = Math.max(...dataSource.map(p => p.price || 0));
-    if (maxPrice === 0) return 10000000; // Default if all prices are 0
-    
-    // Round up to nearest million: Math.ceil(maxPrice / 1000000) * 1000000
-    return Math.ceil(maxPrice / 1000000) * 1000000;
-  }, [properties, mapPins, viewMode]);
+  // Fixed max price for slider
+  const MAX_PRICE = 10000000;
 
   // Check if filters are active (not in initial state) - excludes company selection
   const hasActiveFilters = useMemo(() => {
     return (
       filters.minPrice > 0 ||
-      filters.maxPrice < maxPriceSlider ||
+      filters.maxPrice < MAX_PRICE ||
       filters.bedrooms !== 'Any' ||
       filters.bathrooms !== 'Any' ||
       filters.propertyTypes.length > 0 ||
@@ -517,13 +515,13 @@ export default function Home() {
       filters.statusFilters.length !== 1 ||
       filters.statusFilters[0] !== 'in-renovation'
     );
-  }, [filters, maxPriceSlider]);
+  }, [filters]);
 
   // Reset filters to initial state (does not clear company selection)
   const handleClearAllFilters = () => {
     setFilters({
       minPrice: 0,
-      maxPrice: maxPriceSlider,
+      maxPrice: MAX_PRICE,
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -898,17 +896,21 @@ export default function Home() {
     }
   };
 
-  // Calculate total properties owned by selected company (before filters are applied)
-  // Use map pins in map view, full properties in grid/table views
+  // Calculate total properties owned by selected company
+  // For map view, count from mapPins. For grid/table views, use the API's total count
+  // since the query already includes the company filter
   const totalCompanyProperties = useMemo(() => {
     if (!selectedCompany) return 0;
-    const companyNameNormalized = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
-    const dataSource = viewMode === "map" ? mapPins : properties;
-    return dataSource.filter(p => {
-      const ownerName = (p.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
-      return ownerName === companyNameNormalized;
-    }).length;
-  }, [properties, mapPins, selectedCompany, viewMode]);
+    if (viewMode === "map") {
+      const companyNameNormalized = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
+      return mapPins.filter(p => {
+        const ownerName = (p.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+        return ownerName === companyNameNormalized;
+      }).length;
+    }
+    // For grid/table views, use the API's total since the query includes the company filter
+    return totalFilteredProperties;
+  }, [mapPins, selectedCompany, viewMode, totalFilteredProperties]);
 
   // Calculate current time once for deterministic sorting
   const now = Date.now();
@@ -970,7 +972,6 @@ export default function Home() {
             filters={filters}
             zipCodesWithCounts={zipCodesWithCounts}
             onSwitchToDirectory={() => setSidebarView("directory")}
-            maxPriceSlider={maxPriceSlider}
           />
         )}
         

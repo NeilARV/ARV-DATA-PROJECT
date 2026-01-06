@@ -28,7 +28,6 @@ interface FilterSidebarProps {
   onFilterChange?: (filters: PropertyFilters) => void;
   zipCodesWithCounts?: ZipCodeWithCount[];
   onSwitchToDirectory?: () => void;
-  maxPriceSlider?: number; // Dynamic max price for slider
   filters?: PropertyFilters; // Controlled filters from parent
 }
 
@@ -46,13 +45,10 @@ export interface PropertyFilters {
 
 type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
 
-export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, maxPriceSlider = 10000000, filters }: FilterSidebarProps) {
-  const [priceRange, setPriceRange] = useState<[number, number]>([filters?.minPrice ?? 0, filters?.maxPrice ?? maxPriceSlider]);
-  
-  // Update price range when maxPriceSlider changes
-  useEffect(() => {
-    setPriceRange(prev => [prev[0], Math.min(prev[1], maxPriceSlider)]);
-  }, [maxPriceSlider]);
+const MAX_PRICE = 10000000;
+
+export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, filters }: FilterSidebarProps) {
+  const [priceRange, setPriceRange] = useState<[number, number]>([filters?.minPrice ?? 0, filters?.maxPrice ?? MAX_PRICE]);
 
   const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters?.bedrooms ?? 'Any');
   const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters?.bathrooms ?? 'Any');
@@ -74,7 +70,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   // Sync local UI state when parent-controlled filters change (for persistence across view switches)
   useEffect(() => {
     if (!filters) return;
-    setPriceRange([filters.minPrice ?? 0, Math.min(filters.maxPrice ?? maxPriceSlider, maxPriceSlider)]);
+    setPriceRange([filters.minPrice ?? 0, Math.min(filters.maxPrice ?? MAX_PRICE, MAX_PRICE)]);
     setSelectedBedrooms(filters.bedrooms ?? 'Any');
     setSelectedBathrooms(filters.bathrooms ?? 'Any');
     setSelectedTypes(filters.propertyTypes ?? []);
@@ -84,7 +80,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     const countyValue = filters.county ?? 'San Diego';
     setCounty(countyValue ? `${countyValue} County` : 'San Diego County');
     setStatusFilters(new Set(filters.statusFilters ?? []));
-  }, [filters, maxPriceSlider]);
+  }, [filters]);
 
   const toggleStatusFilter = (status: string) => {
     setStatusFilters(prev => {
@@ -180,7 +176,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const handleClearFilters = () => {
-    setPriceRange([0, maxPriceSlider]);
+    setPriceRange([0, MAX_PRICE]);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
@@ -189,7 +185,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setStatusFilters(new Set(["in-renovation"]));
     onFilterChange?.({
       minPrice: 0,
-      maxPrice: maxPriceSlider,
+      maxPrice: MAX_PRICE,
       bedrooms: 'Any',
       bathrooms: 'Any',
       propertyTypes: [],
@@ -603,7 +599,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               });
             }}
             min={0}
-            max={maxPriceSlider}
+            max={MAX_PRICE}
             step={50000}
             className="mb-2"
             data-testid="slider-price"
