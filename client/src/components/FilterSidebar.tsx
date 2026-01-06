@@ -668,7 +668,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
         <div>
           <Label className="text-sm font-medium mb-2 block">Property Type</Label>
-          <div className="space-y-2 grid grid-cols-2">
+          <div className="grid grid-cols-2 gap-2">
             {PROPERTY_TYPES.map((type) => (
               <label key={type} className="flex items-center gap-2 cursor-pointer">
                 <input
