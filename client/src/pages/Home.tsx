@@ -930,6 +930,23 @@ export default function Home() {
   // The API returns properties in the correct sorted order based on the sortBy parameter
   const sortedProperties = filteredProperties;
 
+  // Calculate grid columns based on sidebar and property detail panel visibility
+  const gridColsClass = useMemo(() => {
+    const hasSidebar = sidebarView !== "none";
+    const hasPropertyPanel = selectedProperty !== null;
+    
+    // Both sidebar and panel open - use 2 columns max
+    if (hasSidebar && hasPropertyPanel) {
+      return "grid-cols-1 md:grid-cols-2";
+    }
+    // Only sidebar OR panel open - use 2-3 columns
+    if (hasSidebar || hasPropertyPanel) {
+      return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
+    }
+    // Neither open - full 3 columns
+    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+  }, [sidebarView, selectedProperty]);
+
   return (
     <div className="h-screen flex flex-col">
       <Header
@@ -1156,7 +1173,7 @@ export default function Home() {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className={`grid ${gridColsClass} gap-4`}>
                     {sortedProperties.map((property) => (
                       <PropertyCard
                         key={property.id}
@@ -1250,7 +1267,7 @@ export default function Home() {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className={`grid ${gridColsClass} gap-4`}>
                     {sortedProperties.map((property) => (
                       <PropertyCard
                         key={property.id}
