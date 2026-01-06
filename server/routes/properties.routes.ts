@@ -14,10 +14,125 @@ const router = Router();
 router.get("/", async (req, res) => {
     try {
 
-        const { zipcode, city, county, hasDateSold } = req.query;
+        const { 
+            zipcode, 
+            city, 
+            county, 
+            minPrice, 
+            maxPrice, 
+            bedrooms, 
+            bathrooms, 
+            propertyType, 
+            status, 
+            company, 
+            propertyOwner, 
+            hasDateSold,
+            page,
+            limit
+        } = req.query;
+
+        // Parse pagination parameters
+        const pageNum = page ? Math.max(1, parseInt(page.toString(), 10)) : 1;
+        const limitNum = limit ? Math.max(1, parseInt(limit.toString(), 10)) : 20; // Default to 50 per page
+        const offset = (pageNum - 1) * limitNum;
 
         const conditions = []
 
+        // Company/Property Owner filter (support both 'company' and 'propertyOwner' query params)
+        const ownerFilter = company || propertyOwner;
+        if (ownerFilter) {
+            const normalizedCompany = ownerFilter.toString().trim().toLowerCase()
+            conditions.push(
+                sql`LOWER(TRIM(${properties.propertyOwner})) = ${normalizedCompany}`
+            )
+        }
+
+        // Status filter (can be single value or array)
+        if (status) {
+            const statusArray = Array.isArray(status) ? status : [status];
+            if (statusArray.length > 0) {
+                const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
+                if (normalizedStatuses.length === 1) {
+                    conditions.push(
+                        sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
+                    );
+                } else {
+                    // Use OR for multiple status values
+                    conditions.push(
+                        or(...normalizedStatuses.map(s => 
+                            sql`LOWER(TRIM(${properties.status})) = ${s}`
+                        )) as any
+                    );
+                }
+            }
+        }
+
+        // Property Type filter (can be single value or array)
+        if (propertyType) {
+            const typeArray = Array.isArray(propertyType) ? propertyType : [propertyType];
+            if (typeArray.length > 0) {
+                const normalizedTypes = typeArray.map(t => t.toString().trim().toLowerCase());
+                if (normalizedTypes.length === 1) {
+                    conditions.push(
+                        sql`LOWER(TRIM(${properties.propertyType})) = ${normalizedTypes[0]}`
+                    );
+                } else {
+                    // Use OR for multiple property type values
+                    conditions.push(
+                        or(...normalizedTypes.map(t => 
+                            sql`LOWER(TRIM(${properties.propertyType})) = ${t}`
+                        )) as any
+                    );
+                }
+            }
+        }
+
+        // Bathrooms filter (minimum bathrooms)
+        if (bathrooms) {
+            const bathroomsStr = bathrooms.toString().trim().toLowerCase();
+            if (bathroomsStr !== 'any') {
+                const bathroomsNum = parseFloat(bathroomsStr);
+                if (!isNaN(bathroomsNum)) {
+                    conditions.push(
+                        sql`${properties.bathrooms} >= ${bathroomsNum}`
+                    )
+                }
+            }
+        }
+
+        // Bedrooms filter (exact match)
+        if (bedrooms) {
+            const bedroomsStr = bedrooms.toString().trim().toLowerCase();
+            if (bedroomsStr !== 'any') {
+                const bedroomsNum = parseInt(bedroomsStr, 10);
+                if (!isNaN(bedroomsNum)) {
+                    conditions.push(
+                        sql`${properties.bedrooms} = ${bedroomsNum}`
+                    )
+                }
+            }
+        }
+        
+        // Price range filter (handle min, max, or both)
+        if (minPrice) {
+            const minPriceNum = parseFloat(minPrice.toString());
+            if (!isNaN(minPriceNum)) {
+                conditions.push(
+                    sql`${properties.price} >= ${minPriceNum}`
+                )
+            }
+        }
+
+        if (maxPrice) {
+            const maxPriceNum = parseFloat(maxPrice.toString());
+            if (!isNaN(maxPriceNum)) {
+                conditions.push(
+                    sql`${properties.price} <= ${maxPriceNum}`
+                )
+            }
+        }
+
+        // County filter
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase()
             conditions.push(
@@ -25,6 +140,7 @@ router.get("/", async (req, res) => {
             )
         }
 
+        // Zipcode filter
         if (zipcode) {
             const normalizedZipcode = zipcode.toString().trim()
             conditions.push(
@@ -32,6 +148,7 @@ router.get("/", async (req, res) => {
             )
         }
 
+        // City filter
         if (city) {
             const normalizedCity = city.toString().trim().toLowerCase()
             conditions.push(
@@ -39,24 +156,43 @@ router.get("/", async (req, res) => {
             )
         }
 
+        // Has Date Sold filter
         if (hasDateSold === "true") {
             conditions.push(
                 sql`${properties.dateSold} IS NOT NULL`
             )
         }
 
+        // Build where clause
         const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
+        // Get total count (for pagination metadata)
+        let countQuery = db.select({ count: sql<number>`count(*)` }).from(properties);
+        if (whereClause) {
+            countQuery = countQuery.where(whereClause) as any;
+        }
+        const [totalResult] = await countQuery.execute();
+        const total = Number(totalResult?.count || 0);
+
+        // Get paginated results (fetch one extra to check if there are more pages)
         let query = db.select().from(properties);
         if (whereClause) {
             query = query.where(whereClause) as any;
         }
+        const results = await query.limit(limitNum + 1).offset(offset).execute();
 
-        const results = await query.execute()
+        const hasMore = results.length > limitNum;
+        const propertiesList = results.slice(0, limitNum);
 
-        console.log("Properties Length: ", results.length)
+        console.log(`Properties: ${propertiesList.length} returned, ${total} total, hasMore: ${hasMore}, page: ${pageNum}`)
         
-        res.status(200).json(results);
+        res.status(200).json({
+            properties: propertiesList,
+            total,
+            hasMore,
+            page: pageNum,
+            limit: limitNum,
+        });
       
     } catch (error) {
         console.error("Error fetching properties:", error);
@@ -218,31 +354,50 @@ router.get("/map", async (req, res) => {
 // Get property suggestions for search
 router.get("/suggestions", async (req, res) => {
     try {
-        const { search } = req.query;
+        const { search, county } = req.query;
         
         if (!search || search.toString().trim().length < 2) {
             return res.status(200).json([]);
         }
 
-        const searchTerm = `%${search.toString().trim().toLowerCase()}%`
+        const searchTerm = `%${search.toString().trim().toLowerCase()}%`;
+        const conditions = [];
 
-            // Search all fields - no smart detection needed for suggestions
-        const results = await db.select({
-            id: properties.id,
-            address: properties.address,
-            city: properties.city,
-            state: properties.state,
-            zipcode: properties.zipCode
-        })
-        .from(properties)
-        .where(
+        // Add search conditions
+        conditions.push(
             or(
                 sql`LOWER(TRIM(${properties.address})) LIKE ${searchTerm}`,
                 sql`LOWER(TRIM(${properties.city})) LIKE ${searchTerm}`,
                 sql`LOWER(TRIM(${properties.state})) LIKE ${searchTerm}`,
                 sql`LOWER(TRIM(${properties.zipCode})) LIKE ${searchTerm}`
             )
-        ).limit(10);
+        );
+
+        // Add county filter if provided
+        if (county) {
+            const normalizedCounty = county.toString().trim().toLowerCase();
+            conditions.push(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            );
+        }
+
+        const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+        // Search all fields - no smart detection needed for suggestions
+        let query = db.select({
+            id: properties.id,
+            address: properties.address,
+            city: properties.city,
+            state: properties.state,
+            zipcode: properties.zipCode
+        })
+        .from(properties);
+
+        if (whereClause) {
+            query = query.where(whereClause) as any;
+        }
+
+        const results = await query.limit(10);
 
         res.status(200).json(results);
 

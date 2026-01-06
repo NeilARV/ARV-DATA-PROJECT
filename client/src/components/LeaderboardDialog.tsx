@@ -23,9 +23,20 @@ export default function LeaderboardDialog({
   onCompanyClick,
   onZipCodeClick,
 }: LeaderboardDialogProps) {
-  const { data: properties, isLoading } = useQuery<Property[]>({
+  const { data: propertiesResponse, isLoading } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
     queryKey: ["/api/properties"],
+    queryFn: async () => {
+      const res = await fetch("/api/properties", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch properties: ${res.status}`);
+      }
+      return res.json();
+    },
   });
+
+  const properties = propertiesResponse?.properties ?? [];
 
   const getTopCompanies = () => {
     if (!properties) return [];

@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
+
+// Extended CompanyContact type with property counts from API
+type CompanyContactWithCounts = CompanyContact & {
+  propertyCount: number;
+};
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { parseISO, isValid, format, isAfter } from "date-fns";
 import { Card } from "@/components/ui/card";
@@ -141,14 +146,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     },
   });
 
-  // Old Route
-  // const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
-  //   queryKey: ["/api/company-contacts"],
-  // });
 
-  // New Route - fetch companies filtered by county
+  // Fetch companies with property counts (calculated server-side from ALL properties)
   const countyQueryParam = filters?.county ? `?county=${encodeURIComponent(filters.county)}` : '';
-  const { data: companies = [], isLoading } = useQuery<CompanyContact[]>({
+  const { data: companies = [], isLoading } = useQuery<CompanyContactWithCounts[]>({
     queryKey: [`/api/companies/contacts${countyQueryParam}`],
     queryFn: async () => {
       const res = await fetch(`/api/companies/contacts${countyQueryParam}`, {
@@ -161,74 +162,25 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     },
   });
 
-  const { data: properties = [] } = useQuery<Property[]>({
-    queryKey: ["/api/properties"],
+  // Fetch properties only for the 90-day chart (needs monthly breakdown)
+  // The main property counts come from the companies API response above
+  const { data: propertiesResponse } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
+    queryKey: [`/api/properties${countyQueryParam}`],
+    queryFn: async () => {
+      const res = await fetch(`/api/properties${countyQueryParam}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch properties: ${res.status}`);
+      }
+      return res.json();
+    },
   });
 
-  // Calculate property counts for each company (case-insensitive comparison with null safety)
-  // Also calculate if they're a "new buyer" (no purchases in prior 2 months, but purchased in most recent complete month)
-  const companiesWithCounts = useMemo(() => {
-    const now = new Date();
-    
-    // Most recent complete month (e.g., November if we're in December)
-    const recentMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const recentMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    
-    // Prior 2 months (e.g., September and October if we're in December)
-    const priorPeriodStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    const priorPeriodEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
-    
-    // Normalize county filter for comparison (case-insensitive, trimmed)
-    const selectedCountyNormalized = filters?.county 
-      ? filters.county.trim().toLowerCase() 
-      : null;
-    
-    return companies.map(company => {
-      const companyNameNormalized = company.companyName.trim().toLowerCase();
-      
-      const companyProperties = properties.filter(p => {
-        const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
-        const ownerMatches = ownerName === companyNameNormalized;
-        
-        // If county filter is selected, also filter by county
-        if (selectedCountyNormalized && ownerMatches) {
-          const propertyCounty = (p.county ?? "").trim().toLowerCase();
-          return propertyCounty === selectedCountyNormalized;
-        }
-        
-        return ownerMatches;
-      });
-      
-      const propertyCount = companyProperties.length;
-      
-      // Count purchases in most recent complete month
-      const recentMonthPurchases = companyProperties.filter(p => {
-        if (!p.dateSold) return false;
-        try {
-          const date = parseISO(p.dateSold);
-          return isValid(date) && date >= recentMonthStart && date <= recentMonthEnd;
-        } catch {
-          return false;
-        }
-      }).length;
-      
-      // Count purchases in the 2 months before the most recent month
-      const priorPeriodPurchases = companyProperties.filter(p => {
-        if (!p.dateSold) return false;
-        try {
-          const date = parseISO(p.dateSold);
-          return isValid(date) && date >= priorPeriodStart && date <= priorPeriodEnd;
-        } catch {
-          return false;
-        }
-      }).length;
-      
-      // A "new buyer" has purchases in the most recent month but none in the prior 2 months
-      const isNewBuyer = recentMonthPurchases > 0 && priorPeriodPurchases === 0;
-      
-      return { ...company, propertyCount, isNewBuyer, recentMonthPurchases };
-    });
-  }, [companies, properties, filters?.county]);
+  const properties = propertiesResponse?.properties ?? [];
+
+  // Companies already have counts from the API, so we can use them directly
+  const companiesWithCounts = companies;
 
   const filteredCompanies = useMemo(() => {
     let filtered = companiesWithCounts.filter(company => {
@@ -241,11 +193,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           (company.contactEmail && company.contactEmail.toLowerCase().includes(query))
         );
         if (!matchesSearch) return false;
-      }
-      
-      // For "new-buyers", only show companies that are new buyers
-      if (sortBy === "new-buyers" && !company.isNewBuyer) {
-        return false;
       }
       
       return true;
@@ -261,8 +208,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         case "fewest-properties":
           return a.propertyCount - b.propertyCount;
         case "new-buyers":
-          // Sort by most recent purchases first
-          return b.recentMonthPurchases - a.recentMonthPurchases;
+          // Sort by property count (fallback since we don't have recentMonthPurchases)
+          return b.propertyCount - a.propertyCount;
         default:
           return 0;
       }
@@ -333,7 +280,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   };
 
   return (
-    <div className="w-[400px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
+    <div className="w-[375px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex gap-2">

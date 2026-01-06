@@ -1,41 +1,62 @@
 import { Router } from "express";
 import { db } from "server/storage";
-import { companyContacts } from "@shared/schema";
-import { sql } from "drizzle-orm";
+import { companyContacts, properties } from "@shared/schema";
+import { sql, and, eq } from "drizzle-orm";
 
 const router = Router();
 
-// Get all company contacts
+// Get all company contacts with property counts
 router.get("/contacts", async (req, res) => {
     try {
         const { county } = req.query;
 
-        if (!county) {
-            // If no county filter, return all contacts
-        const allContacts = await db
-            .select()
-            .from(companyContacts)
-            .orderBy(companyContacts.companyName);
-            
-            console.log("Company contacts (all):", allContacts.length);
-            return res.json(allContacts);
-        }
-
-        // Filter by county - check if the county is in the JSON array
-        const normalizedCounty = county.toString().trim().toLowerCase();
+        // Get all company contacts (filtered by county if provided)
+        let contactsQuery = db.select().from(companyContacts);
         
-        // Use JSON containment operator to check if county exists in the counties array
-        // PostgreSQL: counties::jsonb @> '["San Diego"]'::jsonb
-        const filteredContacts = await db
-            .select()
-            .from(companyContacts)
-            .where(
+        if (county) {
+            const normalizedCounty = county.toString().trim().toLowerCase();
+            contactsQuery = contactsQuery.where(
                 sql`LOWER(${companyContacts.counties}::text) LIKE ${'%"' + normalizedCounty + '"%'}`
-            )
-            .orderBy(companyContacts.companyName);
+            ) as any;
+        }
+        
+        const contacts = await contactsQuery.orderBy(companyContacts.companyName);
 
-        console.log(`Company contacts (county: ${county}):`, filteredContacts.length);
-        res.json(filteredContacts);
+        // Get all properties (filtered by county if provided) - only need propertyOwner for counting
+        let propertiesQuery = db.select({
+            propertyOwner: properties.propertyOwner,
+            county: properties.county,
+        }).from(properties);
+        
+        if (county) {
+            const normalizedCounty = county.toString().trim().toLowerCase();
+            propertiesQuery = propertiesQuery.where(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            ) as any;
+        }
+        
+        const allProperties = await propertiesQuery;
+
+        // Calculate property count for each company
+        const contactsWithCounts = contacts.map(contact => {
+            const companyNameNormalized = contact.companyName.trim().toLowerCase();
+            
+            // Filter properties for this company (case-insensitive)
+            const companyProperties = allProperties.filter(p => {
+                const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
+                return ownerName === companyNameNormalized;
+            });
+            
+            const propertyCount = companyProperties.length;
+            
+            return {
+                ...contact,
+                propertyCount,
+            };
+        });
+
+        console.log(`Company contacts (county: ${county || 'all'}):`, contactsWithCounts.length);
+        res.json(contactsWithCounts);
         
     } catch (error) {
         console.error("Error fetching company contacts:", error);

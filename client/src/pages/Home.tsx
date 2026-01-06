@@ -51,6 +51,13 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState<number>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
   
+  // Pagination state for infinite scroll
+  const [propertiesPage, setPropertiesPage] = useState(1);
+  const [allProperties, setAllProperties] = useState<Property[]>([]);
+  const [propertiesHasMore, setPropertiesHasMore] = useState(true);
+  const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
+  const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
+  
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
@@ -159,32 +166,84 @@ export default function Home() {
     return county ? `?county=${encodeURIComponent(county)}` : '';
   }, [filters.county]);
 
-  // Build the API URL with county query parameter for full properties (grid/table views)
+  const propertiesQueryParam = useMemo(() => {
+    const params = new URLSearchParams();
+    
+    // County filter
+    if (filters.county) {
+      params.append('county', filters.county);
+    }
+    
+    // Zipcode filter
+    if (filters.zipCode && filters.zipCode.trim() !== '') {
+      params.append('zipcode', filters.zipCode.trim());
+    }
+    
+    // City filter
+    if (filters.city && filters.city.trim() !== '') {
+      params.append('city', filters.city.trim());
+    }
+    
+    // Price range filters
+    if (filters.minPrice > 0) {
+      params.append('minPrice', filters.minPrice.toString());
+    }
+    
+    if (filters.maxPrice < 10000000) { // Only add if not the default max
+      params.append('maxPrice', filters.maxPrice.toString());
+    }
+    
+    // Bedrooms filter (only if not 'Any')
+    if (filters.bedrooms && filters.bedrooms !== 'Any') {
+      // Extract number from strings like "1+", "2+", etc.
+      const bedroomsNum = filters.bedrooms.replace('+', '');
+      params.append('bedrooms', bedroomsNum);
+    }
+    
+    // Bathrooms filter (only if not 'Any')
+    if (filters.bathrooms && filters.bathrooms !== 'Any') {
+      // Extract number from strings like "1+", "2+", etc.
+      const bathroomsNum = filters.bathrooms.replace('+', '');
+      params.append('bathrooms', bathroomsNum);
+    }
+    
+    // Property types filter (can have multiple)
+    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
+      filters.propertyTypes.forEach(type => {
+        params.append('propertyType', type);
+      });
+    }
+    
+    // Status filters (can have multiple)
+    if (filters.statusFilters && filters.statusFilters.length > 0) {
+      filters.statusFilters.forEach(status => {
+        params.append('status', status);
+      });
+    }
+    
+    // Company/Property Owner filter
+    if (selectedCompany) {
+      params.append('company', selectedCompany);
+    }
+    
+    // Pagination - use current page state
+    params.append('page', propertiesPage.toString());
+    params.append('limit', '20');
+    
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : '';
+  }, [filters, selectedCompany]);
+
+  // Build the API URL with all filter query parameters for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
-    return `/api/properties${countyQueryParam}`;
-  }, [countyQueryParam]);
+    return `/api/properties${propertiesQueryParam}`;
+  }, [propertiesQueryParam]);
 
   // Build the API URL for map pins (minimal data for map view)
   const mapPinsQueryUrl = useMemo(() => {
     return `/api/properties/map${countyQueryParam}`;
   }, [countyQueryParam]);
 
-  // Type for map pin data (minimal property data)
-  type MapPin = {
-    id: string;
-    latitude: number | null;
-    longitude: number | null;
-    address: string;
-    city: string;
-    zipcode: string;
-    county: string;
-    propertyType: string;
-    bedrooms: number;
-    bathrooms: number;
-    price: number;
-    status: string | null;
-    propertyOwner: string | null;
-  };
 
   // Fetch map pins (minimal data) for map view
   const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
@@ -202,7 +261,7 @@ export default function Home() {
   });
 
   // Fetch full properties from backend filtered by county (for grid/table views)
-  const { data: properties = [], isLoading } = useQuery<Property[]>({
+  const { data: propertiesResponse, isLoading, isFetching } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
     queryKey: [propertiesQueryUrl],
     queryFn: async () => {
       const res = await fetch(propertiesQueryUrl, {
@@ -216,6 +275,62 @@ export default function Home() {
     enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Only fetch when NOT in map or buyers-feed view
   });
 
+  const totalFilteredProperties = propertiesResponse?.total ?? 0;
+
+  // Reset pagination when filters or view mode changes
+  useEffect(() => {
+    if (viewMode !== "map" && viewMode !== "buyers-feed") {
+      setPropertiesPage(1);
+      setAllProperties([]);
+      setPropertiesHasMore(true);
+      setIsLoadingMoreProperties(false);
+    }
+  }, [filters, selectedCompany, viewMode]);
+
+  // Accumulate properties when new data arrives
+  useEffect(() => {
+    if (propertiesResponse && viewMode !== "map" && viewMode !== "buyers-feed") {
+      if (propertiesPage === 1) {
+        // First page - replace all
+        setAllProperties(propertiesResponse.properties);
+      } else {
+        // Subsequent pages - append
+        setAllProperties((prev) => [...prev, ...propertiesResponse.properties]);
+      }
+      setPropertiesHasMore(propertiesResponse.hasMore);
+      setIsLoadingMoreProperties(false);
+    }
+  }, [propertiesResponse, propertiesPage, viewMode]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (viewMode === "map" || viewMode === "buyers-feed") return;
+    if (!propertiesHasMore || isLoadingMoreProperties || isFetching) return;
+    if (!loadMorePropertiesRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && propertiesHasMore && !isLoadingMoreProperties && !isFetching) {
+          setIsLoadingMoreProperties(true);
+          setPropertiesPage((prev) => prev + 1);
+        }
+      },
+      { 
+        threshold: 0.1,
+        rootMargin: '100px' // Start loading 100px before reaching the element
+      }
+    );
+
+    const currentRef = loadMorePropertiesRef.current;
+    observer.observe(currentRef);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [viewMode, propertiesHasMore, isLoadingMoreProperties, isFetching, allProperties.length]);
+
+  const properties = allProperties; // Total properties matching all filters (county, price, etc.)
+
   // Fetch buyers feed properties (all properties with dateSold, sorted by dateSold DESC)
   const buyersFeedQueryUrl = useMemo(() => {
     // Use the same county query param as regular properties, but add hasDateSold flag
@@ -223,7 +338,7 @@ export default function Home() {
     return `/api/properties${countyQueryParam}${countyQueryParam ? '&' : '?'}hasDateSold=true`;
   }, [countyQueryParam]);
 
-  const { data: buyersFeedPurchases = [] } = useQuery<Property[]>({
+  const { data: buyersFeedResponse } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
     queryKey: [buyersFeedQueryUrl],
     queryFn: async () => {
       const res = await fetch(buyersFeedQueryUrl, {
@@ -232,22 +347,24 @@ export default function Home() {
       if (!res.ok) {
         throw new Error(`Failed to fetch buyers feed properties: ${res.status}`);
       }
-      const allProperties = await res.json();
-      
-      // Filter to only properties with dateSold and sort by dateSold DESC (most recent first)
-      const propertiesWithSales = allProperties
-        .filter((prop: Property) => prop.dateSold != null)
-        .sort((a: Property, b: Property) => {
-          if (!a.dateSold && !b.dateSold) return 0;
-          if (!a.dateSold) return 1;
-          if (!b.dateSold) return -1;
-          return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
-        });
-      
-      return propertiesWithSales;
+      return res.json();
     },
     enabled: viewMode === "buyers-feed",
   });
+
+  const buyersFeedPurchases = useMemo(() => {
+    const allProperties = buyersFeedResponse?.properties ?? [];
+    
+    // Filter to only properties with dateSold and sort by dateSold DESC (most recent first)
+    return allProperties
+      .filter((prop: Property) => prop.dateSold != null)
+      .sort((a: Property, b: Property) => {
+        if (!a.dateSold && !b.dateSold) return 0;
+        if (!a.dateSold) return 1;
+        if (!b.dateSold) return -1;
+        return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
+      });
+  }, [buyersFeedResponse]);
 
   const handleUploadSuccess = () => {
     // Refresh properties after upload - invalidate all property queries
@@ -709,6 +826,7 @@ export default function Home() {
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         onPropertySelect={handlePropertySelectById}
+        county={filters.county}
         onLoginClick={() => {
           // Header button click: user-initiated, so only force if already in forced state
           // If not forced yet, allow dismissable dialog
@@ -800,9 +918,9 @@ export default function Home() {
                   <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-2xl font-semibold mb-1">
-                        {selectedCompany && hasActiveFilters && totalCompanyProperties > 0
+                        {selectedCompany && totalCompanyProperties > 0
                           ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
-                          : `${sortedProperties.length} Properties`}
+                          : `${totalFilteredProperties} Properties`}
                         {selectedCompany && (
                           <span className="text-base font-normal text-muted-foreground ml-2">
                             owned by {selectedCompany}
@@ -845,6 +963,14 @@ export default function Home() {
                     properties={sortedProperties}
                     onPropertyClick={setSelectedProperty}
                   />
+                  {/* Infinite scroll trigger */}
+                  {propertiesHasMore && (
+                    <div ref={loadMorePropertiesRef} className="h-20 flex items-center justify-center">
+                      {isLoadingMoreProperties && (
+                        <div className="text-muted-foreground">Loading more properties...</div>
+                      )}
+                    </div>
+                  )}
                 </div>
             ) : viewMode === "buyers-feed" ? (
               <>
@@ -883,9 +1009,9 @@ export default function Home() {
                   <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-2xl font-semibold mb-1">
-                        {selectedCompany && hasActiveFilters && totalCompanyProperties > 0
+                        {selectedCompany && totalCompanyProperties > 0
                           ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
-                          : `${sortedProperties.length} Properties`}
+                          : `${totalFilteredProperties} Properties`}
                         {selectedCompany && (
                           <span className="text-base font-normal text-muted-foreground ml-2">
                             owned by {selectedCompany}
@@ -955,6 +1081,14 @@ export default function Home() {
                       />
                     ))}
                   </div>
+                  {/* Infinite scroll trigger */}
+                  {propertiesHasMore && (
+                    <div ref={loadMorePropertiesRef} className="h-20 flex items-center justify-center mt-4">
+                      {isLoadingMoreProperties && (
+                        <div className="text-muted-foreground">Loading more properties...</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}

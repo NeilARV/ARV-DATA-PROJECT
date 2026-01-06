@@ -32,6 +32,7 @@ interface HeaderProps {
   onLeaderboardClick?: () => void;
   onBuyersFeedClick?: () => void;
   onLogoClick?: () => void;
+  county?: string; // County filter for suggestions
 }
 
 interface PropertySuggestion {
@@ -52,6 +53,7 @@ export default function Header({
   onLeaderboardClick,
   onBuyersFeedClick,
   onLogoClick,
+  county,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(false);
@@ -81,8 +83,9 @@ export default function Header({
       }
 
       try {
+        const countyParam = county ? `&county=${encodeURIComponent(county)}` : '';
         const response = await fetch(
-          `/api/properties/suggestions?search=${encodeURIComponent(trimmedQuery)}`,
+          `/api/properties/suggestions?search=${encodeURIComponent(trimmedQuery)}${countyParam}`,
           { credentials: "include" }
         );
         if (response.ok) {
@@ -99,7 +102,7 @@ export default function Header({
 
     const timeoutId = setTimeout(fetchSuggestions, 300); // 300ms debounce
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [searchQuery, county]);
 
   // Handle click outside to close suggestions
   useEffect(() => {
