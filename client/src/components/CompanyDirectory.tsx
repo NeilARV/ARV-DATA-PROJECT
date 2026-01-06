@@ -333,7 +333,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   };
 
   return (
-    <div className="w-96 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
+    <div className="w-[400px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex gap-2">
@@ -455,7 +455,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                     </div>
                     
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <User className="w-3.5 h-3.5 flex-shrink-0" />
+                      {company.contactName && (
+                        <User className="w-3.5 h-3.5 flex-shrink-0" />
+                      )}
                       <span className="truncate" data-testid="text-contact-name">{company.contactName}</span>
                     </div>
                     

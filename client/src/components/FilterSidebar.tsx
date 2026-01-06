@@ -348,7 +348,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   }, []);
 
   return (
-    <div className="w-[450px] h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
+    <div className="w-[400px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex gap-2">

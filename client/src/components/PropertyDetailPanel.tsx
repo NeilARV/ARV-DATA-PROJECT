@@ -84,7 +84,7 @@ export default function PropertyDetailPanel({
   const daysOwned = calculateDaysOwned(property.dateSold);
 
   return (
-    <div className="w-96 h-full bg-background border-r border-border overflow-y-auto" data-testid="panel-property-detail">
+    <div className="w-96 flex-shrink-0 h-full bg-background border-r border-border overflow-y-auto" data-testid="panel-property-detail">
       <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Property Details</h2>
         <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-panel">
@@ -180,7 +180,7 @@ export default function PropertyDetailPanel({
             {formattedDateSold && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-sm font-semibold text-muted-foreground mb-1">Purchased Date</div>
+                  <div className="text-xs text-muted-foreground mb-1">Purchased Date</div>
                   <div className="flex items-start gap-1">
                     <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                     <span className="font-medium text-sm">{formattedDateSold}</span>

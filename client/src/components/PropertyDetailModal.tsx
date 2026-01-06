@@ -1,4 +1,5 @@
 import { Property } from "@shared/schema";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -6,11 +7,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bed, Bath, Maximize2, MapPin, Building2, Calendar } from "lucide-react";
+import { Bed, Bath, Maximize2, MapPin, Calendar, Building2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
@@ -265,3 +265,4 @@ export default function PropertyDetailModal({
     </Dialog>
   );
 }
+
