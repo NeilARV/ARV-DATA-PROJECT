@@ -5,7 +5,7 @@ import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertPropertySchema, companyContacts, updatePropertySchema } from "@shared/schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison } from "server/utils/normalizeCompanyName";
-import { eq, sql, or, and } from "drizzle-orm";
+import { eq, sql, or, and, desc, asc } from "drizzle-orm";
 import pLimit from "p-limit";
 
 const router = Router();
@@ -28,12 +28,13 @@ router.get("/", async (req, res) => {
             propertyOwner, 
             hasDateSold,
             page,
-            limit
+            limit,
+            sortBy
         } = req.query;
 
         // Parse pagination parameters
         const pageNum = page ? Math.max(1, parseInt(page.toString(), 10)) : 1;
-        const limitNum = limit ? Math.max(1, parseInt(limit.toString(), 10)) : 20; // Default to 50 per page
+        const limitNum = limit ? Math.max(1, parseInt(limit.toString(), 10)) : 10; // Default to 20 per page
         const offset = (pageNum - 1) * limitNum;
 
         const conditions = []
@@ -179,6 +180,41 @@ router.get("/", async (req, res) => {
         if (whereClause) {
             query = query.where(whereClause) as any;
         }
+
+        // Apply sorting based on sortBy parameter
+        const sortByValue = sortBy?.toString() || "recently-sold";
+        switch (sortByValue) {
+            case "recently-sold":
+                // Sort by dateSold DESC (most recent first), nulls last
+                query = query.orderBy(
+                    sql`CASE WHEN ${properties.dateSold} IS NULL THEN 1 ELSE 0 END`,
+                    desc(properties.dateSold)
+                ) as any;
+                break;
+            case "days-held":
+                // Sort by days held (calculated from dateSold to now) DESC (longest first), nulls last
+                // Calculate days held: (NOW() - dateSold) in days
+                query = query.orderBy(
+                    sql`CASE WHEN ${properties.dateSold} IS NULL THEN 1 ELSE 0 END`,
+                    sql`(EXTRACT(EPOCH FROM (NOW() - ${properties.dateSold})) / 86400) DESC`
+                ) as any;
+                break;
+            case "price-high-low":
+                // Sort by price DESC
+                query = query.orderBy(desc(properties.price)) as any;
+                break;
+            case "price-low-high":
+                // Sort by price ASC
+                query = query.orderBy(asc(properties.price)) as any;
+                break;
+            default:
+                // Default to recently-sold
+                query = query.orderBy(
+                    sql`CASE WHEN ${properties.dateSold} IS NULL THEN 1 ELSE 0 END`,
+                    desc(properties.dateSold)
+                ) as any;
+        }
+
         const results = await query.limit(limitNum + 1).offset(offset).execute();
 
         const hasMore = results.length > limitNum;
@@ -397,7 +433,7 @@ router.get("/suggestions", async (req, res) => {
             query = query.where(whereClause) as any;
         }
 
-        const results = await query.limit(10);
+        const results = await query.limit(5);
 
         res.status(200).json(results);
 

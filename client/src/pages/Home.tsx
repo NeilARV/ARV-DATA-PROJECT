@@ -243,11 +243,14 @@ export default function Home() {
     
     // Pagination - use current page state
     params.append('page', propertiesPage.toString());
-    params.append('limit', '20');
+    params.append('limit', '10');
+    
+    // Sort by parameter
+    params.append('sortBy', sortBy);
     
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompany, propertiesPage]);
+  }, [filters, selectedCompany, propertiesPage, sortBy]);
 
   // Build the API URL with all filter query parameters for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
@@ -414,11 +417,14 @@ export default function Home() {
     
     // Pagination - use current page state
     params.append('page', buyersFeedPage.toString());
-    params.append('limit', '20');
+    params.append('limit', '10');
+    
+    // Sort by parameter
+    params.append('sortBy', sortBy);
     
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompany, buyersFeedPage]);
+  }, [filters, selectedCompany, buyersFeedPage, sortBy]);
 
   // Build the API URL for buyers feed
   const buyersFeedQueryUrl = useMemo(() => {
@@ -442,7 +448,7 @@ export default function Home() {
 
   const totalBuyersFeedProperties = buyersFeedResponse?.total ?? 0;
 
-  // Reset pagination when filters or view mode changes for buyers feed
+  // Reset pagination when filters, sortBy, or view mode changes for buyers feed
   useEffect(() => {
     if (viewMode === "buyers-feed") {
       setBuyersFeedPage(1);
@@ -450,7 +456,7 @@ export default function Home() {
       setBuyersFeedHasMore(true);
       setIsLoadingMoreBuyersFeed(false);
     }
-  }, [filters, selectedCompany, viewMode]);
+  }, [filters, selectedCompany, viewMode, sortBy]);
 
   // Accumulate buyers feed properties when new data arrives
   useEffect(() => {
@@ -920,33 +926,9 @@ export default function Home() {
     return totalFilteredProperties;
   }, [mapPins, selectedCompany, viewMode, totalFilteredProperties]);
 
-  // Calculate current time once for deterministic sorting
-  const now = Date.now();
-  
-  const sortedProperties = [...filteredProperties].sort((a, b) => {
-    switch (sortBy) {
-      case "recently-sold":
-        if (!a.dateSold && !b.dateSold) return 0;
-        if (!a.dateSold) return 1;
-        if (!b.dateSold) return -1;
-        return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
-      case "days-held":
-        if (!a.dateSold && !b.dateSold) return 0;
-        if (!a.dateSold) return 1;
-        if (!b.dateSold) return -1;
-        // Calculate days held (from date sold to now)
-        const aDaysHeld = now - new Date(a.dateSold).getTime();
-        const bDaysHeld = now - new Date(b.dateSold).getTime();
-        // Sort from longest to shortest
-        return bDaysHeld - aDaysHeld;
-      case "price-high-low":
-        return b.price - a.price;
-      case "price-low-high":
-        return a.price - b.price;
-      default:
-        return 0;
-    }
-  });
+  // Properties are now sorted server-side, so we can use them directly
+  // The API returns properties in the correct sorted order based on the sortBy parameter
+  const sortedProperties = filteredProperties;
 
   return (
     <div className="h-screen flex flex-col">
