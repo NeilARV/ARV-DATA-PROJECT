@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
-import { fetchCounty } from "@shared/utils/fetchCounty";
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
@@ -115,8 +114,17 @@ export default function Home() {
         const { latitude, longitude } = position.coords;
         
         try {
-          // Reverse geocode to get county using US Census Bureau API
-          const userCounty = await fetchCounty(longitude, latitude);
+          // Reverse geocode to get county using backend API (proxies Census API to avoid CORS)
+          const response = await fetch(`/api/geocoding/county?longitude=${longitude}&latitude=${latitude}`, {
+            credentials: "include",
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch county: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          const userCounty = data.county;
           
           if (userCounty) {
             // Check if user's county is in the enabled counties list
