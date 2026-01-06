@@ -10,14 +10,34 @@ import pLimit from "p-limit";
 
 const router = Router();
 
-// Get all properties
+// Get all properties with pagination and filters
 router.get("/", async (req, res) => {
     try {
 
-        const { zipcode, city, county, hasDateSold } = req.query;
+        const { 
+            zipcode, 
+            city, 
+            county, 
+            hasDateSold,
+            page,
+            limit,
+            minPrice,
+            maxPrice,
+            minBedrooms,
+            minBathrooms,
+            propertyType,
+            status,
+            propertyOwner
+        } = req.query;
+
+        // Parse pagination parameters
+        const pageNum = page ? Math.max(1, parseInt(page.toString(), 10)) : 1;
+        const limitNum = limit ? Math.max(1, parseInt(limit.toString(), 10)) : 50; // Default to 50 per page
+        const offset = (pageNum - 1) * limitNum;
 
         const conditions = []
 
+        // County filter (should always be passed, but handle if not)
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase()
             conditions.push(
@@ -25,6 +45,7 @@ router.get("/", async (req, res) => {
             )
         }
 
+        // Zip code filter
         if (zipcode) {
             const normalizedZipcode = zipcode.toString().trim()
             conditions.push(
@@ -32,6 +53,7 @@ router.get("/", async (req, res) => {
             )
         }
 
+        // City filter
         if (city) {
             const normalizedCity = city.toString().trim().toLowerCase()
             conditions.push(
@@ -39,6 +61,70 @@ router.get("/", async (req, res) => {
             )
         }
 
+        // Price range filters
+        if (minPrice) {
+            const minPriceNum = parseFloat(minPrice.toString());
+            if (!isNaN(minPriceNum)) {
+                conditions.push(
+                    sql`${properties.price} >= ${minPriceNum}`
+                )
+            }
+        }
+
+        if (maxPrice) {
+            const maxPriceNum = parseFloat(maxPrice.toString());
+            if (!isNaN(maxPriceNum)) {
+                conditions.push(
+                    sql`${properties.price} <= ${maxPriceNum}`
+                )
+            }
+        }
+
+        // Bedrooms filter (minimum)
+        if (minBedrooms) {
+            const minBedroomsNum = parseInt(minBedrooms.toString(), 10);
+            if (!isNaN(minBedroomsNum)) {
+                conditions.push(
+                    sql`${properties.bedrooms} >= ${minBedroomsNum}`
+                )
+            }
+        }
+
+        // Bathrooms filter (minimum)
+        if (minBathrooms) {
+            const minBathroomsNum = parseFloat(minBathrooms.toString());
+            if (!isNaN(minBathroomsNum)) {
+                conditions.push(
+                    sql`${properties.bathrooms} >= ${minBathroomsNum}`
+                )
+            }
+        }
+
+        // Property type filter
+        if (propertyType) {
+            const normalizedPropertyType = propertyType.toString().trim()
+            conditions.push(
+                sql`TRIM(${properties.propertyType}) = ${normalizedPropertyType}`
+            )
+        }
+
+        // Status filter
+        if (status) {
+            const normalizedStatus = status.toString().trim()
+            conditions.push(
+                sql`TRIM(${properties.status}) = ${normalizedStatus}`
+            )
+        }
+
+        // Property owner (company) filter
+        if (propertyOwner) {
+            const normalizedOwner = propertyOwner.toString().trim().toLowerCase()
+            conditions.push(
+                sql`LOWER(TRIM(${properties.propertyOwner})) = ${normalizedOwner}`
+            )
+        }
+
+        // Has date sold filter
         if (hasDateSold === "true") {
             conditions.push(
                 sql`${properties.dateSold} IS NOT NULL`
@@ -47,16 +133,31 @@ router.get("/", async (req, res) => {
 
         const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
+        // Get total count (for the county if provided, otherwise all properties)
+        let countQuery = db.select({ count: sql<number>`count(*)` }).from(properties);
+        if (whereClause) {
+            countQuery = countQuery.where(whereClause) as any;
+        }
+        const [totalResult] = await countQuery.execute();
+        const total = Number(totalResult?.count || 0);
+
+        // Get paginated results (fetch one extra to check if there are more pages)
         let query = db.select().from(properties);
         if (whereClause) {
             query = query.where(whereClause) as any;
         }
+        const results = await query.limit(limitNum + 1).offset(offset).execute();
 
-        const results = await query.execute()
+        const hasMore = results.length > limitNum;
+        const propertiesList = results.slice(0, limitNum);
 
-        console.log("Properties Length: ", results.length)
+        console.log(`Properties: ${propertiesList.length} returned, ${total} total, hasMore: ${hasMore}`)
         
-        res.status(200).json(results);
+        res.status(200).json({
+            properties: propertiesList,
+            total,
+            hasMore,
+        });
       
     } catch (error) {
         console.error("Error fetching properties:", error);
