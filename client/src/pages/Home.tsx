@@ -12,7 +12,6 @@ import UploadDialog from "@/components/UploadDialog";
 import SignupDialog from "@/components/SignupDialog";
 import LoginDialog from "@/components/LoginDialog";
 import LeaderboardDialog from "@/components/LeaderboardDialog";
-import BuyersFeedDialog from "@/components/BuyersFeedDialog";
 import { Property } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
@@ -32,7 +31,7 @@ import type { MapPin } from '@/types/property';
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<"map" | "grid" | "table">("map");
+  const [viewMode, setViewMode] = useState<"map" | "grid" | "table" | "buyers-feed">("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -55,7 +54,6 @@ export default function Home() {
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
-  const [showBuyersFeedDialog, setShowBuyersFeedDialog] = useState(false);
   const [isDialogForced, setIsDialogForced] = useState(false);
   
   const { user, isAuthenticated } = useAuth();
@@ -215,7 +213,40 @@ export default function Home() {
       }
       return res.json();
     },
-    enabled: viewMode !== "map", // Only fetch when NOT in map view
+    enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Only fetch when NOT in map or buyers-feed view
+  });
+
+  // Fetch buyers feed properties (all properties with dateSold, sorted by dateSold DESC)
+  const buyersFeedQueryUrl = useMemo(() => {
+    // Use the same county query param as regular properties, but add hasDateSold flag
+    // countyQueryParam already includes '?' if county exists, so we use '&' to append
+    return `/api/properties${countyQueryParam}${countyQueryParam ? '&' : '?'}hasDateSold=true`;
+  }, [countyQueryParam]);
+
+  const { data: buyersFeedPurchases = [] } = useQuery<Property[]>({
+    queryKey: [buyersFeedQueryUrl],
+    queryFn: async () => {
+      const res = await fetch(buyersFeedQueryUrl, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to fetch buyers feed properties: ${res.status}`);
+      }
+      const allProperties = await res.json();
+      
+      // Filter to only properties with dateSold and sort by dateSold DESC (most recent first)
+      const propertiesWithSales = allProperties
+        .filter((prop: Property) => prop.dateSold != null)
+        .sort((a: Property, b: Property) => {
+          if (!a.dateSold && !b.dateSold) return 0;
+          if (!a.dateSold) return 1;
+          if (!b.dateSold) return -1;
+          return new Date(b.dateSold).getTime() - new Date(a.dateSold).getTime();
+        });
+      
+      return propertiesWithSales;
+    },
+    enabled: viewMode === "buyers-feed",
   });
 
   const handleUploadSuccess = () => {
@@ -449,8 +480,11 @@ export default function Home() {
   }, [mapPins, filters, selectedCompany, zipCodeList]);
 
 
+  // Use buyers feed properties when in buyers-feed view, otherwise use regular properties
+  const propertiesToFilter = viewMode === "buyers-feed" ? buyersFeedPurchases : properties;
+
   // Filter full properties for grid/table views
-  const filteredProperties = properties.filter(property => {
+  const filteredProperties = propertiesToFilter.filter(property => {
     // Apply company filter first if one is selected (case-insensitive comparison with null safety)
     if (selectedCompany) {
       
@@ -537,45 +571,6 @@ export default function Home() {
     // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
-  const handleBuyersFeedCompanyClick = (companyName: string) => {
-    // Preserve all existing filters when selecting a company from buyers feed
-    setSelectedCompany(companyName);
-    // Keep the sidebar open and switch to directory view if not already there
-    if (sidebarView !== "directory") {
-      setSidebarView("directory");
-    }
-    
-    // Calculate map center and zoom based on company's properties
-    const companyNameNormalized = companyName.trim().toLowerCase().replace(/\s+/g, ' ');
-    const companyProperties = mapPins.filter(pin => {
-      const ownerName = (pin.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
-      return ownerName === companyNameNormalized;
-    }).filter(pin => 
-      pin.latitude != null && 
-      pin.longitude != null && 
-      !isNaN(pin.latitude) && 
-      !isNaN(pin.longitude)
-    );
-
-    if (companyProperties.length === 0) {
-      // No valid properties found, don't change map
-      return;
-    }
-
-    if (companyProperties.length === 1) {
-      // Single property: center on it with slight zoom
-      const property = companyProperties[0];
-      setMapCenter([property.latitude!, property.longitude!]);
-      setMapZoom(16);
-    } else {
-      // Multiple properties: set center to undefined to let MapBounds component
-      // automatically fit bounds to show all properties
-      // The MapBounds component will detect the property set change and use fitBounds
-      setMapCenter(undefined);
-      // Set a default zoom that will be overridden by fitBounds
-      setMapZoom(12);
-    }
-  };
 
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
     // Clear company filter and set zip code filter
@@ -618,7 +613,7 @@ export default function Home() {
     setSortBy("recently-sold");
   };
 
-  const handleViewModeChange = (mode: "map" | "grid" | "table") => {
+  const handleViewModeChange = (mode: "map" | "grid" | "table" | "buyers-feed") => {
     // Clear selected property when switching views to avoid modal popping up
     setSelectedProperty(null);
     setViewMode(mode);
@@ -727,7 +722,7 @@ export default function Home() {
           setShowLoginDialog(false);
         }}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
-        onBuyersFeedClick={() => setShowBuyersFeedDialog(true)}
+        onBuyersFeedClick={() => setViewMode("buyers-feed")}
         onLogoClick={handleLogoClick}
       />
 
@@ -851,6 +846,31 @@ export default function Home() {
                     onPropertyClick={setSelectedProperty}
                   />
                 </div>
+            ) : viewMode === "buyers-feed" ? (
+              <>
+                {selectedProperty && (
+                  <PropertyDetailPanel
+                    property={selectedProperty}
+                    onClose={() => setSelectedProperty(null)}
+                  />
+                )}
+                <div className="h-full overflow-y-auto p-6 flex-1">
+                  <div className="mb-4">
+                    <h2 className="text-2xl font-semibold mb-1">
+                      {sortedProperties.length} Recent Purchases
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sortedProperties.map((property) => (
+                      <PropertyCard
+                        key={property.id}
+                        property={property}
+                        onClick={() => setSelectedProperty(property)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
             ) : (
               <>
                 {selectedProperty && (
@@ -1005,12 +1025,6 @@ export default function Home() {
         onZipCodeClick={handleLeaderboardZipCodeClick}
       />
 
-      <BuyersFeedDialog
-        open={showBuyersFeedDialog}
-        onOpenChange={setShowBuyersFeedDialog}
-        onCompanyClick={handleBuyersFeedCompanyClick}
-        county={filters.county}
-      />
     </div>
   );
 }

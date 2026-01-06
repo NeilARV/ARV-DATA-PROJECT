@@ -5,7 +5,7 @@ import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertPropertySchema, companyContacts, updatePropertySchema } from "@shared/schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison } from "server/utils/normalizeCompanyName";
-import { eq, sql, or } from "drizzle-orm";
+import { eq, sql, or, and } from "drizzle-orm";
 import pLimit from "p-limit";
 
 const router = Router();
@@ -14,13 +14,7 @@ const router = Router();
 router.get("/", async (req, res) => {
     try {
 
-        const { zipcode, city, county } = req.query;
-
-        if (!zipcode && !city && !county) {
-            const allProperties = await db.select().from(properties)
-            console.log("Properties Length (all):", allProperties.length);
-            return res.status(200).json(allProperties)
-        }
+        const { zipcode, city, county, hasDateSold } = req.query;
 
         const conditions = []
 
@@ -45,9 +39,20 @@ router.get("/", async (req, res) => {
             )
         }
 
-        const whereClause = conditions.length > 1 ? or(...conditions) : conditions[0];
+        if (hasDateSold === "true") {
+            conditions.push(
+                sql`${properties.dateSold} IS NOT NULL`
+            )
+        }
 
-        const results = await db.select().from(properties).where(whereClause).execute()
+        const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+        let query = db.select().from(properties);
+        if (whereClause) {
+            query = query.where(whereClause) as any;
+        }
+
+        const results = await query.execute()
 
         console.log("Properties Length: ", results.length)
         

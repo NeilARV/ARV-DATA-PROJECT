@@ -23,8 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 
 interface HeaderProps {
-  viewMode: "map" | "grid" | "table";
-  onViewModeChange: (mode: "map" | "grid" | "table") => void;
+  viewMode: "map" | "grid" | "table" | "buyers-feed";
+  onViewModeChange: (mode: "map" | "grid" | "table" | "buyers-feed") => void;
   onSearch?: (query: string) => void;
   onPropertySelect?: (propertyId: string) => void;
   onLoginClick?: () => void;
@@ -270,6 +270,28 @@ export default function Header({
         </form>
 
         <div className="flex items-center gap-3 flex-shrink-0">
+
+            
+          <Button
+            variant={viewMode === "buyers-feed" ? "default" : "outline"}
+            size="sm"
+            onClick={onBuyersFeedClick}
+            data-testid="button-buyers-feed"
+          >
+            <Users className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Buyers Feed</span>
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLeaderboardClick}
+            data-testid="button-leaderboard"
+          >
+            <Trophy className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Leaderboard</span>
+          </Button>
+
           <div className="flex items-center border border-border rounded-md">
             <Button
               variant={viewMode === "map" ? "default" : "ghost"}
@@ -302,26 +324,6 @@ export default function Header({
               <span className="hidden sm:inline">Table</span>
             </Button>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLeaderboardClick}
-            data-testid="button-leaderboard"
-          >
-            <Trophy className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Leaderboard</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onBuyersFeedClick}
-            data-testid="button-buyers-feed"
-          >
-            <Users className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Buyers Feed</span>
-          </Button>
         </div>
       </div>
 
