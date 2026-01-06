@@ -64,4 +64,65 @@ router.get("/contacts", async (req, res) => {
     }
 });
 
+// Get leaderboard stats (top 10 companies and top 10 zip codes for San Diego county)
+router.get("/leaderboard", async (req, res) => {
+    try {
+        // Filter to San Diego county only
+        const normalizedCounty = "san diego";
+        
+        // Get all properties in San Diego county (only need propertyOwner and zipCode)
+        const allProperties = await db.select({
+            propertyOwner: properties.propertyOwner,
+            zipCode: properties.zipCode,
+        })
+        .from(properties)
+        .where(
+            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+        ) as any;
+
+        // Calculate company counts
+        const companyCounts: Record<string, number> = {};
+        allProperties.forEach((p: { propertyOwner: string | null }) => {
+            const owner = (p.propertyOwner || "Unknown").trim();
+            companyCounts[owner] = (companyCounts[owner] || 0) + 1;
+        });
+
+        // Get top 10 companies
+        const topCompanies = Object.entries(companyCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([name, count], index) => ({
+                rank: index + 1,
+                name,
+                count,
+            }));
+
+        // Calculate zip code counts
+        const zipCounts: Record<string, number> = {};
+        allProperties.forEach((p: { zipCode: string | null }) => {
+            const zip = (p.zipCode || "Unknown").trim();
+            zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+        });
+
+        // Get top 10 zip codes
+        const topZipCodes = Object.entries(zipCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([zipCode, count], index) => ({
+                rank: index + 1,
+                zipCode,
+                count,
+            }));
+
+        res.json({
+            companies: topCompanies,
+            zipCodes: topZipCodes,
+        });
+        
+    } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+        res.status(500).json({ message: "Error fetching leaderboard" });
+    }
+});
+
 export default router

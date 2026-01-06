@@ -6,7 +6,6 @@ import {
 } from "@/components/ui/dialog";
 import { Trophy, Building2, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import type { Property } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCityForZipCode } from "@/lib/zipCodes";
 
@@ -17,60 +16,33 @@ interface LeaderboardDialogProps {
   onZipCodeClick?: (zipCode: string) => void;
 }
 
+interface LeaderboardData {
+  companies: Array<{ rank: number; name: string; count: number }>;
+  zipCodes: Array<{ rank: number; zipCode: string; count: number }>;
+}
+
 export default function LeaderboardDialog({ 
   open, 
   onOpenChange,
   onCompanyClick,
   onZipCodeClick,
 }: LeaderboardDialogProps) {
-  const { data: propertiesResponse, isLoading } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
-    queryKey: ["/api/properties"],
+  // Fetch leaderboard data from dedicated endpoint (San Diego county only)
+  const { data: leaderboardData, isLoading } = useQuery<LeaderboardData>({
+    queryKey: ["/api/companies/leaderboard"],
     queryFn: async () => {
-      const res = await fetch("/api/properties", {
+      const res = await fetch("/api/companies/leaderboard", {
         credentials: "include",
       });
       if (!res.ok) {
-        throw new Error(`Failed to fetch properties: ${res.status}`);
+        throw new Error(`Failed to fetch leaderboard: ${res.status}`);
       }
       return res.json();
     },
   });
 
-  const properties = propertiesResponse?.properties ?? [];
-
-  const getTopCompanies = () => {
-    if (!properties) return [];
-    
-    const companyCounts: Record<string, number> = {};
-    properties.forEach((property) => {
-      // Trim whitespace to properly aggregate companies with trailing spaces
-      const owner = (property.propertyOwner || "Unknown").trim();
-      companyCounts[owner] = (companyCounts[owner] || 0) + 1;
-    });
-
-    return Object.entries(companyCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, count], index) => ({ rank: index + 1, name, count }));
-  };
-
-  const getTopZipCodes = () => {
-    if (!properties) return [];
-    
-    const zipCounts: Record<string, number> = {};
-    properties.forEach((property) => {
-      const zip = property.zipCode || "Unknown";
-      zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-    });
-
-    return Object.entries(zipCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([zipCode, count], index) => ({ rank: index + 1, zipCode, count }));
-  };
-
-  const topCompanies = getTopCompanies();
-  const topZipCodes = getTopZipCodes();
+  const topCompanies = leaderboardData?.companies ?? [];
+  const topZipCodes = leaderboardData?.zipCodes ?? [];
 
   const handleCompanyClick = (companyName: string) => {
     if (onCompanyClick) {
@@ -97,14 +69,14 @@ export default function LeaderboardDialog({
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground">
-          Click on any entry to view those properties
+          View the top flipping companies and zip codes
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-lg font-semibold border-b pb-2">
               <Building2 className="w-5 h-5 text-primary" />
-              Top 10 Flipping Companies
+              Top 10 Companies
             </div>
             {isLoading ? (
               <div className="space-y-2">
@@ -148,7 +120,7 @@ export default function LeaderboardDialog({
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-lg font-semibold border-b pb-2">
               <MapPin className="w-5 h-5 text-primary" />
-              Zip Codes with the Most Flip Activity
+              Top 10 Zip Codes
             </div>
             {isLoading ? (
               <div className="space-y-2">
