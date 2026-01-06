@@ -129,12 +129,9 @@ app.use((req, res, next) => {
     console.error("[Startup] Session error details:", error);
   }
 
-  // const server = await registerRoutes(app);
-  
   app.use("/api", apiRoutes);
   const server = createServer(app)
 
-  
   // Log registered routes for debugging
   console.log("[Routes] API routes registered at /api");
   console.log("[Routes] Available endpoints:");
