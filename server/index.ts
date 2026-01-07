@@ -1,10 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { createServer } from "http";
 import session from "express-session";
+import { createServer } from "http";
 import { setupVite, serveStatic, log } from "./vite";
 import { NeonSessionStore } from "./session-store";
 import { db } from "./storage";
 import { sessions } from "@shared/schema";
+import { startScheduledJobs } from "./jobs";
 import dotenv from "dotenv";
 import apiRoutes from "./routes/index"
 
@@ -164,12 +165,16 @@ app.use((req, res, next) => {
         host: "0.0.0.0",
         reusePort: true,
       },
-      () => log(`serving on port ${port}`)
+      () => {
+        log(`serving on port ${port}`)
+        startScheduledJobs()
+      }
     );
   } else {
     // Local development - simpler approach
     server.listen(port, () => {
       log(`serving on http://localhost:${port}`);
+      startScheduledJobs()
     });
   }
 })();

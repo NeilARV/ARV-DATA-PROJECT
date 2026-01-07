@@ -731,7 +731,7 @@ router.get("/streetview", async (req, res) => {
 
         // Store in cache (store as binary Buffer - BYTEA handles it directly)
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
+        expiresAt.setDate(expiresAt.getDate() + 29); // 29 days from now (1 less than google requriements to ensure compliance)
 
         try {
             await db.insert(streetviewCache).values({
