@@ -28,18 +28,43 @@ export default function PropertyDetailPanel({
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     if (property) {
+
+      setIsLoading(true);
+
       if (property.imageUrl) {
         setImageUrl(property.imageUrl);
+        setIsLoading(false);
       } else {
-        getStreetViewUrl(property.address, property.city, property.state, "400x300")
+        getStreetViewUrl(property.address, property.city, property.state, "400x300", property.id)
           .then(url => {
             if (url) {
-              setImageUrl(url);
+              // Test if the image loads, if not, set to empty to show "No image available"
+              const img = new Image();
+              img.onload = () => {
+                setImageUrl(url);
+                setIsLoading(false);
+              };
+              img.onerror = () => {
+                // Image failed to load (likely 404 from metadata check)
+                setImageUrl("");
+                setIsLoading(false);
+              };
+              img.src = url;
+            } else {
+              // No URL returned
+              setImageUrl("");
+              setIsLoading(false);
             }
+          })
+          .catch(() => {
+            // If URL generation fails or fetch fails, show "No image available" text
+            setImageUrl("");
+            setIsLoading(false);
           });
       }
     }
@@ -94,7 +119,11 @@ export default function PropertyDetailPanel({
 
       <div className="p-4 space-y-4">
         <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted">
-          {imageUrl ? (
+          {isLoading ? (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+              Loading...
+            </div>
+          ) : imageUrl ? (
             <img
               src={imageUrl}
               alt={property.address}
@@ -103,7 +132,7 @@ export default function PropertyDetailPanel({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-              Loading...
+              No image available
             </div>
           )}
         </div>

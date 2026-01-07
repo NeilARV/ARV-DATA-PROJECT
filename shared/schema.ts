@@ -1,7 +1,15 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, real, integer, timestamp, boolean, serial, date } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, real, integer, timestamp, boolean, serial, date, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Custom type for BYTEA (binary data) in PostgreSQL
+// BYTEA stores binary data efficiently without base64 encoding overhead
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+  toDriver: (value: Buffer) => value,
+  fromDriver: (value: Buffer) => value,
+});
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -120,6 +128,23 @@ export const emailWhitelist = pgTable("email_whitelist", {
   createdAt: timestamp("created_at").defaultNow(),
 })
 
+export const streetviewCache = pgTable("streetview_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  propertyId: varchar("property_id").references(() => properties.id, { onDelete: "cascade" }),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  size: text("size").notNull().default("600x400"),
+  // Store image as binary data (BYTEA) - more efficient than base64 text
+  // Nullable because we may cache metadata indicating no image is available
+  imageData: bytea("image_data"),
+  contentType: text("content_type").default("image/jpeg"),
+  // Metadata status from Google API (e.g., "OK", "ZERO_RESULTS", "NOT_FOUND")
+  metadataStatus: text("metadata_status"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
   createdAt: true,
@@ -204,3 +229,4 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProperty = z.infer<typeof insertPropertySchema>;
+export type StreetviewCache = typeof streetviewCache.$inferSelect;

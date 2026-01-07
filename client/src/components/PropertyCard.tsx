@@ -12,22 +12,44 @@ interface PropertyCardProps {
 
 export default function PropertyCard({ property, onClick }: PropertyCardProps) {
   const [imageUrl, setImageUrl] = useState(property.imageUrl || "");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // If no custom image URL, fetch Street View image
     if (!property.imageUrl) {
+      setIsLoading(true);
       getStreetViewUrl(
         property.address,
         property.city,
         property.state,
         "400x300",
+        property.id
       ).then((url) => {
         if (url) {
-          setImageUrl(url);
+          // Test if the image loads, if not, set to empty to show "No image available"
+          const img = new Image();
+          img.onload = () => {
+            setImageUrl(url);
+            setIsLoading(false);
+          };
+          img.onerror = () => {
+            // Image failed to load (likely 404 from metadata check)
+            setImageUrl("");
+            setIsLoading(false);
+          };
+          img.src = url;
+        } else {
+          // No URL returned
+          setImageUrl("");
+          setIsLoading(false);
         }
+      }).catch(() => {
+        // If URL generation fails or fetch fails, show "No image available" text
+        setImageUrl("");
+        setIsLoading(false);
       });
     }
-  }, [property.address, property.city, property.state, property.imageUrl]);
+  }, [property.address, property.city, property.state, property.imageUrl, property.id]);
 
   return (
     <Card
@@ -36,7 +58,11 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
       data-testid={`card-property-${property.id}`}
     >
       <div className="aspect-[4/3] overflow-hidden bg-muted">
-        {imageUrl ? (
+        {isLoading ? (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+            Loading...
+          </div>
+        ) : imageUrl ? (
           <img
             src={imageUrl}
             alt={property.address}

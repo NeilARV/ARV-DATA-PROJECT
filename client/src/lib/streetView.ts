@@ -5,13 +5,15 @@
  * @param city - City name
  * @param state - State abbreviation
  * @param size - Image size in format "widthxheight" (default: "600x400")
+ * @param propertyId - Optional property ID for better cache linking
  * @returns Street View image URL (proxied through backend)
  */
 export async function getStreetViewUrl(
   address: string,
   city: string,
   state: string,
-  size: string = "600x400"
+  size: string = "600x400",
+  propertyId?: string
 ): Promise<string> {
   try {
     const params = new URLSearchParams({
@@ -20,6 +22,11 @@ export async function getStreetViewUrl(
       state,
       size
     });
+    
+    // Add propertyId if provided for better cache linking
+    if (propertyId) {
+      params.append('propertyId', propertyId);
+    }
     
     // Return the proxied URL directly - backend will serve the image
     return `/api/properties/streetview?${params}`;
