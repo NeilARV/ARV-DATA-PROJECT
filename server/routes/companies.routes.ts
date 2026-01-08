@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "server/storage";
-import { companyContacts, properties } from "@shared/schema";
+import { companyContacts, properties, updateCompanyContactSchema } from "@shared/schema";
+import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { sql, and, eq } from "drizzle-orm";
 
 const router = Router();
@@ -61,6 +62,124 @@ router.get("/contacts", async (req, res) => {
     } catch (error) {
         console.error("Error fetching company contacts:", error);
         res.status(500).json({ message: "Error fetching company contacts" });
+    }
+});
+
+// Get a single company contact by ID
+router.get("/contacts/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const contact = await db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.id, id))
+            .limit(1);
+
+        if (contact.length === 0) {
+            return res.status(404).json({ 
+                message: "Company contact not found" 
+            });
+        }
+
+        const result = contact[0]
+
+        res.json(result);
+
+    } catch (error) {
+        console.error("Error fetching company contact:", error);
+        res.status(500).json({ 
+            message: "Error fetching company contact",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+});
+
+// Update company contact (admin only)
+router.patch("/contacts/:id", requireAdminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Validate request body
+        const validation = updateCompanyContactSchema.safeParse(req.body);
+        
+        if (!validation.success) {
+            console.error("Validation errors:", validation.error.errors);
+            return res.status(400).json({
+                message: "Invalid update data",
+                errors: validation.error.errors,
+            });
+        }
+
+        const updateData = validation.data;
+
+        // Check if company contact exists
+        const existingContact = await db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.id, id))
+            .limit(1);
+
+        if (existingContact.length === 0) {
+            return res.status(404).json({ 
+                message: "Company contact not found" 
+            });
+        }
+
+        // If companyName is being updated, check for uniqueness
+        if (updateData.companyName && updateData.companyName !== existingContact[0].companyName) {
+            const duplicateCheck = await db
+                .select()
+                .from(companyContacts)
+                .where(eq(companyContacts.companyName, updateData.companyName))
+                .limit(1);
+
+            if (duplicateCheck.length > 0) {
+                return res.status(409).json({ 
+                    message: "A company contact with this name already exists" 
+                });
+            }
+        }
+
+        // Build update object (only include fields that are being updated)
+        const updateFields: any = {};
+        if (updateData.contactName !== undefined) {
+            updateFields.contactName = updateData.contactName;
+        }
+        if (updateData.contactEmail !== undefined) {
+            updateFields.contactEmail = updateData.contactEmail;
+        }
+        if (updateData.counties !== undefined) {
+            updateFields.counties = updateData.counties;
+        }
+        if (updateData.companyName !== undefined) {
+            updateFields.companyName = updateData.companyName;
+        }
+
+        // Check if there are any fields to update
+        if (Object.keys(updateFields).length === 0) {
+            return res.status(400).json({ 
+                message: "No fields provided to update" 
+            });
+        }
+
+        // Update the contact
+        const [updatedContact] = await db
+            .update(companyContacts)
+            .set(updateFields)
+            .where(eq(companyContacts.id, id))
+            .returning();
+
+        console.log(`Updated company contact: ${updatedContact.companyName} (ID: ${id})`);
+
+        res.json(updatedContact);
+
+    } catch (error) {
+        console.error("Error updating company contact:", error);
+        res.status(500).json({ 
+            message: "Error updating company contact",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
     }
 });
 

@@ -224,10 +224,18 @@ export const updatePropertySchema = z.object({
   dateSold: z.string().nullable().optional(),
 }).strict();
 
+export const updateCompanyContactSchema = z.object({
+  contactName: z.string().nullable().optional(),
+  contactEmail: z.string().email("Invalid email address").nullable().optional(),
+  counties: z.string().nullable().optional(), // JSON array stored as text
+  companyName: z.string().min(1, "Company name is required").optional(),
+}).strict();
+
 export type InsertProperty = z.infer<typeof insertPropertySchema>;
 export type Property = typeof properties.$inferSelect;
 export type CompanyContact = typeof companyContacts.$inferSelect;
 export type InsertCompanyContact = z.infer<typeof insertCompanyContactSchema>;
+export type UpdateCompanyContact = z.infer<typeof updateCompanyContactSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type LoginInput = z.infer<typeof loginSchema>;
