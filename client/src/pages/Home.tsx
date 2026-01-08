@@ -1029,7 +1029,6 @@ export default function Home() {
                     selectedCompany={selectedCompany}
                     onDeselectCompany={() => {
                       setSelectedCompany(null);
-                      // Do NOT change map center/zoom when deselecting a company
                     }}
                   />
                 </div>
@@ -1044,7 +1043,6 @@ export default function Home() {
                 onPropertyClick={setSelectedProperty}
                 onClearCompanyFilter={() => {
                   setSelectedCompany(null);
-                  // Do NOT change map center/zoom when deselecting a company
                 }}
                 onClearFilters={handleClearAllFilters}
                 propertiesHasMore={propertiesHasMore}
@@ -1070,7 +1068,6 @@ export default function Home() {
                   onPropertyClick={setSelectedProperty}
                   onClearCompanyFilter={() => {
                     setSelectedCompany(null);
-                    // Do NOT change map center/zoom when deselecting a company
                   }}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
@@ -1098,7 +1095,6 @@ export default function Home() {
                   onPropertyClick={setSelectedProperty}
                   onClearCompanyFilter={() => {
                     setSelectedCompany(null);
-                    // Do NOT change map center/zoom when deselecting a company
                   }}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
