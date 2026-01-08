@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { insertUserSchema } from "@shared/schema";
 import { AuthServices } from "server/services/auth";
+import { createUser } from "server/services/identity/users.services";
 
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -34,7 +35,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             return;
         }
 
-        const newUser = await AuthServices.Registration.createUser({
+        const newUser = await createUser({
             firstName,
             lastName,
             phone,
