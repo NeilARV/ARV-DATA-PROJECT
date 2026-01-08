@@ -322,6 +322,9 @@ router.post("/", requireAdminAuth, async (req, res) => {
         // Set saleValue to same as price
         enriched.saleValue = enriched.price;
 
+        // Set purchasePrice to same as price
+        enriched.purchasePrice = enriched.price;
+
         // Set isCorporate to true (company only works with corporate entities)
         enriched.isCorporate = true;
 
