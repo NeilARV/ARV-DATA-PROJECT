@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { fetchCounty } from "server/utils/fetchCounty";
 
 const router = Router();
 
@@ -23,28 +24,15 @@ router.get("/county", async (req, res) => {
             });
         }
 
-        const url = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`;
+        const county = await fetchCounty(lon, lat);
 
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            console.error(`Census API error: ${response.status} ${response.statusText}`);
-            return res.status(response.status).json({ 
-                message: `Census API error: ${response.statusText}` 
-            });
+        if (!county) {
+            return res.status(404).json({ message: "County not found for the provided coordinates" });
         }
-        
-        const data = await response.json();
-        
-        if (data.result && data.result.geographies && data.result.geographies.Counties && data.result.geographies.Counties.length > 0) {
-            const countyName = data.result.geographies.Counties[0].BASENAME;
-            return res.json({ county: countyName });
-        }
-        
-        console.warn('No county found in Census API response');
-        return res.status(404).json({ message: "County not found for the provided coordinates" });
+
+        return res.json({ county });
     } catch (error) {
-        console.error('Error fetching county from Census API:', error);
+        console.error('Error fetching county:', error);
         return res.status(500).json({ 
             message: "Error fetching county from Census API",
             error: error instanceof Error ? error.message : "Unknown error"

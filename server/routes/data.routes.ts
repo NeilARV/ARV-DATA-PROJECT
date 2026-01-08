@@ -11,7 +11,7 @@ import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { mapPropertyType } from "server/utils/mapPropertyType";
-import { fetchCounty } from "@shared/utils/fetchCounty";
+import { fetchCounty } from "server/utils/fetchCounty";
 
 const router = Router();
 
