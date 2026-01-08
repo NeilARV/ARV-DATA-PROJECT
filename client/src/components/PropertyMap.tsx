@@ -61,6 +61,8 @@ interface PropertyMapProps {
   onClearFilters?: () => void;
   selectedProperty?: Property | null;
   isLoading?: boolean;
+  selectedCompany?: string | null;
+  onDeselectCompany?: () => void;
 }
 
 function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [number, number], zoom?: number }) {
@@ -127,7 +129,9 @@ export default function PropertyMap({
   hasActiveFilters = false,
   onClearFilters,
   selectedProperty,
-  isLoading = false
+  isLoading = false,
+  selectedCompany,
+  onDeselectCompany
 }: PropertyMapProps) {
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -137,20 +141,34 @@ export default function PropertyMap({
 
   return (
     <div className="w-full h-full relative" data-testid="map-container">
-      {hasActiveFilters && onClearFilters && (
-        <div className="absolute top-4 right-4 z-[501]">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={onClearFilters}
-            className="shadow-lg"
-            data-testid="button-clear-filters-map"
-          >
-            <X className="w-4 h-4 mr-2" />
-            Clear Filters
-          </Button>
+      {(hasActiveFilters && onClearFilters) || (selectedCompany && onDeselectCompany) ? (
+        <div className="absolute top-4 right-4 z-[501] flex flex-col gap-2">
+          {selectedCompany && onDeselectCompany && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onDeselectCompany}
+              className="shadow-lg"
+              data-testid="button-deselect-company-map"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Deselect Company
+            </Button>
+          )}
+          {hasActiveFilters && onClearFilters && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onClearFilters}
+              className="shadow-lg"
+              data-testid="button-clear-filters-map"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Clear Filters
+            </Button>
+          )}
         </div>
-      )}
+      ) : null}
       <MapContainer
         center={center}
         zoom={zoom}

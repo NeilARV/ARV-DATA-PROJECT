@@ -1038,6 +1038,11 @@ export default function Home() {
                     onClearFilters={handleClearAllFilters}
                     selectedProperty={selectedProperty}
                     isLoading={isLoadingMapPins}
+                    selectedCompany={selectedCompany}
+                    onDeselectCompany={() => {
+                      setSelectedCompany(null);
+                      // Do NOT change map center/zoom when deselecting a company
+                    }}
                   />
                 </div>
               </>
