@@ -1,6 +1,7 @@
 export const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo', 'Duplex', 'Triplex', 'Fourplex', 'Vacant Land'];
 export const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 export const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
+export const MAX_PRICE = 10000000;
 
 export const SAN_DIEGO_ZIP_CODES = [
     { zip: '91901', city: 'Alpine' },

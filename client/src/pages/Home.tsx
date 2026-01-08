@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
 import CompanyDirectory from "@/components/CompanyDirectory";
-import PropertyCard from "@/components/PropertyCard";
 import PropertyMap from "@/components/PropertyMap";
 import GridView from "@/components/views/GridView";
 import TableView from "@/components/views/TableView";
@@ -18,14 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
@@ -449,8 +441,6 @@ export default function Home() {
     enabled: viewMode === "buyers-feed",
   });
 
-  const totalBuyersFeedProperties = buyersFeedResponse?.total ?? 0;
-
   // Reset pagination when filters, sortBy, or view mode changes for buyers feed
   useEffect(() => {
     if (viewMode === "buyers-feed") {
@@ -514,9 +504,6 @@ export default function Home() {
     //queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
     queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
   };
-
-  // Fixed max price for slider
-  const MAX_PRICE = 10000000;
 
   // Check if filters are active (not in initial state) - excludes company selection
   const hasActiveFilters = useMemo(() => {
