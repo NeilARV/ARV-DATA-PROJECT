@@ -5,7 +5,8 @@ import FilterSidebar, { PropertyFilters } from "@/components/FilterSidebar";
 import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyCard from "@/components/PropertyCard";
 import PropertyMap from "@/components/PropertyMap";
-import PropertyTable from "@/components/PropertyTable";
+import GridView from "@/components/views/GridView";
+import TableView from "@/components/views/TableView";
 import PropertyDetailPanel from "@/components/PropertyDetailPanel";
 import PropertyDetailModal from "@/components/PropertyDetailModal";
 import UploadDialog from "@/components/UploadDialog";
@@ -1047,64 +1048,22 @@ export default function Home() {
                 </div>
               </>
             ) : viewMode === "table" ? (
-              <div className="h-full overflow-y-auto p-6 flex-1">
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-2xl font-semibold mb-1">
-                        {selectedCompany && totalCompanyProperties > 0
-                          ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
-                          : `${totalFilteredProperties} Properties`}
-                        {selectedCompany && (
-                          <span className="text-base font-normal text-muted-foreground ml-2">
-                            owned by {selectedCompany}
-                          </span>
-                        )}
-                      </h2>
-                      {(selectedCompany || hasActiveFilters) && (
-                        <p className="text-muted-foreground">
-                          <span className="flex items-center gap-2 flex-wrap">
-                            {selectedCompany && (
-                              <button
-                                onClick={() => {
-                                  setSelectedCompany(null);
-                                  // Do NOT change map center/zoom when deselecting a company
-                                }}
-                                className="text-primary hover:underline text-sm"
-                                data-testid="button-clear-company-filter"
-                              >
-                                Deselect Company
-                              </button>
-                            )}
-                            {selectedCompany && hasActiveFilters && (
-                              <span className="text-muted-foreground">•</span>
-                            )}
-                            {hasActiveFilters && (
-                              <button
-                                onClick={handleClearAllFilters}
-                                className="text-primary hover:underline text-sm"
-                                data-testid="button-clear-filters-table"
-                              >
-                                Clear Filters
-                              </button>
-                            )}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <PropertyTable
-                    properties={sortedProperties}
-                    onPropertyClick={setSelectedProperty}
-                  />
-                  {/* Infinite scroll trigger */}
-                  {propertiesHasMore && (
-                    <div ref={loadMorePropertiesRef} className="h-20 flex items-center justify-center">
-                      {isLoadingMoreProperties && (
-                        <div className="text-muted-foreground">Loading more properties...</div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <TableView
+                properties={sortedProperties}
+                selectedCompany={selectedCompany}
+                totalCompanyProperties={totalCompanyProperties}
+                totalFilteredProperties={totalFilteredProperties}
+                hasActiveFilters={hasActiveFilters}
+                onPropertyClick={setSelectedProperty}
+                onClearCompanyFilter={() => {
+                  setSelectedCompany(null);
+                  // Do NOT change map center/zoom when deselecting a company
+                }}
+                onClearFilters={handleClearAllFilters}
+                propertiesHasMore={propertiesHasMore}
+                isLoadingMoreProperties={isLoadingMoreProperties}
+                loadMoreRef={loadMorePropertiesRef}
+              />
             ) : viewMode === "buyers-feed" ? (
               <>
                 {selectedProperty && (
@@ -1113,91 +1072,25 @@ export default function Home() {
                     onClose={() => setSelectedProperty(null)}
                   />
                 )}
-                <div className="h-full overflow-y-auto p-6 flex-1">
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-2xl font-semibold mb-1">
-                        {selectedCompany && totalCompanyProperties > 0
-                          ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
-                          : `${totalBuyersFeedProperties} Properties`}
-                        {selectedCompany && (
-                          <span className="text-base font-normal text-muted-foreground ml-2">
-                            owned by {selectedCompany}
-                          </span>
-                        )}
-                      </h2>
-                      {(selectedCompany || hasActiveFilters) && (
-                        <p className="text-muted-foreground">
-                          <span className="flex items-center gap-2 flex-wrap">
-                            {selectedCompany && (
-                              <button
-                                onClick={() => {
-                                  setSelectedCompany(null);
-                                  // Do NOT change map center/zoom when deselecting a company
-                                }}
-                                className="text-primary hover:underline text-sm"
-                                data-testid="button-clear-company-filter"
-                              >
-                                Deselect Company
-                              </button>
-                            )}
-                            {selectedCompany && hasActiveFilters && (
-                              <span className="text-muted-foreground">•</span>
-                            )}
-                            {hasActiveFilters && (
-                              <button
-                                onClick={handleClearAllFilters}
-                                className="text-primary hover:underline text-sm"
-                                data-testid="button-clear-filters-grid"
-                              >
-                                Clear Filters
-                              </button>
-                            )}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Sort by:</span>
-                      <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-                        <SelectTrigger className="w-[180px]" data-testid="select-sort">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="recently-sold" data-testid="sort-recently-sold">
-                            Recently Sold
-                          </SelectItem>
-                          <SelectItem value="days-held" data-testid="sort-days-held">
-                            Days Held
-                          </SelectItem>
-                          <SelectItem value="price-high-low" data-testid="sort-price-high-low">
-                            Price: High to Low
-                          </SelectItem>
-                          <SelectItem value="price-low-high" data-testid="sort-price-low-high">
-                            Price: Low to High
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className={`grid ${gridColsClass} gap-4`}>
-                    {sortedProperties.map((property) => (
-                      <PropertyCard
-                        key={property.id}
-                        property={property}
-                        onClick={() => setSelectedProperty(property)}
-                      />
-                    ))}
-                  </div>
-                  {/* Infinite scroll trigger */}
-                  {buyersFeedHasMore && (
-                    <div ref={loadMoreBuyersFeedRef} className="h-20 flex items-center justify-center mt-4">
-                      {isLoadingMoreBuyersFeed && (
-                        <div className="text-muted-foreground">Loading more properties...</div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <GridView
+                  properties={sortedProperties}
+                  selectedCompany={selectedCompany}
+                  totalCompanyProperties={totalCompanyProperties}
+                  totalFilteredProperties={totalFilteredProperties}
+                  hasActiveFilters={hasActiveFilters}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  onPropertyClick={setSelectedProperty}
+                  onClearCompanyFilter={() => {
+                    setSelectedCompany(null);
+                    // Do NOT change map center/zoom when deselecting a company
+                  }}
+                  onClearFilters={handleClearAllFilters}
+                  gridColsClass={gridColsClass}
+                  propertiesHasMore={propertiesHasMore}
+                  isLoadingMoreProperties={isLoadingMoreProperties}
+                  loadMoreRef={loadMorePropertiesRef}
+                />
               </>
             ) : (
               <>
@@ -1207,91 +1100,25 @@ export default function Home() {
                     onClose={() => setSelectedProperty(null)}
                   />
                 )}
-                <div className="h-full overflow-y-auto p-6 flex-1">
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-2xl font-semibold mb-1">
-                        {selectedCompany && totalCompanyProperties > 0
-                          ? `${sortedProperties.length} / ${totalCompanyProperties} Properties`
-                          : `${totalFilteredProperties} Properties`}
-                        {selectedCompany && (
-                          <span className="text-base font-normal text-muted-foreground ml-2">
-                            owned by {selectedCompany}
-                          </span>
-                        )}
-                      </h2>
-                      {(selectedCompany || hasActiveFilters) && (
-                        <p className="text-muted-foreground">
-                          <span className="flex items-center gap-2 flex-wrap">
-                            {selectedCompany && (
-                              <button
-                                onClick={() => {
-                                  setSelectedCompany(null);
-                                  // Do NOT change map center/zoom when deselecting a company
-                                }}
-                                className="text-primary hover:underline text-sm"
-                                data-testid="button-clear-company-filter"
-                              >
-                                Deselect Company
-                              </button>
-                            )}
-                            {selectedCompany && hasActiveFilters && (
-                              <span className="text-muted-foreground">•</span>
-                            )}
-                            {hasActiveFilters && (
-                              <button
-                                onClick={handleClearAllFilters}
-                                className="text-primary hover:underline text-sm"
-                                data-testid="button-clear-filters-grid"
-                              >
-                                Clear Filters
-                              </button>
-                            )}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Sort by:</span>
-                      <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-                        <SelectTrigger className="w-[180px]" data-testid="select-sort">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="recently-sold" data-testid="sort-recently-sold">
-                            Recently Sold
-                          </SelectItem>
-                          <SelectItem value="days-held" data-testid="sort-days-held">
-                            Days Held
-                          </SelectItem>
-                          <SelectItem value="price-high-low" data-testid="sort-price-high-low">
-                            Price: High to Low
-                          </SelectItem>
-                          <SelectItem value="price-low-high" data-testid="sort-price-low-high">
-                            Price: Low to High
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className={`grid ${gridColsClass} gap-4`}>
-                    {sortedProperties.map((property) => (
-                      <PropertyCard
-                        key={property.id}
-                        property={property}
-                        onClick={() => setSelectedProperty(property)}
-                      />
-                    ))}
-                  </div>
-                  {/* Infinite scroll trigger */}
-                  {propertiesHasMore && (
-                    <div ref={loadMorePropertiesRef} className="h-20 flex items-center justify-center mt-4">
-                      {isLoadingMoreProperties && (
-                        <div className="text-muted-foreground">Loading more properties...</div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <GridView
+                  properties={sortedProperties}
+                  selectedCompany={selectedCompany}
+                  totalCompanyProperties={totalCompanyProperties}
+                  totalFilteredProperties={totalFilteredProperties}
+                  hasActiveFilters={hasActiveFilters}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  onPropertyClick={setSelectedProperty}
+                  onClearCompanyFilter={() => {
+                    setSelectedCompany(null);
+                    // Do NOT change map center/zoom when deselecting a company
+                  }}
+                  onClearFilters={handleClearAllFilters}
+                  gridColsClass={gridColsClass}
+                  propertiesHasMore={propertiesHasMore}
+                  isLoadingMoreProperties={isLoadingMoreProperties}
+                  loadMoreRef={loadMorePropertiesRef}
+                />
               </>
             )}
           </div>
