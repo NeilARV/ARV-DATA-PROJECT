@@ -502,20 +502,34 @@ export default function UploadDialog({
   };
 
   const handleUpload = async () => {
-    if (parsedData) {
-      setIsUploading(true);
-      setError(null);
+    // File upload is temporarily disabled - endpoint not ready
+    setError("File upload is currently disabled. Please use manual entry.");
+    toast({
+      title: "File Upload Disabled",
+      description: "File upload is currently unavailable. Please use the Manual Entry tab.",
+      variant: "destructive",
+    });
+    return;
+    
+    // The code below is temporarily disabled until the /api/properties/upload endpoint is ready
+    /*
+    if (!parsedData) {
+      return;
+    }
+    
+    setIsUploading(true);
+    setError(null);
 
-      try {
-        let totalUploaded = 0;
-        let allWarnings: string[] = [];
-        const BATCH_SIZE = 10; // Upload 10 properties per request for production reliability
+    try {
+      let totalUploaded = 0;
+      let allWarnings: string[] = [];
+      const BATCH_SIZE = 10; // Upload 10 properties per request for production reliability
 
-        // Split into smaller batches and upload each one
-        for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
-          const batch = parsedData.slice(i, i + BATCH_SIZE);
-          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-          const totalBatches = Math.ceil(parsedData.length / BATCH_SIZE);
+      // Split into smaller batches and upload each one
+      for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
+        const batch = parsedData.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(parsedData.length / BATCH_SIZE);
 
           setUploadStatus(
             `Uploading batch ${batchNum}/${totalBatches} (${batch.length} properties)...`,
@@ -585,6 +599,7 @@ export default function UploadDialog({
         setUploadStatus("");
       }
     }
+    */
   };
 
   const handleManualSubmit = async (
@@ -668,10 +683,10 @@ export default function UploadDialog({
           <DialogTitle>Add Property Data</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="file" className="w-full">
+        <Tabs defaultValue="manual" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="file" data-testid="tab-file-upload">
-              File Upload
+            <TabsTrigger value="file" data-testid="tab-file-upload" disabled>
+              File Upload (Disabled)
             </TabsTrigger>
             <TabsTrigger value="manual" data-testid="tab-manual-entry">
               Manual Entry
