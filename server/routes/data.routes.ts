@@ -395,6 +395,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                     contactName: null,
                                     contactEmail: contactEmail,
                                     counties: countiesJson,
+                                    updatedAt: new Date(),
                                 });
                                 totalContactsAdded++;
                                 console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyNameForStorage} with county: ${propertyCounty || 'none'}`);
@@ -449,7 +450,10 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                         // Update the contact in the database
                                         await db
                                             .update(companyContacts)
-                                            .set({ counties: updatedCountiesJson })
+                                            .set({ 
+                                                counties: updatedCountiesJson,
+                                                updatedAt: new Date()
+                                            })
                                             .where(eq(companyContacts.id, existingContact.id));
 
                                         console.log(`[SFR SYNC] Updated company contact ${existingContact.companyName} with new county: ${propertyCounty}`);

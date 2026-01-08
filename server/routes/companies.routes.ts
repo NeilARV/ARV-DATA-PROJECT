@@ -163,6 +163,9 @@ router.patch("/contacts/:id", requireAdminAuth, async (req, res) => {
             });
         }
 
+        // Always update the updatedAt timestamp
+        updateFields.updatedAt = new Date();
+
         // Update the contact
         const [updatedContact] = await db
             .update(companyContacts)

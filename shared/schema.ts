@@ -105,6 +105,7 @@ export const companyContacts = pgTable("company_contacts", {
   contactEmail: text("contact_email"),
   counties: text("counties"), // JSON array of counties stored as text
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const sessions = pgTable("sessions", {
