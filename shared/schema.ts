@@ -149,6 +149,9 @@ export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // County is fetched from coordinates, so make it optional for insert
+  county: z.string().min(1, "County is required").optional(),
 });
 
 

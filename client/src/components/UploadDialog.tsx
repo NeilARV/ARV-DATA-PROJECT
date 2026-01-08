@@ -830,6 +830,7 @@ export default function UploadDialog({
                           <Input
                             {...field}
                             placeholder="123 Main St"
+                            required
                             data-testid="input-address"
                           />
                         </FormControl>
@@ -848,6 +849,7 @@ export default function UploadDialog({
                           <Input
                             {...field}
                             placeholder="San Diego"
+                            required
                             data-testid="input-city"
                           />
                         </FormControl>
@@ -867,6 +869,7 @@ export default function UploadDialog({
                             {...field}
                             placeholder="CA"
                             maxLength={2}
+                            required
                             data-testid="input-state"
                           />
                         </FormControl>
@@ -885,6 +888,7 @@ export default function UploadDialog({
                           <Input
                             {...field}
                             placeholder="92126"
+                            required
                             data-testid="input-manual-zipcode"
                           />
                         </FormControl>
@@ -901,24 +905,22 @@ export default function UploadDialog({
                         <FormLabel>Property Type *</FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value}
+                          value={field.value}
+                          required
                         >
                           <FormControl>
                             <SelectTrigger data-testid="select-property-type">
                               <SelectValue placeholder="Select type" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Single Family">
-                              Single Family
-                            </SelectItem>
-                            <SelectItem value="Condo">Condo</SelectItem>
+                          <SelectContent className="z-[10001]" position="popper">
+                            <SelectItem value="Single Family">Single Family</SelectItem>
                             <SelectItem value="Townhouse">Townhouse</SelectItem>
-                            <SelectItem value="Multi-Family">
-                              Multi-Family
-                            </SelectItem>
-                            <SelectItem value="Land">Land</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
+                            <SelectItem value="Condo">Condo</SelectItem>
+                            <SelectItem value="Duplex">Duplex</SelectItem>
+                            <SelectItem value="Triplex">Triplex</SelectItem>
+                            <SelectItem value="Fourplex">Fourplex</SelectItem>
+                            <SelectItem value="Vacant Land">Vacant Land</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -944,6 +946,7 @@ export default function UploadDialog({
                               );
                             }}
                             data-testid="input-manual-price"
+                            required
                           />
                         </FormControl>
                         <FormMessage />
@@ -968,6 +971,7 @@ export default function UploadDialog({
                                 val === "" ? undefined : Number(val),
                               );
                             }}
+                            required
                             data-testid="input-manual-bedrooms"
                           />
                         </FormControl>
@@ -994,7 +998,28 @@ export default function UploadDialog({
                                 val === "" ? undefined : Number(val),
                               );
                             }}
+                            required
                             data-testid="input-manual-bathrooms"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="dateSold"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date Sold *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value || ""}
+                            type="date"
+                            data-testid="input-date-sold"
+                            required
                           />
                         </FormControl>
                         <FormMessage />
@@ -1105,51 +1130,6 @@ export default function UploadDialog({
                             type="email"
                             placeholder="contact@company.com"
                             data-testid="input-company-email"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="purchasePrice"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Purchase Price</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="450000"
-                            value={field.value ?? ""}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value
-                                  ? parseFloat(e.target.value)
-                                  : undefined,
-                              )
-                            }
-                            data-testid="input-purchase-price"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="dateSold"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date Sold</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value || ""}
-                            type="date"
-                            data-testid="input-date-sold"
                           />
                         </FormControl>
                         <FormMessage />

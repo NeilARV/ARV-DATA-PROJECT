@@ -4,7 +4,10 @@ import { properties, streetviewCache } from "@shared/schema";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertPropertySchema, companyContacts, updatePropertySchema } from "@shared/schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
-import { normalizeCompanyNameForComparison } from "server/utils/normalizeCompanyName";
+import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
+import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
+import { fetchCounty } from "server/utils/fetchCounty";
+import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
 import { eq, sql, or, and, desc, asc, gt } from "drizzle-orm";
 import pLimit from "p-limit";
 import dotenv from "dotenv"
@@ -266,46 +269,136 @@ router.post("/", requireAdminAuth, async (req, res) => {
         "Validated property data:",
         JSON.stringify(propertyData, null, 2),
         );
-        let enriched = { ...propertyData };
+        
+        // Normalize text fields to Title Case
+        // Convert empty strings to null for optional fields
+        // Check if form provided company contact info (before we normalize)
+        const formProvidedContactName = propertyData.companyContactName != null && 
+            typeof propertyData.companyContactName === 'string' && 
+            propertyData.companyContactName.trim() !== "";
+        const formProvidedContactEmail = propertyData.companyContactEmail != null && 
+            typeof propertyData.companyContactEmail === 'string' && 
+            propertyData.companyContactEmail.trim() !== "";
+        
+        let enriched: any = {
+            ...propertyData,
+            address: normalizeToTitleCase(propertyData.address) || propertyData.address,
+            city: normalizeToTitleCase(propertyData.city) || propertyData.city,
+            state: propertyData.state?.toUpperCase().trim() || propertyData.state,
+            // Convert empty description to null
+            description: propertyData.description && typeof propertyData.description === 'string' && propertyData.description.trim() !== ""
+                ? propertyData.description.trim()
+                : null,
+            // Convert empty imageUrl to null
+            imageUrl: propertyData.imageUrl && typeof propertyData.imageUrl === 'string' && propertyData.imageUrl.trim() !== ""
+                ? propertyData.imageUrl.trim()
+                : null,
+            // Convert empty dateSold strings to null (form sends empty string for empty date fields)
+            dateSold: propertyData.dateSold && typeof propertyData.dateSold === 'string' && propertyData.dateSold.trim() !== "" 
+                ? propertyData.dateSold 
+                : null,
+            // Convert empty company contact fields to null (will be populated from DB if owner found and form didn't provide)
+            companyContactName: formProvidedContactName && typeof propertyData.companyContactName === 'string' 
+                ? propertyData.companyContactName.trim() 
+                : null,
+            companyContactEmail: formProvidedContactEmail && typeof propertyData.companyContactEmail === 'string' 
+                ? propertyData.companyContactEmail.trim() 
+                : null,
+        };
+
+        // Normalize property owner if provided
+        if (propertyData.propertyOwner && propertyData.propertyOwner.trim() !== "") {
+            const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyData.propertyOwner);
+            enriched.propertyOwner = normalizedOwnerForStorage || propertyData.propertyOwner;
+        } else {
+            enriched.propertyOwner = null;
+        }
+
+        // Set default status if not provided
+        if (!enriched.status) {
+            enriched.status = "in-renovation";
+        }
+
+        // Set saleValue to same as price
+        enriched.saleValue = enriched.price;
+
+        // Set isCorporate to true (company only works with corporate entities)
+        enriched.isCorporate = true;
+
+        // Set lender to "ARV Finance"
+        enriched.lenderName = "ARV Finance";
+
+        // Set recordingDate to same as dateSold
+        enriched.recordingDate = enriched.dateSold;
+
+        // Determine MSA from zip code
+        const msa = getMSAFromZipCode(enriched.zipCode);
+        if (msa) {
+            enriched.msa = msa;
+            console.log(`MSA determined from zip code ${enriched.zipCode}: ${msa}`);
+        } else {
+            enriched.msa = null;
+            console.log(`Could not determine MSA for zip code: ${enriched.zipCode}`);
+        }
 
         // Geocode if lat/lng not provided or invalid
         const hasValidCoords =
-        propertyData.latitude != null &&
-        propertyData.longitude != null &&
-        !isNaN(Number(propertyData.latitude)) &&
-        !isNaN(Number(propertyData.longitude));
+            enriched.latitude != null &&
+            enriched.longitude != null &&
+            !isNaN(Number(enriched.latitude)) &&
+            !isNaN(Number(enriched.longitude));
 
         if (!hasValidCoords) {
             console.log(
-                `Geocoding address: ${propertyData.address}, ${propertyData.city}, ${propertyData.state} ${propertyData.zipCode}`,
+                `Geocoding address: ${enriched.address}, ${enriched.city}, ${enriched.state} ${enriched.zipCode}`,
             );
             const coords = await geocodeAddress(
-                propertyData.address,
-                propertyData.city,
-                propertyData.state,
-                propertyData.zipCode,
+                enriched.address,
+                enriched.city,
+                enriched.state,
+                enriched.zipCode,
             );
             
             if (coords) {
                 enriched.latitude = coords.lat;
                 enriched.longitude = coords.lng;
+                console.log(`Geocoded to: (${coords.lat}, ${coords.lng})`);
             } else {
                 // Geocoding failed - allow property creation without coordinates
                 console.warn(
-                `Geocoding unavailable for: ${propertyData.address}. Property will be created without map coordinates.`,
+                `Geocoding unavailable for: ${enriched.address}. Property will be created without map coordinates.`,
                 );
                 enriched.latitude = null;
                 enriched.longitude = null;
             }
         } else {
             console.log(
-                `Using provided coordinates for: ${propertyData.address} (${propertyData.latitude}, ${propertyData.longitude})`,
+                `Using provided coordinates for: ${enriched.address} (${enriched.latitude}, ${enriched.longitude})`,
             );
         }
 
-        // Look up company contact (using punctuation-insensitive comparison)
-        if (propertyData.propertyOwner) {
-            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(propertyData.propertyOwner);
+        // Get county from longitude and latitude - do this after geocoding in case coordinates were just added
+        if (enriched.latitude && enriched.longitude) {
+            console.log(`Fetching county for coordinates: (${enriched.longitude}, ${enriched.latitude})`);
+            const county = await fetchCounty(enriched.longitude, enriched.latitude);
+            if (county) {
+                enriched.county = county;
+                console.log(`County found: ${county}`);
+            } else {
+                // County not found - use "UNKNOWN" as default (required field)
+                enriched.county = "UNKNOWN";
+                console.warn(`County not found for coordinates, using "UNKNOWN"`);
+            }
+        } else {
+            // No coordinates available - use "UNKNOWN" as default (required field)
+            enriched.county = "UNKNOWN";
+            console.warn(`No coordinates available, cannot determine county. Using "UNKNOWN"`);
+        }
+
+        // Handle company contact lookup (using punctuation-insensitive comparison)
+        // Only populate contact fields from DB if propertyOwner exists AND form didn't provide contact info
+        if (enriched.propertyOwner) {
+            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(enriched.propertyOwner);
             const allContacts = await db.select().from(companyContacts);
             
             const contact = allContacts.find(c => {
@@ -314,32 +407,64 @@ router.post("/", requireAdminAuth, async (req, res) => {
             });
 
             if (contact) {
-                enriched.companyContactName = contact.contactName;
-                enriched.companyContactEmail = contact.contactEmail;
-                // Use the existing contact's name for consistency
+                // If form didn't provide contact info, use existing contact's info from DB
+                if (!formProvidedContactName && !formProvidedContactEmail) {
+                    enriched.companyContactName = contact.contactName || null;
+                    enriched.companyContactEmail = contact.contactEmail || null;
+                    console.log(`Populated contact info from DB for: ${contact.companyName}`);
+                } else {
+                    console.log(`Using form-provided contact info for: ${enriched.propertyOwner}`);
+                }
+                // Use the existing contact's company name for consistency
                 enriched.propertyOwner = contact.companyName;
+            } else {
+                // Property owner provided but no contact found in DB
+                // If form provided contact info, keep it (already set above)
+                // If form didn't provide contact info, keep null values (already set above)
+                console.log(`No existing company contact found in DB for: ${enriched.propertyOwner}`);
             }
+        } else {
+            // No property owner - contact fields remain null (already set above)
+            enriched.companyContactName = null;
+            enriched.companyContactEmail = null;
         }
 
+        console.log("Final enriched property data:", JSON.stringify(enriched, null, 2));
+
         const [inserted] = await db
-        .insert(properties)
-        .values(enriched)
-        .returning();
+            .insert(properties)
+            .values(enriched)
+            .returning();
+        
         console.log(`Property created: ${inserted.address} (ID: ${inserted.id})`);
 
-        // Add warning in response if coordinates are missing
+        // Add warning in response if coordinates or county are missing
+        const warnings: string[] = [];
         if (!inserted.latitude || !inserted.longitude) {
+            warnings.push(
+                "Property created without map coordinates. Enable Google Geocoding API or provide latitude/longitude to display on map."
+            );
+        }
+        if (inserted.county === "UNKNOWN") {
+            warnings.push(
+                "County could not be determined. The property has been saved with county set to 'UNKNOWN'."
+            );
+        }
+
+        if (warnings.length > 0) {
             res.json({
                 ...inserted,
-                _warning:
-                "Property created without map coordinates. Enable Google Geocoding API or provide latitude/longitude to display on map.",
+                _warning: warnings.join(" "),
             });
         } else {
             res.json(inserted);
         }
     } catch (error) {
         console.error("Error creating property:", error);
-        res.status(500).json({ message: "Error creating property" });
+        res.status(500).json({ 
+            message: "Error creating property",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
     }
 });
 

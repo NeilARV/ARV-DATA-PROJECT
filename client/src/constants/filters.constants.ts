@@ -3,6 +3,11 @@ export const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 export const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 export const MAX_PRICE = 10000000;
 
+export const MSA = [
+    "San Diego-Chula Vista-Carlsbad, CA",
+    "Los Angeles-Long Beach-Anaheim, CA"
+]
+
 export const SAN_DIEGO_ZIP_CODES = [
     { zip: '91901', city: 'Alpine' },
     { zip: '91902', city: 'Bonita' },
