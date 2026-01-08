@@ -808,6 +808,13 @@ export default function Home() {
     // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
+  const handleCompanyNameClick = (companyName: string) => {
+    // Open the directory and select the company
+    setSelectedCompany(companyName);
+    setSidebarView("directory");
+    // The CompanyDirectory component will auto-scroll to the selected company
+  };
+
 
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
     // Clear company filter and set zip code filter
@@ -1014,6 +1021,7 @@ export default function Home() {
                   <PropertyDetailPanel
                     property={selectedProperty}
                     onClose={() => setSelectedProperty(null)}
+                    onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <div className="flex-1">
@@ -1055,6 +1063,7 @@ export default function Home() {
                   <PropertyDetailPanel
                     property={selectedProperty}
                     onClose={() => setSelectedProperty(null)}
+                    onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <GridView
@@ -1082,6 +1091,7 @@ export default function Home() {
                   <PropertyDetailPanel
                     property={selectedProperty}
                     onClose={() => setSelectedProperty(null)}
+                    onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <GridView
@@ -1113,6 +1123,7 @@ export default function Home() {
           property={selectedProperty}
           open={!!selectedProperty}
           onClose={() => setSelectedProperty(null)}
+          onCompanyNameClick={handleCompanyNameClick}
         />
       )}
 

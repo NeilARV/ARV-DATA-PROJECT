@@ -19,12 +19,14 @@ interface PropertyDetailModalProps {
   property: Property | null;
   open: boolean;
   onClose: () => void;
+  onCompanyNameClick?: (companyName: string) => void;
 }
 
 export default function PropertyDetailModal({
   property,
   open,
   onClose,
+  onCompanyNameClick,
 }: PropertyDetailModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -178,7 +180,17 @@ export default function PropertyDetailModal({
                   <div className="text-sm text-muted-foreground mb-1">Property Owner</div>
                   <div className="flex items-start gap-1">
                     <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span className="font-medium" data-testid="text-property-owner">{property.propertyOwner}</span>
+                    {onCompanyNameClick ? (
+                      <button
+                        onClick={() => onCompanyNameClick(property.propertyOwner!)}
+                        className="font-medium text-primary hover:underline text-left"
+                        data-testid="text-property-owner"
+                      >
+                        {property.propertyOwner}
+                      </button>
+                    ) : (
+                      <span className="font-medium" data-testid="text-property-owner">{property.propertyOwner}</span>
+                    )}
                   </div>
                 </div>
               )}

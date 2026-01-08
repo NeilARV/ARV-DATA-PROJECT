@@ -18,11 +18,13 @@ import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 interface PropertyDetailPanelProps {
   property: Property | null;
   onClose: () => void;
+  onCompanyNameClick?: (companyName: string) => void;
 }
 
 export default function PropertyDetailPanel({
   property,
   onClose,
+  onCompanyNameClick,
 }: PropertyDetailPanelProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -184,7 +186,17 @@ export default function PropertyDetailPanel({
                 <div className="text-xs text-muted-foreground mb-1">Property Owner</div>
                 <div className="flex items-start gap-1">
                   <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                  <span className="font-medium text-sm" data-testid="text-property-owner">{property.propertyOwner}</span>
+                  {onCompanyNameClick ? (
+                    <button
+                      onClick={() => onCompanyNameClick(property.propertyOwner!)}
+                      className="font-medium text-sm text-primary hover:underline text-left"
+                      data-testid="text-property-owner"
+                    >
+                      {property.propertyOwner}
+                    </button>
+                  ) : (
+                    <span className="font-medium text-sm" data-testid="text-property-owner">{property.propertyOwner}</span>
+                  )}
                 </div>
               </div>
             )}
