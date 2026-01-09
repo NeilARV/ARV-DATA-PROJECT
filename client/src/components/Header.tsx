@@ -13,12 +13,12 @@ import {
   Trophy,
   Users,
   Menu,
+  User,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import logoUrl from "@assets/arv-data-logo.png";
-import { useAuth, AuthUser } from "@/hooks/use-auth";
-import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 
@@ -382,6 +382,17 @@ export default function Header({
                     data-testid="menu-dropdown"
                   >
                     <div className="py-1">
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        onClick={() => {
+                          setLocation("/profile");
+                          setShowMenu(false);
+                        }}
+                        data-testid="menu-item-profile"
+                      >
+                        <User className="w-4 h-4" />
+                        Profile Settings
+                      </button>
                       {user.isAdmin && (
                         <button
                           className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"

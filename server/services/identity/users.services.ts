@@ -24,7 +24,8 @@ export async function createUser(data: SignupData) {
             lastName,
             phone,
             email,
-            passwordHash
+            passwordHash,
+            notifications: true // Explicitly set to true on signup
         })
         .returning()
     

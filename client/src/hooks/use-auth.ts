@@ -9,6 +9,7 @@ export interface AuthUser {
   phone: string;
   email: string;
   isAdmin: boolean;
+  notifications: boolean;
   createdAt: string;
 }
 

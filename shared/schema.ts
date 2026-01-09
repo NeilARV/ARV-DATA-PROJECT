@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
+  notifications: boolean("notifications").notNull().default(true),
 });
 
 export const properties = pgTable("properties", {
@@ -172,6 +173,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   passwordHash: true,
   createdAt: true,
+  notifications: true, // Omit notifications so it uses DB default (true)
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
