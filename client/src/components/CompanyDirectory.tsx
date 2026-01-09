@@ -288,7 +288,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   return (
     <div className="w-[375px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
       <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
           <div className="flex gap-2">
             {onSwitchToFilters && (
               <Button 

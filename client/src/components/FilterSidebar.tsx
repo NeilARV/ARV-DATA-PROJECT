@@ -170,9 +170,10 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       propertyTypes: selectedTypes,
       zipCode: filters?.zipCode ?? zipCode,
       city: filters?.city,
+      county: filters?.county ?? 'San Diego',
       statusFilters: Array.from(statusFilters),
     });
-    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, city: filters?.city, statusFilters: Array.from(statusFilters) });
+    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, city: filters?.city, county: filters?.county, statusFilters: Array.from(statusFilters) });
   };
 
   const handleClearFilters = () => {
@@ -346,7 +347,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   return (
     <div className="w-[375px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-filters">
       <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
           <div className="flex gap-2">
             <Button variant="default" size="sm" data-testid="button-tab-filters">
               Filters
@@ -470,7 +471,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         <div className="relative">
           <div className="flex items-center justify-between mb-2">
             <Label className="text-sm font-medium">Zip Code</Label>
-            {zipCodesWithCounts.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" data-testid="button-zipcode-sort">
@@ -500,7 +500,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
           </div>
 
           <div className="relative">
@@ -595,6 +594,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 propertyTypes: selectedTypes,
                 zipCode: filters?.zipCode ?? zipCode,
                 city: filters?.city,
+                county: filters?.county ?? 'San Diego',
                 statusFilters: Array.from(statusFilters),
               });
             }}
@@ -625,6 +625,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                     propertyTypes: selectedTypes,
                     zipCode: filters?.zipCode ?? zipCode,
                     city: filters?.city,
+                    county: filters?.county ?? 'San Diego',
                     statusFilters: Array.from(statusFilters),
                   });
                 }}
@@ -655,6 +656,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                     propertyTypes: selectedTypes,
                     zipCode: filters?.zipCode ?? zipCode,
                     city: filters?.city,
+                    county: filters?.county ?? 'San Diego',
                     statusFilters: Array.from(statusFilters),
                   });
                 }}
