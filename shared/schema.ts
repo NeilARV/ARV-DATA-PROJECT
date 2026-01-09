@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
   notifications: boolean("notifications").notNull().default(true),
 });
@@ -173,6 +174,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   passwordHash: true,
   createdAt: true,
+  updatedAt: true,
   notifications: true, // Omit notifications so it uses DB default (true)
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -188,6 +190,14 @@ export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
 });
+
+export const updateUserProfileSchema = z.object({
+  firstName: z.string().min(1, "First name is required").optional(),
+  lastName: z.string().min(1, "Last name is required").optional(),
+  email: z.string().email("Invalid email address").optional(),
+  phone: z.string().min(1, "Phone is required").optional(),
+  notifications: z.boolean().optional(),
+}).strict();
 
 export const updatePropertySchema = z.object({
   address: z.string().min(1, "Address is required").optional(),

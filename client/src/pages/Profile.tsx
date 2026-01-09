@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -225,31 +225,45 @@ export default function Profile() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => {
-                    console.log("Clicked Save");
-                    
-                    // Update the query cache with new user data for immediate UI update
-                    const updatedUser = {
-                      ...user,
-                      firstName: formData.firstName,
-                      lastName: formData.lastName,
-                      email: formData.email,
-                      phone: formData.phone,
-                      notifications: formData.notifications,
-                    };
-                    
-                    queryClient.setQueryData(["/api/auth/me"], {
-                      user: updatedUser,
-                    });
-                    
-                    // Show success toast
-                    toast({
-                      title: "Profile Updated",
-                      description: "Your profile has been updated successfully.",
-                    });
-                    
-                    // TODO: Add API call to save profile updates to database
-                    setIsEditing(false);
+                  onClick={async () => {
+                    try {
+                      // Prepare update data
+                      const updateData = {
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        email: formData.email,
+                        phone: formData.phone,
+                        notifications: formData.notifications,
+                      };
+
+                      // Call API to update profile
+                      const response = await apiRequest("PATCH", "/api/auth/me", updateData);
+                      const result = await response.json();
+
+                      if (result.success && result.user) {
+                        // Update the query cache with new user data for immediate UI update
+                        queryClient.setQueryData(["/api/auth/me"], {
+                          user: result.user,
+                        });
+
+                        // Show success toast
+                        toast({
+                          title: "Profile Updated",
+                          description: "Your profile has been updated successfully.",
+                        });
+
+                        setIsEditing(false);
+                      } else {
+                        throw new Error("Failed to update profile");
+                      }
+                    } catch (error: any) {
+                      console.error("Error updating profile:", error);
+                      toast({
+                        title: "Error",
+                        description: error?.message || "Failed to update profile. Please try again.",
+                        variant: "destructive",
+                      });
+                    }
                   }}
                 >
                   <Save className="w-4 h-4 mr-2" />

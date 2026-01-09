@@ -1,5 +1,6 @@
 import { db } from "server/storage";
 import { users } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 
@@ -32,4 +33,23 @@ export async function createUser(data: SignupData) {
     const { passwordHash: _, ...userWithoutPassword} = newUser
 
     return userWithoutPassword
+}
+
+export async function updateUser(userId: string, updateData: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    notifications?: boolean;
+}) {
+    const [updatedUser] = await db
+        .update(users)
+        .set({
+            ...updateData,
+            updatedAt: sql`now()`, // Update the timestamp on every update
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+    return updatedUser;
 }
