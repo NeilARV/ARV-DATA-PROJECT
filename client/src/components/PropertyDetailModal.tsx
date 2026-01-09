@@ -14,6 +14,10 @@ import { Bed, Bath, Maximize2, MapPin, Calendar, Building2 } from "lucide-react"
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
+import { useAuth } from "@/hooks/use-auth";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import ConfirmationDialog from "@/components/ConfirmationDialog";
 
 interface PropertyDetailModalProps {
   property: Property | null;
@@ -30,10 +34,12 @@ export default function PropertyDetailModal({
 }: PropertyDetailModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (property) {
@@ -104,6 +110,39 @@ export default function PropertyDetailModal({
     setShowContactDialog(false);
     setRequestName('');
     setRequestEmail('');
+  };
+
+  const deletePropertyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/properties/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
+      toast({
+        title: "Success",
+        description: "Property has been deleted",
+      });
+      setShowDeleteDialog(false);
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete property",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (property?.id) {
+      deletePropertyMutation.mutate(property.id);
+    }
   };
 
   if (!property) return null;
@@ -244,6 +283,20 @@ export default function PropertyDetailModal({
                   </div>
                 </div>
               </div>
+
+              {user?.isAdmin && (
+                <div className="col-span-2 pt-4">
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteClick}
+                    disabled={deletePropertyMutation.isPending}
+                    className="w-full"
+                    data-testid="button-delete-property"
+                  >
+                    Delete Property
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -303,6 +356,21 @@ export default function PropertyDetailModal({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      {property && (
+        <ConfirmationDialog
+          open={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Property"
+          description={`Are you sure you want to delete ${property.address}, ${property.city}, ${property.state}?`}
+          confirmText="Yes"
+          cancelText="No"
+          variant="destructive"
+          isLoading={deletePropertyMutation.isPending}
+        />
+      )}
     </Dialog>
   );
 }
