@@ -3,8 +3,11 @@ import type { PropertyFilters } from "@/components/FilterSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { queryClient } from "@/lib/queryClient";
+import UpdateDialog from "@/components/UpdateDialog";
 
 // Extended CompanyContact type with property counts from API
 type CompanyContactWithCounts = CompanyContact & {
@@ -82,6 +85,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const { user } = useAuth();
 
   // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
   useEffect(() => {
@@ -407,20 +413,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       )}
                       <span className="truncate" data-testid="text-contact-name">{company.contactName}</span>
                     </div>
-                    
-                    {company.contactEmail && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Mail className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-                        <a
-                          href={`mailto:${company.contactEmail}`}
-                          className="text-primary hover:underline truncate"
-                          onClick={(e) => e.stopPropagation()}
-                          data-testid="link-contact-email"
-                        >
-                          {company.contactEmail}
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </Card>
                 
@@ -626,6 +618,26 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         </div>
                       );
                     })()}
+                    
+                    {/* Edit Button - Only visible to admins */}
+                    {user?.isAdmin && (
+                      <div className="pt-3 border-t border-border">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCompanyId(company.id);
+                            setUpdateDialogOpen(true);
+                          }}
+                          data-testid="button-edit-company"
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -633,6 +645,20 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           })
         )}
       </div>
+
+      {/* Update Company Dialog */}
+      <UpdateDialog
+        open={updateDialogOpen}
+        onClose={() => {
+          setUpdateDialogOpen(false);
+          setSelectedCompanyId(null);
+        }}
+        companyId={selectedCompanyId}
+        onSuccess={() => {
+          // Optionally refresh the companies list
+          queryClient.invalidateQueries({ queryKey: ["/api/companies/contacts"] });
+        }}
+      />
 
       <div className="p-4 border-t border-border">
         <div className="text-xs text-muted-foreground text-center">

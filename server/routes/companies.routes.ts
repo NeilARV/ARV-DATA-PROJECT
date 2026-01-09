@@ -66,7 +66,7 @@ router.get("/contacts", async (req, res) => {
 });
 
 // Get a single company contact by ID
-router.get("/contacts/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -96,7 +96,7 @@ router.get("/contacts/:id", async (req, res) => {
 });
 
 // Update company contact (admin only)
-router.patch("/contacts/:id", requireAdminAuth, async (req, res) => {
+router.patch("/:id", requireAdminAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
