@@ -37,7 +37,12 @@ export default function DeleteAllDataTab({ properties }: DeleteAllDataTabProps) 
       await apiRequest("DELETE", "/api/properties");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/properties');
+        }
+      });
       toast({
         title: "Success",
         description: "All properties have been deleted",

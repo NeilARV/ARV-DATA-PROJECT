@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Property } from "@shared/schema";
@@ -44,6 +44,7 @@ export default function Admin() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
+  const [selectedCounty, setSelectedCounty] = useState<string>("San Diego");
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -84,10 +85,20 @@ export default function Admin() {
     }
   }, [isUserAuthenticated, isAdmin, isVerifying]);
 
+  // Build query URL with county filter
+  const propertiesQueryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedCounty) {
+      params.append('county', selectedCounty);
+    }
+    const queryString = params.toString();
+    return queryString ? `/api/properties?${queryString}` : '/api/properties';
+  }, [selectedCounty]);
+
   const { data: propertiesResponse, isLoading } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
-    queryKey: ["/api/properties"],
+    queryKey: [propertiesQueryUrl],
     queryFn: async () => {
-      const res = await fetch("/api/properties", {
+      const res = await fetch(propertiesQueryUrl, {
         credentials: "include",
       });
       if (!res.ok) {
@@ -248,6 +259,8 @@ export default function Admin() {
             isLoading={isLoading}
             onOpenUpload={() => setUploadDialogOpen(true)}
             onEditProperty={(property) => setPropertyToEdit(property)}
+            selectedCounty={selectedCounty}
+            onCountyChange={(county) => setSelectedCounty(county)}
           />
         </TabsContent>
 
@@ -264,7 +277,12 @@ export default function Admin() {
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+          queryClient.invalidateQueries({ 
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              return typeof key === 'string' && key.startsWith('/api/properties');
+            }
+          });
         }}
       />
 

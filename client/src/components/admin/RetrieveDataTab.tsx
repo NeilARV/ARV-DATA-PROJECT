@@ -26,7 +26,12 @@ export default function RetrieveDataTab({ properties }: RetrieveDataTabProps) {
         title: "Data Retrieved Successfully",
         description: `Processed ${data.totalProcessed || 0} properties. Inserted: ${data.totalInserted || 0}, Updated: ${data.totalUpdated || 0}`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/properties');
+        }
+      });
     } catch (error) {
       console.error("Error fetching SFR data:", error);
       toast({

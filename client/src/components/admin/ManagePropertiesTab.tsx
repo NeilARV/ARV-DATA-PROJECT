@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Property } from "@shared/schema";
 import {
   Card,
@@ -28,16 +28,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Database, Loader2, Pencil, Search, Trash2, X, Plus, CloudUpload } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Database, Loader2, Pencil, Search, Trash2, X, Plus, CloudUpload, MapPin, Home } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
+import { COUNTIES } from "@/constants/filters.constants";
 
 interface ManagePropertiesTabProps {
   properties: Property[];
   isLoading: boolean;
   onOpenUpload: () => void;
   onEditProperty: (property: Property) => void;
+  selectedCounty: string;
+  onCountyChange: (county: string) => void;
 }
 
 export default function ManagePropertiesTab({
@@ -45,10 +49,61 @@ export default function ManagePropertiesTab({
   isLoading,
   onOpenUpload,
   onEditProperty,
+  selectedCounty,
+  onCountyChange,
 }: ManagePropertiesTabProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
+  const [county, setCounty] = useState<string>(`${selectedCounty} County`);
+  const [showCountySuggestions, setShowCountySuggestions] = useState(false);
+  const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
+  const countyInputRef = useRef<HTMLInputElement>(null);
+  const countySuggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Sync county display when selectedCounty prop changes
+  useEffect(() => {
+    setCounty(`${selectedCounty} County`);
+  }, [selectedCounty]);
+
+  const handleCountyChange = (value: string) => {
+    setCounty(value);
+    if (value.length > 0) {
+      // Remove "County" suffix if present for searching
+      const searchValue = value.replace(/\s+County$/i, '').toLowerCase();
+      const countyMatches = COUNTIES
+        .filter(c => c.county.toLowerCase().includes(searchValue))
+        .slice(0, 10);
+      setFilteredCounties(countyMatches);
+      setShowCountySuggestions(countyMatches.length > 0);
+    } else {
+      setFilteredCounties(COUNTIES.slice(0, 10));
+      setShowCountySuggestions(false);
+    }
+  };
+
+  const selectCounty = (countyObj: typeof COUNTIES[0]) => {
+    setCounty(`${countyObj.county} County`);
+    setShowCountySuggestions(false);
+    // Notify parent of county change (store base name without "County" suffix)
+    onCountyChange(countyObj.county);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        countySuggestionsRef.current &&
+        !countySuggestionsRef.current.contains(event.target as Node) &&
+        countyInputRef.current &&
+        !countyInputRef.current.contains(event.target as Node)
+      ) {
+        setShowCountySuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Filter properties based on search query
   const filteredProperties = properties.filter((property) => {
@@ -73,7 +128,12 @@ export default function ManagePropertiesTab({
       await apiRequest("DELETE", `/api/properties/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/properties');
+        }
+      });
       toast({
         title: "Success",
         description: "Property has been deleted",
@@ -128,37 +188,96 @@ export default function ManagePropertiesTab({
         ) : (
           <div>
             <div className="mb-4 space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by address, city, state, zip code, or owner..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-9"
-                  data-testid="input-search-properties"
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                    onClick={() => setSearchQuery("")}
-                    data-testid="button-clear-search"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
+              {/* County Filter and Search on same row */}
+              <div className="flex items-end gap-3">
+                {/* County Filter - smaller width */}
+                <div className="relative w-[200px]">
+                  <Label className="text-sm font-medium mb-2 block">County</Label>
+                  <div className="relative">
+                    <Home className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search counties"
+                      ref={countyInputRef}
+                      value={county}
+                      onChange={(e) => handleCountyChange(e.target.value)}
+                      onFocus={() => {
+                        if (COUNTIES.length > 0) {
+                          setFilteredCounties(COUNTIES.slice(0, 10));
+                          setShowCountySuggestions(true);
+                        }
+                      }}
+                      className="pl-9 pr-9"
+                      data-testid="input-county-filter"
+                    />
+                    {county && (
+                      <X 
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
+                        onClick={() => {
+                          setCounty('San Diego County');
+                          setShowCountySuggestions(false);
+                          onCountyChange('San Diego');
+                        }}
+                      />
+                    )}
+                  </div>
+                  {showCountySuggestions && filteredCounties.length > 0 && (
+                    <div
+                      ref={countySuggestionsRef}
+                      className="absolute z-50 w-[200px] mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
+                      data-testid="county-suggestions"
+                    >
+                      {filteredCounties.map((countyObj) => (
+                        <div
+                          key={`county-${countyObj.county}`}
+                          className="px-3 py-2 cursor-pointer hover-elevate text-sm flex items-center gap-2"
+                          onClick={() => selectCounty(countyObj)}
+                          data-testid={`suggestion-county-${countyObj.county}`}
+                        >
+                          <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <span className="font-medium truncate">{countyObj.county} County</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Search Input - takes remaining space */}
+                <div className="relative flex-1">
+                  <Label className="text-sm font-medium mb-2 block">Search</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by address, city, state, zip code, or owner..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 pr-9"
+                      data-testid="input-search-properties"
+                    />
+                    {searchQuery && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                        onClick={() => setSearchQuery("")}
+                        data-testid="button-clear-search"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 {searchQuery ? (
                   <>
                     Showing {filteredProperties.length} of {properties.length}{" "}
-                    propert{properties.length === 1 ? "y" : "ies"}
+                    propert{properties.length === 1 ? "y" : "ies"} in {selectedCounty} County
                   </>
                 ) : (
                   <>
                     Total: {properties.length} propert
-                    {properties.length === 1 ? "y" : "ies"}
+                    {properties.length === 1 ? "y" : "ies"} in {selectedCounty} County
                   </>
                 )}
               </p>
