@@ -83,8 +83,6 @@ router.get("/leaderboard", async (req, res) => {
             sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
         ) as any;
 
-        console.log("ALL PROPERTIES LENGTH: ", allProperties.length)
-
         // Calculate company counts
         const companyCounts: Record<string, number> = {};
         allProperties.forEach((p: { propertyOwner: string | null }) => {
@@ -103,8 +101,6 @@ router.get("/leaderboard", async (req, res) => {
                 name,
                 count,
             }));
-
-            console.log("TOP COMPANIES: ", topCompanies)
 
         // Calculate zip code counts
         const zipCounts: Record<string, number> = {};
