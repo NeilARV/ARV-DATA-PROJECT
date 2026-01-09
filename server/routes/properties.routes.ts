@@ -952,48 +952,111 @@ router.get("/:id", async (req, res) => {
     }
 });
 
-  // Update a single property by ID (requires admin auth)
+// Update a single property by ID (requires admin auth)
 router.patch("/:id", requireAdminAuth, async (req, res) => {
     try {
-      const { id } = req.params;
-      const rawUpdates = req.body;
+        const { id } = req.params;
 
-      console.log(`[UPDATE] Attempting to update property ID: ${id}`);
-      console.log(`[UPDATE] Raw updates:`, JSON.stringify(rawUpdates, null, 2));
-
-      // Validate request body with Zod schema
-      const validation = updatePropertySchema.safeParse(rawUpdates);
+        // Validate request body
+        const validation = updatePropertySchema.safeParse(req.body);
+        
         if (!validation.success) {
-            console.error("[UPDATE] Validation errors:", JSON.stringify(validation.error.errors, null, 2));
+            console.error("Validation errors:", validation.error.errors);
             return res.status(400).json({
-            message: "Invalid update data",
-            errors: validation.error.errors,
+                message: "Invalid update data",
+                errors: validation.error.errors,
             });
         }
 
-      const updates = validation.data;
-
-        // Ensure we have something to update
-        if (Object.keys(updates).length === 0) {
-            return res.status(400).json({ message: "No valid fields to update" });
-        }
+        const updateData = validation.data;
 
         // Check if property exists
-        const existing = await db
+        const existingProperty = await db
             .select()
             .from(properties)
             .where(eq(properties.id, id))
             .limit(1);
-        if (existing.length === 0) {
-            console.warn(`[UPDATE] Property not found: ${id}`);
-            return res.status(404).json({ message: "Property not found" });
+
+        if (existingProperty.length === 0) {
+            return res.status(404).json({ 
+                message: "Property not found" 
+            });
         }
 
-      // If propertyOwner changed, update company contact info (using punctuation-insensitive comparison)
-        const finalUpdates: Record<string, any> = { ...updates };
-        if (updates.propertyOwner !== undefined) {
-            if (updates.propertyOwner) {
-                const normalizedOwnerForCompare = normalizeCompanyNameForComparison(updates.propertyOwner);
+        // Build update object (only include fields that are being updated)
+        // Similar to companies route pattern
+        const updateFields: any = {};
+        
+        if (updateData.address !== undefined) {
+            updateFields.address = normalizeToTitleCase(updateData.address) || updateData.address;
+        }
+        if (updateData.city !== undefined) {
+            updateFields.city = normalizeToTitleCase(updateData.city) || updateData.city;
+        }
+        if (updateData.state !== undefined) {
+            updateFields.state = updateData.state.toUpperCase().trim();
+        }
+        if (updateData.zipCode !== undefined) {
+            updateFields.zipCode = updateData.zipCode.trim();
+        }
+        if (updateData.county !== undefined) {
+            updateFields.county = updateData.county.trim();
+        }
+        if (updateData.price !== undefined) {
+            updateFields.price = updateData.price;
+        }
+        if (updateData.bedrooms !== undefined) {
+            updateFields.bedrooms = updateData.bedrooms;
+        }
+        if (updateData.bathrooms !== undefined) {
+            updateFields.bathrooms = updateData.bathrooms;
+        }
+        if (updateData.squareFeet !== undefined) {
+            updateFields.squareFeet = updateData.squareFeet;
+        }
+        if (updateData.propertyType !== undefined) {
+            updateFields.propertyType = updateData.propertyType;
+        }
+        if (updateData.imageUrl !== undefined) {
+            // Convert empty string to null
+            updateFields.imageUrl = updateData.imageUrl && typeof updateData.imageUrl === 'string' && updateData.imageUrl.trim() !== ""
+                ? updateData.imageUrl.trim()
+                : null;
+        }
+        if (updateData.latitude !== undefined) {
+            updateFields.latitude = updateData.latitude;
+        }
+        if (updateData.longitude !== undefined) {
+            updateFields.longitude = updateData.longitude;
+        }
+        if (updateData.description !== undefined) {
+            // Convert empty string to null
+            updateFields.description = updateData.description && typeof updateData.description === 'string' && updateData.description.trim() !== ""
+                ? updateData.description.trim()
+                : null;
+        }
+        if (updateData.yearBuilt !== undefined) {
+            updateFields.yearBuilt = updateData.yearBuilt;
+        }
+        if (updateData.purchasePrice !== undefined) {
+            updateFields.purchasePrice = updateData.purchasePrice;
+        }
+        if (updateData.dateSold !== undefined) {
+            // Convert date object to ISO string (YYYY-MM-DD) for database (or null)
+            updateFields.dateSold = updateData.dateSold 
+                ? updateData.dateSold.toISOString().split('T')[0]
+                : null;
+        }
+
+        // Handle propertyOwner update - similar to companies route pattern
+        if (updateData.propertyOwner !== undefined) {
+            if (updateData.propertyOwner) {
+                // Normalize property owner for storage
+                const normalizedOwnerForStorage = normalizeCompanyNameForStorage(updateData.propertyOwner);
+                updateFields.propertyOwner = normalizedOwnerForStorage || updateData.propertyOwner;
+
+                // Look up company contact (using punctuation-insensitive comparison)
+                const normalizedOwnerForCompare = normalizeCompanyNameForComparison(updateFields.propertyOwner);
                 const allContacts = await db.select().from(companyContacts);
                 
                 const contact = allContacts.find(c => {
@@ -1002,39 +1065,51 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                 });
 
                 if (contact) {
-                    finalUpdates.companyContactName = contact.contactName;
-                    finalUpdates.companyContactEmail = contact.contactEmail;
+                    updateFields.companyContactName = contact.contactName;
+                    updateFields.companyContactEmail = contact.contactEmail;
                     // Use the existing contact's name for consistency
-                    finalUpdates.propertyOwner = contact.companyName;
+                    updateFields.propertyOwner = contact.companyName;
                 } else {
                     // Clear contact info if owner changed to unknown company
-                    finalUpdates.companyContactName = null;
-                    finalUpdates.companyContactEmail = null;
+                    updateFields.companyContactName = null;
+                    updateFields.companyContactEmail = null;
                 }
             } else {
-                // Clear contact info if owner removed
-                finalUpdates.companyContactName = null;
-                finalUpdates.companyContactEmail = null;
+                // Clear owner and contact info if owner removed
+                updateFields.propertyOwner = null;
+                updateFields.companyContactName = null;
+                updateFields.companyContactEmail = null;
             }
         }
 
-        console.log(`[UPDATE] Validated updates:`, JSON.stringify(finalUpdates, null, 2));
+        // Check if there are any fields to update
+        if (Object.keys(updateFields).length === 0) {
+            return res.status(400).json({ 
+                message: "No fields provided to update" 
+            });
+        }
 
-        // Perform the update
-        const [updated] = await db
+        // Always update the updatedAt timestamp
+        updateFields.updatedAt = new Date();
+
+        // Update the property
+        const [updatedProperty] = await db
             .update(properties)
-            .set(finalUpdates)
+            .set(updateFields)
             .where(eq(properties.id, id))
             .returning();
 
-        console.log(`[UPDATE] Successfully updated property: ${updated.address}`);
-        res.json(updated);
+        console.log(`Updated property: ${updatedProperty.address} (ID: ${id})`);
+
+        res.json(updatedProperty);
+
     } catch (error) {
-        console.error("[UPDATE ERROR]", error);
-        res.status(500).json({
-            message: `Error updating property: ${error instanceof Error ? error.message : "Unknown error"}`,
+        console.error("Error updating property:", error);
+        res.status(500).json({ 
+            message: "Error updating property",
+            error: error instanceof Error ? error.message : "Unknown error"
         });
     }
 });
 
-export default router
+export default router;

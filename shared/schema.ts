@@ -234,7 +234,7 @@ export const updatePropertySchema = z.object({
     .optional(),
   propertyOwner: z.string().nullable().optional(),
   purchasePrice: z.coerce.number().min(0).nullable().optional(),
-  dateSold: z.string().nullable().optional(),
+  dateSold: z.coerce.date().nullable().optional(),
 }).strict();
 
 export const updateCompanyContactSchema = z.object({
