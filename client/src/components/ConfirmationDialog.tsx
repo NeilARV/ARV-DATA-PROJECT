@@ -57,7 +57,10 @@ export default function ConfirmationDialog({
             data-testid="button-confirm-ok"
           >
             {isLoading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {confirmText}
+              </>
             ) : (
               confirmText
             )}
