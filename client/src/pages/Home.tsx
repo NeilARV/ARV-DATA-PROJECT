@@ -1216,6 +1216,7 @@ export default function Home() {
         onOpenChange={setShowLeaderboardDialog}
         onCompanyClick={handleLeaderboardCompanyClick}
         onZipCodeClick={handleLeaderboardZipCodeClick}
+        county={filters.county}
       />
 
     </div>

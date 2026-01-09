@@ -14,6 +14,7 @@ interface LeaderboardDialogProps {
   onOpenChange: (open: boolean) => void;
   onCompanyClick?: (companyName: string) => void;
   onZipCodeClick?: (zipCode: string) => void;
+  county?: string;
 }
 
 interface LeaderboardData {
@@ -26,18 +27,24 @@ export default function LeaderboardDialog({
   onOpenChange,
   onCompanyClick,
   onZipCodeClick,
+  county = "San Diego",
 }: LeaderboardDialogProps) {
-  // Fetch leaderboard data from dedicated endpoint (San Diego county only)
-  const { data: leaderboardData, isLoading } = useQuery<LeaderboardData>({
-    queryKey: ["/api/companies/leaderboard"],
+  // Fetch leaderboard data from dedicated endpoint (filtered by county)
+  const { data: leaderboardData, isLoading, error } = useQuery<LeaderboardData>({
+    queryKey: ["/api/companies/leaderboard", county],
     queryFn: async () => {
-      const res = await fetch("/api/companies/leaderboard", {
+      const url = `/api/companies/leaderboard${county ? `?county=${encodeURIComponent(county)}` : ''}`;
+      const res = await fetch(url, {
         credentials: "include",
       });
       if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Leaderboard API error:", res.status, errorText);
         throw new Error(`Failed to fetch leaderboard: ${res.status}`);
       }
-      return res.json();
+      const data = await res.json();
+      console.log("Leaderboard data received:", data);
+      return data;
     },
   });
 
@@ -69,9 +76,9 @@ export default function LeaderboardDialog({
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground">
-          View the top flipping companies and zip codes
+          View the top flipping companies and zip codes{county ? ` in ${county} County` : ''}
         </p>
-
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-lg font-semibold border-b pb-2">

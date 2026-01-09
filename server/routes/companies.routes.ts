@@ -65,6 +65,77 @@ router.get("/contacts", async (req, res) => {
     }
 });
 
+// Get leaderboard stats (top 10 companies and top 10 zip codes for specified county)
+// IMPORTANT: This route must come BEFORE /:id route to avoid route matching conflicts
+router.get("/leaderboard", async (req, res) => {
+    try {
+        // Get county from query parameter, default to "San Diego" if not provided
+        const countyParam = req.query.county?.toString() || "San Diego";
+        const normalizedCounty = countyParam.trim().toLowerCase();
+        
+        // Get all properties in the specified county (only need propertyOwner and zipCode)
+        const allProperties = await db.select({
+            propertyOwner: properties.propertyOwner,
+            zipCode: properties.zipCode,
+        })
+        .from(properties)
+        .where(
+            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+        ) as any;
+
+        console.log("ALL PROPERTIES LENGTH: ", allProperties.length)
+
+        // Calculate company counts
+        const companyCounts: Record<string, number> = {};
+        allProperties.forEach((p: { propertyOwner: string | null }) => {
+            if (p.propertyOwner) {
+                const owner = (p.propertyOwner).trim();
+                companyCounts[owner] = (companyCounts[owner] || 0) + 1;
+            }
+        });
+
+        // Get top 10 companies
+        const topCompanies = Object.entries(companyCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([name, count], index) => ({
+                rank: index + 1,
+                name,
+                count,
+            }));
+
+            console.log("TOP COMPANIES: ", topCompanies)
+
+        // Calculate zip code counts
+        const zipCounts: Record<string, number> = {};
+        allProperties.forEach((p: { zipCode: string | null }) => {
+            if (p.zipCode) {
+                const zip = (p.zipCode).trim();
+                zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+            }
+        });
+
+        // Get top 10 zip codes
+        const topZipCodes = Object.entries(zipCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([zipCode, count], index) => ({
+                rank: index + 1,
+                zipCode,
+                count,
+            }));
+
+        res.json({
+            companies: topCompanies,
+            zipCodes: topZipCodes,
+        });
+        
+    } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+        res.status(500).json({ message: "Error fetching leaderboard" });
+    }
+});
+
 // Get a single company contact by ID
 router.get("/:id", async (req, res) => {
     try {
@@ -183,67 +254,6 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
             message: "Error updating company contact",
             error: error instanceof Error ? error.message : "Unknown error"
         });
-    }
-});
-
-// Get leaderboard stats (top 10 companies and top 10 zip codes for San Diego county)
-router.get("/leaderboard", async (req, res) => {
-    try {
-        // Filter to San Diego county only
-        const normalizedCounty = "san diego";
-        
-        // Get all properties in San Diego county (only need propertyOwner and zipCode)
-        const allProperties = await db.select({
-            propertyOwner: properties.propertyOwner,
-            zipCode: properties.zipCode,
-        })
-        .from(properties)
-        .where(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
-        ) as any;
-
-        // Calculate company counts
-        const companyCounts: Record<string, number> = {};
-        allProperties.forEach((p: { propertyOwner: string | null }) => {
-            const owner = (p.propertyOwner || "Unknown").trim();
-            companyCounts[owner] = (companyCounts[owner] || 0) + 1;
-        });
-
-        // Get top 10 companies
-        const topCompanies = Object.entries(companyCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([name, count], index) => ({
-                rank: index + 1,
-                name,
-                count,
-            }));
-
-        // Calculate zip code counts
-        const zipCounts: Record<string, number> = {};
-        allProperties.forEach((p: { zipCode: string | null }) => {
-            const zip = (p.zipCode || "Unknown").trim();
-            zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-        });
-
-        // Get top 10 zip codes
-        const topZipCodes = Object.entries(zipCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([zipCode, count], index) => ({
-                rank: index + 1,
-                zipCode,
-                count,
-            }));
-
-        res.json({
-            companies: topCompanies,
-            zipCodes: topZipCodes,
-        });
-        
-    } catch (error) {
-        console.error("Error fetching leaderboard:", error);
-        res.status(500).json({ message: "Error fetching leaderboard" });
     }
 });
 
