@@ -1,5 +1,5 @@
 import { Property } from "@shared/schema";
-import PropertyCard from "@/components/PropertyCard";
+import PropertyCard from "@/components/property/PropertyCard";
 import {
   Select,
   SelectContent,

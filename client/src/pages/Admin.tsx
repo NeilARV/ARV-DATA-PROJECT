@@ -41,8 +41,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import UploadDialog from "@/components/UploadDialog";
-import EditPropertyDialog from "@/components/EditPropertyDialog";
+import UploadDialog from "@/components/modals/UploadDialog";
+import EditPropertyDialog from "@/components/modals/EditPropertyDialog";
 import {
   Card,
   CardContent,

@@ -7,7 +7,7 @@ import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Troph
 import { CompanyContact, Property } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
-import UpdateDialog from "@/components/UpdateDialog";
+import UpdateDialog from "@/components/modals/UpdateDialog";
 
 // Extended CompanyContact type with property counts from API
 type CompanyContactWithCounts = CompanyContact & {

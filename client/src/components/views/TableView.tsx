@@ -1,5 +1,5 @@
 import { Property } from "@shared/schema";
-import PropertyTable from "@/components/PropertyTable";
+import PropertyTable from "@/components/property/PropertyTable";
 
 interface TableViewProps {
   properties: Property[];

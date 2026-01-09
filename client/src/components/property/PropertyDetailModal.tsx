@@ -17,7 +17,7 @@ import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import ConfirmationDialog from "@/components/ConfirmationDialog";
+import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 
 interface PropertyDetailModalProps {
   property: Property | null;
