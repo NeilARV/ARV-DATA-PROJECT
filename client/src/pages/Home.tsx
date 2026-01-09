@@ -39,6 +39,7 @@ export default function Home() {
     statusFilters: ['in-renovation'],
   });
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
@@ -789,36 +790,76 @@ export default function Home() {
   });
 
 
-  const handleCompanySelect = (companyName: string | null) => {
+  // Helper function to fetch company property count
+  const fetchCompanyPropertyCount = async (companyName: string) => {
+    try {
+      const response = await fetch(`/api/companies/contacts`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const companies = await response.json();
+        const company = companies.find((c: any) => 
+          c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
+        );
+        if (company) {
+          setSelectedCompanyPropertyCount(company.propertyCount || 0);
+        } else {
+          setSelectedCompanyPropertyCount(0);
+        }
+      } else {
+        setSelectedCompanyPropertyCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching company property count:", error);
+      setSelectedCompanyPropertyCount(0);
+    }
+  };
+
+  // Helper function to clear company selection
+  const clearCompanySelection = () => {
+    setSelectedCompany(null);
+    setSelectedCompanyPropertyCount(0);
+  };
+
+  const handleCompanySelect = async (companyName: string | null) => {
     if (companyName) {
       // Selecting a company: preserve all existing filters and map position
       setSelectedCompany(companyName);
+      
+      // Fetch the company's total property count from the API
+      await fetchCompanyPropertyCount(companyName);
       // Do NOT change map center/zoom when selecting a company
     } else {
       // Deselecting/clearing the company filter: preserve all existing filters and map position
-      setSelectedCompany(null);
+      clearCompanySelection();
       // Do NOT change map center/zoom when deselecting a company
     }
   };
 
-  const handleLeaderboardCompanyClick = (companyName: string) => {
+  const handleLeaderboardCompanyClick = async (companyName: string) => {
     // Preserve all existing filters when selecting a company from leaderboard
     setSelectedCompany(companyName);
     setSidebarView("none");
+    
+    // Fetch the company's total property count
+    await fetchCompanyPropertyCount(companyName);
     // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
-  const handleCompanyNameClick = (companyName: string) => {
+  const handleCompanyNameClick = async (companyName: string) => {
     // Open the directory and select the company
     setSelectedCompany(companyName);
     setSidebarView("directory");
+    
+    // Fetch the company's total property count
+    await fetchCompanyPropertyCount(companyName);
     // The CompanyDirectory component will auto-scroll to the selected company
   };
 
 
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
     // Clear company filter and set zip code filter
-    setSelectedCompany(null);
+    clearCompanySelection();
     setFilters({
       minPrice: 0,
       maxPrice: 10000000, // Default to max slider value
@@ -850,7 +891,7 @@ export default function Home() {
       county: 'San Diego', // Reset to default San Diego county
       statusFilters: ['in-renovation'],
     });
-    setSelectedCompany(null);
+    clearCompanySelection();
     setSelectedProperty(null);
     setMapCenter(undefined);
     setMapZoom(14);
@@ -908,8 +949,7 @@ export default function Home() {
   };
 
   // Calculate total properties owned by selected company
-  // For map view, count from mapPins. For grid/table views, use the API's total count
-  // since the query already includes the company filter
+  // For map view, count from mapPins. For grid/table views, use the fetched company property count
   const totalCompanyProperties = useMemo(() => {
     if (!selectedCompany) return 0;
     if (viewMode === "map") {
@@ -919,9 +959,9 @@ export default function Home() {
         return ownerName === companyNameNormalized;
       }).length;
     }
-    // For grid/table views, use the API's total since the query includes the company filter
-    return totalFilteredProperties;
-  }, [mapPins, selectedCompany, viewMode, totalFilteredProperties]);
+    // For grid/table views, use the fetched company property count (total properties company owns)
+    return selectedCompanyPropertyCount;
+  }, [mapPins, selectedCompany, viewMode, selectedCompanyPropertyCount]);
 
   // Properties are now sorted server-side, so we can use them directly
   // The API returns properties in the correct sorted order based on the sortBy parameter
@@ -1035,9 +1075,7 @@ export default function Home() {
                     selectedProperty={selectedProperty}
                     isLoading={isLoadingMapPins}
                     selectedCompany={selectedCompany}
-                    onDeselectCompany={() => {
-                      setSelectedCompany(null);
-                    }}
+                    onDeselectCompany={clearCompanySelection}
                   />
                 </div>
               </>
@@ -1049,9 +1087,7 @@ export default function Home() {
                 totalFilteredProperties={totalFilteredProperties}
                 hasActiveFilters={hasActiveFilters}
                 onPropertyClick={setSelectedProperty}
-                onClearCompanyFilter={() => {
-                  setSelectedCompany(null);
-                }}
+                onClearCompanyFilter={clearCompanySelection}
                 onClearFilters={handleClearAllFilters}
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}

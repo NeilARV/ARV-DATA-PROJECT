@@ -34,7 +34,7 @@ export default function TableView({
         <div>
           <h2 className="text-2xl font-semibold mb-1">
             {selectedCompany && totalCompanyProperties > 0
-              ? `${properties.length} / ${totalCompanyProperties} Properties`
+              ? `${totalFilteredProperties} / ${totalCompanyProperties} Properties`
               : `${totalFilteredProperties} Properties`}
             {selectedCompany && (
               <span className="text-base font-normal text-muted-foreground ml-2">
