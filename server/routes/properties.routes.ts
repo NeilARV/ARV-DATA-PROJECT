@@ -742,6 +742,7 @@ router.get("/suggestions", async (req, res) => {
 });
 
 // Upload properties with chunked processing and controlled concurrency (requires admin auth)
+// @TODO: Update to use propertyOwnerId from properties table and update to store data with new fields
 router.post("/upload", requireAdminAuth, async (req, res) => {
     try {
         const propertiesToUpload = req.body;

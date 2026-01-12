@@ -57,9 +57,9 @@ router.get("/contacts", async (req, res) => {
         
         const contacts = await contactsQuery.orderBy(companyContacts.companyName);
 
-        // Get all properties (filtered by county if provided) - only need propertyOwner for counting
+        // Get all properties (filtered by county if provided) - only need propertyOwnerId for counting
         let propertiesQuery = db.select({
-            propertyOwner: properties.propertyOwner,
+            propertyOwnerId: properties.propertyOwnerId,
             county: properties.county,
         }).from(properties);
         
@@ -72,14 +72,11 @@ router.get("/contacts", async (req, res) => {
         
         const allProperties = await propertiesQuery;
 
-        // Calculate property count for each company
+        // Calculate property count for each company using propertyOwnerId
         const contactsWithCounts = contacts.map(contact => {
-            const companyNameNormalized = contact.companyName.trim().toLowerCase();
-            
-            // Filter properties for this company (case-insensitive)
+            // Filter properties for this company by matching propertyOwnerId with company contact id
             const companyProperties = allProperties.filter(p => {
-                const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
-                return ownerName === companyNameNormalized;
+                return p.propertyOwnerId === contact.id;
             });
             
             const propertyCount = companyProperties.length;
@@ -106,22 +103,25 @@ router.get("/leaderboard", async (req, res) => {
         const countyParam = req.query.county?.toString() || "San Diego";
         const normalizedCounty = countyParam.trim().toLowerCase();
         
-        // Get all properties in the specified county (only need propertyOwner and zipCode)
-        const allProperties = await db.select({
-            propertyOwner: properties.propertyOwner,
-            zipCode: properties.zipCode,
-        })
-        .from(properties)
-        .where(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
-        ) as any;
+        // Get all properties in the specified county with company info (need propertyOwnerId, zipCode, and companyName)
+        const allProperties = await db
+            .select({
+                propertyOwnerId: properties.propertyOwnerId,
+                zipCode: properties.zipCode,
+                companyName: companyContacts.companyName,
+            })
+            .from(properties)
+            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id))
+            .where(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            ) as any;
 
-        // Calculate company counts
+        // Calculate company counts using companyName from joined table
         const companyCounts: Record<string, number> = {};
-        allProperties.forEach((p: { propertyOwner: string | null }) => {
-            if (p.propertyOwner) {
-                const owner = (p.propertyOwner).trim();
-                companyCounts[owner] = (companyCounts[owner] || 0) + 1;
+        allProperties.forEach((p: { companyName: string | null }) => {
+            if (p.companyName) {
+                const companyName = p.companyName.trim();
+                companyCounts[companyName] = (companyCounts[companyName] || 0) + 1;
             }
         });
 
