@@ -9,7 +9,7 @@ import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
 import { normalizeAddress } from "server/utils/normalizeAddress";
 import { fetchCounty } from "server/utils/fetchCounty";
 import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
-import { eq, sql, or, and, desc, asc, gt } from "drizzle-orm";
+import { eq, sql, or, and, desc, asc, gt, getTableColumns } from "drizzle-orm";
 import pLimit from "p-limit";
 import dotenv from "dotenv"
 
@@ -1086,15 +1086,33 @@ router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [property] = await db
-            .select()
+        // Use LEFT JOIN to get company info from company_contacts table
+        // Select all fields from properties table and only companyName, contactName, contactEmail from company_contacts
+        const [result] = await db
+            .select({
+                ...getTableColumns(properties),
+                // Company info from joined table
+                companyName: companyContacts.companyName,
+                contactName: companyContacts.contactName,
+                contactEmail: companyContacts.contactEmail,
+            })
             .from(properties)
+            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id))
             .where(eq(properties.id, id))
             .limit(1);
 
-        if (!property) {
+        if (!result) {
             return res.status(404).json({ message: "Property not found" });
         }
+
+        // Map result to use company info from joined table, fallback to legacy fields
+        const { companyName, contactName, contactEmail, ...rest } = result;
+        const property = {
+            ...rest,
+            propertyOwner: companyName || null,
+            companyContactName: contactName || null,
+            companyContactEmail: contactEmail || null,
+        };
 
         res.status(200).json(property);
     } catch (error) {
@@ -1197,28 +1215,161 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
             updateFields.yearBuilt = updateData.yearBuilt;
         }
         
-        // Property Owner (normalize company name)
-        if (updateData.propertyOwner !== undefined) {
-            if (updateData.propertyOwner && updateData.propertyOwner.trim() !== "") {
-                const normalizedOwner = normalizeCompanyNameForStorage(updateData.propertyOwner);
-                updateFields.propertyOwner = normalizedOwner || updateData.propertyOwner;
+        // Handle company contact lookup/creation/update
+        // Check if form provided company contact info (before we normalize)
+        const formProvidedContactName = updateData.companyContactName != null && 
+            typeof updateData.companyContactName === 'string' && 
+            updateData.companyContactName.trim() !== "";
+        const formProvidedContactEmail = updateData.companyContactEmail != null && 
+            typeof updateData.companyContactEmail === 'string' && 
+            updateData.companyContactEmail.trim() !== "";
+        
+        // Check if propertyOwnerId was provided directly (from frontend when selecting from search)
+        let companyContactId: string | null = null;
+        
+        // If propertyOwnerId is provided directly, use it (user selected from search)
+        const providedPropertyOwnerId = (updateData as any).propertyOwnerId;
+        if (providedPropertyOwnerId !== undefined && providedPropertyOwnerId && typeof providedPropertyOwnerId === 'string') {
+            // Verify the company contact exists
+            const [contactById] = await db
+                .select()
+                .from(companyContacts)
+                .where(eq(companyContacts.id, providedPropertyOwnerId))
+                .limit(1);
+            
+            if (contactById) {
+                companyContactId = contactById.id;
+                
+                // Check if company name was edited (normalize and compare)
+                const normalizedNewName = updateData.propertyOwner 
+                    ? normalizeCompanyNameForStorage(updateData.propertyOwner)
+                    : null;
+                const normalizedCurrentName = normalizeCompanyNameForStorage(contactById.companyName);
+                const companyNameChanged = normalizedNewName && 
+                    normalizedNewName !== normalizedCurrentName;
+                
+                // Check if contact info needs updating (user may have modified name/email)
+                const contactNameChanged = formProvidedContactName && 
+                    updateData.companyContactName && 
+                    contactById.contactName !== updateData.companyContactName.trim();
+                
+                const contactEmailChanged = formProvidedContactEmail && 
+                    updateData.companyContactEmail && 
+                    contactById.contactEmail !== updateData.companyContactEmail.trim();
+                
+                if (companyNameChanged || contactNameChanged || contactEmailChanged) {
+                    const contactUpdateFields: any = {
+                        updatedAt: new Date(),
+                    };
+                    
+                    // Update company name if it was changed (normalized)
+                    if (companyNameChanged && normalizedNewName) {
+                        contactUpdateFields.companyName = normalizedNewName;
+                    }
+                    
+                    if (contactNameChanged && updateData.companyContactName) {
+                        contactUpdateFields.contactName = updateData.companyContactName.trim();
+                    }
+                    
+                    if (contactEmailChanged && updateData.companyContactEmail) {
+                        contactUpdateFields.contactEmail = updateData.companyContactEmail.trim();
+                    }
+                    
+                    await db
+                        .update(companyContacts)
+                        .set(contactUpdateFields)
+                        .where(eq(companyContacts.id, contactById.id));
+                    
+                    console.log(`Updated company contact: ${contactById.companyName} (ID: ${contactById.id})`);
+                }
+                
+                console.log(`Using provided company contact ID: ${contactById.companyName} (ID: ${contactById.id})`);
             } else {
-                updateFields.propertyOwner = null;
+                console.warn(`Provided propertyOwnerId ${providedPropertyOwnerId} not found, will search by name instead`);
             }
         }
         
-        // Company Contact Name
-        if (updateData.companyContactName !== undefined) {
-            updateFields.companyContactName = updateData.companyContactName && typeof updateData.companyContactName === 'string' && updateData.companyContactName.trim() !== ""
-                ? updateData.companyContactName.trim()
-                : null;
+        // If no ID was provided or ID lookup failed, search by company name
+        if (!companyContactId && updateData.propertyOwner !== undefined) {
+            if (updateData.propertyOwner && updateData.propertyOwner.trim() !== "") {
+                // Normalize company name for storage
+                const normalizedOwnerForStorage = normalizeCompanyNameForStorage(updateData.propertyOwner);
+                const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || updateData.propertyOwner);
+                
+                // Search for existing company contact using normalized comparison
+                const allContacts = await db.select().from(companyContacts);
+                
+                const existingContact = allContacts.find(c => {
+                    const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
+                    return normalizedContact && normalizedContact === normalizedOwnerForCompare;
+                });
+
+                if (existingContact) {
+                    // Company exists - check if contact info needs updating
+                    companyContactId = existingContact.id;
+                    
+                    // Check if form provided values differ from DB values
+                    const contactNameChanged = formProvidedContactName && 
+                        updateData.companyContactName && 
+                        existingContact.contactName !== updateData.companyContactName.trim();
+                    
+                    const contactEmailChanged = formProvidedContactEmail && 
+                        updateData.companyContactEmail && 
+                        existingContact.contactEmail !== updateData.companyContactEmail.trim();
+                    
+                    if (contactNameChanged || contactEmailChanged) {
+                        // Update company contact with new info (only update fields that were provided and changed)
+                        const contactUpdateFields: any = {
+                            updatedAt: new Date(),
+                        };
+                        
+                        if (contactNameChanged && updateData.companyContactName) {
+                            contactUpdateFields.contactName = updateData.companyContactName.trim();
+                        }
+                        
+                        if (contactEmailChanged && updateData.companyContactEmail) {
+                            contactUpdateFields.contactEmail = updateData.companyContactEmail.trim();
+                        }
+                        
+                        await db
+                            .update(companyContacts)
+                            .set(contactUpdateFields)
+                            .where(eq(companyContacts.id, existingContact.id));
+                        
+                        console.log(`Updated company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
+                    }
+                    
+                    console.log(`Using existing company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
+                } else {
+                    // Company doesn't exist - create new company contact
+                    const newContactData: any = {
+                        companyName: normalizedOwnerForStorage || updateData.propertyOwner,
+                        contactName: formProvidedContactName && updateData.companyContactName 
+                            ? updateData.companyContactName.trim() 
+                            : null,
+                        contactEmail: formProvidedContactEmail && updateData.companyContactEmail 
+                            ? updateData.companyContactEmail.trim() 
+                            : null,
+                        counties: "[]", // Empty counties array for new contact
+                    };
+                    
+                    const [newContact] = await db
+                        .insert(companyContacts)
+                        .values(newContactData)
+                        .returning();
+                    
+                    companyContactId = newContact.id;
+                    console.log(`Created new company contact: ${newContact.companyName} (ID: ${newContact.id})`);
+                }
+            } else {
+                // propertyOwner is being set to null/empty - clear the propertyOwnerId
+                companyContactId = null;
+            }
         }
         
-        // Company Contact Email
-        if (updateData.companyContactEmail !== undefined) {
-            updateFields.companyContactEmail = updateData.companyContactEmail && typeof updateData.companyContactEmail === 'string' && updateData.companyContactEmail.trim() !== ""
-                ? updateData.companyContactEmail.trim()
-                : null;
+        // Set propertyOwnerId (not propertyOwner, companyContactName, companyContactEmail)
+        if (updateData.propertyOwner !== undefined || providedPropertyOwnerId !== undefined) {
+            updateFields.propertyOwnerId = companyContactId;
         }
         
         // Description

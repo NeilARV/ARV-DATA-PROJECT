@@ -230,6 +230,7 @@ export const updatePropertySchema = z.object({
     .nullable()
     .optional(),
   propertyOwner: z.string().nullable().optional(),
+  propertyOwnerId: z.string().nullable().optional(),
   companyContactName: z.string().nullable().optional(),
   companyContactEmail: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
