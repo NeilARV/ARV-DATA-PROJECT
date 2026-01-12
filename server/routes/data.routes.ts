@@ -408,20 +408,33 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                     .limit(1);
                                 if (newContact && normalizedCompanyNameForCompare) {
                                     contactsMap.set(normalizedCompanyNameForCompare, newContact);
+                                    // Set propertyOwnerId to the new contact's ID
+                                    propertyData.propertyOwnerId = newContact.id;
                                 }
                             } catch (contactError: any) {
                                 // Ignore duplicate key errors (race condition)
                                 if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
                                     console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyNameForStorage}:`, contactError);
+                                } else {
+                                    // If it was a duplicate error, try to fetch the existing contact
+                                    try {
+                                        const [duplicateContact] = await db
+                                            .select()
+                                            .from(companyContacts)
+                                            .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
+                                            .limit(1);
+                                        if (duplicateContact && normalizedCompanyNameForCompare) {
+                                            contactsMap.set(normalizedCompanyNameForCompare, duplicateContact);
+                                            propertyData.propertyOwnerId = duplicateContact.id;
+                                        }
+                                    } catch (fetchError) {
+                                        console.error(`[SFR SYNC] Error fetching duplicate contact:`, fetchError);
+                                    }
                                 }
                             }
-                            
-                            // Set property owner and contact info using normalized storage format
-                            propertyData.propertyOwner = normalizedCompanyNameForStorage;
-                            propertyData.companyContactName = null;
-                            propertyData.companyContactEmail = contactEmail;
                         } else {
-                            // Use the existing contact's name to ensure consistency (use existing DB value)
+                            // Use the existing contact's ID for propertyOwnerId
+                            propertyData.propertyOwnerId = existingContact.id;
                             console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (matched: ${normalizedCompanyNameForStorage})`);
 
                             // Update counties if we have a valid county and it's not already in the array
@@ -470,12 +483,10 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                     console.error(`[SFR SYNC] Error updating counties for company contact ${existingContact.companyName}:`, updateError);
                                 }
                             }
-
-                            // Set property owner and contact info using existing contact data
-                            propertyData.propertyOwner = existingContact.companyName; // Use existing DB value for consistency
-                            propertyData.companyContactName = existingContact.contactName || contactName;
-                            propertyData.companyContactEmail = existingContact.contactEmail || contactEmail;
                         }
+                    } else {
+                        // No company name provided - set propertyOwnerId to null
+                        propertyData.propertyOwnerId = null;
                     }
 
                     // Check for existing property by SFR IDs first
@@ -524,7 +535,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         const shouldUpdate = !existingProperty.recordingDate || (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
                     
                         if (shouldUpdate) {
-                            const { id, createdAt, _saleDate, ...updateData } = propertyData;
+                            const { id, createdAt, _saleDate, propertyOwner, companyContactName, companyContactEmail, ...updateData } = propertyData;
                             updateData.updatedAt = sql`now()`;
                             
                             try {
@@ -564,7 +575,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         // Insert batch if full
                         if (batchBuffer.length >= BATCH_SIZE) {
                             try {
-                                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
+                                const batchToInsert = batchBuffer.map(({ _saleDate, propertyOwner, companyContactName, companyContactEmail, ...prop }) => prop);
                                 await db.insert(properties).values(batchToInsert);
                                 totalInserted += batchBuffer.length;
                                 console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
@@ -590,7 +601,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                 // Try inserting individually
                                 for (const prop of batchBuffer) {
                                     try {
-                                        const { _saleDate, ...propToInsert } = prop;
+                                        const { _saleDate, propertyOwner, companyContactName, companyContactEmail, ...propToInsert } = prop;
                                         await db.insert(properties).values([propToInsert]);
                                         totalInserted++;
                                         
@@ -636,7 +647,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
         // Insert any remaining properties in buffer (after while loop ends)
         if (batchBuffer.length > 0) {
             try {
-                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
+                const batchToInsert = batchBuffer.map(({ _saleDate, propertyOwner, companyContactName, companyContactEmail, ...prop }) => prop);
                 await db.insert(properties).values(batchToInsert);
                 totalInserted += batchBuffer.length;
                 console.log(`[SFR SYNC] Inserted final batch of ${batchBuffer.length} properties`);
@@ -647,7 +658,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 // Try inserting individually
                 for (const prop of batchBuffer) {
                     try {
-                        const { _saleDate, ...propToInsert } = prop;
+                        const { _saleDate, propertyOwner, companyContactName, companyContactEmail, ...propToInsert } = prop;
                         await db.insert(properties).values([propToInsert]);
                         totalInserted++;
                         
