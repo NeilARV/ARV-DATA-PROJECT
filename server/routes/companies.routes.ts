@@ -6,6 +6,40 @@ import { sql, and, eq } from "drizzle-orm";
 
 const router = Router();
 
+// Get company contact suggestions for autocomplete/search
+router.get("/contacts/suggestions", async (req, res) => {
+    try {
+        const { search } = req.query;
+        
+        if (!search || search.toString().trim().length < 2) {
+            return res.status(200).json([]);
+        }
+
+        const searchTerm = `%${search.toString().trim().toLowerCase()}%`;
+
+        // Search company names that match the search term
+        const results = await db
+            .select({
+                id: companyContacts.id,
+                companyName: companyContacts.companyName,
+                contactName: companyContacts.contactName,
+                contactEmail: companyContacts.contactEmail,
+            })
+            .from(companyContacts)
+            .where(
+                sql`LOWER(TRIM(${companyContacts.companyName})) LIKE ${searchTerm}`
+            )
+            .orderBy(companyContacts.companyName)
+            .limit(5);
+
+        res.status(200).json(results);
+
+    } catch (error) {
+        console.error("Error fetching company suggestions:", error);
+        res.status(500).json({ message: "Error fetching company suggestions" });
+    }
+});
+
 // Get all company contacts with property counts
 router.get("/contacts", async (req, res) => {
     try {

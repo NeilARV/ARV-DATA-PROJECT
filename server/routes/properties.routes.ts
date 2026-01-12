@@ -364,22 +364,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
             dateSold: propertyData.dateSold && typeof propertyData.dateSold === 'string' && propertyData.dateSold.trim() !== "" 
                 ? propertyData.dateSold 
                 : null,
-            // Convert empty company contact fields to null (will be populated from DB if owner found and form didn't provide)
-            companyContactName: formProvidedContactName && typeof propertyData.companyContactName === 'string' 
-                ? propertyData.companyContactName.trim() 
-                : null,
-            companyContactEmail: formProvidedContactEmail && typeof propertyData.companyContactEmail === 'string' 
-                ? propertyData.companyContactEmail.trim() 
-                : null,
         };
-
-        // Normalize property owner if provided
-        if (propertyData.propertyOwner && propertyData.propertyOwner.trim() !== "") {
-            const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyData.propertyOwner);
-            enriched.propertyOwner = normalizedOwnerForStorage || propertyData.propertyOwner;
-        } else {
-            enriched.propertyOwner = null;
-        }
 
         // Set default status if not provided
         if (!enriched.status) {
@@ -465,39 +450,138 @@ router.post("/", requireAdminAuth, async (req, res) => {
             console.warn(`No coordinates available, cannot determine county. Using "UNKNOWN"`);
         }
 
-        // Handle company contact lookup (using punctuation-insensitive comparison)
-        // Only populate contact fields from DB if propertyOwner exists AND form didn't provide contact info
-        if (enriched.propertyOwner) {
-            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(enriched.propertyOwner);
+        // Handle company contact lookup/creation/update
+        // Check if propertyOwnerId was provided directly (from frontend when selecting from search)
+        let companyContactId: string | null = null;
+        
+        // If propertyOwnerId is provided directly, use it (user selected from search)
+        if (propertyData.propertyOwnerId && typeof propertyData.propertyOwnerId === 'string') {
+            // Verify the company contact exists
+            const [contactById] = await db
+                .select()
+                .from(companyContacts)
+                .where(eq(companyContacts.id, propertyData.propertyOwnerId))
+                .limit(1);
+            
+            if (contactById) {
+                companyContactId = contactById.id;
+                
+                // Check if contact info needs updating (user may have modified name/email)
+                const contactNameChanged = formProvidedContactName && 
+                    propertyData.companyContactName && 
+                    contactById.contactName !== propertyData.companyContactName.trim();
+                
+                const contactEmailChanged = formProvidedContactEmail && 
+                    propertyData.companyContactEmail && 
+                    contactById.contactEmail !== propertyData.companyContactEmail.trim();
+                
+                if (contactNameChanged || contactEmailChanged) {
+                    const updateFields: any = {
+                        updatedAt: new Date(),
+                    };
+                    
+                    if (contactNameChanged && propertyData.companyContactName) {
+                        updateFields.contactName = propertyData.companyContactName.trim();
+                    }
+                    
+                    if (contactEmailChanged && propertyData.companyContactEmail) {
+                        updateFields.contactEmail = propertyData.companyContactEmail.trim();
+                    }
+                    
+                    await db
+                        .update(companyContacts)
+                        .set(updateFields)
+                        .where(eq(companyContacts.id, contactById.id));
+                    
+                    console.log(`Updated company contact: ${contactById.companyName} (ID: ${contactById.id})`);
+                }
+                
+                console.log(`Using provided company contact ID: ${contactById.companyName} (ID: ${contactById.id})`);
+            } else {
+                console.warn(`Provided propertyOwnerId ${propertyData.propertyOwnerId} not found, will search by name instead`);
+            }
+        }
+        
+        // If no ID was provided or ID lookup failed, search by company name
+        if (!companyContactId && propertyData.propertyOwner && propertyData.propertyOwner.trim() !== "") {
+            // Normalize company name for storage
+            const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyData.propertyOwner);
+            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || propertyData.propertyOwner);
+            
+            // Search for existing company contact using normalized comparison
             const allContacts = await db.select().from(companyContacts);
             
-            const contact = allContacts.find(c => {
+            const existingContact = allContacts.find(c => {
                 const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
                 return normalizedContact && normalizedContact === normalizedOwnerForCompare;
             });
 
-            if (contact) {
-                // If form didn't provide contact info, use existing contact's info from DB
-                if (!formProvidedContactName && !formProvidedContactEmail) {
-                    enriched.companyContactName = contact.contactName || null;
-                    enriched.companyContactEmail = contact.contactEmail || null;
-                    console.log(`Populated contact info from DB for: ${contact.companyName}`);
-                } else {
-                    console.log(`Using form-provided contact info for: ${enriched.propertyOwner}`);
+            if (existingContact) {
+                // Company exists - check if contact info needs updating
+                companyContactId = existingContact.id;
+                
+                // Check if form provided values differ from DB values
+                const contactNameChanged = formProvidedContactName && 
+                    propertyData.companyContactName && 
+                    existingContact.contactName !== propertyData.companyContactName.trim();
+                
+                const contactEmailChanged = formProvidedContactEmail && 
+                    propertyData.companyContactEmail && 
+                    existingContact.contactEmail !== propertyData.companyContactEmail.trim();
+                
+                if (contactNameChanged || contactEmailChanged) {
+                    // Update company contact with new info (only update fields that were provided and changed)
+                    const updateFields: any = {
+                        updatedAt: new Date(),
+                    };
+                    
+                    if (contactNameChanged && propertyData.companyContactName) {
+                        updateFields.contactName = propertyData.companyContactName.trim();
+                    }
+                    
+                    if (contactEmailChanged && propertyData.companyContactEmail) {
+                        updateFields.contactEmail = propertyData.companyContactEmail.trim();
+                    }
+                    
+                    await db
+                        .update(companyContacts)
+                        .set(updateFields)
+                        .where(eq(companyContacts.id, existingContact.id));
+                    
+                    console.log(`Updated company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
                 }
-                // Use the existing contact's company name for consistency
-                enriched.propertyOwner = contact.companyName;
+                
+                console.log(`Using existing company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
             } else {
-                // Property owner provided but no contact found in DB
-                // If form provided contact info, keep it (already set above)
-                // If form didn't provide contact info, keep null values (already set above)
-                console.log(`No existing company contact found in DB for: ${enriched.propertyOwner}`);
+                // Company doesn't exist - create new company contact
+                const newContactData: any = {
+                    companyName: normalizedOwnerForStorage || propertyData.propertyOwner,
+                    contactName: formProvidedContactName && propertyData.companyContactName 
+                        ? propertyData.companyContactName.trim() 
+                        : null,
+                    contactEmail: formProvidedContactEmail && propertyData.companyContactEmail 
+                        ? propertyData.companyContactEmail.trim() 
+                        : null,
+                    counties: "[]", // Empty counties array for new contact
+                };
+                
+                const [newContact] = await db
+                    .insert(companyContacts)
+                    .values(newContactData)
+                    .returning();
+                
+                companyContactId = newContact.id;
+                console.log(`Created new company contact: ${newContact.companyName} (ID: ${newContact.id})`);
             }
-        } else {
-            // No property owner - contact fields remain null (already set above)
-            enriched.companyContactName = null;
-            enriched.companyContactEmail = null;
         }
+        
+        // Set propertyOwnerId (not propertyOwner, companyContactName, companyContactEmail)
+        enriched.propertyOwnerId = companyContactId;
+        
+        // Remove legacy fields that are no longer used (they're in company_contacts table now)
+        delete enriched.propertyOwner;
+        delete enriched.companyContactName;
+        delete enriched.companyContactEmail;
 
         console.log("Final enriched property data:", JSON.stringify(enriched, null, 2));
 
