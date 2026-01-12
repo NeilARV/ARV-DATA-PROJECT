@@ -723,15 +723,16 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        // Fetch all MSAs from the sync state table
+        // Fetch only the MSA with id = 1 (San Diego)
         const allSyncStates = await db
             .select()
-            .from(sfrSyncState);
+            .from(sfrSyncState)
+            .where(eq(sfrSyncState.id, 1));
 
         if (allSyncStates.length === 0) {
             return res.status(400).json({ 
-                message: "No MSAs found in sync state table. Please add at least one MSA to sync.",
-                error: "No MSAs configured"
+                message: "MSA with id = 1 not found in sync state table.",
+                error: "MSA not found"
             });
         }
 
