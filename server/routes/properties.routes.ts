@@ -6,6 +6,7 @@ import { insertPropertySchema, companyContacts, updatePropertySchema } from "@sh
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
+import { normalizeAddress } from "server/utils/normalizeAddress";
 import { fetchCounty } from "server/utils/fetchCounty";
 import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
 import { eq, sql, or, and, desc, asc, gt } from "drizzle-orm";
@@ -245,10 +246,7 @@ router.get("/", async (req, res) => {
 // Create a single property (requires admin auth)
 router.post("/", requireAdminAuth, async (req, res) => {
     try {
-        console.log(
-        "POST /api/properties - Raw request body:",
-        JSON.stringify(req.body, null, 2),
-        );
+        console.log("POST /api/properties - Raw request body:", JSON.stringify(req.body, null, 2));
 
         // Validate request body with Zod schema
         const validation = insertPropertySchema.safeParse(req.body);
@@ -265,10 +263,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
         }
 
         const propertyData = validation.data;
-        console.log(
-        "Validated property data:",
-        JSON.stringify(propertyData, null, 2),
-        );
+        console.log("Validated property data:", JSON.stringify(propertyData, null, 2));
         
         // Normalize text fields to Title Case
         // Convert empty strings to null for optional fields
@@ -282,7 +277,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
         
         let enriched: any = {
             ...propertyData,
-            address: normalizeToTitleCase(propertyData.address) || propertyData.address,
+            address: normalizeAddress(propertyData.address) || propertyData.address,
             city: normalizeToTitleCase(propertyData.city) || propertyData.city,
             state: propertyData.state?.toUpperCase().trim() || propertyData.state,
             // Convert empty description to null
@@ -953,6 +948,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Update a single property by ID (requires admin auth)
+// Only allows updating specific user-editable fields
 router.patch("/:id", requireAdminAuth, async (req, res) => {
     try {
         const { id } = req.params;
@@ -971,114 +967,178 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
         const updateData = validation.data;
 
         // Check if property exists
-        const existingProperty = await db
+        const [currentProperty] = await db
             .select()
             .from(properties)
             .where(eq(properties.id, id))
             .limit(1);
 
-        if (existingProperty.length === 0) {
+        if (!currentProperty) {
             return res.status(404).json({ 
                 message: "Property not found" 
             });
         }
 
-        // Build update object (only include fields that are being updated)
-        // Similar to companies route pattern
+        // Build update object
         const updateFields: any = {};
         
+        // Address (normalize with address normalization)
         if (updateData.address !== undefined) {
-            updateFields.address = normalizeToTitleCase(updateData.address) || updateData.address;
+            updateFields.address = normalizeAddress(updateData.address) || updateData.address;
         }
+        
+        // City (normalize to title case)
         if (updateData.city !== undefined) {
             updateFields.city = normalizeToTitleCase(updateData.city) || updateData.city;
         }
+        
+        // State (uppercase)
         if (updateData.state !== undefined) {
             updateFields.state = updateData.state.toUpperCase().trim();
         }
+        
+        // Zip Code
         if (updateData.zipCode !== undefined) {
             updateFields.zipCode = updateData.zipCode.trim();
         }
-        if (updateData.county !== undefined) {
-            updateFields.county = updateData.county.trim();
-        }
-        if (updateData.price !== undefined) {
-            updateFields.price = updateData.price;
-        }
-        if (updateData.bedrooms !== undefined) {
-            updateFields.bedrooms = updateData.bedrooms;
-        }
-        if (updateData.bathrooms !== undefined) {
-            updateFields.bathrooms = updateData.bathrooms;
-        }
-        if (updateData.squareFeet !== undefined) {
-            updateFields.squareFeet = updateData.squareFeet;
-        }
+        
+        // Property Type
         if (updateData.propertyType !== undefined) {
             updateFields.propertyType = updateData.propertyType;
         }
-        if (updateData.imageUrl !== undefined) {
-            // Convert empty string to null
-            updateFields.imageUrl = updateData.imageUrl && typeof updateData.imageUrl === 'string' && updateData.imageUrl.trim() !== ""
-                ? updateData.imageUrl.trim()
-                : null;
+        
+        // Price (also updates saleValue and purchasePrice)
+        if (updateData.price !== undefined) {
+            updateFields.price = updateData.price;
+            updateFields.saleValue = updateData.price;
+            updateFields.purchasePrice = updateData.price;
         }
-        if (updateData.latitude !== undefined) {
-            updateFields.latitude = updateData.latitude;
+        
+        // Bedrooms
+        if (updateData.bedrooms !== undefined) {
+            updateFields.bedrooms = updateData.bedrooms;
         }
-        if (updateData.longitude !== undefined) {
-            updateFields.longitude = updateData.longitude;
+        
+        // Bathrooms
+        if (updateData.bathrooms !== undefined) {
+            updateFields.bathrooms = updateData.bathrooms;
         }
-        if (updateData.description !== undefined) {
-            // Convert empty string to null
-            updateFields.description = updateData.description && typeof updateData.description === 'string' && updateData.description.trim() !== ""
-                ? updateData.description.trim()
-                : null;
-        }
-        if (updateData.yearBuilt !== undefined) {
-            updateFields.yearBuilt = updateData.yearBuilt;
-        }
-        if (updateData.purchasePrice !== undefined) {
-            updateFields.purchasePrice = updateData.purchasePrice;
-        }
+        
+        // Date Sold
         if (updateData.dateSold !== undefined) {
-            // Convert date object to ISO string (YYYY-MM-DD) for database (or null)
             updateFields.dateSold = updateData.dateSold 
                 ? updateData.dateSold.toISOString().split('T')[0]
                 : null;
         }
-
-        // Handle propertyOwner update - similar to companies route pattern
+        
+        // Square Feet
+        if (updateData.squareFeet !== undefined) {
+            updateFields.squareFeet = updateData.squareFeet;
+        }
+        
+        // Year Built
+        if (updateData.yearBuilt !== undefined) {
+            updateFields.yearBuilt = updateData.yearBuilt;
+        }
+        
+        // Property Owner (normalize company name)
         if (updateData.propertyOwner !== undefined) {
-            if (updateData.propertyOwner) {
-                // Normalize property owner for storage
-                const normalizedOwnerForStorage = normalizeCompanyNameForStorage(updateData.propertyOwner);
-                updateFields.propertyOwner = normalizedOwnerForStorage || updateData.propertyOwner;
-
-                // Look up company contact (using punctuation-insensitive comparison)
-                const normalizedOwnerForCompare = normalizeCompanyNameForComparison(updateFields.propertyOwner);
-                const allContacts = await db.select().from(companyContacts);
-                
-                const contact = allContacts.find(c => {
-                    const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
-                    return normalizedContact && normalizedContact === normalizedOwnerForCompare;
-                });
-
-                if (contact) {
-                    updateFields.companyContactName = contact.contactName;
-                    updateFields.companyContactEmail = contact.contactEmail;
-                    // Use the existing contact's name for consistency
-                    updateFields.propertyOwner = contact.companyName;
-                } else {
-                    // Clear contact info if owner changed to unknown company
-                    updateFields.companyContactName = null;
-                    updateFields.companyContactEmail = null;
-                }
+            if (updateData.propertyOwner && updateData.propertyOwner.trim() !== "") {
+                const normalizedOwner = normalizeCompanyNameForStorage(updateData.propertyOwner);
+                updateFields.propertyOwner = normalizedOwner || updateData.propertyOwner;
             } else {
-                // Clear owner and contact info if owner removed
                 updateFields.propertyOwner = null;
-                updateFields.companyContactName = null;
-                updateFields.companyContactEmail = null;
+            }
+        }
+        
+        // Company Contact Name
+        if (updateData.companyContactName !== undefined) {
+            updateFields.companyContactName = updateData.companyContactName && typeof updateData.companyContactName === 'string' && updateData.companyContactName.trim() !== ""
+                ? updateData.companyContactName.trim()
+                : null;
+        }
+        
+        // Company Contact Email
+        if (updateData.companyContactEmail !== undefined) {
+            updateFields.companyContactEmail = updateData.companyContactEmail && typeof updateData.companyContactEmail === 'string' && updateData.companyContactEmail.trim() !== ""
+                ? updateData.companyContactEmail.trim()
+                : null;
+        }
+        
+        // Description
+        if (updateData.description !== undefined) {
+            updateFields.description = updateData.description && typeof updateData.description === 'string' && updateData.description.trim() !== ""
+                ? updateData.description.trim()
+                : null;
+        }
+
+        // Check if zip code changed - if so, get county and MSA
+        const zipCodeChanged = updateData.zipCode !== undefined && 
+                               updateData.zipCode.trim() !== currentProperty.zipCode;
+        
+        if (zipCodeChanged) {
+            const newZipCode = updateFields.zipCode || updateData.zipCode;
+            
+            // Get MSA from zip code
+            const msa = getMSAFromZipCode(newZipCode);
+            if (msa) {
+                updateFields.msa = msa;
+                console.log(`MSA determined from zip code ${newZipCode}: ${msa}`);
+            } else {
+                updateFields.msa = null;
+                console.log(`Could not determine MSA for zip code: ${newZipCode}`);
+            }
+            
+            // Get county from coordinates (if we have them) or we'll get it after geocoding
+            // We'll handle county fetching after geocoding if needed
+        }
+
+        // Check if address fields changed - if so, geocode
+        const addressChanged = updateData.address !== undefined || 
+                               updateData.city !== undefined || 
+                               updateData.state !== undefined || 
+                               updateData.zipCode !== undefined;
+        
+        if (addressChanged) {
+            // Use updated values if provided, otherwise use existing values
+            const addressToGeocode = updateFields.address || currentProperty.address;
+            const cityToGeocode = updateFields.city || currentProperty.city;
+            const stateToGeocode = updateFields.state || currentProperty.state;
+            const zipCodeToGeocode = updateFields.zipCode || currentProperty.zipCode;
+
+            console.log(`Geocoding address: ${addressToGeocode}, ${cityToGeocode}, ${stateToGeocode} ${zipCodeToGeocode}`);
+            const coords = await geocodeAddress(
+                addressToGeocode,
+                cityToGeocode,
+                stateToGeocode,
+                zipCodeToGeocode,
+            );
+            
+            if (coords) {
+                updateFields.latitude = coords.lat;
+                updateFields.longitude = coords.lng;
+                console.log(`Geocoded to: (${coords.lat}, ${coords.lng})`);
+            } else {
+                console.warn(`Geocoding unavailable for: ${addressToGeocode}. Coordinates will remain unchanged.`);
+            }
+        }
+
+        // Get county from coordinates if we have coordinates (from geocoding above)
+        const finalLatitude = updateFields.latitude !== undefined ? updateFields.latitude : currentProperty.latitude;
+        const finalLongitude = updateFields.longitude !== undefined ? updateFields.longitude : currentProperty.longitude;
+        
+        if (addressChanged && finalLatitude && finalLongitude) {
+            console.log(`Fetching county for coordinates: (${finalLongitude}, ${finalLatitude})`);
+            const county = await fetchCounty(finalLongitude, finalLatitude);
+            if (county) {
+                updateFields.county = county;
+                console.log(`County found: ${county}`);
+            } else {
+                // County not found - use "UNKNOWN" if current is also unknown
+                if (!currentProperty.county || currentProperty.county === "UNKNOWN") {
+                    updateFields.county = "UNKNOWN";
+                    console.warn(`County not found for coordinates, using "UNKNOWN"`);
+                }
             }
         }
 

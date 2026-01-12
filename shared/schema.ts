@@ -204,7 +204,7 @@ export const updatePropertySchema = z.object({
   city: z.string().min(1, "City is required").optional(),
   state: z.string().min(1, "State is required").optional(),
   zipCode: z.string().min(1, "Zip code is required").optional(),
-  county: z.string().min(1, "County is required").optional(),
+  propertyType: z.string().min(1, "Property type is required").optional(),
   price: z.coerce.number().min(0, "Price must be positive").optional(),
   bedrooms: z.coerce
     .number()
@@ -215,16 +215,12 @@ export const updatePropertySchema = z.object({
     .number()
     .min(0, "Bathrooms must be 0 or more")
     .optional(),
+  dateSold: z.coerce.date().nullable().optional(),
   squareFeet: z.coerce
     .number()
     .int()
     .min(0, "Square feet must be positive")
     .optional(),
-  propertyType: z.string().min(1, "Property type is required").optional(),
-  imageUrl: z.string().nullable().optional(),
-  latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
-  longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
-  description: z.string().nullable().optional(),
   yearBuilt: z.coerce
     .number()
     .int()
@@ -233,8 +229,9 @@ export const updatePropertySchema = z.object({
     .nullable()
     .optional(),
   propertyOwner: z.string().nullable().optional(),
-  purchasePrice: z.coerce.number().min(0).nullable().optional(),
-  dateSold: z.coerce.date().nullable().optional(),
+  companyContactName: z.string().nullable().optional(),
+  companyContactEmail: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
 }).strict();
 
 export const updateCompanyContactSchema = z.object({
