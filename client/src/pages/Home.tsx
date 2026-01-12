@@ -289,8 +289,6 @@ export default function Home() {
     enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Only fetch when NOT in map or buyers-feed view
   });
 
-  const totalFilteredProperties = propertiesResponse?.total ?? 0;
-
   // Reset pagination when filters, sortBy, or view mode changes
   useEffect(() => {
     if (viewMode !== "map" && viewMode !== "buyers-feed") {
@@ -441,6 +439,13 @@ export default function Home() {
     },
     enabled: viewMode === "buyers-feed",
   });
+
+  // Use buyers feed total when in buyers-feed view, otherwise use regular properties total
+  const totalFilteredProperties = useMemo(() => {
+    return viewMode === "buyers-feed" 
+      ? (buyersFeedResponse?.total ?? 0)
+      : (propertiesResponse?.total ?? 0);
+  }, [viewMode, buyersFeedResponse?.total, propertiesResponse?.total]);
 
   // Reset pagination when filters, sortBy, or view mode changes for buyers feed
   useEffect(() => {
@@ -1116,9 +1121,9 @@ export default function Home() {
                   }}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
-                  propertiesHasMore={propertiesHasMore}
-                  isLoadingMoreProperties={isLoadingMoreProperties}
-                  loadMoreRef={loadMorePropertiesRef}
+                  propertiesHasMore={buyersFeedHasMore}
+                  isLoadingMoreProperties={isLoadingMoreBuyersFeed}
+                  loadMoreRef={loadMoreBuyersFeedRef}
                 />
               </>
             ) : (
