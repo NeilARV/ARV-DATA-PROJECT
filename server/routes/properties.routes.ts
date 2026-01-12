@@ -639,25 +639,41 @@ router.get("/map", async (req, res) => {
         const whereClause = conditions.length > 0 ? conditions[0] : undefined;
 
         // Select only minimal fields needed for map pins and filtering
-        const query = db.select({
-            id: properties.id,
-            latitude: properties.latitude,
-            longitude: properties.longitude,
-            address: properties.address,
-            city: properties.city,
-            zipcode: properties.zipCode,
-            county: properties.county,
-            propertyType: properties.propertyType,
-            bedrooms: properties.bedrooms,
-            bathrooms: properties.bathrooms,
-            price: properties.price,
-            status: properties.status,
-            propertyOwner: properties.propertyOwner
-        }).from(properties);
+        // Use LEFT JOIN to get company name from company_contacts table
+        let query = db
+            .select({
+                id: properties.id,
+                latitude: properties.latitude,
+                longitude: properties.longitude,
+                address: properties.address,
+                city: properties.city,
+                zipcode: properties.zipCode,
+                county: properties.county,
+                propertyType: properties.propertyType,
+                bedrooms: properties.bedrooms,
+                bathrooms: properties.bathrooms,
+                price: properties.price,
+                status: properties.status,
+                // Company name from joined table
+                companyName: companyContacts.companyName,
+            })
+            .from(properties)
+            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id));
 
-        const results = whereClause 
-            ? await query.where(whereClause).execute()
-            : await query.execute();
+        if (whereClause) {
+            query = query.where(whereClause) as any;
+        }
+
+        const rawResults = await query.execute();
+
+        // Map results to use companyName as propertyOwner for backward compatibility
+        const results = rawResults.map((prop: any) => {
+            const { companyName, ...rest } = prop;
+            return {
+                ...rest,
+                propertyOwner: companyName || null,
+            };
+        });
 
         console.log("Properties map pins:", results.length);
 
