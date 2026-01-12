@@ -48,9 +48,10 @@ export const properties = pgTable("properties", {
   yearBuilt: integer("year_built"),
 
   // Ownership / company
-  propertyOwner: text("property_owner"),
-  companyContactName: text("company_contact_name"),
-  companyContactEmail: text("company_contact_email"),
+  propertyOwnerId: varchar("property_owner_id").references(() => companyContacts.id),
+  propertyOwner: text("property_owner"), // Kept for transition period
+  companyContactName: text("company_contact_name"), // Kept for transition period
+  companyContactEmail: text("company_contact_email"), // Kept for transition period
 
   // Purchase / sale
   purchasePrice: real("purchase_price"),
