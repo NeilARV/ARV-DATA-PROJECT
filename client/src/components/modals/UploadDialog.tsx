@@ -84,6 +84,7 @@ export default function UploadDialog({
     description: insertPropertySchema.shape.description.optional(),
     yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
     propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
+    propertyOwnerId: insertPropertySchema.shape.propertyOwnerId.optional().nullable(),
     companyContactName:
       insertPropertySchema.shape.companyContactName.optional(),
     companyContactEmail:
@@ -108,6 +109,7 @@ export default function UploadDialog({
       description: "",
       yearBuilt: undefined,
       propertyOwner: "",
+      propertyOwnerId: null,
       companyContactName: "",
       companyContactEmail: "",
       purchasePrice: undefined,
@@ -199,6 +201,7 @@ export default function UploadDialog({
     contactEmail: string | null;
   }) => {
     form.setValue("propertyOwner", company.companyName);
+    form.setValue("propertyOwnerId", company.id);
     form.setValue("companyContactName", company.contactName || "");
     form.setValue("companyContactEmail", company.contactEmail || "");
     setCompanySearchQuery(""); // Clear search input
