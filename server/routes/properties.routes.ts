@@ -47,11 +47,12 @@ router.get("/", async (req, res) => {
         const conditions = []
 
         // Company/Property Owner filter (support both 'company' and 'propertyOwner' query params)
+        // Now filters by company_contacts.company_name via the join
         const ownerFilter = company || propertyOwner;
         if (ownerFilter) {
             const normalizedCompany = ownerFilter.toString().trim().toLowerCase()
             conditions.push(
-                sql`LOWER(TRIM(${properties.propertyOwner})) = ${normalizedCompany}`
+                sql`LOWER(TRIM(${companyContacts.companyName})) = ${normalizedCompany}`
             )
         }
 
@@ -183,7 +184,66 @@ router.get("/", async (req, res) => {
         const total = Number(totalResult?.count || 0);
 
         // Get paginated results (fetch one extra to check if there are more pages)
-        let query = db.select().from(properties);
+        // Use LEFT JOIN to get company info from company_contacts table
+        let query = db
+            .select({
+                // All property fields
+                id: properties.id,
+                address: properties.address,
+                city: properties.city,
+                state: properties.state,
+                zipCode: properties.zipCode,
+                county: properties.county,
+                price: properties.price,
+                bedrooms: properties.bedrooms,
+                bathrooms: properties.bathrooms,
+                squareFeet: properties.squareFeet,
+                propertyType: properties.propertyType,
+                imageUrl: properties.imageUrl,
+                latitude: properties.latitude,
+                longitude: properties.longitude,
+                description: properties.description,
+                yearBuilt: properties.yearBuilt,
+                propertyOwnerId: properties.propertyOwnerId,
+                // Legacy fields (kept for transition)
+                //propertyOwner: properties.propertyOwner,
+                //companyContactName: properties.companyContactName,
+                //companyContactEmail: properties.companyContactEmail,
+                purchasePrice: properties.purchasePrice,
+                dateSold: properties.dateSold,
+                status: properties.status,
+                buyerName: properties.buyerName,
+                buyerFormattedName: properties.buyerFormattedName,
+                phone: properties.phone,
+                isCorporate: properties.isCorporate,
+                isCashBuyer: properties.isCashBuyer,
+                isDiscountedPurchase: properties.isDiscountedPurchase,
+                isPrivateLender: properties.isPrivateLender,
+                buyerPropertiesCount: properties.buyerPropertiesCount,
+                buyerTransactionsCount: properties.buyerTransactionsCount,
+                sellerName: properties.sellerName,
+                lenderName: properties.lenderName,
+                exitValue: properties.exitValue,
+                exitBuyerName: properties.exitBuyerName,
+                profitLoss: properties.profitLoss,
+                holdDays: properties.holdDays,
+                saleValue: properties.saleValue,
+                avmValue: properties.avmValue,
+                loanAmount: properties.loanAmount,
+                sfrPropertyId: properties.sfrPropertyId,
+                sfrRecordId: properties.sfrRecordId,
+                msa: properties.msa,
+                recordingDate: properties.recordingDate,
+                createdAt: properties.createdAt,
+                updatedAt: properties.updatedAt,
+                // Company info from joined table
+                companyName: companyContacts.companyName,
+                contactName: companyContacts.contactName,
+                contactEmail: companyContacts.contactEmail,
+            })
+            .from(properties)
+            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id));
+        
         if (whereClause) {
             query = query.where(whereClause) as any;
         }
@@ -225,7 +285,19 @@ router.get("/", async (req, res) => {
         const results = await query.limit(limitNum + 1).offset(offset).execute();
 
         const hasMore = results.length > limitNum;
-        const propertiesList = results.slice(0, limitNum);
+        const rawPropertiesList = results.slice(0, limitNum);
+
+        // Map results to use company info from joined table, fallback to legacy fields
+        const propertiesList = rawPropertiesList.map((prop: any) => {
+            // Use company info from joined table if available, otherwise use legacy fields
+            const { companyName, contactName, contactEmail, ...rest } = prop;
+            return {
+                ...rest,
+                propertyOwner: companyName || prop.propertyOwner || null,
+                companyContactName: contactName || prop.companyContactName || null,
+                companyContactEmail: contactEmail || prop.companyContactEmail || null,
+            };
+        });
 
         console.log(`Properties: ${propertiesList.length} returned, ${total} total, hasMore: ${hasMore}, page: ${pageNum}`)
         
