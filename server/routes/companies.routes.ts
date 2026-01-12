@@ -66,7 +66,6 @@ router.get("/contacts", async (req, res) => {
 });
 
 // Get leaderboard stats (top 10 companies and top 10 zip codes for specified county)
-// IMPORTANT: This route must come BEFORE /:id route to avoid route matching conflicts
 router.get("/leaderboard", async (req, res) => {
     try {
         // Get county from query parameter, default to "San Diego" if not provided
