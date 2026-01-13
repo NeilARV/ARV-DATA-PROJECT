@@ -39,6 +39,7 @@ export default function Home() {
     statusFilters: ['in-renovation'],
   });
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number>(12);
@@ -230,8 +231,10 @@ export default function Home() {
       });
     }
     
-    // Company/Property Owner filter
-    if (selectedCompany) {
+    // Company/Property Owner filter - use ID if available, otherwise fallback to name
+    if (selectedCompanyId) {
+      params.append('propertyOwnerId', selectedCompanyId);
+    } else if (selectedCompany) {
       params.append('company', selectedCompany);
     }
     
@@ -401,8 +404,10 @@ export default function Home() {
       });
     }
     
-    // Company/Property Owner filter
-    if (selectedCompany) {
+    // Company/Property Owner filter - use ID if available, otherwise fallback to name
+    if (selectedCompanyId) {
+      params.append('propertyOwnerId', selectedCompanyId);
+    } else if (selectedCompany) {
       params.append('company', selectedCompany);
     }
     
@@ -728,10 +733,19 @@ export default function Home() {
 
   // Filter full properties for grid/table views
   const filteredProperties = propertiesToFilter.filter(property => {
-    // Apply company filter first if one is selected (case-insensitive comparison with null safety)
-    if (selectedCompany) {
-      
-      const ownerName = (property.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+    // Apply company filter first if one is selected
+    // If we have selectedCompanyId, filter by ID (most reliable)
+    // Otherwise fallback to name matching for backward compatibility
+    if (selectedCompanyId) {
+      // Filter by ID - API already filtered server-side, but double-check for safety
+      const propertyWithCompany = property as Property & { propertyOwnerId?: string | null };
+      if (propertyWithCompany.propertyOwnerId !== selectedCompanyId) {
+        return false;
+      }
+    } else if (selectedCompany) {
+      // Fallback to name matching (for backward compatibility)
+      const propertyWithCompany = property as Property & { propertyOwner?: string | null };
+      const ownerName = (propertyWithCompany.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
       const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
       
       if (ownerName !== selectedName) {
@@ -823,13 +837,15 @@ export default function Home() {
   // Helper function to clear company selection
   const clearCompanySelection = () => {
     setSelectedCompany(null);
+    setSelectedCompanyId(null);
     setSelectedCompanyPropertyCount(0);
   };
 
-  const handleCompanySelect = async (companyName: string | null) => {
+  const handleCompanySelect = async (companyName: string | null, companyId?: string | null) => {
     if (companyName) {
       // Selecting a company: preserve all existing filters and map position
       setSelectedCompany(companyName);
+      setSelectedCompanyId(companyId || null);
       
       // Fetch the company's total property count from the API
       await fetchCompanyPropertyCount(companyName);
@@ -841,9 +857,10 @@ export default function Home() {
     }
   };
 
-  const handleLeaderboardCompanyClick = async (companyName: string) => {
+  const handleLeaderboardCompanyClick = async (companyName: string, companyId?: string) => {
     // Preserve all existing filters when selecting a company from leaderboard
     setSelectedCompany(companyName);
+    setSelectedCompanyId(companyId || null);
     setSidebarView("none");
     
     // Fetch the company's total property count
@@ -851,9 +868,10 @@ export default function Home() {
     // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
-  const handleCompanyNameClick = async (companyName: string) => {
+  const handleCompanyNameClick = async (companyName: string, companyId?: string) => {
     // Open the directory and select the company
     setSelectedCompany(companyName);
+    setSelectedCompanyId(companyId || null);
     setSidebarView("directory");
     
     // Fetch the company's total property count

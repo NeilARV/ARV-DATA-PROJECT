@@ -33,6 +33,7 @@ router.get("/", async (req, res) => {
             status, 
             company, 
             propertyOwner, 
+            propertyOwnerId,
             hasDateSold,
             page,
             limit,
@@ -46,14 +47,27 @@ router.get("/", async (req, res) => {
 
         const conditions = []
 
-        // Company/Property Owner filter (support both 'company' and 'propertyOwner' query params)
-        // Now filters by company_contacts.company_name via the join
-        const ownerFilter = company || propertyOwner;
-        if (ownerFilter) {
-            const normalizedCompany = ownerFilter.toString().trim().toLowerCase()
+        // Company/Property Owner filter
+        // Priority: propertyOwnerId > company/propertyOwner (for backward compatibility)
+        if (propertyOwnerId && typeof propertyOwnerId === 'string' && propertyOwnerId.trim() !== '') {
+            // Direct ID filter - most efficient and reliable
             conditions.push(
-                sql`LOWER(TRIM(${companyContacts.companyName})) = ${normalizedCompany}`
-            )
+                eq(properties.propertyOwnerId, propertyOwnerId.trim())
+            );
+        } else {
+            // Fallback to name-based filter (for backward compatibility)
+            const ownerFilter = company || propertyOwner;
+            if (ownerFilter) {
+                // Normalize the search term the same way company names are stored
+                const normalizedSearchTerm = normalizeCompanyNameForComparison(ownerFilter.toString());
+                if (normalizedSearchTerm) {
+                    // Compare normalized versions: remove punctuation and normalize spaces
+                    // We need to normalize the database value in SQL for comparison
+                    conditions.push(
+                        sql`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${companyContacts.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}`
+                    )
+                }
+            }
         }
 
         // Status filter (can be single value or array)
@@ -176,7 +190,14 @@ router.get("/", async (req, res) => {
         const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
         // Get total count (for pagination metadata)
+        // Must include LEFT JOIN if company name filter is used (since WHERE clause references companyContacts)
+        // propertyOwnerId filter doesn't need JOIN since it filters directly on properties.propertyOwnerId
         let countQuery = db.select({ count: sql<number>`count(*)` }).from(properties);
+        const ownerFilter = company || propertyOwner;
+        if (ownerFilter && !propertyOwnerId) {
+            // If company name filter is used (and not ID filter), we need the JOIN for the WHERE clause to work
+            countQuery = countQuery.leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id)) as any;
+        }
         if (whereClause) {
             countQuery = countQuery.where(whereClause) as any;
         }
@@ -205,10 +226,6 @@ router.get("/", async (req, res) => {
                 description: properties.description,
                 yearBuilt: properties.yearBuilt,
                 propertyOwnerId: properties.propertyOwnerId,
-                // Legacy fields (kept for transition)
-                //propertyOwner: properties.propertyOwner,
-                //companyContactName: properties.companyContactName,
-                //companyContactEmail: properties.companyContactEmail,
                 purchasePrice: properties.purchasePrice,
                 dateSold: properties.dateSold,
                 status: properties.status,

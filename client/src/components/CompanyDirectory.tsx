@@ -70,8 +70,8 @@ type ContactRequestForm = z.infer<typeof contactRequestSchema>;
 interface CompanyDirectoryProps {
   onClose?: () => void;
   onSwitchToFilters?: () => void;
-  // Accept null to indicate clearing the selection
-  onCompanySelect?: (companyName: string | null) => void;
+  // Accept null to indicate clearing the selection, and optional companyId
+  onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
   // Controlled selected company so expanded state can be synced across views
   selectedCompany?: string | null;
   // Optional: allow syncing status filters with parent filters
@@ -234,12 +234,12 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     return rankings;
   }, [companiesWithCounts]);
 
-  const handleCompanyClick = (companyName: string) => {
+  const handleCompanyClick = (company: CompanyContactWithCounts) => {
     // Toggle expanded state and notify parent with the new state (null when collapsing)
     setExpandedCompany(prev => {
-      const next = prev === companyName ? null : companyName;
+      const next = prev === company.companyName ? null : company.companyName;
       if (onCompanySelect) {
-        onCompanySelect(next);
+        onCompanySelect(next, next ? company.id : null);
       }
       return next;
     });
@@ -375,7 +375,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
               <div key={company.id} ref={(el) => (itemRefs.current[company.companyName] = el)}>
                 <Card
                   className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isExpanded ? 'ring-2 ring-primary' : ''}`}
-                  onClick={() => handleCompanyClick(company.companyName)}
+                  onClick={() => handleCompanyClick(company)}
                   data-testid={`card-company-${company.id}`}
                 >
                   <div className="space-y-2">
