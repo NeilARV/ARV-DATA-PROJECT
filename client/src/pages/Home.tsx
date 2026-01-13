@@ -327,16 +327,36 @@ export default function Home() {
     if (!propertiesHasMore || isLoadingMoreProperties || isFetching) return;
     if (!loadMorePropertiesRef.current) return;
 
+    // Find the scrollable container
+    const scrollableContainer = loadMorePropertiesRef.current.closest('.overflow-y-auto') as HTMLElement | null;
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && propertiesHasMore && !isLoadingMoreProperties && !isFetching) {
-          setIsLoadingMoreProperties(true);
-          setPropertiesPage((prev) => prev + 1);
+        const entry = entries[0];
+        if (entry.isIntersecting && propertiesHasMore && !isLoadingMoreProperties && !isFetching) {
+          // For table view: only block if at the very top (scrollTop === 0) AND content fits
+          // This prevents infinite loading when table is short, but allows loading when scrolled
+          let shouldBlock = false;
+          if (viewMode === "table" && scrollableContainer) {
+            const scrollTop = scrollableContainer.scrollTop;
+            const scrollHeight = scrollableContainer.scrollHeight;
+            const clientHeight = scrollableContainer.clientHeight;
+            
+            // Only block if: exactly at top (0) AND content fits in viewport
+            // If user has scrolled (scrollTop > 0), always allow loading
+            shouldBlock = scrollTop === 0 && scrollHeight <= clientHeight;
+          }
+
+          if (!shouldBlock) {
+            setIsLoadingMoreProperties(true);
+            setPropertiesPage((prev) => prev + 1);
+          }
         }
       },
       { 
         threshold: 0.1,
-        rootMargin: '100px' // Start loading 100px before reaching the element
+        rootMargin: '100px', // Start loading 100px before reaching the element
+        root: scrollableContainer || null // Use scrollable container as root
       }
     );
 
