@@ -85,7 +85,7 @@ export default function TableView({
           </div>
         </div>
       ) : (
-        <>
+        <div>
           <PropertyTable
             properties={properties}
             onPropertyClick={onPropertyClick}
@@ -98,7 +98,7 @@ export default function TableView({
               )}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
