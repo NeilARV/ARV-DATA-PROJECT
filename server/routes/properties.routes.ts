@@ -451,6 +451,9 @@ router.post("/", requireAdminAuth, async (req, res) => {
         }
 
         // Handle company contact lookup/creation/update
+        // Get property's county for county tracking (skip if "UNKNOWN")
+        const propertyCounty = enriched.county && enriched.county !== "UNKNOWN" ? enriched.county : null;
+        
         // Check if propertyOwnerId was provided directly (from frontend when selecting from search)
         let companyContactId: string | null = null;
         
@@ -475,19 +478,49 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     propertyData.companyContactEmail && 
                     contactById.contactEmail !== propertyData.companyContactEmail.trim();
                 
-                if (contactNameChanged || contactEmailChanged) {
-                    const updateFields: any = {
-                        updatedAt: new Date(),
-                    };
-                    
-                    if (contactNameChanged && propertyData.companyContactName) {
-                        updateFields.contactName = propertyData.companyContactName.trim();
+                // Update counties if we have a valid county
+                let updateFields: any = {
+                    updatedAt: new Date(),
+                };
+                
+                if (propertyCounty) {
+                    try {
+                        // Parse existing counties JSON
+                        let countiesArray: string[] = [];
+                        if (contactById.counties) {
+                            try {
+                                countiesArray = JSON.parse(contactById.counties);
+                            } catch (parseError) {
+                                console.warn(`Failed to parse counties JSON for ${contactById.companyName}, starting fresh`);
+                                countiesArray = [];
+                            }
+                        }
+                        
+                        // Check if county is already in the array (case-insensitive)
+                        const countyLower = propertyCounty.toLowerCase();
+                        const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                        
+                        if (!countyExists) {
+                            // Add the new county to the array
+                            countiesArray.push(propertyCounty);
+                            updateFields.counties = JSON.stringify(countiesArray);
+                            console.log(`Adding new county ${propertyCounty} to company contact ${contactById.companyName}`);
+                        }
+                    } catch (updateError: any) {
+                        console.error(`Error updating counties for company contact ${contactById.companyName}:`, updateError);
                     }
-                    
-                    if (contactEmailChanged && propertyData.companyContactEmail) {
-                        updateFields.contactEmail = propertyData.companyContactEmail.trim();
-                    }
-                    
+                }
+                
+                if (contactNameChanged && propertyData.companyContactName) {
+                    updateFields.contactName = propertyData.companyContactName.trim();
+                }
+                
+                if (contactEmailChanged && propertyData.companyContactEmail) {
+                    updateFields.contactEmail = propertyData.companyContactEmail.trim();
+                }
+                
+                // Only update if there are fields to update
+                if (updateFields.counties || contactNameChanged || contactEmailChanged) {
                     await db
                         .update(companyContacts)
                         .set(updateFields)
@@ -529,20 +562,49 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     propertyData.companyContactEmail && 
                     existingContact.contactEmail !== propertyData.companyContactEmail.trim();
                 
-                if (contactNameChanged || contactEmailChanged) {
-                    // Update company contact with new info (only update fields that were provided and changed)
-                    const updateFields: any = {
-                        updatedAt: new Date(),
-                    };
-                    
-                    if (contactNameChanged && propertyData.companyContactName) {
-                        updateFields.contactName = propertyData.companyContactName.trim();
+                // Update counties if we have a valid county
+                let updateFields: any = {
+                    updatedAt: new Date(),
+                };
+                
+                if (propertyCounty) {
+                    try {
+                        // Parse existing counties JSON
+                        let countiesArray: string[] = [];
+                        if (existingContact.counties) {
+                            try {
+                                countiesArray = JSON.parse(existingContact.counties);
+                            } catch (parseError) {
+                                console.warn(`Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
+                                countiesArray = [];
+                            }
+                        }
+                        
+                        // Check if county is already in the array (case-insensitive)
+                        const countyLower = propertyCounty.toLowerCase();
+                        const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                        
+                        if (!countyExists) {
+                            // Add the new county to the array
+                            countiesArray.push(propertyCounty);
+                            updateFields.counties = JSON.stringify(countiesArray);
+                            console.log(`Adding new county ${propertyCounty} to company contact ${existingContact.companyName}`);
+                        }
+                    } catch (updateError: any) {
+                        console.error(`Error updating counties for company contact ${existingContact.companyName}:`, updateError);
                     }
-                    
-                    if (contactEmailChanged && propertyData.companyContactEmail) {
-                        updateFields.contactEmail = propertyData.companyContactEmail.trim();
-                    }
-                    
+                }
+                
+                if (contactNameChanged && propertyData.companyContactName) {
+                    updateFields.contactName = propertyData.companyContactName.trim();
+                }
+                
+                if (contactEmailChanged && propertyData.companyContactEmail) {
+                    updateFields.contactEmail = propertyData.companyContactEmail.trim();
+                }
+                
+                // Only update if there are fields to update
+                if (updateFields.counties || contactNameChanged || contactEmailChanged) {
                     await db
                         .update(companyContacts)
                         .set(updateFields)
@@ -554,6 +616,10 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 console.log(`Using existing company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
             } else {
                 // Company doesn't exist - create new company contact
+                // Initialize counties array with the property's county if available
+                const countiesArray = propertyCounty ? [propertyCounty] : [];
+                const countiesJson = JSON.stringify(countiesArray);
+                
                 const newContactData: any = {
                     companyName: normalizedOwnerForStorage || propertyData.propertyOwner,
                     contactName: formProvidedContactName && propertyData.companyContactName 
@@ -562,7 +628,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     contactEmail: formProvidedContactEmail && propertyData.companyContactEmail 
                         ? propertyData.companyContactEmail.trim() 
                         : null,
-                    counties: "[]", // Empty counties array for new contact
+                    counties: countiesJson,
                 };
                 
                 const [newContact] = await db
@@ -571,7 +637,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     .returning();
                 
                 companyContactId = newContact.id;
-                console.log(`Created new company contact: ${newContact.companyName} (ID: ${newContact.id})`);
+                console.log(`Created new company contact: ${newContact.companyName} (ID: ${newContact.id}) with county: ${propertyCounty || 'none'}`);
             }
         }
         
@@ -1463,6 +1529,73 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                     updateFields.county = "UNKNOWN";
                     console.warn(`County not found for coordinates, using "UNKNOWN"`);
                 }
+            }
+        }
+        
+        // Update company contact counties array if we have a company contact and a valid county
+        // Get the final county value (either from updateFields if address changed, or currentProperty if not)
+        // Also check if we have coordinates even if address didn't change (for new companies)
+        let finalCounty: string | null = null;
+        if (updateFields.county !== undefined) {
+            finalCounty = updateFields.county;
+        } else if (currentProperty.county) {
+            finalCounty = currentProperty.county;
+        } else if (finalLatitude && finalLongitude) {
+            // If we have coordinates but no county yet, fetch it
+            console.log(`Fetching county for coordinates: (${finalLongitude}, ${finalLatitude})`);
+            const county = await fetchCounty(finalLongitude, finalLatitude);
+            if (county) {
+                finalCounty = county;
+                updateFields.county = county;
+                console.log(`County found: ${county}`);
+            }
+        }
+        
+        const propertyCounty = finalCounty && finalCounty !== "UNKNOWN" ? finalCounty : null;
+        
+        if (companyContactId && propertyCounty) {
+            try {
+                const [contact] = await db
+                    .select()
+                    .from(companyContacts)
+                    .where(eq(companyContacts.id, companyContactId))
+                    .limit(1);
+                
+                if (contact) {
+                    // Parse existing counties JSON
+                    let countiesArray: string[] = [];
+                    if (contact.counties) {
+                        try {
+                            countiesArray = JSON.parse(contact.counties);
+                        } catch (parseError) {
+                            console.warn(`Failed to parse counties JSON for ${contact.companyName}, starting fresh`);
+                            countiesArray = [];
+                        }
+                    }
+                    
+                    // Check if county is already in the array (case-insensitive)
+                    const countyLower = propertyCounty.toLowerCase();
+                    const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                    
+                    if (!countyExists) {
+                        // Add the new county to the array
+                        countiesArray.push(propertyCounty);
+                        const updatedCountiesJson = JSON.stringify(countiesArray);
+                        
+                        // Update the contact in the database
+                        await db
+                            .update(companyContacts)
+                            .set({ 
+                                counties: updatedCountiesJson,
+                                updatedAt: new Date()
+                            })
+                            .where(eq(companyContacts.id, companyContactId));
+                        
+                        console.log(`Updated company contact ${contact.companyName} with new county: ${propertyCounty}`);
+                    }
+                }
+            } catch (updateError: any) {
+                console.error(`Error updating counties for company contact:`, updateError);
             }
         }
 
