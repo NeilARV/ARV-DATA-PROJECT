@@ -21,9 +21,10 @@ import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES,
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
+type ViewType = "map" | "grid" | "table" | "buyers-feed"
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<"map" | "grid" | "table" | "buyers-feed">("map");
+  const [viewMode, setViewMode] = useState<ViewType>("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
