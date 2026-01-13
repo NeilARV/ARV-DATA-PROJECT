@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -55,6 +56,19 @@ export default function UploadDialog({
   const [uploadStatus, setUploadStatus] = useState<string>("");
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Company suggestions state
+  const [companySearchQuery, setCompanySearchQuery] = useState("");
+  const [companySuggestions, setCompanySuggestions] = useState<Array<{
+    id: string;
+    companyName: string;
+    contactName: string | null;
+    contactEmail: string | null;
+  }>>([]);
+  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const companySearchInputRef = useRef<HTMLInputElement>(null);
+  const companySuggestionsRef = useRef<HTMLDivElement>(null);
 
   // Form for manual entry - Derived from insertPropertySchema with numeric fields accepting undefined during editing
   const manualEntrySchema = insertPropertySchema.extend({
@@ -70,6 +84,7 @@ export default function UploadDialog({
     description: insertPropertySchema.shape.description.optional(),
     yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
     propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
+    propertyOwnerId: insertPropertySchema.shape.propertyOwnerId.optional().nullable(),
     companyContactName:
       insertPropertySchema.shape.companyContactName.optional(),
     companyContactEmail:
@@ -94,12 +109,105 @@ export default function UploadDialog({
       description: "",
       yearBuilt: undefined,
       propertyOwner: "",
+      propertyOwnerId: null,
       companyContactName: "",
       companyContactEmail: "",
       purchasePrice: undefined,
       dateSold: "",
     },
   });
+
+  // Fetch company suggestions with debounce
+  const fetchCompanySuggestions = useCallback(async (searchTerm: string) => {
+    if (searchTerm.trim().length < 2) {
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
+      return;
+    }
+
+    setIsLoadingSuggestions(true);
+    try {
+      const response = await fetch(
+        `/api/companies/contacts/suggestions?search=${encodeURIComponent(searchTerm)}`,
+        { credentials: "include" }
+      );
+      if (response.ok) {
+        const suggestions = await response.json();
+        setCompanySuggestions(suggestions);
+        setShowCompanySuggestions(suggestions.length > 0);
+      } else {
+        setCompanySuggestions([]);
+        setShowCompanySuggestions(false);
+      }
+    } catch (error) {
+      console.error("Error fetching company suggestions:", error);
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  }, []);
+
+  // Debounce ref for suggestions
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Watch company search query and fetch suggestions with debounce
+  useEffect(() => {
+    // Clear existing timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    if (companySearchQuery && companySearchQuery.trim().length >= 2) {
+      // Set new timeout for debounced fetch
+      debounceTimeoutRef.current = setTimeout(() => {
+        fetchCompanySuggestions(companySearchQuery);
+      }, 300);
+    } else {
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
+    }
+
+    // Cleanup timeout on unmount or value change
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [companySearchQuery, fetchCompanySuggestions]);
+
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        companySuggestionsRef.current &&
+        !companySuggestionsRef.current.contains(event.target as Node) &&
+        companySearchInputRef.current &&
+        !companySearchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowCompanySuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Handle company suggestion selection
+  const handleSelectCompany = (company: {
+    id: string;
+    companyName: string;
+    contactName: string | null;
+    contactEmail: string | null;
+  }) => {
+    form.setValue("propertyOwner", company.companyName);
+    form.setValue("propertyOwnerId", company.id);
+    form.setValue("companyContactName", company.contactName || "");
+    form.setValue("companyContactEmail", company.contactEmail || "");
+    setCompanySearchQuery(""); // Clear search input
+    setShowCompanySuggestions(false);
+    setCompanySuggestions([]);
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -669,6 +777,9 @@ export default function UploadDialog({
     setParsedData(null);
     setError(null);
     setDragActive(false);
+    setCompanySearchQuery("");
+    setCompanySuggestions([]);
+    setShowCompanySuggestions(false);
     form.reset();
     onClose();
   };
@@ -1094,6 +1205,62 @@ export default function UploadDialog({
                     )}
                   />
 
+                  {/* Search Companies Field */}
+                  <div className="col-span-2 space-y-2">
+                    <Label>Search Companies</Label>
+                    <div className="relative">
+                      <Input
+                        ref={companySearchInputRef}
+                        value={companySearchQuery}
+                        placeholder="Type to search for company..."
+                        onChange={(e) => {
+                          setCompanySearchQuery(e.target.value);
+                          setShowCompanySuggestions(true);
+                        }}
+                        onFocus={() => {
+                          if (companySuggestions.length > 0) {
+                            setShowCompanySuggestions(true);
+                          }
+                        }}
+                        data-testid="input-search-companies"
+                      />
+                      {showCompanySuggestions && companySuggestions.length > 0 && (
+                        <div
+                          ref={companySuggestionsRef}
+                          className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
+                          data-testid="company-suggestions"
+                        >
+                          {isLoadingSuggestions ? (
+                            <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Searching...
+                            </div>
+                          ) : (
+                            companySuggestions.map((company) => (
+                              <div
+                                key={company.id}
+                                className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                                onClick={() => handleSelectCompany(company)}
+                                data-testid={`suggestion-company-${company.id}`}
+                              >
+                                <div className="font-medium">{company.companyName}</div>
+                                {(company.contactName || company.contactEmail) && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {company.contactName && <div>{company.contactName}</div>}
+                                    {company.contactEmail && <div>{company.contactEmail}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Search for a company to auto-fill the fields below, or enter them manually
+                    </p>
+                  </div>
+
                   <FormField
                     control={form.control}
                     name="propertyOwner"
@@ -1104,7 +1271,7 @@ export default function UploadDialog({
                           <Input
                             {...field}
                             value={field.value || ""}
-                            placeholder="John Doe"
+                            placeholder="John Doe LLC"
                             data-testid="input-owner"
                           />
                         </FormControl>

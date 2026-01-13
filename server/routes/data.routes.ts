@@ -408,20 +408,33 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                     .limit(1);
                                 if (newContact && normalizedCompanyNameForCompare) {
                                     contactsMap.set(normalizedCompanyNameForCompare, newContact);
+                                    // Set propertyOwnerId to the new contact's ID
+                                    propertyData.propertyOwnerId = newContact.id;
                                 }
                             } catch (contactError: any) {
                                 // Ignore duplicate key errors (race condition)
                                 if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
                                     console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyNameForStorage}:`, contactError);
+                                } else {
+                                    // If it was a duplicate error, try to fetch the existing contact
+                                    try {
+                                        const [duplicateContact] = await db
+                                            .select()
+                                            .from(companyContacts)
+                                            .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
+                                            .limit(1);
+                                        if (duplicateContact && normalizedCompanyNameForCompare) {
+                                            contactsMap.set(normalizedCompanyNameForCompare, duplicateContact);
+                                            propertyData.propertyOwnerId = duplicateContact.id;
+                                        }
+                                    } catch (fetchError) {
+                                        console.error(`[SFR SYNC] Error fetching duplicate contact:`, fetchError);
+                                    }
                                 }
                             }
-                            
-                            // Set property owner and contact info using normalized storage format
-                            propertyData.propertyOwner = normalizedCompanyNameForStorage;
-                            propertyData.companyContactName = null;
-                            propertyData.companyContactEmail = contactEmail;
                         } else {
-                            // Use the existing contact's name to ensure consistency (use existing DB value)
+                            // Use the existing contact's ID for propertyOwnerId
+                            propertyData.propertyOwnerId = existingContact.id;
                             console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (matched: ${normalizedCompanyNameForStorage})`);
 
                             // Update counties if we have a valid county and it's not already in the array
@@ -470,12 +483,10 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                     console.error(`[SFR SYNC] Error updating counties for company contact ${existingContact.companyName}:`, updateError);
                                 }
                             }
-
-                            // Set property owner and contact info using existing contact data
-                            propertyData.propertyOwner = existingContact.companyName; // Use existing DB value for consistency
-                            propertyData.companyContactName = existingContact.contactName || contactName;
-                            propertyData.companyContactEmail = existingContact.contactEmail || contactEmail;
                         }
+                    } else {
+                        // No company name provided - set propertyOwnerId to null
+                        propertyData.propertyOwnerId = null;
                     }
 
                     // Check for existing property by SFR IDs first

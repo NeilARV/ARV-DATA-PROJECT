@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -33,7 +34,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Save, Home, DollarSign, User, MapPin } from "lucide-react";
+import { Loader2, Save, Home, DollarSign, User } from "lucide-react";
+import { PROPERTY_TYPES } from "@/constants/filters.constants";
 
 const editPropertySchema = z.object({
   address: z.string().min(1, "Address is required"),
@@ -48,10 +50,10 @@ const editPropertySchema = z.object({
   yearBuilt: z.coerce.number().int().min(1800).max(2100).optional().nullable(),
   description: z.string().optional().nullable(),
   propertyOwner: z.string().optional().nullable(),
-  purchasePrice: z.coerce.number().min(0).optional().nullable(),
+  propertyOwnerId: z.string().optional().nullable(),
+  companyContactName: z.string().optional().nullable(),
+  companyContactEmail: z.string().optional().nullable(),
   dateSold: z.string().optional().nullable(),
-  latitude: z.coerce.number().optional().nullable(),
-  longitude: z.coerce.number().optional().nullable(),
 });
 
 type EditPropertyFormData = z.infer<typeof editPropertySchema>;
@@ -65,10 +67,37 @@ interface EditPropertyDialogProps {
 export default function EditPropertyDialog({ property, open, onClose }: EditPropertyDialogProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("basic");
+  
+  // Company suggestions state
+  const [companySearchQuery, setCompanySearchQuery] = useState("");
+  const [companySuggestions, setCompanySuggestions] = useState<Array<{
+    id: string;
+    companyName: string;
+    contactName: string | null;
+    contactEmail: string | null;
+  }>>([]);
+  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const companySearchInputRef = useRef<HTMLInputElement>(null);
+  const companySuggestionsRef = useRef<HTMLDivElement>(null);
 
-  const { data: companies = [] } = useQuery<CompanyContact[]>({
-    queryKey: ["/api/companies/contacts"],
-    enabled: open,
+  // Fetch property data when dialog opens
+  // API returns PropertyWithCompany (includes company info from join)
+  const { data: propertyData, isLoading: isLoadingProperty } = useQuery<Property & {
+    propertyOwner: string | null;
+    companyContactName: string | null;
+    companyContactEmail: string | null;
+  }>({
+    queryKey: [`/api/properties/${property?.id}`],
+    queryFn: async () => {
+      if (!property?.id) throw new Error("No property ID");
+      const res = await fetch(`/api/properties/${property.id}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch property");
+      return res.json();
+    },
+    enabled: open && !!property?.id,
   });
 
   const form = useForm<EditPropertyFormData>({
@@ -86,44 +115,137 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
       yearBuilt: null,
       description: "",
       propertyOwner: "",
-      purchasePrice: null,
+      propertyOwnerId: null,
+      companyContactName: "",
+      companyContactEmail: "",
       dateSold: "",
-      latitude: null,
-      longitude: null,
     },
   });
 
+  // Fetch company suggestions with debounce
+  const fetchCompanySuggestions = useCallback(async (searchTerm: string) => {
+    if (searchTerm.trim().length < 2) {
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
+      return;
+    }
+
+    setIsLoadingSuggestions(true);
+    try {
+      const response = await fetch(
+        `/api/companies/contacts/suggestions?search=${encodeURIComponent(searchTerm)}`,
+        { credentials: "include" }
+      );
+      if (response.ok) {
+        const suggestions = await response.json();
+        setCompanySuggestions(suggestions);
+        setShowCompanySuggestions(suggestions.length > 0);
+      } else {
+        setCompanySuggestions([]);
+        setShowCompanySuggestions(false);
+      }
+    } catch (error) {
+      console.error("Error fetching company suggestions:", error);
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  }, []);
+
+  // Debounce ref for suggestions
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Watch company search query and fetch suggestions with debounce
   useEffect(() => {
-    if (property && open) {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    if (companySearchQuery && companySearchQuery.trim().length >= 2) {
+      debounceTimeoutRef.current = setTimeout(() => {
+        fetchCompanySuggestions(companySearchQuery);
+      }, 300);
+    } else {
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
+    }
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [companySearchQuery, fetchCompanySuggestions]);
+
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        companySuggestionsRef.current &&
+        !companySuggestionsRef.current.contains(event.target as Node) &&
+        companySearchInputRef.current &&
+        !companySearchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowCompanySuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Handle company suggestion selection
+  const handleSelectCompany = (company: {
+    id: string;
+    companyName: string;
+    contactName: string | null;
+    contactEmail: string | null;
+  }) => {
+    form.setValue("propertyOwner", company.companyName);
+    form.setValue("propertyOwnerId", company.id);
+    form.setValue("companyContactName", company.contactName || "");
+    form.setValue("companyContactEmail", company.contactEmail || "");
+    setCompanySearchQuery("");
+    setShowCompanySuggestions(false);
+    setCompanySuggestions([]);
+  };
+
+  useEffect(() => {
+    if (propertyData && open) {
       form.reset({
-        address: property.address,
-        city: property.city,
-        state: property.state,
-        zipCode: property.zipCode,
-        price: property.price,
-        bedrooms: property.bedrooms,
-        bathrooms: property.bathrooms,
-        squareFeet: property.squareFeet,
-        propertyType: property.propertyType,
-        yearBuilt: property.yearBuilt ?? null,
-        description: property.description ?? "",
-        propertyOwner: property.propertyOwner ?? "",
-        purchasePrice: property.purchasePrice ?? null,
-        dateSold: property.dateSold ?? "",
-        latitude: property.latitude ?? null,
-        longitude: property.longitude ?? null,
+        address: propertyData.address,
+        city: propertyData.city,
+        state: propertyData.state,
+        zipCode: propertyData.zipCode,
+        price: propertyData.price,
+        bedrooms: propertyData.bedrooms,
+        bathrooms: propertyData.bathrooms,
+        squareFeet: propertyData.squareFeet,
+        propertyType: propertyData.propertyType,
+        yearBuilt: propertyData.yearBuilt ?? null,
+        description: propertyData.description ?? "",
+        propertyOwner: propertyData.propertyOwner ?? "",
+        propertyOwnerId: (propertyData as any).propertyOwnerId ?? null,
+        companyContactName: propertyData.companyContactName ?? "",
+        companyContactEmail: propertyData.companyContactEmail ?? "",
+        dateSold: propertyData.dateSold ?? "",
       });
       setActiveTab("basic");
+      setCompanySearchQuery("");
+      setCompanySuggestions([]);
+      setShowCompanySuggestions(false);
     }
-  }, [property, open, form]);
+  }, [propertyData, open, form]);
 
   const updateMutation = useMutation({
     mutationFn: async (data: EditPropertyFormData) => {
-      if (!property) throw new Error("No property selected");
+      if (!property?.id) throw new Error("No property selected");
       return apiRequest("PATCH", `/api/properties/${property.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/properties/${property?.id}`] });
       toast({
         title: "Property Updated",
         description: "The property has been successfully updated.",
@@ -145,25 +267,15 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
       yearBuilt: data.yearBuilt || null,
       description: data.description || null,
       propertyOwner: data.propertyOwner || null,
-      purchasePrice: data.purchasePrice || null,
+      propertyOwnerId: data.propertyOwnerId || null,
+      companyContactName: data.companyContactName || null,
+      companyContactEmail: data.companyContactEmail || null,
       dateSold: data.dateSold || null,
-      latitude: data.latitude || null,
-      longitude: data.longitude || null,
     };
     updateMutation.mutate(cleanedData);
   };
 
   if (!property) return null;
-
-  const propertyTypes = [
-    "Single Family",
-    "Multi-Family",
-    "Condo",
-    "Townhouse",
-    "Commercial",
-    "Land",
-    "Other",
-  ];
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -181,7 +293,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic" data-testid="tab-edit-basic">
                   <Home className="w-4 h-4 mr-1" />
                   Basic
@@ -193,10 +305,6 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
                 <TabsTrigger value="owner" data-testid="tab-edit-owner">
                   <User className="w-4 h-4 mr-1" />
                   Owner
-                </TabsTrigger>
-                <TabsTrigger value="location" data-testid="tab-edit-location">
-                  <MapPin className="w-4 h-4 mr-1" />
-                  Location
                 </TabsTrigger>
               </TabsList>
 
@@ -269,8 +377,8 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
                             <SelectValue placeholder="Select property type" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          {propertyTypes.map((type) => (
+                        <SelectContent className="z-[10001]" position="popper">
+                          {PROPERTY_TYPES.map((type) => (
                             <SelectItem key={type} value={type}>
                               {type}
                             </SelectItem>
@@ -331,30 +439,9 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Current Price *</FormLabel>
+                      <FormLabel>Price *</FormLabel>
                       <FormControl>
                         <Input type="number" min="0" {...field} data-testid="input-edit-price" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="purchasePrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Purchase Price</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          {...field} 
-                          value={field.value ?? ""} 
-                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                          data-testid="input-edit-purchase-price" 
-                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -423,99 +510,119 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
               </TabsContent>
 
               <TabsContent value="owner" className="space-y-4 mt-4">
+                {/* Search Companies Field */}
+                <div className="space-y-2">
+                  <Label>Search Companies</Label>
+                  <div className="relative">
+                    <Input
+                      ref={companySearchInputRef}
+                      value={companySearchQuery}
+                      placeholder="Type to search for company..."
+                      onChange={(e) => {
+                        setCompanySearchQuery(e.target.value);
+                        setShowCompanySuggestions(true);
+                      }}
+                      onFocus={() => {
+                        if (companySuggestions.length > 0) {
+                          setShowCompanySuggestions(true);
+                        }
+                      }}
+                      data-testid="input-search-companies-edit"
+                    />
+                    {showCompanySuggestions && companySuggestions.length > 0 && (
+                      <div
+                        ref={companySuggestionsRef}
+                        className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
+                        data-testid="company-suggestions-edit"
+                      >
+                        {isLoadingSuggestions ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Searching...
+                          </div>
+                        ) : (
+                          companySuggestions.map((company) => (
+                            <div
+                              key={company.id}
+                              className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                              onClick={() => handleSelectCompany(company)}
+                              data-testid={`suggestion-company-edit-${company.id}`}
+                            >
+                              <div className="font-medium">{company.companyName}</div>
+                              {(company.contactName || company.contactEmail) && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {company.contactName && <div>{company.contactName}</div>}
+                                  {company.contactEmail && <div>{company.contactEmail}</div>}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Search for a company to auto-fill the fields below, or enter them manually
+                  </p>
+                </div>
+
                 <FormField
                   control={form.control}
                   name="propertyOwner"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Property Owner / Company</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(value === "__none__" ? null : value)} 
-                        value={field.value || "__none__"}
-                      >
-                        <FormControl>
-                          <SelectTrigger data-testid="select-edit-owner">
-                            <SelectValue placeholder="Select owner company" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-60">
-                          <SelectItem value="__none__">No Owner</SelectItem>
-                          {companies.map((company) => (
-                            <SelectItem key={company.id} value={company.companyName}>
-                              {company.companyName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Property Owner</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          placeholder="John Doe LLC"
+                          data-testid="input-edit-owner"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {property.companyContactName && (
-                  <div className="p-4 bg-muted rounded-lg space-y-2">
-                    <p className="text-sm font-medium">Current Contact Info</p>
-                    <p className="text-sm text-muted-foreground">
-                      Contact: {property.companyContactName}
-                    </p>
-                    {property.companyContactEmail && (
-                      <p className="text-sm text-muted-foreground">
-                        Email: {property.companyContactEmail}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Note: Contact info is automatically updated when you change the owner company.
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
+                <FormField
+                  control={form.control}
+                  name="companyContactName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company Contact Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          placeholder="Contact Name"
+                          data-testid="input-edit-contact-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <TabsContent value="location" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="latitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Latitude</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.000001" 
-                            {...field} 
-                            value={field.value ?? ""} 
-                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                            data-testid="input-edit-latitude" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="longitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Longitude</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.000001" 
-                            {...field} 
-                            value={field.value ?? ""} 
-                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                            data-testid="input-edit-longitude" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Coordinates are used for displaying the property on the map. Leave empty to use automatic geocoding.
-                </p>
+                <FormField
+                  control={form.control}
+                  name="companyContactEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company Contact Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          type="email"
+                          placeholder="contact@company.com"
+                          data-testid="input-edit-contact-email"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </TabsContent>
             </Tabs>
 

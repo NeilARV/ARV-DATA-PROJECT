@@ -48,9 +48,9 @@ export const properties = pgTable("properties", {
   yearBuilt: integer("year_built"),
 
   // Ownership / company
-  propertyOwner: text("property_owner"),
-  companyContactName: text("company_contact_name"),
-  companyContactEmail: text("company_contact_email"),
+  propertyOwnerId: varchar("property_owner_id").references(() => companyContacts.id),
+  // Note: propertyOwner, companyContactName, companyContactEmail are NOT stored in properties table
+  // They exist only in Zod schemas for validation/input, and are used to lookup/create company_contacts
 
   // Purchase / sale
   purchasePrice: real("purchase_price"),
@@ -155,6 +155,11 @@ export const insertPropertySchema = createInsertSchema(properties).omit({
 }).extend({
   // County is fetched from coordinates, so make it optional for insert
   county: z.string().min(1, "County is required").optional(),
+  // These fields are INPUT ONLY - used to lookup/create company contacts
+  // They are NOT stored in the properties table (only propertyOwnerId is stored)
+  propertyOwner: z.string().nullable().optional(),
+  companyContactName: z.string().nullable().optional(),
+  companyContactEmail: z.string().nullable().optional(),
 });
 
 
@@ -229,6 +234,7 @@ export const updatePropertySchema = z.object({
     .nullable()
     .optional(),
   propertyOwner: z.string().nullable().optional(),
+  propertyOwnerId: z.string().nullable().optional(),
   companyContactName: z.string().nullable().optional(),
   companyContactEmail: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
@@ -243,6 +249,12 @@ export const updateCompanyContactSchema = z.object({
 
 export type InsertProperty = z.infer<typeof insertPropertySchema>;
 export type Property = typeof properties.$inferSelect;
+// Extended Property type for API responses (includes company info from joins)
+export type PropertyWithCompany = Property & {
+  propertyOwner: string | null;
+  companyContactName: string | null;
+  companyContactEmail: string | null;
+};
 export type CompanyContact = typeof companyContacts.$inferSelect;
 export type InsertCompanyContact = z.infer<typeof insertCompanyContactSchema>;
 export type UpdateCompanyContact = z.infer<typeof updateCompanyContactSchema>;
