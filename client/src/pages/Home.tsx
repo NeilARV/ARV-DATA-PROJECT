@@ -249,7 +249,7 @@ export default function Home() {
     
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompany, propertiesPage, sortBy, viewMode]);
+  }, [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode]);
 
   // Build the API URL with all filter query parameters for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
@@ -300,7 +300,7 @@ export default function Home() {
       setPropertiesHasMore(true);
       setIsLoadingMoreProperties(false);
     }
-  }, [filters, selectedCompany, viewMode, sortBy]);
+  }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
 
   // Accumulate properties when new data arrives (for grid/table views)
   useEffect(() => {
@@ -423,7 +423,7 @@ export default function Home() {
     
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompany, buyersFeedPage, sortBy]);
+  }, [filters, selectedCompanyId, selectedCompany, buyersFeedPage, sortBy]);
 
   // Build the API URL for buyers feed
   const buyersFeedQueryUrl = useMemo(() => {
@@ -460,7 +460,7 @@ export default function Home() {
       setBuyersFeedHasMore(true);
       setIsLoadingMoreBuyersFeed(false);
     }
-  }, [filters, selectedCompany, viewMode, sortBy]);
+  }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
 
   // Accumulate buyers feed properties when new data arrives
   useEffect(() => {
@@ -1134,9 +1134,7 @@ export default function Home() {
                   sortBy={sortBy}
                   onSortChange={setSortBy}
                   onPropertyClick={setSelectedProperty}
-                  onClearCompanyFilter={() => {
-                    setSelectedCompany(null);
-                  }}
+                  onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={buyersFeedHasMore}
@@ -1162,9 +1160,7 @@ export default function Home() {
                   sortBy={sortBy}
                   onSortChange={setSortBy}
                   onPropertyClick={setSelectedProperty}
-                  onClearCompanyFilter={() => {
-                    setSelectedCompany(null);
-                  }}
+                  onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
