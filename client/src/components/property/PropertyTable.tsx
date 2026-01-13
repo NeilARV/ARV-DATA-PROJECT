@@ -106,7 +106,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
   };
 
   return (
-    <div className="w-full overflow-auto" data-testid="table-properties">
+    <div className="w-full overflow-x-auto" data-testid="table-properties">
       <Table>
         <TableHeader>
           <TableRow>

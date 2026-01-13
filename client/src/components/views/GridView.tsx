@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
@@ -24,6 +25,7 @@ interface GridViewProps {
   gridColsClass: string;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
+  isLoading?: boolean;
   loadMoreRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -41,10 +43,14 @@ export default function GridView({
   gridColsClass,
   propertiesHasMore,
   isLoadingMoreProperties,
+  isLoading = false,
   loadMoreRef,
 }: GridViewProps) {
+  // Show loader when initially loading and no properties yet
+  const showInitialLoader = isLoading && properties.length === 0;
+
   return (
-    <div className="h-full overflow-y-auto p-6 flex-1">
+    <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold mb-1">
@@ -108,22 +114,33 @@ export default function GridView({
           </Select>
         </div>
       </div>
-      <div className={`grid ${gridColsClass} gap-4`}>
-        {properties.map((property) => (
-          <PropertyCard
-            key={property.id}
-            property={property}
-            onClick={() => onPropertyClick(property)}
-          />
-        ))}
-      </div>
-      {/* Infinite scroll trigger */}
-      {propertiesHasMore && (
-        <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-4">
-          {isLoadingMoreProperties && (
-            <div className="text-muted-foreground">Loading more properties...</div>
-          )}
+      {showInitialLoader ? (
+        <div className="flex items-center justify-center flex-1">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <p className="text-muted-foreground">Loading properties...</p>
+          </div>
         </div>
+      ) : (
+        <>
+          <div className={`grid ${gridColsClass} gap-4`}>
+            {properties.map((property) => (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                onClick={() => onPropertyClick(property)}
+              />
+            ))}
+          </div>
+          {/* Infinite scroll trigger */}
+          {propertiesHasMore && (
+            <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-4">
+              {isLoadingMoreProperties && (
+                <div className="text-muted-foreground">Loading more properties...</div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

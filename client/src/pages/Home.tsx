@@ -445,12 +445,67 @@ export default function Home() {
     enabled: viewMode === "buyers-feed",
   });
 
-  // Use buyers feed total when in buyers-feed view, otherwise use regular properties total
+  // Track stable property count to avoid flashing "0" during loading
+  const [stablePropertyCount, setStablePropertyCount] = useState<number>(0);
+  const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState<number>(0);
+
+  // Reset stable count when filters or view mode changes (but not during the same query)
+  useEffect(() => {
+    // Only reset if we're switching views or if filters changed significantly
+    // The actual update will happen when new data arrives
+    if (viewMode === "map" || viewMode === "buyers-feed") {
+      // For map view, we don't need stable count
+      // For buyers-feed, we'll update when data arrives
+    }
+  }, [viewMode, filters.county, filters.zipCode, filters.city, selectedCompanyId, selectedCompany]);
+
+  // Update stable counts only when we have actual data (not during loading)
+  useEffect(() => {
+    if (viewMode === "buyers-feed") {
+      if (buyersFeedResponse?.total !== undefined && !isLoadingBuyersFeed) {
+        setStablePropertyCount(buyersFeedResponse.total);
+      }
+    } else if (viewMode !== "map") {
+      if (propertiesResponse?.total !== undefined && !isLoading) {
+        setStablePropertyCount(propertiesResponse.total);
+      }
+    }
+  }, [viewMode, buyersFeedResponse?.total, propertiesResponse?.total, isLoading, isLoadingBuyersFeed]);
+
+  // Update stable company property count when it's fetched
+  useEffect(() => {
+    if (selectedCompanyPropertyCount > 0) {
+      setStableCompanyPropertyCount(selectedCompanyPropertyCount);
+    } else if (!selectedCompany) {
+      // Reset when company is deselected
+      setStableCompanyPropertyCount(0);
+    }
+  }, [selectedCompanyPropertyCount, selectedCompany]);
+
+  // Use stable counts to avoid flashing "0" during loading
   const totalFilteredProperties = useMemo(() => {
-    return viewMode === "buyers-feed" 
-      ? (buyersFeedResponse?.total ?? 0)
-      : (propertiesResponse?.total ?? 0);
-  }, [viewMode, buyersFeedResponse?.total, propertiesResponse?.total]);
+    if (viewMode === "buyers-feed") {
+      // During loading, preserve previous value; otherwise use new value
+      const buyersTotal = buyersFeedResponse?.total;
+      return isLoadingBuyersFeed && buyersTotal === undefined
+        ? stablePropertyCount
+        : (buyersTotal ?? stablePropertyCount);
+    } else if (viewMode !== "map") {
+      // During loading, preserve previous value; otherwise use new value
+      const propertiesTotal = propertiesResponse?.total;
+      return isLoading && propertiesTotal === undefined
+        ? stablePropertyCount
+        : (propertiesTotal ?? stablePropertyCount);
+    }
+    return 0;
+  }, [viewMode, buyersFeedResponse, propertiesResponse, isLoading, isLoadingBuyersFeed, stablePropertyCount]);
+
+  // Use stable company property count to avoid flashing "0"
+  const displayCompanyPropertyCount = useMemo(() => {
+    if (!selectedCompany) return 0;
+    // If we're fetching and don't have a value yet, use the stable one
+    return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
+  }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
 
   // Reset pagination when filters, sortBy, or view mode changes for buyers feed
   useEffect(() => {
@@ -982,9 +1037,9 @@ export default function Home() {
         return ownerName === companyNameNormalized;
       }).length;
     }
-    // For grid/table views, use the fetched company property count (total properties company owns)
-    return selectedCompanyPropertyCount;
-  }, [mapPins, selectedCompany, viewMode, selectedCompanyPropertyCount]);
+    // For grid/table views, use the stable company property count to avoid flashing "0"
+    return displayCompanyPropertyCount;
+  }, [mapPins, selectedCompany, viewMode, displayCompanyPropertyCount]);
 
   // Properties are now sorted server-side, so we can use them directly
   // The API returns properties in the correct sorted order based on the sortBy parameter
@@ -1114,6 +1169,7 @@ export default function Home() {
                 onClearFilters={handleClearAllFilters}
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
+                isLoading={isLoading}
                 loadMoreRef={loadMorePropertiesRef}
               />
             ) : viewMode === "buyers-feed" ? (
@@ -1139,6 +1195,7 @@ export default function Home() {
                   gridColsClass={gridColsClass}
                   propertiesHasMore={buyersFeedHasMore}
                   isLoadingMoreProperties={isLoadingMoreBuyersFeed}
+                  isLoading={isLoadingBuyersFeed}
                   loadMoreRef={loadMoreBuyersFeedRef}
                 />
               </>
@@ -1165,6 +1222,7 @@ export default function Home() {
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
+                  isLoading={isLoading}
                   loadMoreRef={loadMorePropertiesRef}
                 />
               </>

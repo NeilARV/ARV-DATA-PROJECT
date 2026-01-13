@@ -1,5 +1,6 @@
 import { Property } from "@shared/schema";
 import PropertyTable from "@/components/property/PropertyTable";
+import { Loader2 } from "lucide-react";
 
 interface TableViewProps {
   properties: Property[];
@@ -12,6 +13,7 @@ interface TableViewProps {
   onClearFilters: () => void;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
+  isLoading?: boolean;
   loadMoreRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -26,10 +28,14 @@ export default function TableView({
   onClearFilters,
   propertiesHasMore,
   isLoadingMoreProperties,
+  isLoading = false,
   loadMoreRef,
 }: TableViewProps) {
+  // Show loader when initially loading and no properties yet
+  const showInitialLoader = isLoading && properties.length === 0;
+
   return (
-    <div className="h-full overflow-y-auto p-6 flex-1">
+    <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold mb-1">
@@ -71,17 +77,28 @@ export default function TableView({
           )}
         </div>
       </div>
-      <PropertyTable
-        properties={properties}
-        onPropertyClick={onPropertyClick}
-      />
-      {/* Infinite scroll trigger */}
-      {propertiesHasMore && (
-        <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
-          {isLoadingMoreProperties && (
-            <div className="text-muted-foreground">Loading more properties...</div>
-          )}
+      {showInitialLoader ? (
+        <div className="flex items-center justify-center flex-1">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <p className="text-muted-foreground">Loading properties...</p>
+          </div>
         </div>
+      ) : (
+        <>
+          <PropertyTable
+            properties={properties}
+            onPropertyClick={onPropertyClick}
+          />
+          {/* Infinite scroll trigger */}
+          {propertiesHasMore && (
+            <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+              {isLoadingMoreProperties && (
+                <div className="text-muted-foreground">Loading more properties...</div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
