@@ -1,7 +1,2 @@
-import * as Registration from "./registration.controllers"
-import * as Session from "./session.controllers"
-
-export const AuthControllers = {
-    Registration,
-    Session
-}
+export  * as Registration from "./registration.controllers"
+export * as Session from "./session.controllers"
