@@ -82,7 +82,12 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
   const companySuggestionsRef = useRef<HTMLDivElement>(null);
 
   // Fetch property data when dialog opens
-  const { data: propertyData, isLoading: isLoadingProperty } = useQuery<Property>({
+  // API returns PropertyWithCompany (includes company info from join)
+  const { data: propertyData, isLoading: isLoadingProperty } = useQuery<Property & {
+    propertyOwner: string | null;
+    companyContactName: string | null;
+    companyContactEmail: string | null;
+  }>({
     queryKey: [`/api/properties/${property?.id}`],
     queryFn: async () => {
       if (!property?.id) throw new Error("No property ID");

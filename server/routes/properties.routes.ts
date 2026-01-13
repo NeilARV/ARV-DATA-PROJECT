@@ -340,12 +340,18 @@ router.post("/", requireAdminAuth, async (req, res) => {
         // Normalize text fields to Title Case
         // Convert empty strings to null for optional fields
         // Check if form provided company contact info (before we normalize)
-        const formProvidedContactName = propertyData.companyContactName != null && 
-            typeof propertyData.companyContactName === 'string' && 
-            propertyData.companyContactName.trim() !== "";
-        const formProvidedContactEmail = propertyData.companyContactEmail != null && 
-            typeof propertyData.companyContactEmail === 'string' && 
-            propertyData.companyContactEmail.trim() !== "";
+        // Type assertion needed because these fields exist in insertPropertySchema but not in the table
+        const propertyDataWithCompany = propertyData as typeof propertyData & {
+            companyContactName?: string | null;
+            companyContactEmail?: string | null;
+            propertyOwner?: string | null;
+        };
+        const formProvidedContactName = propertyDataWithCompany.companyContactName != null && 
+            typeof propertyDataWithCompany.companyContactName === 'string' && 
+            propertyDataWithCompany.companyContactName.trim() !== "";
+        const formProvidedContactEmail = propertyDataWithCompany.companyContactEmail != null && 
+            typeof propertyDataWithCompany.companyContactEmail === 'string' && 
+            propertyDataWithCompany.companyContactEmail.trim() !== "";
         
         let enriched: any = {
             ...propertyData,
@@ -458,12 +464,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
         let companyContactId: string | null = null;
         
         // If propertyOwnerId is provided directly, use it (user selected from search)
-        if (propertyData.propertyOwnerId && typeof propertyData.propertyOwnerId === 'string') {
+        if (propertyDataWithCompany.propertyOwnerId && typeof propertyDataWithCompany.propertyOwnerId === 'string') {
             // Verify the company contact exists
             const [contactById] = await db
                 .select()
                 .from(companyContacts)
-                .where(eq(companyContacts.id, propertyData.propertyOwnerId))
+                .where(eq(companyContacts.id, propertyDataWithCompany.propertyOwnerId))
                 .limit(1);
             
             if (contactById) {
@@ -471,12 +477,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 
                 // Check if contact info needs updating (user may have modified name/email)
                 const contactNameChanged = formProvidedContactName && 
-                    propertyData.companyContactName && 
-                    contactById.contactName !== propertyData.companyContactName.trim();
+                    propertyDataWithCompany.companyContactName && 
+                    contactById.contactName !== propertyDataWithCompany.companyContactName.trim();
                 
                 const contactEmailChanged = formProvidedContactEmail && 
-                    propertyData.companyContactEmail && 
-                    contactById.contactEmail !== propertyData.companyContactEmail.trim();
+                    propertyDataWithCompany.companyContactEmail && 
+                    contactById.contactEmail !== propertyDataWithCompany.companyContactEmail.trim();
                 
                 // Update counties if we have a valid county
                 let updateFields: any = {
@@ -511,12 +517,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     }
                 }
                 
-                if (contactNameChanged && propertyData.companyContactName) {
-                    updateFields.contactName = propertyData.companyContactName.trim();
+                if (contactNameChanged && propertyDataWithCompany.companyContactName) {
+                    updateFields.contactName = propertyDataWithCompany.companyContactName.trim();
                 }
                 
-                if (contactEmailChanged && propertyData.companyContactEmail) {
-                    updateFields.contactEmail = propertyData.companyContactEmail.trim();
+                if (contactEmailChanged && propertyDataWithCompany.companyContactEmail) {
+                    updateFields.contactEmail = propertyDataWithCompany.companyContactEmail.trim();
                 }
                 
                 // Only update if there are fields to update
@@ -531,15 +537,15 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 
                 console.log(`Using provided company contact ID: ${contactById.companyName} (ID: ${contactById.id})`);
             } else {
-                console.warn(`Provided propertyOwnerId ${propertyData.propertyOwnerId} not found, will search by name instead`);
+                console.warn(`Provided propertyOwnerId ${propertyDataWithCompany.propertyOwnerId} not found, will search by name instead`);
             }
         }
         
         // If no ID was provided or ID lookup failed, search by company name
-        if (!companyContactId && propertyData.propertyOwner && propertyData.propertyOwner.trim() !== "") {
+        if (!companyContactId && propertyDataWithCompany.propertyOwner && propertyDataWithCompany.propertyOwner.trim() !== "") {
             // Normalize company name for storage
-            const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyData.propertyOwner);
-            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || propertyData.propertyOwner);
+            const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyDataWithCompany.propertyOwner);
+            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || propertyDataWithCompany.propertyOwner);
             
             // Search for existing company contact using normalized comparison
             const allContacts = await db.select().from(companyContacts);
@@ -555,12 +561,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 
                 // Check if form provided values differ from DB values
                 const contactNameChanged = formProvidedContactName && 
-                    propertyData.companyContactName && 
-                    existingContact.contactName !== propertyData.companyContactName.trim();
+                    propertyDataWithCompany.companyContactName && 
+                    existingContact.contactName !== propertyDataWithCompany.companyContactName.trim();
                 
                 const contactEmailChanged = formProvidedContactEmail && 
-                    propertyData.companyContactEmail && 
-                    existingContact.contactEmail !== propertyData.companyContactEmail.trim();
+                    propertyDataWithCompany.companyContactEmail && 
+                    existingContact.contactEmail !== propertyDataWithCompany.companyContactEmail.trim();
                 
                 // Update counties if we have a valid county
                 let updateFields: any = {
@@ -595,12 +601,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     }
                 }
                 
-                if (contactNameChanged && propertyData.companyContactName) {
-                    updateFields.contactName = propertyData.companyContactName.trim();
+                if (contactNameChanged && propertyDataWithCompany.companyContactName) {
+                    updateFields.contactName = propertyDataWithCompany.companyContactName.trim();
                 }
                 
-                if (contactEmailChanged && propertyData.companyContactEmail) {
-                    updateFields.contactEmail = propertyData.companyContactEmail.trim();
+                if (contactEmailChanged && propertyDataWithCompany.companyContactEmail) {
+                    updateFields.contactEmail = propertyDataWithCompany.companyContactEmail.trim();
                 }
                 
                 // Only update if there are fields to update
@@ -621,12 +627,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 const countiesJson = JSON.stringify(countiesArray);
                 
                 const newContactData: any = {
-                    companyName: normalizedOwnerForStorage || propertyData.propertyOwner,
-                    contactName: formProvidedContactName && propertyData.companyContactName 
-                        ? propertyData.companyContactName.trim() 
+                    companyName: normalizedOwnerForStorage || propertyDataWithCompany.propertyOwner,
+                    contactName: formProvidedContactName && propertyDataWithCompany.companyContactName 
+                        ? propertyDataWithCompany.companyContactName.trim() 
                         : null,
-                    contactEmail: formProvidedContactEmail && propertyData.companyContactEmail 
-                        ? propertyData.companyContactEmail.trim() 
+                    contactEmail: formProvidedContactEmail && propertyDataWithCompany.companyContactEmail 
+                        ? propertyDataWithCompany.companyContactEmail.trim() 
                         : null,
                     counties: countiesJson,
                 };
