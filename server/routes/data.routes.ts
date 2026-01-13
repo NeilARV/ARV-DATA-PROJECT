@@ -535,7 +535,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         const shouldUpdate = !existingProperty.recordingDate || (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
                     
                         if (shouldUpdate) {
-                            const { id, createdAt, _saleDate, propertyOwner, companyContactName, companyContactEmail, ...updateData } = propertyData;
+                            const { id, createdAt, _saleDate, ...updateData } = propertyData;
                             updateData.updatedAt = sql`now()`;
                             
                             try {
@@ -575,7 +575,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         // Insert batch if full
                         if (batchBuffer.length >= BATCH_SIZE) {
                             try {
-                                const batchToInsert = batchBuffer.map(({ _saleDate, propertyOwner, companyContactName, companyContactEmail, ...prop }) => prop);
+                                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
                                 await db.insert(properties).values(batchToInsert);
                                 totalInserted += batchBuffer.length;
                                 console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
@@ -601,7 +601,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                 // Try inserting individually
                                 for (const prop of batchBuffer) {
                                     try {
-                                        const { _saleDate, propertyOwner, companyContactName, companyContactEmail, ...propToInsert } = prop;
+                                        const { _saleDate, ...propToInsert } = prop;
                                         await db.insert(properties).values([propToInsert]);
                                         totalInserted++;
                                         
@@ -647,7 +647,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
         // Insert any remaining properties in buffer (after while loop ends)
         if (batchBuffer.length > 0) {
             try {
-                const batchToInsert = batchBuffer.map(({ _saleDate, propertyOwner, companyContactName, companyContactEmail, ...prop }) => prop);
+                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
                 await db.insert(properties).values(batchToInsert);
                 totalInserted += batchBuffer.length;
                 console.log(`[SFR SYNC] Inserted final batch of ${batchBuffer.length} properties`);
@@ -658,7 +658,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 // Try inserting individually
                 for (const prop of batchBuffer) {
                     try {
-                        const { _saleDate, propertyOwner, companyContactName, companyContactEmail, ...propToInsert } = prop;
+                        const { _saleDate, ...propToInsert } = prop;
                         await db.insert(properties).values([propToInsert]);
                         totalInserted++;
                         
