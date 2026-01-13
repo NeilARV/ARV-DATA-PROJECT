@@ -248,9 +248,10 @@ export const updateCompanyContactSchema = z.object({
 }).strict();
 
 export type InsertProperty = z.infer<typeof insertPropertySchema>;
-export type Property = typeof properties.$inferSelect;
-// Extended Property type for API responses (includes company info from joins)
-export type PropertyWithCompany = Property & {
+// Property type includes fields from the database table plus API-only fields from joins
+// Note: propertyOwner, companyContactName, companyContactEmail are not in the properties table
+// but are always included in API responses via LEFT JOIN with company_contacts
+export type Property = typeof properties.$inferSelect & {
   propertyOwner: string | null;
   companyContactName: string | null;
   companyContactEmail: string | null;
