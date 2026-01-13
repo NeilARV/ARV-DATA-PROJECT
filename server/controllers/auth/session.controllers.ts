@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { loginSchema, updateUserProfileSchema } from "@shared/schema";
 import { AuthServices } from "server/services/auth";
-import { IdentityServices } from "server/services/identity";
+import { Identity } from "server/services/identity";
 
 export async function login(req: Request, res: Response, next: NextFunction):Promise<void> {
     try {
@@ -17,7 +17,7 @@ export async function login(req: Request, res: Response, next: NextFunction):Pro
         const { email, password } = validation.data;
 
         // Find user by email
-        const [ user ] = await AuthServices.Users.getUserByEmail(email)
+        const [ user ] = await Identity.getUserByEmail(email)
 
         // User does not exist
         if (!user) {
@@ -60,7 +60,7 @@ export async function me(req: Request, res: Response, next: NextFunction):Promis
             return;
         }
         
-        const [ user ] = await AuthServices.Users.getUserById(req.session.userId)
+        const [ user ] = await Identity.getUserById(req.session.userId)
             
         if (!user) {
             req.session.userId = undefined;
@@ -100,7 +100,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
 
         // Check if email is being updated and if it's already taken by another user
         if (updateData.email) {
-            const [existingUser] = await AuthServices.Users.getUserByEmail(updateData.email);
+            const [existingUser] = await Identity.getUserByEmail(updateData.email);
             if (existingUser && existingUser.id !== req.session.userId) {
                 res.status(409).json({ message: "An account with this email already exists" });
                 return;
@@ -108,7 +108,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
         }
 
         // Update user profile (only allow updating own profile)
-        const updatedUser = await IdentityServices.updateUser(req.session.userId, updateData);
+        const updatedUser = await Identity.updateUser(req.session.userId, updateData);
 
         if (!updatedUser) {
             res.status(404).json({ message: "User not found" });

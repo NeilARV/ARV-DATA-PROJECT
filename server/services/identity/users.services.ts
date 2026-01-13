@@ -53,3 +53,24 @@ export async function updateUser(userId: string, updateData: {
 
     return updatedUser;
 }
+
+export async function getUserByEmail(email: string) {
+
+    const user = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()))
+        .limit(1);
+    
+    return user
+}
+
+export async function getUserById(userId: string) {
+    const user = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+    return user
+}
