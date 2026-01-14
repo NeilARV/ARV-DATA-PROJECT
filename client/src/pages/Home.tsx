@@ -827,8 +827,62 @@ export default function Home() {
       // Only set center if we have valid coordinates (not NaN)
       if (!isNaN(avgLat) && !isNaN(avgLng)) {
         setMapCenter([avgLat, avgLng]);
-        // Don't set zoom - let the user control it or use default
-        setMapZoom(10);
+        
+        // Calculate dynamic zoom based on property spread
+        let calculatedZoom = 10; // Default zoom
+        
+        if (validPins.length > 1) {
+          // Calculate bounds to determine spread
+          const lats = validPins.map(p => p.latitude!);
+          const lngs = validPins.map(p => p.longitude!);
+          const minLat = Math.min(...lats);
+          const maxLat = Math.max(...lats);
+          const minLng = Math.min(...lngs);
+          const maxLng = Math.max(...lngs);
+          
+          // Calculate span in degrees
+          const latSpan = maxLat - minLat;
+          const lngSpan = maxLng - minLng;
+          const maxSpan = Math.max(latSpan, lngSpan);
+          
+          // Map span to zoom level (smaller span = higher zoom)
+          // Add some padding by using a slightly larger span
+          const paddedSpan = maxSpan * 1.5;
+          
+          if (paddedSpan < 0.005) {
+            // Very close properties (same street/block)
+            calculatedZoom = 17;
+          } else if (paddedSpan < 0.01) {
+            // Close properties (same neighborhood)
+            calculatedZoom = 16;
+          } else if (paddedSpan < 0.02) {
+            // Nearby properties (same area)
+            calculatedZoom = 15;
+          } else if (paddedSpan < 0.05) {
+            // Properties in same region
+            calculatedZoom = 14;
+          } else if (paddedSpan < 0.1) {
+            // Properties spread across area
+            calculatedZoom = 13;
+          } else if (paddedSpan < 0.2) {
+            // Properties spread across larger area
+            calculatedZoom = 12;
+          } else if (paddedSpan < 0.5) {
+            // Properties spread across city
+            calculatedZoom = 11;
+          } else {
+            // Properties spread across large area
+            calculatedZoom = 10;
+          }
+        } else {
+          // Single property - zoom in closer
+          calculatedZoom = 15;
+        }
+        
+        // Ensure zoom is within valid range (8-18)
+        calculatedZoom = Math.max(8, Math.min(18, calculatedZoom));
+        
+        setMapZoom(calculatedZoom);
         // Mark that company selection is complete
         companySelectionInProgressRef.current = false;
       }
