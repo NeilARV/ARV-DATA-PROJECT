@@ -22,7 +22,7 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 interface PropertyDetailPanelProps {
   property: Property | null;
   onClose: () => void;
-  onCompanyNameClick?: (companyName: string, companyId?: string) => void;
+  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
 }
 
 export default function PropertyDetailPanel({
@@ -229,7 +229,7 @@ export default function PropertyDetailPanel({
                     <button
                       onClick={() => {
                         const propertyWithId = property as Property & { propertyOwnerId?: string | null };
-                        onCompanyNameClick(property.propertyOwner!, propertyWithId.propertyOwnerId || undefined);
+                        onCompanyNameClick(property.propertyOwner!, propertyWithId.propertyOwnerId || undefined, true);
                       }}
                       className="font-medium text-sm text-primary hover:underline text-left"
                       data-testid="text-property-owner"

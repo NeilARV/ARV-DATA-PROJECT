@@ -1040,7 +1040,7 @@ export default function Home() {
     await fetchCompanyPropertyCount(companyName);
   };
 
-  const handleCompanyNameClick = async (companyName: string, companyId?: string) => {
+  const handleCompanyNameClick = async (companyName: string, companyId?: string, keepPanelOpen?: boolean) => {
     // Mark that we're starting a company selection
     companySelectionInProgressRef.current = true;
     
@@ -1048,7 +1048,10 @@ export default function Home() {
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory");
-    setSelectedProperty(null); // Close property panel when selecting a different company
+    // Only close property panel if not clicking from within the panel itself
+    if (!keepPanelOpen) {
+      setSelectedProperty(null);
+    }
     // Don't clear center/zoom here - let the company selection effect handle it
     
     // Fetch the company's total property count

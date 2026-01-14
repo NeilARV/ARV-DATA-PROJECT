@@ -23,7 +23,7 @@ interface PropertyDetailModalProps {
   property: Property | null;
   open: boolean;
   onClose: () => void;
-  onCompanyNameClick?: (companyName: string, companyId?: string) => void;
+  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
 }
 
 export default function PropertyDetailModal({
@@ -223,7 +223,7 @@ export default function PropertyDetailModal({
                       <button
                         onClick={() => {
                           const propertyWithId = property as Property & { propertyOwnerId?: string | null };
-                          onCompanyNameClick(property.propertyOwner!, propertyWithId.propertyOwnerId || undefined);
+                          onCompanyNameClick(property.propertyOwner!, propertyWithId.propertyOwnerId || undefined, true);
                           onClose(); // Close modal so user can see company directory
                         }}
                         className="font-medium text-primary hover:underline text-left"
