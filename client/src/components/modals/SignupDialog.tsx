@@ -22,11 +22,19 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 
 const signupSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  phone: z.string().min(10, "Please enter a valid phone number"),
+  phone: z.string().refine(
+    (val) => {
+      // Extract digits and check if we have exactly 10 digits
+      const digits = val.replace(/\D/g, '');
+      return digits.length === 10;
+    },
+    "Please enter a valid 10-digit phone number"
+  ),
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
@@ -223,8 +231,13 @@ export default function SignupDialog({ open, forced = false, onClose, onSuccess,
                     <Input 
                       type="tel"
                       placeholder="(555) 123-4567" 
-                      {...field} 
+                      value={field.value || ""}
                       data-testid="input-signup-phone"
+                      onChange={(e) => {
+                        const formatted = formatPhoneNumber(e.target.value);
+                        field.onChange(formatted);
+                      }}
+                      maxLength={14} // (XXX) XXX-XXXX = 14 characters
                     />
                   </FormControl>
                   <FormMessage />

@@ -18,10 +18,11 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CompanyContact, UpdateCompanyContact, updateCompanyContactSchema } from "@shared/schema";
+import { CompanyContact, UpdateCompanyContact } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 
 interface UpdateDialogProps {
   open: boolean;
@@ -42,26 +43,6 @@ const updateCompanyContactFormSchema = z.object({
 });
 
 type UpdateCompanyContactForm = z.infer<typeof updateCompanyContactFormSchema>;
-
-// Helper function to format phone number as (XXX) XXX-XXXX
-const formatPhoneNumber = (value: string): string => {
-  // Remove all non-digit characters
-  const phoneNumber = value.replace(/\D/g, '');
-  
-  // Limit to 10 digits
-  const phoneNumberDigits = phoneNumber.slice(0, 10);
-  
-  // Format based on length
-  if (phoneNumberDigits.length === 0) {
-    return '';
-  } else if (phoneNumberDigits.length <= 3) {
-    return `(${phoneNumberDigits}`;
-  } else if (phoneNumberDigits.length <= 6) {
-    return `(${phoneNumberDigits.slice(0, 3)}) ${phoneNumberDigits.slice(3)}`;
-  } else {
-    return `(${phoneNumberDigits.slice(0, 3)}) ${phoneNumberDigits.slice(3, 6)}-${phoneNumberDigits.slice(6)}`;
-  }
-};
 
 export default function UpdateDialog({
   open,
