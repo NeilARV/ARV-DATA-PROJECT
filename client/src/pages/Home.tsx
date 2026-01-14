@@ -68,6 +68,7 @@ export default function Home() {
   const { user, isAuthenticated } = useAuth();
   const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
   const geolocationAttemptedRef = useRef(false);
+  const companySelectionInProgressRef = useRef(false);
   
   // Helper function to get county center from COUNTIES array
   const getCountyCenter = (countyName: string): [number, number] | undefined => {
@@ -625,8 +626,8 @@ export default function Home() {
 
   useEffect(() => {
     const fetchLocation = async () => {
-      // Don't center on zipcode/city/county if a company is selected (company takes priority)
-      if (selectedCompany) {
+      // Don't center on zipcode/city/county if a company is selected or being processed (company takes priority)
+      if (selectedCompany || companySelectionInProgressRef.current) {
         return;
       }
       
@@ -703,14 +704,17 @@ export default function Home() {
       }
       
       // Fallback: If no specific location filter, center on the default county (San Diego)
-      const defaultCounty = filters?.county ?? 'San Diego';
-      const countyCenter = getCountyCenter(defaultCounty);
-      if (countyCenter) {
-        setMapCenter(countyCenter);
-        setMapZoom(10);
-      } else {
-        setMapCenter(undefined);
-        setMapZoom(12);
+      // BUT only if no company is selected (company selection takes priority)
+      if (!selectedCompany) {
+        const defaultCounty = filters?.county ?? 'San Diego';
+        const countyCenter = getCountyCenter(defaultCounty);
+        if (countyCenter) {
+          setMapCenter(countyCenter);
+          setMapZoom(10);
+        } else {
+          setMapCenter(undefined);
+          setMapZoom(12);
+        }
       }
     };
 
@@ -795,20 +799,38 @@ export default function Home() {
 
   // Center map on company properties when a company is selected
   useEffect(() => {
-    if (selectedCompany && filteredMapPins.length > 0) {
-      // Filter pins with valid coordinates
-      const validPins = filteredMapPins.filter(p => 
-        p.latitude != null && p.longitude != null && 
-        !isNaN(p.latitude) && !isNaN(p.longitude)
-      );
+    // Only run this effect if a company is selected
+    if (!selectedCompany) {
+      companySelectionInProgressRef.current = false;
+      return;
+    }
+    
+    // Mark that we're processing a company selection
+    companySelectionInProgressRef.current = true;
+    
+    // Wait for filteredMapPins to be available
+    if (filteredMapPins.length === 0) {
+      return;
+    }
+    
+    // Filter pins with valid coordinates
+    const validPins = filteredMapPins.filter(p => 
+      p.latitude != null && p.longitude != null && 
+      !isNaN(p.latitude) && !isNaN(p.longitude)
+    );
+    
+    if (validPins.length > 0) {
+      // Calculate average latitude and longitude
+      const avgLat = validPins.reduce((sum, p) => sum + p.latitude!, 0) / validPins.length;
+      const avgLng = validPins.reduce((sum, p) => sum + p.longitude!, 0) / validPins.length;
       
-      if (validPins.length > 0) {
-        // Calculate average latitude and longitude
-        const avgLat = validPins.reduce((sum, p) => sum + p.latitude!, 0) / validPins.length;
-        const avgLng = validPins.reduce((sum, p) => sum + p.longitude!, 0) / validPins.length;
-        
+      // Only set center if we have valid coordinates (not NaN)
+      if (!isNaN(avgLat) && !isNaN(avgLng)) {
         setMapCenter([avgLat, avgLng]);
         // Don't set zoom - let the user control it or use default
+        setMapZoom(10);
+        // Mark that company selection is complete
+        companySelectionInProgressRef.current = false;
       }
     }
   }, [selectedCompany, filteredMapPins]);
@@ -929,43 +951,51 @@ export default function Home() {
 
   const handleCompanySelect = async (companyName: string | null, companyId?: string | null) => {
     if (companyName) {
-      // Selecting a company: clear map center/zoom to allow auto-fit to company's properties
+      // Mark that we're starting a company selection to prevent location filter from interfering
+      companySelectionInProgressRef.current = true;
+      
+      // Selecting a company: set the company first, then let the effect handle centering
       setSelectedCompany(companyName);
       setSelectedCompanyId(companyId || null);
       setSelectedProperty(null); // Close property panel when selecting a different company
-      setMapCenter(undefined); // Clear center to allow MapBounds to auto-fit
-      setMapZoom(undefined); // Clear zoom to allow MapBounds to auto-fit
+      // Don't clear center/zoom here - let the company selection effect handle it
+      // This prevents race conditions with the location filter effect
       
       // Fetch the company's total property count from the API
       await fetchCompanyPropertyCount(companyName);
     } else {
       // Deselecting/clearing the company filter: preserve all existing filters and map position
+      companySelectionInProgressRef.current = false;
       clearCompanySelection();
       // Do NOT change map center/zoom when deselecting a company
     }
   };
 
   const handleLeaderboardCompanyClick = async (companyName: string, companyId?: string) => {
+    // Mark that we're starting a company selection
+    companySelectionInProgressRef.current = true;
+    
     // Preserve all existing filters when selecting a company from leaderboard
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory"); // Keep directory open to show selected company
     setSelectedProperty(null); // Close property panel when selecting a different company
-    setMapCenter(undefined); // Clear center to allow MapBounds to auto-fit
-    setMapZoom(undefined); // Clear zoom to allow MapBounds to auto-fit
+    // Don't clear center/zoom here - let the company selection effect handle it
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
   };
 
   const handleCompanyNameClick = async (companyName: string, companyId?: string) => {
+    // Mark that we're starting a company selection
+    companySelectionInProgressRef.current = true;
+    
     // Open the directory and select the company
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory");
     setSelectedProperty(null); // Close property panel when selecting a different company
-    setMapCenter(undefined); // Clear center to allow MapBounds to auto-fit
-    setMapZoom(undefined); // Clear zoom to allow MapBounds to auto-fit
+    // Don't clear center/zoom here - let the company selection effect handle it
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
