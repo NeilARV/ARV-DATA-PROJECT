@@ -15,6 +15,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2, User, Edit, Save, X } from "lucide-react";
 import { format } from "date-fns";
+import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
@@ -32,11 +33,16 @@ export default function Profile() {
   // Initialize form data when user loads or changes
   useEffect(() => {
     if (user) {
+      // Format phone number if it exists and isn't already formatted
+      const phone = user.phone 
+        ? (user.phone.includes('(') ? user.phone : formatPhoneNumber(user.phone))
+        : "";
+      
       setFormData({
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        phone: user.phone,
+        phone: phone,
         notifications: user.notifications ?? true,
       });
     }
@@ -159,12 +165,17 @@ export default function Profile() {
                 </label>
                 <Input
                   type="tel"
-                  value={isEditing ? formData.phone : user.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
+                  placeholder="(555) 123-4567"
+                  value={isEditing ? formData.phone : (user.phone?.includes('(') ? user.phone : formatPhoneNumber(user.phone || ""))}
+                  onChange={(e) => {
+                    if (isEditing) {
+                      const formatted = formatPhoneNumber(e.target.value);
+                      setFormData({ ...formData, phone: formatted });
+                    }
+                  }}
                   disabled={!isEditing}
                   className="mt-1"
+                  maxLength={14} // (XXX) XXX-XXXX = 14 characters
                 />
               </div>
               <div>
@@ -211,11 +222,16 @@ export default function Profile() {
                   variant="outline"
                   onClick={() => {
                     // Reset to original user values
+                    // Format phone number if it exists
+                    const phone = user.phone 
+                      ? (user.phone.includes('(') ? user.phone : formatPhoneNumber(user.phone))
+                      : "";
+                    
                     setFormData({
                       firstName: user.firstName,
                       lastName: user.lastName,
                       email: user.email,
-                      phone: user.phone,
+                      phone: phone,
                       notifications: user.notifications ?? true,
                     });
                     setIsEditing(false);
