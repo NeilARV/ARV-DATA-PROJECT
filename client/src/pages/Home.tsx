@@ -907,6 +907,7 @@ export default function Home() {
       // Selecting a company: preserve all existing filters and map position
       setSelectedCompany(companyName);
       setSelectedCompanyId(companyId || null);
+      setSelectedProperty(null); // Close property panel when selecting a different company
       
       // Fetch the company's total property count from the API
       await fetchCompanyPropertyCount(companyName);
@@ -923,6 +924,7 @@ export default function Home() {
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory"); // Keep directory open to show selected company
+    setSelectedProperty(null); // Close property panel when selecting a different company
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
@@ -934,6 +936,7 @@ export default function Home() {
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory");
+    setSelectedProperty(null); // Close property panel when selecting a different company
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
