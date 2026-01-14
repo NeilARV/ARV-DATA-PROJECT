@@ -65,10 +65,11 @@ interface PropertyMapProps {
   onDeselectCompany?: () => void;
 }
 
-function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [number, number], zoom?: number }) {
+function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin[], center?: [number, number], zoom?: number, selectedCompany?: string | null }) {
   const map = useMap();
   const previousPropertyIdsRef = useRef<string>('');
   const previousCenterRef = useRef<[number, number] | undefined>(undefined);
+  const previousSelectedCompanyRef = useRef<string | null | undefined>(undefined);
   
   useEffect(() => {
     // Create a sorted string of property IDs to compare
@@ -77,6 +78,10 @@ function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [num
     // Only refit bounds if the property set actually changed (not just a re-render)
     const propertySetChanged = previousPropertyIdsRef.current !== currentPropertyIds;
     previousPropertyIdsRef.current = currentPropertyIds;
+    
+    // Check if selected company changed (triggers refit even if same properties)
+    const companyChanged = selectedCompany !== previousSelectedCompanyRef.current;
+    previousSelectedCompanyRef.current = selectedCompany;
     
     // Check if center changed
     const centerChanged = center !== undefined && (
@@ -100,9 +105,10 @@ function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [num
       );
       
       if (validPins.length > 0) {
-        // Only fit bounds if the property set changed (filters applied, etc.)
-        // Don't refit when just selecting a property (which doesn't change the property set)
-        if (propertySetChanged && center === undefined) {
+        // Fit bounds if:
+        // 1. Company selection changed (always fit bounds to show all company properties)
+        // 2. OR property set changed AND center is not explicitly set (filters applied, etc.)
+        if (companyChanged || (propertySetChanged && center === undefined)) {
           const bounds = L.latLngBounds(
             validPins.map(p => [p.latitude!, p.longitude!])
           );
@@ -116,7 +122,7 @@ function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [num
       // No properties at all, use default view
       map.setView(center, zoom);
     }
-  }, [mapPins, center, zoom, map]);
+  }, [mapPins, center, zoom, map, selectedCompany]);
 
   return null;
 }
@@ -179,7 +185,7 @@ export default function PropertyMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapBounds mapPins={validPins} center={center} zoom={zoom} />
+        <MapBounds mapPins={validPins} center={center} zoom={zoom} selectedCompany={selectedCompany} />
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>

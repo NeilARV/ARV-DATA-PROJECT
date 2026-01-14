@@ -43,7 +43,7 @@ export default function Home() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
-  const [mapZoom, setMapZoom] = useState<number>(12);
+  const [mapZoom, setMapZoom] = useState<number | undefined>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
   
   // Pagination state for infinite scroll (grid/table views)
@@ -625,6 +625,11 @@ export default function Home() {
 
   useEffect(() => {
     const fetchLocation = async () => {
+      // Don't center on zipcode/city/county if a company is selected (company takes priority)
+      if (selectedCompany) {
+        return;
+      }
+      
       // Priority: zipcode > city > county (most specific to least specific)
       
       // Handle zip code filter (highest priority - most specific)
@@ -710,7 +715,7 @@ export default function Home() {
     };
 
     fetchLocation();
-  }, [filters?.zipCode, filters?.city, filters?.county]);
+  }, [filters?.zipCode, filters?.city, filters?.county, selectedCompany]);
 
   // Get the appropriate zip code list based on county filter
   const zipCodeList = useMemo(() => {
@@ -787,6 +792,26 @@ export default function Home() {
       return true;
     });
   }, [mapPins, filters, selectedCompany, zipCodeList]);
+
+  // Center map on company properties when a company is selected
+  useEffect(() => {
+    if (selectedCompany && filteredMapPins.length > 0) {
+      // Filter pins with valid coordinates
+      const validPins = filteredMapPins.filter(p => 
+        p.latitude != null && p.longitude != null && 
+        !isNaN(p.latitude) && !isNaN(p.longitude)
+      );
+      
+      if (validPins.length > 0) {
+        // Calculate average latitude and longitude
+        const avgLat = validPins.reduce((sum, p) => sum + p.latitude!, 0) / validPins.length;
+        const avgLng = validPins.reduce((sum, p) => sum + p.longitude!, 0) / validPins.length;
+        
+        setMapCenter([avgLat, avgLng]);
+        // Don't set zoom - let the user control it or use default
+      }
+    }
+  }, [selectedCompany, filteredMapPins]);
 
 
   // Use buyers feed properties when in buyers-feed view, otherwise use regular properties
@@ -904,14 +929,15 @@ export default function Home() {
 
   const handleCompanySelect = async (companyName: string | null, companyId?: string | null) => {
     if (companyName) {
-      // Selecting a company: preserve all existing filters and map position
+      // Selecting a company: clear map center/zoom to allow auto-fit to company's properties
       setSelectedCompany(companyName);
       setSelectedCompanyId(companyId || null);
       setSelectedProperty(null); // Close property panel when selecting a different company
+      setMapCenter(undefined); // Clear center to allow MapBounds to auto-fit
+      setMapZoom(undefined); // Clear zoom to allow MapBounds to auto-fit
       
       // Fetch the company's total property count from the API
       await fetchCompanyPropertyCount(companyName);
-      // Do NOT change map center/zoom when selecting a company
     } else {
       // Deselecting/clearing the company filter: preserve all existing filters and map position
       clearCompanySelection();
@@ -925,10 +951,11 @@ export default function Home() {
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory"); // Keep directory open to show selected company
     setSelectedProperty(null); // Close property panel when selecting a different company
+    setMapCenter(undefined); // Clear center to allow MapBounds to auto-fit
+    setMapZoom(undefined); // Clear zoom to allow MapBounds to auto-fit
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
-    // Do NOT change map center/zoom when selecting a company from leaderboard
   };
 
   const handleCompanyNameClick = async (companyName: string, companyId?: string) => {
@@ -937,6 +964,8 @@ export default function Home() {
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory");
     setSelectedProperty(null); // Close property panel when selecting a different company
+    setMapCenter(undefined); // Clear center to allow MapBounds to auto-fit
+    setMapZoom(undefined); // Clear zoom to allow MapBounds to auto-fit
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
