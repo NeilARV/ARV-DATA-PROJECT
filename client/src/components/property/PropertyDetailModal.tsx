@@ -224,6 +224,7 @@ export default function PropertyDetailModal({
                         onClick={() => {
                           const propertyWithId = property as Property & { propertyOwnerId?: string | null };
                           onCompanyNameClick(property.propertyOwner!, propertyWithId.propertyOwnerId || undefined);
+                          onClose(); // Close modal so user can see company directory
                         }}
                         className="font-medium text-primary hover:underline text-left"
                         data-testid="text-property-owner"
