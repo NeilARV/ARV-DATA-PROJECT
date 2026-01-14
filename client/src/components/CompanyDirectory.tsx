@@ -3,7 +3,7 @@ import type { PropertyFilters } from "@/components/FilterSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
@@ -87,6 +87,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { user } = useAuth();
 
   // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
@@ -619,9 +620,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       );
                     })()}
                     
-                    {/* Edit Button - Only visible to admins */}
+                    {/* Admin Actions - Only visible to admins */}
                     {user?.isAdmin && (
-                      <div className="pt-3 border-t border-border">
+                      <div className="pt-3 border-t border-border space-y-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -635,6 +636,44 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         >
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(company.companyName).then(() => {
+                              setCopiedCompanyId(company.id);
+                              toast({
+                                title: "Copied",
+                                description: "Company name copied to clipboard",
+                              });
+                              // Reset after 2 seconds
+                              setTimeout(() => {
+                                setCopiedCompanyId(null);
+                              }, 2000);
+                            }).catch(() => {
+                              toast({
+                                title: "Copy Failed",
+                                description: "Failed to copy company name",
+                                variant: "destructive",
+                              });
+                            });
+                          }}
+                          data-testid="button-copy-company-name"
+                        >
+                          {copiedCompanyId === company.id ? (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copy Company Name
+                            </>
+                          )}
                         </Button>
                       </div>
                     )}
