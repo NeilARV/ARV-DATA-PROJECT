@@ -258,6 +258,9 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
         if (updateData.contactEmail !== undefined) {
             updateFields.contactEmail = updateData.contactEmail;
         }
+        if (updateData.phoneNumber !== undefined) {
+            updateFields.phoneNumber = updateData.phoneNumber;
+        }
         if (updateData.counties !== undefined) {
             updateFields.counties = updateData.counties;
         }

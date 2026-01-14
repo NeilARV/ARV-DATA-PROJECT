@@ -105,6 +105,7 @@ export const companyContacts = pgTable("company_contacts", {
   companyName: text("company_name").notNull().unique(),
   contactName: text("contact_name"),
   contactEmail: text("contact_email"),
+  phoneNumber: text("phone_number"),
   counties: text("counties"), // JSON array of counties stored as text
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -243,6 +244,7 @@ export const updatePropertySchema = z.object({
 export const updateCompanyContactSchema = z.object({
   contactName: z.string().nullable().optional(),
   contactEmail: z.string().email("Invalid email address").nullable().optional(),
+  phoneNumber: z.string().nullable().optional(),
   counties: z.string().nullable().optional(), // JSON array stored as text
   companyName: z.string().min(1, "Company name is required").optional(),
 }).strict();

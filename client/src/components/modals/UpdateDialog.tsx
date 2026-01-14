@@ -38,9 +38,30 @@ const updateCompanyContactFormSchema = z.object({
     (val) => !val || val === "" || z.string().email().safeParse(val).success,
     "Invalid email address"
   ).optional(),
+  phoneNumber: z.string().optional(),
 });
 
 type UpdateCompanyContactForm = z.infer<typeof updateCompanyContactFormSchema>;
+
+// Helper function to format phone number as (XXX) XXX-XXXX
+const formatPhoneNumber = (value: string): string => {
+  // Remove all non-digit characters
+  const phoneNumber = value.replace(/\D/g, '');
+  
+  // Limit to 10 digits
+  const phoneNumberDigits = phoneNumber.slice(0, 10);
+  
+  // Format based on length
+  if (phoneNumberDigits.length === 0) {
+    return '';
+  } else if (phoneNumberDigits.length <= 3) {
+    return `(${phoneNumberDigits}`;
+  } else if (phoneNumberDigits.length <= 6) {
+    return `(${phoneNumberDigits.slice(0, 3)}) ${phoneNumberDigits.slice(3)}`;
+  } else {
+    return `(${phoneNumberDigits.slice(0, 3)}) ${phoneNumberDigits.slice(3, 6)}-${phoneNumberDigits.slice(6)}`;
+  }
+};
 
 export default function UpdateDialog({
   open,
@@ -58,6 +79,7 @@ export default function UpdateDialog({
       companyName: "",
       contactName: "",
       contactEmail: "",
+      phoneNumber: "",
     },
   });
 
@@ -75,10 +97,16 @@ export default function UpdateDialog({
           return res.json();
         })
         .then((data: CompanyContact) => {
+          // Format phone number if it exists and isn't already formatted
+          const phoneNumber = data.phoneNumber 
+            ? (data.phoneNumber.includes('(') ? data.phoneNumber : formatPhoneNumber(data.phoneNumber))
+            : "";
+          
           form.reset({
             companyName: data.companyName || "",
             contactName: data.contactName || "",
             contactEmail: data.contactEmail || "",
+            phoneNumber: phoneNumber,
           });
         })
         .catch((error) => {
@@ -111,6 +139,7 @@ export default function UpdateDialog({
       const updateData: UpdateCompanyContact = {
         contactName: data.contactName && data.contactName.trim() !== "" ? data.contactName : null,
         contactEmail: data.contactEmail && data.contactEmail.trim() !== "" ? data.contactEmail : null,
+        phoneNumber: data.phoneNumber && data.phoneNumber.trim() !== "" ? data.phoneNumber : null,
       };
 
       await apiRequest("PATCH", `/api/companies/${companyId}`, updateData);
@@ -206,6 +235,31 @@ export default function UpdateDialog({
                         type="email"
                         placeholder="contact@example.com"
                         data-testid="input-contact-email"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ""}
+                        type="tel"
+                        placeholder="(555) 123-4567"
+                        data-testid="input-phone-number"
+                        onChange={(e) => {
+                          const formatted = formatPhoneNumber(e.target.value);
+                          field.onChange(formatted);
+                        }}
+                        maxLength={14} // (XXX) XXX-XXXX = 14 characters
                       />
                     </FormControl>
                     <FormMessage />
