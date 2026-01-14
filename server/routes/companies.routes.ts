@@ -103,12 +103,13 @@ router.get("/leaderboard", async (req, res) => {
         const countyParam = req.query.county?.toString() || "San Diego";
         const normalizedCounty = countyParam.trim().toLowerCase();
         
-        // Get all properties in the specified county with company info (need propertyOwnerId, zipCode, and companyName)
+        // Get all properties in the specified county with company info (need propertyOwnerId, zipCode, companyName, and contactName)
         const allProperties = await db
             .select({
                 propertyOwnerId: properties.propertyOwnerId,
                 zipCode: properties.zipCode,
                 companyName: companyContacts.companyName,
+                contactName: companyContacts.contactName,
             })
             .from(properties)
             .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id))
@@ -116,16 +117,23 @@ router.get("/leaderboard", async (req, res) => {
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
             ) as any;
 
-        // Calculate company counts using companyName from joined table
+        // Calculate company counts and collect contact names using companyName from joined table
         const companyCounts: Record<string, number> = {};
-        allProperties.forEach((p: { companyName: string | null }) => {
+        const companyContactNames: Record<string, string | null> = {};
+        allProperties.forEach((p: { companyName: string | null; contactName: string | null }) => {
             if (p.companyName) {
                 const companyName = p.companyName.trim();
                 companyCounts[companyName] = (companyCounts[companyName] || 0) + 1;
+                // Store contact name for this company (use first non-null contact name found)
+                if (p.contactName && !companyContactNames[companyName]) {
+                    companyContactNames[companyName] = p.contactName.trim();
+                } else if (!(companyName in companyContactNames)) {
+                    companyContactNames[companyName] = null;
+                }
             }
         });
 
-        // Get top 10 companies
+        // Get top 10 companies with contact names
         const topCompanies = Object.entries(companyCounts)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
@@ -133,6 +141,7 @@ router.get("/leaderboard", async (req, res) => {
                 rank: index + 1,
                 name,
                 count,
+                contactName: companyContactNames[name] || null,
             }));
 
         // Calculate zip code counts

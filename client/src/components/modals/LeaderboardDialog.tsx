@@ -18,7 +18,7 @@ interface LeaderboardDialogProps {
 }
 
 interface LeaderboardData {
-  companies: Array<{ rank: number; name: string; count: number }>;
+  companies: Array<{ rank: number; name: string; count: number; contactName: string | null }>;
   zipCodes: Array<{ rank: number; zipCode: string; count: number }>;
 }
 
@@ -102,8 +102,8 @@ export default function LeaderboardDialog({
                     className="w-full flex items-center justify-between p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer text-left transition-colors"
                     data-testid={`leaderboard-company-${company.rank}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    <div className="flex items-start gap-3">
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${
                         company.rank === 1 ? 'bg-yellow-500 text-yellow-950' :
                         company.rank === 2 ? 'bg-gray-300 text-gray-800' :
                         company.rank === 3 ? 'bg-amber-600 text-amber-50' :
@@ -111,9 +111,16 @@ export default function LeaderboardDialog({
                       }`}>
                         {company.rank}
                       </span>
-                      <span className="font-medium text-sm truncate max-w-[180px]" title={company.name}>
-                        {company.name}
-                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium text-sm truncate max-w-[180px]" title={company.name}>
+                          {company.name}
+                        </span>
+                        {company.contactName && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[180px]" title={company.contactName}>
+                            {company.contactName}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className="text-sm font-semibold text-primary">
                       {company.count} {company.count === 1 ? 'property' : 'properties'}
