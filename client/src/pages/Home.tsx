@@ -922,7 +922,7 @@ export default function Home() {
     // Preserve all existing filters when selecting a company from leaderboard
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
-    setSidebarView("none");
+    setSidebarView("directory"); // Keep directory open to show selected company
     
     // Fetch the company's total property count
     await fetchCompanyPropertyCount(companyName);
