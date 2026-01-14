@@ -11,7 +11,8 @@ import { fetchCounty } from "server/utils/fetchCounty";
 import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
 import { eq, sql, or, and, desc, asc, gt, getTableColumns } from "drizzle-orm";
 import pLimit from "p-limit";
-import dotenv from "dotenv"
+import dotenv from "dotenv";
+import { getMapData } from "server/controllers/properties/maps.controllers";
 
 dotenv.config()
 
@@ -712,67 +713,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
 });
 
 // Get minimal property data for map pins
-router.get("/map", async (req, res) => {
-    try {
-        const { county } = req.query;
-
-        const conditions = [];
-
-        if (county) {
-            const normalizedCounty = county.toString().trim().toLowerCase();
-            conditions.push(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
-            );
-        }
-
-        const whereClause = conditions.length > 0 ? conditions[0] : undefined;
-
-        // Select only minimal fields needed for map pins and filtering
-        // Use LEFT JOIN to get company name from company_contacts table
-        let query = db
-            .select({
-                id: properties.id,
-                latitude: properties.latitude,
-                longitude: properties.longitude,
-                address: properties.address,
-                city: properties.city,
-                zipcode: properties.zipCode,
-                county: properties.county,
-                propertyType: properties.propertyType,
-                bedrooms: properties.bedrooms,
-                bathrooms: properties.bathrooms,
-                price: properties.price,
-                status: properties.status,
-                // Company name from joined table
-                companyName: companyContacts.companyName,
-            })
-            .from(properties)
-            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id));
-
-        if (whereClause) {
-            query = query.where(whereClause) as any;
-        }
-
-        const rawResults = await query.execute();
-
-        // Map results to use companyName as propertyOwner for backward compatibility
-        const results = rawResults.map((prop: any) => {
-            const { companyName, ...rest } = prop;
-            return {
-                ...rest,
-                propertyOwner: companyName || null,
-            };
-        });
-
-        console.log("Properties map pins:", results.length);
-
-        res.status(200).json(results);
-
-    } catch (error) {
-        console.error("Error fetching properties map pins:", error);
-        res.status(500).json({ message: "Error fetching properties map pins" });
-    }
-});
+router.get("/map", getMapData);
 
 // Get property suggestions for search
 router.get("/suggestions", async (req, res) => {

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { insertUserSchema } from "@shared/schema";
-import { Registration, Users } from "server/services/auth";
+import { RegistrationServices, UserServices } from "server/services/auth";
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -17,7 +17,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
         const { firstName, lastName, phone, email, password } = validation.data;
 
-        const whitelistUser = await Registration.isEmailWhiteListed(email)
+        const whitelistUser = await RegistrationServices.isEmailWhiteListed(email)
 
         if (whitelistUser.length === 0) {
             res.status(403).json({message: "You are not authorized to sign up for this service."})
@@ -25,7 +25,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         }
 
         // Get user by email
-        const existingUser = await Users.getUserByEmail(email)
+        const existingUser = await UserServices.getUserByEmail(email)
 
         // Check if email already exists
         if (existingUser.length > 0) {
@@ -33,7 +33,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             return;
         }
 
-        const newUser = await Users.createUser({
+        const newUser = await UserServices.createUser({
             firstName,
             lastName,
             phone,

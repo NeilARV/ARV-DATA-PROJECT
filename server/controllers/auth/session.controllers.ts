@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { loginSchema, updateUserProfileSchema } from "@shared/schema";
-import { Session, Users } from "server/services/auth";
+import { SessionServices, UserServices } from "server/services/auth";
 
 export async function login(req: Request, res: Response, next: NextFunction):Promise<void> {
     try {
@@ -16,7 +16,7 @@ export async function login(req: Request, res: Response, next: NextFunction):Pro
         const { email, password } = validation.data;
 
         // Find user by email
-        const [ user ] = await Users.getUserByEmail(email)
+        const [ user ] = await UserServices.getUserByEmail(email)
 
         // User does not exist
         if (!user) {
@@ -25,7 +25,7 @@ export async function login(req: Request, res: Response, next: NextFunction):Pro
         }
 
         // Verify password
-        const isValidPassword = Session.isValidPassword(password, user.passwordHash)
+        const isValidPassword = SessionServices.isValidPassword(password, user.passwordHash)
         
         if (!isValidPassword) {
             res.status(401).json({ message: "Invalid email or password" });
@@ -59,7 +59,7 @@ export async function me(req: Request, res: Response, next: NextFunction):Promis
             return;
         }
         
-        const [ user ] = await Users.getUserById(req.session.userId)
+        const [ user ] = await UserServices.getUserById(req.session.userId)
             
         if (!user) {
             req.session.userId = undefined;
@@ -99,7 +99,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
 
         // Check if email is being updated and if it's already taken by another user
         if (updateData.email) {
-            const [existingUser] = await Users.getUserByEmail(updateData.email);
+            const [existingUser] = await UserServices.getUserByEmail(updateData.email);
             if (existingUser && existingUser.id !== req.session.userId) {
                 res.status(409).json({ message: "An account with this email already exists" });
                 return;
@@ -107,7 +107,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
         }
 
         // Update user profile (only allow updating own profile)
-        const updatedUser = await Users.updateUser(req.session.userId, updateData);
+        const updatedUser = await UserServices.updateUser(req.session.userId, updateData);
 
         if (!updatedUser) {
             res.status(404).json({ message: "User not found" });

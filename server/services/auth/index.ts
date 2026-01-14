@@ -1,3 +1,3 @@
-export * as Registration from "./registration.services"
-export * as Session from "./session.services"
-export * as Users from "./user.services"
+export * as RegistrationServices from "./registration.services"
+export * as SessionServices from "./session.services"
+export * as UserServices from "./user.services"
