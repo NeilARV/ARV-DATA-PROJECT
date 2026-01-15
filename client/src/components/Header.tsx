@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import logoUrl from "@assets/arv-data-logo.png";
+import darkLogoUrl from "@assets/arv-data-logo-dark.png";
+import lightLogoUrl from "@assets/arv-data-logo-light.png";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
@@ -201,14 +202,14 @@ export default function Header({
       {/* Left Section */}
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <button
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer flex-shrink-0"
+          className="flex items-center hover:opacity-80 transition-opacity cursor-pointer flex-shrink-0"
           onClick={onLogoClick}
           data-testid="button-logo-home"
         >
           <img 
-            src={logoUrl} 
+            src={isDark ? lightLogoUrl : darkLogoUrl} 
             alt="ARV DATA" 
-            className="h-10 w-auto"
+            className="h-16 w-auto"
             data-testid="img-logo"
           />
           <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
