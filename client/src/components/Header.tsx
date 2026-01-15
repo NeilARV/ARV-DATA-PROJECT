@@ -57,7 +57,15 @@ export default function Header({
   county,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDark, setIsDark] = useState(false);
+  // Initialize isDark synchronously to avoid wrong logo on first render
+  const [isDark, setIsDark] = useState(() => {
+    // Check localStorage first (faster)
+    const storedTheme = localStorage.getItem("theme");
+    if (storedTheme === "dark") return true;
+    if (storedTheme === "light") return false;
+    // Fallback to checking DOM class list
+    return document.documentElement.classList.contains("dark");
+  });
   const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -68,10 +76,13 @@ export default function Header({
   const { user, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
 
+  // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
   useEffect(() => {
     const isDarkMode = document.documentElement.classList.contains("dark");
-    setIsDark(isDarkMode);
-  }, []);
+    if (isDarkMode !== isDark) {
+      setIsDark(isDarkMode);
+    }
+  }, [isDark]);
 
   // Debounced API call for suggestions
   useEffect(() => {
