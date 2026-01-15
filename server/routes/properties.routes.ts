@@ -12,7 +12,7 @@ import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
 import { eq, sql, or, and, desc, asc, gt, getTableColumns } from "drizzle-orm";
 import pLimit from "p-limit";
 import dotenv from "dotenv";
-import { getMapData } from "server/controllers/properties/maps.controllers";
+import { MapsController, StreetviewController } from "server/controllers/properties";
 
 dotenv.config()
 
@@ -713,7 +713,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
 });
 
 // Get minimal property data for map pins
-router.get("/map", getMapData);
+router.get("/map", MapsController.getMapData);
 
 // Get property suggestions for search
 router.get("/suggestions", async (req, res) => {
@@ -898,195 +898,7 @@ router.post("/upload", requireAdminAuth, async (req, res) => {
 
 // Proxy Street View image to keep API key secure on server
 // Now with database caching to reduce Google API calls
-router.get("/streetview", async (req, res) => {
-    try {
-        const { address, city, state, size = "600x400", propertyId } = req.query;
-
-        if (!address) {
-            return res.status(400).json({ message: "Address parameter is required" });
-        }
-
-        const normalizedAddress = address.toString().trim();
-        const normalizedCity = city?.toString().trim() || "";
-        const normalizedState = state?.toString().trim() || "";
-        const normalizedSize = size.toString().trim();
-
-        // Check cache first - look for non-expired entry matching address+city+state+size
-        // If propertyId is provided, also check for that
-        const cacheConditions = [
-            sql`LOWER(TRIM(${streetviewCache.address})) = ${normalizedAddress.toLowerCase()}`,
-            sql`LOWER(TRIM(${streetviewCache.city})) = ${normalizedCity.toLowerCase()}`,
-            sql`LOWER(TRIM(${streetviewCache.state})) = ${normalizedState.toLowerCase()}`,
-            sql`TRIM(${streetviewCache.size}) = ${normalizedSize}`,
-            sql`${streetviewCache.expiresAt} > NOW()`
-        ];
-
-        if (propertyId) {
-            cacheConditions.push(eq(streetviewCache.propertyId, propertyId.toString()));
-        }
-
-        const cachedEntry = await db
-            .select()
-            .from(streetviewCache)
-            .where(and(...cacheConditions))
-            .limit(1);
-
-        if (cachedEntry.length > 0) {
-            const cached = cachedEntry[0];
-            
-            // Check if this is a cached negative result (no image available)
-            if (!cached.imageData || cached.metadataStatus !== "OK") {
-                console.log(`[STREETVIEW CACHE HIT] Cached negative result (status: ${cached.metadataStatus || 'no image'}) for: ${normalizedAddress}, ${normalizedCity}, ${normalizedState}`);
-                return res
-                    .status(404)
-                    .json({ 
-                        message: "Street View image not available",
-                        status: cached.metadataStatus || "NOT_AVAILABLE",
-                        cached: true
-                    });
-            }
-            
-            console.log(`[STREETVIEW CACHE HIT] Using cached image for: ${normalizedAddress}, ${normalizedCity}, ${normalizedState}`);
-            
-            // imageData is already a Buffer from BYTEA column
-            const imageBuffer = cached.imageData;
-            
-            // Set appropriate headers
-            res.setHeader("Content-Type", cached.contentType || "image/jpeg");
-            res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
-            
-            res.send(imageBuffer);
-            return;
-        }
-
-        // Cache miss - check metadata API first to avoid charges for unavailable images
-        console.log(`[STREETVIEW CACHE MISS] Checking metadata for: ${normalizedAddress}, ${normalizedCity}, ${normalizedState}`);
-
-        const apiKey = process.env.GOOGLE_API_KEY;
-        if (!apiKey) {
-            console.error("GOOGLE_API_KEY not configured");
-            return res
-                .status(500)
-                .json({ message: "Street View service not configured" });
-        }
-
-        // Combine address components for the location parameter
-        const locationParts = [normalizedAddress];
-        if (normalizedCity) locationParts.push(normalizedCity);
-        if (normalizedState) locationParts.push(normalizedState);
-        const location = locationParts.join(", ");
-
-        // Check metadata API first to see if image is available (avoids charges for unavailable images)
-        const metadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${encodeURIComponent(location)}&key=${apiKey}`;
-        
-        let metadataResponse;
-        let metadata;
-        try {
-            metadataResponse = await fetch(metadataUrl);
-            metadata = await metadataResponse.json();
-            
-            console.log(`[STREETVIEW METADATA] Status: ${metadata.status} for location: ${location}`);
-            
-            // If status is not "OK", image is not available - don't fetch image
-            if (metadata.status !== "OK") {
-                // Cache the negative result (no image available) to avoid repeated metadata checks
-                const expiresAt = new Date();
-                expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now so we keep checking if google added image
-                
-                try {
-                    await db.insert(streetviewCache).values({
-                        propertyId: propertyId?.toString() || null,
-                        address: normalizedAddress,
-                        city: normalizedCity,
-                        state: normalizedState,
-                        size: normalizedSize,
-                        imageData: null, // No image available
-                        contentType: null, // No content-type because image not available
-                        metadataStatus: metadata.status, // Store the status
-                        expiresAt: expiresAt,
-                    });
-                    console.log(`[STREETVIEW CACHE] Cached negative result (status: ${metadata.status}), expires: ${expiresAt.toISOString()}`);
-                } catch (cacheError) {
-                    console.error("[STREETVIEW CACHE] Error storing negative result in cache:", cacheError);
-                }
-                
-                return res
-                    .status(404)
-                    .json({ 
-                        message: "Street View image not available",
-                        status: metadata.status,
-                        reason: metadata.status === "ZERO_RESULTS" 
-                            ? "No panorama found near this location"
-                            : metadata.status === "NOT_FOUND"
-                            ? "Address not found"
-                            : "Street View not available for this location"
-                    });
-            }
-        } catch (metadataError) {
-            console.error("[STREETVIEW METADATA] Error checking metadata:", metadataError);
-            // If metadata check fails, we could proceed to fetch image anyway, but for safety, return error
-            return res
-                .status(500)
-                .json({ message: "Error checking Street View availability" });
-        }
-
-        // Metadata check passed (status === "OK") - now fetch the actual image
-        console.log(`[STREETVIEW] Fetching image from Google API for: ${location}`);
-        const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=${normalizedSize}&location=${encodeURIComponent(location)}&key=${apiKey}`;
-
-        // Fetch the image from Google
-        const imageResponse = await fetch(streetViewUrl);
-
-        if (!imageResponse.ok) {
-            const responseText = await imageResponse.text();
-            console.error("Failed to fetch Street View image:", {
-                status: imageResponse.status,
-                statusText: imageResponse.statusText,
-                response: responseText.substring(0, 500),
-                location,
-            });
-            return res
-                .status(404)
-                .json({ message: "Street View image not available" });
-        }
-
-        // Get image data
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const buffer = Buffer.from(imageBuffer);
-        const contentType = imageResponse.headers.get("content-type") || "image/jpeg";
-
-        // Store in cache (store as binary Buffer - BYTEA handles it directly)
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 29); // 29 days from now (1 less than google requriements to ensure compliance)
-
-        try {
-            await db.insert(streetviewCache).values({
-                propertyId: propertyId?.toString() || null,
-                address: normalizedAddress,
-                city: normalizedCity,
-                state: normalizedState,
-                size: normalizedSize,
-                imageData: buffer, // Store as Buffer - BYTEA column handles binary data directly
-                contentType: contentType,
-                metadataStatus: "OK", // Store successful status
-                expiresAt: expiresAt,
-            });
-            console.log(`[STREETVIEW CACHE] Stored new image in cache, expires: ${expiresAt.toISOString()}`);
-        } catch (cacheError) {
-            // Log error but don't fail the request - image will still be served
-            console.error("[STREETVIEW CACHE] Error storing in cache:", cacheError);
-        }
-
-        // Set appropriate headers and send the image
-        res.setHeader("Content-Type", contentType);
-        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
-
-        res.send(buffer);
-    } catch (error) {
-        console.error("Error fetching Street View image:", error);
-        res.status(500).json({ message: "Error fetching Street View image" });
-    }
-});
+router.get("/streetview", StreetviewController.getStreetview);
 
 // Delete all properties (requires admin auth)
 router.delete("/", requireAdminAuth, async (_req, res) => {
