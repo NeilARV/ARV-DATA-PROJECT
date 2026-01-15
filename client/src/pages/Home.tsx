@@ -1152,7 +1152,7 @@ export default function Home() {
   };
 
   // Calculate total properties owned by selected company
-  // For map view, count from mapPins. For grid/table views, use the fetched company property count
+  // For map view, count from mapPins. For grid/table views, use the API response total which respects county filter
   const totalCompanyProperties = useMemo(() => {
     if (!selectedCompany) return 0;
     if (viewMode === "map") {
@@ -1162,9 +1162,14 @@ export default function Home() {
         return ownerName === companyNameNormalized;
       }).length;
     }
-    // For grid/table views, use the stable company property count to avoid flashing "0"
+    // For grid/table views, use the API response total which already includes company and county filters
+    // This ensures the count respects the county filter (e.g., 27/27 in San Diego, not 27/28 total)
+    if (propertiesResponse?.total !== undefined) {
+      return propertiesResponse.total;
+    }
+    // Fallback to stable count during loading to avoid flashing "0"
     return displayCompanyPropertyCount;
-  }, [mapPins, selectedCompany, viewMode, displayCompanyPropertyCount]);
+  }, [mapPins, selectedCompany, viewMode, propertiesResponse?.total, displayCompanyPropertyCount]);
 
   // Properties are now sorted server-side, so we can use them directly
   // The API returns properties in the correct sorted order based on the sortBy parameter
