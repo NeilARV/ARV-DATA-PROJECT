@@ -65,6 +65,41 @@ interface PropertyMapProps {
   onDeselectCompany?: () => void;
 }
 
+function MapResizeHandler() {
+  const map = useMap();
+  
+  useEffect(() => {
+    // Invalidate size on mount
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 0);
+    
+    // Watch for window resize events
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Also use ResizeObserver to watch for container size changes
+    const mapContainer = map.getContainer();
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    
+    if (mapContainer) {
+      resizeObserver.observe(mapContainer);
+    }
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+    };
+  }, [map]);
+  
+  return null;
+}
+
 function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin[], center?: [number, number], zoom?: number, selectedCompany?: string | null }) {
   const map = useMap();
   const previousPropertyIdsRef = useRef<string>('');
@@ -185,6 +220,7 @@ export default function PropertyMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <MapResizeHandler />
         <MapBounds mapPins={validPins} center={center} zoom={zoom} selectedCompany={selectedCompany} />
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
