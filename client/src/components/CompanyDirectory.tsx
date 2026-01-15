@@ -14,7 +14,7 @@ type CompanyContactWithCounts = CompanyContact & {
   propertyCount: number;
 };
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
-import { parseISO, isValid, format, isAfter } from "date-fns";
+import { parseISO, isValid, format, isAfter, subDays } from "date-fns";
 import { Card } from "@/components/ui/card";
 import {
   Select,
@@ -496,10 +496,14 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       const companyNameNormalized = company.companyName.trim().toLowerCase();
                       const now = new Date();
                       
-                      // Get the last 3 complete months (excluding current month)
-                      // In December, show Sep, Oct, Nov
+                      // Calculate the actual last 90 days from today
+                      const ninetyDaysAgo = subDays(now, 90);
+                      ninetyDaysAgo.setHours(0, 0, 0, 0); // Start of day
+                      
+                      // Get the last 3 months for the chart (including current month if needed)
+                      // This will show the months that overlap with the 90-day period
                       const months: { key: string; start: Date; end: Date }[] = [];
-                      for (let i = 3; i >= 1; i--) {
+                      for (let i = 2; i >= 0; i--) {
                         const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
                         const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
                         months.push({
@@ -509,15 +513,12 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         });
                       }
                       
-                      // Get properties for this company in the last 3 complete months
-                      const threeMonthsAgo = months[0].start;
-                      const endOfLastMonth = months[2].end;
-                      
                       // Normalize county filter for comparison (case-insensitive, trimmed)
                       const selectedCountyNormalized = filters?.county 
                         ? filters.county.trim().toLowerCase() 
                         : null;
                       
+                      // Get properties for this company in the last 90 days
                       const companyProperties = properties.filter(p => {
                         const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
                         if (ownerName !== companyNameNormalized) return false;
@@ -531,13 +532,14 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         if (!p.dateSold) return false;
                         try {
                           const date = parseISO(p.dateSold);
-                          return isValid(date) && isAfter(date, threeMonthsAgo) && !isAfter(date, endOfLastMonth);
+                          // Check if date is within the last 90 days and not in the future
+                          return isValid(date) && isAfter(date, ninetyDaysAgo) && !isAfter(date, now);
                         } catch {
                           return false;
                         }
                       });
                       
-                      // Group by month
+                      // Group by month for the chart (only count properties in the last 90 days)
                       const monthlyData: Record<string, number> = {};
                       months.forEach(m => {
                         monthlyData[m.key] = 0;
@@ -547,7 +549,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         if (p.dateSold) {
                           try {
                             const date = parseISO(p.dateSold);
-                            if (isValid(date)) {
+                            if (isValid(date) && isAfter(date, ninetyDaysAgo) && !isAfter(date, now)) {
                               const monthKey = format(date, 'MMM');
                               if (monthlyData[monthKey] !== undefined) {
                                 monthlyData[monthKey]++;
@@ -563,6 +565,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       }));
                       
                       const totalLast90Days = companyProperties.length;
+                      // Calculate average per month (90 days ≈ 3 months)
                       const avgPerMonth = totalLast90Days > 0 ? (totalLast90Days / 3).toFixed(1) : "0";
                       
                       return (
