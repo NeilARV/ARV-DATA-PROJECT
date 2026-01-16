@@ -3,7 +3,7 @@ import type { PropertyFilters } from "@/components/FilterSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check } from "lucide-react";
+import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
 import { CompanyContact, Property } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
@@ -465,6 +465,26 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         </span>
                       </span>
                     </div>
+                    
+                    {/* Company Email */}
+                    {company.contactEmail && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-primary" />
+                        <span className="text-sm text-foreground">
+                          {company.contactEmail}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Company Phone */}
+                    {company.phoneNumber && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-primary" />
+                        <span className="text-sm text-foreground">
+                          {company.phoneNumber}
+                        </span>
+                      </div>
+                    )}
                     
                     {/* Acquisitions Associate */}
                     {profile?.acquisitionsAssociate && (
