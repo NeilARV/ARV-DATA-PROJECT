@@ -219,7 +219,6 @@ CREATE TABLE structures (
     beds_count INTEGER,
     rooms_count INTEGER,
     baths DECIMAL(3, 1),
-    partial_baths_count INTEGER,
     basement_type VARCHAR(50),
     condition VARCHAR(50),
     construction_type VARCHAR(50),
