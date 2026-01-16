@@ -7,6 +7,13 @@
 -- USER MANAGEMENT TABLES
 -- ============================================================================
 
+-- Sessions table
+CREATE TABLE sessions (
+    sid VARCHAR PRIMARY KEY,
+    sess TEXT NOT NULL,
+    expire INTEGER NOT NULL
+);
+
 -- Email whitelist table
 CREATE TABLE email_whitelist (
     id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
