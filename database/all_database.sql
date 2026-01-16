@@ -1,5 +1,5 @@
--- Complete Database Schema for Neon DB Testing
--- This includes all user management and property data tables
+-- PostgreSQL Database Schema for Property Data
+-- This schema is designed to normalize the property data structure while maintaining data integrity
 
 -- ============================================================================
 -- USER MANAGEMENT TABLES
@@ -71,6 +71,8 @@ COMMENT ON TABLE sfr_sync_state IS 'Tracks synchronization state for Single Fami
 -- Main property table
 CREATE TABLE properties (
     property_id BIGINT PRIMARY KEY,
+    company_id VARCHAR REFERENCES companies(id) ON DELETE SET NULL,
+    property_owner_id VARCHAR REFERENCES companies(id) ON DELETE SET NULL,
     property_class_description VARCHAR(100),
     property_type VARCHAR(100),
     vacant BOOLEAN,
@@ -85,7 +87,7 @@ CREATE TABLE properties (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE properties IS 'Main property table containing core property information';
+CREATE INDEX idx_properties_company_id ON properties(company_id);
 
 -- Address information
 CREATE TABLE addresses (
@@ -115,8 +117,6 @@ CREATE INDEX idx_addresses_property_id ON addresses(property_id);
 CREATE INDEX idx_addresses_location ON addresses(latitude, longitude);
 CREATE INDEX idx_addresses_zip ON addresses(zip_code);
 
-COMMENT ON TABLE addresses IS 'Physical address and location details for properties';
-
 -- Assessments
 CREATE TABLE assessments (
     assessment_id SERIAL PRIMARY KEY,
@@ -131,8 +131,6 @@ CREATE TABLE assessments (
 
 CREATE INDEX idx_assessments_property_id ON assessments(property_id);
 CREATE INDEX idx_assessments_year ON assessments(assessed_year);
-
-COMMENT ON TABLE assessments IS 'Property assessment values by year';
 
 -- Exemptions
 CREATE TABLE exemptions (
@@ -153,29 +151,6 @@ CREATE TABLE exemptions (
 );
 
 CREATE INDEX idx_exemptions_property_id ON exemptions(property_id);
-
-COMMENT ON TABLE exemptions IS 'Tax exemptions for properties';
-
--- Owner information
-CREATE TABLE owners (
-    owner_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
-    owner_occupied BOOLEAN,
-    name VARCHAR(200),
-    second_name VARCHAR(200),
-    formatted_street_address VARCHAR(200),
-    city VARCHAR(100),
-    state VARCHAR(2),
-    zip_code VARCHAR(10),
-    zip_plus_four_code VARCHAR(10),
-    corporate_owner BOOLEAN,
-    care_of_name VARCHAR(200)
-);
-
-CREATE INDEX idx_owners_property_id ON owners(property_id);
-CREATE INDEX idx_owners_name ON owners(name);
-
-COMMENT ON TABLE owners IS 'Property owner information';
 
 -- Parcel information
 CREATE TABLE parcels (
@@ -200,8 +175,6 @@ CREATE TABLE parcels (
 CREATE INDEX idx_parcels_property_id ON parcels(property_id);
 CREATE INDEX idx_parcels_apn ON parcels(apn_original);
 
-COMMENT ON TABLE parcels IS 'Parcel and land information';
-
 -- School districts
 CREATE TABLE school_districts (
     school_district_id SERIAL PRIMARY KEY,
@@ -213,8 +186,6 @@ CREATE TABLE school_districts (
 );
 
 CREATE INDEX idx_school_districts_property_id ON school_districts(property_id);
-
-COMMENT ON TABLE school_districts IS 'School district information';
 
 -- Structure/Building information
 CREATE TABLE structures (
@@ -254,8 +225,6 @@ CREATE INDEX idx_structures_property_id ON structures(property_id);
 CREATE INDEX idx_structures_year_built ON structures(year_built);
 CREATE INDEX idx_structures_beds_baths ON structures(beds_count, baths);
 
-COMMENT ON TABLE structures IS 'Building and structure characteristics';
-
 -- Tax information
 CREATE TABLE tax_records (
     tax_record_id SERIAL PRIMARY KEY,
@@ -269,8 +238,6 @@ CREATE TABLE tax_records (
 
 CREATE INDEX idx_tax_records_property_id ON tax_records(property_id);
 CREATE INDEX idx_tax_records_year ON tax_records(tax_year);
-
-COMMENT ON TABLE tax_records IS 'Property tax information by year';
 
 -- Valuation history
 CREATE TABLE valuations (
@@ -287,8 +254,6 @@ CREATE TABLE valuations (
 CREATE INDEX idx_valuations_property_id ON valuations(property_id);
 CREATE INDEX idx_valuations_date ON valuations(valuation_date);
 
-COMMENT ON TABLE valuations IS 'Property valuation history';
-
 -- Pre-foreclosure information
 CREATE TABLE pre_foreclosures (
     pre_foreclosure_id SERIAL PRIMARY KEY,
@@ -302,8 +267,6 @@ CREATE TABLE pre_foreclosures (
 
 CREATE INDEX idx_pre_foreclosures_property_id ON pre_foreclosures(property_id);
 CREATE INDEX idx_pre_foreclosures_flag ON pre_foreclosures(flag);
-
-COMMENT ON TABLE pre_foreclosures IS 'Pre-foreclosure status information';
 
 -- Last sale information
 CREATE TABLE last_sales (
@@ -322,8 +285,6 @@ CREATE TABLE last_sales (
 CREATE INDEX idx_last_sales_property_id ON last_sales(property_id);
 CREATE INDEX idx_last_sales_date ON last_sales(sale_date);
 
-COMMENT ON TABLE last_sales IS 'Most recent sale transaction details';
-
 -- Current sale information
 CREATE TABLE current_sales (
     current_sale_id SERIAL PRIMARY KEY,
@@ -336,8 +297,6 @@ CREATE TABLE current_sales (
 );
 
 CREATE INDEX idx_current_sales_property_id ON current_sales(property_id);
-
-COMMENT ON TABLE current_sales IS 'Current/pending sale information';
 
 -- Street View image cache table
 CREATE TABLE streetview_cache (
@@ -369,16 +328,13 @@ CREATE INDEX idx_streetview_cache_lookup ON streetview_cache(
     expires_at
 );
 
-COMMENT ON TABLE streetview_cache IS 'Cached Google Street View images for properties with expiration tracking';
-
--- ============================================================================
--- VIEWS
--- ============================================================================
-
 -- Create a view for easy querying of complete property information
 CREATE VIEW property_full_details AS
 SELECT 
     p.*,
+    c.company_name,
+    c.contact_name as company_contact,
+    c.contact_email as company_email,
     a.formatted_street_address,
     a.city,
     a.state,
@@ -390,24 +346,18 @@ SELECT
     s.beds_count,
     s.baths,
     s.condition,
-    o.name as owner_name,
-    o.owner_occupied,
     ass.assessed_value,
     ass.market_value,
     v.value as current_valuation,
     ls.sale_date as last_sale_date,
     ls.price as last_sale_price
 FROM properties p
+LEFT JOIN companies c ON p.company_id = c.id
 LEFT JOIN addresses a ON p.property_id = a.property_id
 LEFT JOIN structures s ON p.property_id = s.property_id
-LEFT JOIN owners o ON p.property_id = o.property_id
 LEFT JOIN assessments ass ON p.property_id = ass.property_id
 LEFT JOIN valuations v ON p.property_id = v.property_id
 LEFT JOIN last_sales ls ON p.property_id = ls.property_id;
-
--- ============================================================================
--- FUNCTIONS AND TRIGGERS
--- ============================================================================
 
 -- Function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -418,82 +368,18 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Trigger to automatically update the updated_at column on properties table
+-- Trigger to automatically update the updated_at column
 CREATE TRIGGER update_properties_updated_at BEFORE UPDATE ON properties
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Trigger to automatically update the updated_at column on users table
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Trigger to automatically update the updated_at column on companies table
-CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================================================
--- SAMPLE TEST DATA
--- ============================================================================
-
--- Insert test email whitelist entry
-INSERT INTO email_whitelist (email) VALUES ('test@example.com');
-
--- Insert test user
-INSERT INTO users (first_name, last_name, phone, email, password_hash, is_admin) 
-VALUES ('John', 'Doe', '555-0100', 'john.doe@example.com', 'hashed_password_here', false);
-
--- Insert test company
-INSERT INTO companies (company_name, contact_name, contact_email, phone_number, counties)
-VALUES ('Test Company LLC', 'Jane Smith', 'jane@testcompany.com', '555-0200', '["San Diego", "Los Angeles"]'::JSON);
-
--- Insert test MSA sync state
-INSERT INTO sfr_sync_state (msa, last_sale_date, total_records_synced)
-VALUES ('San Diego-Chula Vista-Carlsbad, CA', '2025-01-01', 1000);
-
--- Insert test property (using the example property data)
-INSERT INTO properties (
-    property_id, property_class_description, property_type, vacant, 
-    hoa, owner_type, purchase_method, listing_status, months_owned, 
-    msa, county
-) VALUES (
-    19030512, 'RESIDENTIAL', 'Single Family Residential', NULL,
-    'No', 'Corporate/Trust', 'Financed', 'Off Market', 0,
-    'San Diego-Chula Vista-Carlsbad, CA', 'San Diego County, California'
-);
-
--- Insert test address
-INSERT INTO addresses (
-    property_id, formatted_street_address, street_number, street_name,
-    city, state, zip_code, latitude, longitude
-) VALUES (
-    19030512, '3131 ERIE ST', '3131', 'ERIE',
-    'SAN DIEGO', 'CA', '92117', 32.795735, -117.20078
-);
-
--- ============================================================================
--- VERIFICATION QUERIES
--- ============================================================================
-
--- Verify all tables were created
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
-ORDER BY table_name;
-
--- Verify indexes
-SELECT tablename, indexname 
-FROM pg_indexes 
-WHERE schemaname = 'public' 
-ORDER BY tablename, indexname;
-
--- Count records in each table
-SELECT 'email_whitelist' as table_name, COUNT(*) as record_count FROM email_whitelist
-UNION ALL
-SELECT 'users', COUNT(*) FROM users
-UNION ALL
-SELECT 'companies', COUNT(*) FROM companies
-UNION ALL
-SELECT 'sfr_sync_state', COUNT(*) FROM sfr_sync_state
-UNION ALL
-SELECT 'properties', COUNT(*) FROM properties
-UNION ALL
-SELECT 'addresses', COUNT(*) FROM addresses;
+-- Comments for documentation
+COMMENT ON TABLE properties IS 'Main property table containing core property information';
+COMMENT ON TABLE addresses IS 'Physical address and location details for properties';
+COMMENT ON TABLE assessments IS 'Property assessment values by year';
+COMMENT ON TABLE structures IS 'Building and structure characteristics';
+COMMENT ON TABLE parcels IS 'Parcel and land information';
+COMMENT ON TABLE tax_records IS 'Property tax information by year';
+COMMENT ON TABLE valuations IS 'Property valuation history';
+COMMENT ON TABLE last_sales IS 'Most recent sale transaction details';
+COMMENT ON TABLE current_sales IS 'Current/pending sale information';
+COMMENT ON TABLE streetview_cache IS 'Cached Google Street View images for properties with expiration tracking';
