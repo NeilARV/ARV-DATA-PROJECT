@@ -183,16 +183,16 @@ export default function PropertyMap({
   return (
     <div className="w-full h-full relative" data-testid="map-container">
       {(hasActiveFilters && onClearFilters) || (selectedCompany && onDeselectCompany) ? (
-        <div className="absolute top-4 right-4 z-[501] flex flex-col gap-2">
+        <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
           {selectedCompany && onDeselectCompany && (
             <Button
               variant="default"
               size="sm"
               onClick={onDeselectCompany}
-              className="shadow-lg"
+              className="shadow-lg h-8 px-2 text-xs"
               data-testid="button-deselect-company-map"
             >
-              <X className="w-4 h-4 mr-2" />
+              <X className="w-3 h-2.5 mr-1.5" />
               Deselect Company
             </Button>
           )}
@@ -201,10 +201,10 @@ export default function PropertyMap({
               variant="default"
               size="sm"
               onClick={onClearFilters}
-              className="shadow-lg"
+              className="shadow-lg h-8 px-2 text-xs"
               data-testid="button-clear-filters-map"
             >
-              <X className="w-4 h-4 mr-2" />
+              <X className="w-3 h-2.5 mr-1.5" />
               Clear Filters
             </Button>
           )}
