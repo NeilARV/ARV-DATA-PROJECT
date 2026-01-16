@@ -280,10 +280,12 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const sortByValue = sortBy?.toString() || "recently-sold";
     switch (sortByValue) {
         case "recently-sold":
-            // Sort by dateSold DESC (most recent first), nulls last
+            // Sort by recordingDate DESC (most recent first), nulls last
+            // Using recordingDate since that's what's displayed as "Purchased Date" in the UI
+            // Explicitly cast to date to ensure proper chronological sorting
             query = query.orderBy(
-                sql`CASE WHEN ${properties.dateSold} IS NULL THEN 1 ELSE 0 END`,
-                desc(properties.dateSold)
+                sql`CASE WHEN ${properties.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${properties.recordingDate} AS DATE) DESC`
             ) as any;
             break;
         case "days-held":
@@ -305,8 +307,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         default:
             // Default to recently-sold
             query = query.orderBy(
-                sql`CASE WHEN ${properties.dateSold} IS NULL THEN 1 ELSE 0 END`,
-                desc(properties.dateSold)
+                sql`CASE WHEN ${properties.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${properties.recordingDate} AS DATE) DESC`
             ) as any;
     }
 
