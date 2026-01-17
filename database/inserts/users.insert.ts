@@ -1,6 +1,6 @@
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { users, emailWhitelist } from "../schema";
+import { users, emailWhitelist } from "../schemas";
 
 export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
   id: true,

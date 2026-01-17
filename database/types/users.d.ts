@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { users, emailWhitelist } from "../schema/users.schema";
+import { users, emailWhitelist } from "../schemas/users.schema";
 import { 
   insertUserSchema, 
   insertEmailWhitelistSchema, 
   loginSchema 
-} from "../insert/users.insert";
-import { updateUserProfileSchema } from "../update/users.update";
+} from "../inserts/users.insert";
+import { updateUserProfileSchema } from "../updates/users.update";
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

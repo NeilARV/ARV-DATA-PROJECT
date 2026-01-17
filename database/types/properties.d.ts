@@ -14,7 +14,7 @@ import {
   currentSales,
   streetviewCache,
   propertyTransactions,
-} from "../schema/properties.schema";
+} from "../schemas/properties.schema";
 import {
   insertPropertySchema,
   insertAddressSchema,
@@ -30,12 +30,12 @@ import {
   insertCurrentSaleSchema,
   insertStreetviewCacheSchema,
   insertPropertyTransactionSchema,
-} from "../insert/properties.insert";
+} from "../inserts/properties.insert";
 import {
   updatePropertySchema,
   updateAddressSchema,
   updateStructureSchema,
-} from "../update/properties.update";
+} from "../updates/properties.update";
 
 export type Property = typeof properties.$inferSelect;
 export type InsertProperty = z.infer<typeof insertPropertySchema>;

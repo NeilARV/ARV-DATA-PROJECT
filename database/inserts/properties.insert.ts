@@ -14,7 +14,7 @@ import {
   currentSales,
   streetviewCache,
   propertyTransactions,
-} from "../schema";
+} from "../schemas";
 
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,

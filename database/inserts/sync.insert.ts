@@ -1,6 +1,6 @@
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { sfrSyncState } from "../schema";
+import { sfrSyncState } from "../schemas";
 
 export const insertSyncStateSchema = createInsertSchema(sfrSyncState, {
   id: z.never(),
