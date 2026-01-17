@@ -19,7 +19,8 @@ export default function RetrieveDataTab({ properties }: RetrieveDataTabProps) {
     
     setIsRetrievingData(true);
     try {
-      const res = await apiRequest("POST", "/api/data/sfr");
+      //const res = await apiRequest("POST", "/api/data/sfr");
+      const res = await apiRequest("POST", "/api/data/v2/sfr");
       const data = await res.json();
       console.log("SFR Data Response:", data);
       toast({

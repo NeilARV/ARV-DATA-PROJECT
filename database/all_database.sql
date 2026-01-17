@@ -65,6 +65,7 @@ CREATE TABLE sfr_sync_state (
     id SERIAL PRIMARY KEY,
     msa VARCHAR(255) UNIQUE NOT NULL,
     last_sale_date DATE,
+    last_recording_date DATE,
     total_records_synced INTEGER DEFAULT 0,
     last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -83,6 +84,7 @@ CREATE TABLE properties (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sfr_property_id BIGINT UNIQUE NOT NULL,
     company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    property_owner_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     property_class_description VARCHAR(100),
     property_type VARCHAR(100),
     vacant BOOLEAN,
