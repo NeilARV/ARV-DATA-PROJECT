@@ -27,6 +27,14 @@ export interface MapPropertyData {
 export async function getMapProperties(county?: string): Promise<MapPropertyData[]> {
     const conditions = [];
 
+    // Only show properties with status "sold" or "in-renovation" for map pins
+    conditions.push(
+        or(
+            sql`LOWER(TRIM(${properties.status})) = 'sold'`,
+            sql`LOWER(TRIM(${properties.status})) = 'in-renovation'`
+        ) as any
+    );
+
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
         // Filter by county from either properties table or addresses table
@@ -65,7 +73,7 @@ export async function getMapProperties(county?: string): Promise<MapPropertyData
         .innerJoin(addresses, eq(properties.id, addresses.propertyId)) // Use inner join to only get properties with addresses
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(companies, eq(properties.propertyOwnerId, companies.id));
+        .leftJoin(companies, eq(properties.companyId, companies.id));
 
     if (whereClause) {
         query = query.where(whereClause) as any;

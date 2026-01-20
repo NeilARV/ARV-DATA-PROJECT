@@ -431,35 +431,41 @@ router.get("/suggestions", async (req, res) => {
         const searchTerm = `%${search.toString().trim().toLowerCase()}%`;
         const conditions = [];
 
-        // Add search conditions
+        // Add search conditions - use addresses table for address, city, state, zipCode
         conditions.push(
             or(
-                sql`LOWER(TRIM(${properties.address})) LIKE ${searchTerm}`,
-                sql`LOWER(TRIM(${properties.city})) LIKE ${searchTerm}`,
-                sql`LOWER(TRIM(${properties.state})) LIKE ${searchTerm}`,
-                sql`LOWER(TRIM(${properties.zipCode})) LIKE ${searchTerm}`
+                sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`
             )
         );
 
-        // Add county filter if provided
+        // Add county filter if provided - check both properties.county and addresses.county
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase();
             conditions.push(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                ) as any
             );
         }
 
         const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
         // Search all fields - no smart detection needed for suggestions
-        let query = db.select({
-            id: properties.id,
-            address: properties.address,
-            city: properties.city,
-            state: properties.state,
-            zipcode: properties.zipCode
-        })
-        .from(properties);
+        // Join with addresses table to get address info
+        let query = db
+            .select({
+                id: propertiesV2.id,
+                address: addresses.formattedStreetAddress,
+                city: addresses.city,
+                state: addresses.state,
+                zipcode: addresses.zipCode
+            })
+            .from(propertiesV2)
+            .innerJoin(addresses, eq(propertiesV2.id, addresses.propertyId));
 
         if (whereClause) {
             query = query.where(whereClause) as any;

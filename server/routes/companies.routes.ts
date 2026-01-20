@@ -4,7 +4,7 @@ import { companies } from "../../database/schemas/companies.schema";
 import { properties, addresses } from "../../database/schemas/properties.schema";
 import { updateCompanySchema } from "../../database/updates/companies.update";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { sql, and, eq } from "drizzle-orm";
+import { sql, and, eq, or } from "drizzle-orm";
 
 const router = Router();
 
@@ -59,26 +59,34 @@ router.get("/contacts", async (req, res) => {
         
         const contacts = await contactsQuery.orderBy(companies.companyName);
 
-        // Get all properties (filtered by county if provided) - only need propertyOwnerId for counting
-        let propertiesQuery = db.select({
-            propertyOwnerId: properties.propertyOwnerId,
-            county: properties.county,
-        }).from(properties);
+        // Get all properties (filtered by county if provided) - use companyId for counting
+        // Need to check both properties.county and addresses.county for county filtering
+        let propertiesQuery = db
+            .select({
+                companyId: properties.companyId,
+                propertyOwnerId: properties.propertyOwnerId,
+                county: sql<string>`COALESCE(${properties.county}, ${addresses.county}, '')`,
+            })
+            .from(properties)
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId));
         
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase();
             propertiesQuery = propertiesQuery.where(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                ) as any
             ) as any;
         }
         
         const allProperties = await propertiesQuery;
 
-        // Calculate property count for each company using propertyOwnerId
+        // Calculate property count for each company using companyId (consistent identifier)
         const contactsWithCounts = contacts.map(contact => {
-            // Filter properties for this company by matching propertyOwnerId with company contact id
+            // Filter properties for this company by matching companyId with company id
             const companyProperties = allProperties.filter(p => {
-                return p.propertyOwnerId === contact.id;
+                return p.companyId === contact.id;
             });
             
             const propertyCount = companyProperties.length;
@@ -105,18 +113,22 @@ router.get("/leaderboard", async (req, res) => {
         const countyParam = req.query.county?.toString() || "San Diego";
         const normalizedCounty = countyParam.trim().toLowerCase();
         
-        // Get all properties in the specified county with company info (need propertyOwnerId, zipCode, companyName, and contactName)
+        // Get all properties in the specified county with company info (need companyId, companyName, and contactName)
         // Note: properties table now uses addresses table for address info, so we need to join addresses
         const allProperties = await db
             .select({
-                propertyOwnerId: properties.propertyOwnerId,
+                companyId: properties.companyId,
                 companyName: companies.companyName,
                 contactName: companies.contactName,
             })
             .from(properties)
-            .leftJoin(companies, eq(properties.propertyOwnerId, companies.id))
+            .leftJoin(companies, eq(properties.companyId, companies.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
             .where(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                ) as any
             ) as any;
 
         // Calculate company counts and collect contact names using companyName from joined table
