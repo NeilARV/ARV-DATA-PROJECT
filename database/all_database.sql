@@ -125,6 +125,7 @@ CREATE TABLE addresses (
     unit_type VARCHAR(20),
     unit_number VARCHAR(20),
     city VARCHAR(100),
+    county VARCHAR(100),
     state VARCHAR(2),
     zip_code VARCHAR(10),
     zip_plus_four_code VARCHAR(10),

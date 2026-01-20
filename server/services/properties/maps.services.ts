@@ -1,6 +1,7 @@
 import { db } from "server/storage";
-import { properties, companyContacts } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
+import { companies } from "../../../database/schemas/companies.schema";
+import { eq, sql, and, or } from "drizzle-orm";
 
 export interface MapPropertyData {
     id: string;
@@ -28,34 +29,43 @@ export async function getMapProperties(county?: string): Promise<MapPropertyData
 
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
+        // Filter by county from either properties table or addresses table
         conditions.push(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+            )
         );
     }
 
-    const whereClause = conditions.length > 0 ? conditions[0] : undefined;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Select only minimal fields needed for map pins and filtering
-    // Use LEFT JOIN to get company name from company_contacts table
+    // Join with addresses for location data, structures for bedrooms/bathrooms, 
+    // lastSales for price, and companies for property owner
+    // Only include properties that have addresses (needed for coordinates)
     let query = db
         .select({
             id: properties.id,
-            latitude: properties.latitude,
-            longitude: properties.longitude,
-            address: properties.address,
-            city: properties.city,
-            zipcode: properties.zipCode,
-            county: properties.county,
+            latitude: addresses.latitude,
+            longitude: addresses.longitude,
+            address: addresses.formattedStreetAddress,
+            city: addresses.city,
+            zipcode: addresses.zipCode,
+            county: sql<string>`COALESCE(${properties.county}, ${addresses.county}, '')`,
             propertyType: properties.propertyType,
-            bedrooms: properties.bedrooms,
-            bathrooms: properties.bathrooms,
-            price: properties.price,
+            bedrooms: structures.bedsCount,
+            bathrooms: structures.baths,
+            price: lastSales.price,
             status: properties.status,
             // Company name from joined table
-            companyName: companyContacts.companyName,
+            companyName: companies.companyName,
         })
         .from(properties)
-        .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id));
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId)) // Use inner join to only get properties with addresses
+        .leftJoin(structures, eq(properties.id, structures.propertyId))
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+        .leftJoin(companies, eq(properties.propertyOwnerId, companies.id));
 
     if (whereClause) {
         query = query.where(whereClause) as any;
@@ -64,13 +74,40 @@ export async function getMapProperties(county?: string): Promise<MapPropertyData
     const rawResults = await query.execute();
 
     // Map results to use companyName as propertyOwner for backward compatibility
-    const results = rawResults.map((prop: any) => {
-        const { companyName, ...rest } = prop;
-        return {
-            ...rest,
-            propertyOwner: companyName || null,
-        };
-    });
+    // Also ensure we have valid coordinates (latitude and longitude) for map pins
+    const results = rawResults
+        .filter((prop: any) => {
+            // Only include properties with valid coordinates
+            // Decimal types come back as strings, so we need to parse them
+            const lat = prop.latitude ? (typeof prop.latitude === 'string' ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
+            const lon = prop.longitude ? (typeof prop.longitude === 'string' ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
+            return lat != null && lon != null && !isNaN(lat) && !isNaN(lon);
+        })
+        .map((prop: any) => {
+            const { companyName, ...rest } = prop;
+            // Parse decimal types (they come as strings from the database)
+            const lat = prop.latitude ? (typeof prop.latitude === 'string' ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
+            const lon = prop.longitude ? (typeof prop.longitude === 'string' ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
+            const baths = prop.bathrooms ? (typeof prop.bathrooms === 'string' ? parseFloat(prop.bathrooms) : Number(prop.bathrooms)) : null;
+            const price = prop.price ? (typeof prop.price === 'string' ? parseFloat(prop.price) : Number(prop.price)) : 0;
+            
+            return {
+                ...rest,
+                id: String(prop.id),
+                latitude: lat,
+                longitude: lon,
+                address: prop.address || '',
+                city: prop.city || '',
+                zipcode: prop.zipcode || '',
+                county: prop.county || '',
+                propertyType: prop.propertyType || '',
+                bedrooms: prop.bedrooms ? Number(prop.bedrooms) : null,
+                bathrooms: baths,
+                price: price,
+                status: prop.status || '',
+                propertyOwner: companyName || null,
+            };
+        });
 
     return results;
 }

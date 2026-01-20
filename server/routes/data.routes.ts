@@ -1,11 +1,6 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import {
-  properties,
-  companyContacts,
-  sfrSyncState,
-} from "@shared/schema";
-import {
   properties as propertiesV2,
   addresses,
   structures,
@@ -149,6 +144,29 @@ function isFlippingCompany(name: string | null | undefined, ownershipCode: strin
     return corporatePatterns.some(pattern => pattern.test(name));
 }
 
+// Helper function to fetch county from coordinates using our utility
+async function getCountyFromCoordinates(latitude: number | string | null | undefined, longitude: number | string | null | undefined): Promise<string | null> {
+    if (!latitude || !longitude) {
+        return null;
+    }
+    
+    try {
+        const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
+        const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+        
+        if (isNaN(lat) || isNaN(lon)) {
+            return null;
+        }
+        
+        // fetchCounty already returns just the county name (BASENAME from Census API)
+        const county = await fetchCounty(lon, lat);
+        return county;
+    } catch (error) {
+        console.warn(`[SFR SYNC V2] Error fetching county from coordinates:`, error);
+        return null;
+    }
+}
+
 // Helper function to process a single property (used by both buyers/market and flips)
 async function processProperty(
     propertyData: any,
@@ -157,7 +175,8 @@ async function processProperty(
     recordSource: "buyers-market" | "flips",
     contactsMap: Map<string, any>,
     existingProperty: any | null,
-    msa: string
+    msa: string,
+    normalizedCounty: string | null
 ): Promise<{
     status: string;
     listingStatus: string;
@@ -169,7 +188,7 @@ async function processProperty(
     const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
     
     // Helper function to upsert company
-    const upsertCompany = async (companyName: string): Promise<string | null> => {
+    const upsertCompany = async (companyName: string, county: string | null): Promise<string | null> => {
         const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(companyName);
         if (!normalizedCompanyNameForStorage) {
             return null;
@@ -179,24 +198,59 @@ async function processProperty(
         const existingCompany = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
         
         if (existingCompany) {
+            // Update company's counties array if we have a new county
+            if (county) {
+                try {
+                    // Handle counties - new schema uses JSON type, so it's already an array
+                    let countiesArray: string[] = [];
+                    if (existingCompany.counties) {
+                        if (Array.isArray(existingCompany.counties)) {
+                            countiesArray = existingCompany.counties;
+                        } else if (typeof existingCompany.counties === 'string') {
+                            // Legacy: handle string format if still present
+                            try {
+                                countiesArray = JSON.parse(existingCompany.counties);
+                            } catch (parseError) {
+                                countiesArray = [];
+                            }
+                        }
+                    }
+                    
+                    // Check if county is already in the array (case-insensitive)
+                    const countyLower = county.toLowerCase();
+                    const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                    
+                    if (!countyExists) {
+                        // Add the new county to the array
+                        countiesArray.push(county);
+                        await db
+                            .update(companies)
+                            .set({
+                                counties: countiesArray,
+                                updatedAt: new Date(),
+                            })
+                            .where(eq(companies.id, existingCompany.id));
+                    }
+                } catch (updateError: any) {
+                    console.error(`[SFR SYNC V2] Error updating counties for company ${existingCompany.companyName}:`, updateError);
+                }
+            }
             return existingCompany.id;
         }
         
         // Create new company
         try {
-            const county = propertyData.county || null;
             const countiesArray = county ? [county] : [];
-                                const countiesJson = JSON.stringify(countiesArray);
 
             const [newCompany] = await db
                 .insert(companies)
                 .values({
-                                    companyName: normalizedCompanyNameForStorage,
-                                    contactName: null,
+                    companyName: normalizedCompanyNameForStorage,
+                    contactName: null,
                     contactEmail: propertyData.owner?.contact_email || null,
                     phoneNumber: propertyData.owner?.phone || null,
-                                    counties: countiesJson,
-                                    updatedAt: new Date(),
+                    counties: countiesArray, // Drizzle will serialize JSON automatically
+                    updatedAt: new Date(),
                 })
                 .returning();
             
@@ -263,7 +317,7 @@ async function processProperty(
         }
         
         // Add buyerName (company) to companies table
-        const buyerCompanyId = await upsertCompany(buyerName);
+        const buyerCompanyId = await upsertCompany(buyerName, normalizedCounty);
         
         if (!buyerCompanyId) {
             return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
@@ -319,7 +373,7 @@ async function processProperty(
         }
         
         // STEP 4: Add prevBuyer (flipper) to companies table
-        const flipperCompanyId = await upsertCompany(prevBuyer);
+        const flipperCompanyId = await upsertCompany(prevBuyer, normalizedCounty);
         
         if (!flipperCompanyId) {
             return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
@@ -420,17 +474,17 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
 
         console.log(`[SFR SYNC V2] Starting sync for ${msa} from sale_date ${minSaleDate} and recording_date ${minRecordingDate} to ${today}`);
 
-        // Load all company contacts into memory once
-        const allContacts = await db.select().from(companies);
-        const contactsMap = new Map<string, typeof allContacts[0]>();
+        // Load all companies into memory once
+        const allCompanies = await db.select().from(companies);
+        const contactsMap = new Map<string, typeof allCompanies[0]>();
 
-        for (const contact of allContacts) {
-            const normalizedKey = normalizeCompanyNameForComparison(contact.companyName);
+        for (const company of allCompanies) {
+            const normalizedKey = normalizeCompanyNameForComparison(company.companyName);
             if (normalizedKey) {
-                contactsMap.set(normalizedKey, contact);
+                contactsMap.set(normalizedKey, company);
             }
         }
-        console.log(`[SFR SYNC V2] Loaded ${contactsMap.size} company contacts into cache`);
+        console.log(`[SFR SYNC V2] Loaded ${contactsMap.size} companies into cache`);
 
         // ====================================================================
         // PART 1: PROCESS /buyers/market (active flips)
@@ -734,6 +788,13 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         continue;
                     }
                     
+                    // Fetch county from coordinates using our utility function
+                    // This ensures we get just the county name (e.g., "San Diego") not "San Diego County, California"
+                    const normalizedCounty = await getCountyFromCoordinates(
+                        propertyData.address?.latitude,
+                        propertyData.address?.longitude
+                    );
+                    
                     // Process property using helper function
                     const processResult = await processProperty(
                         propertyData,
@@ -742,7 +803,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         recordInfo.source,
                         contactsMap,
                         existingProperty,
-                        msa
+                        msa,
+                        normalizedCounty
                     );
                     
                     if (processResult.shouldSkip) {
@@ -774,7 +836,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     status: status,
                                     monthsOwned: propertyData.months_owned || null,
                                     msa: propertyData.msa || msa || null,
-                                    county: propertyData.county || null,
+                                    county: normalizedCounty,
                                     updatedAt: sql`now()`,
                                 })
                                 .where(eq(propertiesV2.id, existingProperty.id));
@@ -798,7 +860,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     status: status,
                                     monthsOwned: propertyData.months_owned || null,
                                     msa: propertyData.msa || msa || null,
-                                    county: propertyData.county || null,
+                                    county: normalizedCounty,
                                 })
                                 .returning();
                             
@@ -817,6 +879,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     unitType: propertyData.address.unit_type || null,
                                     unitNumber: propertyData.address.unit_number || null,
                                     city: propertyData.address.city || null,
+                                    county: normalizedCounty,
                                     state: propertyData.address.state || null,
                                     zipCode: propertyData.address.zip_code || null,
                                     zipPlusFourCode: propertyData.address.zip_plus_four_code || null,

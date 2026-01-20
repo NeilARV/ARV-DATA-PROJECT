@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db } from "server/storage";
 import { properties } from "@shared/schema";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { insertPropertySchema, companyContacts, updatePropertySchema } from "@shared/schema";
+import { insertPropertySchema, updatePropertySchema } from "@shared/schema";
+import { companies } from "../../database/schemas/companies.schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
@@ -171,11 +172,11 @@ router.post("/", requireAdminAuth, async (req, res) => {
         
         // If propertyOwnerId is provided directly, use it (user selected from search)
         if (propertyDataWithCompany.propertyOwnerId && typeof propertyDataWithCompany.propertyOwnerId === 'string') {
-            // Verify the company contact exists
+            // Verify the company exists
             const [contactById] = await db
                 .select()
-                .from(companyContacts)
-                .where(eq(companyContacts.id, propertyDataWithCompany.propertyOwnerId))
+                .from(companies)
+                .where(eq(companies.id, propertyDataWithCompany.propertyOwnerId))
                 .limit(1);
             
             if (contactById) {
@@ -197,14 +198,19 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 
                 if (propertyCounty) {
                     try {
-                        // Parse existing counties JSON
+                        // Handle counties - new schema uses JSON type, so it's already an array
                         let countiesArray: string[] = [];
                         if (contactById.counties) {
-                            try {
-                                countiesArray = JSON.parse(contactById.counties);
-                            } catch (parseError) {
-                                console.warn(`Failed to parse counties JSON for ${contactById.companyName}, starting fresh`);
-                                countiesArray = [];
+                            if (Array.isArray(contactById.counties)) {
+                                countiesArray = contactById.counties;
+                            } else if (typeof contactById.counties === 'string') {
+                                // Legacy: handle string format if still present
+                                try {
+                                    countiesArray = JSON.parse(contactById.counties);
+                                } catch (parseError) {
+                                    console.warn(`Failed to parse counties JSON for ${contactById.companyName}, starting fresh`);
+                                    countiesArray = [];
+                                }
                             }
                         }
                         
@@ -215,7 +221,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                         if (!countyExists) {
                             // Add the new county to the array
                             countiesArray.push(propertyCounty);
-                            updateFields.counties = JSON.stringify(countiesArray);
+                            updateFields.counties = countiesArray; // Drizzle will serialize JSON automatically
                             console.log(`Adding new county ${propertyCounty} to company contact ${contactById.companyName}`);
                         }
                     } catch (updateError: any) {
@@ -234,9 +240,9 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 // Only update if there are fields to update
                 if (updateFields.counties || contactNameChanged || contactEmailChanged) {
                     await db
-                        .update(companyContacts)
+                        .update(companies)
                         .set(updateFields)
-                        .where(eq(companyContacts.id, contactById.id));
+                        .where(eq(companies.id, contactById.id));
                     
                     console.log(`Updated company contact: ${contactById.companyName} (ID: ${contactById.id})`);
                 }
@@ -253,8 +259,8 @@ router.post("/", requireAdminAuth, async (req, res) => {
             const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyDataWithCompany.propertyOwner);
             const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || propertyDataWithCompany.propertyOwner);
             
-            // Search for existing company contact using normalized comparison
-            const allContacts = await db.select().from(companyContacts);
+            // Search for existing company using normalized comparison
+            const allContacts = await db.select().from(companies);
             
             const existingContact = allContacts.find(c => {
                 const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
@@ -281,14 +287,19 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 
                 if (propertyCounty) {
                     try {
-                        // Parse existing counties JSON
+                        // Handle counties - new schema uses JSON type, so it's already an array
                         let countiesArray: string[] = [];
                         if (existingContact.counties) {
-                            try {
-                                countiesArray = JSON.parse(existingContact.counties);
-                            } catch (parseError) {
-                                console.warn(`Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
-                                countiesArray = [];
+                            if (Array.isArray(existingContact.counties)) {
+                                countiesArray = existingContact.counties;
+                            } else if (typeof existingContact.counties === 'string') {
+                                // Legacy: handle string format if still present
+                                try {
+                                    countiesArray = JSON.parse(existingContact.counties);
+                                } catch (parseError) {
+                                    console.warn(`Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
+                                    countiesArray = [];
+                                }
                             }
                         }
                         
@@ -299,7 +310,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                         if (!countyExists) {
                             // Add the new county to the array
                             countiesArray.push(propertyCounty);
-                            updateFields.counties = JSON.stringify(countiesArray);
+                            updateFields.counties = countiesArray; // Drizzle will serialize JSON automatically
                             console.log(`Adding new county ${propertyCounty} to company contact ${existingContact.companyName}`);
                         }
                     } catch (updateError: any) {
@@ -318,9 +329,9 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 // Only update if there are fields to update
                 if (updateFields.counties || contactNameChanged || contactEmailChanged) {
                     await db
-                        .update(companyContacts)
+                        .update(companies)
                         .set(updateFields)
-                        .where(eq(companyContacts.id, existingContact.id));
+                        .where(eq(companies.id, existingContact.id));
                     
                     console.log(`Updated company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
                 }
@@ -330,7 +341,6 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 // Company doesn't exist - create new company contact
                 // Initialize counties array with the property's county if available
                 const countiesArray = propertyCounty ? [propertyCounty] : [];
-                const countiesJson = JSON.stringify(countiesArray);
                 
                 const newContactData: any = {
                     companyName: normalizedOwnerForStorage || propertyDataWithCompany.propertyOwner,
@@ -340,11 +350,11 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     contactEmail: formProvidedContactEmail && propertyDataWithCompany.companyContactEmail 
                         ? propertyDataWithCompany.companyContactEmail.trim() 
                         : null,
-                    counties: countiesJson,
+                    counties: countiesArray, // Drizzle will serialize JSON automatically
                 };
                 
                 const [newContact] = await db
-                    .insert(companyContacts)
+                    .insert(companies)
                     .values(newContactData)
                     .returning();
                 
@@ -517,7 +527,7 @@ router.post("/upload", requireAdminAuth, async (req, res) => {
                 if (shouldInsert && prop.propertyOwner) {
                     try {
                         const normalizedOwnerForCompare = normalizeCompanyNameForComparison(prop.propertyOwner);
-                        const allContacts = await db.select().from(companyContacts);
+                        const allContacts = await db.select().from(companies);
                         
                         const contact = allContacts.find(c => {
                             const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
@@ -633,18 +643,18 @@ router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Use LEFT JOIN to get company info from company_contacts table
-        // Select all fields from properties table and only companyName, contactName, contactEmail from company_contacts
+        // Use LEFT JOIN to get company info from companies table
+        // Select all fields from properties table and only companyName, contactName, contactEmail from companies
         const [result] = await db
             .select({
                 ...getTableColumns(properties),
                 // Company info from joined table
-                companyName: companyContacts.companyName,
-                contactName: companyContacts.contactName,
-                contactEmail: companyContacts.contactEmail,
+                companyName: companies.companyName,
+                contactName: companies.contactName,
+                contactEmail: companies.contactEmail,
             })
             .from(properties)
-            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id))
+            .leftJoin(companies, eq(properties.propertyOwnerId, companies.id))
             .where(eq(properties.id, id))
             .limit(1);
 
@@ -777,11 +787,11 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
         // If propertyOwnerId is provided directly, use it (user selected from search)
         const providedPropertyOwnerId = (updateData as any).propertyOwnerId;
         if (providedPropertyOwnerId !== undefined && providedPropertyOwnerId && typeof providedPropertyOwnerId === 'string') {
-            // Verify the company contact exists
+            // Verify the company exists
             const [contactById] = await db
                 .select()
-                .from(companyContacts)
-                .where(eq(companyContacts.id, providedPropertyOwnerId))
+                .from(companies)
+                .where(eq(companies.id, providedPropertyOwnerId))
                 .limit(1);
             
             if (contactById) {
@@ -823,9 +833,9 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                     }
                     
                     await db
-                        .update(companyContacts)
+                        .update(companies)
                         .set(contactUpdateFields)
-                        .where(eq(companyContacts.id, contactById.id));
+                        .where(eq(companies.id, contactById.id));
                     
                     console.log(`Updated company contact: ${contactById.companyName} (ID: ${contactById.id})`);
                 }
@@ -843,8 +853,8 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                 const normalizedOwnerForStorage = normalizeCompanyNameForStorage(updateData.propertyOwner);
                 const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || updateData.propertyOwner);
                 
-                // Search for existing company contact using normalized comparison
-                const allContacts = await db.select().from(companyContacts);
+                // Search for existing company using normalized comparison
+                const allContacts = await db.select().from(companies);
                 
                 const existingContact = allContacts.find(c => {
                     const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
@@ -879,9 +889,9 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                         }
                         
                         await db
-                            .update(companyContacts)
+                            .update(companies)
                             .set(contactUpdateFields)
-                            .where(eq(companyContacts.id, existingContact.id));
+                            .where(eq(companies.id, existingContact.id));
                         
                         console.log(`Updated company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
                     }
@@ -901,7 +911,7 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                     };
                     
                     const [newContact] = await db
-                        .insert(companyContacts)
+                        .insert(companies)
                         .values(newContactData)
                         .returning();
                     
@@ -1021,19 +1031,24 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
             try {
                 const [contact] = await db
                     .select()
-                    .from(companyContacts)
-                    .where(eq(companyContacts.id, companyContactId))
+                    .from(companies)
+                    .where(eq(companies.id, companyContactId))
                     .limit(1);
                 
                 if (contact) {
-                    // Parse existing counties JSON
+                    // Handle counties - new schema uses JSON type, so it's already an array
                     let countiesArray: string[] = [];
                     if (contact.counties) {
-                        try {
-                            countiesArray = JSON.parse(contact.counties);
-                        } catch (parseError) {
-                            console.warn(`Failed to parse counties JSON for ${contact.companyName}, starting fresh`);
-                            countiesArray = [];
+                        if (Array.isArray(contact.counties)) {
+                            countiesArray = contact.counties;
+                        } else if (typeof contact.counties === 'string') {
+                            // Legacy: handle string format if still present
+                            try {
+                                countiesArray = JSON.parse(contact.counties);
+                            } catch (parseError) {
+                                console.warn(`Failed to parse counties JSON for ${contact.companyName}, starting fresh`);
+                                countiesArray = [];
+                            }
                         }
                     }
                     
@@ -1044,16 +1059,14 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                     if (!countyExists) {
                         // Add the new county to the array
                         countiesArray.push(propertyCounty);
-                        const updatedCountiesJson = JSON.stringify(countiesArray);
-                        
                         // Update the contact in the database
                         await db
-                            .update(companyContacts)
+                            .update(companies)
                             .set({ 
-                                counties: updatedCountiesJson,
+                                counties: countiesArray, // Drizzle will serialize JSON automatically
                                 updatedAt: new Date()
                             })
-                            .where(eq(companyContacts.id, companyContactId));
+                            .where(eq(companies.id, companyContactId));
                         
                         console.log(`Updated company contact ${contact.companyName} with new county: ${propertyCounty}`);
                     }

@@ -47,6 +47,7 @@ export const addresses = pgTable("addresses", {
   unitType: varchar("unit_type", { length: 20 }),
   unitNumber: varchar("unit_number", { length: 20 }),
   city: varchar("city", { length: 100 }),
+  county: varchar("county", { length: 100 }),
   state: varchar("state", { length: 2 }),
   zipCode: varchar("zip_code", { length: 10 }),
   zipPlusFourCode: varchar("zip_plus_four_code", { length: 10 }),
