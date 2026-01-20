@@ -50,7 +50,7 @@ const editPropertySchema = z.object({
   yearBuilt: z.coerce.number().int().min(1800).max(2100).optional().nullable(),
   description: z.string().optional().nullable(),
   propertyOwner: z.string().optional().nullable(),
-  propertyOwnerId: z.string().optional().nullable(),
+  companyId: z.string().optional().nullable(),
   companyContactName: z.string().optional().nullable(),
   companyContactEmail: z.string().optional().nullable(),
   dateSold: z.string().optional().nullable(),
@@ -115,7 +115,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
       yearBuilt: null,
       description: "",
       propertyOwner: "",
-      propertyOwnerId: null,
+      companyId: null,
       companyContactName: "",
       companyContactEmail: "",
       dateSold: "",
@@ -203,7 +203,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
     contactEmail: string | null;
   }) => {
     form.setValue("propertyOwner", company.companyName);
-    form.setValue("propertyOwnerId", company.id);
+    form.setValue("companyId", company.id);
     form.setValue("companyContactName", company.contactName || "");
     form.setValue("companyContactEmail", company.contactEmail || "");
     setCompanySearchQuery("");
@@ -226,7 +226,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
         yearBuilt: propertyData.yearBuilt ?? null,
         description: propertyData.description ?? "",
         propertyOwner: propertyData.propertyOwner ?? "",
-        propertyOwnerId: (propertyData as any).propertyOwnerId ?? null,
+        companyId: propertyData.companyId ?? null,
         companyContactName: propertyData.companyContactName ?? "",
         companyContactEmail: propertyData.companyContactEmail ?? "",
         dateSold: propertyData.dateSold ?? "",
@@ -267,7 +267,7 @@ export default function EditPropertyDialog({ property, open, onClose }: EditProp
       yearBuilt: data.yearBuilt || null,
       description: data.description || null,
       propertyOwner: data.propertyOwner || null,
-      propertyOwnerId: data.propertyOwnerId || null,
+      companyId: data.companyId || null,
       companyContactName: data.companyContactName || null,
       companyContactEmail: data.companyContactEmail || null,
       dateSold: data.dateSold || null,

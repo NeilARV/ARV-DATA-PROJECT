@@ -173,16 +173,20 @@ router.post("/", requireAdminAuth, async (req, res) => {
         // Get property's county for county tracking (skip if "UNKNOWN")
         const propertyCounty = enriched.county && enriched.county !== "UNKNOWN" ? enriched.county : null;
         
-        // Check if propertyOwnerId was provided directly (from frontend when selecting from search)
+        // Check if companyId was provided directly (from frontend when selecting from search)
+        // Also check propertyOwnerId for backward compatibility
         let companyContactId: string | null = null;
         
-        // If propertyOwnerId is provided directly, use it (user selected from search)
-        if (propertyDataWithCompany.propertyOwnerId && typeof propertyDataWithCompany.propertyOwnerId === 'string') {
+        // Get the company ID from the form data (companyId takes priority over legacy propertyOwnerId)
+        const formCompanyId = (propertyDataWithCompany as any).companyId || propertyDataWithCompany.propertyOwnerId;
+        
+        // If companyId/propertyOwnerId is provided directly, use it (user selected from search)
+        if (formCompanyId && typeof formCompanyId === 'string') {
             // Verify the company exists
             const [contactById] = await db
                 .select()
                 .from(companies)
-                .where(eq(companies.id, propertyDataWithCompany.propertyOwnerId))
+                .where(eq(companies.id, formCompanyId))
                 .limit(1);
             
             if (contactById) {
@@ -255,7 +259,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 
                 console.log(`Using provided company contact ID: ${contactById.companyName} (ID: ${contactById.id})`);
             } else {
-                console.warn(`Provided propertyOwnerId ${propertyDataWithCompany.propertyOwnerId} not found, will search by name instead`);
+                console.warn(`Provided companyId ${formCompanyId} not found, will search by name instead`);
             }
         }
         
@@ -369,8 +373,8 @@ router.post("/", requireAdminAuth, async (req, res) => {
             }
         }
         
-        // Set propertyOwnerId (not propertyOwner, companyContactName, companyContactEmail)
-        enriched.propertyOwnerId = companyContactId;
+        // Set companyId (more reliably filled than propertyOwnerId)
+        enriched.companyId = companyContactId;
         
         // Remove legacy fields that are no longer used (they're in company_contacts table now)
         delete enriched.propertyOwner;
@@ -701,7 +705,7 @@ router.get("/:id", async (req, res) => {
             .leftJoin(addresses, eq(propertiesV2.id, addresses.propertyId))
             .leftJoin(structures, eq(propertiesV2.id, structures.propertyId))
             .leftJoin(lastSales, eq(propertiesV2.id, lastSales.propertyId))
-            .leftJoin(companies, eq(propertiesV2.propertyOwnerId, companies.id))
+            .leftJoin(companies, eq(propertiesV2.companyId, companies.id)) // Join on companyId (more reliably filled)
             .where(eq(propertiesV2.id, id))
             .limit(1);
 
@@ -736,11 +740,14 @@ router.get("/:id", async (req, res) => {
             // Price and date
             price: price,
             dateSold: result.dateSold ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold ? (result.dateSold as Date).toISOString().split('T')[0] : (typeof result.dateSold === 'string' ? result.dateSold.split('T')[0] : String(result.dateSold))) : null,
-            // Company info
-            propertyOwner: result.companyName || null,
-            propertyOwnerId: result.propertyOwnerId ? String(result.propertyOwnerId) : null,
+            // Company info (using companyId, more reliably filled)
+            companyId: result.companyId ? String(result.companyId) : null,
+            companyName: result.companyName || null,
             companyContactName: result.contactName || null,
             companyContactEmail: result.contactEmail || null,
+            // Legacy aliases for backward compatibility
+            propertyOwner: result.companyName || null,
+            propertyOwnerId: result.companyId ? String(result.companyId) : null, // Map to companyId for compatibility
             // Additional fields that might be expected
             description: null, // Not in new schema, set to null
             imageUrl: null, // Not in new schema, set to null
@@ -859,17 +866,18 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
             typeof updateData.companyContactEmail === 'string' && 
             updateData.companyContactEmail.trim() !== "";
         
-        // Check if propertyOwnerId was provided directly (from frontend when selecting from search)
+        // Check if companyId was provided directly (from frontend when selecting from search)
+        // Also check propertyOwnerId for backward compatibility
         let companyContactId: string | null = null;
         
-        // If propertyOwnerId is provided directly, use it (user selected from search)
-        const providedPropertyOwnerId = (updateData as any).propertyOwnerId;
-        if (providedPropertyOwnerId !== undefined && providedPropertyOwnerId && typeof providedPropertyOwnerId === 'string') {
+        // Get the company ID from the form data (companyId takes priority over legacy propertyOwnerId)
+        const formCompanyId = (updateData as any).companyId || (updateData as any).propertyOwnerId;
+        if (formCompanyId !== undefined && formCompanyId && typeof formCompanyId === 'string') {
             // Verify the company exists
             const [contactById] = await db
                 .select()
                 .from(companies)
-                .where(eq(companies.id, providedPropertyOwnerId))
+                .where(eq(companies.id, formCompanyId))
                 .limit(1);
             
             if (contactById) {
@@ -920,7 +928,7 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                 
                 console.log(`Using provided company contact ID: ${contactById.companyName} (ID: ${contactById.id})`);
             } else {
-                console.warn(`Provided propertyOwnerId ${providedPropertyOwnerId} not found, will search by name instead`);
+                console.warn(`Provided companyId ${formCompanyId} not found, will search by name instead`);
             }
         }
         
@@ -997,14 +1005,14 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
                     console.log(`Created new company contact: ${newContact.companyName} (ID: ${newContact.id})`);
                 }
             } else {
-                // propertyOwner is being set to null/empty - clear the propertyOwnerId
+                // propertyOwner is being set to null/empty - clear the companyId
                 companyContactId = null;
             }
         }
         
-        // Set propertyOwnerId (not propertyOwner, companyContactName, companyContactEmail)
-        if (updateData.propertyOwner !== undefined || providedPropertyOwnerId !== undefined) {
-            updateFields.propertyOwnerId = companyContactId;
+        // Set companyId (more reliably filled than propertyOwnerId)
+        if (updateData.propertyOwner !== undefined || formCompanyId !== undefined) {
+            updateFields.companyId = companyContactId;
         }
         
         // Description

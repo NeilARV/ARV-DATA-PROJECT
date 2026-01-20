@@ -16,7 +16,8 @@ export interface GetPropertiesFilters {
     status?: string | string[];
     company?: string;
     propertyOwner?: string;
-    propertyOwnerId?: string;
+    companyId?: string; // Primary company ID filter (more reliably filled)
+    propertyOwnerId?: string; // Legacy, use companyId instead
     hasDateSold?: string;
     page?: string;
     limit?: string;
@@ -44,7 +45,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         status, 
         company, 
         propertyOwner, 
-        propertyOwnerId,
+        companyId,
+        propertyOwnerId, // Legacy, use companyId instead
         hasDateSold,
         page,
         limit,
@@ -58,12 +60,18 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const conditions = []
 
-    // Company/Property Owner filter
-    // Priority: propertyOwnerId > company/propertyOwner (for backward compatibility)
-    if (propertyOwnerId && typeof propertyOwnerId === 'string' && propertyOwnerId.trim() !== '') {
-        // Direct ID filter - most efficient and reliable
+    // Company filter
+    // Priority: companyId > propertyOwnerId (legacy) > company/propertyOwner name
+    // companyId is the primary filter as it's more reliably filled for in-renovation and sold properties
+    if (companyId && typeof companyId === 'string' && companyId.trim() !== '') {
+        // Direct companyId filter - most efficient and reliable
         conditions.push(
-            eq(properties.propertyOwnerId, propertyOwnerId.trim())
+            eq(properties.companyId, companyId.trim())
+        );
+    } else if (propertyOwnerId && typeof propertyOwnerId === 'string' && propertyOwnerId.trim() !== '') {
+        // Legacy fallback to propertyOwnerId
+        conditions.push(
+            eq(properties.companyId, propertyOwnerId.trim()) // Map to companyId for compatibility
         );
     } else {
         // Fallback to name-based filter (for backward compatibility)
@@ -223,8 +231,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     
     // Join companies if company name filter is used (and not ID filter)
     const ownerFilter = company || propertyOwner;
-    if (ownerFilter && !propertyOwnerId) {
-        countQuery = countQuery.leftJoin(companies, eq(properties.propertyOwnerId, companies.id)) as any;
+    if (ownerFilter && !companyId && !propertyOwnerId) {
+        countQuery = countQuery.leftJoin(companies, eq(properties.companyId, companies.id)) as any;
     }
     
     if (whereClause) {
@@ -241,7 +249,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             id: properties.id,
             propertyType: properties.propertyType,
             status: properties.status,
-            propertyOwnerId: properties.propertyOwnerId,
+            companyId: properties.companyId, // Use companyId (more reliably filled)
             msa: properties.msa,
             county: sql<string>`COALESCE(${properties.county}, ${addresses.county})`,
             createdAt: properties.createdAt,
@@ -261,7 +269,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // Last Sale fields
             price: sql<number | null>`CAST(${lastSales.price} AS REAL)`,
             dateSold: lastSales.saleDate,
-            // Company info
+            // Company info (joined on companyId)
             companyName: companies.companyName,
             contactName: companies.contactName,
             contactEmail: companies.contactEmail,
@@ -270,7 +278,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(companies, eq(properties.propertyOwnerId, companies.id));
+        .leftJoin(companies, eq(properties.companyId, companies.id)); // Join on companyId
     
     if (whereClause) {
         query = query.where(whereClause) as any;
@@ -349,11 +357,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // Price and date
             price: price,
             dateSold: dateSoldStr,
-            // Company info
-            propertyOwner: prop.companyName || null,
-            propertyOwnerId: prop.propertyOwnerId ? String(prop.propertyOwnerId) : null,
+            // Company info (using companyId, more reliably filled)
+            companyId: prop.companyId ? String(prop.companyId) : null,
+            companyName: prop.companyName || null,
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,
+            // Legacy aliases for backward compatibility
+            propertyOwner: prop.companyName || null,
+            propertyOwnerId: prop.companyId ? String(prop.companyId) : null, // Map to companyId for compatibility
             // Additional fields that might be expected by frontend but not directly in new schema
             description: null,
             imageUrl: null,

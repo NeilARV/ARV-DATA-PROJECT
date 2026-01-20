@@ -56,20 +56,36 @@ async function persistSyncStateV2(options: {
 
     const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
     
-    // Calculate lastSaleDate (subtract 1 day because API range is non-inclusive)
-    let saleDateToSet = finalSaleDate || previousLastSaleDate || null;
-    if (saleDateToSet) {
-        const date = new Date(saleDateToSet);
+    // Calculate lastSaleDate
+    // Only subtract 1 day if we have a NEW finalSaleDate (from buyers/market saleDate)
+    // If falling back to previousLastSaleDate, keep it as-is (it was already subtracted)
+    let saleDateToSet: string | null = null;
+    if (finalSaleDate) {
+        // New sale date found - subtract 1 day because API range is non-inclusive
+        const date = new Date(finalSaleDate);
         date.setDate(date.getDate() - 1);
         saleDateToSet = date.toISOString().split("T")[0];
+    } else if (previousLastSaleDate) {
+        // No new date, keep the previous value (already has the -1 day adjustment)
+        saleDateToSet = typeof previousLastSaleDate === 'string' 
+            ? previousLastSaleDate.split("T")[0] 
+            : previousLastSaleDate;
     }
     
-    // Calculate lastRecordingDate (subtract 1 day because API range is non-inclusive)
-    let recordingDateToSet = finalRecordingDate || previousLastRecordingDate || null;
-    if (recordingDateToSet) {
-        const date = new Date(recordingDateToSet);
+    // Calculate lastRecordingDate
+    // Only subtract 1 day if we have a NEW finalRecordingDate (from flips recordingDate)
+    // If falling back to previousLastRecordingDate, keep it as-is (it was already subtracted)
+    let recordingDateToSet: string | null = null;
+    if (finalRecordingDate) {
+        // New recording date found - subtract 1 day because API range is non-inclusive
+        const date = new Date(finalRecordingDate);
         date.setDate(date.getDate() - 1);
         recordingDateToSet = date.toISOString().split("T")[0];
+    } else if (previousLastRecordingDate) {
+        // No new date, keep the previous value (already has the -1 day adjustment)
+        recordingDateToSet = typeof previousLastRecordingDate === 'string' 
+            ? previousLastRecordingDate.split("T")[0] 
+            : previousLastRecordingDate;
     }
 
     try {
@@ -405,10 +421,11 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
     let totalInserted = 0;
     let totalUpdated = 0;
     let totalContactsAdded = 0;
-    let latestRecordingDate: string | null = null; // Track the most recent recordingDate
-    let earliestRecordingDate: string | null = null; // Track the earliest recordingDate (from last page) for sync state
-    let latestSaleDate: string | null = null; // Track the most recent saleDate
-    let earliestSaleDate: string | null = null; // Track the earliest saleDate (from last page) for sync state
+    // Track latest dates for sync state persistence
+    // latestRecordingDate: Only tracked from /geo-analytics/flips (uses recording_date_min)
+    // latestSaleDate: Only tracked from /buyers/market (uses sales_date_min)
+    let latestRecordingDateFromFlips: string | null = null;
+    let latestSaleDateFromBuyersMarket: string | null = null;
 
     try {
         // Get or create sync state for this MSA
@@ -504,7 +521,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 sales_date_min: minSaleDate,
                 sales_date_max: today,
                 page_size: "100",
-                sort: "-recording_date",
+                sort: "recording_date",
             });
             
             const buyersMarketResponse = await fetch(`${API_URL}/buyers/market?${buyersMarketParams.toString()}`, {
@@ -561,29 +578,12 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     }
                 }
                 
-                // Track recording dates
-                if (record.recordingDate) {
-                    const recDateStr = typeof record.recordingDate === 'string' ? record.recordingDate.split("T")[0] : record.recordingDate.toISOString().split("T")[0];
-                    
-                    if (!latestRecordingDate || recDateStr > latestRecordingDate) {
-                        latestRecordingDate = recDateStr;
-                    }
-                    
-                    if (!earliestRecordingDate || recDateStr < earliestRecordingDate) {
-                        earliestRecordingDate = recDateStr;
-                    }
-                }
-                
-                // Track sale dates
+                // Track sale dates (only from buyers/market since it uses sales_date_min)
                 if (record.saleDate) {
                     const saleDateStr = typeof record.saleDate === 'string' ? record.saleDate.split("T")[0] : record.saleDate.toISOString().split("T")[0];
                     
-                    if (!latestSaleDate || saleDateStr > latestSaleDate) {
-                        latestSaleDate = saleDateStr;
-                    }
-                    
-                    if (!earliestSaleDate || saleDateStr < earliestSaleDate) {
-                        earliestSaleDate = saleDateStr;
+                    if (!latestSaleDateFromBuyersMarket || saleDateStr > latestSaleDateFromBuyersMarket) {
+                        latestSaleDateFromBuyersMarket = saleDateStr;
                     }
                 }
             });
@@ -596,7 +596,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             }
         }
         
-        console.log(`[SFR SYNC V2] Completed buyers/market pagination. Total addresses so far: ${addressesSet.size}`);
+        console.log(`[SFR SYNC V2] Completed buyers/market pagination. Total addresses so far: ${addressesSet.size}, latest sale date: ${latestSaleDateFromBuyersMarket || 'N/A'}`);
         
         // ====================================================================
         // PART 2: PROCESS /geo-analytics/flips (flip exits)
@@ -613,7 +613,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             recording_date_max: today,
             search_type: "msa",
                 msa: msa,
-                sort: "-recording_date",
+                sort: "recording_date",
                 page: flipsPage.toString(),
                 page_size: "100",
         });
@@ -672,16 +672,12 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     }
                 }
                 
-                // Track recording dates
+                // Track recording dates (only from flips since it uses recording_date_min)
                 if (record.recordingDate) {
                     const recDateStr = typeof record.recordingDate === 'string' ? record.recordingDate.split("T")[0] : record.recordingDate.toISOString().split("T")[0];
                     
-                    if (!latestRecordingDate || recDateStr > latestRecordingDate) {
-                        latestRecordingDate = recDateStr;
-                    }
-                    
-                    if (!earliestRecordingDate || recDateStr < earliestRecordingDate) {
-                        earliestRecordingDate = recDateStr;
+                    if (!latestRecordingDateFromFlips || recDateStr > latestRecordingDateFromFlips) {
+                        latestRecordingDateFromFlips = recDateStr;
                     }
                 }
             });
@@ -694,7 +690,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             }
         }
         
-        console.log(`[SFR SYNC V2] Completed pagination. Total addresses collected: ${addressesSet.size}, earliest recording date: ${earliestRecordingDate || 'N/A'}, earliest sale date: ${earliestSaleDate || 'N/A'}`);
+        console.log(`[SFR SYNC V2] Completed pagination. Total addresses collected: ${addressesSet.size}, latest recording date (flips): ${latestRecordingDateFromFlips || 'N/A'}, latest sale date (buyers): ${latestSaleDateFromBuyersMarket || 'N/A'}`);
         
         const addressesArray = Array.from(addressesSet);
         console.log(`[SFR SYNC V2] Collected ${addressesArray.length} unique addresses to process`);
@@ -1064,10 +1060,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             }
             
             // Persist sync state periodically after batches
-            // Use earliest dates (from last page) if available, otherwise use latest dates
-            const recordingDateForSync = earliestRecordingDate || latestRecordingDate;
-            const saleDateForSync = earliestSaleDate || latestSaleDate;
-            if ((recordingDateForSync || saleDateForSync) && totalProcessed % 50 === 0) {
+            // Use latest dates from each respective endpoint
+            if ((latestRecordingDateFromFlips || latestSaleDateFromBuyersMarket) && totalProcessed % 50 === 0) {
                 try {
                     await persistSyncStateV2({
                         syncStateId,
@@ -1075,8 +1069,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
                         initialTotalSynced,
                         processed: totalProcessed,
-                        finalSaleDate: saleDateForSync ?? null,
-                        finalRecordingDate: recordingDateForSync ?? null,
+                        finalSaleDate: latestSaleDateFromBuyersMarket ?? null,
+                        finalRecordingDate: latestRecordingDateFromFlips ?? null,
                     });
                 } catch (persistError) {
                     console.error(`[SFR SYNC V2] Failed to persist state after batch:`, persistError);
@@ -1085,18 +1079,16 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
         }
         
         // Persist final sync state
-        // Use earliest dates (from last page) minus 1 day for next sync
+        // Use latest dates minus 1 day for next sync (handled by persistSyncStateV2)
         // This ensures we resume from where we left off
-        const recordingDateToStore = earliestRecordingDate || latestRecordingDate;
-        const saleDateToStore = earliestSaleDate || latestSaleDate;
         const persistedState = await persistSyncStateV2({
             syncStateId: syncStateId,
             previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
             previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
             initialTotalSynced: initialTotalSynced ?? 0,
             processed: totalProcessed ?? 0,
-            finalSaleDate: saleDateToStore ?? null,
-            finalRecordingDate: recordingDateToStore ?? null,
+            finalSaleDate: latestSaleDateFromBuyersMarket ?? null,
+            finalRecordingDate: latestRecordingDateFromFlips ?? null,
         });
         
         console.log(`[SFR SYNC V2] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
@@ -1110,7 +1102,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             totalContactsAdded,
             dateRange: {
                 from: minRecordingDate,
-                to: latestRecordingDate || today
+                to: latestRecordingDateFromFlips || today
             },
             lastRecordingDate: persistedState.lastRecordingDate,
             lastSaleDate: persistedState.lastSaleDate,
@@ -1119,17 +1111,15 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
     } catch (error) {
         console.error(`[SFR SYNC V2] Error syncing ${msa}:`, error);
         try {
-            // Use earliest dates if available (from pagination), otherwise use latest dates
-            const recordingDateForSync = earliestRecordingDate || latestRecordingDate;
-            const saleDateForSync = earliestSaleDate || latestSaleDate;
+            // Use latest dates tracked from each respective endpoint
             const persistedState = await persistSyncStateV2({
                 syncStateId: syncStateId,
                 previousLastSaleDate: syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null,
                 previousLastRecordingDate: syncState && syncState.length > 0 ? syncState[0].lastRecordingDate : null,
                 initialTotalSynced: initialTotalSynced ?? 0,
                 processed: totalProcessed ?? 0,
-                finalSaleDate: saleDateForSync ?? null,
-                finalRecordingDate: recordingDateForSync ?? null,
+                finalSaleDate: latestSaleDateFromBuyersMarket ?? null,
+                finalRecordingDate: latestRecordingDateFromFlips ?? null,
             });
             console.log(`[SFR SYNC V2] Persisted sync state after failure for ${msa}. lastRecordingDate: ${persistedState.lastRecordingDate}, lastSaleDate: ${persistedState.lastSaleDate}`);
         } catch (e) {

@@ -233,9 +233,9 @@ export default function Home() {
       });
     }
     
-    // Company/Property Owner filter - use ID if available, otherwise fallback to name
+    // Company filter - use ID if available, otherwise fallback to name
     if (selectedCompanyId) {
-      params.append('propertyOwnerId', selectedCompanyId);
+      params.append('companyId', selectedCompanyId);
     } else if (selectedCompany) {
       params.append('company', selectedCompany);
     }
@@ -411,9 +411,9 @@ export default function Home() {
       });
     }
     
-    // Company/Property Owner filter - use ID if available, otherwise fallback to name
+    // Company filter - use ID if available, otherwise fallback to name
     if (selectedCompanyId) {
-      params.append('propertyOwnerId', selectedCompanyId);
+      params.append('companyId', selectedCompanyId);
     } else if (selectedCompany) {
       params.append('company', selectedCompany);
     }
@@ -896,21 +896,20 @@ export default function Home() {
   // Filter full properties for grid/table views
   const filteredProperties = propertiesToFilter.filter(property => {
     // Apply company filter first if one is selected
-    // If we have selectedCompanyId, filter by ID (most reliable)
+    // If we have selectedCompanyId, filter by ID (most reliable - companyId is always filled)
     // Otherwise fallback to name matching for backward compatibility
     if (selectedCompanyId) {
       // Filter by ID - API already filtered server-side, but double-check for safety
-      const propertyWithCompany = property as Property & { propertyOwnerId?: string | null };
-      if (propertyWithCompany.propertyOwnerId !== selectedCompanyId) {
+      // Use companyId (more reliably filled than propertyOwnerId)
+      if (property.companyId !== selectedCompanyId) {
         return false;
       }
     } else if (selectedCompany) {
       // Fallback to name matching (for backward compatibility)
-      const propertyWithCompany = property as Property & { propertyOwner?: string | null };
-      const ownerName = (propertyWithCompany.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
+      const companyName = (property.companyName || property.propertyOwner || "").trim().toLowerCase().replace(/\s+/g, ' ');
       const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
       
-      if (ownerName !== selectedName) {
+      if (companyName !== selectedName) {
         return false;
       }
     }

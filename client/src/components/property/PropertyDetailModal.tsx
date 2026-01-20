@@ -214,25 +214,26 @@ export default function PropertyDetailModal({
                 <div className="font-medium">${pricePerSqft}</div>
               </div>
 
-              {property.propertyOwner && (
+              {(property.companyName || property.propertyOwner) && (
                 <div>
-                  <div className="text-sm text-muted-foreground mb-1">Property Owner</div>
+                  <div className="text-sm text-muted-foreground mb-1">Company</div>
                   <div className="flex items-start gap-1">
                     <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     {onCompanyNameClick ? (
                       <button
                         onClick={() => {
-                          const propertyWithId = property as Property & { propertyOwnerId?: string | null };
-                          onCompanyNameClick(property.propertyOwner!, propertyWithId.propertyOwnerId || undefined, true);
+                          const companyName = property.companyName || property.propertyOwner;
+                          const companyId = property.companyId || property.propertyOwnerId;
+                          onCompanyNameClick(companyName!, companyId || undefined, true);
                           onClose(); // Close modal so user can see company directory
                         }}
                         className="font-medium text-primary hover:underline text-left"
-                        data-testid="text-property-owner"
+                        data-testid="text-company-name"
                       >
-                        {property.propertyOwner}
+                        {property.companyName || property.propertyOwner}
                       </button>
                     ) : (
-                      <span className="font-medium" data-testid="text-property-owner">{property.propertyOwner}</span>
+                      <span className="font-medium" data-testid="text-company-name">{property.companyName || property.propertyOwner}</span>
                     )}
                   </div>
                 </div>

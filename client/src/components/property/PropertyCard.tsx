@@ -89,17 +89,17 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
 
           <div className="flex items-start gap-6 text-sm">
             <div className="flex flex-col items-end" data-testid={`text-date-sold-${property.id}`}>
-              <span className="text-sm text-muted-foreground mb-1">Purchased Date</span>
+              <span className="text-sm text-muted-foreground mb-1">Date Sold</span>
               <div className="flex items-center gap-1 font-semibold text-foreground">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>
                   {(() => {
                     try {
-                      if (!property.recordingDate) return <span className="text-muted-foreground">—</span>;
-                      const date = parseISO(property.recordingDate);
-                      return isValid(date) ? format(date, "MMM d, yyyy") : property.recordingDate;
+                      if (!property.dateSold) return <span className="text-muted-foreground">—</span>;
+                      const date = parseISO(property.dateSold);
+                      return isValid(date) ? format(date, "MMM d, yyyy") : property.dateSold;
                     } catch {
-                      return property.recordingDate ?? <span className="text-muted-foreground">—</span>;
+                      return property.dateSold ?? <span className="text-muted-foreground">—</span>;
                     }
                   })()}
                 </span>
@@ -142,16 +142,16 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
         <div className="text-sm text-muted-foreground mt-2">
           {property.propertyType}
         </div>
-        {property.propertyOwner && (
+        {(property.companyName || property.propertyOwner) && (
           <div className="flex items-start gap-2 mt-3 pt-3 border-t">
             <Building2 className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
             <div>
-              <div className="text-xs text-muted-foreground">Owner</div>
+              <div className="text-xs text-muted-foreground">Company</div>
               <div
                 className="font-semibold text-base text-primary"
-                data-testid={`text-owner-${property.id}`}
+                data-testid={`text-company-${property.id}`}
               >
-                {property.propertyOwner}
+                {property.companyName || property.propertyOwner}
               </div>
             </div>
           </div>
