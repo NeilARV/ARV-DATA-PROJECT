@@ -32,788 +32,6 @@ import { fetchCounty } from "server/utils/fetchCounty";
 
 const router = Router();
 
-/* SFR Analytics API calls */
-
-// Helper to persist sync state on exit or failure. Accepts explicit options so it can be called from error/catch paths.
-// Stores saleDate - 1 day because the API range is non-inclusive
-async function persistSyncStateExplicit(options: {
-    syncStateId?: number | null;
-    previousLastSaleDate?: string | null;
-    initialTotalSynced?: number;
-    processed?: number;
-    finalSaleDate?: string | null;
-}) {
-    const {
-        syncStateId,
-        previousLastSaleDate,
-        initialTotalSynced = 0,
-        processed = 0,
-        finalSaleDate,
-    } = options || {};
-
-    if (!syncStateId) {
-        console.warn("[SFR SYNC] No syncStateId provided to persist state");
-        return previousLastSaleDate || null;
-    }
-
-    const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
-    // Use the latest saleDate from processed properties, or keep the previous one if no new data
-    let toSet = finalSaleDate || previousLastSaleDate || null;
-    
-    // Subtract 1 day because the API range is non-inclusive (we want to start from the day after)
-    if (toSet) {
-        const date = new Date(toSet);
-        date.setDate(date.getDate() - 1);
-        toSet = date.toISOString().split("T")[0];
-    }
-
-    try {
-        await db
-            .update(sfrSyncState)
-            .set({
-                lastSaleDate: toSet, // Store saleDate - 1 day in lastSaleDate field
-                totalRecordsSynced: newTotalSynced,
-                lastSyncAt: sql`now()`,
-            })
-            .where(eq(sfrSyncState.id, syncStateId));
-
-        console.log(
-            `[SFR SYNC] Persisted sync state. lastSaleDate (saleDate - 1): ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
-        );
-        return toSet;
-    } catch (e: any) {
-        console.error("[SFR SYNC] Failed to persist sync state:", e);
-        return toSet;
-    }
-}
-
-// Sync function for a single MSA
-async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: string) {
-    // Sync state / counters for this MSA
-    let minDate: string = "";
-    let syncStateId: number | null = null;
-    let initialTotalSynced: number = 0;
-    let syncState: any[] = [];
-
-    // Track counters accessible in catch/finalize
-    let currentPage = 1;
-    let shouldContinue = true;
-    let totalProcessed = 0;
-    let totalInserted = 0;
-    let totalUpdated = 0;
-    let totalContactsAdded = 0;
-    let latestSaleDate: string | null = null; // Track the saleDate of the last successfully processed property
-
-    try {
-        // Get or create sync state for this MSA
-        syncState = await db
-            .select()
-            .from(sfrSyncState)
-            .where(eq(sfrSyncState.msa, msa))
-            .limit(1);
-
-        if (syncState.length === 0) {
-            // Create new sync state with default min date
-            minDate = "2025-12-03"; // Default start date
-            const [newSyncState] = await db
-                .insert(sfrSyncState)
-                .values({
-                    msa: msa,
-                    lastSaleDate: null,
-                    totalRecordsSynced: 0,
-                })
-                .returning();
-            syncStateId = newSyncState.id;
-            initialTotalSynced = 0;
-        } else {
-            // Use last sale date as min date (stored value is already saleDate - 1, so use it directly)
-            const lastDate = syncState[0].lastSaleDate;
-            if (lastDate) {
-                minDate = new Date(lastDate).toISOString().split("T")[0];
-            } else {
-                minDate = "2025-12-03"; // Default start date
-            }
-            syncStateId = syncState[0].id;
-            initialTotalSynced = syncState[0].totalRecordsSynced || 0;
-        }
-
-        console.log(`[SFR SYNC] Starting sync for ${msa} from ${minDate} to ${today}`);
-
-        // Load all company contacts into memory once (shared across all MSAs)
-        const allContacts = await db.select().from(companyContacts);
-        const contactsMap = new Map<string, typeof allContacts[0]>();
-
-        for (const contact of allContacts) {
-            const normalizedKey = normalizeCompanyNameForComparison(contact.companyName);
-            if (normalizedKey) {
-                contactsMap.set(normalizedKey, contact);
-            }
-        }
-        console.log(`[SFR SYNC] Loaded ${contactsMap.size} company contacts into cache`);
-
-        // Process properties in batches to avoid memory issues
-        const BATCH_SIZE = 50;
-        let batchBuffer: any[] = [];
-
-        while (shouldContinue) {
-            const requestBody = {
-                "msa": msa,
-                "city": null,
-                "salesDate": {
-                    "min": minDate,
-                    "max": today
-                },
-                "pagination": {
-                    "page": currentPage,
-                    "pageSize": 100
-                },
-                "sort": {
-                    "field": "recording_date",
-                    "direction": "asc"
-                }
-            };
-        
-            const response = await fetch(`${API_URL}/buyers/market/page`, {
-                method: 'POST',
-                headers: {
-                    'X-API-TOKEN': API_KEY,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
-        
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`[SFR SYNC] API error on page ${currentPage} for ${msa}:`, errorText);
-                // Persist partial progress before throwing
-                try {
-                    const persistedDate = await persistSyncStateExplicit({
-                        syncStateId,
-                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                        initialTotalSynced,
-                        processed: totalProcessed,
-                        finalSaleDate: latestSaleDate,
-                    });
-                    console.log(`[SFR SYNC] Persisted sync state due to API error. lastSaleDate: ${persistedDate}`);
-                } catch (e) {
-                    console.error("[SFR SYNC] Failed to persist state after API error:", e);
-                }
-
-                throw new Error(`API error for ${msa}: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-
-            // Check if data is empty
-            if (!data || !Array.isArray(data) || data.length === 0) {
-                console.log(`[SFR SYNC] No more data on page ${currentPage} for ${msa}, stopping`);
-                shouldContinue = false;
-                break;
-            }
-        
-            console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records for ${msa}`);
-        
-            if (data.length > 0) {
-                console.log(`[SFR SYNC] Sample record structure:`, JSON.stringify(data[0], null, 2));
-            }
-
-            // Process each property
-            for (const record of data) {
-                try {
-                    // Normalize text fields
-                    const rawAddress = record.address || "";
-                    const rawCity = record.city || "";
-                    const rawBuyerName = record.buyerName || null;
-                    const rawSellerName = record.sellerName || null;
-                    
-                    const normalizedAddress = normalizeToTitleCase(rawAddress);
-                    const normalizedCity = normalizeToTitleCase(rawCity);
-                    
-                    // Validate required fields
-                    if (!normalizedAddress || normalizedAddress.trim() === "") {
-                        console.warn(`[SFR SYNC] Skipping record with empty address:`, JSON.stringify(record, null, 2));
-                        totalProcessed++;
-                        continue;
-                    }
-                    
-                    if (!normalizedCity || normalizedCity.trim() === "") {
-                        console.warn(`[SFR SYNC] Skipping record with empty city:`, JSON.stringify(record, null, 2));
-                        totalProcessed++;
-                        continue;
-                    }
-
-                    const hasStreetNumber = /^\d+/.test(normalizedAddress)
-
-                    if (!hasStreetNumber) {
-                        console.warn(`[SFR SYNC] Skipping record with no street number`, JSON.stringify(record, null, 2))
-                        totalProcessed++;
-                        continue;
-                    }
-
-                    let price: number = 0
-
-                    if ((record.saleValue - record.avmValue) > 1000000) {
-                        price = record.avmValue
-                    } else {
-                        price = record.saleValue
-                    }
-
-                    if (price <= 0) {
-                        console.warn(`[SFR SYNC] Skipping record with invalid price: ${price}`, JSON.stringify(record, null, 2))
-                        totalProcessed++;
-                        continue;
-                    }
-                    
-                    const propertyData: any = {
-                        address: normalizedAddress,
-                        city: normalizedCity,
-                        state: record.state || "CA",
-                        zipCode: record.zipCode || "",
-                        county: "UNKNOWN",
-
-                        price: price || 0,
-                        bedrooms: record.bedrooms || 0,
-                        bathrooms: record.bathrooms || 0,
-                        squareFeet: record.buildingArea || 0,
-                        propertyType: mapPropertyType(record.propertyType || null),
-                        purchasePrice: record.purchasePrice || null,
-                        dateSold: record.saleDate || null,
-                        status: record.status || "in-renovation",
-                        
-                        // Buyer info
-                        buyerName: normalizeToTitleCase(rawBuyerName),
-                        buyerFormattedName: normalizeToTitleCase(record.formattedBuyerName || ""),
-                        phone: record.phone || null,
-                        isCorporate: record.isCorporate || false,
-                        isCashBuyer: record.isCashBuyer || false,
-                        isDiscountedPurchase: record.isDiscountedPurchase || false,
-                        isPrivateLender: record.isPrivateLender || false,
-                        buyerPropertiesCount: record.buyerPropertiesCount || null,
-                        buyerTransactionsCount: record.buyerTransactionsCount || null,
-                        
-                        // Seller/lender
-                        sellerName: normalizeToTitleCase(rawSellerName),
-                        lenderName: normalizeToTitleCase(record.lenderName),
-                        
-                        // Exit info
-                        exitValue: record.exitValue || record.exit_value || null,
-                        exitBuyerName: normalizeToTitleCase(record.exitBuyerName),
-                        profitLoss: record.profitLoss || null,
-                        holdDays: record.holdDays || null,
-                        
-                        // Financials
-                        saleValue: record.saleValue || null,
-                        avmValue: record.avmValue || null,
-                        loanAmount: record.loanAmount || null,
-                        
-                        // SFR API IDs
-                        sfrPropertyId: record.propertyId || null,
-                        sfrRecordId: record.id || null,
-                        
-                        // Market
-                        msa: record.msa || msa,
-                        
-                        // Dates
-                        recordingDate: record.recordingDate || null,
-                        
-                        // Coordinates
-                        latitude: record.latitude || null,
-                        longitude: record.longitude || null,
-                        
-                        // Additional fields
-                        yearBuilt: record.yearBuilt || null,
-                    };
-
-                    // Track latest saleDate (not recordingDate) - this is what we'll store in lastSaleDate
-                    // Extract saleDate from propertyData.dateSold (which comes from record.saleDate)
-                    let saleDateStr: string | null = null;
-                    if (propertyData.dateSold) {
-                        if (propertyData.dateSold instanceof Date) {
-                            saleDateStr = propertyData.dateSold.toISOString().split("T")[0];
-                        } else if (typeof propertyData.dateSold === 'string') {
-                            saleDateStr = propertyData.dateSold.split("T")[0];
-                        }
-                    }
-                    
-                    // Update latestSaleDate immediately for ALL processed records (even if we skip them later)
-                    // This ensures we track the latest saleDate we've seen, regardless of whether we insert/update
-                    if (saleDateStr && (!latestSaleDate || saleDateStr > latestSaleDate)) {
-                        latestSaleDate = saleDateStr;
-                    }
-                    
-                    // Store saleDate with property data for later use
-                    if (saleDateStr) {
-                        propertyData._saleDate = saleDateStr;
-                    }
-                    
-                    // Track latest recording date for property data (for comparison purposes)
-                    let recordingDateStr: string | null = null;
-                    if (propertyData.recordingDate) {
-                        if (propertyData.recordingDate instanceof Date) {
-                            recordingDateStr = propertyData.recordingDate.toISOString().split("T")[0];
-                        } else if (typeof propertyData.recordingDate === 'string') {
-                            recordingDateStr = propertyData.recordingDate.split("T")[0];
-                        }
-                    }
-                    
-                    // Store recordingDate as date string
-                    if (recordingDateStr) {
-                        propertyData.recordingDate = recordingDateStr;
-                    }
-
-                    // Skip non-corporate buyers — we only import corporate buyers and trusts            
-                    if (!propertyData.isCorporate) {
-                        console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
-                        continue;
-                    }
-
-                    // Geocode if coordinates are missing
-                    if ((!propertyData.latitude || !propertyData.longitude) && propertyData.address) {
-                        const coords = await geocodeAddress(
-                            propertyData.address,
-                            propertyData.city,
-                            propertyData.state,
-                            propertyData.zipCode
-                        );
-                        if (coords) {
-                            propertyData.latitude = coords.lat;
-                            propertyData.longitude = coords.lng;
-                        }
-                    }
-
-                    // Get county from longitude (x) and latitude (y) - do this after geocoding in case coordinates were just added
-                    if (propertyData.latitude && propertyData.longitude) {
-                        const county = await fetchCounty(propertyData.longitude, propertyData.latitude);
-                        propertyData.county = county ? county : "UNKNOWN";
-                    }
-
-                    // Handle company contact
-                    const rawCompanyName = record.buyerName || null;
-                    const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(rawCompanyName);
-                    
-                    if (normalizedCompanyNameForStorage) {
-                        const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyNameForStorage;
-                        const contactEmail = record.contactEmail || record.contact_email || null;
-                        const propertyCounty = propertyData.county && propertyData.county !== "UNKNOWN" ? propertyData.county : null;
-
-                        // Check if company contact already exists using in-memory cache
-                        const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
-                        const existingContact = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
-
-                        if (!existingContact) {
-                            // Insert new company contact with normalized storage format
-                            try {
-                                // Create counties array with the property's county
-                                const countiesArray = propertyCounty ? [propertyCounty] : [];
-                                const countiesJson = JSON.stringify(countiesArray);
-
-                                await db.insert(companyContacts).values({
-                                    companyName: normalizedCompanyNameForStorage,
-                                    contactName: null,
-                                    contactEmail: contactEmail,
-                                    counties: countiesJson,
-                                    updatedAt: new Date(),
-                                });
-                                totalContactsAdded++;
-                                console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyNameForStorage} with county: ${propertyCounty || 'none'}`);
-                                
-                                // Update the in-memory cache with the new contact
-                                const [newContact] = await db
-                                    .select()
-                                    .from(companyContacts)
-                                    .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
-                                    .limit(1);
-                                if (newContact && normalizedCompanyNameForCompare) {
-                                    contactsMap.set(normalizedCompanyNameForCompare, newContact);
-                                    // Set propertyOwnerId to the new contact's ID
-                                    propertyData.propertyOwnerId = newContact.id;
-                                }
-                            } catch (contactError: any) {
-                                // Ignore duplicate key errors (race condition)
-                                if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
-                                    console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyNameForStorage}:`, contactError);
-                                } else {
-                                    // If it was a duplicate error, try to fetch the existing contact
-                                    try {
-                                        const [duplicateContact] = await db
-                                            .select()
-                                            .from(companyContacts)
-                                            .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
-                                            .limit(1);
-                                        if (duplicateContact && normalizedCompanyNameForCompare) {
-                                            contactsMap.set(normalizedCompanyNameForCompare, duplicateContact);
-                                            propertyData.propertyOwnerId = duplicateContact.id;
-                                        }
-                                    } catch (fetchError) {
-                                        console.error(`[SFR SYNC] Error fetching duplicate contact:`, fetchError);
-                                    }
-                                }
-                            }
-                        } else {
-                            // Use the existing contact's ID for propertyOwnerId
-                            propertyData.propertyOwnerId = existingContact.id;
-                            console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (matched: ${normalizedCompanyNameForStorage})`);
-
-                            // Update counties if we have a valid county and it's not already in the array
-                            if (propertyCounty && propertyCounty !== "UNKNOWN") {
-                                try {
-                                    // Parse existing counties JSON
-                                    let countiesArray: string[] = [];
-                                    if (existingContact.counties) {
-                                        try {
-                                            countiesArray = JSON.parse(existingContact.counties);
-                                        } catch (parseError) {
-                                            console.warn(`[SFR SYNC] Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
-                                            countiesArray = [];
-                                        }
-                                    }
-
-                                    // Check if county is already in the array (case-insensitive)
-                                    const countyLower = propertyCounty.toLowerCase();
-                                    const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
-
-                                    if (!countyExists) {
-                                        // Add the new county to the array
-                                        countiesArray.push(propertyCounty);
-                                        const updatedCountiesJson = JSON.stringify(countiesArray);
-
-                                        // Update the contact in the database
-                                        await db
-                                            .update(companyContacts)
-                                            .set({ 
-                                                counties: updatedCountiesJson,
-                                                updatedAt: new Date()
-                                            })
-                                            .where(eq(companyContacts.id, existingContact.id));
-
-                                        console.log(`[SFR SYNC] Updated company contact ${existingContact.companyName} with new county: ${propertyCounty}`);
-
-                                        // Update the in-memory cache
-                                        const updatedContact = { ...existingContact, counties: updatedCountiesJson };
-                                        if (normalizedCompanyNameForCompare) {
-                                            contactsMap.set(normalizedCompanyNameForCompare, updatedContact);
-                                        }
-                                    } else {
-                                        console.log(`[SFR SYNC] County ${propertyCounty} already exists for company ${existingContact.companyName}`);
-                                    }
-                                } catch (updateError: any) {
-                                    console.error(`[SFR SYNC] Error updating counties for company contact ${existingContact.companyName}:`, updateError);
-                                }
-                            }
-                        }
-                    } else {
-                        // No company name provided - set propertyOwnerId to null
-                        propertyData.propertyOwnerId = null;
-                    }
-
-                    // Check for existing property by SFR IDs first
-                    let existingProperty = null;
-                    
-                    if (propertyData.sfrPropertyId || propertyData.sfrRecordId || propertyData.address) {
-                        const conditions = [];
-                        
-                        if (propertyData.sfrPropertyId) {
-                            conditions.push(eq(properties.sfrPropertyId, propertyData.sfrPropertyId));
-                        }
-                        
-                        if (propertyData.sfrRecordId) {
-                            conditions.push(eq(properties.sfrRecordId, propertyData.sfrRecordId));
-                        }
-                        
-                        if (propertyData.address) {
-                            const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
-                            const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
-                            
-                            conditions.push(
-                                and(
-                                    sql`LOWER(TRIM(${properties.address})) = ${normalizedAddressForCompare}`,
-                                    sql`LOWER(TRIM(${properties.city})) = ${normalizedCityForCompare}`,
-                                    eq(properties.state, propertyData.state),
-                                    eq(properties.zipCode, propertyData.zipCode)
-                                )
-                            );
-                        }
-                        
-                        if (conditions.length > 0) {
-                            const results = await db
-                                .select()
-                                .from(properties)
-                                .where(or(...conditions))
-                                .limit(1);
-                            
-                            if (results.length > 0) {
-                                existingProperty = results[0];
-                            }
-                        }
-                    }
-
-                    if (existingProperty) {
-                        // Update existing property if this record is more recent
-                        const shouldUpdate = !existingProperty.recordingDate || (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
-                    
-                        if (shouldUpdate) {
-                            const { id, createdAt, _saleDate, ...updateData } = propertyData;
-                            updateData.updatedAt = sql`now()`;
-                            
-                            try {
-                                await db
-                                    .update(properties)
-                                    .set(updateData)
-                                    .where(eq(properties.id, existingProperty.id));
-                            
-                                totalUpdated++;
-                                console.log(`[SFR SYNC] Updated property: ${propertyData.address} (ID: ${existingProperty.id}, saleDate: ${saleDateStr || 'N/A'})`);
-                            
-                                // Persist sync state periodically after successful updates (every 10 updates)
-                                if (totalUpdated % 10 === 0 && latestSaleDate) {
-                                    try {
-                                        await persistSyncStateExplicit({
-                                            syncStateId,
-                                            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                            initialTotalSynced,
-                                            processed: totalProcessed,
-                                            finalSaleDate: latestSaleDate,
-                                        });
-                                    } catch (persistError) {
-                                        console.error(`[SFR SYNC] Failed to persist state after periodic update:`, persistError);
-                                    }
-                                }
-                            } catch (updateError: any) {
-                                console.error(`[SFR SYNC] Error updating property ${propertyData.address}:`, updateError);
-                            }
-                        } else {
-                            console.log(`[SFR SYNC] Skipping update for ${propertyData.address} - existing record is same or more recent (saleDate: ${saleDateStr || 'N/A'})`);
-                        }
-                    } else {
-                        // Add to batch buffer for insertion (with _saleDate for tracking)
-                        batchBuffer.push(propertyData);
-                        console.log(`[SFR SYNC] Adding to batch buffer: ${propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
-                        
-                        // Insert batch if full
-                        if (batchBuffer.length >= BATCH_SIZE) {
-                            try {
-                                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
-                                await db.insert(properties).values(batchToInsert);
-                                totalInserted += batchBuffer.length;
-                                console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
-                                
-                                // Persist sync state periodically after successful batch inserts
-                                if (latestSaleDate) {
-                                    try {
-                                        await persistSyncStateExplicit({
-                                            syncStateId,
-                                            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                            initialTotalSynced,
-                                            processed: totalProcessed,
-                                            finalSaleDate: latestSaleDate,
-                                        });
-                                    } catch (persistError) {
-                                        console.error(`[SFR SYNC] Failed to persist state after batch insert:`, persistError);
-                                    }
-                                }
-                                
-                                batchBuffer = [];
-                            } catch (batchError: any) {
-                                console.error(`[SFR SYNC] Error inserting batch:`, batchError);
-                                // Try inserting individually
-                                for (const prop of batchBuffer) {
-                                    try {
-                                        const { _saleDate, ...propToInsert } = prop;
-                                        await db.insert(properties).values([propToInsert]);
-                                        totalInserted++;
-                                        
-                                        // Persist after each successful individual insert (for error recovery)
-                                        if (prop._saleDate && latestSaleDate) {
-                                            try {
-                                                await persistSyncStateExplicit({
-                                                    syncStateId,
-                                                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                                    initialTotalSynced,
-                                                    processed: totalProcessed,
-                                                    finalSaleDate: latestSaleDate,
-                                                });
-                                            } catch (persistError) {
-                                                console.error(`[SFR SYNC] Failed to persist state after individual insert:`, persistError);
-                                            }
-                                        }
-                                    } catch (individualError: any) {
-                                        console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
-                                    }
-                                }
-                                batchBuffer = [];
-                            }
-                        }
-                    }
-
-                    totalProcessed++;
-                } catch (propertyError: any) {
-                    console.error(`[SFR SYNC] Error processing property:`, propertyError);
-                    console.error(`[SFR SYNC] Record that caused error:`, JSON.stringify(record, null, 2));
-                    totalProcessed++;
-                }
-            }
-
-            // Check if we should continue to next page
-            if (data.length < 100) {
-                shouldContinue = false;
-            } else {
-                currentPage++;
-            }
-        }
-
-        // Insert any remaining properties in buffer (after while loop ends)
-        if (batchBuffer.length > 0) {
-            try {
-                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
-                await db.insert(properties).values(batchToInsert);
-                totalInserted += batchBuffer.length;
-                console.log(`[SFR SYNC] Inserted final batch of ${batchBuffer.length} properties`);
-                
-                // Note: latestSaleDate was already updated when we extracted saleDateStr, so no need to update again
-            } catch (batchError: any) {
-                console.error(`[SFR SYNC] Error inserting final batch:`, batchError);
-                // Try inserting individually
-                for (const prop of batchBuffer) {
-                    try {
-                        const { _saleDate, ...propToInsert } = prop;
-                        await db.insert(properties).values([propToInsert]);
-                        totalInserted++;
-                        
-                        // Persist after each successful individual insert (for error recovery)
-                        if (latestSaleDate) {
-                            try {
-                                await persistSyncStateExplicit({
-                                    syncStateId,
-                                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                    initialTotalSynced,
-                                    processed: totalProcessed,
-                                    finalSaleDate: latestSaleDate,
-                                });
-                            } catch (persistError) {
-                                console.error(`[SFR SYNC] Failed to persist state after final individual insert:`, persistError);
-                            }
-                        }
-                    } catch (individualError: any) {
-                        console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
-                    }
-                }
-            }
-            batchBuffer = [];
-        }
-
-        // Persist final sync state (use latest saleDate from processed properties, minus 1 day)
-        const persistedDate = await persistSyncStateExplicit({
-            syncStateId: syncStateId,
-            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-            initialTotalSynced: initialTotalSynced ?? 0,
-            processed: totalProcessed ?? 0,
-            finalSaleDate: latestSaleDate ?? null,
-        });
-
-        console.log(`[SFR SYNC] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
-
-        return {
-            success: true,
-            msa,
-            totalProcessed,
-            totalInserted,
-            totalUpdated,
-            totalContactsAdded,
-            dateRange: {
-                from: minDate,
-                to: latestSaleDate || today
-            },
-            lastSaleDate: persistedDate,
-        };
-        
-    } catch (error) {
-        console.error(`[SFR SYNC] Error syncing ${msa}:`, error);
-        try {
-            const persistedDate = await persistSyncStateExplicit({
-                syncStateId: syncStateId,
-                previousLastSaleDate: syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                initialTotalSynced: initialTotalSynced ?? 0,
-                processed: totalProcessed ?? 0,
-                finalSaleDate: latestSaleDate ?? null,
-            });
-            console.log(`[SFR SYNC] Persisted sync state after failure for ${msa}. lastSaleDate: ${persistedDate}`);
-        } catch (e) {
-            console.error(`[SFR SYNC] Failed to persist sync state after error for ${msa}:`, e);
-        }
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Error syncing ${msa}: ${errorMessage}`);
-    }
-}
-
-router.post("/sfr", requireAdminAuth, async (req, res) => { 
-    const API_KEY = process.env.SFR_API_KEY!;
-    const API_URL = process.env.SFR_API_URL!;
-    const today = new Date().toISOString().split("T")[0];
-
-    try {
-        // Fetch only the MSA with id = 1 (San Diego)
-        const allSyncStates = await db
-            .select()
-            .from(sfrSyncState)
-            .where(eq(sfrSyncState.id, 1));
-
-        if (allSyncStates.length === 0) {
-            return res.status(400).json({ 
-                message: "MSA with id = 1 not found in sync state table.",
-                error: "MSA not found"
-            });
-        }
-
-        console.log(`[SFR SYNC] Found ${allSyncStates.length} MSA(s) to sync:`, allSyncStates.map(s => s.msa));
-
-        // Sync each MSA sequentially
-        const results = [];
-        const errors = [];
-
-        for (const syncState of allSyncStates) {
-            try {
-                console.log(`[SFR SYNC] Starting sync for MSA: ${syncState.msa}`);
-                const result = await syncMSA(syncState.msa, API_KEY, API_URL, today);
-                results.push(result);
-                console.log(`[SFR SYNC] Completed sync for MSA: ${syncState.msa}`);
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error(`[SFR SYNC] Failed to sync MSA ${syncState.msa}:`, errorMessage);
-                errors.push({
-                    msa: syncState.msa,
-                    error: errorMessage
-                });
-            }
-        }
-
-        // Calculate totals across all MSAs
-        const totalProcessed = results.reduce((sum, r) => sum + r.totalProcessed, 0);
-        const totalInserted = results.reduce((sum, r) => sum + r.totalInserted, 0);
-        const totalUpdated = results.reduce((sum, r) => sum + r.totalUpdated, 0);
-        const totalContactsAdded = results.reduce((sum, r) => sum + r.totalContactsAdded, 0);
-
-        console.log(`[SFR SYNC] All syncs complete. Total: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
-
-        return res.status(200).json({
-            success: true,
-            totalProcessed,
-            totalInserted,
-            totalUpdated,
-            totalContactsAdded,
-            results,
-            errors: errors.length > 0 ? errors : undefined,
-        });
-        
-    } catch (error) {
-        console.error("[SFR SYNC] Fatal error:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        res.status(500).json({ 
-            message: "Error syncing SFR buyer data",
-            error: errorMessage
-        });
-    }
-});
-
 /* V2 SFR Sync Functions - Using new normalized schema and batch API */
 
 // Helper to persist sync state V2 (tracking both lastSaleDate and lastRecordingDate)
@@ -939,15 +157,13 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
     let initialTotalSynced: number = 0;
     let syncState: any[] = [];
 
-        // Track counters accessible in catch/finalize
-        let totalProcessed = 0;
-        let totalInserted = 0;
-        let totalUpdated = 0;
-        let totalContactsAdded = 0;
-        let latestRecordingDate: string | null = null; // Track the most recent recordingDate from both routes
-        let earliestRecordingDate: string | null = null; // Track the earliest recordingDate (from last page) for sync state
-        let latestSaleDate: string | null = null; // Track the most recent saleDate from buyers/market
-        let earliestSaleDate: string | null = null; // Track the earliest saleDate (from last page) for sync state
+    // Track counters accessible in catch/finalize
+    let totalProcessed = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let totalContactsAdded = 0;
+    let latestRecordingDate: string | null = null; // Track the most recent recordingDate from flips
+    let earliestRecordingDate: string | null = null; // Track the earliest recordingDate (from last page) for sync state
 
     try {
         // Get or create sync state for this MSA
@@ -982,14 +198,6 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             syncStateId = syncState[0].id;
             initialTotalSynced = syncState[0].totalRecordsSynced || 0;
         }
-        
-        // Get min sale date for /buyers/market (use lastSaleDate from sync state)
-        let minSaleDate: string = "";
-        if (syncState.length > 0 && syncState[0].lastSaleDate) {
-            minSaleDate = new Date(syncState[0].lastSaleDate).toISOString().split("T")[0];
-        } else {
-            minSaleDate = "2025-12-03"; // Default start date
-        }
 
         console.log(`[SFR SYNC V2] Starting sync for ${msa} from ${minDate} to ${today}`);
 
@@ -1005,11 +213,10 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
         }
         console.log(`[SFR SYNC V2] Loaded ${contactsMap.size} company contacts into cache`);
 
-        // Collect addresses from both /geo-analytics/flips and /buyers/market
-        // Also store record data for status determination
+        // Collect addresses from /geo-analytics/flips (need addresses for /properties/batch)
+        // Also store flip record data for status determination
         const addressesSet = new Set<string>();
-        const flipsMap = new Map<string, any>(); // Map of address -> flip record (from /geo-analytics/flips)
-        const buyersMarketMap = new Map<string, any>(); // Map of address -> buyers market record (from /buyers/market)
+        const flipsMap = new Map<string, any>(); // Map of address -> flip record
         
         // Fetch addresses from /geo-analytics/flips with pagination
         // Sort by -recording_date (descending) to start with furthest/most recent dates first
@@ -1055,7 +262,14 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             
             // Extract addresses and track recording dates
             // All records from /geo-analytics/flips are flip exits (sold properties)
+            // Only add properties where sellerCorp is true (corporate seller/flipper)
             flipsData.forEach((record: any) => {
+                // Only process if corporate seller (the flipper who sold the property)
+                const sellerCorp = record.sellerCorp === true;
+                if (!sellerCorp) {
+                    return; // Skip non-corporate sellers
+                }
+                
                 // Build address string: "ADDRESS, CITY, STATE"
                 if (record.address && record.city && record.state) {
                     const addressStr = `${record.address}, ${record.city}, ${record.state}`;
@@ -1097,102 +311,10 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             }
         }
         
-        console.log(`[SFR SYNC V2] Completed flips pagination. Total addresses collected so far: ${addressesSet.size}`);
-        
-        // Fetch addresses from /buyers/market with pagination
-        console.log(`[SFR SYNC V2] Fetching addresses from /buyers/market with pagination`);
-        
-        let buyersMarketPage = 1;
-        let buyersMarketShouldContinue = true;
-        
-        while (buyersMarketShouldContinue) {
-            const buyersMarketParams = new URLSearchParams({
-                search_type: "msa",
-                msa: msa,
-                sales_date_min: minSaleDate,
-                page_size: "100",
-                sort: "-recording_date",
-            });
-            
-            const buyersMarketResponse = await fetch(`${API_URL}/buyers/market?${buyersMarketParams.toString()}`, {
-                method: 'GET',
-                headers: {
-                    'X-API-TOKEN': API_KEY,
-                },
-            });
-            
-            if (!buyersMarketResponse.ok) {
-                const errorText = await buyersMarketResponse.text();
-                throw new Error(`Buyers market API error on page ${buyersMarketPage}: ${buyersMarketResponse.status} - ${errorText}`);
-            }
-            
-            const buyersMarketData = await buyersMarketResponse.json();
-            
-            // Check if we got empty data or non-array response
-            if (!buyersMarketData || !Array.isArray(buyersMarketData) || buyersMarketData.length === 0) {
-                console.log(`[SFR SYNC V2] No more data on page ${buyersMarketPage} for buyers/market, stopping`);
-                buyersMarketShouldContinue = false;
-                break;
-            }
-            
-            console.log(`[SFR SYNC V2] Fetched page ${buyersMarketPage} with ${buyersMarketData.length} records from /buyers/market`);
-            
-            // Extract addresses and track dates
-            buyersMarketData.forEach((record: any) => {
-                // Build address string: "ADDRESS, CITY, STATE"
-                if (record.address && record.city && record.state) {
-                    const addressStr = `${record.address}, ${record.city}, ${record.state}`;
-                    addressesSet.add(addressStr);
-                    
-                    // Store buyers market record for later lookup
-                    // Only store if this is the most recent recordingDate for this address
-                    if (!buyersMarketMap.has(addressStr) || 
-                        (record.recordingDate && 
-                         buyersMarketMap.get(addressStr)?.recordingDate && 
-                         record.recordingDate > buyersMarketMap.get(addressStr)?.recordingDate)) {
-                        buyersMarketMap.set(addressStr, record);
-                    }
-                }
-                
-                // Track recording dates
-                if (record.recordingDate) {
-                    const recDateStr = typeof record.recordingDate === 'string' ? record.recordingDate.split("T")[0] : record.recordingDate.toISOString().split("T")[0];
-                    
-                    if (!latestRecordingDate || recDateStr > latestRecordingDate) {
-                        latestRecordingDate = recDateStr;
-                    }
-                    
-                    if (!earliestRecordingDate || recDateStr < earliestRecordingDate) {
-                        earliestRecordingDate = recDateStr;
-                    }
-                }
-                
-                // Track sale dates
-                if (record.saleDate) {
-                    const saleDateStr = typeof record.saleDate === 'string' ? record.saleDate.split("T")[0] : record.saleDate.toISOString().split("T")[0];
-                    
-                    if (!latestSaleDate || saleDateStr > latestSaleDate) {
-                        latestSaleDate = saleDateStr;
-                    }
-                    
-                    if (!earliestSaleDate || saleDateStr < earliestSaleDate) {
-                        earliestSaleDate = saleDateStr;
-                    }
-                }
-            });
-            
-            // Check if we should continue to next page
-            if (buyersMarketData.length < 100) {
-                buyersMarketShouldContinue = false;
-            } else {
-                buyersMarketPage++;
-            }
-        }
-        
-        console.log(`[SFR SYNC V2] Completed pagination. Total addresses collected: ${addressesSet.size}, earliest recording date: ${earliestRecordingDate || 'N/A'}, earliest sale date: ${earliestSaleDate || 'N/A'}`);
+        console.log(`[SFR SYNC V2] Completed pagination. Total addresses collected: ${addressesSet.size}, earliest recording date: ${earliestRecordingDate || 'N/A'}`);
         
         const addressesArray = Array.from(addressesSet);
-        console.log(`[SFR SYNC V2] Collected ${addressesArray.length} unique addresses to process (${flipsMap.size} from flips, ${buyersMarketMap.size} from buyers/market)`);
+        console.log(`[SFR SYNC V2] Collected ${addressesArray.length} unique addresses to process`);
         
         if (addressesArray.length === 0) {
             console.log(`[SFR SYNC V2] No properties to process for ${msa}`);
@@ -1270,46 +392,10 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         .where(eq(propertiesV2.sfrPropertyId, Number(sfrPropertyId)))
                         .limit(1);
                     
-                    // Get records from both routes for this address
+                    // Get flip record for this address to determine status
                     const flipRecord = batchItem.address ? flipsMap.get(batchItem.address) : null;
-                    const buyersMarketRecord = batchItem.address ? buyersMarketMap.get(batchItem.address) : null;
                     
-                    // Determine which record to use based on most recent recordingDate
-                    // Priority: most recent recordingDate wins
-                    let activeRecord: any = null;
-                    let recordSource: "flips" | "buyers-market" | null = null;
-                    
-                    if (flipRecord && buyersMarketRecord) {
-                        // Both exist - use the one with most recent recordingDate
-                        const flipRecDate = flipRecord.recordingDate ? (typeof flipRecord.recordingDate === 'string' ? flipRecord.recordingDate.split("T")[0] : flipRecord.recordingDate.toISOString().split("T")[0]) : "";
-                        const buyersRecDate = buyersMarketRecord.recordingDate ? (typeof buyersMarketRecord.recordingDate === 'string' ? buyersMarketRecord.recordingDate.split("T")[0] : buyersMarketRecord.recordingDate.toISOString().split("T")[0]) : "";
-                        
-                        if (flipRecDate >= buyersRecDate) {
-                            activeRecord = flipRecord;
-                            recordSource = "flips";
-                        } else {
-                            activeRecord = buyersMarketRecord;
-                            recordSource = "buyers-market";
-                        }
-                    } else if (flipRecord) {
-                        activeRecord = flipRecord;
-                        recordSource = "flips";
-                    } else if (buyersMarketRecord) {
-                        activeRecord = buyersMarketRecord;
-                        recordSource = "buyers-market";
-                    }
-                    
-                    // If no record from either route, skip
-                    if (!activeRecord) {
-                        console.log(`[SFR SYNC V2] Skipping property with no record from either route: ${batchItem.address}`);
-                        totalProcessed--; // Don't count this as processed
-                        continue;
-                    }
-                    
-                    // Note: We already prioritized by recordingDate when selecting activeRecord
-                    // If both routes had records, we used the one with most recent recordingDate
-                    
-                    // Determine status and company based on record source
+                    // Determine status and company based on new flip transaction logic
                     let status: string = "sold"; // Default
                     let listingStatus: string = "off_market"; // Default
                     let companyId: string | null = null;
@@ -1317,6 +403,11 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     
                     // Get data from property batch response
                     const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
+                    const isCorporateOwner = propertyData.owner?.corporate_owner === true;
+                    const ownerName = propertyData.owner?.name;
+                    
+                    // Get flip record data (we'll identify flipper below)
+                    const isBase1YearExitedFlip = flipRecord?.isBase1YearExitedFlip === true;
                     
                     // Helper function to upsert company (only if not a trust)
                     const upsertCompany = async (
@@ -1383,137 +474,81 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         }
                     };
                     
-                    // PROCESS BASED ON RECORD SOURCE
-                    if (recordSource === "flips") {
-                        // PROCESS /geo-analytics/flips RECORDS
-                        // All properties from /geo-analytics/flips are flip exits = "sold" status
-                        
-                        // CHECK 1: Skip new construction transactions
-                        const transactionType = activeRecord.transactionType;
-                        const isNewConstruction = activeRecord.isNewConstruction === true;
-                        
-                        if ((transactionType && transactionType.toLowerCase() === "new construction") || isNewConstruction) {
-                            console.log(`[SFR SYNC V2] Skipping new construction transaction: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // CHECK 2: Check if sellerCorp is true
-                        const sellerCorp = activeRecord.sellerCorp === true;
-                        if (!sellerCorp) {
-                            console.log(`[SFR SYNC V2] Skipping property with non-corporate seller: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // CHECK 3: Get prevBuyer and validate it's a corporate entity
-                        const prevBuyer = activeRecord.prevBuyer;
-                        const flipperOwnershipCode = activeRecord.buyerOwnershipCode;
-                        
-                        if (!prevBuyer) {
-                            console.log(`[SFR SYNC V2] Skipping property with no prevBuyer: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // Check if prevBuyer is a trust - skip if trust
-                        if (isTrust(prevBuyer, flipperOwnershipCode)) {
-                            console.log(`[SFR SYNC V2] Skipping property with trust as prevBuyer: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // Check if prevBuyer is a valid corporate entity
-                        // Exception: "Opendoor" is a company even without corporate indicators
-                        const isOpendoor = prevBuyer.toLowerCase().includes("opendoor");
-                        const isCorporateEntity = isOpendoor || isFlippingCompany(prevBuyer, flipperOwnershipCode);
-                        
-                        if (!isCorporateEntity) {
-                            console.log(`[SFR SYNC V2] Skipping property with non-corporate prevBuyer: ${batchItem.address} (prevBuyer: ${prevBuyer})`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // Add prevBuyer (flipper) to companies table
-                        const flipperCompanyId = await upsertCompany(prevBuyer);
-                        if (flipperCompanyId) totalContactsAdded++;
-                        
-                        // Ensure we have a companyId
-                        if (!flipperCompanyId) {
-                            console.log(`[SFR SYNC V2] Failed to create/get flipper company for: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // All properties from /geo-analytics/flips are flip exits
-                        // Status = "sold", listing_status = "off-market"
-                        status = "sold";
-                        listingStatus = "off_market";
-                        companyId = flipperCompanyId; // Flipper company for history
-                        propertyOwnerId = null; // Sold to end buyer, we don't track individuals
-                        
-                    } else if (recordSource === "buyers-market") {
-                        // PROCESS /buyers/market RECORDS
-                        // Properties from /buyers/market are active flips = "in-renovation" status
-                        
-                        // CHECK 1: Check if isCorporate is true
-                        const isCorporate = activeRecord.isCorporate === true;
-                        if (!isCorporate) {
-                            console.log(`[SFR SYNC V2] Skipping property with non-corporate buyer: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // CHECK 2: Get buyerName and validate it's a corporate entity
-                        const buyerName = activeRecord.buyerName;
-                        
-                        if (!buyerName) {
-                            console.log(`[SFR SYNC V2] Skipping property with no buyerName: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // Check if buyerName is a trust - skip if trust
-                        if (isTrust(buyerName, null)) {
-                            console.log(`[SFR SYNC V2] Skipping property with trust as buyer: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // Check if buyerName is a valid corporate entity
-                        // Exception: "Opendoor" is a company even without corporate indicators
-                        const isOpendoor = buyerName.toLowerCase().includes("opendoor");
-                        const isCorporateEntity = isOpendoor || isFlippingCompany(buyerName, null);
-                        
-                        if (!isCorporateEntity) {
-                            console.log(`[SFR SYNC V2] Skipping property with non-corporate buyerName: ${batchItem.address} (buyerName: ${buyerName})`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // Add buyerName (company) to companies table
-                        const buyerCompanyId = await upsertCompany(buyerName);
-                        if (buyerCompanyId) totalContactsAdded++;
-                        
-                        // Ensure we have a companyId
-                        if (!buyerCompanyId) {
-                            console.log(`[SFR SYNC V2] Failed to create/get buyer company for: ${batchItem.address}`);
-                            totalProcessed--; // Don't count this as processed
-                            continue;
-                        }
-                        
-                        // All properties from /buyers/market are active flips
-                        // Status = "in-renovation", listing_status based on property batch
-                        status = "in-renovation";
-                        listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
-                        companyId = buyerCompanyId; // Buyer company
-                        propertyOwnerId = buyerCompanyId; // Company owns the property (same as companyId)
-                    } else {
-                        // Should not happen, but skip if it does
-                        console.log(`[SFR SYNC V2] Skipping property with unknown record source: ${batchItem.address}`);
+                    // NEW FLIP TRANSACTION PROCESSING LOGIC
+                    // All properties from /geo-analytics/flips are flip exits = "sold" status
+                    
+                    // Must have a flip record (since all properties come from /geo-analytics/flips)
+                    if (!flipRecord) {
+                        console.log(`[SFR SYNC V2] Skipping property with no flip record: ${batchItem.address}`);
                         totalProcessed--; // Don't count this as processed
                         continue;
                     }
+                    
+                    // STEP 1: Skip new construction transactions
+                    const transactionType = flipRecord.transactionType;
+                    const isNewConstruction = flipRecord.isNewConstruction === true;
+                    
+                    if ((transactionType && transactionType.toLowerCase() === "new construction") || isNewConstruction) {
+                        console.log(`[SFR SYNC V2] Skipping new construction transaction: ${batchItem.address}`);
+                        totalProcessed--; // Don't count this as processed
+                        continue;
+                    }
+                    
+                    // STEP 2: Check if sellerCorp is true
+                    const sellerCorp = flipRecord.sellerCorp === true;
+                    if (!sellerCorp) {
+                        console.log(`[SFR SYNC V2] Skipping property with non-corporate seller: ${batchItem.address}`);
+                        totalProcessed--; // Don't count this as processed
+                        continue;
+                    }
+                    
+                    // STEP 3: Get prevBuyer and validate it's a corporate entity
+                    const prevBuyer = flipRecord.prevBuyer;
+                    const flipperOwnershipCode = flipRecord.buyerOwnershipCode;
+                    
+                    if (!prevBuyer) {
+                        console.log(`[SFR SYNC V2] Skipping property with no prevBuyer: ${batchItem.address}`);
+                        totalProcessed--; // Don't count this as processed
+                        continue;
+                    }
+                    
+                    // Check if prevBuyer is a trust - skip if trust
+                    if (isTrust(prevBuyer, flipperOwnershipCode)) {
+                        console.log(`[SFR SYNC V2] Skipping property with trust as prevBuyer: ${batchItem.address}`);
+                        totalProcessed--; // Don't count this as processed
+                        continue;
+                    }
+                    
+                    // Check if prevBuyer is a valid corporate entity
+                    // Exception: "Opendoor" is a company even without corporate indicators
+                    const isOpendoor = prevBuyer.toLowerCase().includes("opendoor");
+                    const isCorporateEntity = isOpendoor || isFlippingCompany(prevBuyer, flipperOwnershipCode);
+                    
+                    if (!isCorporateEntity) {
+                        console.log(`[SFR SYNC V2] Skipping property with non-corporate prevBuyer: ${batchItem.address} (prevBuyer: ${prevBuyer})`);
+                        totalProcessed--; // Don't count this as processed
+                        continue;
+                    }
+                    
+                    // STEP 4: Add prevBuyer (flipper) to companies table
+                    let flipperCompanyId: string | null = null;
+                    flipperCompanyId = await upsertCompany(prevBuyer);
+                    if (flipperCompanyId) totalContactsAdded++;
+                    
+                    // STEP 5: Ensure we have a companyId
+                    if (!flipperCompanyId) {
+                        console.log(`[SFR SYNC V2] Failed to create/get flipper company for: ${batchItem.address}`);
+                        totalProcessed--; // Don't count this as processed
+                        continue;
+                    }
+                    
+                    // STEP 6: All properties from /geo-analytics/flips are flip exits
+                    // Status = "sold", listing_status = "off-market"
+                    status = "sold";
+                    listingStatus = "off_market";
+                    companyId = flipperCompanyId; // Flipper company for history
+                    propertyOwnerId = null; // Sold to end buyer, we don't track individuals
+                    // Note: We don't add buyers to companies since these are exits
                     
                     // Insert/update all related data (neon-http doesn't support transactions, so we do direct operations)
                     if (existingProperty) {
@@ -1760,10 +795,9 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             }
             
             // Persist sync state periodically after batches
-            // Use earliest dates if available (from pagination), otherwise use latest dates
+            // Use earliestRecordingDate if available (from pagination), otherwise use latestRecordingDate
             const recordingDateForSync = earliestRecordingDate || latestRecordingDate;
-            const saleDateForSync = earliestSaleDate || latestSaleDate;
-            if ((recordingDateForSync || saleDateForSync) && totalProcessed % 50 === 0) {
+            if (recordingDateForSync && totalProcessed % 50 === 0) {
                 try {
                     await persistSyncStateV2({
                         syncStateId,
@@ -1771,8 +805,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
                         initialTotalSynced,
                         processed: totalProcessed,
-                        finalSaleDate: saleDateForSync ?? null,
-                        finalRecordingDate: recordingDateForSync ?? null,
+                        finalSaleDate: null, // Not tracking sale dates from flips
+                        finalRecordingDate: recordingDateForSync,
                     });
                 } catch (persistError) {
                     console.error(`[SFR SYNC V2] Failed to persist state after batch:`, persistError);
@@ -1781,17 +815,16 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
         }
         
         // Persist final sync state
-        // Use earliest dates (from last page) minus 1 day for next sync
+        // Use earliestRecordingDate (from last page) minus 1 day for next sync
         // This ensures we resume from where we left off
         const recordingDateToStore = earliestRecordingDate || latestRecordingDate;
-        const saleDateToStore = earliestSaleDate || latestSaleDate;
         const persistedState = await persistSyncStateV2({
             syncStateId: syncStateId,
             previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
             previousLastRecordingDate: syncState.length > 0 ? syncState[0].lastRecordingDate : null,
             initialTotalSynced: initialTotalSynced ?? 0,
             processed: totalProcessed ?? 0,
-            finalSaleDate: saleDateToStore ?? null,
+            finalSaleDate: null, // Not tracking sale dates from flips
             finalRecordingDate: recordingDateToStore ?? null,
         });
         
@@ -1814,19 +847,18 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
     } catch (error) {
         console.error(`[SFR SYNC V2] Error syncing ${msa}:`, error);
         try {
-            // Use earliest dates if available (from pagination), otherwise use latest dates
+            // Use earliestRecordingDate if available (from pagination), otherwise use latestRecordingDate
             const recordingDateForSync = earliestRecordingDate || latestRecordingDate;
-            const saleDateForSync = earliestSaleDate || latestSaleDate;
             const persistedState = await persistSyncStateV2({
                 syncStateId: syncStateId,
                 previousLastSaleDate: syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null,
                 previousLastRecordingDate: syncState && syncState.length > 0 ? syncState[0].lastRecordingDate : null,
                 initialTotalSynced: initialTotalSynced ?? 0,
                 processed: totalProcessed ?? 0,
-                finalSaleDate: saleDateForSync ?? null,
+                finalSaleDate: null, // Not tracking sale dates from flips
                 finalRecordingDate: recordingDateForSync ?? null,
             });
-            console.log(`[SFR SYNC V2] Persisted sync state after failure for ${msa}. lastRecordingDate: ${persistedState.lastRecordingDate}, lastSaleDate: ${persistedState.lastSaleDate}`);
+            console.log(`[SFR SYNC V2] Persisted sync state after failure for ${msa}. lastRecordingDate: ${persistedState.lastRecordingDate}`);
         } catch (e) {
             console.error(`[SFR SYNC V2] Failed to persist sync state after error for ${msa}:`, e);
         }
