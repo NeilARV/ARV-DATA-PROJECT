@@ -4,6 +4,12 @@ import { properties } from "@shared/schema";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertPropertySchema, updatePropertySchema } from "@shared/schema";
 import { companies } from "../../database/schemas/companies.schema";
+import { 
+    properties as propertiesV2, 
+    addresses, 
+    structures, 
+    lastSales 
+} from "../../database/schemas/properties.schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
@@ -643,32 +649,98 @@ router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Use LEFT JOIN to get company info from companies table
-        // Select all fields from properties table and only companyName, contactName, contactEmail from companies
+        // Query the new normalized schema with joins
+        // Join with addresses, structures, lastSales, and companies tables
         const [result] = await db
             .select({
-                ...getTableColumns(properties),
+                // Properties table fields
+                id: propertiesV2.id,
+                sfrPropertyId: propertiesV2.sfrPropertyId,
+                companyId: propertiesV2.companyId,
+                propertyOwnerId: propertiesV2.propertyOwnerId,
+                propertyClassDescription: propertiesV2.propertyClassDescription,
+                propertyType: propertiesV2.propertyType,
+                vacant: propertiesV2.vacant,
+                hoa: propertiesV2.hoa,
+                ownerType: propertiesV2.ownerType,
+                purchaseMethod: propertiesV2.purchaseMethod,
+                listingStatus: propertiesV2.listingStatus,
+                status: propertiesV2.status,
+                monthsOwned: propertiesV2.monthsOwned,
+                msa: propertiesV2.msa,
+                county: propertiesV2.county,
+                createdAt: propertiesV2.createdAt,
+                updatedAt: propertiesV2.updatedAt,
+                // Address fields
+                address: addresses.formattedStreetAddress,
+                city: addresses.city,
+                state: addresses.state,
+                zipCode: addresses.zipCode,
+                latitude: sql<number | null>`CAST(${addresses.latitude} AS FLOAT)`,
+                longitude: sql<number | null>`CAST(${addresses.longitude} AS FLOAT)`,
+                // Structure fields
+                bedrooms: structures.bedsCount,
+                bathrooms: sql<number | null>`CAST(${structures.baths} AS FLOAT)`,
+                squareFeet: structures.livingAreaSqft,
+                yearBuilt: structures.yearBuilt,
+                // Last sale fields (for price and dateSold)
+                price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
+                dateSold: lastSales.saleDate,
                 // Company info from joined table
                 companyName: companies.companyName,
                 contactName: companies.contactName,
                 contactEmail: companies.contactEmail,
             })
-            .from(properties)
-            .leftJoin(companies, eq(properties.propertyOwnerId, companies.id))
-            .where(eq(properties.id, id))
+            .from(propertiesV2)
+            .leftJoin(addresses, eq(propertiesV2.id, addresses.propertyId))
+            .leftJoin(structures, eq(propertiesV2.id, structures.propertyId))
+            .leftJoin(lastSales, eq(propertiesV2.id, lastSales.propertyId))
+            .leftJoin(companies, eq(propertiesV2.propertyOwnerId, companies.id))
+            .where(eq(propertiesV2.id, id))
             .limit(1);
 
         if (!result) {
             return res.status(404).json({ message: "Property not found" });
         }
 
-        // Map result to use company info from joined table, fallback to legacy fields
-        const { companyName, contactName, contactEmail, ...rest } = result;
+        // Map result to match the Property type expected by frontend
+        // Parse decimal types and provide defaults
+        const lat = result.latitude ? (typeof result.latitude === 'string' ? parseFloat(result.latitude) : Number(result.latitude)) : null;
+        const lon = result.longitude ? (typeof result.longitude === 'string' ? parseFloat(result.longitude) : Number(result.longitude)) : null;
+        const baths = result.bathrooms ? (typeof result.bathrooms === 'string' ? parseFloat(result.bathrooms) : Number(result.bathrooms)) : null;
+        const price = result.price ? (typeof result.price === 'string' ? parseFloat(result.price) : Number(result.price)) : 0;
+
         const property = {
-            ...rest,
-            propertyOwner: companyName || null,
-            companyContactName: contactName || null,
-            companyContactEmail: contactEmail || null,
+            id: String(result.id),
+            // Address fields
+            address: result.address || '',
+            city: result.city || '',
+            state: result.state || '',
+            zipCode: result.zipCode || '',
+            latitude: lat,
+            longitude: lon,
+            // Structure fields
+            bedrooms: result.bedrooms ? Number(result.bedrooms) : 0,
+            bathrooms: baths || 0,
+            squareFeet: result.squareFeet ? Number(result.squareFeet) : 0,
+            yearBuilt: result.yearBuilt ? Number(result.yearBuilt) : null,
+            // Property fields
+            propertyType: result.propertyType || '',
+            status: result.status || 'in-renovation',
+            // Price and date
+            price: price,
+            dateSold: result.dateSold ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold ? (result.dateSold as Date).toISOString().split('T')[0] : (typeof result.dateSold === 'string' ? result.dateSold.split('T')[0] : String(result.dateSold))) : null,
+            // Company info
+            propertyOwner: result.companyName || null,
+            propertyOwnerId: result.propertyOwnerId ? String(result.propertyOwnerId) : null,
+            companyContactName: result.contactName || null,
+            companyContactEmail: result.contactEmail || null,
+            // Additional fields that might be expected
+            description: null, // Not in new schema, set to null
+            imageUrl: null, // Not in new schema, set to null
+            // Legacy fields for backward compatibility
+            purchasePrice: price,
+            saleValue: price,
         };
 
         res.status(200).json(property);
