@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,21 +17,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { z } from "zod";
-import { InsertProperty, insertPropertySchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { parseDate } from "@/lib/dateUtils";
@@ -50,47 +40,24 @@ export default function UploadDialog({
   const { toast } = useToast();
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [parsedData, setParsedData] = useState<InsertProperty[] | null>(null);
+  const [parsedData, setParsedData] = useState<Array<{
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  }> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>("");
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Company suggestions state
-  const [companySearchQuery, setCompanySearchQuery] = useState("");
-  const [companySuggestions, setCompanySuggestions] = useState<Array<{
-    id: string;
-    companyName: string;
-    contactName: string | null;
-    contactEmail: string | null;
-  }>>([]);
-  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-  const companySearchInputRef = useRef<HTMLInputElement>(null);
-  const companySuggestionsRef = useRef<HTMLDivElement>(null);
-
-  // Form for manual entry - Derived from insertPropertySchema with numeric fields accepting undefined during editing
-  const manualEntrySchema = insertPropertySchema.extend({
-    // Allow numeric fields to be undefined during editing (will be converted to 0 on submit)
-    price: insertPropertySchema.shape.price.or(z.undefined()),
-    bedrooms: insertPropertySchema.shape.bedrooms.or(z.undefined()),
-    bathrooms: insertPropertySchema.shape.bathrooms.or(z.undefined()),
-    squareFeet: insertPropertySchema.shape.squareFeet.or(z.undefined()),
-    // Make optional fields that can be left blank
-    latitude: insertPropertySchema.shape.latitude.optional(),
-    longitude: insertPropertySchema.shape.longitude.optional(),
-    imageUrl: insertPropertySchema.shape.imageUrl.optional(),
-    description: insertPropertySchema.shape.description.optional(),
-    yearBuilt: insertPropertySchema.shape.yearBuilt.optional(),
-    propertyOwner: insertPropertySchema.shape.propertyOwner.optional(),
-    companyId: insertPropertySchema.shape.companyId.optional().nullable(),
-    companyContactName:
-      insertPropertySchema.shape.companyContactName.optional(),
-    companyContactEmail:
-      insertPropertySchema.shape.companyContactEmail.optional(),
-    purchasePrice: insertPropertySchema.shape.purchasePrice.optional(),
-    dateSold: insertPropertySchema.shape.dateSold.optional(),
+  // Form for manual entry - Only address fields
+  const manualEntrySchema = z.object({
+    address: z.string().min(1, "Address is required"),
+    city: z.string().min(1, "City is required"),
+    state: z.string().min(1, "State is required"),
+    zipCode: z.string().min(1, "Zip Code is required"),
   });
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
@@ -100,114 +67,9 @@ export default function UploadDialog({
       city: "",
       state: "",
       zipCode: "",
-      price: undefined,
-      bedrooms: undefined,
-      bathrooms: undefined,
-      squareFeet: undefined,
-      propertyType: "Single Family",
-      imageUrl: "",
-      description: "",
-      yearBuilt: undefined,
-      propertyOwner: "",
-      companyId: null,
-      companyContactName: "",
-      companyContactEmail: "",
-      purchasePrice: undefined,
-      dateSold: "",
     },
   });
 
-  // Fetch company suggestions with debounce
-  const fetchCompanySuggestions = useCallback(async (searchTerm: string) => {
-    if (searchTerm.trim().length < 2) {
-      setCompanySuggestions([]);
-      setShowCompanySuggestions(false);
-      return;
-    }
-
-    setIsLoadingSuggestions(true);
-    try {
-      const response = await fetch(
-        `/api/companies/contacts/suggestions?search=${encodeURIComponent(searchTerm)}`,
-        { credentials: "include" }
-      );
-      if (response.ok) {
-        const suggestions = await response.json();
-        setCompanySuggestions(suggestions);
-        setShowCompanySuggestions(suggestions.length > 0);
-      } else {
-        setCompanySuggestions([]);
-        setShowCompanySuggestions(false);
-      }
-    } catch (error) {
-      console.error("Error fetching company suggestions:", error);
-      setCompanySuggestions([]);
-      setShowCompanySuggestions(false);
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
-  }, []);
-
-  // Debounce ref for suggestions
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Watch company search query and fetch suggestions with debounce
-  useEffect(() => {
-    // Clear existing timeout
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-
-    if (companySearchQuery && companySearchQuery.trim().length >= 2) {
-      // Set new timeout for debounced fetch
-      debounceTimeoutRef.current = setTimeout(() => {
-        fetchCompanySuggestions(companySearchQuery);
-      }, 300);
-    } else {
-      setCompanySuggestions([]);
-      setShowCompanySuggestions(false);
-    }
-
-    // Cleanup timeout on unmount or value change
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
-  }, [companySearchQuery, fetchCompanySuggestions]);
-
-  // Handle click outside to close suggestions
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        companySuggestionsRef.current &&
-        !companySuggestionsRef.current.contains(event.target as Node) &&
-        companySearchInputRef.current &&
-        !companySearchInputRef.current.contains(event.target as Node)
-      ) {
-        setShowCompanySuggestions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Handle company suggestion selection
-  const handleSelectCompany = (company: {
-    id: string;
-    companyName: string;
-    contactName: string | null;
-    contactEmail: string | null;
-  }) => {
-    form.setValue("propertyOwner", company.companyName);
-    form.setValue("companyId", company.id);
-    form.setValue("companyContactName", company.contactName || "");
-    form.setValue("companyContactEmail", company.contactEmail || "");
-    setCompanySearchQuery(""); // Clear search input
-    setShowCompanySuggestions(false);
-    setCompanySuggestions([]);
-  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -557,32 +419,13 @@ export default function UploadDialog({
             city: city || "",
             state: "CA", // Default to CA
             zipCode: String(zipCode || "").trim(),
-            price: safeParseFloat(salePrice) || 0,
-            bedrooms: 3, // Default values since not in CSV
-            bathrooms: 2,
-            squareFeet: 1500,
-            propertyType: "Single Family",
-            imageUrl: null,
-            latitude: null,
-            longitude: null,
-            description: null,
-            yearBuilt: null,
-            propertyOwner: ownerName || null,
-            companyContactName: null,
-            companyContactEmail: null,
-            purchasePrice: null,
-            dateSold: (() => {
-              if (!saleDate) return null;
-              const parsedDate = parseDate(saleDate);
-              return parsedDate ? parsedDate.toISOString() : null;
-            })(),
           };
         })
         .filter((prop: any) => {
-          // Filter out company header rows and empty rows
-          const hasValidPrice = prop.price > 0;
+          // Filter out empty rows
           const hasAddress = prop.address && prop.address.trim() !== "";
           const hasCity = prop.city && prop.city.trim() !== "";
+          const hasZipCode = prop.zipCode && prop.zipCode.trim() !== "";
 
           // Also filter out rows where address looks like it's just a company name repeated
           const addressLooksValid = hasAddress && 
@@ -590,7 +433,7 @@ export default function UploadDialog({
             !prop.address.toLowerCase().includes('acropolis') &&
             !prop.address.toLowerCase().includes('rich montano');
 
-          return hasValidPrice && addressLooksValid && hasCity;
+          return hasAddress && hasCity && hasZipCode && addressLooksValid;
         });
 
       console.log("Valid properties after filtering:", properties.length);
@@ -602,7 +445,7 @@ export default function UploadDialog({
         return;
       }
 
-      setParsedData(properties as InsertProperty[]);
+      setParsedData(properties);
     } catch (err) {
       setError("Error parsing file. Please check the format.");
       console.error("Parse error:", err);
@@ -717,35 +560,12 @@ export default function UploadDialog({
     setError(null);
 
     try {
-      // Validate required numeric fields - don't allow undefined
-      if (data.price === undefined || data.price === null) {
-        form.setError("price", { message: "Price is required" });
-        setIsManualSubmitting(false);
-        return;
-      }
-      if (data.bedrooms === undefined || data.bedrooms === null) {
-        form.setError("bedrooms", { message: "Bedrooms is required" });
-        setIsManualSubmitting(false);
-        return;
-      }
-      if (data.bathrooms === undefined || data.bathrooms === null) {
-        form.setError("bathrooms", { message: "Bathrooms is required" });
-        setIsManualSubmitting(false);
-        return;
-      }
-      if (data.squareFeet === undefined || data.squareFeet === null) {
-        form.setError("squareFeet", { message: "Square Feet is required" });
-        setIsManualSubmitting(false);
-        return;
-      }
-
-      // All required fields present - create property data
-      const propertyData: InsertProperty = {
-        ...data,
-        price: data.price,
-        bedrooms: data.bedrooms,
-        bathrooms: data.bathrooms,
-        squareFeet: data.squareFeet,
+      // Create property data with only address fields
+      const propertyData = {
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
       };
 
       await apiRequest("POST", "/api/properties", propertyData);
@@ -777,9 +597,6 @@ export default function UploadDialog({
     setParsedData(null);
     setError(null);
     setDragActive(false);
-    setCompanySearchQuery("");
-    setCompanySuggestions([]);
-    setShowCompanySuggestions(false);
     form.reset();
     onClose();
   };
@@ -876,20 +693,18 @@ export default function UploadDialog({
                       <thead className="border-b border-border">
                         <tr>
                           <th className="text-left py-2">Address</th>
-                          <th className="text-left py-2">Price</th>
-                          <th className="text-left py-2">Beds</th>
-                          <th className="text-left py-2">Baths</th>
+                          <th className="text-left py-2">City</th>
+                          <th className="text-left py-2">State</th>
+                          <th className="text-left py-2">Zip Code</th>
                         </tr>
                       </thead>
                       <tbody>
                         {parsedData.slice(0, 5).map((prop, idx) => (
                           <tr key={idx} className="border-b border-border">
                             <td className="py-2">{prop.address}</td>
-                            <td className="py-2">
-                              ${prop.price.toLocaleString()}
-                            </td>
-                            <td className="py-2">{prop.bedrooms}</td>
-                            <td className="py-2">{prop.bathrooms}</td>
+                            <td className="py-2">{prop.city}</td>
+                            <td className="py-2">{prop.state}</td>
+                            <td className="py-2">{prop.zipCode}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1016,322 +831,6 @@ export default function UploadDialog({
                             placeholder="92126"
                             required
                             data-testid="input-manual-zipcode"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="propertyType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Property Type *</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          required
-                        >
-                          <FormControl>
-                            <SelectTrigger data-testid="select-property-type">
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="z-[10001]" position="popper">
-                            <SelectItem value="Single Family">Single Family</SelectItem>
-                            <SelectItem value="Townhouse">Townhouse</SelectItem>
-                            <SelectItem value="Condo">Condo</SelectItem>
-                            <SelectItem value="Duplex">Duplex</SelectItem>
-                            <SelectItem value="Triplex">Triplex</SelectItem>
-                            <SelectItem value="Fourplex">Fourplex</SelectItem>
-                            <SelectItem value="Vacant Land">Vacant Land</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Price *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="500000"
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(
-                                val === "" ? undefined : Number(val),
-                              );
-                            }}
-                            data-testid="input-manual-price"
-                            required
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bedrooms"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bedrooms *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="3"
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(
-                                val === "" ? undefined : Number(val),
-                              );
-                            }}
-                            required
-                            data-testid="input-manual-bedrooms"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bathrooms"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bathrooms *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.5"
-                            placeholder="2"
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(
-                                val === "" ? undefined : Number(val),
-                              );
-                            }}
-                            required
-                            data-testid="input-manual-bathrooms"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="dateSold"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date Sold *</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value || ""}
-                            type="date"
-                            data-testid="input-date-sold"
-                            required
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="squareFeet"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Square Feet *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="1500"
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(
-                                val === "" ? undefined : Number(val),
-                              );
-                            }}
-                            data-testid="input-manual-squarefeet"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="yearBuilt"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Year Built</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            placeholder="2000"
-                            value={field.value || ""}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value
-                                  ? parseInt(e.target.value)
-                                  : undefined,
-                              )
-                            }
-                            data-testid="input-yearbuilt"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Search Companies Field */}
-                  <div className="col-span-2 space-y-2">
-                    <Label>Search Companies</Label>
-                    <div className="relative">
-                      <Input
-                        ref={companySearchInputRef}
-                        value={companySearchQuery}
-                        placeholder="Type to search for company..."
-                        onChange={(e) => {
-                          setCompanySearchQuery(e.target.value);
-                          setShowCompanySuggestions(true);
-                        }}
-                        onFocus={() => {
-                          if (companySuggestions.length > 0) {
-                            setShowCompanySuggestions(true);
-                          }
-                        }}
-                        data-testid="input-search-companies"
-                      />
-                      {showCompanySuggestions && companySuggestions.length > 0 && (
-                        <div
-                          ref={companySuggestionsRef}
-                          className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
-                          data-testid="company-suggestions"
-                        >
-                          {isLoadingSuggestions ? (
-                            <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Searching...
-                            </div>
-                          ) : (
-                            companySuggestions.map((company) => (
-                              <div
-                                key={company.id}
-                                className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                                onClick={() => handleSelectCompany(company)}
-                                data-testid={`suggestion-company-${company.id}`}
-                              >
-                                <div className="font-medium">{company.companyName}</div>
-                                {(company.contactName || company.contactEmail) && (
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    {company.contactName && <div>{company.contactName}</div>}
-                                    {company.contactEmail && <div>{company.contactEmail}</div>}
-                                  </div>
-                                )}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Search for a company to auto-fill the fields below, or enter them manually
-                    </p>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="propertyOwner"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel>Property Owner</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value || ""}
-                            placeholder="John Doe LLC"
-                            data-testid="input-owner"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="companyContactName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Company Contact Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value || ""}
-                            placeholder="ABC Realty"
-                            data-testid="input-company-contact"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="companyContactEmail"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Company Contact Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            value={field.value || ""}
-                            type="email"
-                            placeholder="contact@company.com"
-                            data-testid="input-company-email"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            value={field.value || ""}
-                            placeholder="Property details..."
-                            rows={3}
-                            data-testid="input-description"
                           />
                         </FormControl>
                         <FormMessage />
