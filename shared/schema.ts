@@ -48,7 +48,8 @@ export const properties = pgTable("properties", {
   yearBuilt: integer("year_built"),
 
   // Ownership / company
-  propertyOwnerId: varchar("property_owner_id").references(() => companyContacts.id),
+  companyId: varchar("company_id").references(() => companyContacts.id), // Primary company reference (more reliably filled)
+  propertyOwnerId: varchar("property_owner_id").references(() => companyContacts.id), // Legacy, use companyId
   // Note: propertyOwner, companyContactName, companyContactEmail are NOT stored in properties table
   // They exist only in Zod schemas for validation/input, and are used to lookup/create company_contacts
 
@@ -100,16 +101,20 @@ export const properties = pgTable("properties", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const companyContacts = pgTable("company_contacts", {
+// Companies table (formerly company_contacts)
+export const companies = pgTable("companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyName: text("company_name").notNull().unique(),
   contactName: text("contact_name"),
   contactEmail: text("contact_email"),
   phoneNumber: text("phone_number"),
-  counties: text("counties"), // JSON array of counties stored as text
+  counties: text("counties"), // JSON array of counties
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Legacy alias for backward compatibility
+export const companyContacts = companies;
 
 export const sessions = pgTable("sessions", {
   sid: varchar("sid").primaryKey(),
@@ -164,9 +169,12 @@ export const insertPropertySchema = createInsertSchema(properties).omit({
 });
 
 
-export const insertCompanyContactSchema = createInsertSchema(companyContacts).omit({
+export const insertCompanyContactSchema = createInsertSchema(companies).omit({
   id: true,
 });
+
+// Alias for new schema name
+export const insertCompanySchema = insertCompanyContactSchema;
 
 export const insertSyncStateSchema = createInsertSchema(sfrSyncState, {
   id: z.never(),
@@ -235,7 +243,8 @@ export const updatePropertySchema = z.object({
     .nullable()
     .optional(),
   propertyOwner: z.string().nullable().optional(),
-  propertyOwnerId: z.string().nullable().optional(),
+  companyId: z.string().nullable().optional(), // Primary company reference (more reliably filled)
+  propertyOwnerId: z.string().nullable().optional(), // Legacy, use companyId instead
   companyContactName: z.string().nullable().optional(),
   companyContactEmail: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
@@ -250,15 +259,67 @@ export const updateCompanyContactSchema = z.object({
 }).strict();
 
 export type InsertProperty = z.infer<typeof insertPropertySchema>;
-// Property type includes fields from the database table plus API-only fields from joins
-// Note: propertyOwner, companyContactName, companyContactEmail are not in the properties table
-// but are always included in API responses via LEFT JOIN with company_contacts
-export type Property = typeof properties.$inferSelect & {
-  propertyOwner: string | null;
+
+// Property type represents the API response format
+// The backend joins multiple normalized tables (properties, addresses, structures, lastSales, companies)
+// and returns a flat object with these fields
+export type Property = {
+  id: string;
+  // Address info (from addresses table)
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  county: string;
+  latitude: number | null;
+  longitude: number | null;
+  // Structure info (from structures table)
+  bedrooms: number;
+  bathrooms: number;
+  squareFeet: number;
+  yearBuilt: number | null;
+  // Property info (from properties table)
+  propertyType: string;
+  status: string;
+  msa: string | null;
+  // Sale info (from lastSales table)
+  price: number;
+  dateSold: string | null;
+  // Company info (from companies table via join on company_id)
+  // companyId is the primary company reference (always filled for in-renovation and sold properties)
+  companyId: string | null;
+  companyName: string | null;
   companyContactName: string | null;
   companyContactEmail: string | null;
+  // Legacy aliases for backward compatibility
+  propertyOwner: string | null; // Same as companyName
+  propertyOwnerId: string | null; // Legacy, use companyId instead
+  // Optional fields
+  description: string | null;
+  imageUrl: string | null;
+  // Timestamps
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
+  // Legacy fields (for backward compatibility, usually null)
+  purchasePrice?: number | null;
+  saleValue?: number | null;
+  isCorporate?: boolean | null;
+  isCashBuyer?: boolean | null;
+  isDiscountedPurchase?: boolean | null;
+  isPrivateLender?: boolean | null;
+  buyerPropertiesCount?: number | null;
+  buyerTransactionsCount?: number | null;
+  sellerName?: string | null;
+  lenderName?: string | null;
+  exitValue?: number | null;
+  exitBuyerName?: string | null;
+  profitLoss?: number | null;
+  holdDays?: number | null;
+  avmValue?: number | null;
+  loanAmount?: number | null;
 };
-export type CompanyContact = typeof companyContacts.$inferSelect;
+export type CompanyContact = typeof companies.$inferSelect;
+export type Company = CompanyContact; // Alias for new schema name
 export type InsertCompanyContact = z.infer<typeof insertCompanyContactSchema>;
 export type UpdateCompanyContact = z.infer<typeof updateCompanyContactSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;

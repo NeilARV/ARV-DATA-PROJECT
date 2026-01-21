@@ -132,7 +132,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
               <SortButton column="propertyType">Type</SortButton>
             </TableHead>
             <TableHead className="min-w-[150px]">
-              <SortButton column="propertyOwner">Owner</SortButton>
+              <SortButton column="propertyOwner">Company</SortButton>
             </TableHead>
             <TableHead className="text-center">
               <SortButton column="daysOwned">Days Owned</SortButton>
@@ -167,7 +167,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
               </TableCell>
               <TableCell>{property.propertyType}</TableCell>
               <TableCell>
-                {property.propertyOwner || (
+                {property.companyName || property.propertyOwner || (
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>

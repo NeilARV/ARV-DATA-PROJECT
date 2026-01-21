@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
 
 export interface ZipCodeWithCount {
   zipCode: string;
@@ -54,9 +54,11 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters?.bathrooms ?? 'Any');
   const [selectedTypes, setSelectedTypes] = useState<string[]>(filters?.propertyTypes ?? []);
   const [zipCode, setZipCode] = useState<string>(filters?.zipCode ?? '');
+  const [selectedState, setSelectedState] = useState<string>('CA'); // Default to CA
   const [county, setCounty] = useState<string>(filters?.county ?? 'San Diego');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCountySuggestions, setShowCountySuggestions] = useState(false);
+  const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
   const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
   const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
   const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
@@ -79,6 +81,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     // Set county from filters, default to San Diego - display with "County" suffix
     const countyValue = filters.county ?? 'San Diego';
     setCounty(countyValue ? `${countyValue} County` : 'San Diego County');
+    
+    // Infer state from county
+    const countyData = COUNTIES.find(c => c.county === countyValue);
+    if (countyData) {
+      setSelectedState(countyData.state);
+    } else {
+      // Default to CA if county not found
+      setSelectedState('CA');
+    }
+    
     setStatusFilters(new Set(filters.statusFilters ?? []));
   }, [filters]);
 
@@ -106,17 +118,52 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     });
   };
 
-  // Select the appropriate zip code list based on the county filter
+  // Get unique states from COUNTIES
+  const availableStates = useMemo(() => {
+    const states = new Set(COUNTIES.map(c => c.state));
+    return Array.from(states).sort();
+  }, []);
+
+  // Filter counties based on selected state
+  const countiesByState = useMemo(() => {
+    return COUNTIES.filter(c => c.state === selectedState);
+  }, [selectedState]);
+
+  // Helper function to convert county name to object key format (e.g., "San Diego" -> "san_diego")
+  const countyNameToKey = (countyName: string): string => {
+    return countyName.toLowerCase().replace(/\s+/g, '_');
+  };
+
+  // Select the appropriate zip code list based on state and county filter
   const zipCodeList = useMemo(() => {
     const countyName = filters?.county ?? 'San Diego';
-    if (countyName === 'Orange') {
-      return ORANGE_ZIP_CODES;
-    } else if (countyName === 'Los Angeles') {
-      return LOS_ANGELES_ZIP_CODES;
+    const state = selectedState;
+    const countyKey = countyNameToKey(countyName);
+
+    // Get the appropriate MSA zip codes object based on state
+    let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
+    if (state === 'CA') {
+      // Check if it's Los Angeles MSA (Los Angeles or Orange county)
+      if (countyName === 'Los Angeles' || countyName === 'Orange') {
+        msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
+      } else {
+        // San Diego MSA (San Diego county)
+        msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+      }
+    } else if (state === 'CO') {
+      // Denver MSA
+      msaZipCodes = DENVER_MSA_ZIP_CODES;
     } else {
-      return SAN_DIEGO_ZIP_CODES;
+      // Default to San Diego MSA
+      msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
     }
-  }, [filters?.county]);
+
+    // Get the zip codes for the specific county
+    const countyZipCodes = msaZipCodes[countyKey];
+    
+    // Return the array or empty array if county not found
+    return Array.isArray(countyZipCodes) ? countyZipCodes : [];
+  }, [filters?.county, selectedState]);
 
   const sortedZipCodes = useMemo(() => {
     const enrichedZips = zipCodesWithCounts.map(z => ({
@@ -182,7 +229,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
     setZipCode('');
-    setCounty('San Diego');
+    setSelectedState('CA');
+    setCounty('San Diego County');
     setStatusFilters(new Set(["in-renovation"]));
     onFilterChange?.({
       minPrice: 0,
@@ -299,15 +347,49 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     if (value.length > 0) {
       // Remove "County" suffix if present for searching
       const searchValue = value.replace(/\s+County$/i, '').toLowerCase();
-      const countyMatches = COUNTIES
+      const countyMatches = countiesByState
         .filter(c => c.county.toLowerCase().includes(searchValue))
         .slice(0, 10);
       setFilteredCounties(countyMatches);
       setShowCountySuggestions(countyMatches.length > 0);
     } else {
-      setFilteredCounties(COUNTIES.slice(0, 10));
+      setFilteredCounties(countiesByState.slice(0, 10));
       setShowCountySuggestions(false);
     }
+  };
+
+  const handleStateChange = (newState: string) => {
+    setSelectedState(newState);
+    
+    // Get counties for the new state
+    const countiesInNewState = COUNTIES.filter(c => c.state === newState);
+    
+    // Check if current county exists in the new state
+    const currentCountyName = filters?.county ?? 'San Diego';
+    const countyExistsInNewState = countiesInNewState.some(
+      c => c.county === currentCountyName || c.county === currentCountyName.replace(' County', '')
+    );
+    
+    // If current county doesn't exist in new state, set to first county in new state
+    if (!countyExistsInNewState && countiesInNewState.length > 0) {
+      const firstCounty = countiesInNewState[0];
+      setCounty(`${firstCounty.county} County`);
+      // Update filter with new county
+      onFilterChange?.({
+        minPrice: priceRange[0],
+        maxPrice: priceRange[1],
+        bedrooms: selectedBedrooms,
+        bathrooms: selectedBathrooms,
+        propertyTypes: selectedTypes,
+        zipCode: '',
+        city: undefined,
+        county: firstCounty.county,
+        statusFilters: Array.from(statusFilters),
+      });
+    }
+    
+    // Clear county suggestions
+    setShowCountySuggestions(false);
   };
 
   const selectCounty = (countyObj: typeof COUNTIES[0]) => {
@@ -330,6 +412,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Close county suggestions
       if (
         suggestionsRef.current &&
         !suggestionsRef.current.contains(event.target as Node) &&
@@ -337,6 +420,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         !inputRef.current.contains(event.target as Node)
       ) {
         setShowSuggestions(false);
+      }
+
+      // Close county dropdown suggestions
+      if (
+        countySuggestionsRef.current &&
+        !countySuggestionsRef.current.contains(event.target as Node) &&
+        countyInputRef.current &&
+        !countyInputRef.current.contains(event.target as Node)
+      ) {
+        setShowCountySuggestions(false);
       }
     };
 
@@ -404,9 +497,36 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
           </Button>
         </div>
 
-        {/* County Search */}
-        <div className="relative">
-          <Label className="text-sm font-medium mb-2 block">County</Label>
+        {/* State & County Selection */}
+        <div>
+          <Label className="text-sm font-medium mb-2 block">State & County</Label>
+          <div className="flex gap-2">
+            {/* State Selection - Smaller */}
+            <DropdownMenu open={stateDropdownOpen} onOpenChange={setStateDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-20 justify-between shrink-0" size="sm" data-testid="button-state-select">
+                  {selectedState}
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {availableStates.map((state) => (
+                  <DropdownMenuItem
+                    key={state}
+                    onClick={() => {
+                      handleStateChange(state);
+                      setStateDropdownOpen(false);
+                    }}
+                    data-testid={`option-state-${state}`}
+                  >
+                    {state}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* County Search */}
+            <div className="relative flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -418,8 +538,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 handleCountyChange(e.target.value)
               }}
               onFocus={() => {
-                if (COUNTIES.length > 0) {
-                  setFilteredCounties(COUNTIES.slice(0, 10));
+                if (countiesByState.length > 0) {
+                  setFilteredCounties(countiesByState.slice(0, 10));
                   setShowCountySuggestions(true);
                 }
               }}
@@ -430,6 +550,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               <X 
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => {
+                  setSelectedState('CA');
                   setCounty('San Diego County');
                   setShowCountySuggestions(false);
                   onFilterChange?.({
@@ -466,6 +587,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               ))}
             </div>
           )}
+          </div>
+        </div>
         </div>
 
         <div className="relative">

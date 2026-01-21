@@ -16,7 +16,7 @@ CREATE TABLE sessions (
 
 -- Email whitelist table
 CREATE TABLE email_whitelist (
-    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT now()
 );
@@ -27,7 +27,7 @@ COMMENT ON TABLE email_whitelist IS 'Whitelist of approved email addresses for r
 
 -- Users table
 CREATE TABLE users (
-    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
     phone TEXT NOT NULL,
@@ -45,7 +45,7 @@ COMMENT ON TABLE users IS 'User accounts and authentication information';
 
 -- Companies table (corporate property flippers)
 CREATE TABLE companies (
-    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_name TEXT UNIQUE NOT NULL,
     contact_name TEXT,
     contact_email TEXT,
@@ -65,6 +65,7 @@ CREATE TABLE sfr_sync_state (
     id SERIAL PRIMARY KEY,
     msa VARCHAR(255) UNIQUE NOT NULL,
     last_sale_date DATE,
+    last_recording_date DATE,
     total_records_synced INTEGER DEFAULT 0,
     last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -80,8 +81,10 @@ COMMENT ON TABLE sfr_sync_state IS 'Tracks synchronization state for Single Fami
 
 -- Main property table
 CREATE TABLE properties (
-    property_id BIGINT PRIMARY KEY,
-    company_id VARCHAR REFERENCES companies(id) ON DELETE SET NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sfr_property_id BIGINT UNIQUE NOT NULL,
+    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    property_owner_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     property_class_description VARCHAR(100),
     property_type VARCHAR(100),
     vacant BOOLEAN,
@@ -89,7 +92,7 @@ CREATE TABLE properties (
     owner_type VARCHAR(50),
     purchase_method VARCHAR(50),
     listing_status VARCHAR(50),
-    status VARCHAR(50) DEFAULT 'in-renovation',  -- 'in-renovation', 'on-market', 'sold'
+    status VARCHAR(50) DEFAULT 'in-renovation',
     months_owned INTEGER,
     msa VARCHAR(200),
     county VARCHAR(200),
@@ -101,15 +104,18 @@ CREATE INDEX idx_properties_company_id ON properties(company_id);
 CREATE INDEX idx_properties_status ON properties(status);
 CREATE INDEX idx_properties_msa ON properties(msa);
 CREATE INDEX idx_properties_county ON properties(county);
+CREATE INDEX idx_properties_sfr_id ON properties(sfr_property_id);
 
 COMMENT ON TABLE properties IS 'Main property table - current state of properties being tracked';
+COMMENT ON COLUMN properties.id IS 'Internal UUID primary key';
+COMMENT ON COLUMN properties.sfr_property_id IS 'External SFR Analytics API property ID';
 COMMENT ON COLUMN properties.status IS 'Current status: in-renovation, on-market, or sold';
 COMMENT ON COLUMN properties.company_id IS 'Current owner if corporate, NULL if sold to individual';
 
 -- Address information
 CREATE TABLE addresses (
-    address_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    addresses_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     formatted_street_address VARCHAR(200),
     street_number VARCHAR(20),
     street_suffix VARCHAR(20),
@@ -119,6 +125,7 @@ CREATE TABLE addresses (
     unit_type VARCHAR(20),
     unit_number VARCHAR(20),
     city VARCHAR(100),
+    county VARCHAR(100),
     state VARCHAR(2),
     zip_code VARCHAR(10),
     zip_plus_four_code VARCHAR(10),
@@ -140,8 +147,8 @@ COMMENT ON TABLE addresses IS 'Physical address and location details for propert
 
 -- Assessments
 CREATE TABLE assessments (
-    assessment_id SERIAL PRIMARY KEY,
-    property_id BIGINT NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    assessments_id SERIAL PRIMARY KEY,
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     assessed_year INTEGER NOT NULL,
     land_value DECIMAL(15, 2),
     improvement_value DECIMAL(15, 2),
@@ -157,8 +164,8 @@ COMMENT ON TABLE assessments IS 'Property assessment values by year';
 
 -- Exemptions
 CREATE TABLE exemptions (
-    exemption_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    exemptions_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     homeowner BOOLEAN,
     veteran BOOLEAN,
     disabled BOOLEAN,
@@ -179,8 +186,8 @@ COMMENT ON TABLE exemptions IS 'Tax exemptions for properties';
 
 -- Parcel information
 CREATE TABLE parcels (
-    parcel_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    parcels_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     apn_original VARCHAR(50),
     fips_code VARCHAR(10),
     frontage_ft VARCHAR(20),
@@ -204,8 +211,8 @@ COMMENT ON TABLE parcels IS 'Parcel and land information';
 
 -- School districts
 CREATE TABLE school_districts (
-    school_district_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    school_districts_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     school_tax_district_1 VARCHAR(100),
     school_tax_district_2 VARCHAR(100),
     school_tax_district_3 VARCHAR(100),
@@ -218,8 +225,8 @@ COMMENT ON TABLE school_districts IS 'School district information';
 
 -- Structure/Building information
 CREATE TABLE structures (
-    structure_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    structures_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     total_area_sq_ft INTEGER,
     year_built INTEGER,
     effective_year_built INTEGER,
@@ -257,8 +264,8 @@ COMMENT ON TABLE structures IS 'Building and structure characteristics';
 
 -- Tax information
 CREATE TABLE tax_records (
-    tax_record_id SERIAL PRIMARY KEY,
-    property_id BIGINT NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    tax_records_id SERIAL PRIMARY KEY,
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     tax_year INTEGER NOT NULL,
     tax_amount DECIMAL(15, 2),
     tax_delinquent_year INTEGER,
@@ -273,8 +280,8 @@ COMMENT ON TABLE tax_records IS 'Property tax information by year';
 
 -- Valuation history
 CREATE TABLE valuations (
-    valuation_id SERIAL PRIMARY KEY,
-    property_id BIGINT NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    valuations_id SERIAL PRIMARY KEY,
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     value DECIMAL(15, 2),
     high DECIMAL(15, 2),
     low DECIMAL(15, 2),
@@ -290,8 +297,8 @@ COMMENT ON TABLE valuations IS 'Property valuation history';
 
 -- Pre-foreclosure information
 CREATE TABLE pre_foreclosures (
-    pre_foreclosure_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    pre_foreclosures_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     flag BOOLEAN,
     ind VARCHAR(50),
     reason TEXT,
@@ -306,9 +313,10 @@ COMMENT ON TABLE pre_foreclosures IS 'Pre-foreclosure status information';
 
 -- Last sale information
 CREATE TABLE last_sales (
-    last_sale_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    last_sales_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     sale_date DATE,
+    recording_date DATE,
     price DECIMAL(15, 2),
     document_type VARCHAR(100),
     mtg_amount DECIMAL(15, 2),
@@ -327,8 +335,8 @@ COMMENT ON COLUMN last_sales.mtg_type IS 'Mortgage type - Construction/Building 
 
 -- Current sale information
 CREATE TABLE current_sales (
-    current_sale_id SERIAL PRIMARY KEY,
-    property_id BIGINT UNIQUE NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
+    current_sales_id SERIAL PRIMARY KEY,
+    property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     doc_num VARCHAR(50),
     buyer_1 VARCHAR(200),
     buyer_2 VARCHAR(200),
@@ -344,8 +352,8 @@ COMMENT ON TABLE current_sales IS 'Current/most recent sale buyer and seller inf
 
 -- Street View image cache table
 CREATE TABLE streetview_cache (
-    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-    property_id BIGINT REFERENCES properties(property_id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     address TEXT NOT NULL,
     city TEXT NOT NULL,
     state TEXT NOT NULL,
@@ -379,10 +387,10 @@ COMMENT ON TABLE streetview_cache IS 'Cached Google Street View images for prope
 -- ============================================================================
 
 CREATE TABLE property_transactions (
-    transaction_id SERIAL PRIMARY KEY,
-    property_id BIGINT NOT NULL REFERENCES properties(property_id) ON DELETE CASCADE,
-    company_id VARCHAR REFERENCES companies(id) ON DELETE SET NULL,
-    transaction_type VARCHAR(50) NOT NULL,  -- 'acquisition' or 'sale'
+    property_transactions_id SERIAL PRIMARY KEY,
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    transaction_type VARCHAR(50) NOT NULL,
     transaction_date DATE NOT NULL,
     sale_price DECIMAL(15, 2),
     mtg_type VARCHAR(100),
@@ -437,19 +445,20 @@ SELECT
     cs.buyer_1
 FROM properties p
 LEFT JOIN companies c ON p.company_id = c.id
-LEFT JOIN addresses a ON p.property_id = a.property_id
-LEFT JOIN structures s ON p.property_id = s.property_id
-LEFT JOIN assessments ass ON p.property_id = ass.property_id
-LEFT JOIN valuations v ON p.property_id = v.property_id
-LEFT JOIN last_sales ls ON p.property_id = ls.property_id
-LEFT JOIN current_sales cs ON p.property_id = cs.property_id;
+LEFT JOIN addresses a ON p.id = a.property_id
+LEFT JOIN structures s ON p.id = s.property_id
+LEFT JOIN assessments ass ON p.id = ass.property_id
+LEFT JOIN valuations v ON p.id = v.property_id
+LEFT JOIN last_sales ls ON p.id = ls.property_id
+LEFT JOIN current_sales cs ON p.id = cs.property_id;
 
 COMMENT ON VIEW property_full_details IS 'Denormalized view of complete property information for easy querying';
 
 -- Active flips view (properties currently being renovated)
 CREATE VIEW active_flips AS
 SELECT 
-    p.property_id,
+    p.id,
+    p.sfr_property_id,
     c.company_name,
     a.formatted_street_address,
     a.city,
@@ -466,9 +475,9 @@ SELECT
     CURRENT_DATE - ls.sale_date as days_in_possession
 FROM properties p
 JOIN companies c ON p.company_id = c.id
-JOIN addresses a ON p.property_id = a.property_id
-LEFT JOIN structures s ON p.property_id = s.property_id
-LEFT JOIN last_sales ls ON p.property_id = ls.property_id
+JOIN addresses a ON p.id = a.property_id
+LEFT JOIN structures s ON p.id = s.property_id
+LEFT JOIN last_sales ls ON p.id = ls.property_id
 WHERE p.status IN ('in-renovation', 'on-market')
   AND p.company_id IS NOT NULL;
 
@@ -478,6 +487,7 @@ COMMENT ON VIEW active_flips IS 'Properties currently being flipped by companies
 CREATE VIEW completed_flips AS
 SELECT 
     pt_buy.property_id,
+    p.sfr_property_id,
     c.company_name as flipper_company,
     a.formatted_street_address,
     a.city,
@@ -498,6 +508,7 @@ JOIN property_transactions pt_sell
     ON pt_buy.property_id = pt_sell.property_id
     AND pt_sell.transaction_type = 'sale'
     AND pt_buy.company_id = pt_sell.company_id
+JOIN properties p ON pt_buy.property_id = p.id
 JOIN companies c ON pt_buy.company_id = c.id
 JOIN addresses a ON pt_buy.property_id = a.property_id
 LEFT JOIN structures s ON pt_buy.property_id = s.property_id
@@ -511,7 +522,7 @@ CREATE VIEW company_flip_performance AS
 SELECT 
     c.id as company_id,
     c.company_name,
-    COUNT(DISTINCT CASE WHEN p.status IN ('in-renovation', 'on-market') THEN p.property_id END) as active_properties,
+    COUNT(DISTINCT CASE WHEN p.status IN ('in-renovation', 'on-market') THEN p.id END) as active_properties,
     COUNT(DISTINCT CASE WHEN pt.transaction_type = 'sale' THEN pt.property_id END) as completed_flips,
     AVG(CASE WHEN pt_sell.transaction_type = 'sale' 
         THEN pt_sell.sale_price - pt_buy.sale_price END) as avg_profit_per_flip,
@@ -565,9 +576,10 @@ CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies
 -- ============================================================================
 
 -- Function to get company's active properties
-CREATE OR REPLACE FUNCTION get_company_active_properties(company_uuid VARCHAR)
+CREATE OR REPLACE FUNCTION get_company_active_properties(company_uuid UUID)
 RETURNS TABLE (
-    property_id BIGINT,
+    property_id UUID,
+    sfr_property_id BIGINT,
     address TEXT,
     city TEXT,
     state TEXT,
@@ -579,7 +591,8 @@ RETURNS TABLE (
 BEGIN
     RETURN QUERY
     SELECT 
-        p.property_id,
+        p.id,
+        p.sfr_property_id,
         a.formatted_street_address,
         a.city,
         a.state,
@@ -588,8 +601,8 @@ BEGIN
         ls.price,
         CURRENT_DATE - ls.sale_date
     FROM properties p
-    JOIN addresses a ON p.property_id = a.property_id
-    LEFT JOIN last_sales ls ON p.property_id = ls.property_id
+    JOIN addresses a ON p.id = a.property_id
+    LEFT JOIN last_sales ls ON p.id = ls.property_id
     WHERE p.company_id = company_uuid
       AND p.status IN ('in-renovation', 'on-market')
     ORDER BY ls.sale_date DESC;
@@ -597,9 +610,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function to get company's completed flips
-CREATE OR REPLACE FUNCTION get_company_completed_flips(company_uuid VARCHAR)
+CREATE OR REPLACE FUNCTION get_company_completed_flips(company_uuid UUID)
 RETURNS TABLE (
-    property_id BIGINT,
+    property_id UUID,
+    sfr_property_id BIGINT,
     address TEXT,
     city TEXT,
     state TEXT,
@@ -614,6 +628,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         pt_buy.property_id,
+        p.sfr_property_id,
         a.formatted_street_address,
         a.city,
         a.state,
@@ -628,74 +643,13 @@ BEGIN
         ON pt_buy.property_id = pt_sell.property_id
         AND pt_sell.transaction_type = 'sale'
         AND pt_buy.company_id = pt_sell.company_id
+    JOIN properties p ON pt_buy.property_id = p.id
     JOIN addresses a ON pt_buy.property_id = a.property_id
     WHERE pt_buy.company_id = company_uuid
       AND pt_buy.transaction_type = 'acquisition'
     ORDER BY pt_sell.transaction_date DESC;
 END;
 $$ LANGUAGE plpgsql;
-
--- ============================================================================
--- SAMPLE QUERIES (COMMENTED OUT - FOR REFERENCE)
--- ============================================================================
-
-/*
--- Get all properties on map (for display)
-SELECT 
-    p.property_id,
-    a.latitude,
-    a.longitude,
-    a.formatted_street_address,
-    p.status,
-    c.company_name
-FROM properties p
-JOIN addresses a ON p.property_id = a.property_id
-LEFT JOIN companies c ON p.company_id = c.id
-WHERE p.status IN ('in-renovation', 'on-market')
-   OR (p.status = 'sold' 
-       AND EXISTS (
-           SELECT 1 FROM property_transactions pt 
-           WHERE pt.property_id = p.property_id 
-           AND pt.transaction_date > CURRENT_DATE - INTERVAL '6 months'
-       ));
-
--- Get specific company's dashboard
-SELECT * FROM get_company_active_properties('company-uuid-here');
-SELECT * FROM get_company_completed_flips('company-uuid-here');
-
--- Find properties with construction loans (likely active flips)
-SELECT p.property_id, a.formatted_street_address, c.company_name, ls.mtg_type
-FROM properties p
-JOIN addresses a ON p.property_id = a.property_id
-JOIN companies c ON p.company_id = c.id
-JOIN last_sales ls ON p.property_id = ls.property_id
-WHERE ls.mtg_type LIKE '%Construction%' OR ls.mtg_type LIKE '%Building%';
-
--- Detect potential flip completions (construction -> conventional)
--- This would be run during your data sync process
-SELECT p.property_id, cs.seller_1 as flipper_company, ls.price as sale_price
-FROM properties p
-JOIN current_sales cs ON p.property_id = cs.property_id
-JOIN last_sales ls ON p.property_id = ls.property_id
-WHERE ls.mtg_type = 'New Conventional'
-  AND cs.seller_1 LIKE '%LLC%'
-  AND p.company_id IS NULL;
-
--- Top performing companies
-SELECT * FROM company_flip_performance 
-ORDER BY total_profit DESC NULLS LAST;
-
--- Properties stuck in renovation (over 6 months)
-SELECT p.property_id, a.formatted_street_address, c.company_name,
-       ls.sale_date as acquired_date,
-       CURRENT_DATE - ls.sale_date as days_in_renovation
-FROM properties p
-JOIN addresses a ON p.property_id = a.property_id
-JOIN companies c ON p.company_id = c.id
-LEFT JOIN last_sales ls ON p.property_id = ls.property_id
-WHERE p.status = 'in-renovation'
-  AND CURRENT_DATE - ls.sale_date > 180;
-*/
 
 -- ============================================================================
 -- VERIFICATION QUERIES

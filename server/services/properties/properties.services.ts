@@ -1,6 +1,6 @@
 import { db } from "server/storage";
-import { properties } from "@shared/schema";
-import { companyContacts } from "@shared/schema";
+import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
+import { companies } from "../../../database/schemas/companies.schema";
 import { normalizeCompanyNameForComparison } from "server/utils/normalizeCompanyName";
 import { eq, sql, or, and, desc, asc } from "drizzle-orm";
 
@@ -16,7 +16,8 @@ export interface GetPropertiesFilters {
     status?: string | string[];
     company?: string;
     propertyOwner?: string;
-    propertyOwnerId?: string;
+    companyId?: string; // Primary company ID filter (more reliably filled)
+    propertyOwnerId?: string; // Legacy, use companyId instead
     hasDateSold?: string;
     page?: string;
     limit?: string;
@@ -44,7 +45,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         status, 
         company, 
         propertyOwner, 
-        propertyOwnerId,
+        companyId,
+        propertyOwnerId, // Legacy, use companyId instead
         hasDateSold,
         page,
         limit,
@@ -58,12 +60,18 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const conditions = []
 
-    // Company/Property Owner filter
-    // Priority: propertyOwnerId > company/propertyOwner (for backward compatibility)
-    if (propertyOwnerId && typeof propertyOwnerId === 'string' && propertyOwnerId.trim() !== '') {
-        // Direct ID filter - most efficient and reliable
+    // Company filter
+    // Priority: companyId > propertyOwnerId (legacy) > company/propertyOwner name
+    // companyId is the primary filter as it's more reliably filled for in-renovation and sold properties
+    if (companyId && typeof companyId === 'string' && companyId.trim() !== '') {
+        // Direct companyId filter - most efficient and reliable
         conditions.push(
-            eq(properties.propertyOwnerId, propertyOwnerId.trim())
+            eq(properties.companyId, companyId.trim())
+        );
+    } else if (propertyOwnerId && typeof propertyOwnerId === 'string' && propertyOwnerId.trim() !== '') {
+        // Legacy fallback to propertyOwnerId
+        conditions.push(
+            eq(properties.companyId, propertyOwnerId.trim()) // Map to companyId for compatibility
         );
     } else {
         // Fallback to name-based filter (for backward compatibility)
@@ -75,7 +83,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 // Compare normalized versions: remove punctuation and normalize spaces
                 // We need to normalize the database value in SQL for comparison
                 conditions.push(
-                    sql`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${companyContacts.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}`
+                    sql`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${companies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}`
                 )
             }
         }
@@ -121,38 +129,38 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    // Bathrooms filter (minimum bathrooms)
+    // Bathrooms filter (minimum bathrooms) - from structures table
     if (bathrooms) {
         const bathroomsStr = bathrooms.toString().trim().toLowerCase();
         if (bathroomsStr !== 'any') {
             const bathroomsNum = parseFloat(bathroomsStr);
             if (!isNaN(bathroomsNum)) {
                 conditions.push(
-                    sql`${properties.bathrooms} >= ${bathroomsNum}`
+                    sql`CAST(${structures.baths} AS REAL) >= ${bathroomsNum}`
                 )
             }
         }
     }
 
-    // Bedrooms filter (exact match)
+    // Bedrooms filter (exact match) - from structures table
     if (bedrooms) {
         const bedroomsStr = bedrooms.toString().trim().toLowerCase();
         if (bedroomsStr !== 'any') {
             const bedroomsNum = parseInt(bedroomsStr, 10);
             if (!isNaN(bedroomsNum)) {
                 conditions.push(
-                    sql`${properties.bedrooms} = ${bedroomsNum}`
+                    sql`${structures.bedsCount} = ${bedroomsNum}`
                 )
             }
         }
     }
     
-    // Price range filter (handle min, max, or both)
+    // Price range filter (handle min, max, or both) - from lastSales table
     if (minPrice) {
         const minPriceNum = parseFloat(minPrice.toString());
         if (!isNaN(minPriceNum)) {
             conditions.push(
-                sql`${properties.price} >= ${minPriceNum}`
+                sql`CAST(${lastSales.price} AS REAL) >= ${minPriceNum}`
             )
         }
     }
@@ -161,39 +169,42 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const maxPriceNum = parseFloat(maxPrice.toString());
         if (!isNaN(maxPriceNum)) {
             conditions.push(
-                sql`${properties.price} <= ${maxPriceNum}`
+                sql`CAST(${lastSales.price} AS REAL) <= ${maxPriceNum}`
             )
         }
     }
 
-    // County filter
+    // County filter - check both properties.county and addresses.county
     if (county) {
         const normalizedCounty = county.toString().trim().toLowerCase()
         conditions.push(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+            ) as any
         )
     }
 
-    // Zipcode filter
+    // Zipcode filter - from addresses table
     if (zipcode) {
         const normalizedZipcode = zipcode.toString().trim()
         conditions.push(
-            sql`TRIM(${properties.zipCode}) = ${normalizedZipcode}`
+            sql`TRIM(${addresses.zipCode}) = ${normalizedZipcode}`
         )
     }
 
-    // City filter
+    // City filter - from addresses table
     if (city) {
         const normalizedCity = city.toString().trim().toLowerCase()
         conditions.push(
-            sql`LOWER(TRIM(${properties.city})) = ${normalizedCity}`
+            sql`LOWER(TRIM(${addresses.city})) = ${normalizedCity}`
         )
     }
 
-    // Has Date Sold filter
+    // Has Date Sold filter - from lastSales table
     if (hasDateSold === "true") {
         conditions.push(
-            sql`${properties.dateSold} IS NOT NULL`
+            sql`${lastSales.saleDate} IS NOT NULL`
         )
     }
 
@@ -201,14 +212,29 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Get total count (for pagination metadata)
-    // Must include LEFT JOIN if company name filter is used (since WHERE clause references companyContacts)
-    // propertyOwnerId filter doesn't need JOIN since it filters directly on properties.propertyOwnerId
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(properties);
-    const ownerFilter = company || propertyOwner;
-    if (ownerFilter && !propertyOwnerId) {
-        // If company name filter is used (and not ID filter), we need the JOIN for the WHERE clause to work
-        countQuery = countQuery.leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id)) as any;
+    // Must include LEFT JOINs for filters that reference joined tables
+    // Use DISTINCT to avoid counting duplicates from multiple LEFT JOINs
+    let countQuery = db.select({ count: sql<number>`count(DISTINCT ${properties.id})` }).from(properties);
+    
+    // Always join addresses (required for most filters)
+    countQuery = countQuery.leftJoin(addresses, eq(properties.id, addresses.propertyId)) as any;
+    
+    // Join structures if bedrooms or bathrooms filter is used
+    if (bedrooms || bathrooms) {
+        countQuery = countQuery.leftJoin(structures, eq(properties.id, structures.propertyId)) as any;
     }
+    
+    // Join lastSales if price or hasDateSold filter is used
+    if (minPrice || maxPrice || hasDateSold) {
+        countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId)) as any;
+    }
+    
+    // Join companies if company name filter is used (and not ID filter)
+    const ownerFilter = company || propertyOwner;
+    if (ownerFilter && !companyId && !propertyOwnerId) {
+        countQuery = countQuery.leftJoin(companies, eq(properties.companyId, companies.id)) as any;
+    }
+    
     if (whereClause) {
         countQuery = countQuery.where(whereClause) as any;
     }
@@ -216,61 +242,43 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const total = Number(totalResult?.count || 0);
 
     // Get paginated results (fetch one extra to check if there are more pages)
-    // Use LEFT JOIN to get company info from company_contacts table
+    // Join all necessary tables
     let query = db
         .select({
-            // All property fields
+            // Properties table fields
             id: properties.id,
-            address: properties.address,
-            city: properties.city,
-            state: properties.state,
-            zipCode: properties.zipCode,
-            county: properties.county,
-            price: properties.price,
-            bedrooms: properties.bedrooms,
-            bathrooms: properties.bathrooms,
-            squareFeet: properties.squareFeet,
             propertyType: properties.propertyType,
-            imageUrl: properties.imageUrl,
-            latitude: properties.latitude,
-            longitude: properties.longitude,
-            description: properties.description,
-            yearBuilt: properties.yearBuilt,
-            propertyOwnerId: properties.propertyOwnerId,
-            purchasePrice: properties.purchasePrice,
-            dateSold: properties.dateSold,
             status: properties.status,
-            buyerName: properties.buyerName,
-            buyerFormattedName: properties.buyerFormattedName,
-            phone: properties.phone,
-            isCorporate: properties.isCorporate,
-            isCashBuyer: properties.isCashBuyer,
-            isDiscountedPurchase: properties.isDiscountedPurchase,
-            isPrivateLender: properties.isPrivateLender,
-            buyerPropertiesCount: properties.buyerPropertiesCount,
-            buyerTransactionsCount: properties.buyerTransactionsCount,
-            sellerName: properties.sellerName,
-            lenderName: properties.lenderName,
-            exitValue: properties.exitValue,
-            exitBuyerName: properties.exitBuyerName,
-            profitLoss: properties.profitLoss,
-            holdDays: properties.holdDays,
-            saleValue: properties.saleValue,
-            avmValue: properties.avmValue,
-            loanAmount: properties.loanAmount,
-            sfrPropertyId: properties.sfrPropertyId,
-            sfrRecordId: properties.sfrRecordId,
+            companyId: properties.companyId, // Use companyId (more reliably filled)
             msa: properties.msa,
-            recordingDate: properties.recordingDate,
+            county: sql<string>`COALESCE(${properties.county}, ${addresses.county})`,
             createdAt: properties.createdAt,
             updatedAt: properties.updatedAt,
-            // Company info from joined table
-            companyName: companyContacts.companyName,
-            contactName: companyContacts.contactName,
-            contactEmail: companyContacts.contactEmail,
+            // Address fields
+            address: addresses.formattedStreetAddress,
+            city: addresses.city,
+            state: addresses.state,
+            zipCode: addresses.zipCode,
+            latitude: sql<number | null>`CAST(${addresses.latitude} AS REAL)`,
+            longitude: sql<number | null>`CAST(${addresses.longitude} AS REAL)`,
+            // Structure fields
+            bedrooms: structures.bedsCount,
+            bathrooms: sql<number | null>`CAST(${structures.baths} AS REAL)`,
+            squareFeet: structures.totalAreaSqFt,
+            yearBuilt: structures.yearBuilt,
+            // Last Sale fields
+            price: sql<number | null>`CAST(${lastSales.price} AS REAL)`,
+            dateSold: lastSales.saleDate,
+            // Company info (joined on companyId)
+            companyName: companies.companyName,
+            contactName: companies.contactName,
+            contactEmail: companies.contactEmail,
         })
         .from(properties)
-        .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id));
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .leftJoin(structures, eq(properties.id, structures.propertyId))
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+        .leftJoin(companies, eq(properties.companyId, companies.id)); // Join on companyId
     
     if (whereClause) {
         query = query.where(whereClause) as any;
@@ -280,35 +288,38 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const sortByValue = sortBy?.toString() || "recently-sold";
     switch (sortByValue) {
         case "recently-sold":
-            // Sort by recordingDate DESC (most recent first), nulls last
-            // Using recordingDate since that's what's displayed as "Purchased Date" in the UI
-            // Explicitly cast to date to ensure proper chronological sorting
+            // Sort by saleDate DESC (most recent first), nulls last
             query = query.orderBy(
-                sql`CASE WHEN ${properties.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${properties.recordingDate} AS DATE) DESC`
+                sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.saleDate} AS DATE) DESC`
             ) as any;
             break;
         case "days-held":
             // Sort by days held (calculated from dateSold to now) DESC (longest first), nulls last
-            // Calculate days held: (NOW() - dateSold) in days
             query = query.orderBy(
-                sql`CASE WHEN ${properties.dateSold} IS NULL THEN 1 ELSE 0 END`,
-                sql`(EXTRACT(EPOCH FROM (NOW() - ${properties.dateSold})) / 86400) DESC`
+                sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`(EXTRACT(EPOCH FROM (NOW() - ${lastSales.saleDate})) / 86400) DESC`
             ) as any;
             break;
         case "price-high-low":
             // Sort by price DESC
-            query = query.orderBy(desc(properties.price)) as any;
+            query = query.orderBy(
+                sql`CASE WHEN ${lastSales.price} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.price} AS REAL) DESC`
+            ) as any;
             break;
         case "price-low-high":
             // Sort by price ASC
-            query = query.orderBy(asc(properties.price)) as any;
+            query = query.orderBy(
+                sql`CASE WHEN ${lastSales.price} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.price} AS REAL) ASC`
+            ) as any;
             break;
         default:
             // Default to recently-sold
             query = query.orderBy(
-                sql`CASE WHEN ${properties.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${properties.recordingDate} AS DATE) DESC`
+                sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.saleDate} AS DATE) DESC`
             ) as any;
     }
 
@@ -317,15 +328,65 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const hasMore = results.length > limitNum;
     const rawPropertiesList = results.slice(0, limitNum);
 
-    // Map results to use company info from joined table, fallback to legacy fields
+    // Map results to flat Property structure expected by frontend
     const propertiesList = rawPropertiesList.map((prop: any) => {
-        // Use company info from joined table if available, otherwise use legacy fields
-        const { companyName, contactName, contactEmail, ...rest } = prop;
+        const lat = prop.latitude ? Number(prop.latitude) : null;
+        const lon = prop.longitude ? Number(prop.longitude) : null;
+        const price = prop.price ? Number(prop.price) : 0;
+        const baths = prop.bathrooms ? Number(prop.bathrooms) : 0;
+        const dateSoldStr = prop.dateSold ? (prop.dateSold instanceof Date ? prop.dateSold.toISOString().split('T')[0] : prop.dateSold) : null;
+
         return {
-            ...rest,
-            propertyOwner: companyName || prop.propertyOwner || null,
-            companyContactName: contactName || prop.companyContactName || null,
-            companyContactEmail: contactEmail || prop.companyContactEmail || null,
+            id: prop.id,
+            // Address info
+            address: prop.address || '',
+            city: prop.city || '',
+            state: prop.state || '',
+            zipCode: prop.zipCode || '',
+            county: prop.county || '',
+            latitude: lat,
+            longitude: lon,
+            // Structure fields
+            bedrooms: prop.bedrooms ? Number(prop.bedrooms) : 0,
+            bathrooms: baths,
+            squareFeet: prop.squareFeet ? Number(prop.squareFeet) : 0,
+            yearBuilt: prop.yearBuilt ? Number(prop.yearBuilt) : null,
+            // Property fields
+            propertyType: prop.propertyType || '',
+            status: prop.status || 'in-renovation',
+            // Price and date
+            price: price,
+            dateSold: dateSoldStr,
+            // Company info (using companyId, more reliably filled)
+            companyId: prop.companyId ? String(prop.companyId) : null,
+            companyName: prop.companyName || null,
+            companyContactName: prop.contactName || null,
+            companyContactEmail: prop.contactEmail || null,
+            // Legacy aliases for backward compatibility
+            propertyOwner: prop.companyName || null,
+            propertyOwnerId: prop.companyId ? String(prop.companyId) : null, // Map to companyId for compatibility
+            // Additional fields that might be expected by frontend but not directly in new schema
+            description: null,
+            imageUrl: null,
+            purchasePrice: null,
+            saleValue: null,
+            isCorporate: null,
+            isCashBuyer: null,
+            isDiscountedPurchase: null,
+            isPrivateLender: null,
+            buyerPropertiesCount: null,
+            buyerTransactionsCount: null,
+            sellerName: null,
+            lenderName: null,
+            exitValue: null,
+            exitBuyerName: null,
+            profitLoss: null,
+            holdDays: null,
+            avmValue: null,
+            loanAmount: null,
+            msa: prop.msa || null,
+            createdAt: prop.createdAt,
+            updatedAt: prop.updatedAt,
         };
     });
 
@@ -339,4 +400,3 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         limit: limitNum,
     };
 }
-

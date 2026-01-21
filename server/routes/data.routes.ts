@@ -1,25 +1,38 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import {
-  properties,
-  companyContacts,
-  sfrSyncState,
-} from "@shared/schema";
-import { eq, and, sql, or } from "drizzle-orm";
-import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
+  properties as propertiesV2,
+  addresses,
+  structures,
+  assessments,
+  exemptions,
+  parcels,
+  schoolDistricts,
+  taxRecords,
+  valuations,
+  preForeclosures,
+  lastSales,
+  currentSales,
+  propertyTransactions,
+} from "../../database/schemas/properties.schema";
+import { companies } from "../../database/schemas/companies.schema";
+import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
+import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { mapPropertyType } from "server/utils/mapPropertyType";
 import { fetchCounty } from "server/utils/fetchCounty";
+import { normalizeAddress } from "server/utils/normalizeAddress";
+import { normalizePropertyType } from "server/utils/normalizePropertyType";
 
 const router = Router();
 
-/* SFR Analytics API calls */
+/* V2 SFR Sync Functions - Using new normalized schema and batch API */
 
-// Helper to persist sync state on exit or failure. Accepts explicit options so it can be called from error/catch paths.
-// Stores saleDate - 1 day because the API range is non-inclusive
-async function persistSyncStateExplicit(options: {
+// Helper to persist sync state V2 (tracking only lastSaleDate)
+async function persistSyncStateV2(options: {
     syncStateId?: number | null;
     previousLastSaleDate?: string | null;
     initialTotalSynced?: number;
@@ -35,71 +48,371 @@ async function persistSyncStateExplicit(options: {
     } = options || {};
 
     if (!syncStateId) {
-        console.warn("[SFR SYNC] No syncStateId provided to persist state");
-        return previousLastSaleDate || null;
+        console.warn("[SFR SYNC V2] No syncStateId provided to persist state");
+        return { lastSaleDate: previousLastSaleDate || null };
     }
 
     const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
-    // Use the latest saleDate from processed properties, or keep the previous one if no new data
-    let toSet = finalSaleDate || previousLastSaleDate || null;
     
-    // Subtract 1 day because the API range is non-inclusive (we want to start from the day after)
-    if (toSet) {
-        const date = new Date(toSet);
-        date.setDate(date.getDate() - 1);
-        toSet = date.toISOString().split("T")[0];
+    // Calculate lastSaleDate
+    // Subtract 1 day from the latest sale date because the API range is non-inclusive.
+    let saleDateToSet: string | null = null;
+    if (finalSaleDate) {
+        // New boundary date found - normalize to YYYY-MM-DD and subtract 1 day
+        if (typeof finalSaleDate === "string") {
+            const date = new Date(finalSaleDate.split("T")[0]);
+            if (!isNaN(date.getTime())) {
+                date.setDate(date.getDate() - 1);
+                saleDateToSet = date.toISOString().split("T")[0];
+            } else {
+                saleDateToSet = null;
+            }
+        } else {
+            saleDateToSet = null;
+        }
+    } else if (previousLastSaleDate) {
+        // No new date, keep the previous value
+        saleDateToSet = typeof previousLastSaleDate === 'string' 
+            ? previousLastSaleDate.split("T")[0] 
+            : previousLastSaleDate;
     }
 
     try {
         await db
-            .update(sfrSyncState)
+            .update(sfrSyncStateV2)
             .set({
-                lastSaleDate: toSet, // Store saleDate - 1 day in lastSaleDate field
+                lastSaleDate: saleDateToSet,
                 totalRecordsSynced: newTotalSynced,
                 lastSyncAt: sql`now()`,
             })
-            .where(eq(sfrSyncState.id, syncStateId));
+            .where(eq(sfrSyncStateV2.id, syncStateId));
 
         console.log(
-            `[SFR SYNC] Persisted sync state. lastSaleDate (saleDate - 1): ${toSet}, totalRecordsSynced: ${newTotalSynced}`,
+            `[SFR SYNC V2] Persisted sync state. lastSaleDate: ${saleDateToSet}, totalRecordsSynced: ${newTotalSynced}`,
         );
-        return toSet;
+        return { lastSaleDate: saleDateToSet };
     } catch (e: any) {
-        console.error("[SFR SYNC] Failed to persist sync state:", e);
-        return toSet;
+        console.error("[SFR SYNC V2] Failed to persist sync state:", e);
+        return { lastSaleDate: saleDateToSet };
     }
 }
 
-// Sync function for a single MSA
-async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: string) {
+// Helper function to check if a name/entity is a trust
+function isTrust(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
+    if (!name) return false;
+    
+    // Ownership codes that indicate trusts
+    const trustCodes = ['TR', 'FL']; // TR = Trust, FL = Family Living Trust
+    
+    if (ownershipCode && trustCodes.includes(ownershipCode.toUpperCase())) {
+        return true;
+    }
+    
+    // Name-based detection
+    const trustPatterns = [
+        /\bTRUST\b/i,
+        /\bLIVING TRUST\b/i,
+        /\bFAMILY TRUST\b/i,
+        /\bREVOCABLE TRUST\b/i,
+        /\bIRREVOCABLE TRUST\b/i,
+        /\bSPOUSAL TRUST\b/i
+    ];
+    
+    return trustPatterns.some(pattern => pattern.test(name));
+}
+
+// Helper function to check if a name/entity is a flipping company (corporate but not trust)
+function isFlippingCompany(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
+    if (!name) return false;
+    
+    // Must NOT be a trust
+    if (isTrust(name, ownershipCode)) {
+        return false;
+    }
+    
+    // Valid corporate patterns
+    const corporatePatterns = [
+        /\bLLC\b/i,
+        /\bINC\b/i,
+        /\bCORP\b/i,
+        /\bLTD\b/i,
+        /\bLP\b/i,
+        /\bPROPERTIES\b/i,
+        /\bINVESTMENTS?\b/i,
+        /\bCAPITAL\b/i,
+        /\bVENTURES?\b/i,
+        /\bHOLDINGS?\b/i,
+        /\bREALTY\b/i
+    ];
+    
+    return corporatePatterns.some(pattern => pattern.test(name));
+}
+
+// Helper function to fetch county from coordinates using our utility
+async function getCountyFromCoordinates(latitude: number | string | null | undefined, longitude: number | string | null | undefined): Promise<string | null> {
+    if (!latitude || !longitude) {
+        return null;
+    }
+    
+    try {
+        const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
+        const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+        
+        if (isNaN(lat) || isNaN(lon)) {
+            return null;
+        }
+        
+        // fetchCounty already returns just the county name (BASENAME from Census API)
+        const county = await fetchCounty(lon, lat);
+        return county;
+    } catch (error) {
+        console.warn(`[SFR SYNC V2] Error fetching county from coordinates:`, error);
+        return null;
+    }
+}
+
+// Helper function to process a single property (used by both buyers/market and flips)
+async function processProperty(
+    propertyData: any,
+    batchItem: any,
+    record: any,
+    contactsMap: Map<string, any>,
+    existingProperty: any | null,
+    msa: string,
+    normalizedCounty: string | null
+): Promise<{
+    status: string;
+    listingStatus: string;
+    companyId: string | null;
+    propertyOwnerId: string | null;
+    shouldSkip: boolean;
+    companyAdded: boolean;
+}> {
+    const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
+    
+    // Helper function to upsert company
+    const upsertCompany = async (companyName: string, county: string | null): Promise<string | null> => {
+        const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(companyName);
+        if (!normalizedCompanyNameForStorage) {
+            return null;
+        }
+        
+        const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
+        const existingCompany = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
+        
+        if (existingCompany) {
+            // Update company's counties array if we have a new county
+            if (county) {
+                try {
+                    // Handle counties - new schema uses JSON type, so it's already an array
+                    let countiesArray: string[] = [];
+                    if (existingCompany.counties) {
+                        if (Array.isArray(existingCompany.counties)) {
+                            countiesArray = existingCompany.counties;
+                        } else if (typeof existingCompany.counties === 'string') {
+                            // Legacy: handle string format if still present
+                            try {
+                                countiesArray = JSON.parse(existingCompany.counties);
+                            } catch (parseError) {
+                                countiesArray = [];
+                            }
+                        }
+                    }
+                    
+                    // Check if county is already in the array (case-insensitive)
+                    const countyLower = county.toLowerCase();
+                    const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                    
+                    if (!countyExists) {
+                        // Add the new county to the array
+                        countiesArray.push(county);
+                        await db
+                            .update(companies)
+                            .set({
+                                counties: countiesArray,
+                                updatedAt: new Date(),
+                            })
+                            .where(eq(companies.id, existingCompany.id));
+                        
+                        // Update the cached company object with the new counties array
+                        existingCompany.counties = countiesArray;
+                        if (normalizedCompanyNameForCompare) {
+                            contactsMap.set(normalizedCompanyNameForCompare, existingCompany);
+                        }
+                    }
+                } catch (updateError: any) {
+                    console.error(`[SFR SYNC V2] Error updating counties for company ${existingCompany.companyName}:`, updateError);
+                }
+            }
+            return existingCompany.id;
+        }
+        
+        // Create new company
+        try {
+            const countiesArray = county ? [county] : [];
+
+            const [newCompany] = await db
+                .insert(companies)
+                .values({
+                    companyName: normalizedCompanyNameForStorage,
+                    contactName: null,
+                    contactEmail: propertyData.owner?.contact_email || null,
+                    phoneNumber: propertyData.owner?.phone || null,
+                    counties: countiesArray, // Drizzle will serialize JSON automatically
+                    updatedAt: new Date(),
+                })
+                .returning();
+            
+            // Update cache
+            if (normalizedCompanyNameForCompare) {
+                contactsMap.set(normalizedCompanyNameForCompare, newCompany);
+            }
+            
+            return newCompany.id;
+        } catch (companyError: any) {
+            // Ignore duplicate key errors
+            if (!companyError?.message?.includes("duplicate") && !companyError?.code?.includes("23505")) {
+                console.error(`[SFR SYNC V2] Error creating company:`, companyError);
+                return null;
+                                } else {
+                // Fetch existing company if duplicate
+                                    try {
+                    const [duplicateCompany] = await db
+                                            .select()
+                        .from(companies)
+                        .where(eq(companies.companyName, normalizedCompanyNameForStorage))
+                                            .limit(1);
+                    if (duplicateCompany) {
+                        // Update company's counties array if we have a new county
+                        if (county) {
+                            try {
+                                // Handle counties - new schema uses JSON type, so it's already an array
+                                let countiesArray: string[] = [];
+                                if (duplicateCompany.counties) {
+                                    if (Array.isArray(duplicateCompany.counties)) {
+                                        countiesArray = duplicateCompany.counties;
+                                    } else if (typeof duplicateCompany.counties === 'string') {
+                                        // Legacy: handle string format if still present
+                                        try {
+                                            countiesArray = JSON.parse(duplicateCompany.counties);
+                                        } catch (parseError) {
+                                            countiesArray = [];
+                                        }
+                                    }
+                                }
+                                
+                                // Check if county is already in the array (case-insensitive)
+                                const countyLower = county.toLowerCase();
+                                const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                                
+                                if (!countyExists) {
+                                    // Add the new county to the array
+                                    countiesArray.push(county);
+                                    await db
+                                        .update(companies)
+                                        .set({
+                                            counties: countiesArray,
+                                            updatedAt: new Date(),
+                                        })
+                                        .where(eq(companies.id, duplicateCompany.id));
+                                    
+                                    // Update the company object with the new counties array
+                                    duplicateCompany.counties = countiesArray;
+                                }
+                            } catch (updateError: any) {
+                                console.error(`[SFR SYNC V2] Error updating counties for duplicate company ${duplicateCompany.companyName}:`, updateError);
+                            }
+                        }
+                        
+                        // Update cache with the company (potentially with updated counties)
+                        if (normalizedCompanyNameForCompare) {
+                            contactsMap.set(normalizedCompanyNameForCompare, duplicateCompany);
+                        }
+                        return duplicateCompany.id;
+                    }
+                } catch {}
+            }
+            return null;
+        }
+    };
+    
+    // Only process /buyers/market records (flips endpoint removed)
+    // Properties from /buyers/market are active flips = "in-renovation" status
+    
+    // Check if isCorporate is true
+    const isCorporate = record.isCorporate === true;
+    if (!isCorporate) {
+        return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
+    }
+    
+    // Get buyerName and validate it's a corporate entity
+    const buyerName = record.buyerName;
+    
+    if (!buyerName) {
+        return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
+    }
+    
+    // Check if buyerName is a trust - skip if trust
+    if (isTrust(buyerName, record.buyerOwnershipCode || null)) {
+        return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
+    }
+    
+    // Check if buyerName is a valid corporate entity
+    // Exception: "Opendoor" is a company even without corporate indicators
+    const isOpendoor = buyerName.toLowerCase().includes("opendoor");
+    const isCorporateEntity = isOpendoor || isFlippingCompany(buyerName, record.buyerOwnershipCode || null);
+    
+    if (!isCorporateEntity) {
+        return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
+    }
+    
+    // Add buyerName (company) to companies table
+    const buyerCompanyId = await upsertCompany(buyerName, normalizedCounty);
+    
+    if (!buyerCompanyId) {
+        return { status: "", listingStatus: "", companyId: null, propertyOwnerId: null, shouldSkip: true, companyAdded: false };
+    }
+    
+    // All properties from /buyers/market are active flips
+    // Status = "in-renovation", listing_status based on property batch lookup
+    const status = "in-renovation";
+    const listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
+    const companyId = buyerCompanyId; // Buyer company
+    const propertyOwnerId = buyerCompanyId; // Company owns the property (same as companyId)
+    
+    return { status, listingStatus, companyId, propertyOwnerId, shouldSkip: false, companyAdded: true };
+}
+
+// Sync function V2 for a single MSA using new API endpoints and normalized schema
+// Only uses /buyers/market endpoint
+async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: string) {
     // Sync state / counters for this MSA
-    let minDate: string = "";
+    let minSaleDate: string = "";
     let syncStateId: number | null = null;
     let initialTotalSynced: number = 0;
     let syncState: any[] = [];
 
     // Track counters accessible in catch/finalize
-    let currentPage = 1;
-    let shouldContinue = true;
     let totalProcessed = 0;
     let totalInserted = 0;
     let totalUpdated = 0;
     let totalContactsAdded = 0;
-    let latestSaleDate: string | null = null; // Track the saleDate of the last successfully processed property
+    // Track boundary date for sync state persistence (latest saleDate we've seen in this run)
+    let boundaryDate: string | null = null;
 
     try {
         // Get or create sync state for this MSA
         syncState = await db
             .select()
-            .from(sfrSyncState)
-            .where(eq(sfrSyncState.msa, msa))
+            .from(sfrSyncStateV2)
+            .where(eq(sfrSyncStateV2.msa, msa))
             .limit(1);
 
         if (syncState.length === 0) {
             // Create new sync state with default min date
-            minDate = "2025-12-03"; // Default start date
+            minSaleDate = "2025-12-03"; // Default start date
             const [newSyncState] = await db
-                .insert(sfrSyncState)
+                .insert(sfrSyncStateV2)
                 .values({
                     msa: msa,
                     lastSaleDate: null,
@@ -109,592 +422,1138 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             syncStateId = newSyncState.id;
             initialTotalSynced = 0;
         } else {
-            // Use last sale date as min date (stored value is already saleDate - 1, so use it directly)
-            const lastDate = syncState[0].lastSaleDate;
-            if (lastDate) {
-                minDate = new Date(lastDate).toISOString().split("T")[0];
+            // Use lastSaleDate as min sale date (stored value is already saleDate - 1, so use it directly)
+            const lastSale = syncState[0].lastSaleDate;
+            if (lastSale) {
+                // Handle both Date objects and date strings (YYYY-MM-DD format)
+                if (lastSale instanceof Date) {
+                    minSaleDate = lastSale.toISOString().split("T")[0];
+                } else if (typeof lastSale === 'string') {
+                    // If it's already a date string, use it directly (may already be in YYYY-MM-DD format)
+                    // If it has a timestamp, extract just the date part
+                    minSaleDate = lastSale.split("T")[0];
+                } else {
+                    minSaleDate = "2025-12-03"; // Default start date
+                }
             } else {
-                minDate = "2025-12-03"; // Default start date
+                minSaleDate = "2025-12-03"; // Default start date
             }
+            
             syncStateId = syncState[0].id;
             initialTotalSynced = syncState[0].totalRecordsSynced || 0;
         }
 
-        console.log(`[SFR SYNC] Starting sync for ${msa} from ${minDate} to ${today}`);
+        console.log(`[SFR SYNC V2] Starting sync for ${msa} from sale_date ${minSaleDate} to ${today}`);
 
-        // Load all company contacts into memory once (shared across all MSAs)
-        const allContacts = await db.select().from(companyContacts);
-        const contactsMap = new Map<string, typeof allContacts[0]>();
+        // Load all companies into memory once
+        const allCompanies = await db.select().from(companies);
+        const contactsMap = new Map<string, typeof allCompanies[0]>();
 
-        for (const contact of allContacts) {
-            const normalizedKey = normalizeCompanyNameForComparison(contact.companyName);
+        for (const company of allCompanies) {
+            const normalizedKey = normalizeCompanyNameForComparison(company.companyName);
             if (normalizedKey) {
-                contactsMap.set(normalizedKey, contact);
+                contactsMap.set(normalizedKey, company);
             }
         }
-        console.log(`[SFR SYNC] Loaded ${contactsMap.size} company contacts into cache`);
+        console.log(`[SFR SYNC V2] Loaded ${contactsMap.size} companies into cache`);
 
-        // Process properties in batches to avoid memory issues
-        const BATCH_SIZE = 50;
-        let batchBuffer: any[] = [];
-
-        while (shouldContinue) {
-            const requestBody = {
-                "msa": msa,
-                "city": null,
-                "salesDate": {
-                    "min": minDate,
-                    "max": today
-                },
-                "pagination": {
-                    "page": currentPage,
-                    "pageSize": 100
-                },
-                "sort": {
-                    "field": "recording_date",
-                    "direction": "asc"
-                }
-            };
+        // ====================================================================
+        // PROCESS /buyers/market (active flips)
+        // ====================================================================
+        console.log(`[SFR SYNC V2] ===== Processing /buyers/market =====`);
         
-            const response = await fetch(`${API_URL}/buyers/market/page`, {
-                method: 'POST',
+        const addressesSet = new Set<string>();
+        const recordsMap = new Map<string, { record: any; recordingDate: string }>(); // Map of address -> record with recordingDate
+        
+        // Fetch addresses from /buyers/market with pagination
+        let buyersMarketPage = 1;
+        let buyersMarketShouldContinue = true;
+        
+        // We'll implement our own pagination using sale_date sorting.
+        // Start from minSaleDate and keep advancing the boundary to the last sale_date
+        // from each page until we receive < 100 records.
+        let currentMinDate = minSaleDate;
+        while (buyersMarketShouldContinue) {
+            const buyersMarketParams = new URLSearchParams({
+                msa: msa,
+                sales_date_min: currentMinDate,
+                sales_date_max: today,
+                page_size: "100",
+                // Ascending so the first item is the earliest and the last item is the furthest date
+                sort: "sale_date",
+            });
+            
+            const buyersMarketResponse = await fetch(`${API_URL}/buyers/market?${buyersMarketParams.toString()}`, {
+                method: 'GET',
                 headers: {
                     'X-API-TOKEN': API_KEY,
-                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(requestBody)
             });
-        
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`[SFR SYNC] API error on page ${currentPage} for ${msa}:`, errorText);
-                // Persist partial progress before throwing
+            
+            if (!buyersMarketResponse.ok) {
+                const errorText = await buyersMarketResponse.text();
+                console.error(`[SFR SYNC V2] Buyers market API error on page ${buyersMarketPage}: ${buyersMarketResponse.status} - ${errorText}`);
+                // Log error but don't fail - continue with flips
+                buyersMarketShouldContinue = false;
+                break;
+            }
+            
+            const buyersMarketData = await buyersMarketResponse.json();
+            
+            // Check if we got empty data or non-array response
+            if (!buyersMarketData || !Array.isArray(buyersMarketData) || buyersMarketData.length === 0) {
+                console.log(`[SFR SYNC V2] No more data on page ${buyersMarketPage} for buyers/market, stopping`);
+                buyersMarketShouldContinue = false;
+                break;
+            }
+            
+            console.log(`[SFR SYNC V2] Fetched page ${buyersMarketPage} (boundary from ${currentMinDate}) with ${buyersMarketData.length} records from /buyers/market`);
+            
+            // Extract addresses and track dates
+            buyersMarketData.forEach((record: any) => {
+                // Only process if isCorporate is true
+                if (record.isCorporate !== true) {
+                    return; // Skip non-corporate buyers
+                }
+                
+                // Build address string: "ADDRESS, CITY, STATE"
+                if (record.address && record.city && record.state) {
+                    const addressStr = `${record.address}, ${record.city}, ${record.state}`;
+                    const recordingDateStr = record.recordingDate ? 
+                        (typeof record.recordingDate === 'string' ? record.recordingDate.split("T")[0] : record.recordingDate.toISOString().split("T")[0]) : "";
+                    
+                    // Check if we already have this address - keep the one with most recent recordingDate
+                    const existingRecord = recordsMap.get(addressStr);
+                    if (existingRecord) {
+                        if (recordingDateStr && existingRecord.recordingDate && recordingDateStr > existingRecord.recordingDate) {
+                            // This record is more recent, replace it
+                            recordsMap.set(addressStr, { record, recordingDate: recordingDateStr });
+                        }
+                        // Otherwise keep existing (it's more recent or equal)
+                    } else {
+                        // New address, add it
+                        addressesSet.add(addressStr);
+                        recordsMap.set(addressStr, { record, recordingDate: recordingDateStr });
+                    }
+                }
+                
+            });
+
+            // Determine the saleDate boundary for this page using the last item (array[-1] equivalent)
+            const lastRecord = buyersMarketData[buyersMarketData.length - 1];
+            const pageLastSaleDate = (lastRecord && lastRecord.saleDate)
+                ? (typeof lastRecord.saleDate === "string"
+                    ? lastRecord.saleDate.split("T")[0]
+                    : lastRecord.saleDate.toISOString().split("T")[0])
+                : null;
+            // Track latest saleDate boundary for this run
+            if (pageLastSaleDate && (!boundaryDate || pageLastSaleDate > boundaryDate)) {
+                boundaryDate = pageLastSaleDate;
+            }
+            
+            // If we got fewer than 100 records, we've reached the end of the range
+            if (buyersMarketData.length < 100) {
+                buyersMarketShouldContinue = false;
+            } else {
+                // Advance our date boundary for the next request using the page's last sale_date,
+                // but only if we actually have one.
+                if (pageLastSaleDate !== null) {
+                    currentMinDate = pageLastSaleDate;
+                }
+            }
+
+            // Persist sync state after each /buyers/market call using the latest saleDate boundary
+            if (boundaryDate) {
                 try {
-                    const persistedDate = await persistSyncStateExplicit({
+                    await persistSyncStateV2({
+                        syncStateId,
+                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                        initialTotalSynced,
+                        processed: 0, // don't change totalRecordsSynced here, just advance the date boundary
+                        finalSaleDate: boundaryDate,
+                    });
+                } catch (persistPageError) {
+                    console.error(`[SFR SYNC V2] Failed to persist state after buyers/market page:`, persistPageError);
+                }
+            }
+        }
+        
+        console.log(`[SFR SYNC V2] Completed buyers/market pagination. Total addresses collected: ${addressesSet.size}, boundary date: ${boundaryDate || 'N/A'}`);
+        
+        const addressesArray = Array.from(addressesSet);
+        console.log(`[SFR SYNC V2] Collected ${addressesArray.length} unique addresses to process`);
+        
+        if (addressesArray.length === 0) {
+            console.log(`[SFR SYNC V2] No properties to process for ${msa}`);
+            return {
+                success: true,
+                msa,
+                totalProcessed: 0,
+                totalInserted: 0,
+                totalUpdated: 0,
+                totalContactsAdded: 0,
+                dateRange: { from: minSaleDate, to: today },
+                lastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+            };
+        }
+        
+        // ====================================================================
+        // PROCESS PROPERTIES IN BATCHES (max 100 addresses per batch)
+        // ====================================================================
+        console.log(`[SFR SYNC V2] ===== Processing properties in batches =====`);
+        
+        // Process properties in batches using /properties/batch (max 100 addresses per batch)
+        const BATCH_SIZE = 100; // Max 100 addresses per batch
+        for (let i = 0; i < addressesArray.length; i += BATCH_SIZE) {
+            const batchAddresses = addressesArray.slice(i, i + BATCH_SIZE);
+            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(addressesArray.length / BATCH_SIZE);
+            
+            console.log(`[SFR SYNC V2] Processing batch ${batchNum}/${totalBatches} with ${batchAddresses.length} addresses`);
+            
+            // Fetch full property details from /properties/batch using pipe-separated addresses
+            const addressesParam = batchAddresses.join('|');
+            const batchResponse = await fetch(`${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`, {
+                method: 'GET',
+                headers: {
+                    'X-API-TOKEN': API_KEY,
+                },
+            });
+            
+            if (!batchResponse.ok) {
+                const errorText = await batchResponse.text();
+                console.error(`[SFR SYNC V2] Batch API error on batch ${batchNum}:`, errorText);
+                // Continue with next batch instead of failing completely
+                continue;
+            }
+            
+            const batchResponseData = await batchResponse.json();
+            
+            if (!batchResponseData || !Array.isArray(batchResponseData)) {
+                console.warn(`[SFR SYNC V2] Invalid batch response format, skipping batch ${batchNum}`);
+                continue;
+            }
+            
+            // ====================================================================
+            // STEP 1: COLLECT AND BATCH PROCESS COMPANIES
+            // ====================================================================
+            // Collect all valid properties and their company info
+            interface ValidPropertyItem {
+                batchItem: any;
+                propertyData: any;
+                recordInfo: { record: any; recordingDate: string } | null;
+                sfrPropertyId: number;
+                normalizedCounty: string | null;
+            }
+
+            const validProperties: ValidPropertyItem[] = [];
+            const companyToCountiesMap = new Map<string, Set<string>>(); // normalizedCompanyName -> Set of counties
+
+            // First pass: collect valid properties and companies
+            for (const batchItem of batchResponseData) {
+                // Skip items with errors or missing property data
+                if (batchItem.error || !batchItem.property) {
+                    if (batchItem.error) {
+                        console.warn(`[SFR SYNC V2] Error for address ${batchItem.address}: ${batchItem.error}`);
+                    }
+                    continue;
+                }
+                
+                const propertyData = batchItem.property;
+                const sfrPropertyId = propertyData.property_id;
+                if (!sfrPropertyId) {
+                    console.warn(`[SFR SYNC V2] Skipping property without property_id`);
+                    continue;
+                }
+                
+                // Get record for this address (from buyers/market)
+                const recordInfo = batchItem.address ? recordsMap.get(batchItem.address) : null;
+                if (!recordInfo) {
+                    console.log(`[SFR SYNC V2] Skipping property with no record: ${batchItem.address}`);
+                    continue;
+                }
+                
+                // Check if property should be processed (isCorporate, not trust, etc.)
+                const isCorporate = recordInfo.record.isCorporate === true;
+                if (!isCorporate) continue;
+                
+                const buyerName = recordInfo.record.buyerName;
+                if (!buyerName) continue;
+                
+                if (isTrust(buyerName, recordInfo.record.buyerOwnershipCode || null)) continue;
+                
+                const isOpendoor = buyerName.toLowerCase().includes("opendoor");
+                const isCorporateEntity = isOpendoor || isFlippingCompany(buyerName, recordInfo.record.buyerOwnershipCode || null);
+                if (!isCorporateEntity) continue;
+                
+                // Fetch county from coordinates
+                const normalizedCounty = await getCountyFromCoordinates(
+                    propertyData.address?.latitude,
+                    propertyData.address?.longitude
+                );
+                
+                validProperties.push({
+                    batchItem,
+                    propertyData,
+                    recordInfo,
+                    sfrPropertyId: Number(sfrPropertyId),
+                    normalizedCounty
+                });
+                
+                // Track company -> counties mapping
+                const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(buyerName);
+                if (normalizedCompanyNameForStorage && normalizedCounty) {
+                    const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
+                    if (normalizedCompanyNameForCompare) {
+                        if (!companyToCountiesMap.has(normalizedCompanyNameForCompare)) {
+                            companyToCountiesMap.set(normalizedCompanyNameForCompare, new Set());
+                        }
+                        companyToCountiesMap.get(normalizedCompanyNameForCompare)!.add(normalizedCounty);
+                    }
+                }
+            }
+
+            if (validProperties.length === 0) {
+                console.log(`[SFR SYNC V2] No valid properties to process in batch ${batchNum}`);
+                continue;
+            }
+
+            // De-duplicate and batch insert companies
+            const uniqueCompaniesToInsert: Array<{
+                companyName: string;
+                normalizedForCompare: string;
+                counties: string[];
+            }> = [];
+
+            for (const [normalizedName, countiesSet] of Array.from(companyToCountiesMap.entries())) {
+                // Check if company already exists in cache or database
+                const existingCompany = contactsMap.get(normalizedName);
+                
+                if (!existingCompany) {
+                    // Need to check database (might have been added by another batch)
+                    const normalizedStorageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
+                    if (!normalizedStorageName) continue;
+                    
+                    const [dbCompany] = await db
+                        .select()
+                        .from(companies)
+                        .where(eq(companies.companyName, normalizedStorageName))
+                        .limit(1);
+                    
+                    if (dbCompany) {
+                        // Add to cache
+                        contactsMap.set(normalizedName, dbCompany);
+                        // Update counties for existing company
+                        let countiesArray: string[] = [];
+                        if (dbCompany.counties) {
+                            if (Array.isArray(dbCompany.counties)) {
+                                countiesArray = dbCompany.counties;
+                            } else if (typeof dbCompany.counties === 'string') {
+                                try {
+                                    countiesArray = JSON.parse(dbCompany.counties);
+                                } catch {
+                                    countiesArray = [];
+                                }
+                            }
+                        }
+                        
+                        const countiesToAdd = Array.from(countiesSet).filter((c: string) => 
+                            !countiesArray.some((existing: string) => existing.toLowerCase() === c.toLowerCase())
+                        );
+                        
+                        if (countiesToAdd.length > 0) {
+                            countiesArray.push(...countiesToAdd);
+                            await db
+                                .update(companies)
+                                .set({ counties: countiesArray, updatedAt: new Date() })
+                                .where(eq(companies.id, dbCompany.id));
+                            dbCompany.counties = countiesArray;
+                        }
+                    } else {
+                        // New company to insert - de-duplicate within batch
+                        const storageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
+                        if (storageName && !uniqueCompaniesToInsert.some(c => c.normalizedForCompare === normalizedName)) {
+                            uniqueCompaniesToInsert.push({
+                                companyName: storageName,
+                                normalizedForCompare: normalizedName,
+                                counties: Array.from(countiesSet)
+                            });
+                        }
+                    }
+                } else {
+                    // Existing company - update counties
+                    let countiesArray: string[] = [];
+                    if (existingCompany.counties) {
+                        if (Array.isArray(existingCompany.counties)) {
+                            countiesArray = existingCompany.counties;
+                        } else if (typeof existingCompany.counties === 'string') {
+                            try {
+                                countiesArray = JSON.parse(existingCompany.counties);
+                            } catch {
+                                countiesArray = [];
+                            }
+                        }
+                    }
+                    
+                    const countiesToAdd = Array.from(countiesSet).filter((c: string) => 
+                        !countiesArray.some((existing: string) => existing.toLowerCase() === c.toLowerCase())
+                    );
+                    
+                    if (countiesToAdd.length > 0) {
+                        countiesArray.push(...countiesToAdd);
+                        await db
+                            .update(companies)
+                            .set({ counties: countiesArray, updatedAt: new Date() })
+                            .where(eq(companies.id, existingCompany.id));
+                        existingCompany.counties = countiesArray;
+                    }
+                }
+            }
+
+            // Batch insert new companies
+            if (uniqueCompaniesToInsert.length > 0) {
+                try {
+                    const newCompanies = await db
+                        .insert(companies)
+                        .values(uniqueCompaniesToInsert.map(c => ({
+                            companyName: c.companyName,
+                            contactName: null,
+                            contactEmail: null,
+                            phoneNumber: null,
+                            counties: c.counties,
+                            updatedAt: new Date(),
+                        })))
+                        .returning();
+                    
+                    // Add new companies to cache
+                    for (let i = 0; i < uniqueCompaniesToInsert.length; i++) {
+                        const company = newCompanies[i];
+                        if (company) {
+                            contactsMap.set(uniqueCompaniesToInsert[i].normalizedForCompare, company);
+                            totalContactsAdded++;
+                        }
+                    }
+                    
+                    console.log(`[SFR SYNC V2] Batch inserted ${newCompanies.length} companies`);
+                } catch (companyError: any) {
+                    // Handle duplicates that might have been inserted concurrently
+                    if (companyError?.code?.includes("23505") || companyError?.message?.includes("duplicate")) {
+                        // Fetch existing companies and add to cache
+                        for (const companyToInsert of uniqueCompaniesToInsert) {
+                            try {
+                                const [existing] = await db
+                                    .select()
+                                    .from(companies)
+                                    .where(eq(companies.companyName, companyToInsert.companyName))
+                                    .limit(1);
+                                
+                                if (existing) {
+                                    contactsMap.set(companyToInsert.normalizedForCompare, existing);
+                                    // Update counties
+                                    let countiesArray: string[] = [];
+                                    if (existing.counties) {
+                                        if (Array.isArray(existing.counties)) {
+                                            countiesArray = existing.counties;
+                                        } else if (typeof existing.counties === 'string') {
+                                            try {
+                                                countiesArray = JSON.parse(existing.counties);
+                                            } catch {
+                                                countiesArray = [];
+                                            }
+                                        }
+                                    }
+                                    
+                                    const countiesToAdd = companyToInsert.counties.filter(c => 
+                                        !countiesArray.some(existing => existing.toLowerCase() === c.toLowerCase())
+                                    );
+                                    
+                                    if (countiesToAdd.length > 0) {
+                                        countiesArray.push(...countiesToAdd);
+                                        await db
+                                            .update(companies)
+                                            .set({ counties: countiesArray, updatedAt: new Date() })
+                                            .where(eq(companies.id, existing.id));
+                                        existing.counties = countiesArray;
+                                    }
+                                }
+                            } catch (fetchError) {
+                                console.error(`[SFR SYNC V2] Error fetching duplicate company:`, fetchError);
+                            }
+                        }
+                    } else {
+                        console.error(`[SFR SYNC V2] Error batch inserting companies:`, companyError);
+                    }
+                }
+            }
+
+            // ====================================================================
+            // STEP 2: COLLECT PROPERTIES AND CHECK EXISTING ONES
+            // ====================================================================
+            // Check which properties already exist
+            const sfrPropertyIds = validProperties.map(p => p.sfrPropertyId);
+            const existingPropertiesMap = new Map<number, any>(); // keyed by sfrPropertyId
+            const existingPropertiesByIdMap = new Map<string, any>(); // keyed by property UUID
+            
+            if (sfrPropertyIds.length > 0) {
+                const existingProps = await db
+                    .select()
+                    .from(propertiesV2)
+                    .where(inArray(propertiesV2.sfrPropertyId, sfrPropertyIds));
+                
+                for (const prop of existingProps) {
+                    existingPropertiesMap.set(prop.sfrPropertyId, prop);
+                    existingPropertiesByIdMap.set(prop.id, prop);
+                }
+            }
+
+            // ====================================================================
+            // STEP 3: PROCESS PROPERTIES AND COLLECT DATA FOR BATCH INSERTS
+            // ====================================================================
+            interface PropertyToInsert {
+                sfrPropertyId: number;
+                companyId: string | null;
+                propertyOwnerId: string | null;
+                propertyClassDescription: string | null;
+                propertyType: string | null;
+                vacant: boolean | null;
+                hoa: string | null;
+                ownerType: string | null;
+                purchaseMethod: string | null;
+                listingStatus: string;
+                status: string;
+                monthsOwned: number | null;
+                msa: string | null;
+                county: string | null;
+            }
+
+            interface PropertyToUpdate {
+                id: string;
+                data: Partial<PropertyToInsert>;
+            }
+
+            const propertiesToInsert: PropertyToInsert[] = [];
+            const propertiesToUpdate: PropertyToUpdate[] = [];
+            const propertyDetailsMap = new Map<number, {
+                propertyData: any;
+                recordInfo: { record: any; recordingDate: string };
+                normalizedCounty: string | null;
+            }>();
+
+            // Process each valid property to determine company IDs and collect data
+            for (const validProp of validProperties) {
+                try {
+                    totalProcessed++;
+                    
+                    const { propertyData, recordInfo, sfrPropertyId, normalizedCounty } = validProp;
+                    
+                    // Get company ID from cache
+                    const buyerName = recordInfo!.record.buyerName;
+                    const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(buyerName);
+                    const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage || '');
+                    let company = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
+                    
+                    // If not in cache, try database (might have been inserted by another batch)
+                    if (!company && normalizedCompanyNameForStorage) {
+                        try {
+                            const [dbCompany] = await db
+                                .select()
+                                .from(companies)
+                                .where(eq(companies.companyName, normalizedCompanyNameForStorage))
+                                .limit(1);
+                            
+                            if (dbCompany) {
+                                if (normalizedCompanyNameForCompare) {
+                                    contactsMap.set(normalizedCompanyNameForCompare, dbCompany);
+                                }
+                                company = dbCompany;
+                            }
+                        } catch (dbError) {
+                            console.error(`[SFR SYNC V2] Error looking up company in database:`, dbError);
+                        }
+                    }
+                    
+                    if (!company) {
+                        console.warn(`[SFR SYNC V2] Company not found for property ${sfrPropertyId} (buyerName: ${buyerName}, normalized: ${normalizedCompanyNameForCompare}), skipping`);
+                        totalProcessed--;
+                        continue;
+                    }
+                    
+                    const companyId = company.id;
+                    const propertyOwnerId = companyId;
+                    
+                    const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
+                    const status = "in-renovation";
+                    const listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
+                    
+                    const propertyRecord: PropertyToInsert = {
+                        sfrPropertyId,
+                        companyId,
+                        propertyOwnerId,
+                        propertyClassDescription: propertyData.property_class_description || null,
+                        propertyType: normalizePropertyType(propertyData.property_type) || null,
+                        vacant: propertyData.vacant || null,
+                        hoa: propertyData.hoa ? String(propertyData.hoa) : null,
+                        ownerType: propertyData.owner_type || null,
+                        purchaseMethod: propertyData.purchase_method || null,
+                        listingStatus,
+                        status,
+                        monthsOwned: propertyData.months_owned || null,
+                        msa: propertyData.msa || msa || null,
+                        county: normalizedCounty,
+                    };
+                    
+                    const existingProperty = existingPropertiesMap.get(sfrPropertyId);
+                    // Store property details for both inserts and updates (needed for transaction tracking)
+                    propertyDetailsMap.set(sfrPropertyId, {
+                        propertyData,
+                        recordInfo: recordInfo!,
+                        normalizedCounty
+                    });
+                    
+                    if (existingProperty) {
+                        propertiesToUpdate.push({
+                            id: existingProperty.id,
+                            data: propertyRecord
+                        });
+                    } else {
+                        propertiesToInsert.push(propertyRecord);
+                    }
+                    
+                } catch (error: any) {
+                    console.error(`[SFR SYNC V2] Error processing property for batch:`, error);
+                    totalProcessed--;
+                }
+            }
+
+            // ====================================================================
+            // STEP 4: BATCH INSERT/UPDATE PROPERTIES
+            // ====================================================================
+            // Batch update existing properties
+            if (propertiesToUpdate.length > 0) {
+                for (const propUpdate of propertiesToUpdate) {
+                    await db
+                        .update(propertiesV2)
+                        .set({
+                            ...propUpdate.data,
+                            updatedAt: sql`now()`,
+                        })
+                        .where(eq(propertiesV2.id, propUpdate.id));
+                }
+                totalUpdated += propertiesToUpdate.length;
+                console.log(`[SFR SYNC V2] Batch updated ${propertiesToUpdate.length} properties`);
+            }
+
+            // Batch insert new properties
+            let insertedProperties: any[] = [];
+            if (propertiesToInsert.length > 0) {
+                try {
+                    insertedProperties = await db
+                        .insert(propertiesV2)
+                        .values(propertiesToInsert)
+                        .returning();
+                    
+                    totalInserted += insertedProperties.length;
+                    console.log(`[SFR SYNC V2] Batch inserted ${insertedProperties.length} properties in batch ${batchNum}`);
+                } catch (insertError: any) {
+                    console.error(`[SFR SYNC V2] Error batch inserting ${propertiesToInsert.length} properties in batch ${batchNum}:`, insertError);
+                    console.error(`[SFR SYNC V2] First property in failed batch:`, propertiesToInsert[0]);
+                    // Try inserting one at a time to see which ones fail
+                    for (const propToInsert of propertiesToInsert) {
+                        try {
+                            const [inserted] = await db
+                                .insert(propertiesV2)
+                                .values(propToInsert)
+                                .returning();
+                            if (inserted) {
+                                insertedProperties.push(inserted);
+                                totalInserted++;
+                            }
+                        } catch (singleError: any) {
+                            console.error(`[SFR SYNC V2] Failed to insert property ${propToInsert.sfrPropertyId}:`, singleError);
+                        }
+                    }
+                }
+            }
+
+            // ====================================================================
+            // STEP 5: BATCH INSERT RELATED DATA
+            // ====================================================================
+            // Create map of sfrPropertyId -> propertyId for inserted properties
+            const propertyIdMap = new Map<number, string>();
+            for (const insertedProp of insertedProperties) {
+                propertyIdMap.set(insertedProp.sfrPropertyId, insertedProp.id);
+            }
+
+            // Collect all related data for batch inserts
+            const addressesToInsert: any[] = [];
+            const structuresToInsert: any[] = [];
+            const assessmentsToInsert: any[] = [];
+            const exemptionsToInsert: any[] = [];
+            const parcelsToInsert: any[] = [];
+            const schoolDistrictsToInsert: any[] = [];
+            const taxRecordsToInsert: any[] = [];
+            const valuationsToInsert: any[] = [];
+            const preForeclosuresToInsert: any[] = [];
+            const lastSalesToInsert: any[] = [];
+            const currentSalesToInsert: any[] = [];
+
+            for (const insertedProp of insertedProperties) {
+                const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
+                if (!details) continue;
+
+                const { propertyData, recordInfo, normalizedCounty } = details;
+                const propertyId = insertedProp.id;
+
+                // Collect address
+                if (propertyData.address) {
+                    addressesToInsert.push({
+                        propertyId,
+                        formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
+                        streetNumber: propertyData.address.street_number || null,
+                        streetSuffix: propertyData.address.street_suffix || null,
+                        streetPreDirection: propertyData.address.street_pre_direction || null,
+                        streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
+                        streetPostDirection: propertyData.address.street_post_direction || null,
+                        unitType: propertyData.address.unit_type || null,
+                        unitNumber: propertyData.address.unit_number || null,
+                        city: normalizeToTitleCase(propertyData.address.city) || null,
+                        county: normalizedCounty,
+                        state: propertyData.address.state || null,
+                        zipCode: propertyData.address.zip_code || null,
+                        zipPlusFourCode: propertyData.address.zip_plus_four_code || null,
+                        carrierCode: propertyData.address.carrier_code || null,
+                        latitude: propertyData.address.latitude ? String(propertyData.address.latitude) : null,
+                        longitude: propertyData.address.longitude ? String(propertyData.address.longitude) : null,
+                        geocodingAccuracy: propertyData.address.geocoding_accuracy || null,
+                        censusTract: propertyData.address.census_tract || null,
+                        censusBlock: propertyData.address.census_block || null,
+                    });
+                }
+
+                // Collect structure
+                if (propertyData.structure) {
+                    structuresToInsert.push({
+                        propertyId,
+                        totalAreaSqFt: propertyData.structure.total_area_sq_ft || null,
+                        yearBuilt: propertyData.structure.year_built || null,
+                        effectiveYearBuilt: propertyData.structure.effective_year_built || null,
+                        bedsCount: propertyData.structure.beds_count || null,
+                        roomsCount: propertyData.structure.rooms_count || null,
+                        baths: propertyData.structure.baths ? String(propertyData.structure.baths) : null,
+                        basementType: propertyData.structure.basement_type || null,
+                        condition: propertyData.structure.condition || null,
+                        constructionType: propertyData.structure.construction_type || null,
+                        exteriorWallType: propertyData.structure.exterior_wall_type || null,
+                        fireplaces: propertyData.structure.fireplaces || null,
+                        heatingType: propertyData.structure.heating_type || null,
+                        heatingFuelType: propertyData.structure.heating_fuel_type || null,
+                        parkingSpacesCount: propertyData.structure.parking_spaces_count || null,
+                        poolType: propertyData.structure.pool_type || null,
+                        quality: propertyData.structure.quality || null,
+                        roofMaterialType: propertyData.structure.roof_material_type || null,
+                        roofStyleType: propertyData.structure.roof_style_type || null,
+                        sewerType: propertyData.structure.sewer_type || null,
+                        stories: propertyData.structure.stories || null,
+                        unitsCount: propertyData.structure.units_count || null,
+                        waterType: propertyData.structure.water_type || null,
+                        livingAreaSqft: propertyData.structure.living_area_sqft || null,
+                        acDescription: propertyData.structure.ac_description || null,
+                        garageDescription: propertyData.structure.garage_description || null,
+                        buildingClassDescription: propertyData.structure.building_class_description || null,
+                        sqftDescription: propertyData.structure.sqft_description || null,
+                    });
+                }
+
+                // Collect assessment
+                if (propertyData.assessments && propertyData.assessed_year) {
+                    assessmentsToInsert.push({
+                        propertyId,
+                        assessedYear: propertyData.assessed_year,
+                        landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
+                        improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
+                        assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
+                        marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
+                    });
+                }
+
+                // Collect exemption
+                if (propertyData.exemptions) {
+                    exemptionsToInsert.push({
+                        propertyId,
+                        homeowner: propertyData.exemptions.homeowner || null,
+                        veteran: propertyData.exemptions.veteran || null,
+                        disabled: propertyData.exemptions.disabled || null,
+                        widow: propertyData.exemptions.widow || null,
+                        senior: propertyData.exemptions.senior || null,
+                        school: propertyData.exemptions.school || null,
+                        religious: propertyData.exemptions.religious || null,
+                        welfare: propertyData.exemptions.welfare || null,
+                        public: propertyData.exemptions.public || null,
+                        cemetery: propertyData.exemptions.cemetery || null,
+                        hospital: propertyData.exemptions.hospital || null,
+                        library: propertyData.exemptions.library || null,
+                    });
+                }
+
+                // Collect parcel
+                if (propertyData.parcel) {
+                    parcelsToInsert.push({
+                        propertyId,
+                        apnOriginal: propertyData.parcel.apn_original || null,
+                        fipsCode: propertyData.parcel.fips_code || null,
+                        frontageFt: propertyData.parcel.frontage_ft || null,
+                        depthFt: propertyData.parcel.depth_ft || null,
+                        areaAcres: propertyData.parcel.area_acres || null,
+                        areaSqFt: propertyData.parcel.area_sq_ft || null,
+                        zoning: propertyData.parcel.zoning || null,
+                        countyLandUseCode: propertyData.parcel.county_land_use_code || null,
+                        lotNumber: propertyData.parcel.lot_number || null,
+                        subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
+                        sectionTownshipRange: propertyData.parcel.section_township_range || null,
+                        legalDescription: propertyData.parcel.legal_description || null,
+                        stateLandUseCode: propertyData.parcel.state_land_use_code || null,
+                        buildingCount: propertyData.parcel.building_count || null,
+                    });
+                }
+
+                // Collect school district
+                if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
+                    schoolDistrictsToInsert.push({
+                        propertyId,
+                        schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
+                        schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
+                        schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
+                        schoolDistrictName: propertyData.school_district_name || null,
+                    });
+                }
+
+                // Collect tax record
+                if (propertyData.tax_year) {
+                    taxRecordsToInsert.push({
+                        propertyId,
+                        taxYear: propertyData.tax_year,
+                        taxAmount: propertyData.tax_amount ? String(propertyData.tax_amount) : null,
+                        taxDelinquentYear: propertyData.tax_delinquent_year || null,
+                        taxRateCodeArea: propertyData.tax_rate_code_area || null,
+                    });
+                }
+
+                // Collect valuation
+                if (propertyData.valuation) {
+                    valuationsToInsert.push({
+                        propertyId,
+                        value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
+                        high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
+                        low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
+                        forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
+                        valuationDate: propertyData.valuation.date || null,
+                    });
+                }
+
+                // Collect pre-foreclosure
+                if (propertyData.pre_foreclosure) {
+                    preForeclosuresToInsert.push({
+                        propertyId,
+                        flag: propertyData.pre_foreclosure.flag || null,
+                        ind: propertyData.pre_foreclosure.ind || null,
+                        reason: propertyData.pre_foreclosure.reason || null,
+                        docType: propertyData.pre_foreclosure.doc_type || null,
+                        recordingDate: propertyData.pre_foreclosure.recording_date || null,
+                    });
+                }
+
+                // Collect last sale
+                if (propertyData.last_sale || propertyData.lastSale) {
+                    const lastSale = propertyData.last_sale || propertyData.lastSale;
+                    let recordingDateFromBuyersMarket: string | null = null;
+                    if (recordInfo.record && recordInfo.record.recordingDate) {
+                        recordingDateFromBuyersMarket =
+                            typeof recordInfo.record.recordingDate === "string"
+                                ? recordInfo.record.recordingDate.split("T")[0]
+                                : recordInfo.record.recordingDate.toISOString().split("T")[0];
+                    }
+
+                    lastSalesToInsert.push({
+                        propertyId,
+                        saleDate: lastSale.date || null,
+                        recordingDate: recordingDateFromBuyersMarket,
+                        price: lastSale.price ? String(lastSale.price) : null,
+                        documentType: lastSale.document_type || null,
+                        mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                        mtgType: lastSale.mtg_type || null,
+                        lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
+                        mtgInterestRate: lastSale.mtg_interest_rate || null,
+                        mtgTermMonths: lastSale.mtg_term_months || null,
+                    });
+                }
+
+                // Collect current sale
+                if (propertyData.current_sale || propertyData.currentSale) {
+                    const currentSale = propertyData.current_sale || propertyData.currentSale;
+                    currentSalesToInsert.push({
+                        propertyId,
+                        docNum: currentSale.doc_num || null,
+                        buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
+                        buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
+                        seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
+                        seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
+                    });
+                }
+            }
+
+            // Batch insert all related data
+            if (addressesToInsert.length > 0) {
+                await db.insert(addresses).values(addressesToInsert);
+            }
+            if (structuresToInsert.length > 0) {
+                await db.insert(structures).values(structuresToInsert);
+            }
+            if (assessmentsToInsert.length > 0) {
+                await db.insert(assessments).values(assessmentsToInsert);
+            }
+            if (exemptionsToInsert.length > 0) {
+                await db.insert(exemptions).values(exemptionsToInsert);
+            }
+            if (parcelsToInsert.length > 0) {
+                await db.insert(parcels).values(parcelsToInsert);
+            }
+            if (schoolDistrictsToInsert.length > 0) {
+                await db.insert(schoolDistricts).values(schoolDistrictsToInsert);
+            }
+            if (taxRecordsToInsert.length > 0) {
+                await db.insert(taxRecords).values(taxRecordsToInsert);
+            }
+            if (valuationsToInsert.length > 0) {
+                await db.insert(valuations).values(valuationsToInsert);
+            }
+            if (preForeclosuresToInsert.length > 0) {
+                await db.insert(preForeclosures).values(preForeclosuresToInsert);
+            }
+            if (lastSalesToInsert.length > 0) {
+                await db.insert(lastSales).values(lastSalesToInsert);
+            }
+            if (currentSalesToInsert.length > 0) {
+                await db.insert(currentSales).values(currentSalesToInsert);
+            }
+
+            // ====================================================================
+            // STEP 6: COLLECT AND INSERT PROPERTY TRANSACTIONS (ACQUISITIONS)
+            // ====================================================================
+            // Collect transactions for all properties (both inserted and updated)
+            // We'll create transactions based on last_sale data showing when the company acquired the property
+
+            // Collect transaction data for all properties
+            const transactionsToInsert: any[] = [];
+            
+            // Process inserted properties
+            for (const insertedProp of insertedProperties) {
+                const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
+                if (!details || !insertedProp.companyId) continue;
+
+                const { propertyData, recordInfo } = details;
+                const companyId = insertedProp.companyId;
+                const propertyId = insertedProp.id;
+
+                // Create acquisition transaction from last_sale data (when company bought the property)
+                if (propertyData.last_sale || propertyData.lastSale) {
+                    const lastSale = propertyData.last_sale || propertyData.lastSale;
+                    const transactionDate = lastSale.date || null;
+
+                    if (transactionDate) {
+                        // Normalize transaction date to YYYY-MM-DD format
+                        let normalizedDate: string;
+                        if (typeof transactionDate === "string") {
+                            normalizedDate = transactionDate.split("T")[0];
+                        } else if (transactionDate instanceof Date) {
+                            normalizedDate = transactionDate.toISOString().split("T")[0];
+                        } else {
+                            continue; // Skip if date is invalid
+                        }
+
+                        // Get buyer name (the company)
+                        const buyerName = recordInfo.record.buyerName || null;
+                        const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
+
+                        // Get seller name from current_sale if available
+                        let sellerName: string | null = null;
+                        if (propertyData.current_sale || propertyData.currentSale) {
+                            const currentSale = propertyData.current_sale || propertyData.currentSale;
+                            sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
+                        }
+
+                        // Build notes with document type if available
+                        const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+
+                        transactionsToInsert.push({
+                            propertyId,
+                            companyId,
+                            transactionType: "acquisition",
+                            transactionDate: normalizedDate,
+                            salePrice: lastSale.price ? String(lastSale.price) : null,
+                            mtgType: lastSale.mtg_type || null,
+                            mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                            buyerName: normalizedBuyerName,
+                            sellerName,
+                            notes,
+                        });
+                    }
+                }
+            }
+
+            // Process updated properties
+            for (const propUpdate of propertiesToUpdate) {
+                const existingProp = existingPropertiesByIdMap.get(propUpdate.id);
+                if (!existingProp) continue;
+
+                const details = propertyDetailsMap.get(existingProp.sfrPropertyId);
+                if (!details) continue;
+
+                // Use updated companyId if available, otherwise use existing
+                const companyId = propUpdate.data.companyId || existingProp.companyId;
+                if (!companyId) continue;
+
+                const { propertyData, recordInfo } = details;
+                const propertyId = propUpdate.id;
+
+                // Create acquisition transaction from last_sale data (when company bought the property)
+                if (propertyData.last_sale || propertyData.lastSale) {
+                    const lastSale = propertyData.last_sale || propertyData.lastSale;
+                    const transactionDate = lastSale.date || null;
+
+                    if (transactionDate) {
+                        // Normalize transaction date to YYYY-MM-DD format
+                        let normalizedDate: string;
+                        if (typeof transactionDate === "string") {
+                            normalizedDate = transactionDate.split("T")[0];
+                        } else if (transactionDate instanceof Date) {
+                            normalizedDate = transactionDate.toISOString().split("T")[0];
+                        } else {
+                            continue; // Skip if date is invalid
+                        }
+
+                        // Get buyer name (the company)
+                        const buyerName = recordInfo.record.buyerName || null;
+                        const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
+
+                        // Get seller name from current_sale if available
+                        let sellerName: string | null = null;
+                        if (propertyData.current_sale || propertyData.currentSale) {
+                            const currentSale = propertyData.current_sale || propertyData.currentSale;
+                            sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
+                        }
+
+                        // Build notes with document type if available
+                        const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+
+                        transactionsToInsert.push({
+                            propertyId,
+                            companyId,
+                            transactionType: "acquisition",
+                            transactionDate: normalizedDate,
+                            salePrice: lastSale.price ? String(lastSale.price) : null,
+                            mtgType: lastSale.mtg_type || null,
+                            mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                            buyerName: normalizedBuyerName,
+                            sellerName,
+                            notes,
+                        });
+                    }
+                }
+            }
+
+            // Check for existing transactions to prevent duplicates
+            // We check for property_id + company_id + transaction_date + transaction_type combination
+            if (transactionsToInsert.length > 0) {
+                // Get unique property IDs and company IDs from transactions we want to insert
+                const propertyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.propertyId)));
+                const companyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.companyId).filter(id => id !== null)));
+
+                // Fetch existing transactions for these properties and companies
+                let existingTransactions: any[] = [];
+                if (propertyIdsToCheck.length > 0 && companyIdsToCheck.length > 0) {
+                    existingTransactions = await db
+                        .select({
+                            propertyId: propertyTransactions.propertyId,
+                            companyId: propertyTransactions.companyId,
+                            transactionDate: propertyTransactions.transactionDate,
+                            transactionType: propertyTransactions.transactionType,
+                        })
+                        .from(propertyTransactions)
+                        .where(
+                            and(
+                                inArray(propertyTransactions.propertyId, propertyIdsToCheck),
+                                inArray(propertyTransactions.companyId, companyIdsToCheck),
+                                eq(propertyTransactions.transactionType, "acquisition")
+                            )
+                        );
+                }
+
+                // Create a Set of existing transaction keys for fast lookup
+                const existingTxKeys = new Set<string>();
+                for (const existingTx of existingTransactions) {
+                    const key = `${existingTx.propertyId}-${existingTx.companyId}-${existingTx.transactionDate}-${existingTx.transactionType}`;
+                    existingTxKeys.add(key);
+                }
+
+                // Filter out transactions that already exist
+                const newTransactionsToInsert = transactionsToInsert.filter(tx => {
+                    const key = `${tx.propertyId}-${tx.companyId}-${tx.transactionDate}-${tx.transactionType}`;
+                    return !existingTxKeys.has(key);
+                });
+
+                // Batch insert new transactions
+                if (newTransactionsToInsert.length > 0) {
+                    try {
+                        await db.insert(propertyTransactions).values(newTransactionsToInsert);
+                        console.log(`[SFR SYNC V2] Inserted ${newTransactionsToInsert.length} new property transactions (${transactionsToInsert.length - newTransactionsToInsert.length} were duplicates)`);
+                    } catch (txError: any) {
+                        console.error(`[SFR SYNC V2] Error inserting property transactions:`, txError);
+                        // Try inserting one at a time to see which ones fail
+                        let insertedCount = 0;
+                        for (const tx of newTransactionsToInsert) {
+                            try {
+                                await db.insert(propertyTransactions).values(tx);
+                                insertedCount++;
+                            } catch (singleTxError: any) {
+                                console.error(`[SFR SYNC V2] Failed to insert transaction for property ${tx.propertyId}:`, singleTxError);
+                            }
+                        }
+                        console.log(`[SFR SYNC V2] Inserted ${insertedCount} transactions individually`);
+                    }
+                }
+            }
+
+            console.log(`[SFR SYNC V2] Processed batch ${batchNum}: ${totalProcessed} processed, ${propertiesToInsert.length} inserted, ${propertiesToUpdate.length} updated`);
+            
+            // Persist sync state periodically after batches
+            if (boundaryDate && totalProcessed % 50 === 0) {
+                try {
+                    await persistSyncStateV2({
                         syncStateId,
                         previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
                         initialTotalSynced,
                         processed: totalProcessed,
-                        finalSaleDate: latestSaleDate,
+                        finalSaleDate: boundaryDate,
                     });
-                    console.log(`[SFR SYNC] Persisted sync state due to API error. lastSaleDate: ${persistedDate}`);
-                } catch (e) {
-                    console.error("[SFR SYNC] Failed to persist state after API error:", e);
+                } catch (persistError) {
+                    console.error(`[SFR SYNC V2] Failed to persist state after batch:`, persistError);
                 }
-
-                throw new Error(`API error for ${msa}: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-
-            // Check if data is empty
-            if (!data || !Array.isArray(data) || data.length === 0) {
-                console.log(`[SFR SYNC] No more data on page ${currentPage} for ${msa}, stopping`);
-                shouldContinue = false;
-                break;
-            }
-        
-            console.log(`[SFR SYNC] Fetched page ${currentPage} with ${data.length} records for ${msa}`);
-        
-            if (data.length > 0) {
-                console.log(`[SFR SYNC] Sample record structure:`, JSON.stringify(data[0], null, 2));
-            }
-
-            // Process each property
-            for (const record of data) {
-                try {
-                    // Normalize text fields
-                    const rawAddress = record.address || "";
-                    const rawCity = record.city || "";
-                    const rawBuyerName = record.buyerName || null;
-                    const rawSellerName = record.sellerName || null;
-                    
-                    const normalizedAddress = normalizeToTitleCase(rawAddress);
-                    const normalizedCity = normalizeToTitleCase(rawCity);
-                    
-                    // Validate required fields
-                    if (!normalizedAddress || normalizedAddress.trim() === "") {
-                        console.warn(`[SFR SYNC] Skipping record with empty address:`, JSON.stringify(record, null, 2));
-                        totalProcessed++;
-                        continue;
-                    }
-                    
-                    if (!normalizedCity || normalizedCity.trim() === "") {
-                        console.warn(`[SFR SYNC] Skipping record with empty city:`, JSON.stringify(record, null, 2));
-                        totalProcessed++;
-                        continue;
-                    }
-
-                    const hasStreetNumber = /^\d+/.test(normalizedAddress)
-
-                    if (!hasStreetNumber) {
-                        console.warn(`[SFR SYNC] Skipping record with no street number`, JSON.stringify(record, null, 2))
-                        totalProcessed++;
-                        continue;
-                    }
-
-                    let price: number = 0
-
-                    if ((record.saleValue - record.avmValue) > 1000000) {
-                        price = record.avmValue
-                    } else {
-                        price = record.saleValue
-                    }
-
-                    if (price <= 0) {
-                        console.warn(`[SFR SYNC] Skipping record with invalid price: ${price}`, JSON.stringify(record, null, 2))
-                        totalProcessed++;
-                        continue;
-                    }
-                    
-                    const propertyData: any = {
-                        address: normalizedAddress,
-                        city: normalizedCity,
-                        state: record.state || "CA",
-                        zipCode: record.zipCode || "",
-                        county: "UNKNOWN",
-
-                        price: price || 0,
-                        bedrooms: record.bedrooms || 0,
-                        bathrooms: record.bathrooms || 0,
-                        squareFeet: record.buildingArea || 0,
-                        propertyType: mapPropertyType(record.propertyType || null),
-                        purchasePrice: record.purchasePrice || null,
-                        dateSold: record.saleDate || null,
-                        status: record.status || "in-renovation",
-                        
-                        // Buyer info
-                        buyerName: normalizeToTitleCase(rawBuyerName),
-                        buyerFormattedName: normalizeToTitleCase(record.formattedBuyerName || ""),
-                        phone: record.phone || null,
-                        isCorporate: record.isCorporate || false,
-                        isCashBuyer: record.isCashBuyer || false,
-                        isDiscountedPurchase: record.isDiscountedPurchase || false,
-                        isPrivateLender: record.isPrivateLender || false,
-                        buyerPropertiesCount: record.buyerPropertiesCount || null,
-                        buyerTransactionsCount: record.buyerTransactionsCount || null,
-                        
-                        // Seller/lender
-                        sellerName: normalizeToTitleCase(rawSellerName),
-                        lenderName: normalizeToTitleCase(record.lenderName),
-                        
-                        // Exit info
-                        exitValue: record.exitValue || record.exit_value || null,
-                        exitBuyerName: normalizeToTitleCase(record.exitBuyerName),
-                        profitLoss: record.profitLoss || null,
-                        holdDays: record.holdDays || null,
-                        
-                        // Financials
-                        saleValue: record.saleValue || null,
-                        avmValue: record.avmValue || null,
-                        loanAmount: record.loanAmount || null,
-                        
-                        // SFR API IDs
-                        sfrPropertyId: record.propertyId || null,
-                        sfrRecordId: record.id || null,
-                        
-                        // Market
-                        msa: record.msa || msa,
-                        
-                        // Dates
-                        recordingDate: record.recordingDate || null,
-                        
-                        // Coordinates
-                        latitude: record.latitude || null,
-                        longitude: record.longitude || null,
-                        
-                        // Additional fields
-                        yearBuilt: record.yearBuilt || null,
-                    };
-
-                    // Track latest saleDate (not recordingDate) - this is what we'll store in lastSaleDate
-                    // Extract saleDate from propertyData.dateSold (which comes from record.saleDate)
-                    let saleDateStr: string | null = null;
-                    if (propertyData.dateSold) {
-                        if (propertyData.dateSold instanceof Date) {
-                            saleDateStr = propertyData.dateSold.toISOString().split("T")[0];
-                        } else if (typeof propertyData.dateSold === 'string') {
-                            saleDateStr = propertyData.dateSold.split("T")[0];
-                        }
-                    }
-                    
-                    // Update latestSaleDate immediately for ALL processed records (even if we skip them later)
-                    // This ensures we track the latest saleDate we've seen, regardless of whether we insert/update
-                    if (saleDateStr && (!latestSaleDate || saleDateStr > latestSaleDate)) {
-                        latestSaleDate = saleDateStr;
-                    }
-                    
-                    // Store saleDate with property data for later use
-                    if (saleDateStr) {
-                        propertyData._saleDate = saleDateStr;
-                    }
-                    
-                    // Track latest recording date for property data (for comparison purposes)
-                    let recordingDateStr: string | null = null;
-                    if (propertyData.recordingDate) {
-                        if (propertyData.recordingDate instanceof Date) {
-                            recordingDateStr = propertyData.recordingDate.toISOString().split("T")[0];
-                        } else if (typeof propertyData.recordingDate === 'string') {
-                            recordingDateStr = propertyData.recordingDate.split("T")[0];
-                        }
-                    }
-                    
-                    // Store recordingDate as date string
-                    if (recordingDateStr) {
-                        propertyData.recordingDate = recordingDateStr;
-                    }
-
-                    // Skip non-corporate buyers — we only import corporate buyers and trusts            
-                    if (!propertyData.isCorporate) {
-                        console.log(`[SFR SYNC] Skipping non-corporate buyer: ${propertyData.buyerName || propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
-                        continue;
-                    }
-
-                    // Geocode if coordinates are missing
-                    if ((!propertyData.latitude || !propertyData.longitude) && propertyData.address) {
-                        const coords = await geocodeAddress(
-                            propertyData.address,
-                            propertyData.city,
-                            propertyData.state,
-                            propertyData.zipCode
-                        );
-                        if (coords) {
-                            propertyData.latitude = coords.lat;
-                            propertyData.longitude = coords.lng;
-                        }
-                    }
-
-                    // Get county from longitude (x) and latitude (y) - do this after geocoding in case coordinates were just added
-                    if (propertyData.latitude && propertyData.longitude) {
-                        const county = await fetchCounty(propertyData.longitude, propertyData.latitude);
-                        propertyData.county = county ? county : "UNKNOWN";
-                    }
-
-                    // Handle company contact
-                    const rawCompanyName = record.buyerName || null;
-                    const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(rawCompanyName);
-                    
-                    if (normalizedCompanyNameForStorage) {
-                        const contactName = normalizeToTitleCase(record.formattedBuyerName || record.buyer_formatted_name) || normalizedCompanyNameForStorage;
-                        const contactEmail = record.contactEmail || record.contact_email || null;
-                        const propertyCounty = propertyData.county && propertyData.county !== "UNKNOWN" ? propertyData.county : null;
-
-                        // Check if company contact already exists using in-memory cache
-                        const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
-                        const existingContact = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
-
-                        if (!existingContact) {
-                            // Insert new company contact with normalized storage format
-                            try {
-                                // Create counties array with the property's county
-                                const countiesArray = propertyCounty ? [propertyCounty] : [];
-                                const countiesJson = JSON.stringify(countiesArray);
-
-                                await db.insert(companyContacts).values({
-                                    companyName: normalizedCompanyNameForStorage,
-                                    contactName: null,
-                                    contactEmail: contactEmail,
-                                    counties: countiesJson,
-                                    updatedAt: new Date(),
-                                });
-                                totalContactsAdded++;
-                                console.log(`[SFR SYNC] Added new company contact: ${normalizedCompanyNameForStorage} with county: ${propertyCounty || 'none'}`);
-                                
-                                // Update the in-memory cache with the new contact
-                                const [newContact] = await db
-                                    .select()
-                                    .from(companyContacts)
-                                    .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
-                                    .limit(1);
-                                if (newContact && normalizedCompanyNameForCompare) {
-                                    contactsMap.set(normalizedCompanyNameForCompare, newContact);
-                                    // Set propertyOwnerId to the new contact's ID
-                                    propertyData.propertyOwnerId = newContact.id;
-                                }
-                            } catch (contactError: any) {
-                                // Ignore duplicate key errors (race condition)
-                                if (!contactError?.message?.includes("duplicate") && !contactError?.code?.includes("23505")) {
-                                    console.error(`[SFR SYNC] Error adding company contact ${normalizedCompanyNameForStorage}:`, contactError);
-                                } else {
-                                    // If it was a duplicate error, try to fetch the existing contact
-                                    try {
-                                        const [duplicateContact] = await db
-                                            .select()
-                                            .from(companyContacts)
-                                            .where(eq(companyContacts.companyName, normalizedCompanyNameForStorage))
-                                            .limit(1);
-                                        if (duplicateContact && normalizedCompanyNameForCompare) {
-                                            contactsMap.set(normalizedCompanyNameForCompare, duplicateContact);
-                                            propertyData.propertyOwnerId = duplicateContact.id;
-                                        }
-                                    } catch (fetchError) {
-                                        console.error(`[SFR SYNC] Error fetching duplicate contact:`, fetchError);
-                                    }
-                                }
-                            }
-                        } else {
-                            // Use the existing contact's ID for propertyOwnerId
-                            propertyData.propertyOwnerId = existingContact.id;
-                            console.log(`[SFR SYNC] Found existing company contact: ${existingContact.companyName} (matched: ${normalizedCompanyNameForStorage})`);
-
-                            // Update counties if we have a valid county and it's not already in the array
-                            if (propertyCounty && propertyCounty !== "UNKNOWN") {
-                                try {
-                                    // Parse existing counties JSON
-                                    let countiesArray: string[] = [];
-                                    if (existingContact.counties) {
-                                        try {
-                                            countiesArray = JSON.parse(existingContact.counties);
-                                        } catch (parseError) {
-                                            console.warn(`[SFR SYNC] Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
-                                            countiesArray = [];
-                                        }
-                                    }
-
-                                    // Check if county is already in the array (case-insensitive)
-                                    const countyLower = propertyCounty.toLowerCase();
-                                    const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
-
-                                    if (!countyExists) {
-                                        // Add the new county to the array
-                                        countiesArray.push(propertyCounty);
-                                        const updatedCountiesJson = JSON.stringify(countiesArray);
-
-                                        // Update the contact in the database
-                                        await db
-                                            .update(companyContacts)
-                                            .set({ 
-                                                counties: updatedCountiesJson,
-                                                updatedAt: new Date()
-                                            })
-                                            .where(eq(companyContacts.id, existingContact.id));
-
-                                        console.log(`[SFR SYNC] Updated company contact ${existingContact.companyName} with new county: ${propertyCounty}`);
-
-                                        // Update the in-memory cache
-                                        const updatedContact = { ...existingContact, counties: updatedCountiesJson };
-                                        if (normalizedCompanyNameForCompare) {
-                                            contactsMap.set(normalizedCompanyNameForCompare, updatedContact);
-                                        }
-                                    } else {
-                                        console.log(`[SFR SYNC] County ${propertyCounty} already exists for company ${existingContact.companyName}`);
-                                    }
-                                } catch (updateError: any) {
-                                    console.error(`[SFR SYNC] Error updating counties for company contact ${existingContact.companyName}:`, updateError);
-                                }
-                            }
-                        }
-                    } else {
-                        // No company name provided - set propertyOwnerId to null
-                        propertyData.propertyOwnerId = null;
-                    }
-
-                    // Check for existing property by SFR IDs first
-                    let existingProperty = null;
-                    
-                    if (propertyData.sfrPropertyId || propertyData.sfrRecordId || propertyData.address) {
-                        const conditions = [];
-                        
-                        if (propertyData.sfrPropertyId) {
-                            conditions.push(eq(properties.sfrPropertyId, propertyData.sfrPropertyId));
-                        }
-                        
-                        if (propertyData.sfrRecordId) {
-                            conditions.push(eq(properties.sfrRecordId, propertyData.sfrRecordId));
-                        }
-                        
-                        if (propertyData.address) {
-                            const normalizedAddressForCompare = propertyData.address.toLowerCase().trim();
-                            const normalizedCityForCompare = propertyData.city.toLowerCase().trim();
-                            
-                            conditions.push(
-                                and(
-                                    sql`LOWER(TRIM(${properties.address})) = ${normalizedAddressForCompare}`,
-                                    sql`LOWER(TRIM(${properties.city})) = ${normalizedCityForCompare}`,
-                                    eq(properties.state, propertyData.state),
-                                    eq(properties.zipCode, propertyData.zipCode)
-                                )
-                            );
-                        }
-                        
-                        if (conditions.length > 0) {
-                            const results = await db
-                                .select()
-                                .from(properties)
-                                .where(or(...conditions))
-                                .limit(1);
-                            
-                            if (results.length > 0) {
-                                existingProperty = results[0];
-                            }
-                        }
-                    }
-
-                    if (existingProperty) {
-                        // Update existing property if this record is more recent
-                        const shouldUpdate = !existingProperty.recordingDate || (propertyData.recordingDate && propertyData.recordingDate > existingProperty.recordingDate);
-                    
-                        if (shouldUpdate) {
-                            const { id, createdAt, _saleDate, ...updateData } = propertyData;
-                            updateData.updatedAt = sql`now()`;
-                            
-                            try {
-                                await db
-                                    .update(properties)
-                                    .set(updateData)
-                                    .where(eq(properties.id, existingProperty.id));
-                            
-                                totalUpdated++;
-                                console.log(`[SFR SYNC] Updated property: ${propertyData.address} (ID: ${existingProperty.id}, saleDate: ${saleDateStr || 'N/A'})`);
-                            
-                                // Persist sync state periodically after successful updates (every 10 updates)
-                                if (totalUpdated % 10 === 0 && latestSaleDate) {
-                                    try {
-                                        await persistSyncStateExplicit({
-                                            syncStateId,
-                                            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                            initialTotalSynced,
-                                            processed: totalProcessed,
-                                            finalSaleDate: latestSaleDate,
-                                        });
-                                    } catch (persistError) {
-                                        console.error(`[SFR SYNC] Failed to persist state after periodic update:`, persistError);
-                                    }
-                                }
-                            } catch (updateError: any) {
-                                console.error(`[SFR SYNC] Error updating property ${propertyData.address}:`, updateError);
-                            }
-                        } else {
-                            console.log(`[SFR SYNC] Skipping update for ${propertyData.address} - existing record is same or more recent (saleDate: ${saleDateStr || 'N/A'})`);
-                        }
-                    } else {
-                        // Add to batch buffer for insertion (with _saleDate for tracking)
-                        batchBuffer.push(propertyData);
-                        console.log(`[SFR SYNC] Adding to batch buffer: ${propertyData.address} (saleDate: ${saleDateStr || 'N/A'})`);
-                        
-                        // Insert batch if full
-                        if (batchBuffer.length >= BATCH_SIZE) {
-                            try {
-                                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
-                                await db.insert(properties).values(batchToInsert);
-                                totalInserted += batchBuffer.length;
-                                console.log(`[SFR SYNC] Inserted batch of ${batchBuffer.length} properties`);
-                                
-                                // Persist sync state periodically after successful batch inserts
-                                if (latestSaleDate) {
-                                    try {
-                                        await persistSyncStateExplicit({
-                                            syncStateId,
-                                            previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                            initialTotalSynced,
-                                            processed: totalProcessed,
-                                            finalSaleDate: latestSaleDate,
-                                        });
-                                    } catch (persistError) {
-                                        console.error(`[SFR SYNC] Failed to persist state after batch insert:`, persistError);
-                                    }
-                                }
-                                
-                                batchBuffer = [];
-                            } catch (batchError: any) {
-                                console.error(`[SFR SYNC] Error inserting batch:`, batchError);
-                                // Try inserting individually
-                                for (const prop of batchBuffer) {
-                                    try {
-                                        const { _saleDate, ...propToInsert } = prop;
-                                        await db.insert(properties).values([propToInsert]);
-                                        totalInserted++;
-                                        
-                                        // Persist after each successful individual insert (for error recovery)
-                                        if (prop._saleDate && latestSaleDate) {
-                                            try {
-                                                await persistSyncStateExplicit({
-                                                    syncStateId,
-                                                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                                    initialTotalSynced,
-                                                    processed: totalProcessed,
-                                                    finalSaleDate: latestSaleDate,
-                                                });
-                                            } catch (persistError) {
-                                                console.error(`[SFR SYNC] Failed to persist state after individual insert:`, persistError);
-                                            }
-                                        }
-                                    } catch (individualError: any) {
-                                        console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
-                                    }
-                                }
-                                batchBuffer = [];
-                            }
-                        }
-                    }
-
-                    totalProcessed++;
-                } catch (propertyError: any) {
-                    console.error(`[SFR SYNC] Error processing property:`, propertyError);
-                    console.error(`[SFR SYNC] Record that caused error:`, JSON.stringify(record, null, 2));
-                    totalProcessed++;
-                }
-            }
-
-            // Check if we should continue to next page
-            if (data.length < 100) {
-                shouldContinue = false;
-            } else {
-                currentPage++;
             }
         }
-
-        // Insert any remaining properties in buffer (after while loop ends)
-        if (batchBuffer.length > 0) {
-            try {
-                const batchToInsert = batchBuffer.map(({ _saleDate, ...prop }) => prop);
-                await db.insert(properties).values(batchToInsert);
-                totalInserted += batchBuffer.length;
-                console.log(`[SFR SYNC] Inserted final batch of ${batchBuffer.length} properties`);
-                
-                // Note: latestSaleDate was already updated when we extracted saleDateStr, so no need to update again
-            } catch (batchError: any) {
-                console.error(`[SFR SYNC] Error inserting final batch:`, batchError);
-                // Try inserting individually
-                for (const prop of batchBuffer) {
-                    try {
-                        const { _saleDate, ...propToInsert } = prop;
-                        await db.insert(properties).values([propToInsert]);
-                        totalInserted++;
-                        
-                        // Persist after each successful individual insert (for error recovery)
-                        if (latestSaleDate) {
-                            try {
-                                await persistSyncStateExplicit({
-                                    syncStateId,
-                                    previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                                    initialTotalSynced,
-                                    processed: totalProcessed,
-                                    finalSaleDate: latestSaleDate,
-                                });
-                            } catch (persistError) {
-                                console.error(`[SFR SYNC] Failed to persist state after final individual insert:`, persistError);
-                            }
-                        }
-                    } catch (individualError: any) {
-                        console.error(`[SFR SYNC] Error inserting property ${prop.address}:`, individualError);
-                    }
-                }
-            }
-            batchBuffer = [];
-        }
-
-        // Persist final sync state (use latest saleDate from processed properties, minus 1 day)
-        const persistedDate = await persistSyncStateExplicit({
+        
+        // Persist final sync state
+        // Use latest sale date minus 1 day for next sync (handled by persistSyncStateV2)
+        // This ensures we resume from where we left off
+        const persistedState = await persistSyncStateV2({
             syncStateId: syncStateId,
             previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
             initialTotalSynced: initialTotalSynced ?? 0,
             processed: totalProcessed ?? 0,
-            finalSaleDate: latestSaleDate ?? null,
+            finalSaleDate: boundaryDate ?? null,
         });
-
-        console.log(`[SFR SYNC] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
-
+        
+        console.log(`[SFR SYNC V2] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
+        
         return {
             success: true,
             msa,
@@ -703,51 +1562,50 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             totalUpdated,
             totalContactsAdded,
             dateRange: {
-                from: minDate,
-                to: latestSaleDate || today
+                from: minSaleDate,
+                to: boundaryDate || today
             },
-            lastSaleDate: persistedDate,
+            lastSaleDate: persistedState.lastSaleDate,
         };
         
     } catch (error) {
-        console.error(`[SFR SYNC] Error syncing ${msa}:`, error);
+        console.error(`[SFR SYNC V2] Error syncing ${msa}:`, error);
         try {
-            const persistedDate = await persistSyncStateExplicit({
+            const persistedState = await persistSyncStateV2({
                 syncStateId: syncStateId,
                 previousLastSaleDate: syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null,
                 initialTotalSynced: initialTotalSynced ?? 0,
                 processed: totalProcessed ?? 0,
-                finalSaleDate: latestSaleDate ?? null,
+                finalSaleDate: boundaryDate ?? null,
             });
-            console.log(`[SFR SYNC] Persisted sync state after failure for ${msa}. lastSaleDate: ${persistedDate}`);
+            console.log(`[SFR SYNC V2] Persisted sync state after failure for ${msa}. lastSaleDate: ${persistedState.lastSaleDate}`);
         } catch (e) {
-            console.error(`[SFR SYNC] Failed to persist sync state after error for ${msa}:`, e);
+            console.error(`[SFR SYNC V2] Failed to persist sync state after error for ${msa}:`, e);
         }
         const errorMessage = error instanceof Error ? error.message : String(error);
         throw new Error(`Error syncing ${msa}: ${errorMessage}`);
     }
 }
 
-router.post("/sfr", requireAdminAuth, async (req, res) => { 
+router.post("/v2/sfr", requireAdminAuth, async (req, res) => { 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        // Fetch only the MSA with id = 1 (San Diego)
+        // Fetch all MSAs from the sync state table
         const allSyncStates = await db
             .select()
-            .from(sfrSyncState)
-            .where(eq(sfrSyncState.id, 1));
+            .from(sfrSyncStateV2);
 
         if (allSyncStates.length === 0) {
             return res.status(400).json({ 
-                message: "MSA with id = 1 not found in sync state table.",
-                error: "MSA not found"
+                message: "No MSAs found in sync state table.",
+                error: "No MSAs found"
             });
         }
 
-        console.log(`[SFR SYNC] Found ${allSyncStates.length} MSA(s) to sync:`, allSyncStates.map(s => s.msa));
+        console.log(`[SFR SYNC V2] Found ${allSyncStates.length} MSA(s) to sync:`, allSyncStates.map(s => s.msa));
 
         // Sync each MSA sequentially
         const results = [];
@@ -755,13 +1613,13 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
 
         for (const syncState of allSyncStates) {
             try {
-                console.log(`[SFR SYNC] Starting sync for MSA: ${syncState.msa}`);
-                const result = await syncMSA(syncState.msa, API_KEY, API_URL, today);
+                console.log(`[SFR SYNC V2] Starting sync for MSA: ${syncState.msa}`);
+                const result = await syncMSAV2(syncState.msa, API_KEY, API_URL, today);
                 results.push(result);
-                console.log(`[SFR SYNC] Completed sync for MSA: ${syncState.msa}`);
+                console.log(`[SFR SYNC V2] Completed sync for MSA: ${syncState.msa}`);
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error(`[SFR SYNC] Failed to sync MSA ${syncState.msa}:`, errorMessage);
+                console.error(`[SFR SYNC V2] Failed to sync MSA ${syncState.msa}:`, errorMessage);
                 errors.push({
                     msa: syncState.msa,
                     error: errorMessage
@@ -775,7 +1633,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
         const totalUpdated = results.reduce((sum, r) => sum + r.totalUpdated, 0);
         const totalContactsAdded = results.reduce((sum, r) => sum + r.totalContactsAdded, 0);
 
-        console.log(`[SFR SYNC] All syncs complete. Total: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
+        console.log(`[SFR SYNC V2] All syncs complete. Total: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
 
         return res.status(200).json({
             success: true,
@@ -788,7 +1646,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
         });
         
     } catch (error) {
-        console.error("[SFR SYNC] Fatal error:", error);
+        console.error("[SFR SYNC V2] Fatal error:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         res.status(500).json({ 
             message: "Error syncing SFR buyer data",

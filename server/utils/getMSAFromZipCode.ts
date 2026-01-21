@@ -3,9 +3,9 @@
 // Uses constants from client/src/constants/filters.constants.ts
 
 import { 
-    SAN_DIEGO_ZIP_CODES, 
-    ORANGE_ZIP_CODES, 
-    LOS_ANGELES_ZIP_CODES 
+    SAN_DIEGO_MSA_ZIP_CODES, 
+    LOS_ANGELES_MSA_ZIP_CODES,
+    DENVER_MSA_ZIP_CODES
 } from "../../client/src/constants/filters.constants";
 
 export function getMSAFromZipCode(zipCode: string | null | undefined): string | null {
@@ -15,24 +15,41 @@ export function getMSAFromZipCode(zipCode: string | null | undefined): string | 
 
     const normalizedZip = zipCode.trim();
 
-    // Extract zip codes from the objects (each object has { zip: string, city: string })
-    const sanDiegoZips = SAN_DIEGO_ZIP_CODES.map(z => z.zip);
-    const orangeZips = ORANGE_ZIP_CODES.map(z => z.zip);
-    const laZips = LOS_ANGELES_ZIP_CODES.map(z => z.zip);
+    // Flatten all zip codes from San Diego MSA (all counties)
+    const sanDiegoZips = Object.values(SAN_DIEGO_MSA_ZIP_CODES)
+        .flat()
+        .map(z => z.zip);
+
+    // Flatten all zip codes from Los Angeles MSA (Los Angeles and Orange counties)
+    const losAngelesZips = Object.values(LOS_ANGELES_MSA_ZIP_CODES)
+        .flat()
+        .map(z => z.zip);
+
+    // Flatten all zip codes from Denver MSA (all counties)
+    const denverZips = Object.values(DENVER_MSA_ZIP_CODES)
+        .flat()
+        .map(z => z.zip);
 
     // Check Orange County first (handles 92672 overlap - San Clemente is in Orange County)
+    // Orange is part of Los Angeles MSA
+    const orangeZips = LOS_ANGELES_MSA_ZIP_CODES.orange?.map(z => z.zip) || [];
     if (orangeZips.includes(normalizedZip)) {
         return "Los Angeles-Long Beach-Anaheim, CA";
     }
     
-    // Check San Diego County
+    // Check San Diego MSA
     if (sanDiegoZips.includes(normalizedZip)) {
         return "San Diego-Chula Vista-Carlsbad, CA";
     }
     
-    // Check Los Angeles County
-    if (laZips.includes(normalizedZip)) {
+    // Check Los Angeles MSA
+    if (losAngelesZips.includes(normalizedZip)) {
         return "Los Angeles-Long Beach-Anaheim, CA";
+    }
+
+    // Check Denver MSA
+    if (denverZips.includes(normalizedZip)) {
+        return "Denver-Aurora-Centennial, CO";
     }
 
     return null;

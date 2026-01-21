@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { db } from "server/storage";
-import { companyContacts, properties, updateCompanyContactSchema } from "@shared/schema";
+import { companies } from "../../database/schemas/companies.schema";
+import { properties, addresses } from "../../database/schemas/properties.schema";
+import { updateCompanySchema } from "../../database/updates/companies.update";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { sql, and, eq } from "drizzle-orm";
+import { sql, and, eq, or } from "drizzle-orm";
 
 const router = Router();
 
-// Get company contact suggestions for autocomplete/search
+// Get company suggestions for autocomplete/search
 router.get("/contacts/suggestions", async (req, res) => {
     try {
         const { search } = req.query;
@@ -20,16 +22,16 @@ router.get("/contacts/suggestions", async (req, res) => {
         // Search company names that match the search term
         const results = await db
             .select({
-                id: companyContacts.id,
-                companyName: companyContacts.companyName,
-                contactName: companyContacts.contactName,
-                contactEmail: companyContacts.contactEmail,
+                id: companies.id,
+                companyName: companies.companyName,
+                contactName: companies.contactName,
+                contactEmail: companies.contactEmail,
             })
-            .from(companyContacts)
+            .from(companies)
             .where(
-                sql`LOWER(TRIM(${companyContacts.companyName})) LIKE ${searchTerm}`
+                sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`
             )
-            .orderBy(companyContacts.companyName)
+            .orderBy(companies.companyName)
             .limit(5);
 
         res.status(200).json(results);
@@ -40,43 +42,51 @@ router.get("/contacts/suggestions", async (req, res) => {
     }
 });
 
-// Get all company contacts with property counts
+// Get all companies with property counts
 router.get("/contacts", async (req, res) => {
     try {
         const { county } = req.query;
 
-        // Get all company contacts (filtered by county if provided)
-        let contactsQuery = db.select().from(companyContacts);
+        // Get all companies (filtered by county if provided)
+        let contactsQuery = db.select().from(companies);
         
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase();
             contactsQuery = contactsQuery.where(
-                sql`LOWER(${companyContacts.counties}::text) LIKE ${'%"' + normalizedCounty + '"%'}`
+                sql`LOWER(${companies.counties}::text) LIKE ${'%"' + normalizedCounty + '"%'}`
             ) as any;
         }
         
-        const contacts = await contactsQuery.orderBy(companyContacts.companyName);
+        const contacts = await contactsQuery.orderBy(companies.companyName);
 
-        // Get all properties (filtered by county if provided) - only need propertyOwnerId for counting
-        let propertiesQuery = db.select({
-            propertyOwnerId: properties.propertyOwnerId,
-            county: properties.county,
-        }).from(properties);
+        // Get all properties (filtered by county if provided) - use companyId for counting
+        // Need to check both properties.county and addresses.county for county filtering
+        let propertiesQuery = db
+            .select({
+                companyId: properties.companyId,
+                propertyOwnerId: properties.propertyOwnerId,
+                county: sql<string>`COALESCE(${properties.county}, ${addresses.county}, '')`,
+            })
+            .from(properties)
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId));
         
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase();
             propertiesQuery = propertiesQuery.where(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                ) as any
             ) as any;
         }
         
         const allProperties = await propertiesQuery;
 
-        // Calculate property count for each company using propertyOwnerId
+        // Calculate property count for each company using companyId (consistent identifier)
         const contactsWithCounts = contacts.map(contact => {
-            // Filter properties for this company by matching propertyOwnerId with company contact id
+            // Filter properties for this company by matching companyId with company id
             const companyProperties = allProperties.filter(p => {
-                return p.propertyOwnerId === contact.id;
+                return p.companyId === contact.id;
             });
             
             const propertyCount = companyProperties.length;
@@ -87,12 +97,12 @@ router.get("/contacts", async (req, res) => {
             };
         });
 
-        console.log(`Company contacts (county: ${county || 'all'}):`, contactsWithCounts.length);
+        console.log(`Companies (county: ${county || 'all'}):`, contactsWithCounts.length);
         res.json(contactsWithCounts);
         
     } catch (error) {
-        console.error("Error fetching company contacts:", error);
-        res.status(500).json({ message: "Error fetching company contacts" });
+        console.error("Error fetching companies:", error);
+        res.status(500).json({ message: "Error fetching companies" });
     }
 });
 
@@ -103,18 +113,22 @@ router.get("/leaderboard", async (req, res) => {
         const countyParam = req.query.county?.toString() || "San Diego";
         const normalizedCounty = countyParam.trim().toLowerCase();
         
-        // Get all properties in the specified county with company info (need propertyOwnerId, zipCode, companyName, and contactName)
+        // Get all properties in the specified county with company info (need companyId, companyName, and contactName)
+        // Note: properties table now uses addresses table for address info, so we need to join addresses
         const allProperties = await db
             .select({
-                propertyOwnerId: properties.propertyOwnerId,
-                zipCode: properties.zipCode,
-                companyName: companyContacts.companyName,
-                contactName: companyContacts.contactName,
+                companyId: properties.companyId,
+                companyName: companies.companyName,
+                contactName: companies.contactName,
             })
             .from(properties)
-            .leftJoin(companyContacts, eq(properties.propertyOwnerId, companyContacts.id))
+            .leftJoin(companies, eq(properties.companyId, companies.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
             .where(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                ) as any
             ) as any;
 
         // Calculate company counts and collect contact names using companyName from joined table
@@ -144,9 +158,19 @@ router.get("/leaderboard", async (req, res) => {
                 contactName: companyContactNames[name] || null,
             }));
 
-        // Calculate zip code counts
+        // Calculate zip code counts - need to join addresses table for zip codes
+        const propertiesWithAddresses = await db
+            .select({
+                zipCode: addresses.zipCode,
+            })
+            .from(properties)
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .where(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`
+            );
+        
         const zipCounts: Record<string, number> = {};
-        allProperties.forEach((p: { zipCode: string | null }) => {
+        propertiesWithAddresses.forEach((p: { zipCode: string | null }) => {
             if (p.zipCode) {
                 const zip = (p.zipCode).trim();
                 zipCounts[zip] = (zipCounts[zip] || 0) + 1;
@@ -174,15 +198,15 @@ router.get("/leaderboard", async (req, res) => {
     }
 });
 
-// Get a single company contact by ID
+// Get a single company by ID
 router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
         const contact = await db
             .select()
-            .from(companyContacts)
-            .where(eq(companyContacts.id, id))
+            .from(companies)
+            .where(eq(companies.id, id))
             .limit(1);
 
         if (contact.length === 0) {
@@ -196,21 +220,21 @@ router.get("/:id", async (req, res) => {
         res.json(result);
 
     } catch (error) {
-        console.error("Error fetching company contact:", error);
+        console.error("Error fetching company:", error);
         res.status(500).json({ 
-            message: "Error fetching company contact",
+            message: "Error fetching company",
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
 });
 
-// Update company contact (admin only)
+// Update company (admin only)
 router.patch("/:id", requireAdminAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
         // Validate request body
-        const validation = updateCompanyContactSchema.safeParse(req.body);
+        const validation = updateCompanySchema.safeParse(req.body);
         
         if (!validation.success) {
             console.error("Validation errors:", validation.error.errors);
@@ -222,16 +246,16 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
 
         const updateData = validation.data;
 
-        // Check if company contact exists
+        // Check if company exists
         const existingContact = await db
             .select()
-            .from(companyContacts)
-            .where(eq(companyContacts.id, id))
+            .from(companies)
+            .where(eq(companies.id, id))
             .limit(1);
 
         if (existingContact.length === 0) {
             return res.status(404).json({ 
-                message: "Company contact not found" 
+                message: "Company not found" 
             });
         }
 
@@ -239,13 +263,13 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
         if (updateData.companyName && updateData.companyName !== existingContact[0].companyName) {
             const duplicateCheck = await db
                 .select()
-                .from(companyContacts)
-                .where(eq(companyContacts.companyName, updateData.companyName))
+                .from(companies)
+                .where(eq(companies.companyName, updateData.companyName))
                 .limit(1);
 
             if (duplicateCheck.length > 0) {
                 return res.status(409).json({ 
-                    message: "A company contact with this name already exists" 
+                    message: "A company with this name already exists" 
                 });
             }
         }
@@ -278,21 +302,21 @@ router.patch("/:id", requireAdminAuth, async (req, res) => {
         // Always update the updatedAt timestamp
         updateFields.updatedAt = new Date();
 
-        // Update the contact
+        // Update the company
         const [updatedContact] = await db
-            .update(companyContacts)
+            .update(companies)
             .set(updateFields)
-            .where(eq(companyContacts.id, id))
+            .where(eq(companies.id, id))
             .returning();
 
-        console.log(`Updated company contact: ${updatedContact.companyName} (ID: ${id})`);
+        console.log(`Updated company: ${updatedContact.companyName} (ID: ${id})`);
 
         res.json(updatedContact);
 
     } catch (error) {
-        console.error("Error updating company contact:", error);
+        console.error("Error updating company:", error);
         res.status(500).json({ 
-            message: "Error updating company contact",
+            message: "Error updating company",
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
