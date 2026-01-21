@@ -506,6 +506,6 @@ export const LOS_ANGELES_ZIP_CODES = [
 
 export const COUNTIES = [
     {county: "San Diego", center: [32.7157, -117.1611]},
-    //{county: "Orange", center: [33.7879, -117.8531]},
-    //{county: "Los Angeles", center: [34.0522, -118.2437]},
+    {county: "Orange", center: [33.7879, -117.8531]},
+    {county: "Los Angeles", center: [34.0522, -118.2437]},
 ]
