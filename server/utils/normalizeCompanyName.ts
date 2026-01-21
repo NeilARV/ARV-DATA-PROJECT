@@ -44,11 +44,14 @@ export function normalizeCompanyNameForStorage(name: string | null | undefined):
       // Handle common business suffixes - keep them in specific formats
       const upperWord = cleanWord.toUpperCase();
       if (upperWord === 'LLC') return 'LLC';
+      if (upperWord === 'LLP') return 'LLP';
+      if (upperWord === 'PLLC') return 'PLLC';
+      if (upperWord === 'LC') return 'LC';
+      if (upperWord === 'PC' || upperWord === 'P.C.') return 'PC';
+      if (upperWord === 'LP') return 'LP';
+      if (upperWord === 'GP') return 'GP';
       if (upperWord === 'INC' || upperWord === 'INCORPORATED') return 'Inc';
       if (upperWord === 'CORP' || upperWord === 'CORPORATION') return 'Corp';
-      if (upperWord === 'LP') return 'LP';
-      if (upperWord === 'LLP') return 'LLP';
-      if (upperWord === 'PC' || upperWord === 'P.C.') return 'PC';
       
       // Capitalize first letter, lowercase the rest
       return cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();

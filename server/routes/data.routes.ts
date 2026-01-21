@@ -18,12 +18,14 @@ import {
 import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
 import { eq, and, sql, or } from "drizzle-orm";
-import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
+import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { mapPropertyType } from "server/utils/mapPropertyType";
 import { fetchCounty } from "server/utils/fetchCounty";
+import { normalizeAddress } from "server/utils/normalizeAddress";
+import { normalizePropertyType } from "server/utils/normalizePropertyType";
 
 const router = Router();
 
@@ -708,7 +710,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     companyId: companyId,
                                     propertyOwnerId: propertyOwnerId,
                                     propertyClassDescription: propertyData.property_class_description || null,
-                                    propertyType: propertyData.property_type || null,
+                                    propertyType: normalizePropertyType(propertyData.property_type) || null,
                                     vacant: propertyData.vacant || null,
                                     hoa: propertyData.hoa || null,
                                     ownerType: propertyData.owner_type || null,
@@ -732,7 +734,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     companyId: companyId,
                                     propertyOwnerId: propertyOwnerId,
                                     propertyClassDescription: propertyData.property_class_description || null,
-                                    propertyType: propertyData.property_type || null,
+                                    propertyType: normalizePropertyType(propertyData.property_type) || null,
                                     vacant: propertyData.vacant || null,
                                     hoa: propertyData.hoa || null,
                                     ownerType: propertyData.owner_type || null,
@@ -751,15 +753,15 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         if (propertyData.address) {
                             await db.insert(addresses).values({
                                     propertyId: propertyId,
-                                    formattedStreetAddress: propertyData.address.formatted_street_address || null,
+                                    formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
                                     streetNumber: propertyData.address.street_number || null,
                                     streetSuffix: propertyData.address.street_suffix || null,
                                     streetPreDirection: propertyData.address.street_pre_direction || null,
-                                    streetName: propertyData.address.street_name || null,
+                                    streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
                                     streetPostDirection: propertyData.address.street_post_direction || null,
                                     unitType: propertyData.address.unit_type || null,
                                     unitNumber: propertyData.address.unit_number || null,
-                                    city: propertyData.address.city || null,
+                                    city: normalizeToTitleCase(propertyData.address.city) || null,
                                     county: normalizedCounty,
                                     state: propertyData.address.state || null,
                                     zipCode: propertyData.address.zip_code || null,
@@ -851,7 +853,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     zoning: propertyData.parcel.zoning || null,
                                     countyLandUseCode: propertyData.parcel.county_land_use_code || null,
                                     lotNumber: propertyData.parcel.lot_number || null,
-                                    subdivision: propertyData.parcel.subdivision || null,
+                                    subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
                                     sectionTownshipRange: propertyData.parcel.section_township_range || null,
                                     legalDescription: propertyData.parcel.legal_description || null,
                                     stateLandUseCode: propertyData.parcel.state_land_use_code || null,
@@ -863,9 +865,9 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
                             await db.insert(schoolDistricts).values({
                                     propertyId: propertyId,
-                                    schoolTaxDistrict1: propertyData.school_tax_district_1 || null,
-                                    schoolTaxDistrict2: propertyData.school_tax_district_2 || null,
-                                    schoolTaxDistrict3: propertyData.school_tax_district_3 || null,
+                                    schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
+                                    schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
+                                    schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
                                     schoolDistrictName: propertyData.school_district_name || null,
                                 });
                             }
@@ -927,7 +929,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                     documentType: lastSale.document_type || null,
                                     mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
                                     mtgType: lastSale.mtg_type || null,
-                                    lender: lastSale.lender || null,
+                                    lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
                                     mtgInterestRate: lastSale.mtg_interest_rate || null,
                                     mtgTermMonths: lastSale.mtg_term_months || null,
                                 });
@@ -939,10 +941,10 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                             await db.insert(currentSales).values({
                                     propertyId: propertyId,
                                     docNum: currentSale.doc_num || null,
-                                    buyer1: currentSale.buyer_1 || currentSale.buyer1 || null,
-                                    buyer2: currentSale.buyer_2 || currentSale.buyer2 || null,
-                                    seller1: currentSale.seller_1 || currentSale.seller1 || null,
-                                    seller2: currentSale.seller_2 || currentSale.seller2 || null,
+                                    buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
+                                    buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
+                                    seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
+                                    seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
                                 });
                             }
                             

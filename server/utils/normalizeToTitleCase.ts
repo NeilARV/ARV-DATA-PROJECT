@@ -16,3 +16,25 @@ export function normalizeToTitleCase(text: string | null | undefined): string | 
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     }).join(' ');
 }
+
+/**
+ * Normalizes subdivision names to title case, but keeps numeric strings as-is.
+ * Example: "SUMMER HILL" -> "Summer Hill", "24515" -> "24515"
+ * 
+ * @param subdivision - The subdivision string to normalize
+ * @returns A normalized subdivision string, or null if input is invalid
+ */
+export function normalizeSubdivision(subdivision: string | null | undefined): string | null {
+    if (!subdivision || typeof subdivision !== 'string') return null;
+    
+    const trimmed = subdivision.trim();
+    if (trimmed.length === 0) return null;
+    
+    // If the entire string is numeric, keep it as-is
+    if (/^\d+$/.test(trimmed)) {
+        return trimmed;
+    }
+    
+    // Otherwise, apply title case normalization
+    return normalizeToTitleCase(trimmed);
+}
