@@ -316,6 +316,7 @@ CREATE TABLE last_sales (
     last_sales_id SERIAL PRIMARY KEY,
     property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     sale_date DATE,
+    recording_date DATE,
     price DECIMAL(15, 2),
     document_type VARCHAR(100),
     mtg_amount DECIMAL(15, 2),

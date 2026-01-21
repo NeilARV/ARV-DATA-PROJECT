@@ -188,6 +188,7 @@ export const lastSales = pgTable("last_sales", {
   lastSalesId: serial("last_sales_id").primaryKey(),
   propertyId: uuid("property_id").unique().notNull().references(() => properties.id, { onDelete: "cascade" }),
   saleDate: date("sale_date"),
+  recordingDate: date("recording_date"),
   price: decimal("price", { precision: 15, scale: 2 }),
   documentType: varchar("document_type", { length: 100 }),
   mtgAmount: decimal("mtg_amount", { precision: 15, scale: 2 }),
