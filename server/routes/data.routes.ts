@@ -891,7 +891,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             // ====================================================================
             // Check which properties already exist
             const sfrPropertyIds = validProperties.map(p => p.sfrPropertyId);
-            const existingPropertiesMap = new Map<number, any>();
+            const existingPropertiesMap = new Map<number, any>(); // keyed by sfrPropertyId
+            const existingPropertiesByIdMap = new Map<string, any>(); // keyed by property UUID
             
             if (sfrPropertyIds.length > 0) {
                 const existingProps = await db
@@ -901,6 +902,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 
                 for (const prop of existingProps) {
                     existingPropertiesMap.set(prop.sfrPropertyId, prop);
+                    existingPropertiesByIdMap.set(prop.id, prop);
                 }
             }
 
@@ -1001,6 +1003,13 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     };
                     
                     const existingProperty = existingPropertiesMap.get(sfrPropertyId);
+                    // Store property details for both inserts and updates (needed for transaction tracking)
+                    propertyDetailsMap.set(sfrPropertyId, {
+                        propertyData,
+                        recordInfo: recordInfo!,
+                        normalizedCounty
+                    });
+                    
                     if (existingProperty) {
                         propertiesToUpdate.push({
                             id: existingProperty.id,
@@ -1008,11 +1017,6 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         });
                     } else {
                         propertiesToInsert.push(propertyRecord);
-                        propertyDetailsMap.set(sfrPropertyId, {
-                            propertyData,
-                            recordInfo: recordInfo!,
-                            normalizedCounty
-                        });
                     }
                     
                 } catch (error: any) {
@@ -1330,6 +1334,193 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
             }
             if (currentSalesToInsert.length > 0) {
                 await db.insert(currentSales).values(currentSalesToInsert);
+            }
+
+            // ====================================================================
+            // STEP 6: COLLECT AND INSERT PROPERTY TRANSACTIONS (ACQUISITIONS)
+            // ====================================================================
+            // Collect transactions for all properties (both inserted and updated)
+            // We'll create transactions based on last_sale data showing when the company acquired the property
+
+            // Collect transaction data for all properties
+            const transactionsToInsert: any[] = [];
+            
+            // Process inserted properties
+            for (const insertedProp of insertedProperties) {
+                const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
+                if (!details || !insertedProp.companyId) continue;
+
+                const { propertyData, recordInfo } = details;
+                const companyId = insertedProp.companyId;
+                const propertyId = insertedProp.id;
+
+                // Create acquisition transaction from last_sale data (when company bought the property)
+                if (propertyData.last_sale || propertyData.lastSale) {
+                    const lastSale = propertyData.last_sale || propertyData.lastSale;
+                    const transactionDate = lastSale.date || null;
+
+                    if (transactionDate) {
+                        // Normalize transaction date to YYYY-MM-DD format
+                        let normalizedDate: string;
+                        if (typeof transactionDate === "string") {
+                            normalizedDate = transactionDate.split("T")[0];
+                        } else if (transactionDate instanceof Date) {
+                            normalizedDate = transactionDate.toISOString().split("T")[0];
+                        } else {
+                            continue; // Skip if date is invalid
+                        }
+
+                        // Get buyer name (the company)
+                        const buyerName = recordInfo.record.buyerName || null;
+                        const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
+
+                        // Get seller name from current_sale if available
+                        let sellerName: string | null = null;
+                        if (propertyData.current_sale || propertyData.currentSale) {
+                            const currentSale = propertyData.current_sale || propertyData.currentSale;
+                            sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
+                        }
+
+                        // Build notes with document type if available
+                        const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+
+                        transactionsToInsert.push({
+                            propertyId,
+                            companyId,
+                            transactionType: "acquisition",
+                            transactionDate: normalizedDate,
+                            salePrice: lastSale.price ? String(lastSale.price) : null,
+                            mtgType: lastSale.mtg_type || null,
+                            mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                            buyerName: normalizedBuyerName,
+                            sellerName,
+                            notes,
+                        });
+                    }
+                }
+            }
+
+            // Process updated properties
+            for (const propUpdate of propertiesToUpdate) {
+                const existingProp = existingPropertiesByIdMap.get(propUpdate.id);
+                if (!existingProp) continue;
+
+                const details = propertyDetailsMap.get(existingProp.sfrPropertyId);
+                if (!details) continue;
+
+                // Use updated companyId if available, otherwise use existing
+                const companyId = propUpdate.data.companyId || existingProp.companyId;
+                if (!companyId) continue;
+
+                const { propertyData, recordInfo } = details;
+                const propertyId = propUpdate.id;
+
+                // Create acquisition transaction from last_sale data (when company bought the property)
+                if (propertyData.last_sale || propertyData.lastSale) {
+                    const lastSale = propertyData.last_sale || propertyData.lastSale;
+                    const transactionDate = lastSale.date || null;
+
+                    if (transactionDate) {
+                        // Normalize transaction date to YYYY-MM-DD format
+                        let normalizedDate: string;
+                        if (typeof transactionDate === "string") {
+                            normalizedDate = transactionDate.split("T")[0];
+                        } else if (transactionDate instanceof Date) {
+                            normalizedDate = transactionDate.toISOString().split("T")[0];
+                        } else {
+                            continue; // Skip if date is invalid
+                        }
+
+                        // Get buyer name (the company)
+                        const buyerName = recordInfo.record.buyerName || null;
+                        const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
+
+                        // Get seller name from current_sale if available
+                        let sellerName: string | null = null;
+                        if (propertyData.current_sale || propertyData.currentSale) {
+                            const currentSale = propertyData.current_sale || propertyData.currentSale;
+                            sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
+                        }
+
+                        // Build notes with document type if available
+                        const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+
+                        transactionsToInsert.push({
+                            propertyId,
+                            companyId,
+                            transactionType: "acquisition",
+                            transactionDate: normalizedDate,
+                            salePrice: lastSale.price ? String(lastSale.price) : null,
+                            mtgType: lastSale.mtg_type || null,
+                            mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                            buyerName: normalizedBuyerName,
+                            sellerName,
+                            notes,
+                        });
+                    }
+                }
+            }
+
+            // Check for existing transactions to prevent duplicates
+            // We check for property_id + company_id + transaction_date + transaction_type combination
+            if (transactionsToInsert.length > 0) {
+                // Get unique property IDs and company IDs from transactions we want to insert
+                const propertyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.propertyId)));
+                const companyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.companyId).filter(id => id !== null)));
+
+                // Fetch existing transactions for these properties and companies
+                let existingTransactions: any[] = [];
+                if (propertyIdsToCheck.length > 0 && companyIdsToCheck.length > 0) {
+                    existingTransactions = await db
+                        .select({
+                            propertyId: propertyTransactions.propertyId,
+                            companyId: propertyTransactions.companyId,
+                            transactionDate: propertyTransactions.transactionDate,
+                            transactionType: propertyTransactions.transactionType,
+                        })
+                        .from(propertyTransactions)
+                        .where(
+                            and(
+                                inArray(propertyTransactions.propertyId, propertyIdsToCheck),
+                                inArray(propertyTransactions.companyId, companyIdsToCheck),
+                                eq(propertyTransactions.transactionType, "acquisition")
+                            )
+                        );
+                }
+
+                // Create a Set of existing transaction keys for fast lookup
+                const existingTxKeys = new Set<string>();
+                for (const existingTx of existingTransactions) {
+                    const key = `${existingTx.propertyId}-${existingTx.companyId}-${existingTx.transactionDate}-${existingTx.transactionType}`;
+                    existingTxKeys.add(key);
+                }
+
+                // Filter out transactions that already exist
+                const newTransactionsToInsert = transactionsToInsert.filter(tx => {
+                    const key = `${tx.propertyId}-${tx.companyId}-${tx.transactionDate}-${tx.transactionType}`;
+                    return !existingTxKeys.has(key);
+                });
+
+                // Batch insert new transactions
+                if (newTransactionsToInsert.length > 0) {
+                    try {
+                        await db.insert(propertyTransactions).values(newTransactionsToInsert);
+                        console.log(`[SFR SYNC V2] Inserted ${newTransactionsToInsert.length} new property transactions (${transactionsToInsert.length - newTransactionsToInsert.length} were duplicates)`);
+                    } catch (txError: any) {
+                        console.error(`[SFR SYNC V2] Error inserting property transactions:`, txError);
+                        // Try inserting one at a time to see which ones fail
+                        let insertedCount = 0;
+                        for (const tx of newTransactionsToInsert) {
+                            try {
+                                await db.insert(propertyTransactions).values(tx);
+                                insertedCount++;
+                            } catch (singleTxError: any) {
+                                console.error(`[SFR SYNC V2] Failed to insert transaction for property ${tx.propertyId}:`, singleTxError);
+                            }
+                        }
+                        console.log(`[SFR SYNC V2] Inserted ${insertedCount} transactions individually`);
+                    }
+                }
             }
 
             console.log(`[SFR SYNC V2] Processed batch ${batchNum}: ${totalProcessed} processed, ${propertiesToInsert.length} inserted, ${propertiesToUpdate.length} updated`);
