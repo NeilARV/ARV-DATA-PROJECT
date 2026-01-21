@@ -231,6 +231,12 @@ async function processProperty(
                                 updatedAt: new Date(),
                             })
                             .where(eq(companies.id, existingCompany.id));
+                        
+                        // Update the cached company object with the new counties array
+                        existingCompany.counties = countiesArray;
+                        if (normalizedCompanyNameForCompare) {
+                            contactsMap.set(normalizedCompanyNameForCompare, existingCompany);
+                        }
                     }
                 } catch (updateError: any) {
                     console.error(`[SFR SYNC V2] Error updating counties for company ${existingCompany.companyName}:`, updateError);
@@ -275,7 +281,49 @@ async function processProperty(
                         .where(eq(companies.companyName, normalizedCompanyNameForStorage))
                                             .limit(1);
                     if (duplicateCompany) {
-                                        if (normalizedCompanyNameForCompare) {
+                        // Update company's counties array if we have a new county
+                        if (county) {
+                            try {
+                                // Handle counties - new schema uses JSON type, so it's already an array
+                                let countiesArray: string[] = [];
+                                if (duplicateCompany.counties) {
+                                    if (Array.isArray(duplicateCompany.counties)) {
+                                        countiesArray = duplicateCompany.counties;
+                                    } else if (typeof duplicateCompany.counties === 'string') {
+                                        // Legacy: handle string format if still present
+                                        try {
+                                            countiesArray = JSON.parse(duplicateCompany.counties);
+                                        } catch (parseError) {
+                                            countiesArray = [];
+                                        }
+                                    }
+                                }
+                                
+                                // Check if county is already in the array (case-insensitive)
+                                const countyLower = county.toLowerCase();
+                                const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
+                                
+                                if (!countyExists) {
+                                    // Add the new county to the array
+                                    countiesArray.push(county);
+                                    await db
+                                        .update(companies)
+                                        .set({
+                                            counties: countiesArray,
+                                            updatedAt: new Date(),
+                                        })
+                                        .where(eq(companies.id, duplicateCompany.id));
+                                    
+                                    // Update the company object with the new counties array
+                                    duplicateCompany.counties = countiesArray;
+                                }
+                            } catch (updateError: any) {
+                                console.error(`[SFR SYNC V2] Error updating counties for duplicate company ${duplicateCompany.companyName}:`, updateError);
+                            }
+                        }
+                        
+                        // Update cache with the company (potentially with updated counties)
+                        if (normalizedCompanyNameForCompare) {
                             contactsMap.set(normalizedCompanyNameForCompare, duplicateCompany);
                         }
                         return duplicateCompany.id;
@@ -976,16 +1024,15 @@ router.post("/v2/sfr", requireAdminAuth, async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        // Fetch only the MSA with id = 1 (San Diego)
+        // Fetch all MSAs from the sync state table
         const allSyncStates = await db
             .select()
-            .from(sfrSyncStateV2)
-            .where(eq(sfrSyncStateV2.id, 1));
+            .from(sfrSyncStateV2);
 
         if (allSyncStates.length === 0) {
             return res.status(400).json({ 
-                message: "MSA with id = 1 not found in sync state table.",
-                error: "MSA not found"
+                message: "No MSAs found in sync state table.",
+                error: "No MSAs found"
             });
         }
 
