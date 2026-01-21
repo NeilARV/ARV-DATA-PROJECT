@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
-import { SAN_DIEGO_ZIP_CODES, ORANGE_ZIP_CODES, LOS_ANGELES_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
+import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
@@ -74,6 +74,17 @@ export default function Home() {
   const getCountyCenter = (countyName: string): [number, number] | undefined => {
     const county = COUNTIES.find(c => c.county === countyName);
     return county?.center as [number, number] | undefined;
+  };
+
+  // Helper function to get state from county name
+  const getStateFromCounty = (countyName: string): string => {
+    const county = COUNTIES.find(c => c.county === countyName);
+    return county?.state ?? 'CA'; // Default to CA if not found
+  };
+
+  // Helper function to convert county name to object key format (e.g., "San Diego" -> "san_diego")
+  const countyNameToKey = (countyName: string): string => {
+    return countyName.toLowerCase().replace(/\s+/g, '_');
   };
   
   // Get default San Diego center from COUNTIES array
@@ -654,13 +665,31 @@ export default function Home() {
       
       // Handle city filter (medium priority)
       if (filters?.city && filters.city.trim() !== '') {
-        // Get the appropriate zip code list based on county
+        // Get the appropriate zip code list based on state and county
         const countyName = filters?.county ?? 'San Diego';
-        const currentZipCodeList = countyName === 'Orange' 
-          ? ORANGE_ZIP_CODES 
-          : countyName === 'Los Angeles' 
-          ? LOS_ANGELES_ZIP_CODES 
-          : SAN_DIEGO_ZIP_CODES;
+        const state = getStateFromCounty(countyName);
+        const countyKey = countyNameToKey(countyName);
+
+        // Get the appropriate MSA zip codes object based on state
+        let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
+        if (state === 'CA') {
+          // Check if it's Los Angeles MSA (Los Angeles or Orange county)
+          if (countyName === 'Los Angeles' || countyName === 'Orange') {
+            msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
+          } else {
+            // San Diego MSA (San Diego county)
+            msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+          }
+        } else if (state === 'CO') {
+          // Denver MSA
+          msaZipCodes = DENVER_MSA_ZIP_CODES;
+        } else {
+          // Default to San Diego MSA
+          msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+        }
+
+        // Get the zip codes for the specific county
+        const currentZipCodeList = msaZipCodes[countyKey] || [];
         
         // Get the first zip code for this city to use for geocoding
         const cityZipCodes = currentZipCodeList.filter(z => {
@@ -721,16 +750,35 @@ export default function Home() {
     fetchLocation();
   }, [filters?.zipCode, filters?.city, filters?.county, selectedCompany]);
 
-  // Get the appropriate zip code list based on county filter
+  // Get the appropriate zip code list based on state and county filter
   const zipCodeList = useMemo(() => {
     const countyName = filters.county ?? 'San Diego';
-    if (countyName === 'Orange') {
-      return ORANGE_ZIP_CODES;
-    } else if (countyName === 'Los Angeles') {
-      return LOS_ANGELES_ZIP_CODES;
+    const state = getStateFromCounty(countyName);
+    const countyKey = countyNameToKey(countyName);
+
+    // Get the appropriate MSA zip codes object based on state
+    let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
+    if (state === 'CA') {
+      // Check if it's Los Angeles MSA (Los Angeles or Orange county)
+      if (countyName === 'Los Angeles' || countyName === 'Orange') {
+        msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
+      } else {
+        // San Diego MSA (San Diego county)
+        msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+      }
+    } else if (state === 'CO') {
+      // Denver MSA
+      msaZipCodes = DENVER_MSA_ZIP_CODES;
     } else {
-      return SAN_DIEGO_ZIP_CODES;
+      // Default to San Diego MSA
+      msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
     }
+
+    // Get the zip codes for the specific county
+    const countyZipCodes = msaZipCodes[countyKey];
+    
+    // Return the array or empty array if county not found
+    return Array.isArray(countyZipCodes) ? countyZipCodes : [];
   }, [filters.county]);
 
   // Filter map pins for map view (using minimal data)

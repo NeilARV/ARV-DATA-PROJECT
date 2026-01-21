@@ -30,7 +30,7 @@ export function normalizePropertyType(propertyType: string | null | undefined): 
     
     // 2. Check for Condominium (case-insensitive)
     if (lowerType.includes('condominium')) {
-        return 'Condominium';
+        return 'Condo';
     }
     
     // 3. Check for Duplex (case-insensitive)
