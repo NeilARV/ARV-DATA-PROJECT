@@ -707,13 +707,15 @@ router.delete("/", requireAdminAuth, async (_req, res) => {
 });
 
 // Delete a single property by ID (requires admin auth)
+// Cascades to delete all related data (addresses, structures, assessments, etc.)
 router.delete("/:id", requireAdminAuth, async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`[DELETE] Attempting to delete property ID: ${id}`);
+        
         const deleted = await db
-            .delete(properties)
-            .where(eq(properties.id, id))
+            .delete(propertiesV2)
+            .where(eq(propertiesV2.id, id))
             .returning();
 
         if (deleted.length === 0) {
@@ -721,10 +723,11 @@ router.delete("/:id", requireAdminAuth, async (req, res) => {
             return res.status(404).json({ message: "Property not found" });
         }
 
-        console.log(`[DELETE] Successfully deleted property: ${deleted[0].address}`);
+        console.log(`[DELETE] Successfully deleted property: ${id} (SFR Property ID: ${deleted[0].sfrPropertyId})`);
         res.json({
             message: "Property deleted successfully",
-            property: deleted[0],
+            id: deleted[0].id,
+            sfrPropertyId: deleted[0].sfrPropertyId,
         });
 
     } catch (error) {
