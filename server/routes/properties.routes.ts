@@ -8,14 +8,23 @@ import {
     properties as propertiesV2, 
     addresses, 
     structures, 
-    lastSales 
+    lastSales,
+    currentSales,
+    assessments,
+    exemptions,
+    parcels,
+    schoolDistricts,
+    taxRecords,
+    valuations,
+    preForeclosures
 } from "../../database/schemas/properties.schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
-import { normalizeToTitleCase } from "server/utils/normalizeToTitleCase";
+import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
 import { normalizeAddress } from "server/utils/normalizeAddress";
 import { fetchCounty } from "server/utils/fetchCounty";
 import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
+import { normalizePropertyType } from "server/utils/normalizePropertyType";
 import { eq, sql, or, and, desc, asc, getTableColumns } from "drizzle-orm";
 import pLimit from "p-limit";
 import dotenv from "dotenv";
@@ -33,383 +42,455 @@ router.post("/", requireAdminAuth, async (req, res) => {
     try {
         console.log("POST /api/properties - Raw request body:", JSON.stringify(req.body, null, 2));
 
-        // Validate request body with Zod schema
-        const validation = insertPropertySchema.safeParse(req.body);
-
-        if (!validation.success) {
-            console.error(
-                "Validation errors:",
-                JSON.stringify(validation.error.errors, null, 2),
-            );
+        // Validate that we have the required address fields
+        const { address, city, state, zipCode } = req.body;
+        
+        if (!address || !city || !state || !zipCode) {
             return res.status(400).json({
-                message: "Invalid property data",
-                errors: validation.error.errors,
+                message: "Missing required fields",
+                errors: [
+                    { path: [], message: "address, city, state, and zipCode are required" }
+                ],
             });
         }
 
-        const propertyData = validation.data;
-        console.log("Validated property data:", JSON.stringify(propertyData, null, 2));
-        
-        // Normalize text fields to Title Case
-        // Convert empty strings to null for optional fields
-        // Check if form provided company contact info (before we normalize)
-        // Type assertion needed because these fields exist in insertPropertySchema but not in the table
-        const propertyDataWithCompany = propertyData as typeof propertyData & {
-            companyContactName?: string | null;
-            companyContactEmail?: string | null;
-            propertyOwner?: string | null;
-        };
-        const formProvidedContactName = propertyDataWithCompany.companyContactName != null && 
-            typeof propertyDataWithCompany.companyContactName === 'string' && 
-            propertyDataWithCompany.companyContactName.trim() !== "";
-        const formProvidedContactEmail = propertyDataWithCompany.companyContactEmail != null && 
-            typeof propertyDataWithCompany.companyContactEmail === 'string' && 
-            propertyDataWithCompany.companyContactEmail.trim() !== "";
-        
-        let enriched: any = {
-            ...propertyData,
-            address: normalizeAddress(propertyData.address) || propertyData.address,
-            city: normalizeToTitleCase(propertyData.city) || propertyData.city,
-            state: propertyData.state?.toUpperCase().trim() || propertyData.state,
-            // Convert empty description to null
-            description: propertyData.description && typeof propertyData.description === 'string' && propertyData.description.trim() !== ""
-                ? propertyData.description.trim()
-                : null,
-            // Convert empty imageUrl to null
-            imageUrl: propertyData.imageUrl && typeof propertyData.imageUrl === 'string' && propertyData.imageUrl.trim() !== ""
-                ? propertyData.imageUrl.trim()
-                : null,
-            // Convert empty dateSold strings to null (form sends empty string for empty date fields)
-            dateSold: propertyData.dateSold && typeof propertyData.dateSold === 'string' && propertyData.dateSold.trim() !== "" 
-                ? propertyData.dateSold 
-                : null,
-        };
+        // Format address for SFR API: "7612 HILLSIDE DR, LA JOLLA, CA 92037"
+        const formattedAddress = `${address.toUpperCase()}, ${city.toUpperCase()}, ${state.toUpperCase()} ${zipCode}`;
+        console.log(`Formatted address for SFR API: ${formattedAddress}`);
 
-        // Set default status if not provided
-        if (!enriched.status) {
-            enriched.status = "in-renovation";
+        // Get SFR API credentials
+        const API_KEY = process.env.SFR_API_KEY;
+        const API_URL = process.env.SFR_API_URL;
+
+        if (!API_KEY || !API_URL) {
+            return res.status(500).json({
+                message: "SFR API not configured",
+                error: "SFR_API_KEY and SFR_API_URL must be set"
+            });
         }
 
-        // Set saleValue to same as price
-        enriched.saleValue = enriched.price;
+        // Call SFR API /properties/by-address endpoint
+        const sfrApiUrl = `${API_URL}/properties/by-address?address=${encodeURIComponent(formattedAddress)}`;
+        console.log(`Calling SFR API: ${sfrApiUrl}`);
+        
+        const sfrResponse = await fetch(sfrApiUrl, {
+            method: 'GET',
+            headers: {
+                'X-API-TOKEN': API_KEY,
+            },
+        });
 
-        // Set purchasePrice to same as price
-        enriched.purchasePrice = enriched.price;
-
-        // Set isCorporate to true (company only works with corporate entities)
-        enriched.isCorporate = true;
-
-        // Set lender to "ARV Finance"
-        enriched.lenderName = "ARV Finance";
-
-        // Set recordingDate to same as dateSold
-        enriched.recordingDate = enriched.dateSold;
-
-        // Determine MSA from zip code
-        const msa = getMSAFromZipCode(enriched.zipCode);
-        if (msa) {
-            enriched.msa = msa;
-            console.log(`MSA determined from zip code ${enriched.zipCode}: ${msa}`);
-        } else {
-            enriched.msa = null;
-            console.log(`Could not determine MSA for zip code: ${enriched.zipCode}`);
+        if (!sfrResponse.ok) {
+            const errorText = await sfrResponse.text();
+            console.error(`SFR API error: ${sfrResponse.status} - ${errorText}`);
+            return res.status(sfrResponse.status).json({
+                message: "Failed to fetch property from SFR API",
+                error: errorText
+            });
         }
 
-        // Geocode if lat/lng not provided or invalid
-        const hasValidCoords =
-            enriched.latitude != null &&
-            enriched.longitude != null &&
-            !isNaN(Number(enriched.latitude)) &&
-            !isNaN(Number(enriched.longitude));
+        const propertyData = await sfrResponse.json();
+        console.log("SFR API response received");
 
-        if (!hasValidCoords) {
-            console.log(
-                `Geocoding address: ${enriched.address}, ${enriched.city}, ${enriched.state} ${enriched.zipCode}`,
-            );
-            const coords = await geocodeAddress(
-                enriched.address,
-                enriched.city,
-                enriched.state,
-                enriched.zipCode,
-            );
-            
-            if (coords) {
-                enriched.latitude = coords.lat;
-                enriched.longitude = coords.lng;
-                console.log(`Geocoded to: (${coords.lat}, ${coords.lng})`);
-            } else {
-                // Geocoding failed - allow property creation without coordinates
-                console.warn(
-                `Geocoding unavailable for: ${enriched.address}. Property will be created without map coordinates.`,
-                );
-                enriched.latitude = null;
-                enriched.longitude = null;
+        if (!propertyData || !propertyData.property_id) {
+            return res.status(404).json({
+                message: "Property not found in SFR API",
+                error: "No property data returned"
+            });
+        }
+
+        // Extract property ID
+        const sfrPropertyId = propertyData.property_id;
+        
+        // Check if property already exists
+        const [existingProperty] = await db
+            .select()
+            .from(propertiesV2)
+            .where(eq(propertiesV2.sfrPropertyId, Number(sfrPropertyId)))
+            .limit(1);
+
+        // Get county from coordinates
+        const normalizedCounty = await fetchCounty(
+            propertyData.address?.longitude,
+            propertyData.address?.latitude
+        );
+
+        // Get buyer name from current_sale for company lookup
+        const buyerName = propertyData.current_sale?.buyer_1 || propertyData.currentSale?.buyer1 || null;
+        
+        // Load all companies into memory for lookup
+        const allCompanies = await db.select().from(companies);
+        const contactsMap = new Map<string, typeof allCompanies[0]>();
+        for (const company of allCompanies) {
+            const normalizedKey = normalizeCompanyNameForComparison(company.companyName);
+            if (normalizedKey) {
+                contactsMap.set(normalizedKey, company);
             }
-        } else {
-            console.log(
-                `Using provided coordinates for: ${enriched.address} (${enriched.latitude}, ${enriched.longitude})`,
-            );
         }
 
-        // Get county from longitude and latitude - do this after geocoding in case coordinates were just added
-        if (enriched.latitude && enriched.longitude) {
-            console.log(`Fetching county for coordinates: (${enriched.longitude}, ${enriched.latitude})`);
-            const county = await fetchCounty(enriched.longitude, enriched.latitude);
-            if (county) {
-                enriched.county = county;
-                console.log(`County found: ${county}`);
-            } else {
-                // County not found - use "UNKNOWN" as default (required field)
-                enriched.county = "UNKNOWN";
-                console.warn(`County not found for coordinates, using "UNKNOWN"`);
+        // Helper function to upsert company (similar to data.routes.ts)
+        const upsertCompany = async (companyName: string, county: string | null): Promise<string | null> => {
+            const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(companyName);
+            if (!normalizedCompanyNameForStorage) {
+                return null;
             }
-        } else {
-            // No coordinates available - use "UNKNOWN" as default (required field)
-            enriched.county = "UNKNOWN";
-            console.warn(`No coordinates available, cannot determine county. Using "UNKNOWN"`);
-        }
-
-        // Handle company contact lookup/creation/update
-        // Get property's county for county tracking (skip if "UNKNOWN")
-        const propertyCounty = enriched.county && enriched.county !== "UNKNOWN" ? enriched.county : null;
-        
-        // Check if companyId was provided directly (from frontend when selecting from search)
-        // Also check propertyOwnerId for backward compatibility
-        let companyContactId: string | null = null;
-        
-        // Get the company ID from the form data (companyId takes priority over legacy propertyOwnerId)
-        const formCompanyId = (propertyDataWithCompany as any).companyId || propertyDataWithCompany.propertyOwnerId;
-        
-        // If companyId/propertyOwnerId is provided directly, use it (user selected from search)
-        if (formCompanyId && typeof formCompanyId === 'string') {
-            // Verify the company exists
-            const [contactById] = await db
-                .select()
-                .from(companies)
-                .where(eq(companies.id, formCompanyId))
-                .limit(1);
             
-            if (contactById) {
-                companyContactId = contactById.id;
-                
-                // Check if contact info needs updating (user may have modified name/email)
-                const contactNameChanged = formProvidedContactName && 
-                    propertyDataWithCompany.companyContactName && 
-                    contactById.contactName !== propertyDataWithCompany.companyContactName.trim();
-                
-                const contactEmailChanged = formProvidedContactEmail && 
-                    propertyDataWithCompany.companyContactEmail && 
-                    contactById.contactEmail !== propertyDataWithCompany.companyContactEmail.trim();
-                
-                // Update counties if we have a valid county
-                let updateFields: any = {
-                    updatedAt: new Date(),
-                };
-                
-                if (propertyCounty) {
+            const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
+            const existingCompany = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
+            
+            if (existingCompany) {
+                // Update company's counties array if we have a new county
+                if (county) {
                     try {
-                        // Handle counties - new schema uses JSON type, so it's already an array
                         let countiesArray: string[] = [];
-                        if (contactById.counties) {
-                            if (Array.isArray(contactById.counties)) {
-                                countiesArray = contactById.counties;
-                            } else if (typeof contactById.counties === 'string') {
-                                // Legacy: handle string format if still present
+                        if (existingCompany.counties) {
+                            if (Array.isArray(existingCompany.counties)) {
+                                countiesArray = existingCompany.counties;
+                            } else if (typeof existingCompany.counties === 'string') {
                                 try {
-                                    countiesArray = JSON.parse(contactById.counties);
+                                    countiesArray = JSON.parse(existingCompany.counties);
                                 } catch (parseError) {
-                                    console.warn(`Failed to parse counties JSON for ${contactById.companyName}, starting fresh`);
                                     countiesArray = [];
                                 }
                             }
                         }
                         
-                        // Check if county is already in the array (case-insensitive)
-                        const countyLower = propertyCounty.toLowerCase();
+                        const countyLower = county.toLowerCase();
                         const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
                         
                         if (!countyExists) {
-                            // Add the new county to the array
-                            countiesArray.push(propertyCounty);
-                            updateFields.counties = countiesArray; // Drizzle will serialize JSON automatically
-                            console.log(`Adding new county ${propertyCounty} to company contact ${contactById.companyName}`);
-                        }
-                    } catch (updateError: any) {
-                        console.error(`Error updating counties for company contact ${contactById.companyName}:`, updateError);
-                    }
-                }
-                
-                if (contactNameChanged && propertyDataWithCompany.companyContactName) {
-                    updateFields.contactName = propertyDataWithCompany.companyContactName.trim();
-                }
-                
-                if (contactEmailChanged && propertyDataWithCompany.companyContactEmail) {
-                    updateFields.contactEmail = propertyDataWithCompany.companyContactEmail.trim();
-                }
-                
-                // Only update if there are fields to update
-                if (updateFields.counties || contactNameChanged || contactEmailChanged) {
-                    await db
-                        .update(companies)
-                        .set(updateFields)
-                        .where(eq(companies.id, contactById.id));
-                    
-                    console.log(`Updated company contact: ${contactById.companyName} (ID: ${contactById.id})`);
-                }
-                
-                console.log(`Using provided company contact ID: ${contactById.companyName} (ID: ${contactById.id})`);
-            } else {
-                console.warn(`Provided companyId ${formCompanyId} not found, will search by name instead`);
-            }
-        }
-        
-        // If no ID was provided or ID lookup failed, search by company name
-        if (!companyContactId && propertyDataWithCompany.propertyOwner && propertyDataWithCompany.propertyOwner.trim() !== "") {
-            // Normalize company name for storage
-            const normalizedOwnerForStorage = normalizeCompanyNameForStorage(propertyDataWithCompany.propertyOwner);
-            const normalizedOwnerForCompare = normalizeCompanyNameForComparison(normalizedOwnerForStorage || propertyDataWithCompany.propertyOwner);
-            
-            // Search for existing company using normalized comparison
-            const allContacts = await db.select().from(companies);
-            
-            const existingContact = allContacts.find(c => {
-                const normalizedContact = normalizeCompanyNameForComparison(c.companyName);
-                return normalizedContact && normalizedContact === normalizedOwnerForCompare;
-            });
-
-            if (existingContact) {
-                // Company exists - check if contact info needs updating
-                companyContactId = existingContact.id;
-                
-                // Check if form provided values differ from DB values
-                const contactNameChanged = formProvidedContactName && 
-                    propertyDataWithCompany.companyContactName && 
-                    existingContact.contactName !== propertyDataWithCompany.companyContactName.trim();
-                
-                const contactEmailChanged = formProvidedContactEmail && 
-                    propertyDataWithCompany.companyContactEmail && 
-                    existingContact.contactEmail !== propertyDataWithCompany.companyContactEmail.trim();
-                
-                // Update counties if we have a valid county
-                let updateFields: any = {
-                    updatedAt: new Date(),
-                };
-                
-                if (propertyCounty) {
-                    try {
-                        // Handle counties - new schema uses JSON type, so it's already an array
-                        let countiesArray: string[] = [];
-                        if (existingContact.counties) {
-                            if (Array.isArray(existingContact.counties)) {
-                                countiesArray = existingContact.counties;
-                            } else if (typeof existingContact.counties === 'string') {
-                                // Legacy: handle string format if still present
-                                try {
-                                    countiesArray = JSON.parse(existingContact.counties);
-                                } catch (parseError) {
-                                    console.warn(`Failed to parse counties JSON for ${existingContact.companyName}, starting fresh`);
-                                    countiesArray = [];
-                                }
+                            countiesArray.push(county);
+                            await db
+                                .update(companies)
+                                .set({
+                                    counties: countiesArray,
+                                    updatedAt: new Date(),
+                                })
+                                .where(eq(companies.id, existingCompany.id));
+                            
+                            existingCompany.counties = countiesArray;
+                            if (normalizedCompanyNameForCompare) {
+                                contactsMap.set(normalizedCompanyNameForCompare, existingCompany);
                             }
                         }
-                        
-                        // Check if county is already in the array (case-insensitive)
-                        const countyLower = propertyCounty.toLowerCase();
-                        const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
-                        
-                        if (!countyExists) {
-                            // Add the new county to the array
-                            countiesArray.push(propertyCounty);
-                            updateFields.counties = countiesArray; // Drizzle will serialize JSON automatically
-                            console.log(`Adding new county ${propertyCounty} to company contact ${existingContact.companyName}`);
-                        }
                     } catch (updateError: any) {
-                        console.error(`Error updating counties for company contact ${existingContact.companyName}:`, updateError);
+                        console.error(`Error updating counties for company ${existingCompany.companyName}:`, updateError);
                     }
                 }
-                
-                if (contactNameChanged && propertyDataWithCompany.companyContactName) {
-                    updateFields.contactName = propertyDataWithCompany.companyContactName.trim();
-                }
-                
-                if (contactEmailChanged && propertyDataWithCompany.companyContactEmail) {
-                    updateFields.contactEmail = propertyDataWithCompany.companyContactEmail.trim();
-                }
-                
-                // Only update if there are fields to update
-                if (updateFields.counties || contactNameChanged || contactEmailChanged) {
-                    await db
-                        .update(companies)
-                        .set(updateFields)
-                        .where(eq(companies.id, existingContact.id));
-                    
-                    console.log(`Updated company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
-                }
-                
-                console.log(`Using existing company contact: ${existingContact.companyName} (ID: ${existingContact.id})`);
-            } else {
-                // Company doesn't exist - create new company contact
-                // Initialize counties array with the property's county if available
-                const countiesArray = propertyCounty ? [propertyCounty] : [];
-                
-                const newContactData: any = {
-                    companyName: normalizedOwnerForStorage || propertyDataWithCompany.propertyOwner,
-                    contactName: formProvidedContactName && propertyDataWithCompany.companyContactName 
-                        ? propertyDataWithCompany.companyContactName.trim() 
-                        : null,
-                    contactEmail: formProvidedContactEmail && propertyDataWithCompany.companyContactEmail 
-                        ? propertyDataWithCompany.companyContactEmail.trim() 
-                        : null,
-                    counties: countiesArray, // Drizzle will serialize JSON automatically
-                };
-                
-                const [newContact] = await db
+                return existingCompany.id;
+            }
+            
+            // Create new company
+            try {
+                const countiesArray = county ? [county] : [];
+                const [newCompany] = await db
                     .insert(companies)
-                    .values(newContactData)
+                    .values({
+                        companyName: normalizedCompanyNameForStorage,
+                        contactName: null,
+                        contactEmail: propertyData.owner?.contact_email || null,
+                        phoneNumber: propertyData.owner?.phone || null,
+                        counties: countiesArray,
+                        updatedAt: new Date(),
+                    })
                     .returning();
                 
-                companyContactId = newContact.id;
-                console.log(`Created new company contact: ${newContact.companyName} (ID: ${newContact.id}) with county: ${propertyCounty || 'none'}`);
+                if (normalizedCompanyNameForCompare) {
+                    contactsMap.set(normalizedCompanyNameForCompare, newCompany);
+                }
+                
+                return newCompany.id;
+            } catch (companyError: any) {
+                if (!companyError?.message?.includes("duplicate") && !companyError?.code?.includes("23505")) {
+                    console.error(`Error creating company:`, companyError);
+                    return null;
+                } else {
+                    // Fetch existing company if duplicate
+                    try {
+                        const [duplicateCompany] = await db
+                            .select()
+                            .from(companies)
+                            .where(eq(companies.companyName, normalizedCompanyNameForStorage))
+                            .limit(1);
+                        if (duplicateCompany) {
+                            if (normalizedCompanyNameForCompare) {
+                                contactsMap.set(normalizedCompanyNameForCompare, duplicateCompany);
+                            }
+                            return duplicateCompany.id;
+                        }
+                    } catch {}
+                }
+                return null;
             }
-        }
-        
-        // Set companyId (more reliably filled than propertyOwnerId)
-        enriched.companyId = companyContactId;
-        
-        // Remove legacy fields that are no longer used (they're in company_contacts table now)
-        delete enriched.propertyOwner;
-        delete enriched.companyContactName;
-        delete enriched.companyContactEmail;
+        };
 
-        console.log("Final enriched property data:", JSON.stringify(enriched, null, 2));
-
-        const [inserted] = await db
-            .insert(properties)
-            .values(enriched)
-            .returning();
+        // Get company ID from buyer name
+        let companyId: string | null = null;
+        let propertyOwnerId: string | null = null;
         
-        console.log(`Property created: ${inserted.address} (ID: ${inserted.id})`);
-
-        // Add warning in response if coordinates or county are missing
-        const warnings: string[] = [];
-        if (!inserted.latitude || !inserted.longitude) {
-            warnings.push(
-                "Property created without map coordinates. Enable Google Geocoding API or provide latitude/longitude to display on map."
-            );
-        }
-        if (inserted.county === "UNKNOWN") {
-            warnings.push(
-                "County could not be determined. The property has been saved with county set to 'UNKNOWN'."
-            );
+        if (buyerName) {
+            companyId = await upsertCompany(buyerName, normalizedCounty);
+            propertyOwnerId = companyId;
         }
 
-        if (warnings.length > 0) {
-            res.json({
-                ...inserted,
-                _warning: warnings.join(" "),
+        // Determine status and listing status
+        const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
+        const status = "in-renovation";
+        const listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
+
+        // Get MSA from property data or zip code
+        const msa = propertyData.msa || getMSAFromZipCode(propertyData.address?.zip_code || zipCode) || null;
+
+        // Insert/update property in normalized schema (similar to data.routes.ts)
+        if (existingProperty) {
+            // Update existing property
+            await db
+                .update(propertiesV2)
+                .set({
+                    companyId: companyId,
+                    propertyOwnerId: propertyOwnerId,
+                    propertyClassDescription: propertyData.property_class_description || null,
+                    propertyType: normalizePropertyType(propertyData.property_type) || null,
+                    vacant: propertyData.vacant || null,
+                    hoa: propertyData.hoa || null,
+                    ownerType: propertyData.owner_type || null,
+                    purchaseMethod: propertyData.purchase_method || null,
+                    listingStatus: listingStatus,
+                    status: status,
+                    monthsOwned: propertyData.months_owned || null,
+                    msa: msa,
+                    county: normalizedCounty,
+                    updatedAt: sql`now()`,
+                })
+                .where(eq(propertiesV2.id, existingProperty.id));
+            
+            console.log(`Property updated: ${sfrPropertyId}`);
+            res.json({ 
+                message: "Property updated successfully",
+                id: existingProperty.id,
+                sfrPropertyId: Number(sfrPropertyId)
             });
         } else {
-            res.json(inserted);
+            // Insert new property
+            const [newProperty] = await db
+                .insert(propertiesV2)
+                .values({
+                    sfrPropertyId: Number(sfrPropertyId),
+                    companyId: companyId,
+                    propertyOwnerId: propertyOwnerId,
+                    propertyClassDescription: propertyData.property_class_description || null,
+                    propertyType: normalizePropertyType(propertyData.property_type) || null,
+                    vacant: propertyData.vacant || null,
+                    hoa: propertyData.hoa || null,
+                    ownerType: propertyData.owner_type || null,
+                    purchaseMethod: propertyData.purchase_method || null,
+                    listingStatus: listingStatus,
+                    status: status,
+                    monthsOwned: propertyData.months_owned || null,
+                    msa: msa,
+                    county: normalizedCounty,
+                })
+                .returning();
+            
+            const propertyId = newProperty.id;
+            
+            // Insert address
+            if (propertyData.address) {
+                await db.insert(addresses).values({
+                    propertyId: propertyId,
+                    formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
+                    streetNumber: propertyData.address.street_number || null,
+                    streetSuffix: propertyData.address.street_suffix || null,
+                    streetPreDirection: propertyData.address.street_pre_direction || null,
+                    streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
+                    streetPostDirection: propertyData.address.street_post_direction || null,
+                    unitType: propertyData.address.unit_type || null,
+                    unitNumber: propertyData.address.unit_number || null,
+                    city: normalizeToTitleCase(propertyData.address.city) || null,
+                    county: normalizedCounty,
+                    state: propertyData.address.state || null,
+                    zipCode: propertyData.address.zip_code || null,
+                    zipPlusFourCode: propertyData.address.zip_plus_four_code || null,
+                    carrierCode: propertyData.address.carrier_code || null,
+                    latitude: propertyData.address.latitude ? String(propertyData.address.latitude) : null,
+                    longitude: propertyData.address.longitude ? String(propertyData.address.longitude) : null,
+                    geocodingAccuracy: propertyData.address.geocoding_accuracy || null,
+                    censusTract: propertyData.address.census_tract || null,
+                    censusBlock: propertyData.address.census_block || null,
+                });
+            }
+            
+            // Insert structure, assessments, exemptions, parcels, school districts, tax records, valuations, preForeclosures, lastSales, currentSales
+            // (Similar to data.routes.ts - inserting all related data)
+            
+            // Insert structure
+            if (propertyData.structure) {
+                await db.insert(structures).values({
+                    propertyId: propertyId,
+                    totalAreaSqFt: propertyData.structure.total_area_sq_ft || null,
+                    yearBuilt: propertyData.structure.year_built || null,
+                    effectiveYearBuilt: propertyData.structure.effective_year_built || null,
+                    bedsCount: propertyData.structure.beds_count || null,
+                    roomsCount: propertyData.structure.rooms_count || null,
+                    baths: propertyData.structure.baths ? String(propertyData.structure.baths) : null,
+                    basementType: propertyData.structure.basement_type || null,
+                    condition: propertyData.structure.condition || null,
+                    constructionType: propertyData.structure.construction_type || null,
+                    exteriorWallType: propertyData.structure.exterior_wall_type || null,
+                    fireplaces: propertyData.structure.fireplaces || null,
+                    heatingType: propertyData.structure.heating_type || null,
+                    heatingFuelType: propertyData.structure.heating_fuel_type || null,
+                    parkingSpacesCount: propertyData.structure.parking_spaces_count || null,
+                    poolType: propertyData.structure.pool_type || null,
+                    quality: propertyData.structure.quality || null,
+                    roofMaterialType: propertyData.structure.roof_material_type || null,
+                    roofStyleType: propertyData.structure.roof_style_type || null,
+                    sewerType: propertyData.structure.sewer_type || null,
+                    stories: propertyData.structure.stories || null,
+                    unitsCount: propertyData.structure.units_count || null,
+                    waterType: propertyData.structure.water_type || null,
+                    livingAreaSqft: propertyData.structure.living_area_sqft || null,
+                    acDescription: propertyData.structure.ac_description || null,
+                    garageDescription: propertyData.structure.garage_description || null,
+                    buildingClassDescription: propertyData.structure.building_class_description || null,
+                    sqftDescription: propertyData.structure.sqft_description || null,
+                });
+            }
+            
+            // Insert assessment
+            if (propertyData.assessments && propertyData.assessed_year) {
+                await db.insert(assessments).values({
+                    propertyId: propertyId,
+                    assessedYear: propertyData.assessed_year,
+                    landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
+                    improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
+                    assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
+                    marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
+                });
+            }
+            
+            // Insert exemption
+            if (propertyData.exemptions) {
+                await db.insert(exemptions).values({
+                    propertyId: propertyId,
+                    homeowner: propertyData.exemptions.homeowner || null,
+                    veteran: propertyData.exemptions.veteran || null,
+                    disabled: propertyData.exemptions.disabled || null,
+                    widow: propertyData.exemptions.widow || null,
+                    senior: propertyData.exemptions.senior || null,
+                    school: propertyData.exemptions.school || null,
+                    religious: propertyData.exemptions.religious || null,
+                    welfare: propertyData.exemptions.welfare || null,
+                    public: propertyData.exemptions.public || null,
+                    cemetery: propertyData.exemptions.cemetery || null,
+                    hospital: propertyData.exemptions.hospital || null,
+                    library: propertyData.exemptions.library || null,
+                });
+            }
+            
+            // Insert parcel
+            if (propertyData.parcel) {
+                await db.insert(parcels).values({
+                    propertyId: propertyId,
+                    apnOriginal: propertyData.parcel.apn_original || null,
+                    fipsCode: propertyData.parcel.fips_code || null,
+                    frontageFt: propertyData.parcel.frontage_ft || null,
+                    depthFt: propertyData.parcel.depth_ft || null,
+                    areaAcres: propertyData.parcel.area_acres || null,
+                    areaSqFt: propertyData.parcel.area_sq_ft || null,
+                    zoning: propertyData.parcel.zoning || null,
+                    countyLandUseCode: propertyData.parcel.county_land_use_code || null,
+                    lotNumber: propertyData.parcel.lot_number || null,
+                    subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
+                    sectionTownshipRange: propertyData.parcel.section_township_range || null,
+                    legalDescription: propertyData.parcel.legal_description || null,
+                    stateLandUseCode: propertyData.parcel.state_land_use_code || null,
+                    buildingCount: propertyData.parcel.building_count || null,
+                });
+            }
+            
+            // Insert school district
+            if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
+                await db.insert(schoolDistricts).values({
+                    propertyId: propertyId,
+                    schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
+                    schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
+                    schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
+                    schoolDistrictName: propertyData.school_district_name || null,
+                });
+            }
+            
+            // Insert tax record
+            if (propertyData.tax_year) {
+                await db.insert(taxRecords).values({
+                    propertyId: propertyId,
+                    taxYear: propertyData.tax_year,
+                    taxAmount: propertyData.tax_amount ? String(propertyData.tax_amount) : null,
+                    taxDelinquentYear: propertyData.tax_delinquent_year || null,
+                    taxRateCodeArea: propertyData.tax_rate_code_area || null,
+                });
+            }
+            
+            // Insert valuation
+            if (propertyData.valuation) {
+                await db.insert(valuations).values({
+                    propertyId: propertyId,
+                    value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
+                    high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
+                    low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
+                    forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
+                    valuationDate: propertyData.valuation.date || null,
+                });
+            }
+            
+            // Insert pre-foreclosure
+            if (propertyData.pre_foreclosure) {
+                await db.insert(preForeclosures).values({
+                    propertyId: propertyId,
+                    flag: propertyData.pre_foreclosure.flag || null,
+                    ind: propertyData.pre_foreclosure.ind || null,
+                    reason: propertyData.pre_foreclosure.reason || null,
+                    docType: propertyData.pre_foreclosure.doc_type || null,
+                    recordingDate: propertyData.pre_foreclosure.recording_date || null,
+                });
+            }
+            
+            // Insert last sale
+            if (propertyData.last_sale || propertyData.lastSale) {
+                const lastSale = propertyData.last_sale || propertyData.lastSale;
+                await db.insert(lastSales).values({
+                    propertyId: propertyId,
+                    saleDate: lastSale.date || null,
+                    recordingDate: lastSale.recording_date || null,
+                    price: lastSale.price ? String(lastSale.price) : null,
+                    documentType: lastSale.document_type || null,
+                    mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                    mtgType: lastSale.mtg_type || null,
+                    lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
+                    mtgInterestRate: lastSale.mtg_interest_rate || null,
+                    mtgTermMonths: lastSale.mtg_term_months || null,
+                });
+            }
+            
+            // Insert current sale
+            if (propertyData.current_sale || propertyData.currentSale) {
+                const currentSale = propertyData.current_sale || propertyData.currentSale;
+                await db.insert(currentSales).values({
+                    propertyId: propertyId,
+                    docNum: currentSale.doc_num || null,
+                    buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
+                    buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
+                    seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
+                    seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
+                });
+            }
+            
+            console.log(`Property created: ${sfrPropertyId} (ID: ${propertyId})`);
+            res.json({ 
+                message: "Property created successfully",
+                id: propertyId,
+                sfrPropertyId: Number(sfrPropertyId)
+            });
         }
     } catch (error) {
         console.error("Error creating property:", error);
