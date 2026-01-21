@@ -2,7 +2,7 @@
  * Normalizes property type strings based on specific rules.
  * 
  * Rules:
- * 1. "Single Family Residential" stays as is
+ * 1. If contains "Single Family" (including "Single Family Residential"), store as "Single Family"
  * 2. If contains "Condominium", store as "Condominium"
  * 3. If contains "Duplex", store as "Duplex"
  * 4. If contains "Triplex", store as "Triplex"
@@ -22,9 +22,10 @@ export function normalizePropertyType(propertyType: string | null | undefined): 
     const lowerType = trimmed.toLowerCase();
     
     // Check rules in order of specificity
-    // 1. Single Family Residential stays as is (case-sensitive check)
-    if (trimmed === 'Single Family Residential') {
-        return 'Single Family Residential';
+    // 1. Single Family Residential → Single Family (case-insensitive)
+    if (lowerType.includes('single family residential') || 
+        (lowerType.includes('single') && lowerType.includes('family') && !lowerType.includes('multi'))) {
+        return 'Single Family';
     }
     
     // 2. Check for Condominium (case-insensitive)
