@@ -17,7 +17,7 @@ import {
 } from "../../database/schemas/properties.schema";
 import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
-import { eq, and, sql, or } from "drizzle-orm";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
@@ -634,7 +634,22 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 continue;
             }
             
-            // Process each property from the batch (response is array of { address, property } objects)
+            // ====================================================================
+            // STEP 1: COLLECT AND BATCH PROCESS COMPANIES
+            // ====================================================================
+            // Collect all valid properties and their company info
+            interface ValidPropertyItem {
+                batchItem: any;
+                propertyData: any;
+                recordInfo: { record: any; recordingDate: string } | null;
+                sfrPropertyId: number;
+                normalizedCounty: string | null;
+            }
+
+            const validProperties: ValidPropertyItem[] = [];
+            const companyToCountiesMap = new Map<string, Set<string>>(); // normalizedCompanyName -> Set of counties
+
+            // First pass: collect valid properties and companies
             for (const batchItem of batchResponseData) {
                 // Skip items with errors or missing property data
                 if (batchItem.error || !batchItem.property) {
@@ -645,318 +660,679 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 }
                 
                 const propertyData = batchItem.property;
+                const sfrPropertyId = propertyData.property_id;
+                if (!sfrPropertyId) {
+                    console.warn(`[SFR SYNC V2] Skipping property without property_id`);
+                    continue;
+                }
+                
+                // Get record for this address (from buyers/market)
+                const recordInfo = batchItem.address ? recordsMap.get(batchItem.address) : null;
+                if (!recordInfo) {
+                    console.log(`[SFR SYNC V2] Skipping property with no record: ${batchItem.address}`);
+                    continue;
+                }
+                
+                // Check if property should be processed (isCorporate, not trust, etc.)
+                const isCorporate = recordInfo.record.isCorporate === true;
+                if (!isCorporate) continue;
+                
+                const buyerName = recordInfo.record.buyerName;
+                if (!buyerName) continue;
+                
+                if (isTrust(buyerName, recordInfo.record.buyerOwnershipCode || null)) continue;
+                
+                const isOpendoor = buyerName.toLowerCase().includes("opendoor");
+                const isCorporateEntity = isOpendoor || isFlippingCompany(buyerName, recordInfo.record.buyerOwnershipCode || null);
+                if (!isCorporateEntity) continue;
+                
+                // Fetch county from coordinates
+                const normalizedCounty = await getCountyFromCoordinates(
+                    propertyData.address?.latitude,
+                    propertyData.address?.longitude
+                );
+                
+                validProperties.push({
+                    batchItem,
+                    propertyData,
+                    recordInfo,
+                    sfrPropertyId: Number(sfrPropertyId),
+                    normalizedCounty
+                });
+                
+                // Track company -> counties mapping
+                const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(buyerName);
+                if (normalizedCompanyNameForStorage && normalizedCounty) {
+                    const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
+                    if (normalizedCompanyNameForCompare) {
+                        if (!companyToCountiesMap.has(normalizedCompanyNameForCompare)) {
+                            companyToCountiesMap.set(normalizedCompanyNameForCompare, new Set());
+                        }
+                        companyToCountiesMap.get(normalizedCompanyNameForCompare)!.add(normalizedCounty);
+                    }
+                }
+            }
+
+            if (validProperties.length === 0) {
+                console.log(`[SFR SYNC V2] No valid properties to process in batch ${batchNum}`);
+                continue;
+            }
+
+            // De-duplicate and batch insert companies
+            const uniqueCompaniesToInsert: Array<{
+                companyName: string;
+                normalizedForCompare: string;
+                counties: string[];
+            }> = [];
+
+            for (const [normalizedName, countiesSet] of Array.from(companyToCountiesMap.entries())) {
+                // Check if company already exists in cache or database
+                const existingCompany = contactsMap.get(normalizedName);
+                
+                if (!existingCompany) {
+                    // Need to check database (might have been added by another batch)
+                    const normalizedStorageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
+                    if (!normalizedStorageName) continue;
+                    
+                    const [dbCompany] = await db
+                        .select()
+                        .from(companies)
+                        .where(eq(companies.companyName, normalizedStorageName))
+                        .limit(1);
+                    
+                    if (dbCompany) {
+                        // Add to cache
+                        contactsMap.set(normalizedName, dbCompany);
+                        // Update counties for existing company
+                        let countiesArray: string[] = [];
+                        if (dbCompany.counties) {
+                            if (Array.isArray(dbCompany.counties)) {
+                                countiesArray = dbCompany.counties;
+                            } else if (typeof dbCompany.counties === 'string') {
+                                try {
+                                    countiesArray = JSON.parse(dbCompany.counties);
+                                } catch {
+                                    countiesArray = [];
+                                }
+                            }
+                        }
+                        
+                        const countiesToAdd = Array.from(countiesSet).filter((c: string) => 
+                            !countiesArray.some((existing: string) => existing.toLowerCase() === c.toLowerCase())
+                        );
+                        
+                        if (countiesToAdd.length > 0) {
+                            countiesArray.push(...countiesToAdd);
+                            await db
+                                .update(companies)
+                                .set({ counties: countiesArray, updatedAt: new Date() })
+                                .where(eq(companies.id, dbCompany.id));
+                            dbCompany.counties = countiesArray;
+                        }
+                    } else {
+                        // New company to insert - de-duplicate within batch
+                        const storageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
+                        if (storageName && !uniqueCompaniesToInsert.some(c => c.normalizedForCompare === normalizedName)) {
+                            uniqueCompaniesToInsert.push({
+                                companyName: storageName,
+                                normalizedForCompare: normalizedName,
+                                counties: Array.from(countiesSet)
+                            });
+                        }
+                    }
+                } else {
+                    // Existing company - update counties
+                    let countiesArray: string[] = [];
+                    if (existingCompany.counties) {
+                        if (Array.isArray(existingCompany.counties)) {
+                            countiesArray = existingCompany.counties;
+                        } else if (typeof existingCompany.counties === 'string') {
+                            try {
+                                countiesArray = JSON.parse(existingCompany.counties);
+                            } catch {
+                                countiesArray = [];
+                            }
+                        }
+                    }
+                    
+                    const countiesToAdd = Array.from(countiesSet).filter((c: string) => 
+                        !countiesArray.some((existing: string) => existing.toLowerCase() === c.toLowerCase())
+                    );
+                    
+                    if (countiesToAdd.length > 0) {
+                        countiesArray.push(...countiesToAdd);
+                        await db
+                            .update(companies)
+                            .set({ counties: countiesArray, updatedAt: new Date() })
+                            .where(eq(companies.id, existingCompany.id));
+                        existingCompany.counties = countiesArray;
+                    }
+                }
+            }
+
+            // Batch insert new companies
+            if (uniqueCompaniesToInsert.length > 0) {
+                try {
+                    const newCompanies = await db
+                        .insert(companies)
+                        .values(uniqueCompaniesToInsert.map(c => ({
+                            companyName: c.companyName,
+                            contactName: null,
+                            contactEmail: null,
+                            phoneNumber: null,
+                            counties: c.counties,
+                            updatedAt: new Date(),
+                        })))
+                        .returning();
+                    
+                    // Add new companies to cache
+                    for (let i = 0; i < uniqueCompaniesToInsert.length; i++) {
+                        const company = newCompanies[i];
+                        if (company) {
+                            contactsMap.set(uniqueCompaniesToInsert[i].normalizedForCompare, company);
+                            totalContactsAdded++;
+                        }
+                    }
+                    
+                    console.log(`[SFR SYNC V2] Batch inserted ${newCompanies.length} companies`);
+                } catch (companyError: any) {
+                    // Handle duplicates that might have been inserted concurrently
+                    if (companyError?.code?.includes("23505") || companyError?.message?.includes("duplicate")) {
+                        // Fetch existing companies and add to cache
+                        for (const companyToInsert of uniqueCompaniesToInsert) {
+                            try {
+                                const [existing] = await db
+                                    .select()
+                                    .from(companies)
+                                    .where(eq(companies.companyName, companyToInsert.companyName))
+                                    .limit(1);
+                                
+                                if (existing) {
+                                    contactsMap.set(companyToInsert.normalizedForCompare, existing);
+                                    // Update counties
+                                    let countiesArray: string[] = [];
+                                    if (existing.counties) {
+                                        if (Array.isArray(existing.counties)) {
+                                            countiesArray = existing.counties;
+                                        } else if (typeof existing.counties === 'string') {
+                                            try {
+                                                countiesArray = JSON.parse(existing.counties);
+                                            } catch {
+                                                countiesArray = [];
+                                            }
+                                        }
+                                    }
+                                    
+                                    const countiesToAdd = companyToInsert.counties.filter(c => 
+                                        !countiesArray.some(existing => existing.toLowerCase() === c.toLowerCase())
+                                    );
+                                    
+                                    if (countiesToAdd.length > 0) {
+                                        countiesArray.push(...countiesToAdd);
+                                        await db
+                                            .update(companies)
+                                            .set({ counties: countiesArray, updatedAt: new Date() })
+                                            .where(eq(companies.id, existing.id));
+                                        existing.counties = countiesArray;
+                                    }
+                                }
+                            } catch (fetchError) {
+                                console.error(`[SFR SYNC V2] Error fetching duplicate company:`, fetchError);
+                            }
+                        }
+                    } else {
+                        console.error(`[SFR SYNC V2] Error batch inserting companies:`, companyError);
+                    }
+                }
+            }
+
+            // ====================================================================
+            // STEP 2: COLLECT PROPERTIES AND CHECK EXISTING ONES
+            // ====================================================================
+            // Check which properties already exist
+            const sfrPropertyIds = validProperties.map(p => p.sfrPropertyId);
+            const existingPropertiesMap = new Map<number, any>();
+            
+            if (sfrPropertyIds.length > 0) {
+                const existingProps = await db
+                    .select()
+                    .from(propertiesV2)
+                    .where(inArray(propertiesV2.sfrPropertyId, sfrPropertyIds));
+                
+                for (const prop of existingProps) {
+                    existingPropertiesMap.set(prop.sfrPropertyId, prop);
+                }
+            }
+
+            // ====================================================================
+            // STEP 3: PROCESS PROPERTIES AND COLLECT DATA FOR BATCH INSERTS
+            // ====================================================================
+            interface PropertyToInsert {
+                sfrPropertyId: number;
+                companyId: string | null;
+                propertyOwnerId: string | null;
+                propertyClassDescription: string | null;
+                propertyType: string | null;
+                vacant: boolean | null;
+                hoa: string | null;
+                ownerType: string | null;
+                purchaseMethod: string | null;
+                listingStatus: string;
+                status: string;
+                monthsOwned: number | null;
+                msa: string | null;
+                county: string | null;
+            }
+
+            interface PropertyToUpdate {
+                id: string;
+                data: Partial<PropertyToInsert>;
+            }
+
+            const propertiesToInsert: PropertyToInsert[] = [];
+            const propertiesToUpdate: PropertyToUpdate[] = [];
+            const propertyDetailsMap = new Map<number, {
+                propertyData: any;
+                recordInfo: { record: any; recordingDate: string };
+                normalizedCounty: string | null;
+            }>();
+
+            // Process each valid property to determine company IDs and collect data
+            for (const validProp of validProperties) {
                 try {
                     totalProcessed++;
                     
-                    // Extract property ID from API response (batch returns property.property_id)
-                    const sfrPropertyId = propertyData.property_id;
-                    if (!sfrPropertyId) {
-                        console.warn(`[SFR SYNC V2] Skipping property without property_id`);
-                        totalProcessed--; // Don't count this as processed
+                    const { propertyData, recordInfo, sfrPropertyId, normalizedCounty } = validProp;
+                    
+                    // Get company ID from cache
+                    const buyerName = recordInfo!.record.buyerName;
+                    const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(buyerName);
+                    const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage || '');
+                    let company = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
+                    
+                    // If not in cache, try database (might have been inserted by another batch)
+                    if (!company && normalizedCompanyNameForStorage) {
+                        try {
+                            const [dbCompany] = await db
+                                .select()
+                                .from(companies)
+                                .where(eq(companies.companyName, normalizedCompanyNameForStorage))
+                                .limit(1);
+                            
+                            if (dbCompany) {
+                                if (normalizedCompanyNameForCompare) {
+                                    contactsMap.set(normalizedCompanyNameForCompare, dbCompany);
+                                }
+                                company = dbCompany;
+                            }
+                        } catch (dbError) {
+                            console.error(`[SFR SYNC V2] Error looking up company in database:`, dbError);
+                        }
+                    }
+                    
+                    if (!company) {
+                        console.warn(`[SFR SYNC V2] Company not found for property ${sfrPropertyId} (buyerName: ${buyerName}, normalized: ${normalizedCompanyNameForCompare}), skipping`);
+                        totalProcessed--;
                         continue;
                     }
                     
-                    // Check if property exists
-                    const [existingProperty] = await db
-                        .select()
-                        .from(propertiesV2)
-                        .where(eq(propertiesV2.sfrPropertyId, Number(sfrPropertyId)))
-                        .limit(1);
+                    const companyId = company.id;
+                    const propertyOwnerId = companyId;
                     
-                    // Get record for this address (from buyers/market)
-                    const recordInfo = batchItem.address ? recordsMap.get(batchItem.address) : null;
+                    const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
+                    const status = "in-renovation";
+                    const listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
                     
-                    if (!recordInfo) {
-                        console.log(`[SFR SYNC V2] Skipping property with no record: ${batchItem.address}`);
-                        totalProcessed--; // Don't count this as processed
-                        continue;
-                    }
+                    const propertyRecord: PropertyToInsert = {
+                        sfrPropertyId,
+                        companyId,
+                        propertyOwnerId,
+                        propertyClassDescription: propertyData.property_class_description || null,
+                        propertyType: normalizePropertyType(propertyData.property_type) || null,
+                        vacant: propertyData.vacant || null,
+                        hoa: propertyData.hoa ? String(propertyData.hoa) : null,
+                        ownerType: propertyData.owner_type || null,
+                        purchaseMethod: propertyData.purchase_method || null,
+                        listingStatus,
+                        status,
+                        monthsOwned: propertyData.months_owned || null,
+                        msa: propertyData.msa || msa || null,
+                        county: normalizedCounty,
+                    };
                     
-                    // Fetch county from coordinates using our utility function
-                    // This ensures we get just the county name (e.g., "San Diego") not "San Diego County, California"
-                    const normalizedCounty = await getCountyFromCoordinates(
-                        propertyData.address?.latitude,
-                        propertyData.address?.longitude
-                    );
-                    
-                    // Process property using helper function
-                    const processResult = await processProperty(
-                        propertyData,
-                        batchItem,
-                        recordInfo.record,
-                        contactsMap,
-                        existingProperty,
-                        msa,
-                        normalizedCounty
-                    );
-                    
-                    if (processResult.shouldSkip) {
-                        totalProcessed--; // Don't count this as processed
-                        continue;
-                    }
-                    
-                    if (processResult.companyAdded) {
-                        totalContactsAdded++;
-                    }
-                    
-                    const { status, listingStatus, companyId, propertyOwnerId } = processResult;
-                    
-                    // Insert/update all related data (neon-http doesn't support transactions, so we do direct operations)
+                    const existingProperty = existingPropertiesMap.get(sfrPropertyId);
                     if (existingProperty) {
-                        // Update existing property
-                        await db
-                            .update(propertiesV2)
-                                .set({
-                                    companyId: companyId,
-                                    propertyOwnerId: propertyOwnerId,
-                                    propertyClassDescription: propertyData.property_class_description || null,
-                                    propertyType: normalizePropertyType(propertyData.property_type) || null,
-                                    vacant: propertyData.vacant || null,
-                                    hoa: propertyData.hoa || null,
-                                    ownerType: propertyData.owner_type || null,
-                                    purchaseMethod: propertyData.purchase_method || null,
-                                    listingStatus: listingStatus,
-                                    status: status,
-                                    monthsOwned: propertyData.months_owned || null,
-                                    msa: propertyData.msa || msa || null,
-                                    county: normalizedCounty,
-                                    updatedAt: sql`now()`,
-                                })
-                                .where(eq(propertiesV2.id, existingProperty.id));
-                            
-                            totalUpdated++;
+                        propertiesToUpdate.push({
+                            id: existingProperty.id,
+                            data: propertyRecord
+                        });
                     } else {
-                        // Insert new property
-                        const [newProperty] = await db
-                            .insert(propertiesV2)
-                                .values({
-                                    sfrPropertyId: Number(sfrPropertyId),
-                                    companyId: companyId,
-                                    propertyOwnerId: propertyOwnerId,
-                                    propertyClassDescription: propertyData.property_class_description || null,
-                                    propertyType: normalizePropertyType(propertyData.property_type) || null,
-                                    vacant: propertyData.vacant || null,
-                                    hoa: propertyData.hoa || null,
-                                    ownerType: propertyData.owner_type || null,
-                                    purchaseMethod: propertyData.purchase_method || null,
-                                    listingStatus: listingStatus,
-                                    status: status,
-                                    monthsOwned: propertyData.months_owned || null,
-                                    msa: propertyData.msa || msa || null,
-                                    county: normalizedCounty,
-                                })
-                                .returning();
-                            
-                            const propertyId = newProperty.id;
-                            
-                        // Insert address
-                        if (propertyData.address) {
-                            await db.insert(addresses).values({
-                                    propertyId: propertyId,
-                                    formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
-                                    streetNumber: propertyData.address.street_number || null,
-                                    streetSuffix: propertyData.address.street_suffix || null,
-                                    streetPreDirection: propertyData.address.street_pre_direction || null,
-                                    streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
-                                    streetPostDirection: propertyData.address.street_post_direction || null,
-                                    unitType: propertyData.address.unit_type || null,
-                                    unitNumber: propertyData.address.unit_number || null,
-                                    city: normalizeToTitleCase(propertyData.address.city) || null,
-                                    county: normalizedCounty,
-                                    state: propertyData.address.state || null,
-                                    zipCode: propertyData.address.zip_code || null,
-                                    zipPlusFourCode: propertyData.address.zip_plus_four_code || null,
-                                    carrierCode: propertyData.address.carrier_code || null,
-                                    latitude: propertyData.address.latitude ? String(propertyData.address.latitude) : null,
-                                    longitude: propertyData.address.longitude ? String(propertyData.address.longitude) : null,
-                                    geocodingAccuracy: propertyData.address.geocoding_accuracy || null,
-                                    censusTract: propertyData.address.census_tract || null,
-                                    censusBlock: propertyData.address.census_block || null,
-                                });
-                            }
-                            
-                        // Insert structure
-                        if (propertyData.structure) {
-                            await db.insert(structures).values({
-                                    propertyId: propertyId,
-                                    totalAreaSqFt: propertyData.structure.total_area_sq_ft || null,
-                                    yearBuilt: propertyData.structure.year_built || null,
-                                    effectiveYearBuilt: propertyData.structure.effective_year_built || null,
-                                    bedsCount: propertyData.structure.beds_count || null,
-                                    roomsCount: propertyData.structure.rooms_count || null,
-                                    baths: propertyData.structure.baths ? String(propertyData.structure.baths) : null,
-                                    basementType: propertyData.structure.basement_type || null,
-                                    condition: propertyData.structure.condition || null,
-                                    constructionType: propertyData.structure.construction_type || null,
-                                    exteriorWallType: propertyData.structure.exterior_wall_type || null,
-                                    fireplaces: propertyData.structure.fireplaces || null,
-                                    heatingType: propertyData.structure.heating_type || null,
-                                    heatingFuelType: propertyData.structure.heating_fuel_type || null,
-                                    parkingSpacesCount: propertyData.structure.parking_spaces_count || null,
-                                    poolType: propertyData.structure.pool_type || null,
-                                    quality: propertyData.structure.quality || null,
-                                    roofMaterialType: propertyData.structure.roof_material_type || null,
-                                    roofStyleType: propertyData.structure.roof_style_type || null,
-                                    sewerType: propertyData.structure.sewer_type || null,
-                                    stories: propertyData.structure.stories || null,
-                                    unitsCount: propertyData.structure.units_count || null,
-                                    waterType: propertyData.structure.water_type || null,
-                                    livingAreaSqft: propertyData.structure.living_area_sqft || null,
-                                    acDescription: propertyData.structure.ac_description || null,
-                                    garageDescription: propertyData.structure.garage_description || null,
-                                    buildingClassDescription: propertyData.structure.building_class_description || null,
-                                    sqftDescription: propertyData.structure.sqft_description || null,
-                                });
-                            }
-                            
-                        // Insert assessment
-                        if (propertyData.assessments && propertyData.assessed_year) {
-                            await db.insert(assessments).values({
-                                    propertyId: propertyId,
-                                    assessedYear: propertyData.assessed_year,
-                                    landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
-                                    improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
-                                    assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
-                                    marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
-                                });
-                            }
-                            
-                        // Insert exemption
-                        if (propertyData.exemptions) {
-                            await db.insert(exemptions).values({
-                                    propertyId: propertyId,
-                                    homeowner: propertyData.exemptions.homeowner || null,
-                                    veteran: propertyData.exemptions.veteran || null,
-                                    disabled: propertyData.exemptions.disabled || null,
-                                    widow: propertyData.exemptions.widow || null,
-                                    senior: propertyData.exemptions.senior || null,
-                                    school: propertyData.exemptions.school || null,
-                                    religious: propertyData.exemptions.religious || null,
-                                    welfare: propertyData.exemptions.welfare || null,
-                                    public: propertyData.exemptions.public || null,
-                                    cemetery: propertyData.exemptions.cemetery || null,
-                                    hospital: propertyData.exemptions.hospital || null,
-                                    library: propertyData.exemptions.library || null,
-                                });
-                            }
-                            
-                        // Insert parcel
-                        if (propertyData.parcel) {
-                            await db.insert(parcels).values({
-                                    propertyId: propertyId,
-                                    apnOriginal: propertyData.parcel.apn_original || null,
-                                    fipsCode: propertyData.parcel.fips_code || null,
-                                    frontageFt: propertyData.parcel.frontage_ft || null,
-                                    depthFt: propertyData.parcel.depth_ft || null,
-                                    areaAcres: propertyData.parcel.area_acres || null,
-                                    areaSqFt: propertyData.parcel.area_sq_ft || null,
-                                    zoning: propertyData.parcel.zoning || null,
-                                    countyLandUseCode: propertyData.parcel.county_land_use_code || null,
-                                    lotNumber: propertyData.parcel.lot_number || null,
-                                    subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
-                                    sectionTownshipRange: propertyData.parcel.section_township_range || null,
-                                    legalDescription: propertyData.parcel.legal_description || null,
-                                    stateLandUseCode: propertyData.parcel.state_land_use_code || null,
-                                    buildingCount: propertyData.parcel.building_count || null,
-                                });
-                            }
-                            
-                        // Insert school district
-                        if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
-                            await db.insert(schoolDistricts).values({
-                                    propertyId: propertyId,
-                                    schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
-                                    schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
-                                    schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
-                                    schoolDistrictName: propertyData.school_district_name || null,
-                                });
-                            }
-                            
-                        // Insert tax record
-                        if (propertyData.tax_year) {
-                            await db.insert(taxRecords).values({
-                                    propertyId: propertyId,
-                                    taxYear: propertyData.tax_year,
-                                    taxAmount: propertyData.tax_amount ? String(propertyData.tax_amount) : null,
-                                    taxDelinquentYear: propertyData.tax_delinquent_year || null,
-                                    taxRateCodeArea: propertyData.tax_rate_code_area || null,
-                                });
-                            }
-                            
-                        // Insert valuation
-                        if (propertyData.valuation) {
-                            await db.insert(valuations).values({
-                                    propertyId: propertyId,
-                                    value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
-                                    high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
-                                    low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
-                                    forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
-                                    valuationDate: propertyData.valuation.date || null,
-                                });
-                            }
-                            
-                        // Insert pre-foreclosure
-                        if (propertyData.pre_foreclosure) {
-                            await db.insert(preForeclosures).values({
-                                    propertyId: propertyId,
-                                    flag: propertyData.pre_foreclosure.flag || null,
-                                    ind: propertyData.pre_foreclosure.ind || null,
-                                    reason: propertyData.pre_foreclosure.reason || null,
-                                    docType: propertyData.pre_foreclosure.doc_type || null,
-                                    recordingDate: propertyData.pre_foreclosure.recording_date || null,
-                                });
-                            }
-                            
-                        // Insert last sale
-                        if (propertyData.last_sale || propertyData.lastSale) {
-                            const lastSale = propertyData.last_sale || propertyData.lastSale;
-
-                            // recording_date is not provided by the batch property lookup, so we
-                            // pull it from the original /buyers/market record for this property.
-                            let recordingDateFromBuyersMarket: string | null = null;
-                            if (recordInfo.record && recordInfo.record.recordingDate) {
-                                recordingDateFromBuyersMarket =
-                                    typeof recordInfo.record.recordingDate === "string"
-                                        ? recordInfo.record.recordingDate.split("T")[0]
-                                        : recordInfo.record.recordingDate.toISOString().split("T")[0];
-                            }
-
-                            await db.insert(lastSales).values({
-                                    propertyId: propertyId,
-                                    saleDate: lastSale.date || null,
-                                    recordingDate: recordingDateFromBuyersMarket,
-                                    price: lastSale.price ? String(lastSale.price) : null,
-                                    documentType: lastSale.document_type || null,
-                                    mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
-                                    mtgType: lastSale.mtg_type || null,
-                                    lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
-                                    mtgInterestRate: lastSale.mtg_interest_rate || null,
-                                    mtgTermMonths: lastSale.mtg_term_months || null,
-                                });
-                            }
-                            
-                        // Insert current sale
-                        if (propertyData.current_sale || propertyData.currentSale) {
-                            const currentSale = propertyData.current_sale || propertyData.currentSale;
-                            await db.insert(currentSales).values({
-                                    propertyId: propertyId,
-                                    docNum: currentSale.doc_num || null,
-                                    buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
-                                    buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
-                                    seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
-                                    seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
-                                });
-                            }
-                            
-                        totalInserted++;
+                        propertiesToInsert.push(propertyRecord);
+                        propertyDetailsMap.set(sfrPropertyId, {
+                            propertyData,
+                            recordInfo: recordInfo!,
+                            normalizedCounty
+                        });
                     }
                     
-                    console.log(`[SFR SYNC V2] Processed property ${sfrPropertyId} (${existingProperty ? 'updated' : 'inserted'})`);
-                    
-                } catch (propertyError: any) {
-                    console.error(`[SFR SYNC V2] Error processing property:`, propertyError);
+                } catch (error: any) {
+                    console.error(`[SFR SYNC V2] Error processing property for batch:`, error);
+                    totalProcessed--;
                 }
             }
+
+            // ====================================================================
+            // STEP 4: BATCH INSERT/UPDATE PROPERTIES
+            // ====================================================================
+            // Batch update existing properties
+            if (propertiesToUpdate.length > 0) {
+                for (const propUpdate of propertiesToUpdate) {
+                    await db
+                        .update(propertiesV2)
+                        .set({
+                            ...propUpdate.data,
+                            updatedAt: sql`now()`,
+                        })
+                        .where(eq(propertiesV2.id, propUpdate.id));
+                }
+                totalUpdated += propertiesToUpdate.length;
+                console.log(`[SFR SYNC V2] Batch updated ${propertiesToUpdate.length} properties`);
+            }
+
+            // Batch insert new properties
+            let insertedProperties: any[] = [];
+            if (propertiesToInsert.length > 0) {
+                try {
+                    insertedProperties = await db
+                        .insert(propertiesV2)
+                        .values(propertiesToInsert)
+                        .returning();
+                    
+                    totalInserted += insertedProperties.length;
+                    console.log(`[SFR SYNC V2] Batch inserted ${insertedProperties.length} properties in batch ${batchNum}`);
+                } catch (insertError: any) {
+                    console.error(`[SFR SYNC V2] Error batch inserting ${propertiesToInsert.length} properties in batch ${batchNum}:`, insertError);
+                    console.error(`[SFR SYNC V2] First property in failed batch:`, propertiesToInsert[0]);
+                    // Try inserting one at a time to see which ones fail
+                    for (const propToInsert of propertiesToInsert) {
+                        try {
+                            const [inserted] = await db
+                                .insert(propertiesV2)
+                                .values(propToInsert)
+                                .returning();
+                            if (inserted) {
+                                insertedProperties.push(inserted);
+                                totalInserted++;
+                            }
+                        } catch (singleError: any) {
+                            console.error(`[SFR SYNC V2] Failed to insert property ${propToInsert.sfrPropertyId}:`, singleError);
+                        }
+                    }
+                }
+            }
+
+            // ====================================================================
+            // STEP 5: BATCH INSERT RELATED DATA
+            // ====================================================================
+            // Create map of sfrPropertyId -> propertyId for inserted properties
+            const propertyIdMap = new Map<number, string>();
+            for (const insertedProp of insertedProperties) {
+                propertyIdMap.set(insertedProp.sfrPropertyId, insertedProp.id);
+            }
+
+            // Collect all related data for batch inserts
+            const addressesToInsert: any[] = [];
+            const structuresToInsert: any[] = [];
+            const assessmentsToInsert: any[] = [];
+            const exemptionsToInsert: any[] = [];
+            const parcelsToInsert: any[] = [];
+            const schoolDistrictsToInsert: any[] = [];
+            const taxRecordsToInsert: any[] = [];
+            const valuationsToInsert: any[] = [];
+            const preForeclosuresToInsert: any[] = [];
+            const lastSalesToInsert: any[] = [];
+            const currentSalesToInsert: any[] = [];
+
+            for (const insertedProp of insertedProperties) {
+                const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
+                if (!details) continue;
+
+                const { propertyData, recordInfo, normalizedCounty } = details;
+                const propertyId = insertedProp.id;
+
+                // Collect address
+                if (propertyData.address) {
+                    addressesToInsert.push({
+                        propertyId,
+                        formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
+                        streetNumber: propertyData.address.street_number || null,
+                        streetSuffix: propertyData.address.street_suffix || null,
+                        streetPreDirection: propertyData.address.street_pre_direction || null,
+                        streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
+                        streetPostDirection: propertyData.address.street_post_direction || null,
+                        unitType: propertyData.address.unit_type || null,
+                        unitNumber: propertyData.address.unit_number || null,
+                        city: normalizeToTitleCase(propertyData.address.city) || null,
+                        county: normalizedCounty,
+                        state: propertyData.address.state || null,
+                        zipCode: propertyData.address.zip_code || null,
+                        zipPlusFourCode: propertyData.address.zip_plus_four_code || null,
+                        carrierCode: propertyData.address.carrier_code || null,
+                        latitude: propertyData.address.latitude ? String(propertyData.address.latitude) : null,
+                        longitude: propertyData.address.longitude ? String(propertyData.address.longitude) : null,
+                        geocodingAccuracy: propertyData.address.geocoding_accuracy || null,
+                        censusTract: propertyData.address.census_tract || null,
+                        censusBlock: propertyData.address.census_block || null,
+                    });
+                }
+
+                // Collect structure
+                if (propertyData.structure) {
+                    structuresToInsert.push({
+                        propertyId,
+                        totalAreaSqFt: propertyData.structure.total_area_sq_ft || null,
+                        yearBuilt: propertyData.structure.year_built || null,
+                        effectiveYearBuilt: propertyData.structure.effective_year_built || null,
+                        bedsCount: propertyData.structure.beds_count || null,
+                        roomsCount: propertyData.structure.rooms_count || null,
+                        baths: propertyData.structure.baths ? String(propertyData.structure.baths) : null,
+                        basementType: propertyData.structure.basement_type || null,
+                        condition: propertyData.structure.condition || null,
+                        constructionType: propertyData.structure.construction_type || null,
+                        exteriorWallType: propertyData.structure.exterior_wall_type || null,
+                        fireplaces: propertyData.structure.fireplaces || null,
+                        heatingType: propertyData.structure.heating_type || null,
+                        heatingFuelType: propertyData.structure.heating_fuel_type || null,
+                        parkingSpacesCount: propertyData.structure.parking_spaces_count || null,
+                        poolType: propertyData.structure.pool_type || null,
+                        quality: propertyData.structure.quality || null,
+                        roofMaterialType: propertyData.structure.roof_material_type || null,
+                        roofStyleType: propertyData.structure.roof_style_type || null,
+                        sewerType: propertyData.structure.sewer_type || null,
+                        stories: propertyData.structure.stories || null,
+                        unitsCount: propertyData.structure.units_count || null,
+                        waterType: propertyData.structure.water_type || null,
+                        livingAreaSqft: propertyData.structure.living_area_sqft || null,
+                        acDescription: propertyData.structure.ac_description || null,
+                        garageDescription: propertyData.structure.garage_description || null,
+                        buildingClassDescription: propertyData.structure.building_class_description || null,
+                        sqftDescription: propertyData.structure.sqft_description || null,
+                    });
+                }
+
+                // Collect assessment
+                if (propertyData.assessments && propertyData.assessed_year) {
+                    assessmentsToInsert.push({
+                        propertyId,
+                        assessedYear: propertyData.assessed_year,
+                        landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
+                        improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
+                        assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
+                        marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
+                    });
+                }
+
+                // Collect exemption
+                if (propertyData.exemptions) {
+                    exemptionsToInsert.push({
+                        propertyId,
+                        homeowner: propertyData.exemptions.homeowner || null,
+                        veteran: propertyData.exemptions.veteran || null,
+                        disabled: propertyData.exemptions.disabled || null,
+                        widow: propertyData.exemptions.widow || null,
+                        senior: propertyData.exemptions.senior || null,
+                        school: propertyData.exemptions.school || null,
+                        religious: propertyData.exemptions.religious || null,
+                        welfare: propertyData.exemptions.welfare || null,
+                        public: propertyData.exemptions.public || null,
+                        cemetery: propertyData.exemptions.cemetery || null,
+                        hospital: propertyData.exemptions.hospital || null,
+                        library: propertyData.exemptions.library || null,
+                    });
+                }
+
+                // Collect parcel
+                if (propertyData.parcel) {
+                    parcelsToInsert.push({
+                        propertyId,
+                        apnOriginal: propertyData.parcel.apn_original || null,
+                        fipsCode: propertyData.parcel.fips_code || null,
+                        frontageFt: propertyData.parcel.frontage_ft || null,
+                        depthFt: propertyData.parcel.depth_ft || null,
+                        areaAcres: propertyData.parcel.area_acres || null,
+                        areaSqFt: propertyData.parcel.area_sq_ft || null,
+                        zoning: propertyData.parcel.zoning || null,
+                        countyLandUseCode: propertyData.parcel.county_land_use_code || null,
+                        lotNumber: propertyData.parcel.lot_number || null,
+                        subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
+                        sectionTownshipRange: propertyData.parcel.section_township_range || null,
+                        legalDescription: propertyData.parcel.legal_description || null,
+                        stateLandUseCode: propertyData.parcel.state_land_use_code || null,
+                        buildingCount: propertyData.parcel.building_count || null,
+                    });
+                }
+
+                // Collect school district
+                if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
+                    schoolDistrictsToInsert.push({
+                        propertyId,
+                        schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
+                        schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
+                        schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
+                        schoolDistrictName: propertyData.school_district_name || null,
+                    });
+                }
+
+                // Collect tax record
+                if (propertyData.tax_year) {
+                    taxRecordsToInsert.push({
+                        propertyId,
+                        taxYear: propertyData.tax_year,
+                        taxAmount: propertyData.tax_amount ? String(propertyData.tax_amount) : null,
+                        taxDelinquentYear: propertyData.tax_delinquent_year || null,
+                        taxRateCodeArea: propertyData.tax_rate_code_area || null,
+                    });
+                }
+
+                // Collect valuation
+                if (propertyData.valuation) {
+                    valuationsToInsert.push({
+                        propertyId,
+                        value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
+                        high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
+                        low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
+                        forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
+                        valuationDate: propertyData.valuation.date || null,
+                    });
+                }
+
+                // Collect pre-foreclosure
+                if (propertyData.pre_foreclosure) {
+                    preForeclosuresToInsert.push({
+                        propertyId,
+                        flag: propertyData.pre_foreclosure.flag || null,
+                        ind: propertyData.pre_foreclosure.ind || null,
+                        reason: propertyData.pre_foreclosure.reason || null,
+                        docType: propertyData.pre_foreclosure.doc_type || null,
+                        recordingDate: propertyData.pre_foreclosure.recording_date || null,
+                    });
+                }
+
+                // Collect last sale
+                if (propertyData.last_sale || propertyData.lastSale) {
+                    const lastSale = propertyData.last_sale || propertyData.lastSale;
+                    let recordingDateFromBuyersMarket: string | null = null;
+                    if (recordInfo.record && recordInfo.record.recordingDate) {
+                        recordingDateFromBuyersMarket =
+                            typeof recordInfo.record.recordingDate === "string"
+                                ? recordInfo.record.recordingDate.split("T")[0]
+                                : recordInfo.record.recordingDate.toISOString().split("T")[0];
+                    }
+
+                    lastSalesToInsert.push({
+                        propertyId,
+                        saleDate: lastSale.date || null,
+                        recordingDate: recordingDateFromBuyersMarket,
+                        price: lastSale.price ? String(lastSale.price) : null,
+                        documentType: lastSale.document_type || null,
+                        mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+                        mtgType: lastSale.mtg_type || null,
+                        lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
+                        mtgInterestRate: lastSale.mtg_interest_rate || null,
+                        mtgTermMonths: lastSale.mtg_term_months || null,
+                    });
+                }
+
+                // Collect current sale
+                if (propertyData.current_sale || propertyData.currentSale) {
+                    const currentSale = propertyData.current_sale || propertyData.currentSale;
+                    currentSalesToInsert.push({
+                        propertyId,
+                        docNum: currentSale.doc_num || null,
+                        buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
+                        buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
+                        seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
+                        seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
+                    });
+                }
+            }
+
+            // Batch insert all related data
+            if (addressesToInsert.length > 0) {
+                await db.insert(addresses).values(addressesToInsert);
+            }
+            if (structuresToInsert.length > 0) {
+                await db.insert(structures).values(structuresToInsert);
+            }
+            if (assessmentsToInsert.length > 0) {
+                await db.insert(assessments).values(assessmentsToInsert);
+            }
+            if (exemptionsToInsert.length > 0) {
+                await db.insert(exemptions).values(exemptionsToInsert);
+            }
+            if (parcelsToInsert.length > 0) {
+                await db.insert(parcels).values(parcelsToInsert);
+            }
+            if (schoolDistrictsToInsert.length > 0) {
+                await db.insert(schoolDistricts).values(schoolDistrictsToInsert);
+            }
+            if (taxRecordsToInsert.length > 0) {
+                await db.insert(taxRecords).values(taxRecordsToInsert);
+            }
+            if (valuationsToInsert.length > 0) {
+                await db.insert(valuations).values(valuationsToInsert);
+            }
+            if (preForeclosuresToInsert.length > 0) {
+                await db.insert(preForeclosures).values(preForeclosuresToInsert);
+            }
+            if (lastSalesToInsert.length > 0) {
+                await db.insert(lastSales).values(lastSalesToInsert);
+            }
+            if (currentSalesToInsert.length > 0) {
+                await db.insert(currentSales).values(currentSalesToInsert);
+            }
+
+            console.log(`[SFR SYNC V2] Processed batch ${batchNum}: ${totalProcessed} processed, ${propertiesToInsert.length} inserted, ${propertiesToUpdate.length} updated`);
             
             // Persist sync state periodically after batches
             if (boundaryDate && totalProcessed % 50 === 0) {
