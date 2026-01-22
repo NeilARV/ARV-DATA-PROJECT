@@ -206,6 +206,38 @@ async function addCountiesToCompanyIfNeeded(
     company.counties = countiesArray;
 }
 
+// Helper to find a company in DB by name, cache it, and optionally update counties
+async function findAndCacheCompany(
+    companyStorageName: string,
+    normalizedCompareKey: string | null,
+    contactsMap: Map<string, typeof companies.$inferSelect>,
+    countiesToUpdate?: string[] | Set<string>
+): Promise<typeof companies.$inferSelect | null> {
+    try {
+        const [dbCompany] = await db
+            .select()
+            .from(companies)
+            .where(eq(companies.companyName, companyStorageName))
+            .limit(1);
+        
+        if (dbCompany) {
+            // Add to cache if we have a compare key
+            if (normalizedCompareKey) {
+                contactsMap.set(normalizedCompareKey, dbCompany);
+            }
+            // Update counties if provided
+            if (countiesToUpdate) {
+                await addCountiesToCompanyIfNeeded(dbCompany, countiesToUpdate);
+            }
+            return dbCompany;
+        }
+        return null;
+    } catch (error) {
+        console.error(`[SFR SYNC V2] Error looking up company in database:`, error);
+        return null;
+    }
+}
+
 // Sync function V2 for a single MSA using new API endpoints and normalized schema
 // Only uses /buyers/market endpoint
 async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: string) {
@@ -550,18 +582,14 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     const normalizedStorageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
                     if (!normalizedStorageName) continue;
                     
-                    const [dbCompany] = await db
-                        .select()
-                        .from(companies)
-                        .where(eq(companies.companyName, normalizedStorageName))
-                        .limit(1);
+                    const dbCompany = await findAndCacheCompany(
+                        normalizedStorageName,
+                        normalizedName,
+                        contactsMap,
+                        countiesSet
+                    );
                     
-                    if (dbCompany) {
-                        // Add to cache
-                        contactsMap.set(normalizedName, dbCompany);
-                        // Update counties for existing company
-                        await addCountiesToCompanyIfNeeded(dbCompany, countiesSet);
-                    } else {
+                    if (!dbCompany) {
                         // New company to insert - de-duplicate within batch
                         const storageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
                         if (storageName && !uniqueCompaniesToInsert.some(c => c.normalizedForCompare === normalizedName)) {
@@ -608,21 +636,12 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     if (companyError?.code?.includes("23505") || companyError?.message?.includes("duplicate")) {
                         // Fetch existing companies and add to cache
                         for (const companyToInsert of uniqueCompaniesToInsert) {
-                            try {
-                                const [existing] = await db
-                                    .select()
-                                    .from(companies)
-                                    .where(eq(companies.companyName, companyToInsert.companyName))
-                                    .limit(1);
-                                
-                                if (existing) {
-                                    contactsMap.set(companyToInsert.normalizedForCompare, existing);
-                                    // Update counties
-                                    await addCountiesToCompanyIfNeeded(existing, companyToInsert.counties);
-                                }
-                            } catch (fetchError) {
-                                console.error(`[SFR SYNC V2] Error fetching duplicate company:`, fetchError);
-                            }
+                            await findAndCacheCompany(
+                                companyToInsert.companyName,
+                                companyToInsert.normalizedForCompare,
+                                contactsMap,
+                                companyToInsert.counties
+                            );
                         }
                     } else {
                         console.error(`[SFR SYNC V2] Error batch inserting companies:`, companyError);
@@ -698,22 +717,11 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     
                     // If not in cache, try database (might have been inserted by another batch)
                     if (!company && normalizedCompanyNameForStorage) {
-                        try {
-                            const [dbCompany] = await db
-                                .select()
-                                .from(companies)
-                                .where(eq(companies.companyName, normalizedCompanyNameForStorage))
-                                .limit(1);
-                            
-                            if (dbCompany) {
-                                if (normalizedCompanyNameForCompare) {
-                                    contactsMap.set(normalizedCompanyNameForCompare, dbCompany);
-                                }
-                                company = dbCompany;
-                            }
-                        } catch (dbError) {
-                            console.error(`[SFR SYNC V2] Error looking up company in database:`, dbError);
-                        }
+                        company = await findAndCacheCompany(
+                            normalizedCompanyNameForStorage,
+                            normalizedCompanyNameForCompare,
+                            contactsMap
+                        );
                     }
                     
                     if (!company) {
