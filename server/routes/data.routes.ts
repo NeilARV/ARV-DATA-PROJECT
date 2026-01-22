@@ -170,6 +170,42 @@ async function getCountyFromCoordinates(latitude: number | string | null | undef
     }
 }
 
+// Helper to parse counties from DB (handles both array and legacy string format)
+function parseCountiesArray(counties: any): string[] {
+    if (!counties) return [];
+    if (Array.isArray(counties)) return counties;
+    if (typeof counties === 'string') {
+        try {
+            return JSON.parse(counties);
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+// Helper to add counties to a company and update DB if needed
+async function addCountiesToCompanyIfNeeded(
+    company: typeof companies.$inferSelect,
+    countiesToAdd: string[] | Set<string>
+): Promise<void> {
+    const countiesArray = parseCountiesArray(company.counties);
+    const newCounties = Array.isArray(countiesToAdd) ? countiesToAdd : Array.from(countiesToAdd);
+    
+    const actuallyNew = newCounties.filter(c => 
+        !countiesArray.some(existing => existing.toLowerCase() === c.toLowerCase())
+    );
+    
+    if (actuallyNew.length === 0) return;
+    
+    countiesArray.push(...actuallyNew);
+    await db
+        .update(companies)
+        .set({ counties: countiesArray, updatedAt: new Date() })
+        .where(eq(companies.id, company.id));
+    company.counties = countiesArray;
+}
+
 // Sync function V2 for a single MSA using new API endpoints and normalized schema
 // Only uses /buyers/market endpoint
 async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: string) {
@@ -524,31 +560,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                         // Add to cache
                         contactsMap.set(normalizedName, dbCompany);
                         // Update counties for existing company
-                        let countiesArray: string[] = [];
-                        if (dbCompany.counties) {
-                            if (Array.isArray(dbCompany.counties)) {
-                                countiesArray = dbCompany.counties;
-                            } else if (typeof dbCompany.counties === 'string') {
-                                try {
-                                    countiesArray = JSON.parse(dbCompany.counties);
-                                } catch {
-                                    countiesArray = [];
-                                }
-                            }
-                        }
-                        
-                        const countiesToAdd = Array.from(countiesSet).filter((c: string) => 
-                            !countiesArray.some((existing: string) => existing.toLowerCase() === c.toLowerCase())
-                        );
-                        
-                        if (countiesToAdd.length > 0) {
-                            countiesArray.push(...countiesToAdd);
-                            await db
-                                .update(companies)
-                                .set({ counties: countiesArray, updatedAt: new Date() })
-                                .where(eq(companies.id, dbCompany.id));
-                            dbCompany.counties = countiesArray;
-                        }
+                        await addCountiesToCompanyIfNeeded(dbCompany, countiesSet);
                     } else {
                         // New company to insert - de-duplicate within batch
                         const storageName = normalizeCompanyNameForStorage(normalizeCompanyNameForComparison(normalizedName)!);
@@ -562,31 +574,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     }
                 } else {
                     // Existing company - update counties
-                    let countiesArray: string[] = [];
-                    if (existingCompany.counties) {
-                        if (Array.isArray(existingCompany.counties)) {
-                            countiesArray = existingCompany.counties;
-                        } else if (typeof existingCompany.counties === 'string') {
-                            try {
-                                countiesArray = JSON.parse(existingCompany.counties);
-                            } catch {
-                                countiesArray = [];
-                            }
-                        }
-                    }
-                    
-                    const countiesToAdd = Array.from(countiesSet).filter((c: string) => 
-                        !countiesArray.some((existing: string) => existing.toLowerCase() === c.toLowerCase())
-                    );
-                    
-                    if (countiesToAdd.length > 0) {
-                        countiesArray.push(...countiesToAdd);
-                        await db
-                            .update(companies)
-                            .set({ counties: countiesArray, updatedAt: new Date() })
-                            .where(eq(companies.id, existingCompany.id));
-                        existingCompany.counties = countiesArray;
-                    }
+                    await addCountiesToCompanyIfNeeded(existingCompany, countiesSet);
                 }
             }
 
@@ -630,31 +618,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                                 if (existing) {
                                     contactsMap.set(companyToInsert.normalizedForCompare, existing);
                                     // Update counties
-                                    let countiesArray: string[] = [];
-                                    if (existing.counties) {
-                                        if (Array.isArray(existing.counties)) {
-                                            countiesArray = existing.counties;
-                                        } else if (typeof existing.counties === 'string') {
-                                            try {
-                                                countiesArray = JSON.parse(existing.counties);
-                                            } catch {
-                                                countiesArray = [];
-                                            }
-                                        }
-                                    }
-                                    
-                                    const countiesToAdd = companyToInsert.counties.filter(c => 
-                                        !countiesArray.some(existing => existing.toLowerCase() === c.toLowerCase())
-                                    );
-                                    
-                                    if (countiesToAdd.length > 0) {
-                                        countiesArray.push(...countiesToAdd);
-                                        await db
-                                            .update(companies)
-                                            .set({ counties: countiesArray, updatedAt: new Date() })
-                                            .where(eq(companies.id, existing.id));
-                                        existing.counties = countiesArray;
-                                    }
+                                    await addCountiesToCompanyIfNeeded(existing, companyToInsert.counties);
                                 }
                             } catch (fetchError) {
                                 console.error(`[SFR SYNC V2] Error fetching duplicate company:`, fetchError);
@@ -765,13 +729,21 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     const status = "in-renovation";
                     const listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
                     
+                    // Convert vacant to boolean (API may return true/false, "true"/"false", or other strings)
+                    let vacantValue: boolean | null = null;
+                    if (propertyData.vacant === true || propertyData.vacant === "true") {
+                        vacantValue = true;
+                    } else if (propertyData.vacant === false || propertyData.vacant === "false") {
+                        vacantValue = false;
+                    }
+                    
                     const propertyRecord: PropertyToInsert = {
                         sfrPropertyId,
                         companyId,
                         propertyOwnerId,
                         propertyClassDescription: propertyData.property_class_description || null,
                         propertyType: normalizePropertyType(propertyData.property_type) || null,
-                        vacant: propertyData.vacant || null,
+                        vacant: vacantValue,
                         hoa: propertyData.hoa ? String(propertyData.hoa) : null,
                         ownerType: propertyData.owner_type || null,
                         purchaseMethod: propertyData.purchase_method || null,
