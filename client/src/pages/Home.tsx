@@ -589,7 +589,7 @@ export default function Home() {
     queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
   };
 
-  // Check if filters are active (not in initial state) - excludes company selection
+  // Check if filters are active (not in initial state) - excludes company selection and county/state (those are preserved on clear)
   const hasActiveFilters = useMemo(() => {
     return (
       filters.minPrice > 0 ||
@@ -599,7 +599,6 @@ export default function Home() {
       filters.propertyTypes.length > 0 ||
       filters.zipCode !== '' ||
       filters.city !== undefined ||
-      (filters.county !== undefined && filters.county !== 'San Diego') ||
       filters.statusFilters.length !== 1 ||
       filters.statusFilters[0] !== 'in-renovation'
     );
