@@ -1121,7 +1121,8 @@ export default function Home() {
       county: filters.county ?? 'San Diego',
       statusFilters: ["in-renovation", "on-market", "sold"],
     });
-    setSidebarView("none");
+    // Open/keep FilterSidebar open when selecting a zip (like company click opens directory)
+    setSidebarView("filters");
     setMapCenter(undefined);
     setMapZoom(12);
   };
