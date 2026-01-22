@@ -415,20 +415,9 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 }
             }
 
-            // Persist sync state after each /buyers/market call using the latest saleDate boundary
-            if (boundaryDate) {
-                try {
-                    await persistSyncStateV2({
-                        syncStateId,
-                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                        initialTotalSynced,
-                        processed: 0, // don't change totalRecordsSynced here, just advance the date boundary
-                        finalSaleDate: boundaryDate,
-                    });
-                } catch (persistPageError) {
-                    console.error(`[SFR SYNC V2] Failed to persist state after buyers/market page:`, persistPageError);
-                }
-            }
+            // NOTE: We intentionally do NOT persist sync state here during address collection.
+            // We only persist after properties are actually saved to the database.
+            // This ensures that if the batch processing fails, we can resume from the correct point.
         }
         
         console.log(`[SFR SYNC V2] Completed buyers/market pagination. Total addresses collected: ${addressesSet.size}, boundary date: ${boundaryDate || 'N/A'}`);
@@ -1254,20 +1243,14 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
 
             console.log(`[SFR SYNC V2] Processed batch ${batchNum}: ${totalProcessed} processed, ${propertiesToInsert.length} inserted, ${propertiesToUpdate.length} updated`);
             
-            // Persist sync state periodically after batches
-            if (boundaryDate && totalProcessed % 50 === 0) {
-                try {
-                    await persistSyncStateV2({
-                        syncStateId,
-                        previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                        initialTotalSynced,
-                        processed: totalProcessed,
-                        finalSaleDate: boundaryDate,
-                    });
-                } catch (persistError) {
-                    console.error(`[SFR SYNC V2] Failed to persist state after batch:`, persistError);
-                }
-            }
+            // NOTE: We do NOT persist boundaryDate after each batch. 
+            // Because addresses are collected from /buyers/market sorted by sale_date, but batches 
+            // are processed in arbitrary order. If we crash mid-batch and restart from boundaryDate,
+            // we could skip properties with earlier sale dates that weren't yet processed.
+            // 
+            // Instead, we only persist boundaryDate at the END of a successful sync run.
+            // On failure, we restart from the original lastSaleDate and re-process.
+            // This is safe because existing properties are updated (idempotent), and ensures no data loss.
         }
         
         // Persist final sync state
@@ -1299,18 +1282,12 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
         
     } catch (error) {
         console.error(`[SFR SYNC V2] Error syncing ${msa}:`, error);
-        try {
-            const persistedState = await persistSyncStateV2({
-                syncStateId: syncStateId,
-                previousLastSaleDate: syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null,
-                initialTotalSynced: initialTotalSynced ?? 0,
-                processed: totalProcessed ?? 0,
-                finalSaleDate: boundaryDate ?? null,
-            });
-            console.log(`[SFR SYNC V2] Persisted sync state after failure for ${msa}. lastSaleDate: ${persistedState.lastSaleDate}`);
-        } catch (e) {
-            console.error(`[SFR SYNC V2] Failed to persist sync state after error for ${msa}:`, e);
-        }
+        // NOTE: On failure, we do NOT persist the boundaryDate.
+        // We keep the original lastSaleDate so the next sync run restarts from the same point.
+        // This ensures no data is skipped due to partial processing.
+        // Existing properties will be safely updated on retry (idempotent).
+        const originalLastSaleDate = syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null;
+        console.log(`[SFR SYNC V2] Sync failed for ${msa}. Will restart from original lastSaleDate: ${originalLastSaleDate}. Processed ${totalProcessed ?? 0} records before failure.`);
         const errorMessage = error instanceof Error ? error.message : String(error);
         throw new Error(`Error syncing ${msa}: ${errorMessage}`);
     }
