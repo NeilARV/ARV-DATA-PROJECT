@@ -605,7 +605,7 @@ export default function Home() {
     );
   }, [filters]);
 
-  // Reset filters to initial state (does not clear company selection)
+  // Reset filters to initial state (does not clear company selection; preserves county and state)
   const handleClearAllFilters = () => {
     setFilters({
       minPrice: 0,
@@ -615,7 +615,7 @@ export default function Home() {
       propertyTypes: [],
       zipCode: '',
       city: undefined,
-      county: 'San Diego', // Reset to default San Diego county
+      county: filters.county ?? 'San Diego',
       statusFilters: ['in-renovation'],
     });
   };

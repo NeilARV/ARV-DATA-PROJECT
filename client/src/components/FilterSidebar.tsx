@@ -224,13 +224,17 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const handleClearFilters = () => {
+    // Preserve current county and state when clearing all other filters
+    const countyToKeep = filters?.county ?? 'San Diego';
+    const stateToKeep = COUNTIES.find(c => c.county === countyToKeep)?.state ?? 'CA';
+
     setPriceRange([0, MAX_PRICE]);
     setSelectedBedrooms('Any');
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
     setZipCode('');
-    setSelectedState('CA');
-    setCounty('San Diego County');
+    setSelectedState(stateToKeep);
+    setCounty(`${countyToKeep} County`);
     setStatusFilters(new Set(["in-renovation"]));
     onFilterChange?.({
       minPrice: 0,
@@ -240,7 +244,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       propertyTypes: [],
       zipCode: '',
       city: undefined,
-      county: 'San Diego',
+      county: countyToKeep,
       statusFilters: ["in-renovation"],
     });
   };
