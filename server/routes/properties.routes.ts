@@ -234,10 +234,10 @@ router.post("/", requireAdminAuth, async (req, res) => {
         }
 
         // Determine status and listing status
-        // SFR API returns "On Market" or "Off Market"; map to on_market/off_market
+        // SFR API returns "On Market" or "Off Market"; store as on-market/off-market
         const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
         const status = "in-renovation";
-        const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on_market" : "off_market";
+        const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
 
         // Get MSA from property data or zip code
         const msa = propertyData.msa || getMSAFromZipCode(propertyData.address?.zip_code || zipCode) || null;

@@ -718,8 +718,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     
                     const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
                     const status = "in-renovation";
-                    // SFR API returns "On Market" or "Off Market"; map to on_market/off_market
-                    const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on_market" : "off_market";
+                    // SFR API returns "On Market" or "Off Market"; store as on-market/off-market
+                    const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
                     
                     const propertyRecord: PropertyToInsert = {
                         sfrPropertyId,
