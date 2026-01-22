@@ -364,53 +364,67 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
   const handleStateChange = (newState: string) => {
     setSelectedState(newState);
-    
+
     // Get counties for the new state
     const countiesInNewState = COUNTIES.filter(c => c.state === newState);
-    
+
     // Check if current county exists in the new state
     const currentCountyName = filters?.county ?? 'San Diego';
     const countyExistsInNewState = countiesInNewState.some(
       c => c.county === currentCountyName || c.county === currentCountyName.replace(' County', '')
     );
-    
-    // If current county doesn't exist in new state, set to first county in new state
+
+    // If current county doesn't exist in new state, set to first county in new state and clear all filters
     if (!countyExistsInNewState && countiesInNewState.length > 0) {
       const firstCounty = countiesInNewState[0];
       setCounty(`${firstCounty.county} County`);
-      // Update filter with new county
+
+      // Clear all filters when switching to a new state/county so all properties in that area appear
+      setPriceRange([0, MAX_PRICE]);
+      setSelectedBedrooms('Any');
+      setSelectedBathrooms('Any');
+      setSelectedTypes([]);
+      setZipCode('');
+      setStatusFilters(new Set(["in-renovation"]));
+
       onFilterChange?.({
-        minPrice: priceRange[0],
-        maxPrice: priceRange[1],
-        bedrooms: selectedBedrooms,
-        bathrooms: selectedBathrooms,
-        propertyTypes: selectedTypes,
+        minPrice: 0,
+        maxPrice: MAX_PRICE,
+        bedrooms: 'Any',
+        bathrooms: 'Any',
+        propertyTypes: [],
         zipCode: '',
         city: undefined,
         county: firstCounty.county,
-        statusFilters: Array.from(statusFilters),
+        statusFilters: ["in-renovation"],
       });
     }
-    
-    // Clear county suggestions
+
     setShowCountySuggestions(false);
   };
 
   const selectCounty = (countyObj: typeof COUNTIES[0]) => {
     setCounty(`${countyObj.county} County`);
     setShowCountySuggestions(false);
-    
-    // Immediately apply the county filter - this will trigger a new API request
+
+    // Clear all filters when selecting a new county so all properties in that area appear
+    setPriceRange([0, MAX_PRICE]);
+    setSelectedBedrooms('Any');
+    setSelectedBathrooms('Any');
+    setSelectedTypes([]);
+    setZipCode('');
+    setStatusFilters(new Set(["in-renovation"]));
+
     onFilterChange?.({
-      minPrice: priceRange[0],
-      maxPrice: priceRange[1],
-      bedrooms: selectedBedrooms,
-      bathrooms: selectedBathrooms,
-      propertyTypes: selectedTypes,
+      minPrice: 0,
+      maxPrice: MAX_PRICE,
+      bedrooms: 'Any',
+      bathrooms: 'Any',
+      propertyTypes: [],
       zipCode: '',
-      city: undefined, // Clear city when county is selected
-      county: countyObj.county, // Store base name without "County" suffix
-      statusFilters: Array.from(statusFilters),
+      city: undefined,
+      county: countyObj.county,
+      statusFilters: ["in-renovation"],
     });
   };
 
