@@ -1107,7 +1107,8 @@ export default function Home() {
 
 
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
-    // Clear company filter and set zip code filter
+    // Clear company filter and set zip code filter. Preserve current county so the
+    // zip (which belongs to the leaderboard's county) matches the map's data.
     clearCompanySelection();
     setFilters({
       minPrice: 0,
@@ -1117,7 +1118,7 @@ export default function Home() {
       propertyTypes: [],
       zipCode: zipCode,
       city: undefined,
-      county: 'San Diego', // Preserve default county
+      county: filters.county ?? 'San Diego',
       statusFilters: ["in-renovation", "on-market", "sold"],
     });
     setSidebarView("none");
