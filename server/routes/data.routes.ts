@@ -22,7 +22,6 @@ import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normali
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { fetchCounty } from "server/utils/fetchCounty";
 import { normalizeAddress } from "server/utils/normalizeAddress";
 import { normalizePropertyType } from "server/utils/normalizePropertyType";
 
@@ -164,27 +163,27 @@ function isFlippingCompany(name: string | null | undefined, ownershipCode: strin
     return corporatePatterns.some(pattern => pattern.test(name));
 }
 
-// Helper function to fetch county from coordinates using our utility
-async function getCountyFromCoordinates(latitude: number | string | null | undefined, longitude: number | string | null | undefined): Promise<string | null> {
-    if (!latitude || !longitude) {
+// Helper function to normalize county name from API response
+// Handles formats like "San Diego County, California" -> "San Diego"
+function normalizeCountyName(county: string | null | undefined): string | null {
+    if (!county || typeof county !== 'string') {
         return null;
     }
     
-    try {
-        const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
-        const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
-        
-        if (isNaN(lat) || isNaN(lon)) {
-            return null;
-        }
-        
-        // fetchCounty already returns just the county name (BASENAME from Census API)
-        const county = await fetchCounty(lon, lat);
-        return county;
-    } catch (error) {
-        console.warn(`[SFR SYNC V2] Error fetching county from coordinates:`, error);
-        return null;
+    let normalized = county.trim();
+    
+    // Remove state suffix (e.g., ", California" or ", CA")
+    const commaIndex = normalized.indexOf(',');
+    if (commaIndex !== -1) {
+        normalized = normalized.substring(0, commaIndex).trim();
     }
+    
+    // Remove "County" suffix if present
+    if (normalized.toLowerCase().endsWith(' county')) {
+        normalized = normalized.substring(0, normalized.length - 7).trim();
+    }
+    
+    return normalized || null;
 }
 
 // Helper to parse counties from DB (handles both array and legacy string format)
@@ -533,11 +532,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 const isCorporateEntity = isOpendoor || isFlippingCompany(buyerName, recordInfo.record.buyerOwnershipCode || null);
                 if (!isCorporateEntity) continue;
                 
-                // Fetch county from coordinates
-                const normalizedCounty = await getCountyFromCoordinates(
-                    propertyData.address?.latitude,
-                    propertyData.address?.longitude
-                );
+                // Normalize county from API response (e.g., "San Diego County, California" -> "San Diego")
+                const normalizedCounty = normalizeCountyName(propertyData.county);
                 
                 validProperties.push({
                     batchItem,
