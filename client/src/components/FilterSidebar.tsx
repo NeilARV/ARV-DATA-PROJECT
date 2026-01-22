@@ -185,9 +185,10 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
   // Calculate cities with counts (aggregate zip codes by city)
   // Normalize San Diego city names - aggregate all "San Diego - *" variations into just "San Diego"
+  // Sort cities by the same option as zip codes: most/fewest properties or alphabetical
   const citiesWithCounts = useMemo(() => {
     const cityMap = new Map<string, number>();
-    
+
     sortedZipCodes.forEach(zip => {
       if (zip.city && zip.city !== 'Unknown') {
         // Normalize San Diego city names (e.g., "San Diego - Downtown" -> "San Diego")
@@ -196,11 +197,20 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         cityMap.set(normalizedCity, currentCount + zip.count);
       }
     });
-    
-    return Array.from(cityMap.entries())
-      .map(([city, count]) => ({ city, count }))
-      .sort((a, b) => a.city.localeCompare(b.city)); // Sort alphabetically
-  }, [sortedZipCodes]);
+
+    const entries = Array.from(cityMap.entries()).map(([city, count]) => ({ city, count }));
+
+    switch (zipCodeSort) {
+      case "most-properties":
+        return entries.sort((a, b) => b.count - a.count);
+      case "fewest-properties":
+        return entries.sort((a, b) => a.count - b.count);
+      case "alphabetical":
+        return entries.sort((a, b) => a.city.localeCompare(b.city));
+      default:
+        return entries;
+    }
+  }, [sortedZipCodes, zipCodeSort]);
 
   const zipCodeSortLabels: Record<ZipCodeSortOption, string> = {
     "most-properties": "Most Properties",
