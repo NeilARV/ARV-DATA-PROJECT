@@ -659,7 +659,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 propertyOwnerId: string | null;
                 propertyClassDescription: string | null;
                 propertyType: string | null;
-                vacant: boolean | null;
+                vacant: string | null;
                 hoa: string | null;
                 ownerType: string | null;
                 purchaseMethod: string | null;
@@ -729,21 +729,13 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                     const status = "in-renovation";
                     const listingStatus = propertyListingStatus === "active" || propertyListingStatus === "pending" ? "on_market" : "off_market";
                     
-                    // Convert vacant to boolean (API may return true/false, "true"/"false", or other strings)
-                    let vacantValue: boolean | null = null;
-                    if (propertyData.vacant === true || propertyData.vacant === "true") {
-                        vacantValue = true;
-                    } else if (propertyData.vacant === false || propertyData.vacant === "false") {
-                        vacantValue = false;
-                    }
-                    
                     const propertyRecord: PropertyToInsert = {
                         sfrPropertyId,
                         companyId,
                         propertyOwnerId,
                         propertyClassDescription: propertyData.property_class_description || null,
                         propertyType: normalizePropertyType(propertyData.property_type) || null,
-                        vacant: vacantValue,
+                        vacant: propertyData.vacant != null ? String(propertyData.vacant) : null,
                         hoa: propertyData.hoa ? String(propertyData.hoa) : null,
                         ownerType: propertyData.owner_type || null,
                         purchaseMethod: propertyData.purchase_method || null,

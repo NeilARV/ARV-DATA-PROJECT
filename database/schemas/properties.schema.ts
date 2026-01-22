@@ -21,7 +21,7 @@ export const properties = pgTable("properties", {
   propertyOwnerId: uuid("property_owner_id").references(() => companies.id, { onDelete: "set null" }),
   propertyClassDescription: varchar("property_class_description", { length: 100 }),
   propertyType: varchar("property_type", { length: 100 }),
-  vacant: boolean("vacant"),
+  vacant: varchar("vacant", { length: 10 }),
   hoa: varchar("hoa", { length: 10 }),
   ownerType: varchar("owner_type", { length: 50 }),
   purchaseMethod: varchar("purchase_method", { length: 50 }),

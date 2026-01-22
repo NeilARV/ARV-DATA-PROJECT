@@ -87,7 +87,7 @@ CREATE TABLE properties (
     property_owner_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     property_class_description VARCHAR(100),
     property_type VARCHAR(100),
-    vacant BOOLEAN,
+    vacant VARCHAR(10),
     hoa VARCHAR(10),
     owner_type VARCHAR(50),
     purchase_method VARCHAR(50),
