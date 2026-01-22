@@ -17,9 +17,8 @@ import {
 } from "../../database/schemas/properties.schema";
 import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
-import { eq, and, sql, or, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
-import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { normalizeAddress } from "server/utils/normalizeAddress";
