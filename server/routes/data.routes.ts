@@ -22,7 +22,6 @@ import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normali
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { mapPropertyType } from "server/utils/mapPropertyType";
 import { fetchCounty } from "server/utils/fetchCounty";
 import { normalizeAddress } from "server/utils/normalizeAddress";
 import { normalizePropertyType } from "server/utils/normalizePropertyType";
