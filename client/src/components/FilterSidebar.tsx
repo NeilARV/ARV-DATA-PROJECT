@@ -550,27 +550,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
               className="pl-9"
               data-testid="input-county"
             />
-            {county && (
-              <X 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => {
-                  setSelectedState('CA');
-                  setCounty('San Diego County');
-                  setShowCountySuggestions(false);
-                  onFilterChange?.({
-                    minPrice: priceRange[0],
-                    maxPrice: priceRange[1],
-                    bedrooms: selectedBedrooms,
-                    bathrooms: selectedBathrooms,
-                    propertyTypes: selectedTypes,
-                    zipCode: filters?.zipCode ?? zipCode,
-                    city: filters?.city,
-                    county: 'San Diego',
-                    statusFilters: Array.from(statusFilters),
-                  });
-                }}
-              />
-            )}
           </div>
           {showCountySuggestions && filteredCounties.length > 0 && (
             <div
