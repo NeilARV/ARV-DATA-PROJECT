@@ -30,6 +30,35 @@ const router = Router();
 
 /* V2 SFR Sync Functions - Using new normalized schema and batch API */
 
+// Helper to normalize date values to YYYY-MM-DD format
+function normalizeDateToYMD(
+    dateValue: string | Date | null | undefined,
+    options?: { subtractDays?: number }
+): string | null {
+    if (!dateValue) return null;
+    
+    let date: Date;
+    
+    if (dateValue instanceof Date) {
+        if (isNaN(dateValue.getTime())) return null;
+        date = new Date(dateValue);
+    } else if (typeof dateValue === "string") {
+        // Extract just the date part if it has a timestamp
+        const datePart = dateValue.split("T")[0];
+        date = new Date(datePart);
+        if (isNaN(date.getTime())) return null;
+    } else {
+        return null;
+    }
+    
+    // Optionally subtract days
+    if (options?.subtractDays) {
+        date.setDate(date.getDate() - options.subtractDays);
+    }
+    
+    return date.toISOString().split("T")[0];
+}
+
 // Helper to persist sync state V2 (tracking only lastSaleDate)
 async function persistSyncStateV2(options: {
     syncStateId?: number | null;
@@ -58,22 +87,10 @@ async function persistSyncStateV2(options: {
     let saleDateToSet: string | null = null;
     if (finalSaleDate) {
         // New boundary date found - normalize to YYYY-MM-DD and subtract 1 day
-        if (typeof finalSaleDate === "string") {
-            const date = new Date(finalSaleDate.split("T")[0]);
-            if (!isNaN(date.getTime())) {
-                date.setDate(date.getDate() - 1);
-                saleDateToSet = date.toISOString().split("T")[0];
-            } else {
-                saleDateToSet = null;
-            }
-        } else {
-            saleDateToSet = null;
-        }
+        saleDateToSet = normalizeDateToYMD(finalSaleDate, { subtractDays: 1 });
     } else if (previousLastSaleDate) {
         // No new date, keep the previous value
-        saleDateToSet = typeof previousLastSaleDate === 'string' 
-            ? previousLastSaleDate.split("T")[0] 
-            : previousLastSaleDate;
+        saleDateToSet = normalizeDateToYMD(previousLastSaleDate);
     }
 
     try {
@@ -279,20 +296,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
         } else {
             // Use lastSaleDate as min sale date (stored value is already saleDate - 1, so use it directly)
             const lastSale = syncState[0].lastSaleDate;
-            if (lastSale) {
-                // Handle both Date objects and date strings (YYYY-MM-DD format)
-                if (lastSale instanceof Date) {
-                    minSaleDate = lastSale.toISOString().split("T")[0];
-                } else if (typeof lastSale === 'string') {
-                    // If it's already a date string, use it directly (may already be in YYYY-MM-DD format)
-                    // If it has a timestamp, extract just the date part
-                    minSaleDate = lastSale.split("T")[0];
-                } else {
-                    minSaleDate = "2025-12-03"; // Default start date
-                }
-            } else {
-                minSaleDate = "2025-12-03"; // Default start date
-            }
+            minSaleDate = normalizeDateToYMD(lastSale) || "2025-12-03";
             
             syncStateId = syncState[0].id;
             initialTotalSynced = syncState[0].totalRecordsSynced || 0;
@@ -374,8 +378,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 // Build address string: "ADDRESS, CITY, STATE"
                 if (record.address && record.city && record.state) {
                     const addressStr = `${record.address}, ${record.city}, ${record.state}`;
-                    const recordingDateStr = record.recordingDate ? 
-                        (typeof record.recordingDate === 'string' ? record.recordingDate.split("T")[0] : record.recordingDate.toISOString().split("T")[0]) : "";
+                    const recordingDateStr = normalizeDateToYMD(record.recordingDate) || "";
                     
                     // Check if we already have this address - keep the one with most recent recordingDate
                     const existingRecord = recordsMap.get(addressStr);
@@ -396,11 +399,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
 
             // Determine the saleDate boundary for this page using the last item (array[-1] equivalent)
             const lastRecord = buyersMarketData[buyersMarketData.length - 1];
-            const pageLastSaleDate = (lastRecord && lastRecord.saleDate)
-                ? (typeof lastRecord.saleDate === "string"
-                    ? lastRecord.saleDate.split("T")[0]
-                    : lastRecord.saleDate.toISOString().split("T")[0])
-                : null;
+            const pageLastSaleDate = lastRecord ? normalizeDateToYMD(lastRecord.saleDate) : null;
             // Track latest saleDate boundary for this run
             if (pageLastSaleDate && (!boundaryDate || pageLastSaleDate > boundaryDate)) {
                 boundaryDate = pageLastSaleDate;
@@ -1017,13 +1016,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
                 // Collect last sale
                 if (propertyData.last_sale || propertyData.lastSale) {
                     const lastSale = propertyData.last_sale || propertyData.lastSale;
-                    let recordingDateFromBuyersMarket: string | null = null;
-                    if (recordInfo.record && recordInfo.record.recordingDate) {
-                        recordingDateFromBuyersMarket =
-                            typeof recordInfo.record.recordingDate === "string"
-                                ? recordInfo.record.recordingDate.split("T")[0]
-                                : recordInfo.record.recordingDate.toISOString().split("T")[0];
-                    }
+                    const recordingDateFromBuyersMarket = normalizeDateToYMD(recordInfo.record?.recordingDate);
 
                     lastSalesToInsert.push({
                         propertyId,
@@ -1113,14 +1106,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
 
                     if (transactionDate) {
                         // Normalize transaction date to YYYY-MM-DD format
-                        let normalizedDate: string;
-                        if (typeof transactionDate === "string") {
-                            normalizedDate = transactionDate.split("T")[0];
-                        } else if (transactionDate instanceof Date) {
-                            normalizedDate = transactionDate.toISOString().split("T")[0];
-                        } else {
-                            continue; // Skip if date is invalid
-                        }
+                        const normalizedDate = normalizeDateToYMD(transactionDate);
+                        if (!normalizedDate) continue; // Skip if date is invalid
 
                         // Get buyer name (the company)
                         const buyerName = recordInfo.record.buyerName || null;
@@ -1174,14 +1161,8 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
 
                     if (transactionDate) {
                         // Normalize transaction date to YYYY-MM-DD format
-                        let normalizedDate: string;
-                        if (typeof transactionDate === "string") {
-                            normalizedDate = transactionDate.split("T")[0];
-                        } else if (transactionDate instanceof Date) {
-                            normalizedDate = transactionDate.toISOString().split("T")[0];
-                        } else {
-                            continue; // Skip if date is invalid
-                        }
+                        const normalizedDate = normalizeDateToYMD(transactionDate);
+                        if (!normalizedDate) continue; // Skip if date is invalid
 
                         // Get buyer name (the company)
                         const buyerName = recordInfo.record.buyerName || null;
