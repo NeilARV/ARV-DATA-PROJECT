@@ -24,9 +24,7 @@ import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesTo
 
 const router = Router();
 
-/* V2 SFR Sync Functions - Using new normalized schema and batch API */
-
-// Sync function V2 for a single MSA using new API endpoints and normalized schema
+// Sync function for a single MSA using new API endpoints and normalized schema
 // Only uses /buyers/market endpoint
 async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: string) {
     // Sync state / counters for this MSA
