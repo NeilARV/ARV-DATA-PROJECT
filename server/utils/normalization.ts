@@ -232,3 +232,29 @@ export function normalizeAddress(address: string | null | undefined): string | n
     
     return normalizedStreet.trim();
 }
+
+// Helper to normalize date values to YYYY-MM-DD format
+export function normalizeDateToYMD(dateValue: string | Date | null | undefined, options?: { subtractDays?: number }): string | null {
+    if (!dateValue) return null;
+    
+    let date: Date;
+    
+    if (dateValue instanceof Date) {
+        if (isNaN(dateValue.getTime())) return null;
+        date = new Date(dateValue);
+    } else if (typeof dateValue === "string") {
+        // Extract just the date part if it has a timestamp
+        const datePart = dateValue.split("T")[0];
+        date = new Date(datePart);
+        if (isNaN(date.getTime())) return null;
+    } else {
+        return null;
+    }
+    
+    // Optionally subtract days
+    if (options?.subtractDays) {
+        date.setDate(date.getDate() - options.subtractDays);
+    }
+    
+    return date.toISOString().split("T")[0];
+}

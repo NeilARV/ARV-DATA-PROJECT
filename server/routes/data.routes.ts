@@ -19,217 +19,16 @@ import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
+import { normalizeDateToYMD, normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
+import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 
 const router = Router();
 
 /* V2 SFR Sync Functions - Using new normalized schema and batch API */
 
-// Helper to normalize date values to YYYY-MM-DD format
-function normalizeDateToYMD(
-    dateValue: string | Date | null | undefined,
-    options?: { subtractDays?: number }
-): string | null {
-    if (!dateValue) return null;
-    
-    let date: Date;
-    
-    if (dateValue instanceof Date) {
-        if (isNaN(dateValue.getTime())) return null;
-        date = new Date(dateValue);
-    } else if (typeof dateValue === "string") {
-        // Extract just the date part if it has a timestamp
-        const datePart = dateValue.split("T")[0];
-        date = new Date(datePart);
-        if (isNaN(date.getTime())) return null;
-    } else {
-        return null;
-    }
-    
-    // Optionally subtract days
-    if (options?.subtractDays) {
-        date.setDate(date.getDate() - options.subtractDays);
-    }
-    
-    return date.toISOString().split("T")[0];
-}
-
-// Helper to persist sync state V2 (tracking only lastSaleDate)
-async function persistSyncStateV2(options: {
-    syncStateId?: number | null;
-    previousLastSaleDate?: string | null;
-    initialTotalSynced?: number;
-    processed?: number;
-    finalSaleDate?: string | null;
-}) {
-    const {
-        syncStateId,
-        previousLastSaleDate,
-        initialTotalSynced = 0,
-        processed = 0,
-        finalSaleDate,
-    } = options || {};
-
-    if (!syncStateId) {
-        console.warn("[SFR SYNC V2] No syncStateId provided to persist state");
-        return { lastSaleDate: previousLastSaleDate || null };
-    }
-
-    const newTotalSynced = (initialTotalSynced || 0) + (processed || 0);
-    
-    // Calculate lastSaleDate
-    // Subtract 1 day from the latest sale date because the API range is non-inclusive.
-    let saleDateToSet: string | null = null;
-    if (finalSaleDate) {
-        // New boundary date found - normalize to YYYY-MM-DD and subtract 1 day
-        saleDateToSet = normalizeDateToYMD(finalSaleDate, { subtractDays: 1 });
-    } else if (previousLastSaleDate) {
-        // No new date, keep the previous value
-        saleDateToSet = normalizeDateToYMD(previousLastSaleDate);
-    }
-
-    try {
-        await db
-            .update(sfrSyncStateV2)
-            .set({
-                lastSaleDate: saleDateToSet,
-                totalRecordsSynced: newTotalSynced,
-                lastSyncAt: sql`now()`,
-            })
-            .where(eq(sfrSyncStateV2.id, syncStateId));
-
-        console.log(
-            `[SFR SYNC V2] Persisted sync state. lastSaleDate: ${saleDateToSet}, totalRecordsSynced: ${newTotalSynced}`,
-        );
-        return { lastSaleDate: saleDateToSet };
-    } catch (e: any) {
-        console.error("[SFR SYNC V2] Failed to persist sync state:", e);
-        return { lastSaleDate: saleDateToSet };
-    }
-}
-
-// Helper function to check if a name/entity is a trust
-function isTrust(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
-    if (!name) return false;
-    
-    // Ownership codes that indicate trusts
-    const trustCodes = ['TR', 'FL']; // TR = Trust, FL = Family Living Trust
-    
-    if (ownershipCode && trustCodes.includes(ownershipCode.toUpperCase())) {
-        return true;
-    }
-    
-    // Name-based detection
-    const trustPatterns = [
-        /\bTRUST\b/i,
-        /\bLIVING TRUST\b/i,
-        /\bFAMILY TRUST\b/i,
-        /\bREVOCABLE TRUST\b/i,
-        /\bIRREVOCABLE TRUST\b/i,
-        /\bSPOUSAL TRUST\b/i
-    ];
-    
-    return trustPatterns.some(pattern => pattern.test(name));
-}
-
-// Helper function to check if a name/entity is a flipping company (corporate but not trust)
-function isFlippingCompany(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
-    if (!name) return false;
-    
-    // Must NOT be a trust
-    if (isTrust(name, ownershipCode)) {
-        return false;
-    }
-    
-    // Valid corporate patterns
-    const corporatePatterns = [
-        /\bLLC\b/i,
-        /\bINC\b/i,
-        /\bCORP\b/i,
-        /\bLTD\b/i,
-        /\bLP\b/i,
-        /\bPROPERTIES\b/i,
-        /\bINVESTMENTS?\b/i,
-        /\bCAPITAL\b/i,
-        /\bVENTURES?\b/i,
-        /\bHOLDINGS?\b/i,
-        /\bREALTY\b/i
-    ];
-    
-    return corporatePatterns.some(pattern => pattern.test(name));
-}
-
-// Helper to parse counties from DB (handles both array and legacy string format)
-function parseCountiesArray(counties: any): string[] {
-    if (!counties) return [];
-    if (Array.isArray(counties)) return counties;
-    if (typeof counties === 'string') {
-        try {
-            return JSON.parse(counties);
-        } catch {
-            return [];
-        }
-    }
-    return [];
-}
-
-// Helper to add counties to a company and update DB if needed
-async function addCountiesToCompanyIfNeeded(
-    company: typeof companies.$inferSelect,
-    countiesToAdd: string[] | Set<string>
-): Promise<void> {
-    const countiesArray = parseCountiesArray(company.counties);
-    const newCounties = Array.isArray(countiesToAdd) ? countiesToAdd : Array.from(countiesToAdd);
-    
-    const actuallyNew = newCounties.filter(c => 
-        !countiesArray.some(existing => existing.toLowerCase() === c.toLowerCase())
-    );
-    
-    if (actuallyNew.length === 0) return;
-    
-    countiesArray.push(...actuallyNew);
-    await db
-        .update(companies)
-        .set({ counties: countiesArray, updatedAt: new Date() })
-        .where(eq(companies.id, company.id));
-    company.counties = countiesArray;
-}
-
-// Helper to find a company in DB by name, cache it, and optionally update counties
-async function findAndCacheCompany(
-    companyStorageName: string,
-    normalizedCompareKey: string | null,
-    contactsMap: Map<string, typeof companies.$inferSelect>,
-    countiesToUpdate?: string[] | Set<string>
-): Promise<typeof companies.$inferSelect | null> {
-    try {
-        const [dbCompany] = await db
-            .select()
-            .from(companies)
-            .where(eq(companies.companyName, companyStorageName))
-            .limit(1);
-        
-        if (dbCompany) {
-            // Add to cache if we have a compare key
-            if (normalizedCompareKey) {
-                contactsMap.set(normalizedCompareKey, dbCompany);
-            }
-            // Update counties if provided
-            if (countiesToUpdate) {
-                await addCountiesToCompanyIfNeeded(dbCompany, countiesToUpdate);
-            }
-            return dbCompany;
-        }
-        return null;
-    } catch (error) {
-        console.error(`[SFR SYNC V2] Error looking up company in database:`, error);
-        return null;
-    }
-}
-
 // Sync function V2 for a single MSA using new API endpoints and normalized schema
 // Only uses /buyers/market endpoint
-async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: string) {
+async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: string) {
     // Sync state / counters for this MSA
     let minSaleDate: string = "";
     let syncStateId: number | null = null;
@@ -1228,9 +1027,9 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
         }
         
         // Persist final sync state
-        // Use latest sale date minus 1 day for next sync (handled by persistSyncStateV2)
+        // Use latest sale date minus 1 day for next sync (handled by persistSyncState)
         // This ensures we resume from where we left off
-        const persistedState = await persistSyncStateV2({
+        const persistedState = await persistSyncState({
             syncStateId: syncStateId,
             previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
             initialTotalSynced: initialTotalSynced ?? 0,
@@ -1267,7 +1066,7 @@ async function syncMSAV2(msa: string, API_KEY: string, API_URL: string, today: s
     }
 }
 
-router.post("/v2/sfr", requireAdminAuth, async (req, res) => { 
+router.post("/sfr", requireAdminAuth, async (req, res) => { 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
     const today = new Date().toISOString().split("T")[0];
@@ -1294,7 +1093,7 @@ router.post("/v2/sfr", requireAdminAuth, async (req, res) => {
         for (const syncState of allSyncStates) {
             try {
                 console.log(`[SFR SYNC V2] Starting sync for MSA: ${syncState.msa}`);
-                const result = await syncMSAV2(syncState.msa, API_KEY, API_URL, today);
+                const result = await syncMSA(syncState.msa, API_KEY, API_URL, today);
                 results.push(result);
                 console.log(`[SFR SYNC V2] Completed sync for MSA: ${syncState.msa}`);
             } catch (error) {
