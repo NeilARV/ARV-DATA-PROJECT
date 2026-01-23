@@ -9,7 +9,6 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -17,7 +16,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CloudUpload,
   Trash2,
   Loader2,
   Database,
@@ -28,7 +26,6 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
-import UploadDataTab from "@/components/admin/UploadDataTab";
 import RetrieveDataTab from "@/components/admin/RetrieveDataTab";
 import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
@@ -216,12 +213,8 @@ export default function Admin() {
         </p>
       </div>
 
-      <Tabs defaultValue="upload" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-8">
-          <TabsTrigger value="upload" data-testid="tab-upload">
-            <CloudUpload className="w-4 h-4 mr-2" />
-            Upload Data
-          </TabsTrigger>
+      <Tabs defaultValue="retrieve" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-8">
           <TabsTrigger value="retrieve" data-testid="tab-retrieve">
             <Database className="w-4 h-4 mr-2" />
             Retrieve Data
@@ -239,13 +232,6 @@ export default function Admin() {
             Delete All Data
           </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="upload">
-          <UploadDataTab
-            properties={properties}
-            onOpenUpload={() => setUploadDialogOpen(true)}
-          />
-        </TabsContent>
 
         <TabsContent value="retrieve">
           <RetrieveDataTab properties={properties} />
