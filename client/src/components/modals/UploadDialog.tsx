@@ -24,7 +24,6 @@ import * as XLSX from "xlsx";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { parseDate } from "@/lib/dateUtils";
 
 interface UploadDialogProps {
   open: boolean;
@@ -201,7 +200,7 @@ export default function UploadDialog({
     }
   };
 
-  // Smart field name mapping - recognizes common variations
+  // Smart field name mapping - only address fields needed since SFR API provides all other data
   const fieldMappings: Record<string, string[]> = {
     address: [
       "address",
@@ -210,10 +209,9 @@ export default function UploadDialog({
       "streetaddress",
       "street address",
       "property address",
-      "location",
     ],
     city: ["city", "town", "municipality"],
-    state: ["state", "st", "province"],
+    state: ["state", "st"],
     zipCode: [
       "zipcode",
       "zip",
@@ -221,127 +219,6 @@ export default function UploadDialog({
       "postalcode",
       "postal code",
       "postcode",
-    ],
-    price: [
-      "price",
-      "salesprice",
-      "sales price",
-      "saleprice",
-      "sale price",
-      "selling price",
-      "sellingprice",
-      "listprice",
-      "list price",
-      "amount",
-      "cost",
-    ],
-    bedrooms: [
-      "bedrooms",
-      "beds",
-      "bed",
-      "br",
-      "bedroom",
-      "numberofbedrooms",
-      "number of bedrooms",
-    ],
-    bathrooms: [
-      "bathrooms",
-      "baths",
-      "bath",
-      "ba",
-      "bathroom",
-      "numberofbathrooms",
-      "number of bathrooms",
-    ],
-    squareFeet: [
-      "squarefeet",
-      "sqft",
-      "sq ft",
-      "square feet",
-      "squarefootage",
-      "square footage",
-      "size",
-      "area",
-    ],
-    propertyType: [
-      "propertytype",
-      "property type",
-      "type",
-      "hometype",
-      "home type",
-      "dwelling type",
-      "dwellingtype",
-    ],
-    imageUrl: [
-      "imageurl",
-      "image",
-      "photo",
-      "picture",
-      "imagelink",
-      "image url",
-    ],
-    latitude: ["latitude", "lat"],
-    longitude: ["longitude", "lng", "lon", "long"],
-    description: ["description", "desc", "details", "notes", "comments"],
-    yearBuilt: [
-      "yearbuilt",
-      "year built",
-      "built",
-      "year",
-      "construction year",
-      "constructionyear",
-    ],
-    propertyOwner: [
-      "propertyowner",
-      "property owner",
-      "owner",
-      "ownername",
-      "owner name",
-      "company",
-      "companyname",
-      "company name",
-      "seller",
-      "vendor",
-      "sellername",
-      "seller name",
-    ],
-    companyContactName: [
-      "companycontactname",
-      "company contact name",
-      "contactname",
-      "contact name",
-      "contact",
-      "contactperson",
-      "contact person",
-      "representative",
-      "rep",
-    ],
-    companyContactEmail: [
-      "companycontactemail",
-      "company contact email",
-      "contactemail",
-      "contact email",
-      "email",
-    ],
-    purchasePrice: [
-      "purchaseprice",
-      "purchase price",
-      "bought price",
-      "boughtprice",
-      "acquisition price",
-      "acquisitionprice",
-    ],
-    dateSold: [
-      "datesold",
-      "date sold",
-      "solddate",
-      "sold date",
-      "saledate",
-      "sale date",
-      "closing date",
-      "closingdate",
-      "settlement date",
-      "settlementdate",
     ],
   };
 
@@ -364,84 +241,61 @@ export default function UploadDialog({
     return null;
   };
 
-  // New processData function with improved handling of CSV format (no longer removes 2 properties)
+  // Process CSV/Excel data - only extracts address fields (SFR API provides all other property data)
   const processData = (data: any[]) => {
     try {
-
       if (data.length === 0) {
         setError("The file appears to be empty. Please provide a file with property data.");
         return;
       }
-
-      // Helper to safely parse numbers
-      const safeParseFloat = (val: any) => {
-        if (val === null || val === undefined || val === "") return null;
-        // Remove $ and commas from currency strings
-        const cleaned = String(val).replace(/[$,*]/g, '');
-        const parsed = parseFloat(cleaned);
-        return isNaN(parsed) ? null : parsed;
-      };
 
       // Get all keys to find __EMPTY columns
       const allKeys = data.length > 0 ? Object.keys(data[0]) : [];
       const emptyKeys = allKeys.filter(key => key.startsWith('__EMPTY'));
 
       const properties = data
-        .map((row: any, index: number) => {
-          // If data is in __EMPTY columns, use those instead
-          let ownerName, address, city, zipCode, saleDate, salePrice;
+        .map((row: any) => {
+          let address, city, state, zipCode;
 
           if (emptyKeys.length > 0) {
             // Data is in __EMPTY columns - map them positionally
-            // Based on your structure: OWNER NAME, ADDRESS, CITY, ZIP CODE, SALE DATE, SALE PRICE
             const values = emptyKeys.map(key => row[key]);
-
-            // Try to find which __EMPTY columns have the actual data
-            // Look for a pattern: address-like string, city, zipcode, price
-            ownerName = values[0] || row['OWNER NAME'];
-            address = values[1] || row['ADDRESS'];
-            city = values[2] || row['CITY'];
-            zipCode = values[3] || row['ZIP CODE'];
-            saleDate = values[4] || row['SALE DATE'];
-            salePrice = values[5] || row['SALE PRICE'];
+            address = values[0] || row['ADDRESS'];
+            city = values[1] || row['CITY'];
+            state = values[2] || row['STATE'] || "CA";
+            zipCode = values[3] || row['ZIP CODE'] || row['ZIPCODE'];
           } else {
-            // Use regular columns
-            ownerName = findFieldValue(row, "propertyOwner");
+            // Use regular columns with smart field mapping
             address = findFieldValue(row, "address");
             city = findFieldValue(row, "city");
+            state = findFieldValue(row, "state") || "CA"; // Default to CA if not provided
             zipCode = findFieldValue(row, "zipCode");
-            saleDate = findFieldValue(row, "dateSold");
-            salePrice = findFieldValue(row, "price");
           }
 
           return {
-            address: address || "",
-            city: city || "",
-            state: "CA", // Default to CA
+            address: String(address || "").trim(),
+            city: String(city || "").trim(),
+            state: String(state || "CA").trim().toUpperCase(),
             zipCode: String(zipCode || "").trim(),
           };
         })
-        .filter((prop: any) => {
-          // Filter out empty rows
-          const hasAddress = prop.address && prop.address.trim() !== "";
-          const hasCity = prop.city && prop.city.trim() !== "";
-          const hasZipCode = prop.zipCode && prop.zipCode.trim() !== "";
-
-          // Also filter out rows where address looks like it's just a company name repeated
-          const addressLooksValid = hasAddress && 
-            prop.address.length > 5 && 
-            !prop.address.toLowerCase().includes('acropolis') &&
-            !prop.address.toLowerCase().includes('rich montano');
-
-          return hasAddress && hasCity && hasZipCode && addressLooksValid;
+        .filter((prop) => {
+          // Filter out rows without required address components
+          const hasAddress = prop.address.length > 3;
+          const hasCity = prop.city.length > 1;
+          const hasZipCode = prop.zipCode.length >= 5;
+          
+          return hasAddress && hasCity && hasZipCode;
         });
 
       console.log("Valid properties after filtering:", properties.length);
-      console.log("Sample property:", properties[0]);
+      if (properties.length > 0) {
+        console.log("Sample property:", properties[0]);
+      }
 
       if (properties.length === 0) {
         const columnNames = data.length > 0 ? Object.keys(data[0]) : [];
-        setError(`No valid properties found. Columns found: ${columnNames.join(", ")}`);
+        setError(`No valid properties found. Your file should have columns for: address, city, state, zipCode. Columns found: ${columnNames.join(", ")}`);
         return;
       }
 
@@ -453,17 +307,6 @@ export default function UploadDialog({
   };
 
   const handleUpload = async () => {
-    // File upload is temporarily disabled - endpoint not ready
-    setError("File upload is currently disabled. Please use manual entry.");
-    toast({
-      title: "File Upload Disabled",
-      description: "File upload is currently unavailable. Please use the Manual Entry tab.",
-      variant: "destructive",
-    });
-    return;
-    
-    // The code below is temporarily disabled until the /api/properties/upload endpoint is ready
-    /*
     if (!parsedData) {
       return;
     }
@@ -472,85 +315,87 @@ export default function UploadDialog({
     setError(null);
 
     try {
-      let totalUploaded = 0;
+      let totalInserted = 0;
+      let totalUpdated = 0;
       let allWarnings: string[] = [];
-      const BATCH_SIZE = 10; // Upload 10 properties per request for production reliability
+      const BATCH_SIZE = 50; // Upload 50 properties per request (SFR batch API handles up to 100)
 
-      // Split into smaller batches and upload each one
+      // Split into batches and upload each one
       for (let i = 0; i < parsedData.length; i += BATCH_SIZE) {
         const batch = parsedData.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(parsedData.length / BATCH_SIZE);
 
-          setUploadStatus(
-            `Uploading batch ${batchNum}/${totalBatches} (${batch.length} properties)...`,
-          );
+        setUploadStatus(
+          `Uploading batch ${batchNum}/${totalBatches} (${batch.length} properties)...`,
+        );
 
-          const response = (await apiRequest(
-            "POST",
-            "/api/properties/upload",
-            batch,
-            15 * 60 * 1000,
-          )) as any;
+        const response = await apiRequest(
+          "POST",
+          "/api/properties/upload",
+          batch,
+          15 * 60 * 1000,
+        );
 
-          const data = await response.json();
+        const data = await response.json();
 
-          totalUploaded += data.count || 0;
+        totalInserted += data.inserted || 0;
+        totalUpdated += data.updated || 0;
 
-          if (response.warnings?.failedAddresses) {
-            allWarnings.push(...response.warnings.failedAddresses);
-          }
+        if (data.warnings?.failedAddresses) {
+          allWarnings.push(...data.warnings.failedAddresses);
         }
+      }
 
-        console.log("Total Uploaded: ", totalUploaded);
+      const totalUploaded = totalInserted + totalUpdated;
+      console.log("Total Uploaded: ", totalUploaded, "(Inserted:", totalInserted, "Updated:", totalUpdated, ")");
 
-        // Check if NO properties were uploaded (complete failure)
-        if (totalUploaded === 0) {
-          const errorMsg =
-            allWarnings.length > 0
-              ? `Failed to geocode addresses: ${allWarnings.slice(0, 3).join(", ")}${allWarnings.length > 3 ? "..." : ""}`
-              : "No properties were uploaded. Please check your data and try again.";
+      // Check if NO properties were uploaded (complete failure)
+      if (totalUploaded === 0) {
+        const errorMsg =
+          allWarnings.length > 0
+            ? `Failed to process addresses: ${allWarnings.slice(0, 3).join(", ")}${allWarnings.length > 3 ? "..." : ""}`
+            : "No properties were uploaded. Please check your addresses and try again.";
 
-          setError(errorMsg);
-          toast({
-            title: "Upload Failed",
-            description: errorMsg,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Some or all properties uploaded successfully
-        if (allWarnings.length > 0) {
-          toast({
-            title: "Upload Complete with Warnings",
-            description: `Uploaded ${totalUploaded} propert${totalUploaded === 1 ? "y" : "ies"} but failed to geocode ${allWarnings.length} address${allWarnings.length === 1 ? "" : "es"}`,
-            variant: "default",
-          });
-        } else {
-          toast({
-            title: "Upload Successful",
-            description: `Successfully uploaded ${totalUploaded} propert${totalUploaded === 1 ? "y" : "ies"}`,
-          });
-        }
-
-        onSuccess?.();
-        handleClose();
-      } catch (err: any) {
-        const errorMsg = err.message || "Failed to upload properties";
         setError(errorMsg);
-        console.error("Upload error:", err);
         toast({
           title: "Upload Failed",
           description: errorMsg,
           variant: "destructive",
         });
-      } finally {
-        setIsUploading(false);
-        setUploadStatus("");
+        return;
       }
+
+      // Some or all properties uploaded successfully
+      if (allWarnings.length > 0) {
+        toast({
+          title: "Upload Complete with Warnings",
+          description: `Uploaded ${totalUploaded} propert${totalUploaded === 1 ? "y" : "ies"} (${totalInserted} new, ${totalUpdated} updated). ${allWarnings.length} address${allWarnings.length === 1 ? " was" : "es were"} not found.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Upload Successful",
+          description: `Successfully uploaded ${totalUploaded} propert${totalUploaded === 1 ? "y" : "ies"} (${totalInserted} new, ${totalUpdated} updated)`,
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      onSuccess?.();
+      handleClose();
+    } catch (err: any) {
+      const errorMsg = err.message || "Failed to upload properties";
+      setError(errorMsg);
+      console.error("Upload error:", err);
+      toast({
+        title: "Upload Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadStatus("");
     }
-    */
   };
 
   const handleManualSubmit = async (
@@ -611,10 +456,10 @@ export default function UploadDialog({
           <DialogTitle>Add Property Data</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="manual" className="w-full">
+        <Tabs defaultValue="file" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="file" data-testid="tab-file-upload" disabled>
-              File Upload (Disabled)
+            <TabsTrigger value="file" data-testid="tab-file-upload">
+              File Upload
             </TabsTrigger>
             <TabsTrigger value="manual" data-testid="tab-manual-entry">
               Manual Entry
