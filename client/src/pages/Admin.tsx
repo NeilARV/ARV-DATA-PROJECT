@@ -28,7 +28,6 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
-import EditPropertyDialog from "@/components/modals/EditPropertyDialog";
 import UploadDataTab from "@/components/admin/UploadDataTab";
 import RetrieveDataTab from "@/components/admin/RetrieveDataTab";
 import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
@@ -40,7 +39,6 @@ export default function Admin() {
   const [, setLocation] = useLocation();
   const { user, isLoading: isLoadingUser, isAuthenticated: isUserAuthenticated } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [propertyToEdit, setPropertyToEdit] = useState<Property | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
   const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
@@ -258,7 +256,6 @@ export default function Admin() {
             properties={properties}
             isLoading={isLoading}
             onOpenUpload={() => setUploadDialogOpen(true)}
-            onEditProperty={(property) => setPropertyToEdit(property)}
             selectedCounty={selectedCounty}
             onCountyChange={(county) => setSelectedCounty(county)}
           />
@@ -284,12 +281,6 @@ export default function Admin() {
             }
           });
         }}
-      />
-
-      <EditPropertyDialog
-        property={propertyToEdit}
-        open={!!propertyToEdit}
-        onClose={() => setPropertyToEdit(null)}
       />
     </div>
   );

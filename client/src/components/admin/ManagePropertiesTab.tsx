@@ -39,7 +39,6 @@ interface ManagePropertiesTabProps {
   properties: Property[];
   isLoading: boolean;
   onOpenUpload: () => void;
-  onEditProperty: (property: Property) => void;
   selectedCounty: string;
   onCountyChange: (county: string) => void;
 }
@@ -48,7 +47,6 @@ export default function ManagePropertiesTab({
   properties,
   isLoading,
   onOpenUpload,
-  onEditProperty,
   selectedCounty,
   onCountyChange,
 }: ManagePropertiesTabProps) {
@@ -329,14 +327,6 @@ export default function ManagePropertiesTab({
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => onEditProperty(property)}
-                                data-testid={`button-edit-${property.id}`}
-                              >
-                                <Pencil className="w-4 h-4 text-muted-foreground" />
-                              </Button>
                               <AlertDialog
                                 open={propertyToDelete === property.id}
                                 onOpenChange={(open) => {
