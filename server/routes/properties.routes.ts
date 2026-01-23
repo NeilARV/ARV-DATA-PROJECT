@@ -19,7 +19,6 @@ import {
 } from "../../database/schemas/properties.schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
 import { normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
-import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
 import { eq, sql, or, and } from "drizzle-orm";
 import pLimit from "p-limit";
 import dotenv from "dotenv";
@@ -231,9 +230,6 @@ router.post("/", requireAdminAuth, async (req, res) => {
         const status = "in-renovation";
         const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
 
-        // Get MSA from property data or zip code
-        const msa = propertyData.msa || getMSAFromZipCode(propertyData.address?.zip_code || zipCode) || null;
-
         // Insert/update property in normalized schema (similar to data.routes.ts)
         if (existingProperty) {
             // Update existing property
@@ -251,7 +247,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     listingStatus: listingStatus,
                     status: status,
                     monthsOwned: propertyData.months_owned || null,
-                    msa: msa,
+                    msa: propertyData.msa || null,
                     county: normalizedCounty,
                     updatedAt: sql`now()`,
                 })
@@ -280,7 +276,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     listingStatus: listingStatus,
                     status: status,
                     monthsOwned: propertyData.months_owned || null,
-                    msa: msa,
+                    msa: propertyData.msa || null,
                     county: normalizedCounty,
                 })
                 .returning();
