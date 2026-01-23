@@ -16,7 +16,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Trash2,
   Loader2,
   Database,
   AlertTriangle,
@@ -29,12 +28,11 @@ import UploadDialog from "@/components/modals/UploadDialog";
 import RetrieveDataTab from "@/components/admin/RetrieveDataTab";
 import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
-import DeleteAllDataTab from "@/components/admin/DeleteAllDataTab";
 
 export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { user, isLoading: isLoadingUser, isAuthenticated: isUserAuthenticated } = useAuth();
+  const { isLoading: isLoadingUser, isAuthenticated: isUserAuthenticated } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -214,7 +212,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="retrieve" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8">
+        <TabsList className="grid w-full grid-cols-3 mb-8">
           <TabsTrigger value="retrieve" data-testid="tab-retrieve">
             <Database className="w-4 h-4 mr-2" />
             Retrieve Data
@@ -226,10 +224,6 @@ export default function Admin() {
           <TabsTrigger value="users" data-testid="tab-users">
             <Users className="w-4 h-4 mr-2" />
             Users
-          </TabsTrigger>
-          <TabsTrigger value="delete-all" data-testid="tab-delete-all">
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete All Data
           </TabsTrigger>
         </TabsList>
 
@@ -249,10 +243,6 @@ export default function Admin() {
 
         <TabsContent value="users">
           <UsersTab isAdmin={isAdmin} />
-        </TabsContent>
-
-        <TabsContent value="delete-all">
-          <DeleteAllDataTab properties={properties} />
         </TabsContent>
       </Tabs>
 

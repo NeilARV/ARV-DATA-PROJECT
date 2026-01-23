@@ -557,17 +557,6 @@ router.get("/suggestions", async (req, res) => {
 // Now with database caching to reduce Google API calls
 router.get("/streetview", StreetviewController.getStreetview);
 
-// Delete all properties (requires admin auth)
-router.delete("/", requireAdminAuth, async (_req, res) => {
-    try {
-        await db.delete(properties);
-        res.json({ message: "All properties deleted" });
-    } catch (error) {
-        console.error("Error deleting properties:", error);
-        res.status(500).json({ message: "Error deleting properties" });
-    }
-});
-
 // Delete a single property by ID (requires admin auth)
 // Cascades to delete all related data (addresses, structures, assessments, etc.)
 router.delete("/:id", requireAdminAuth, async (req, res) => {
