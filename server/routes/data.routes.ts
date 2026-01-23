@@ -23,6 +23,7 @@ import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } fro
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { normalizeAddress } from "server/utils/normalizeAddress";
 import { normalizePropertyType } from "server/utils/normalizePropertyType";
+import { normalizeCountyName } from "server/utils/normalization";
 
 const router = Router();
 
@@ -160,29 +161,6 @@ function isFlippingCompany(name: string | null | undefined, ownershipCode: strin
     ];
     
     return corporatePatterns.some(pattern => pattern.test(name));
-}
-
-// Helper function to normalize county name from API response
-// Handles formats like "San Diego County, California" -> "San Diego"
-function normalizeCountyName(county: string | null | undefined): string | null {
-    if (!county || typeof county !== 'string') {
-        return null;
-    }
-    
-    let normalized = county.trim();
-    
-    // Remove state suffix (e.g., ", California" or ", CA")
-    const commaIndex = normalized.indexOf(',');
-    if (commaIndex !== -1) {
-        normalized = normalized.substring(0, commaIndex).trim();
-    }
-    
-    // Remove "County" suffix if present
-    if (normalized.toLowerCase().endsWith(' county')) {
-        normalized = normalized.substring(0, normalized.length - 7).trim();
-    }
-    
-    return normalized || null;
 }
 
 // Helper to parse counties from DB (handles both array and legacy string format)

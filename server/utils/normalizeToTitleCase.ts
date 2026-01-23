@@ -17,13 +17,9 @@ export function normalizeToTitleCase(text: string | null | undefined): string | 
     }).join(' ');
 }
 
-/**
- * Normalizes subdivision names to title case, but keeps numeric strings as-is.
- * Example: "SUMMER HILL" -> "Summer Hill", "24515" -> "24515"
- * 
- * @param subdivision - The subdivision string to normalize
- * @returns A normalized subdivision string, or null if input is invalid
- */
+
+// Normalizes subdivision names to title case, but keeps numeric strings as-is.
+// Example: "SUMMER HILL" -> "Summer Hill", "24515" -> "24515"
 export function normalizeSubdivision(subdivision: string | null | undefined): string | null {
     if (!subdivision || typeof subdivision !== 'string') return null;
     
