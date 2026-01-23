@@ -18,12 +18,8 @@ import {
 import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
-import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { normalizeAddress } from "server/utils/normalizeAddress";
-import { normalizePropertyType } from "server/utils/normalizePropertyType";
-import { normalizeCountyName } from "server/utils/normalization";
+import { normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
 
 const router = Router();
 

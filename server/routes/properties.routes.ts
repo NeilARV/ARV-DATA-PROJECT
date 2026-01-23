@@ -18,12 +18,8 @@ import {
     preForeclosures
 } from "../../database/schemas/properties.schema";
 import { geocodeAddress } from "server/utils/geocodeAddress";
-import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage } from "server/utils/normalizeCompanyName";
-import { normalizeToTitleCase, normalizeSubdivision } from "server/utils/normalizeToTitleCase";
-import { normalizeAddress } from "server/utils/normalizeAddress";
-import { normalizeCountyName } from "server/utils/normalization";
+import { normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
 import { getMSAFromZipCode } from "server/utils/getMSAFromZipCode";
-import { normalizePropertyType } from "server/utils/normalizePropertyType";
 import { eq, sql, or, and } from "drizzle-orm";
 import pLimit from "p-limit";
 import dotenv from "dotenv";

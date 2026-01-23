@@ -1,8 +1,8 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
 import { companies } from "../../../database/schemas/companies.schema";
-import { normalizeCompanyNameForComparison } from "server/utils/normalizeCompanyName";
-import { eq, sql, or, and, desc, asc } from "drizzle-orm";
+import { normalizeCompanyNameForComparison } from "server/utils/normalization";
+import { eq, sql, or, and } from "drizzle-orm";
 
 export interface GetPropertiesFilters {
     zipcode?: string;
