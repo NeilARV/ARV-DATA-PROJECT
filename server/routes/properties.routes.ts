@@ -8,16 +8,10 @@ import {
     addresses, 
     structures, 
     lastSales,
-    currentSales,
-    assessments,
-    exemptions,
-    parcels,
-    schoolDistricts,
-    taxRecords,
-    valuations,
-    preForeclosures
+    propertyTransactions,
 } from "../../database/schemas/properties.schema";
-import { normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
+import { normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
+import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { eq, sql, or, and } from "drizzle-orm";
 import dotenv from "dotenv";
 import { MapsController, StreetviewController, PropertiesController } from "server/controllers/properties";
@@ -222,6 +216,50 @@ router.post("/", requireAdminAuth, async (req, res) => {
             propertyOwnerId = companyId;
         }
 
+        // Insert acquisition transaction if we have last_sale data (mirrors /api/data/sfr logic)
+        const maybeInsertAcquisitionTransaction = async (
+            propertyId: string,
+            companyIdVal: string | null,
+            data: typeof propertyData,
+            buyerNameVal: string | null
+        ) => {
+            if (!companyIdVal || !buyerNameVal) return;
+            const lastSale = data?.last_sale || data?.lastSale;
+            if (!lastSale?.date) return;
+            const normalizedDate = normalizeDateToYMD(lastSale.date);
+            if (!normalizedDate) return;
+            const normalizedBuyerName = normalizeCompanyNameForStorage(buyerNameVal);
+            let sellerName: string | null = null;
+            const cs = data?.current_sale || data?.currentSale;
+            if (cs) sellerName = normalizeCompanyNameForStorage(cs.seller_1 || cs.seller1) || null;
+            const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+            const [existing] = await db
+                .select({ propertyId: propertyTransactions.propertyId })
+                .from(propertyTransactions)
+                .where(
+                    and(
+                        eq(propertyTransactions.propertyId, propertyId),
+                        eq(propertyTransactions.companyId, companyIdVal),
+                        eq(propertyTransactions.transactionDate, normalizedDate),
+                        eq(propertyTransactions.transactionType, "acquisition")
+                    )
+                )
+                .limit(1);
+            if (existing) return;
+            await db.insert(propertyTransactions).values({
+                propertyId,
+                companyId: companyIdVal,
+                transactionType: "acquisition",
+                transactionDate: normalizedDate,
+                salePrice: lastSale.price != null ? String(lastSale.price) : null,
+                mtgType: lastSale.mtg_type || null,
+                mtgAmount: lastSale.mtg_amount != null ? String(lastSale.mtg_amount) : null,
+                buyerName: normalizedBuyerName,
+                sellerName,
+                notes,
+            });
+        };
+
         // Determine status and listing status
         // SFR API returns "On Market" or "Off Market"; store as on-market/off-market
         const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
@@ -251,6 +289,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 })
                 .where(eq(propertiesV2.id, existingProperty.id));
             
+            await maybeInsertAcquisitionTransaction(existingProperty.id, companyId, propertyData, buyerName);
             console.log(`Property updated: ${sfrPropertyId}`);
             res.json({ 
                 message: "Property updated successfully",
@@ -281,197 +320,9 @@ router.post("/", requireAdminAuth, async (req, res) => {
             
             const propertyId = newProperty.id;
             
-            // Insert address
-            if (propertyData.address) {
-                await db.insert(addresses).values({
-                    propertyId: propertyId,
-                    formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
-                    streetNumber: propertyData.address.street_number || null,
-                    streetSuffix: propertyData.address.street_suffix || null,
-                    streetPreDirection: propertyData.address.street_pre_direction || null,
-                    streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
-                    streetPostDirection: propertyData.address.street_post_direction || null,
-                    unitType: propertyData.address.unit_type || null,
-                    unitNumber: propertyData.address.unit_number || null,
-                    city: normalizeToTitleCase(propertyData.address.city) || null,
-                    county: normalizedCounty,
-                    state: propertyData.address.state || null,
-                    zipCode: propertyData.address.zip_code || null,
-                    zipPlusFourCode: propertyData.address.zip_plus_four_code || null,
-                    carrierCode: propertyData.address.carrier_code || null,
-                    latitude: propertyData.address.latitude ? String(propertyData.address.latitude) : null,
-                    longitude: propertyData.address.longitude ? String(propertyData.address.longitude) : null,
-                    geocodingAccuracy: propertyData.address.geocoding_accuracy || null,
-                    censusTract: propertyData.address.census_tract || null,
-                    censusBlock: propertyData.address.census_block || null,
-                });
-            }
-            
-            // Insert structure, assessments, exemptions, parcels, school districts, tax records, valuations, preForeclosures, lastSales, currentSales
-            // (Similar to data.routes.ts - inserting all related data)
-            
-            // Insert structure
-            if (propertyData.structure) {
-                await db.insert(structures).values({
-                    propertyId: propertyId,
-                    totalAreaSqFt: propertyData.structure.total_area_sq_ft || null,
-                    yearBuilt: propertyData.structure.year_built || null,
-                    effectiveYearBuilt: propertyData.structure.effective_year_built || null,
-                    bedsCount: propertyData.structure.beds_count || null,
-                    roomsCount: propertyData.structure.rooms_count || null,
-                    baths: propertyData.structure.baths ? String(propertyData.structure.baths) : null,
-                    basementType: propertyData.structure.basement_type || null,
-                    condition: propertyData.structure.condition || null,
-                    constructionType: propertyData.structure.construction_type || null,
-                    exteriorWallType: propertyData.structure.exterior_wall_type || null,
-                    fireplaces: propertyData.structure.fireplaces || null,
-                    heatingType: propertyData.structure.heating_type || null,
-                    heatingFuelType: propertyData.structure.heating_fuel_type || null,
-                    parkingSpacesCount: propertyData.structure.parking_spaces_count || null,
-                    poolType: propertyData.structure.pool_type || null,
-                    quality: propertyData.structure.quality || null,
-                    roofMaterialType: propertyData.structure.roof_material_type || null,
-                    roofStyleType: propertyData.structure.roof_style_type || null,
-                    sewerType: propertyData.structure.sewer_type || null,
-                    stories: propertyData.structure.stories || null,
-                    unitsCount: propertyData.structure.units_count || null,
-                    waterType: propertyData.structure.water_type || null,
-                    livingAreaSqft: propertyData.structure.living_area_sqft || null,
-                    acDescription: propertyData.structure.ac_description || null,
-                    garageDescription: propertyData.structure.garage_description || null,
-                    buildingClassDescription: propertyData.structure.building_class_description || null,
-                    sqftDescription: propertyData.structure.sqft_description || null,
-                });
-            }
-            
-            // Insert assessment
-            if (propertyData.assessments && propertyData.assessed_year) {
-                await db.insert(assessments).values({
-                    propertyId: propertyId,
-                    assessedYear: propertyData.assessed_year,
-                    landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
-                    improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
-                    assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
-                    marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
-                });
-            }
-            
-            // Insert exemption
-            if (propertyData.exemptions) {
-                await db.insert(exemptions).values({
-                    propertyId: propertyId,
-                    homeowner: propertyData.exemptions.homeowner || null,
-                    veteran: propertyData.exemptions.veteran || null,
-                    disabled: propertyData.exemptions.disabled || null,
-                    widow: propertyData.exemptions.widow || null,
-                    senior: propertyData.exemptions.senior || null,
-                    school: propertyData.exemptions.school || null,
-                    religious: propertyData.exemptions.religious || null,
-                    welfare: propertyData.exemptions.welfare || null,
-                    public: propertyData.exemptions.public || null,
-                    cemetery: propertyData.exemptions.cemetery || null,
-                    hospital: propertyData.exemptions.hospital || null,
-                    library: propertyData.exemptions.library || null,
-                });
-            }
-            
-            // Insert parcel
-            if (propertyData.parcel) {
-                await db.insert(parcels).values({
-                    propertyId: propertyId,
-                    apnOriginal: propertyData.parcel.apn_original || null,
-                    fipsCode: propertyData.parcel.fips_code || null,
-                    frontageFt: propertyData.parcel.frontage_ft || null,
-                    depthFt: propertyData.parcel.depth_ft || null,
-                    areaAcres: propertyData.parcel.area_acres || null,
-                    areaSqFt: propertyData.parcel.area_sq_ft || null,
-                    zoning: propertyData.parcel.zoning || null,
-                    countyLandUseCode: propertyData.parcel.county_land_use_code || null,
-                    lotNumber: propertyData.parcel.lot_number || null,
-                    subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
-                    sectionTownshipRange: propertyData.parcel.section_township_range || null,
-                    legalDescription: propertyData.parcel.legal_description || null,
-                    stateLandUseCode: propertyData.parcel.state_land_use_code || null,
-                    buildingCount: propertyData.parcel.building_count || null,
-                });
-            }
-            
-            // Insert school district
-            if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
-                await db.insert(schoolDistricts).values({
-                    propertyId: propertyId,
-                    schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
-                    schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
-                    schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
-                    schoolDistrictName: propertyData.school_district_name || null,
-                });
-            }
-            
-            // Insert tax record
-            if (propertyData.tax_year) {
-                await db.insert(taxRecords).values({
-                    propertyId: propertyId,
-                    taxYear: propertyData.tax_year,
-                    taxAmount: propertyData.tax_amount ? String(propertyData.tax_amount) : null,
-                    taxDelinquentYear: propertyData.tax_delinquent_year || null,
-                    taxRateCodeArea: propertyData.tax_rate_code_area || null,
-                });
-            }
-            
-            // Insert valuation
-            if (propertyData.valuation) {
-                await db.insert(valuations).values({
-                    propertyId: propertyId,
-                    value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
-                    high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
-                    low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
-                    forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
-                    valuationDate: propertyData.valuation.date || null,
-                });
-            }
-            
-            // Insert pre-foreclosure
-            if (propertyData.pre_foreclosure) {
-                await db.insert(preForeclosures).values({
-                    propertyId: propertyId,
-                    flag: propertyData.pre_foreclosure.flag || null,
-                    ind: propertyData.pre_foreclosure.ind || null,
-                    reason: propertyData.pre_foreclosure.reason || null,
-                    docType: propertyData.pre_foreclosure.doc_type || null,
-                    recordingDate: propertyData.pre_foreclosure.recording_date || null,
-                });
-            }
-            
-            // Insert last sale
-            if (propertyData.last_sale || propertyData.lastSale) {
-                const lastSale = propertyData.last_sale || propertyData.lastSale;
-                await db.insert(lastSales).values({
-                    propertyId: propertyId,
-                    saleDate: lastSale.date || null,
-                    recordingDate: lastSale.recording_date || null,
-                    price: lastSale.price ? String(lastSale.price) : null,
-                    documentType: lastSale.document_type || null,
-                    mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
-                    mtgType: lastSale.mtg_type || null,
-                    lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
-                    mtgInterestRate: lastSale.mtg_interest_rate || null,
-                    mtgTermMonths: lastSale.mtg_term_months || null,
-                });
-            }
-            
-            // Insert current sale
-            if (propertyData.current_sale || propertyData.currentSale) {
-                const currentSale = propertyData.current_sale || propertyData.currentSale;
-                await db.insert(currentSales).values({
-                    propertyId: propertyId,
-                    docNum: currentSale.doc_num || null,
-                    buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
-                    buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
-                    seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
-                    seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
-                });
-            }
-            
+            // Insert all property-related data using helper function
+            await insertPropertyRelatedData(propertyId, propertyData as SfrPropertyData, normalizedCounty);
+            await maybeInsertAcquisitionTransaction(propertyId, companyId, propertyData, buyerName);
             console.log(`Property created: ${sfrPropertyId} (ID: ${propertyId})`);
             res.json({ 
                 message: "Property created successfully",

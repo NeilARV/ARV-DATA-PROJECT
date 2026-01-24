@@ -19,8 +19,14 @@ import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { normalizeDateToYMD, normalizeCountyName, normalizeToTitleCase, normalizeSubdivision, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddress } from "server/utils/normalization";
+import { normalizeDateToYMD, normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType } from "server/utils/normalization";
 import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
+import { 
+    createPropertyDataCollectors, 
+    collectPropertyData, 
+    batchInsertPropertyData,
+    SfrPropertyData 
+} from "server/utils/propertyDataHelpers";
 
 const router = Router();
 
@@ -591,251 +597,28 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 propertyIdMap.set(insertedProp.sfrPropertyId, insertedProp.id);
             }
 
-            // Collect all related data for batch inserts
-            const addressesToInsert: any[] = [];
-            const structuresToInsert: any[] = [];
-            const assessmentsToInsert: any[] = [];
-            const exemptionsToInsert: any[] = [];
-            const parcelsToInsert: any[] = [];
-            const schoolDistrictsToInsert: any[] = [];
-            const taxRecordsToInsert: any[] = [];
-            const valuationsToInsert: any[] = [];
-            const preForeclosuresToInsert: any[] = [];
-            const lastSalesToInsert: any[] = [];
-            const currentSalesToInsert: any[] = [];
+            // Collect all related data for batch inserts using helper
+            const dataCollectors = createPropertyDataCollectors();
 
             for (const insertedProp of insertedProperties) {
                 const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
                 if (!details) continue;
 
                 const { propertyData, recordInfo, normalizedCounty } = details;
-                const propertyId = insertedProp.id;
+                const recordingDateFromBuyersMarket = normalizeDateToYMD(recordInfo.record?.recordingDate);
 
-                // Collect address
-                if (propertyData.address) {
-                    addressesToInsert.push({
-                        propertyId,
-                        formattedStreetAddress: normalizeAddress(propertyData.address.formatted_street_address) || null,
-                        streetNumber: propertyData.address.street_number || null,
-                        streetSuffix: propertyData.address.street_suffix || null,
-                        streetPreDirection: propertyData.address.street_pre_direction || null,
-                        streetName: normalizeToTitleCase(propertyData.address.street_name) || null,
-                        streetPostDirection: propertyData.address.street_post_direction || null,
-                        unitType: propertyData.address.unit_type || null,
-                        unitNumber: propertyData.address.unit_number || null,
-                        city: normalizeToTitleCase(propertyData.address.city) || null,
-                        county: normalizedCounty,
-                        state: propertyData.address.state || null,
-                        zipCode: propertyData.address.zip_code || null,
-                        zipPlusFourCode: propertyData.address.zip_plus_four_code || null,
-                        carrierCode: propertyData.address.carrier_code || null,
-                        latitude: propertyData.address.latitude ? String(propertyData.address.latitude) : null,
-                        longitude: propertyData.address.longitude ? String(propertyData.address.longitude) : null,
-                        geocodingAccuracy: propertyData.address.geocoding_accuracy || null,
-                        censusTract: propertyData.address.census_tract || null,
-                        censusBlock: propertyData.address.census_block || null,
-                    });
-                }
-
-                // Collect structure
-                if (propertyData.structure) {
-                    structuresToInsert.push({
-                        propertyId,
-                        totalAreaSqFt: propertyData.structure.total_area_sq_ft || null,
-                        yearBuilt: propertyData.structure.year_built || null,
-                        effectiveYearBuilt: propertyData.structure.effective_year_built || null,
-                        bedsCount: propertyData.structure.beds_count || null,
-                        roomsCount: propertyData.structure.rooms_count || null,
-                        baths: propertyData.structure.baths ? String(propertyData.structure.baths) : null,
-                        basementType: propertyData.structure.basement_type || null,
-                        condition: propertyData.structure.condition || null,
-                        constructionType: propertyData.structure.construction_type || null,
-                        exteriorWallType: propertyData.structure.exterior_wall_type || null,
-                        fireplaces: propertyData.structure.fireplaces || null,
-                        heatingType: propertyData.structure.heating_type || null,
-                        heatingFuelType: propertyData.structure.heating_fuel_type || null,
-                        parkingSpacesCount: propertyData.structure.parking_spaces_count || null,
-                        poolType: propertyData.structure.pool_type || null,
-                        quality: propertyData.structure.quality || null,
-                        roofMaterialType: propertyData.structure.roof_material_type || null,
-                        roofStyleType: propertyData.structure.roof_style_type || null,
-                        sewerType: propertyData.structure.sewer_type || null,
-                        stories: propertyData.structure.stories || null,
-                        unitsCount: propertyData.structure.units_count || null,
-                        waterType: propertyData.structure.water_type || null,
-                        livingAreaSqft: propertyData.structure.living_area_sqft || null,
-                        acDescription: propertyData.structure.ac_description || null,
-                        garageDescription: propertyData.structure.garage_description || null,
-                        buildingClassDescription: propertyData.structure.building_class_description || null,
-                        sqftDescription: propertyData.structure.sqft_description || null,
-                    });
-                }
-
-                // Collect assessment
-                if (propertyData.assessments && propertyData.assessed_year) {
-                    assessmentsToInsert.push({
-                        propertyId,
-                        assessedYear: propertyData.assessed_year,
-                        landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
-                        improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
-                        assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
-                        marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
-                    });
-                }
-
-                // Collect exemption
-                if (propertyData.exemptions) {
-                    exemptionsToInsert.push({
-                        propertyId,
-                        homeowner: propertyData.exemptions.homeowner || null,
-                        veteran: propertyData.exemptions.veteran || null,
-                        disabled: propertyData.exemptions.disabled || null,
-                        widow: propertyData.exemptions.widow || null,
-                        senior: propertyData.exemptions.senior || null,
-                        school: propertyData.exemptions.school || null,
-                        religious: propertyData.exemptions.religious || null,
-                        welfare: propertyData.exemptions.welfare || null,
-                        public: propertyData.exemptions.public || null,
-                        cemetery: propertyData.exemptions.cemetery || null,
-                        hospital: propertyData.exemptions.hospital || null,
-                        library: propertyData.exemptions.library || null,
-                    });
-                }
-
-                // Collect parcel
-                if (propertyData.parcel) {
-                    parcelsToInsert.push({
-                        propertyId,
-                        apnOriginal: propertyData.parcel.apn_original || null,
-                        fipsCode: propertyData.parcel.fips_code || null,
-                        frontageFt: propertyData.parcel.frontage_ft || null,
-                        depthFt: propertyData.parcel.depth_ft || null,
-                        areaAcres: propertyData.parcel.area_acres || null,
-                        areaSqFt: propertyData.parcel.area_sq_ft || null,
-                        zoning: propertyData.parcel.zoning || null,
-                        countyLandUseCode: propertyData.parcel.county_land_use_code || null,
-                        lotNumber: propertyData.parcel.lot_number || null,
-                        subdivision: normalizeSubdivision(propertyData.parcel.subdivision) || null,
-                        sectionTownshipRange: propertyData.parcel.section_township_range || null,
-                        legalDescription: propertyData.parcel.legal_description || null,
-                        stateLandUseCode: propertyData.parcel.state_land_use_code || null,
-                        buildingCount: propertyData.parcel.building_count || null,
-                    });
-                }
-
-                // Collect school district
-                if (propertyData.school_tax_district_1 || propertyData.school_district_name) {
-                    schoolDistrictsToInsert.push({
-                        propertyId,
-                        schoolTaxDistrict1: normalizeToTitleCase(propertyData.school_tax_district_1) || null,
-                        schoolTaxDistrict2: normalizeToTitleCase(propertyData.school_tax_district_2) || null,
-                        schoolTaxDistrict3: normalizeToTitleCase(propertyData.school_tax_district_3) || null,
-                        schoolDistrictName: propertyData.school_district_name || null,
-                    });
-                }
-
-                // Collect tax record
-                if (propertyData.tax_year) {
-                    taxRecordsToInsert.push({
-                        propertyId,
-                        taxYear: propertyData.tax_year,
-                        taxAmount: propertyData.tax_amount ? String(propertyData.tax_amount) : null,
-                        taxDelinquentYear: propertyData.tax_delinquent_year || null,
-                        taxRateCodeArea: propertyData.tax_rate_code_area || null,
-                    });
-                }
-
-                // Collect valuation
-                if (propertyData.valuation) {
-                    valuationsToInsert.push({
-                        propertyId,
-                        value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
-                        high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
-                        low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
-                        forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
-                        valuationDate: propertyData.valuation.date || null,
-                    });
-                }
-
-                // Collect pre-foreclosure
-                if (propertyData.pre_foreclosure) {
-                    preForeclosuresToInsert.push({
-                        propertyId,
-                        flag: propertyData.pre_foreclosure.flag || null,
-                        ind: propertyData.pre_foreclosure.ind || null,
-                        reason: propertyData.pre_foreclosure.reason || null,
-                        docType: propertyData.pre_foreclosure.doc_type || null,
-                        recordingDate: propertyData.pre_foreclosure.recording_date || null,
-                    });
-                }
-
-                // Collect last sale
-                if (propertyData.last_sale || propertyData.lastSale) {
-                    const lastSale = propertyData.last_sale || propertyData.lastSale;
-                    const recordingDateFromBuyersMarket = normalizeDateToYMD(recordInfo.record?.recordingDate);
-
-                    lastSalesToInsert.push({
-                        propertyId,
-                        saleDate: lastSale.date || null,
-                        recordingDate: recordingDateFromBuyersMarket,
-                        price: lastSale.price ? String(lastSale.price) : null,
-                        documentType: lastSale.document_type || null,
-                        mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
-                        mtgType: lastSale.mtg_type || null,
-                        lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
-                        mtgInterestRate: lastSale.mtg_interest_rate || null,
-                        mtgTermMonths: lastSale.mtg_term_months || null,
-                    });
-                }
-
-                // Collect current sale
-                if (propertyData.current_sale || propertyData.currentSale) {
-                    const currentSale = propertyData.current_sale || propertyData.currentSale;
-                    currentSalesToInsert.push({
-                        propertyId,
-                        docNum: currentSale.doc_num || null,
-                        buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
-                        buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
-                        seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
-                        seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
-                    });
-                }
+                // Collect all property-related data using helper
+                collectPropertyData(
+                    dataCollectors,
+                    insertedProp.id,
+                    propertyData as SfrPropertyData,
+                    normalizedCounty,
+                    recordingDateFromBuyersMarket
+                );
             }
 
-            // Batch insert all related data
-            if (addressesToInsert.length > 0) {
-                await db.insert(addresses).values(addressesToInsert);
-            }
-            if (structuresToInsert.length > 0) {
-                await db.insert(structures).values(structuresToInsert);
-            }
-            if (assessmentsToInsert.length > 0) {
-                await db.insert(assessments).values(assessmentsToInsert);
-            }
-            if (exemptionsToInsert.length > 0) {
-                await db.insert(exemptions).values(exemptionsToInsert);
-            }
-            if (parcelsToInsert.length > 0) {
-                await db.insert(parcels).values(parcelsToInsert);
-            }
-            if (schoolDistrictsToInsert.length > 0) {
-                await db.insert(schoolDistricts).values(schoolDistrictsToInsert);
-            }
-            if (taxRecordsToInsert.length > 0) {
-                await db.insert(taxRecords).values(taxRecordsToInsert);
-            }
-            if (valuationsToInsert.length > 0) {
-                await db.insert(valuations).values(valuationsToInsert);
-            }
-            if (preForeclosuresToInsert.length > 0) {
-                await db.insert(preForeclosures).values(preForeclosuresToInsert);
-            }
-            if (lastSalesToInsert.length > 0) {
-                await db.insert(lastSales).values(lastSalesToInsert);
-            }
-            if (currentSalesToInsert.length > 0) {
-                await db.insert(currentSales).values(currentSalesToInsert);
-            }
+            // Batch insert all related data using helper
+            await batchInsertPropertyData(dataCollectors);
 
             // ====================================================================
             // STEP 6: COLLECT AND INSERT PROPERTY TRANSACTIONS (ACQUISITIONS)
