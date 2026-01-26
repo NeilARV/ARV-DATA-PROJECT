@@ -5,7 +5,6 @@ const CITY_CODE = "LA";
 // Excluded addresses - addresses to skip (case-insensitive matching)
 const EXCLUDED_ADDRESSES = [
     "11011 Huston St",
-    "11011 Houston St", // Also check for correct spelling
 ];
 
 export async function syncLosAngelesData() {
