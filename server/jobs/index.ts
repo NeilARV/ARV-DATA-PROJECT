@@ -1,6 +1,6 @@
 import cron from "node-cron"
 import { CleanCache } from "./clean-cache"
-import { syncSanDiegoData } from "./data/san-diego-data"
+import { syncSanDiegoData, syncLosAngelesData } from "./data"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
@@ -12,7 +12,7 @@ export function startScheduledJobs() {
     cron.schedule("30 1 * * *", syncSanDiegoData)
 
     // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 1:45 AM
-    cron.schedule("45 1 * * *", () => console.log("Starting Los Angeles Data Sync Job"))
+    cron.schedule("45 1 * * *", syncLosAngelesData)
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 2:00 AM
     cron.schedule("0 2 * * *", () => console.log("Starting Denver Data Sync Job"))

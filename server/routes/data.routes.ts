@@ -21,7 +21,7 @@ const router = Router();
 
 // Sync function for a single MSA using new API endpoints and normalized schema
 // Only uses /buyers/market endpoint
-export async function syncMSA(msa: string, cityCode: string, API_KEY: string, API_URL: string, today: string) {
+export async function syncMSA(msa: string, cityCode: string, API_KEY: string, API_URL: string, today: string, excludedAddresses: string[] = []) {
     // Sync state / counters for this MSA
     let minSaleDate: string = "";
     let syncStateId: number | null = null;
@@ -142,6 +142,20 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 // Build address string: "ADDRESS, CITY, STATE"
                 if (record.address && record.city && record.state) {
                     const addressStr = `${record.address}, ${record.city}, ${record.state}`;
+                    
+                    // Check if this address should be excluded (case-insensitive match on street address)
+                    const shouldExclude = excludedAddresses.some(excluded => {
+                        const excludedLower = excluded.toLowerCase().trim();
+                        const recordAddressLower = record.address.toLowerCase().trim();
+                        // Match if the excluded address is contained in the record address (handles variations)
+                        return recordAddressLower.includes(excludedLower) || excludedLower.includes(recordAddressLower);
+                    });
+                    
+                    if (shouldExclude) {
+                        console.log(`[${cityCode} SYNC] Skipping excluded address: ${addressStr}`);
+                        return; // Skip this address
+                    }
+                    
                     const recordingDateStr = normalizeDateToYMD(record.recordingDate) || "";
                     
                     // Check if we already have this address - keep the one with most recent recordingDate
@@ -264,6 +278,20 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                         console.warn(`[${cityCode} SYNC] Error for address ${batchItem.address}: ${batchItem.error}`);
                     }
                     continue;
+                }
+                
+                // Double-check: skip excluded addresses (safety check in case one slipped through)
+                if (batchItem.address) {
+                    const shouldExclude = excludedAddresses.some(excluded => {
+                        const excludedLower = excluded.toLowerCase().trim();
+                        const batchAddressLower = batchItem.address.toLowerCase().trim();
+                        return batchAddressLower.includes(excludedLower) || excludedLower.includes(batchAddressLower);
+                    });
+                    
+                    if (shouldExclude) {
+                        console.log(`[${cityCode} SYNC] Skipping excluded address in batch: ${batchItem.address}`);
+                        continue;
+                    }
                 }
                 
                 const propertyData = batchItem.property;
