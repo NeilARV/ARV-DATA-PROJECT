@@ -49,6 +49,7 @@ export async function persistSyncState(options: {
     initialTotalSynced?: number;
     processed?: number;
     finalSaleDate?: string | null;
+    cityCode: string;
 }) {
     const {
         syncStateId,
@@ -56,10 +57,11 @@ export async function persistSyncState(options: {
         initialTotalSynced = 0,
         processed = 0,
         finalSaleDate,
+        cityCode,
     } = options || {};
 
     if (!syncStateId) {
-        console.warn("[SFR SYNC V2] No syncStateId provided to persist state");
+        console.warn(`[${cityCode} SYNC] No syncStateId provided to persist state`);
         return { lastSaleDate: previousLastSaleDate || null };
     }
 
@@ -87,11 +89,11 @@ export async function persistSyncState(options: {
             .where(eq(sfrSyncStateV2.id, syncStateId));
 
         console.log(
-            `[SFR SYNC V2] Persisted sync state. lastSaleDate: ${saleDateToSet}, totalRecordsSynced: ${newTotalSynced}`,
+            `[${cityCode} SYNC] Persisted sync state. lastSaleDate: ${saleDateToSet}, totalRecordsSynced: ${newTotalSynced}`,
         );
         return { lastSaleDate: saleDateToSet };
     } catch (e: any) {
-        console.error("[SFR SYNC V2] Failed to persist sync state:", e);
+        console.error(`[${cityCode} SYNC] Failed to persist sync state:`, e);
         return { lastSaleDate: saleDateToSet };
     }
 }
@@ -150,7 +152,8 @@ export async function findAndCacheCompany(
     companyStorageName: string,
     normalizedCompareKey: string | null,
     contactsMap: Map<string, typeof companies.$inferSelect>,
-    countiesToUpdate?: string[] | Set<string>
+    cityCode: string,
+    countiesToUpdate?: string[] | Set<string>,
 ): Promise<typeof companies.$inferSelect | null> {
     try {
         const [dbCompany] = await db
@@ -172,7 +175,7 @@ export async function findAndCacheCompany(
         }
         return null;
     } catch (error) {
-        console.error(`[SFR SYNC V2] Error looking up company in database:`, error);
+        console.error(`[${cityCode} SYNC V2] Error looking up company in database:`, error);
         return null;
     }
 }

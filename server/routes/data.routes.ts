@@ -21,7 +21,7 @@ const router = Router();
 
 // Sync function for a single MSA using new API endpoints and normalized schema
 // Only uses /buyers/market endpoint
-async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: string) {
+export async function syncMSA(msa: string, cityCode: string, API_KEY: string, API_URL: string, today: string) {
     // Sync state / counters for this MSA
     let minSaleDate: string = "";
     let syncStateId: number | null = null;
@@ -66,7 +66,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             initialTotalSynced = syncState[0].totalRecordsSynced || 0;
         }
 
-        console.log(`[SFR SYNC V2] Starting sync for ${msa} from sale_date ${minSaleDate} to ${today}`);
+        console.log(`[${cityCode} SYNC] Starting sync for ${msa} from sale_date ${minSaleDate} to ${today}`);
 
         // Load all companies into memory once
         const allCompanies = await db.select().from(companies);
@@ -78,12 +78,12 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 contactsMap.set(normalizedKey, company);
             }
         }
-        console.log(`[SFR SYNC V2] Loaded ${contactsMap.size} companies into cache`);
+        console.log(`[${cityCode} SYNC] Loaded ${contactsMap.size} companies into cache`);
 
         // ====================================================================
         // PROCESS /buyers/market (active flips)
         // ====================================================================
-        console.log(`[SFR SYNC V2] ===== Processing /buyers/market =====`);
+        console.log(`[${cityCode} SYNC] ===== Processing /buyers/market =====`);
         
         const addressesSet = new Set<string>();
         const recordsMap = new Map<string, { record: any; recordingDate: string }>(); // Map of address -> record with recordingDate
@@ -115,7 +115,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             
             if (!buyersMarketResponse.ok) {
                 const errorText = await buyersMarketResponse.text();
-                console.error(`[SFR SYNC V2] Buyers market API error on page ${buyersMarketPage}: ${buyersMarketResponse.status} - ${errorText}`);
+                console.error(`[${cityCode} SYNC] Buyers market API error on page ${buyersMarketPage}: ${buyersMarketResponse.status} - ${errorText}`);
                 // Log error but don't fail - continue with flips
                 buyersMarketShouldContinue = false;
                 break;
@@ -125,12 +125,12 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             
             // Check if we got empty data or non-array response
             if (!buyersMarketData || !Array.isArray(buyersMarketData) || buyersMarketData.length === 0) {
-                console.log(`[SFR SYNC V2] No more data on page ${buyersMarketPage} for buyers/market, stopping`);
+                console.log(`[${cityCode} SYNC] No more data on page ${buyersMarketPage} for buyers/market, stopping`);
                 buyersMarketShouldContinue = false;
                 break;
             }
             
-            console.log(`[SFR SYNC V2] Fetched page ${buyersMarketPage} (boundary from ${currentMinDate}) with ${buyersMarketData.length} records from /buyers/market`);
+            console.log(`[${cityCode} SYNC] Fetched page ${buyersMarketPage} (boundary from ${currentMinDate}) with ${buyersMarketData.length} records from /buyers/market`);
             
             // Extract addresses and track dates
             buyersMarketData.forEach((record: any) => {
@@ -185,13 +185,13 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             // This ensures that if the batch processing fails, we can resume from the correct point.
         }
         
-        console.log(`[SFR SYNC V2] Completed buyers/market pagination. Total addresses collected: ${addressesSet.size}, boundary date: ${boundaryDate || 'N/A'}`);
+        console.log(`[${cityCode} SYNC] Completed buyers/market pagination. Total addresses collected: ${addressesSet.size}, boundary date: ${boundaryDate || 'N/A'}`);
         
         const addressesArray = Array.from(addressesSet);
-        console.log(`[SFR SYNC V2] Collected ${addressesArray.length} unique addresses to process`);
+        console.log(`[${cityCode} SYNC] Collected ${addressesArray.length} unique addresses to process`);
         
         if (addressesArray.length === 0) {
-            console.log(`[SFR SYNC V2] No properties to process for ${msa}`);
+            console.log(`[${cityCode} SYNC] No properties to process for ${msa}`);
             return {
                 success: true,
                 msa,
@@ -207,7 +207,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
         // ====================================================================
         // PROCESS PROPERTIES IN BATCHES (max 100 addresses per batch)
         // ====================================================================
-        console.log(`[SFR SYNC V2] ===== Processing properties in batches =====`);
+        console.log(`[${cityCode} SYNC] ===== Processing properties in batches =====`);
         
         // Process properties in batches using /properties/batch (max 100 addresses per batch)
         const BATCH_SIZE = 100; // Max 100 addresses per batch
@@ -216,7 +216,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             const batchNum = Math.floor(i / BATCH_SIZE) + 1;
             const totalBatches = Math.ceil(addressesArray.length / BATCH_SIZE);
             
-            console.log(`[SFR SYNC V2] Processing batch ${batchNum}/${totalBatches} with ${batchAddresses.length} addresses`);
+            console.log(`[${cityCode} SYNC] Processing batch ${batchNum}/${totalBatches} with ${batchAddresses.length} addresses`);
             
             // Fetch full property details from /properties/batch using pipe-separated addresses
             const addressesParam = batchAddresses.join('|');
@@ -229,7 +229,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             
             if (!batchResponse.ok) {
                 const errorText = await batchResponse.text();
-                console.error(`[SFR SYNC V2] Batch API error on batch ${batchNum}:`, errorText);
+                console.error(`[${cityCode} SYNC] Batch API error on batch ${batchNum}:`, errorText);
                 // Continue with next batch instead of failing completely
                 continue;
             }
@@ -237,7 +237,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             const batchResponseData = await batchResponse.json();
             
             if (!batchResponseData || !Array.isArray(batchResponseData)) {
-                console.warn(`[SFR SYNC V2] Invalid batch response format, skipping batch ${batchNum}`);
+                console.warn(`[${cityCode} SYNC] Invalid batch response format, skipping batch ${batchNum}`);
                 continue;
             }
             
@@ -261,7 +261,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 // Skip items with errors or missing property data
                 if (batchItem.error || !batchItem.property) {
                     if (batchItem.error) {
-                        console.warn(`[SFR SYNC V2] Error for address ${batchItem.address}: ${batchItem.error}`);
+                        console.warn(`[${cityCode} SYNC] Error for address ${batchItem.address}: ${batchItem.error}`);
                     }
                     continue;
                 }
@@ -269,14 +269,14 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 const propertyData = batchItem.property;
                 const sfrPropertyId = propertyData.property_id;
                 if (!sfrPropertyId) {
-                    console.warn(`[SFR SYNC V2] Skipping property without property_id`);
+                    console.warn(`[${cityCode} SYNC] Skipping property without property_id`);
                     continue;
                 }
                 
                 // Get record for this address (from buyers/market)
                 const recordInfo = batchItem.address ? recordsMap.get(batchItem.address) : null;
                 if (!recordInfo) {
-                    console.log(`[SFR SYNC V2] Skipping property with no record: ${batchItem.address}`);
+                    console.log(`[${cityCode} SYNC] Skipping property with no record: ${batchItem.address}`);
                     continue;
                 }
                 
@@ -311,7 +311,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             }
 
             if (validProperties.length === 0) {
-                console.log(`[SFR SYNC V2] No valid properties to process in batch ${batchNum}`);
+                console.log(`[${cityCode} SYNC] No valid properties to process in batch ${batchNum}`);
                 continue;
             }
 
@@ -335,7 +335,8 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         normalizedStorageName,
                         normalizedName,
                         contactsMap,
-                        countiesSet
+                        cityCode,
+                        countiesSet,
                     );
                     
                     if (!dbCompany) {
@@ -379,7 +380,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         }
                     }
                     
-                    console.log(`[SFR SYNC V2] Batch inserted ${newCompanies.length} companies`);
+                    console.log(`[${cityCode} SYNC] Batch inserted ${newCompanies.length} companies`);
                 } catch (companyError: any) {
                     // Handle duplicates that might have been inserted concurrently
                     if (companyError?.code?.includes("23505") || companyError?.message?.includes("duplicate")) {
@@ -389,11 +390,12 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                 companyToInsert.companyName,
                                 companyToInsert.normalizedForCompare,
                                 contactsMap,
-                                companyToInsert.counties
+                                cityCode,
+                                companyToInsert.counties,
                             );
                         }
                     } else {
-                        console.error(`[SFR SYNC V2] Error batch inserting companies:`, companyError);
+                        console.error(`[${cityCode} SYNC] Error batch inserting companies:`, companyError);
                     }
                 }
             }
@@ -469,12 +471,13 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         company = await findAndCacheCompany(
                             normalizedCompanyNameForStorage,
                             normalizedCompanyNameForCompare,
-                            contactsMap
+                            contactsMap,
+                            cityCode,
                         );
                     }
                     
                     if (!company) {
-                        console.warn(`[SFR SYNC V2] Company not found for property ${sfrPropertyId} (buyerName: ${buyerName}, normalized: ${normalizedCompanyNameForCompare}), skipping`);
+                        console.warn(`[${cityCode} SYNC] Company not found for property ${sfrPropertyId} (buyerName: ${buyerName}, normalized: ${normalizedCompanyNameForCompare}), skipping`);
                         totalProcessed--;
                         continue;
                     }
@@ -522,7 +525,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                     }
                     
                 } catch (error: any) {
-                    console.error(`[SFR SYNC V2] Error processing property for batch:`, error);
+                    console.error(`[${cityCode} SYNC] Error processing property for batch:`, error);
                     totalProcessed--;
                 }
             }
@@ -542,7 +545,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         .where(eq(propertiesV2.id, propUpdate.id));
                 }
                 totalUpdated += propertiesToUpdate.length;
-                console.log(`[SFR SYNC V2] Batch updated ${propertiesToUpdate.length} properties`);
+                console.log(`[${cityCode} SYNC] Batch updated ${propertiesToUpdate.length} properties`);
             }
 
             // Batch insert new properties
@@ -555,10 +558,10 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                         .returning();
                     
                     totalInserted += insertedProperties.length;
-                    console.log(`[SFR SYNC V2] Batch inserted ${insertedProperties.length} properties in batch ${batchNum}`);
+                    console.log(`[${cityCode} SYNC] Batch inserted ${insertedProperties.length} properties in batch ${batchNum}`);
                 } catch (insertError: any) {
-                    console.error(`[SFR SYNC V2] Error batch inserting ${propertiesToInsert.length} properties in batch ${batchNum}:`, insertError);
-                    console.error(`[SFR SYNC V2] First property in failed batch:`, propertiesToInsert[0]);
+                    console.error(`[${cityCode} SYNC] Error batch inserting ${propertiesToInsert.length} properties in batch ${batchNum}:`, insertError);
+                    console.error(`[${cityCode} SYNC] First property in failed batch:`, propertiesToInsert[0]);
                     // Try inserting one at a time to see which ones fail
                     for (const propToInsert of propertiesToInsert) {
                         try {
@@ -571,7 +574,7 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                 totalInserted++;
                             }
                         } catch (singleError: any) {
-                            console.error(`[SFR SYNC V2] Failed to insert property ${propToInsert.sfrPropertyId}:`, singleError);
+                            console.error(`[${cityCode} SYNC] Failed to insert property ${propToInsert.sfrPropertyId}:`, singleError);
                         }
                     }
                 }
@@ -766,9 +769,9 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                 if (newTransactionsToInsert.length > 0) {
                     try {
                         await db.insert(propertyTransactions).values(newTransactionsToInsert);
-                        console.log(`[SFR SYNC V2] Inserted ${newTransactionsToInsert.length} new property transactions (${transactionsToInsert.length - newTransactionsToInsert.length} were duplicates)`);
+                        console.log(`[${cityCode} SYNC] Inserted ${newTransactionsToInsert.length} new property transactions (${transactionsToInsert.length - newTransactionsToInsert.length} were duplicates)`);
                     } catch (txError: any) {
-                        console.error(`[SFR SYNC V2] Error inserting property transactions:`, txError);
+                        console.error(`[${cityCode} SYNC] Error inserting property transactions:`, txError);
                         // Try inserting one at a time to see which ones fail
                         let insertedCount = 0;
                         for (const tx of newTransactionsToInsert) {
@@ -776,15 +779,15 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
                                 await db.insert(propertyTransactions).values(tx);
                                 insertedCount++;
                             } catch (singleTxError: any) {
-                                console.error(`[SFR SYNC V2] Failed to insert transaction for property ${tx.propertyId}:`, singleTxError);
+                                console.error(`[${cityCode} SYNC] Failed to insert transaction for property ${tx.propertyId}:`, singleTxError);
                             }
                         }
-                        console.log(`[SFR SYNC V2] Inserted ${insertedCount} transactions individually`);
+                        console.log(`[${cityCode} SYNC] Inserted ${insertedCount} transactions individually`);
                     }
                 }
             }
 
-            console.log(`[SFR SYNC V2] Processed batch ${batchNum}: ${totalProcessed} processed, ${propertiesToInsert.length} inserted, ${propertiesToUpdate.length} updated`);
+            console.log(`[${cityCode} SYNC] Processed batch ${batchNum}: ${totalProcessed} processed, ${propertiesToInsert.length} inserted, ${propertiesToUpdate.length} updated`);
             
             // NOTE: We do NOT persist boundaryDate after each batch. 
             // Because addresses are collected from /buyers/market sorted by sale_date, but batches 
@@ -805,9 +808,10 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
             initialTotalSynced: initialTotalSynced ?? 0,
             processed: totalProcessed ?? 0,
             finalSaleDate: boundaryDate ?? null,
+            cityCode,
         });
         
-        console.log(`[SFR SYNC V2] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
+        console.log(`[${cityCode} SYNC] Sync complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`);
         
         return {
             success: true,
@@ -824,13 +828,13 @@ async function syncMSA(msa: string, API_KEY: string, API_URL: string, today: str
         };
         
     } catch (error) {
-        console.error(`[SFR SYNC V2] Error syncing ${msa}:`, error);
+        console.error(`[${cityCode} SYNC] Error syncing ${msa}:`, error);
         // NOTE: On failure, we do NOT persist the boundaryDate.
         // We keep the original lastSaleDate so the next sync run restarts from the same point.
         // This ensures no data is skipped due to partial processing.
         // Existing properties will be safely updated on retry (idempotent).
         const originalLastSaleDate = syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null;
-        console.log(`[SFR SYNC V2] Sync failed for ${msa}. Will restart from original lastSaleDate: ${originalLastSaleDate}. Processed ${totalProcessed ?? 0} records before failure.`);
+        console.log(`[${cityCode} SYNC] Sync failed for ${msa}. Will restart from original lastSaleDate: ${originalLastSaleDate}. Processed ${totalProcessed ?? 0} records before failure.`);
         const errorMessage = error instanceof Error ? error.message : String(error);
         throw new Error(`Error syncing ${msa}: ${errorMessage}`);
     }
@@ -863,7 +867,7 @@ router.post("/sfr", requireAdminAuth, async (req, res) => {
         for (const syncState of allSyncStates) {
             try {
                 console.log(`[SFR SYNC V2] Starting sync for MSA: ${syncState.msa}`);
-                const result = await syncMSA(syncState.msa, API_KEY, API_URL, today);
+                const result = await syncMSA(syncState.msa, "temp", API_KEY, API_URL, today);
                 results.push(result);
                 console.log(`[SFR SYNC V2] Completed sync for MSA: ${syncState.msa}`);
             } catch (error) {
