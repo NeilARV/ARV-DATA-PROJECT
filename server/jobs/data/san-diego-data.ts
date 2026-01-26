@@ -14,13 +14,13 @@ export async function syncSanDiegoData() {
         // Call syncMSA - it handles all the sync logic internally, including sync state management
         const result = await syncMSA(SAN_DIEGO_MSA, CITY_CODE, API_KEY, API_URL, today);
 
-        console.log(`[SD SYNC] Sync complete for ${SAN_DIEGO_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated, ${result.totalContactsAdded} contacts added`);
+        console.log(`[${CITY_CODE} SYNC] Sync complete for ${SAN_DIEGO_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated, ${result.totalContactsAdded} contacts added`);
 
         return result;
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[SD SYNC] Fatal error syncing ${SAN_DIEGO_MSA}:`, errorMessage);
+        console.error(`[${CITY_CODE} SYNC] Fatal error syncing ${SAN_DIEGO_MSA}:`, errorMessage);
         throw error; // Re-throw so the scheduler can handle it
     }
 }
