@@ -2,17 +2,6 @@ import { Router } from "express";
 import { db } from "server/storage";
 import {
   properties as propertiesV2,
-  addresses,
-  structures,
-  assessments,
-  exemptions,
-  parcels,
-  schoolDistricts,
-  taxRecords,
-  valuations,
-  preForeclosures,
-  lastSales,
-  currentSales,
   propertyTransactions,
 } from "../../database/schemas/properties.schema";
 import { companies } from "../../database/schemas/companies.schema";
