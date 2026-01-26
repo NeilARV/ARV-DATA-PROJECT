@@ -206,6 +206,18 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
         
         if (addressesArray.length === 0) {
             console.log(`[${cityCode} SYNC] No properties to process for ${msa}`);
+            
+            // Still persist sync state even if no addresses found
+            // This updates lastSyncAt and preserves boundaryDate if one was found
+            const persistedState = await persistSyncState({
+                syncStateId: syncStateId,
+                previousLastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                initialTotalSynced: initialTotalSynced ?? 0,
+                processed: 0,
+                finalSaleDate: boundaryDate ?? null,
+                cityCode,
+            });
+            
             return {
                 success: true,
                 msa,
@@ -213,8 +225,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 totalInserted: 0,
                 totalUpdated: 0,
                 totalContactsAdded: 0,
-                dateRange: { from: minSaleDate, to: today },
-                lastSaleDate: syncState.length > 0 ? syncState[0].lastSaleDate : null,
+                dateRange: { from: minSaleDate, to: boundaryDate || today },
+                lastSaleDate: persistedState.lastSaleDate,
             };
         }
         

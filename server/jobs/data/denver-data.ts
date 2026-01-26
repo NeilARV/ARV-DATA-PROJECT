@@ -4,7 +4,7 @@ const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
 
 export async function syncDenverData() {
-    console.log(`[${CITY_CODE} SYNC] Syncing San Diego Data for MSA: ${DENVER_MSA}`);
+    console.log(`[${CITY_CODE} SYNC] Syncing Denver Data for MSA: ${DENVER_MSA}`);
 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
@@ -20,7 +20,7 @@ export async function syncDenverData() {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[${CITY_CODE} Fatal error syncing ${DENVER_MSA}:`, errorMessage);
+        console.error(`[${CITY_CODE} SYNC] Fatal error syncing ${DENVER_MSA}:`, errorMessage);
         throw error; // Re-throw so the scheduler can handle it
     }
 }
