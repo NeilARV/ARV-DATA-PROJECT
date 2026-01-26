@@ -875,6 +875,25 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
         // Existing properties will be safely updated on retry (idempotent).
         const originalLastSaleDate = syncState && syncState.length > 0 ? syncState[0].lastSaleDate : null;
         console.log(`[${cityCode} SYNC] Sync failed for ${msa}. Will restart from original lastSaleDate: ${originalLastSaleDate}. Processed ${totalProcessed ?? 0} records before failure.`);
+        
+        // Still update last_sync_at to track that a sync attempt was made, even on failure
+        // This preserves lastSaleDate but updates the timestamp
+        if (syncStateId) {
+            try {
+                await persistSyncState({
+                    syncStateId: syncStateId,
+                    previousLastSaleDate: originalLastSaleDate,
+                    initialTotalSynced: initialTotalSynced ?? 0,
+                    processed: totalProcessed ?? 0,
+                    finalSaleDate: null, // Don't update lastSaleDate on failure
+                    cityCode,
+                });
+                console.log(`[${cityCode} SYNC] Updated last_sync_at timestamp after failure`);
+            } catch (persistError: any) {
+                console.error(`[${cityCode} SYNC] Failed to update last_sync_at after error:`, persistError);
+            }
+        }
+        
         const errorMessage = error instanceof Error ? error.message : String(error);
         throw new Error(`Error syncing ${msa}: ${errorMessage}`);
     }
