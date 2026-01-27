@@ -261,9 +261,19 @@ router.post("/", requireAdminAuth, async (req, res) => {
         };
 
         // Determine status and listing status
-        // SFR API returns "On Market" or "Off Market"; store as on-market/off-market
+        // SFR API returns "On Market" or "Off Market"
+        // Map listing_status to status:
+        // - "On Market" → status = "on-market"
+        // - "Off Market" → status = "in-renovation"
         const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
-        const status = "in-renovation";
+        let status: string;
+        if (propertyListingStatus === "on market" || propertyListingStatus === "on_market") {
+            status = "on-market";
+        } else {
+            // Default to "in-renovation" for "Off Market" or any other value
+            status = "in-renovation";
+        }
+        // Store listingStatus as normalized value from API (on-market or off-market)
         const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
 
         // Insert/update property in normalized schema (similar to data.routes.ts)
