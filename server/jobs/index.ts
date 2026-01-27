@@ -19,5 +19,5 @@ export function startScheduledJobs() {
     cron.schedule("0 2 * * *", syncDenverData)
 
     // Check property market status every night at 2:15 AM
-    cron.schedule("* * * * *", UpdatePropertyStatus)
+    cron.schedule("15 2 * * *", UpdatePropertyStatus)
 }
