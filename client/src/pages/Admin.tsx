@@ -25,7 +25,6 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
-import RetrieveDataTab from "@/components/admin/RetrieveDataTab";
 import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
 
@@ -211,12 +210,8 @@ export default function Admin() {
         </p>
       </div>
 
-      <Tabs defaultValue="retrieve" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
-          <TabsTrigger value="retrieve" data-testid="tab-retrieve">
-            <Database className="w-4 h-4 mr-2" />
-            Retrieve Data
-          </TabsTrigger>
+      <Tabs defaultValue="manage" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-8">
           <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
             Manage Properties
@@ -226,10 +221,6 @@ export default function Admin() {
             Users
           </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="retrieve">
-          <RetrieveDataTab properties={properties} />
-        </TabsContent>
 
         <TabsContent value="manage">
           <ManagePropertiesTab
