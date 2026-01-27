@@ -24,16 +24,28 @@ export interface MapPropertyData {
  * @param county - Optional county filter
  * @returns Array of property data formatted for map display
  */
-export async function getMapProperties(county?: string): Promise<MapPropertyData[]> {
+export async function getMapProperties(county?: string, statusFilter?: string | string[]): Promise<MapPropertyData[]> {
     const conditions = [];
 
-    // Only show properties with status "sold" or "in-renovation" for map pins
-    conditions.push(
-        or(
-            sql`LOWER(TRIM(${properties.status})) = 'sold'`,
-            sql`LOWER(TRIM(${properties.status})) = 'in-renovation'`
-        ) as any
-    );
+    // Apply status filter if provided, otherwise show all statuses
+    if (statusFilter) {
+        const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
+        if (statusArray.length > 0) {
+            const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
+            if (normalizedStatuses.length === 1) {
+                conditions.push(
+                    sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
+                );
+            } else {
+                // Use OR for multiple status values
+                conditions.push(
+                    or(...normalizedStatuses.map(s => 
+                        sql`LOWER(TRIM(${properties.status})) = ${s}`
+                    )) as any
+                );
+            }
+        }
+    }
 
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();

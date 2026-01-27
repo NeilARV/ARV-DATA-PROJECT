@@ -271,8 +271,23 @@ export default function Home() {
 
   // Build the API URL for map pins (minimal data for map view)
   const mapPinsQueryUrl = useMemo(() => {
-    return `/api/properties/map${countyQueryParam}`;
-  }, [countyQueryParam]);
+    const params = new URLSearchParams();
+    
+    // County filter
+    if (filters.county) {
+      params.append('county', filters.county);
+    }
+    
+    // Status filters (can have multiple)
+    if (filters.statusFilters && filters.statusFilters.length > 0) {
+      filters.statusFilters.forEach(status => {
+        params.append('status', status);
+      });
+    }
+    
+    const queryString = params.toString();
+    return queryString ? `/api/properties/map?${queryString}` : `/api/properties/map`;
+  }, [filters.county, filters.statusFilters]);
 
 
   // Fetch map pins (minimal data) for map view
@@ -834,10 +849,11 @@ export default function Home() {
         if (pin.zipcode !== filters.zipCode.trim()) return false;
       }
 
-      // Filter by status
+      // Filter by status (case-insensitive comparison)
       if (filters.statusFilters && filters.statusFilters.length > 0) {
-        const propertyStatus = pin.status || 'in-renovation';
-        if (!filters.statusFilters.includes(propertyStatus)) return false;
+        const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
+        const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+        if (!normalizedFilters.includes(propertyStatus)) return false;
       }
 
       return true;
@@ -1007,10 +1023,11 @@ export default function Home() {
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
-    // Filter by status
+    // Filter by status (case-insensitive comparison)
     if (filters.statusFilters && filters.statusFilters.length > 0) {
-      const propertyStatus = property.status || 'in-renovation';
-      if (!filters.statusFilters.includes(propertyStatus)) return false;
+      const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
+      const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+      if (!normalizedFilters.includes(propertyStatus)) return false;
     }
 
     return true;
