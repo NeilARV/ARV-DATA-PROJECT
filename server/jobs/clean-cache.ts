@@ -1,5 +1,5 @@
 import { db } from "server/storage"
-import { streetviewCache } from "@shared/schema"
+import { streetviewCache } from "@database/schemas/properties.schema";
 import { lt, eq, or } from "drizzle-orm";
 
 export async function CleanCache() {
