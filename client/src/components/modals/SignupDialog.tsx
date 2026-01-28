@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { isValidEmail } from "@shared/utils/isValidEmail";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,10 @@ const signupSchema = z.object({
     },
     "Please enter a valid 10-digit phone number"
   ),
-  email: z.string().email("Please enter a valid email address"),
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .refine((val) => isValidEmail(val.trim()), "Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -74,7 +78,7 @@ export default function SignupDialog({ open, forced = false, onClose, onSuccess,
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone,
-        email: data.email,
+        email: data.email.trim(),
         password: data.password,
       });
       return response.json();
