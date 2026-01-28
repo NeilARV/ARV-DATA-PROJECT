@@ -17,12 +17,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { CompanyContact, UpdateCompanyContact } from "@shared/schema";
+import { Company, UpdateCompany } from "@database/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { updateCompanySchema } from "@database/updates/companies.update";
 
 interface UpdateDialogProps {
   open: boolean;
@@ -32,17 +32,17 @@ interface UpdateDialogProps {
 }
 
 // Form schema that accepts empty strings (will be converted to null/undefined before API call)
-const updateCompanyContactFormSchema = z.object({
-  companyName: z.string().min(1, "Company name is required"), // Required for display, but readonly
-  contactName: z.string().optional(),
-  contactEmail: z.string().refine(
-    (val) => !val || val === "" || z.string().email().safeParse(val).success,
-    "Invalid email address"
-  ).optional(),
-  phoneNumber: z.string().optional(),
-});
+// const updateCompanyContactFormSchema = z.object({
+//   companyName: z.string().min(1, "Company name is required"), // Required for display, but readonly
+//   contactName: z.string().optional(),
+//   contactEmail: z.string().refine(
+//     (val) => !val || val === "" || z.string().email().safeParse(val).success,
+//     "Invalid email address"
+//   ).optional(),
+//   phoneNumber: z.string().optional(),
+// });
 
-type UpdateCompanyContactForm = z.infer<typeof updateCompanyContactFormSchema>;
+// type UpdateCompanyContactForm = z.infer<typeof updateCompanySchema>;
 
 export default function UpdateDialog({
   open,
@@ -54,8 +54,8 @@ export default function UpdateDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
 
-  const form = useForm<UpdateCompanyContactForm>({
-    resolver: zodResolver(updateCompanyContactFormSchema),
+  const form = useForm<UpdateCompany>({
+    resolver: zodResolver(updateCompanySchema),
     defaultValues: {
       companyName: "",
       contactName: "",
@@ -77,7 +77,7 @@ export default function UpdateDialog({
           }
           return res.json();
         })
-        .then((data: CompanyContact) => {
+        .then((data: Company) => {
           // Format phone number if it exists and isn't already formatted
           const phoneNumber = data.phoneNumber 
             ? (data.phoneNumber.includes('(') ? data.phoneNumber : formatPhoneNumber(data.phoneNumber))
@@ -107,7 +107,7 @@ export default function UpdateDialog({
     }
   }, [open, companyId, form, toast]);
 
-  const handleSubmit = async (data: UpdateCompanyContactForm) => {
+  const handleSubmit = async (data: UpdateCompany) => {
     if (!companyId) {
       return;
     }
@@ -117,7 +117,7 @@ export default function UpdateDialog({
     try {
       // Prepare update data (convert empty strings to null/undefined)
       // Note: companyName is excluded from updates as it should not be changed
-      const updateData: UpdateCompanyContact = {
+      const updateData: UpdateCompany = {
         contactName: data.contactName && data.contactName.trim() !== "" ? data.contactName : null,
         contactEmail: data.contactEmail && data.contactEmail.trim() !== "" ? data.contactEmail : null,
         phoneNumber: data.phoneNumber && data.phoneNumber.trim() !== "" ? data.phoneNumber : null,
