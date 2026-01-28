@@ -178,20 +178,6 @@ export const insertSyncStateSchema = createInsertSchema(sfrSyncState, {
   lastSaleDate: z.coerce.date().optional(),
 })
 
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  passwordHash: true,
-  createdAt: true,
-  updatedAt: true,
-  notifications: true, // Omit notifications so it uses DB default (true)
-}).extend({
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email address"),
-  phone: z
-    .string()
-    .min(14, "Valid phone number is required")
-})
-
 
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -315,7 +301,6 @@ export type CompanyContact = typeof companies.$inferSelect;
 export type Company = CompanyContact; // Alias for new schema name
 export type InsertCompanyContact = z.infer<typeof insertCompanyContactSchema>;
 export type UpdateCompanyContact = z.infer<typeof updateCompanyContactSchema>;
-export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProperty = z.infer<typeof insertPropertySchema>;

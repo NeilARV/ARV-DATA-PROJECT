@@ -3,7 +3,8 @@ import { users } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { insertEmailWhitelistSchema, emailWhitelist } from "@shared/schema";
+import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
+import { emailWhitelist } from "@database/schemas";
 
 const router = Router();
 

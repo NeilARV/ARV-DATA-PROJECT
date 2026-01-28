@@ -1,4 +1,4 @@
-import { emailWhitelist } from "@shared/schema";
+import { emailWhitelist } from "@database/schemas";
 import { db } from "server/storage";
 import { eq } from "drizzle-orm";
 

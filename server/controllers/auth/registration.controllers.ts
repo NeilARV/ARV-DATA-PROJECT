@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { insertUserSchema } from "@shared/schema";
+import { insertUserSchema } from "@database/inserts";
 import { RegistrationServices, UserServices } from "server/services/auth";
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
