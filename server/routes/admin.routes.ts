@@ -4,6 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertEmailWhitelistSchema, emailWhitelist } from "@shared/schema";
+import { isValidEmail } from "@shared/utils/isValidEmail";
 
 const router = Router();
 
@@ -64,6 +65,12 @@ router.post("/whitelist", requireAdminAuth, async (req, res) => {
 
         const { email } = validation.data;
         const normalizedEmail = email.toLowerCase().trim();
+
+        if (!isValidEmail(normalizedEmail)) {
+            return res.status(400).json({
+                message: "Invalid email address"
+            });
+        }
 
         // Check if email already exists in whitelist
         const existingWhitelistEntry = await db
