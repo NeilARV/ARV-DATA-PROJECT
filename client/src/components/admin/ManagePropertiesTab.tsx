@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Property } from "@shared/schema";
+import type { PropertyRow } from "@/types/property";
 import {
   Card,
   CardContent,
@@ -36,7 +36,7 @@ import { useMutation } from "@tanstack/react-query";
 import { COUNTIES } from "@/constants/filters.constants";
 
 interface ManagePropertiesTabProps {
-  properties: Property[];
+  properties: PropertyRow[];
   isLoading: boolean;
   onOpenUpload: () => void;
   selectedCounty: string;
