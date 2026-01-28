@@ -30,6 +30,7 @@ import {
   insertCurrentSaleSchema,
   insertStreetviewCacheSchema,
   insertPropertyTransactionSchema,
+  manualPropertyEntrySchema,
 } from "../inserts/properties.insert";
 import {
   updatePropertySchema,
@@ -81,3 +82,5 @@ export type InsertStreetviewCache = z.infer<typeof insertStreetviewCacheSchema>;
 
 export type PropertyTransaction = typeof propertyTransactions.$inferSelect;
 export type InsertPropertyTransaction = z.infer<typeof insertPropertyTransactionSchema>;
+
+export type ManualPropertyEntry = z.infer<typeof manualPropertyEntrySchema>;

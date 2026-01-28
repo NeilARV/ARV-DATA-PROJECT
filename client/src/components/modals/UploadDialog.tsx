@@ -18,7 +18,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { manualPropertyEntrySchema } from "@database/inserts/properties.insert";
+import type { ManualPropertyEntry } from "@database/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,17 +37,9 @@ export default function UploadDialog({
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Form for manual entry - Only address fields
-  const entrySchema = z.object({
-    address: z.string().min(1, "Address is required"),
-    city: z.string().min(1, "City is required"),
-    state: z.string().min(1, "State is required"),
-    zipCode: z.string().min(5, "Valid zip code is required"),
-  });
 
-  const form = useForm<z.infer<typeof entrySchema>>({
-    resolver: zodResolver(entrySchema),
+  const form = useForm<ManualPropertyEntry>({
+    resolver: zodResolver(manualPropertyEntrySchema),
     defaultValues: {
       address: "",
       city: "",
@@ -55,7 +48,7 @@ export default function UploadDialog({
     },
   });
 
-  const handleSubmit = async ( data: z.infer<typeof entrySchema> ) => {
+  const handleSubmit = async (data: ManualPropertyEntry) => {
     setIsSubmitting(true);
     setError(null);
 

@@ -15,6 +15,7 @@ import {
   streetviewCache,
   propertyTransactions,
 } from "../schemas";
+import { z } from "zod";
 
 export const insertPropertySchema = createInsertSchema(properties).omit({
   id: true,
@@ -74,4 +75,11 @@ export const insertStreetviewCacheSchema = createInsertSchema(streetviewCache).o
 export const insertPropertyTransactionSchema = createInsertSchema(propertyTransactions).omit({
   propertyTransactionsId: true,
   createdAt: true,
+});
+
+export const manualPropertyEntrySchema = z.object({
+  address: z.string().min(1, "Address is required"),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  zipCode: z.string().min(5, "Valid zip code is required"),
 });

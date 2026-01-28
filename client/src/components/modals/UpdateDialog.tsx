@@ -31,19 +31,6 @@ interface UpdateDialogProps {
   onSuccess?: () => void;
 }
 
-// Form schema that accepts empty strings (will be converted to null/undefined before API call)
-// const updateCompanyContactFormSchema = z.object({
-//   companyName: z.string().min(1, "Company name is required"), // Required for display, but readonly
-//   contactName: z.string().optional(),
-//   contactEmail: z.string().refine(
-//     (val) => !val || val === "" || z.string().email().safeParse(val).success,
-//     "Invalid email address"
-//   ).optional(),
-//   phoneNumber: z.string().optional(),
-// });
-
-// type UpdateCompanyContactForm = z.infer<typeof updateCompanySchema>;
-
 export default function UpdateDialog({
   open,
   onClose,
