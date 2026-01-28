@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { isValidEmail } from "@shared/utils/isValidEmail";
+import { insertEmailWhitelistSchema } from "@shared/schema";
 import {
   Card,
   CardContent,
@@ -90,11 +90,15 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
     const trimmed = whitelistEmail.trim();
     if (!trimmed) return;
     setEmailError(null);
-    if (!isValidEmail(trimmed)) {
-      setEmailError("Please enter a valid email address");
+    const result = insertEmailWhitelistSchema.safeParse({ email: trimmed });
+    if (!result.success) {
+      const msg =
+        result.error.flatten().fieldErrors.email?.[0] ??
+        "Please enter a valid email address";
+      setEmailError(msg);
       return;
     }
-    addWhitelistMutation.mutate(trimmed);
+    addWhitelistMutation.mutate(result.data.email);
   };
 
   return (

@@ -192,12 +192,18 @@ export const insertUserSchema = createInsertSchema(users).omit({
   notifications: true, // Omit notifications so it uses DB default (true)
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
-});
+  email: z.string().email("Invalid email address"),
+  phone: z
+    .string()
+    .min(14, "Valid phone number is required")
+})
 
 export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
   id: true,
   createdAt: true,
-});
+}).extend({
+  email: z.string().email("Invalid email address"),
+})
 
 
 export const loginSchema = z.object({
@@ -209,7 +215,7 @@ export const updateUserProfileSchema = z.object({
   firstName: z.string().min(1, "First name is required").optional(),
   lastName: z.string().min(1, "Last name is required").optional(),
   email: z.string().email("Invalid email address").optional(),
-  phone: z.string().min(1, "Phone is required").optional(),
+  phone: z.string().min(14, "Valid phone number is required").optional(),
   notifications: z.boolean().optional(),
 }).strict();
 

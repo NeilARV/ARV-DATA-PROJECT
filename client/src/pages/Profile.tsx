@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { updateUserProfileSchema } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +23,7 @@ export default function Profile() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -124,12 +126,25 @@ export default function Profile() {
                 <Input
                   type="text"
                   value={isEditing ? formData.firstName : user.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, firstName: e.target.value });
+                    if (fieldErrors.firstName) {
+                      setFieldErrors((prev: Record<string, string>) => {
+                        const next = { ...prev };
+                        delete next.firstName;
+                        return next;
+                      });
+                    }
+                  }}
                   disabled={!isEditing}
-                  className="mt-1"
+                  className={`mt-1 ${fieldErrors.firstName ? "border-destructive" : ""}`}
+                  aria-invalid={!!fieldErrors.firstName}
                 />
+                {fieldErrors.firstName && (
+                  <p className="text-sm text-destructive mt-1" role="alert">
+                    {fieldErrors.firstName}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -138,12 +153,25 @@ export default function Profile() {
                 <Input
                   type="text"
                   value={isEditing ? formData.lastName : user.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, lastName: e.target.value });
+                    if (fieldErrors.lastName) {
+                      setFieldErrors((prev: Record<string, string>) => {
+                        const next = { ...prev };
+                        delete next.lastName;
+                        return next;
+                      });
+                    }
+                  }}
                   disabled={!isEditing}
-                  className="mt-1"
+                  className={`mt-1 ${fieldErrors.lastName ? "border-destructive" : ""}`}
+                  aria-invalid={!!fieldErrors.lastName}
                 />
+                {fieldErrors.lastName && (
+                  <p className="text-sm text-destructive mt-1" role="alert">
+                    {fieldErrors.lastName}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -152,12 +180,25 @@ export default function Profile() {
                 <Input
                   type="email"
                   value={isEditing ? formData.email : user.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (fieldErrors.email) {
+                      setFieldErrors((prev: Record<string, string>) => {
+                        const next = { ...prev };
+                        delete next.email;
+                        return next;
+                      });
+                    }
+                  }}
                   disabled={!isEditing}
-                  className="mt-1"
+                  className={`mt-1 ${fieldErrors.email ? "border-destructive" : ""}`}
+                  aria-invalid={!!fieldErrors.email}
                 />
+                {fieldErrors.email && (
+                  <p className="text-sm text-destructive mt-1" role="alert">
+                    {fieldErrors.email}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -166,17 +207,36 @@ export default function Profile() {
                 <Input
                   type="tel"
                   placeholder="(555) 123-4567"
-                  value={isEditing ? formData.phone : (user.phone?.includes('(') ? user.phone : formatPhoneNumber(user.phone || ""))}
+                  value={
+                    isEditing
+                      ? formData.phone
+                      : user.phone?.includes("(")
+                        ? user.phone
+                        : formatPhoneNumber(user.phone || "")
+                  }
                   onChange={(e) => {
                     if (isEditing) {
                       const formatted = formatPhoneNumber(e.target.value);
                       setFormData({ ...formData, phone: formatted });
+                      if (fieldErrors.phone) {
+                        setFieldErrors((prev: Record<string, string>) => {
+                          const next = { ...prev };
+                          delete next.phone;
+                          return next;
+                        });
+                      }
                     }
                   }}
                   disabled={!isEditing}
-                  className="mt-1"
-                  maxLength={14} // (XXX) XXX-XXXX = 14 characters
+                  className={`mt-1 ${fieldErrors.phone ? "border-destructive" : ""}`}
+                  aria-invalid={!!fieldErrors.phone}
+                  maxLength={14}
                 />
+                {fieldErrors.phone && (
+                  <p className="text-sm text-destructive mt-1" role="alert">
+                    {fieldErrors.phone}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -221,17 +281,18 @@ export default function Profile() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    // Reset to original user values
-                    // Format phone number if it exists
-                    const phone = user.phone 
-                      ? (user.phone.includes('(') ? user.phone : formatPhoneNumber(user.phone))
+                    setFieldErrors({});
+                    const phone = user.phone
+                      ? user.phone.includes("(")
+                        ? user.phone
+                        : formatPhoneNumber(user.phone)
                       : "";
-                    
+
                     setFormData({
                       firstName: user.firstName,
                       lastName: user.lastName,
                       email: user.email,
-                      phone: phone,
+                      phone,
                       notifications: user.notifications ?? true,
                     });
                     setIsEditing(false);
@@ -242,32 +303,47 @@ export default function Profile() {
                 </Button>
                 <Button
                   onClick={async () => {
-                    try {
-                      // Prepare update data
-                      const updateData = {
-                        firstName: formData.firstName,
-                        lastName: formData.lastName,
-                        email: formData.email,
-                        phone: formData.phone,
-                        notifications: formData.notifications,
-                      };
+                    setFieldErrors({});
+                    const updateData = {
+                      firstName: formData.firstName.trim(),
+                      lastName: formData.lastName.trim(),
+                      email: formData.email.trim(),
+                      phone: formData.phone,
+                      notifications: formData.notifications,
+                    };
 
-                      // Call API to update profile
-                      const response = await apiRequest("PATCH", "/api/auth/me", updateData);
+                    const validation = updateUserProfileSchema.safeParse(updateData);
+                    if (!validation.success) {
+                      const flattened = validation.error.flatten();
+                      const errors: Record<string, string> = {};
+                      for (const [k, v] of Object.entries(flattened.fieldErrors)) {
+                        if (Array.isArray(v) && v[0]) errors[k] = v[0];
+                      }
+                      setFieldErrors(errors);
+                      toast({
+                        title: "Invalid profile data",
+                        description: "Please fix the errors below and try again.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    try {
+                      const response = await apiRequest(
+                        "PATCH",
+                        "/api/auth/me",
+                        validation.data
+                      );
                       const result = await response.json();
 
                       if (result.success && result.user) {
-                        // Update the query cache with new user data for immediate UI update
                         queryClient.setQueryData(["/api/auth/me"], {
                           user: result.user,
                         });
-
-                        // Show success toast
                         toast({
                           title: "Profile Updated",
                           description: "Your profile has been updated successfully.",
                         });
-
                         setIsEditing(false);
                       } else {
                         throw new Error("Failed to update profile");
@@ -276,7 +352,8 @@ export default function Profile() {
                       console.error("Error updating profile:", error);
                       toast({
                         title: "Error",
-                        description: error?.message || "Failed to update profile. Please try again.",
+                        description:
+                          error?.message || "Failed to update profile. Please try again.",
                         variant: "destructive",
                       });
                     }

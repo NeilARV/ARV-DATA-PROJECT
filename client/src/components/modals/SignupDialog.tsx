@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { isValidEmail } from "@shared/utils/isValidEmail";
+import { insertUserSchema } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -25,27 +25,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 
-const signupSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  phone: z.string().refine(
-    (val) => {
-      // Extract digits and check if we have exactly 10 digits
-      const digits = val.replace(/\D/g, '');
-      return digits.length === 10;
-    },
-    "Please enter a valid 10-digit phone number"
-  ),
-  email: z
-    .string()
-    .min(1, "Email is required")
-    .refine((val) => isValidEmail(val.trim()), "Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string().min(1, "Please confirm your password"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const signupSchema = insertUserSchema
+  .extend({
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 type SignupFormData = z.infer<typeof signupSchema>;
 
