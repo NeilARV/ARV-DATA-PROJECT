@@ -4,15 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
-import { CompanyContact, Property } from "@shared/schema";
+import type { Property } from "@/types/property";
+import type { CompanyContactWithCounts } from "@/types/companies";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import UpdateDialog from "@/components/modals/UpdateDialog";
 
-// Extended CompanyContact type with property counts from API
-type CompanyContactWithCounts = CompanyContact & {
-  propertyCount: number;
-};
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { parseISO, isValid, format, isAfter, subDays } from "date-fns";
 import { Card } from "@/components/ui/card";
