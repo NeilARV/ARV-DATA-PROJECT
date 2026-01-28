@@ -5,6 +5,8 @@ import { users, emailWhitelist } from "../schemas";
 export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
   id: true,
   createdAt: true,
+}).extend({
+  email: z.string().email("Invalid email address"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -15,6 +17,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
   notifications: true,
 }).extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(14, "Valid phone number is required"),
 });
 
 export const loginSchema = z.object({
