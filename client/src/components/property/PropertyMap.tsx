@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
-import { Property } from '@shared/schema';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import type { Property } from '@/types/property';
 import type { MapPin } from '@/types/property';
+
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `

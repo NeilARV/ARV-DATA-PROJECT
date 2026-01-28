@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/table";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 interface PropertyTableProps {
