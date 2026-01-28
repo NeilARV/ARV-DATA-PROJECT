@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { updateUserProfileSchema } from "@shared/schema";
+import { updateUserProfileSchema } from "@database/updates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
