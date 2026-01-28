@@ -9,15 +9,15 @@ export function startScheduledJobs() {
     // Clean Streetview Cache Every Night at 1:00 AM
     cron.schedule("0 1 * * *", CleanCache)
 
-    // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 1:30 AM
-    cron.schedule("30 1 * * *", syncSanDiegoData)
+    // Check property market status every night at 1:15 AM
+    cron.schedule("15 1 * * *", UpdatePropertyStatus)
 
-    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 1:45 AM
-    cron.schedule("45 1 * * *", syncLosAngelesData)
+    // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 2:00 AM
+    cron.schedule("0 2 * * *", syncSanDiegoData)
 
-    // Start Denver-Aurora-Centennial, CO property data sync every night at 2:00 AM
-    cron.schedule("0 2 * * *", syncDenverData)
+    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:15 AM
+    cron.schedule("15 2 * * *", syncLosAngelesData)
 
-    // Check property market status every night at 2:15 AM
-    cron.schedule("15 2 * * *", UpdatePropertyStatus)
+    // Start Denver-Aurora-Centennial, CO property data sync every night at 2:30 AM
+    cron.schedule("30 2 * * *", syncDenverData)
 }
