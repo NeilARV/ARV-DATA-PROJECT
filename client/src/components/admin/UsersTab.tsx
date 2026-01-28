@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { isValidEmail } from "@shared/utils/isValidEmail";
 import {
   Card,
   CardContent,
@@ -18,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Users } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -38,6 +39,7 @@ interface UsersTabProps {
 export default function UsersTab({ isAdmin }: UsersTabProps) {
   const { toast } = useToast();
   const [whitelistEmail, setWhitelistEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
     queryKey: ["/api/admin/users"],
@@ -58,6 +60,7 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
         description: "Email added to whitelist",
       });
       setWhitelistEmail("");
+      setEmailError(null);
     },
     onError: (error: any) => {
       // Parse error message from apiRequest format: "STATUS_CODE: JSON_STRING"
@@ -83,6 +86,17 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
     },
   });
 
+  const handleAddWhitelist = () => {
+    const trimmed = whitelistEmail.trim();
+    if (!trimmed) return;
+    setEmailError(null);
+    if (!isValidEmail(trimmed)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    addWhitelistMutation.mutate(trimmed);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -99,26 +113,27 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
               type="email"
               placeholder="Enter email address"
               value={whitelistEmail}
-              onChange={(e) => setWhitelistEmail(e.target.value)}
+              onChange={(e) => {
+                setWhitelistEmail(e.target.value);
+                setEmailError(null);
+              }}
               onKeyDown={(e) => {
                 if (
                   e.key === "Enter" &&
                   whitelistEmail.trim() &&
                   !addWhitelistMutation.isPending
                 ) {
-                  addWhitelistMutation.mutate(whitelistEmail.trim());
+                  handleAddWhitelist();
                 }
               }}
               disabled={addWhitelistMutation.isPending}
-              className="flex-1"
+              className={`flex-1`}
               data-testid="input-whitelist-email"
+              aria-invalid={!!emailError}
+              aria-describedby={emailError ? "whitelist-email-error" : undefined}
             />
             <Button
-              onClick={() => {
-                if (whitelistEmail.trim()) {
-                  addWhitelistMutation.mutate(whitelistEmail.trim());
-                }
-              }}
+              onClick={handleAddWhitelist}
               disabled={
                 !whitelistEmail.trim() || addWhitelistMutation.isPending
               }
@@ -137,6 +152,15 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
               )}
             </Button>
           </div>
+          {emailError && (
+            <p
+              id="whitelist-email-error"
+              className="text-sm text-destructive mt-2"
+              role="alert"
+            >
+              {emailError}
+            </p>
+          )}
         </div>
         {isLoadingUsers ? (
           <div className="flex items-center justify-center py-12">
