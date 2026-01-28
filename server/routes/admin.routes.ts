@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { users } from "@shared/schema";
+import { users } from "@database/schemas/users.schema";
 import { eq, desc } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
