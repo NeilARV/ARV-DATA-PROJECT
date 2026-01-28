@@ -42,7 +42,7 @@ export default function UploadDialog({
     address: z.string().min(1, "Address is required"),
     city: z.string().min(1, "City is required"),
     state: z.string().min(1, "State is required"),
-    zipCode: z.string().min(1, "Zip Code is required"),
+    zipCode: z.string().min(5, "Valid zip code is required"),
   });
 
   const form = useForm<z.infer<typeof entrySchema>>({
@@ -181,6 +181,7 @@ export default function UploadDialog({
                       <Input
                         {...field}
                         placeholder="92126"
+                        maxLength={5}
                         required
                         data-testid="input-manual-zipcode"
                       />
