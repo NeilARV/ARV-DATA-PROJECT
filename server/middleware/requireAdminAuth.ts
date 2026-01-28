@@ -1,4 +1,4 @@
-import { users } from "@shared/schema";
+import { users } from "@database/schemas/users.schema";
 import { Request, Response, NextFunction } from "express";
 import { db } from "server/storage";
 import { eq } from "drizzle-orm";
