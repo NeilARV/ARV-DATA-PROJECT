@@ -131,12 +131,6 @@ export const sfrSyncState = pgTable("sfr_sync_state", {
   createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
 })
 
-export const emailWhitelist = pgTable("email_whitelist", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull().unique(),
-  createdAt: timestamp("created_at").defaultNow(),
-})
-
 export const streetviewCache = pgTable("streetview_cache", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   propertyId: varchar("property_id").references(() => properties.id, { onDelete: "cascade" }),
@@ -196,13 +190,6 @@ export const insertUserSchema = createInsertSchema(users).omit({
   phone: z
     .string()
     .min(14, "Valid phone number is required")
-})
-
-export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
-  id: true,
-  createdAt: true,
-}).extend({
-  email: z.string().email("Invalid email address"),
 })
 
 

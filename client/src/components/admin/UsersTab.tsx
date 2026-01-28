@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { insertEmailWhitelistSchema } from "@shared/schema";
+import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
 import {
   Card,
   CardContent,
