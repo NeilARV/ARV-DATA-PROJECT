@@ -297,6 +297,7 @@ export type Property = {
   avmValue?: number | null;
   loanAmount?: number | null;
 };
+
 export type CompanyContact = typeof companies.$inferSelect;
 export type Company = CompanyContact; // Alias for new schema name
 export type InsertCompanyContact = z.infer<typeof insertCompanyContactSchema>;

@@ -1,4 +1,4 @@
-import { Property } from "@shared/schema";
+import type { Property } from "@/types/property";
 import { Card } from "@/components/ui/card";
 import { Bed, Bath, Maximize2, Building2, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";

@@ -12,7 +12,7 @@ import UploadDialog from "@/components/modals/UploadDialog";
 import SignupDialog from "@/components/modals/SignupDialog";
 import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
-import { Property } from "@shared/schema";
+import type { Property } from "@/types/property";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";

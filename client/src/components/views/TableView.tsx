@@ -1,4 +1,4 @@
-import { Property } from "@shared/schema";
+import type { Property } from "@/types/property";
 import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
 

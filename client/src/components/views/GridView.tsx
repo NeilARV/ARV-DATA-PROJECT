@@ -1,4 +1,4 @@
-import { Property } from "@shared/schema";
+import type { Property } from "@/types/property";
 import PropertyCard from "@/components/property/PropertyCard";
 import {
   Select,
