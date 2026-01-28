@@ -4,7 +4,7 @@ import { createServer } from "http";
 import { setupVite, serveStatic, log } from "./vite";
 import { NeonSessionStore } from "./session-store";
 import { db } from "./storage";
-import { sessions } from "@shared/schema";
+import { sessions } from "@database/schemas/users.schema";
 import { startScheduledJobs } from "./jobs";
 import dotenv from "dotenv";
 import apiRoutes from "./routes/index"

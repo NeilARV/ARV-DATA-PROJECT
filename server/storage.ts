@@ -1,7 +1,5 @@
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq } from "drizzle-orm";
-import { properties, companyContacts, type Property, type InsertProperty, type CompanyContact } from "@shared/schema";
 import dotenv from "dotenv";
 
 dotenv.config()
