@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { loginSchema, updateUserProfileSchema } from "@shared/schema";
+import { loginSchema } from "@database/inserts";
+import { updateUserProfileSchema } from "@database/updates";
 import { SessionServices, UserServices } from "server/services/auth";
 
 export async function login(req: Request, res: Response, next: NextFunction):Promise<void> {
