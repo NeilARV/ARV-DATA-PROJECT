@@ -10,7 +10,7 @@ export function startScheduledJobs() {
     cron.schedule("0 1 * * *", CleanCache)
 
     // Check property market status every night at 1:15 AM
-    cron.schedule("0 10 * * *", UpdatePropertyStatus)
+    cron.schedule("30 10 * * *", UpdatePropertyStatus)
 
     // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 2:00 AM
     cron.schedule("0 2 * * *", syncSanDiegoData)
