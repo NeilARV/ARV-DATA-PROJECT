@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { streetviewCache } from "@shared/schema";
+import { streetviewCache } from "@database/schemas/properties.schema";
 import { eq, sql, and } from "drizzle-orm";
 
 export interface StreetviewImageResult {
@@ -170,8 +170,9 @@ async function checkCache(
     
     console.log(`[STREETVIEW CACHE HIT] Using cached image for: ${address}, ${city}, ${state}`);
     
+    // imageData is Buffer | null, but we've already checked it's not null above
     return {
-        imageData: cached.imageData as Buffer,
+        imageData: cached.imageData!,
         contentType: cached.contentType || "image/jpeg",
         cached: true
     };

@@ -10,8 +10,17 @@ import {
   decimal,
   text,
   date,
+  customType,
 } from "drizzle-orm/pg-core";
 import { companies } from "./companies.schema";
+
+// Custom type for BYTEA (binary data) in PostgreSQL
+// BYTEA stores binary data efficiently without base64 encoding overhead
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+  toDriver: (value: Buffer) => value,
+  fromDriver: (value: Buffer) => value,
+});
 
 // Main properties table
 export const properties = pgTable("properties", {
@@ -217,11 +226,14 @@ export const streetviewCache = pgTable("streetview_cache", {
   city: text("city").notNull(),
   state: text("state").notNull(),
   size: text("size").notNull().default("600x400"),
-  imageData: text("image_data"),
+  // Store image as binary data (BYTEA) - more efficient than base64 text
+  // Nullable because we may cache metadata indicating no image is available
+  imageData: bytea("image_data"),
   contentType: text("content_type").default("image/jpeg"),
+  // Metadata status from Google API (e.g., "OK", "ZERO_RESULTS", "NOT_FOUND")
+  metadataStatus: text("metadata_status"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(),
-  metadataStatus: text("metadata_status"),
 });
 
 // Property Transactions
