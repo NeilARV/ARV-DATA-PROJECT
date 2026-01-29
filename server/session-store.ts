@@ -1,6 +1,6 @@
 import { Store } from 'express-session';
 import { db } from './storage';
-import { sessions } from '@shared/schema';
+import { sessions } from '@database/schemas/users.schema';
 import { eq, lt } from 'drizzle-orm';
 
 interface SessionStoreOptions {

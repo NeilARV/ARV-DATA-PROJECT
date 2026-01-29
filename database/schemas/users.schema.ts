@@ -1,10 +1,10 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 
 // Sessions
 export const sessions = pgTable("sessions", {
   sid: varchar("sid").primaryKey(),
   sess: text("sess").notNull(),
-  expire: varchar("expire").notNull(),
+  expire: integer("expire").notNull(),
 });
 
 // Email Whitelist
