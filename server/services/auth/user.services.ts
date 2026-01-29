@@ -1,4 +1,4 @@
-import { users } from "@shared/schema";
+import { users } from "@database/schemas/users.schema";
 import { db } from "server/storage";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
