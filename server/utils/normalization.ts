@@ -135,6 +135,10 @@ export function normalizePropertyType(propertyType: string | null | undefined): 
         (lowerType.includes('single') && lowerType.includes('family') && !lowerType.includes('multi'))) {
         return 'Single Family';
     }
+
+    if (lowerType.includes('single')) {
+        return 'Single Family';
+    }
     
     // 2. Check for Condominium (case-insensitive)
     if (lowerType.includes('condominium')) {

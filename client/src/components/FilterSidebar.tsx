@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
 
 export interface ZipCodeWithCount {
   zipCode: string;
@@ -146,7 +146,11 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       // Check if it's Los Angeles MSA (Los Angeles or Orange county)
       if (countyName === 'Los Angeles' || countyName === 'Orange') {
         msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
-      } else {
+      } 
+      if (countyName === 'San Francisco' || countyName === 'Alameda' || countyName === 'Contra Costa' || countyName === 'Marin' || countyName === 'San Mateo') {
+        msaZipCodes = SAN_FRANCISCO_MSA_ZIP_CODES;
+      }
+      else {
         // San Diego MSA (San Diego county)
         msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
       }

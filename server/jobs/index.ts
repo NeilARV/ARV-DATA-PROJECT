@@ -1,6 +1,6 @@
 import cron from "node-cron"
 import { CleanCache } from "./clean-cache"
-import { syncSanDiegoData, syncLosAngelesData, syncDenverData } from "./data"
+import { syncSanDiegoData, syncLosAngelesData, syncDenverData, syncSanFranciscoData } from "./data"
 import { UpdatePropertyStatus } from "./property-status"
 
 export function startScheduledJobs() {
@@ -22,12 +22,37 @@ export function startScheduledJobs() {
     })
 
     // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:15 AM
-    cron.schedule("15 2 * * *", syncLosAngelesData, {
+    cron.schedule("10 2 * * *", syncLosAngelesData, {
         timezone: "America/Los_Angeles"
     })
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 2:30 AM
-    cron.schedule("30 2 * * *", syncDenverData, {
+    cron.schedule("20 2 * * *", syncDenverData, {
         timezone: "America/Los_Angeles"
     })
+
+    // Start San Francisco-Oakland-Fremont, CA property data sync every night at 2:30 AM
+    cron.schedule("30 2 * * *", syncSanFranciscoData, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // // // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 2:00 AM
+    // cron.schedule("30 * * * *", syncSanDiegoData, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:15 AM
+    // cron.schedule("29 * * * *", syncLosAngelesData, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Start Denver-Aurora-Centennial, CO property data sync every night at 2:30 AM
+    // cron.schedule("28 * * * *", syncDenverData, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // cron.schedule("27 * * * *", syncSanFranciscoData, {
+    //     timezone: "America/Los_Angeles"
+    // })
+    
 }
