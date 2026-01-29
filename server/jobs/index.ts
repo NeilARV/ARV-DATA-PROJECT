@@ -12,7 +12,7 @@ export function startScheduledJobs() {
     })
 
     // Check property market status every night at 1:15 AM
-    cron.schedule("35 13 * * *", UpdatePropertyStatus, {
+    cron.schedule("15 1 * * *", UpdatePropertyStatus, {
         timezone: "America/Los_Angeles"
     })
 
