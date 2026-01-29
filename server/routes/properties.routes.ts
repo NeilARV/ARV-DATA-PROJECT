@@ -1,10 +1,9 @@
 import { Router } from "express";
 import { db } from "server/storage";
-import { properties } from "@shared/schema";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { companies } from "../../database/schemas/companies.schema";
 import { 
-    properties as propertiesV2, 
+    properties, 
     addresses, 
     structures, 
     lastSales,
@@ -91,8 +90,8 @@ router.post("/", requireAdminAuth, async (req, res) => {
         // Check if property already exists
         const [existingProperty] = await db
             .select()
-            .from(propertiesV2)
-            .where(eq(propertiesV2.sfrPropertyId, Number(sfrPropertyId)))
+            .from(properties)
+            .where(eq(properties.sfrPropertyId, Number(sfrPropertyId)))
             .limit(1);
 
         // Normalize county from API response (e.g., "San Diego County, California" -> "San Diego")
@@ -280,7 +279,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
         if (existingProperty) {
             // Update existing property
             await db
-                .update(propertiesV2)
+                .update(properties)
                 .set({
                     companyId: companyId,
                     propertyOwnerId: propertyOwnerId,
@@ -297,7 +296,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     county: normalizedCounty,
                     updatedAt: sql`now()`,
                 })
-                .where(eq(propertiesV2.id, existingProperty.id));
+                .where(eq(properties.id, existingProperty.id));
             
             await maybeInsertAcquisitionTransaction(existingProperty.id, companyId, propertyData, buyerName);
             console.log(`Property updated: ${sfrPropertyId}`);
@@ -309,7 +308,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
         } else {
             // Insert new property
             const [newProperty] = await db
-                .insert(propertiesV2)
+                .insert(properties)
                 .values({
                     sfrPropertyId: Number(sfrPropertyId),
                     companyId: companyId,
@@ -391,14 +390,14 @@ router.get("/suggestions", async (req, res) => {
         // Join with addresses table to get address info
         let query = db
             .select({
-                id: propertiesV2.id,
+                id: properties.id,
                 address: addresses.formattedStreetAddress,
                 city: addresses.city,
                 state: addresses.state,
                 zipcode: addresses.zipCode
             })
-            .from(propertiesV2)
-            .innerJoin(addresses, eq(propertiesV2.id, addresses.propertyId));
+            .from(properties)
+            .innerJoin(addresses, eq(properties.id, addresses.propertyId));
 
         if (whereClause) {
             query = query.where(whereClause) as any;
@@ -426,8 +425,8 @@ router.delete("/:id", requireAdminAuth, async (req, res) => {
         console.log(`[DELETE] Attempting to delete property ID: ${id}`);
         
         const deleted = await db
-            .delete(propertiesV2)
-            .where(eq(propertiesV2.id, id))
+            .delete(properties)
+            .where(eq(properties.id, id))
             .returning();
 
         if (deleted.length === 0) {
@@ -460,23 +459,23 @@ router.get("/:id", async (req, res) => {
         const [result] = await db
             .select({
                 // Properties table fields
-                id: propertiesV2.id,
-                sfrPropertyId: propertiesV2.sfrPropertyId,
-                companyId: propertiesV2.companyId,
-                propertyOwnerId: propertiesV2.propertyOwnerId,
-                propertyClassDescription: propertiesV2.propertyClassDescription,
-                propertyType: propertiesV2.propertyType,
-                vacant: propertiesV2.vacant,
-                hoa: propertiesV2.hoa,
-                ownerType: propertiesV2.ownerType,
-                purchaseMethod: propertiesV2.purchaseMethod,
-                listingStatus: propertiesV2.listingStatus,
-                status: propertiesV2.status,
-                monthsOwned: propertiesV2.monthsOwned,
-                msa: propertiesV2.msa,
-                county: propertiesV2.county,
-                createdAt: propertiesV2.createdAt,
-                updatedAt: propertiesV2.updatedAt,
+                id: properties.id,
+                sfrPropertyId: properties.sfrPropertyId,
+                companyId: properties.companyId,
+                propertyOwnerId: properties.propertyOwnerId,
+                propertyClassDescription: properties.propertyClassDescription,
+                propertyType: properties.propertyType,
+                vacant: properties.vacant,
+                hoa: properties.hoa,
+                ownerType: properties.ownerType,
+                purchaseMethod: properties.purchaseMethod,
+                listingStatus: properties.listingStatus,
+                status: properties.status,
+                monthsOwned: properties.monthsOwned,
+                msa: properties.msa,
+                county: properties.county,
+                createdAt: properties.createdAt,
+                updatedAt: properties.updatedAt,
                 // Address fields
                 address: addresses.formattedStreetAddress,
                 city: addresses.city,
@@ -497,12 +496,12 @@ router.get("/:id", async (req, res) => {
                 contactName: companies.contactName,
                 contactEmail: companies.contactEmail,
             })
-            .from(propertiesV2)
-            .leftJoin(addresses, eq(propertiesV2.id, addresses.propertyId))
-            .leftJoin(structures, eq(propertiesV2.id, structures.propertyId))
-            .leftJoin(lastSales, eq(propertiesV2.id, lastSales.propertyId))
-            .leftJoin(companies, eq(propertiesV2.companyId, companies.id)) // Join on companyId (more reliably filled)
-            .where(eq(propertiesV2.id, id))
+            .from(properties)
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .leftJoin(structures, eq(properties.id, structures.propertyId))
+            .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+            .leftJoin(companies, eq(properties.companyId, companies.id)) // Join on companyId (more reliably filled)
+            .where(eq(properties.id, id))
             .limit(1);
 
         if (!result) {
