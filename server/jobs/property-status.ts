@@ -6,6 +6,23 @@ const BATCH_SIZE = 100; // Max 100 addresses per batch (SFR API limit)
 const DB_FETCH_BATCH_SIZE = 500; // Fetch properties in chunks from database to avoid memory issues
 const RATE_LIMIT_DELAY_MS = 1000; // 1 second delay between SFR API batches to avoid rate limiting
 
+
+// In Database:
+// buyer_1 = Company LLC
+// seller_1 = John Doe
+
+// From SFR
+// buyer_1 = John Doe or New LLC
+// seller_1 = Company LLC
+
+// If (db_buyer_1 || db_buyer_2) == (sfr_seller_1 || sfr_seller_2) => property is sold
+// If (db_buyer_1 || db_buyer_2) != (sfr_seller_1 || sfr_seller_2) => property is not sold
+
+// If SFR_buyer isCorporate && db_buyer isCorporate => transfer ownership to new company --> mark as in-renovtation?    
+
+// If owner.corporate_owner == true ==> property is owned by a company else individual
+
+
 // Helper function to add delay between batches
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
