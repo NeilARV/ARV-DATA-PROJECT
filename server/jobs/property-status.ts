@@ -1,6 +1,19 @@
 import { db } from "server/storage";
 import { properties, addresses } from "../../database/schemas/properties.schema";
+import { companies } from "../../database/schemas/companies.schema";
 import { eq, sql, and, isNotNull, ne } from "drizzle-orm";
+import { isTrust } from "server/utils/dataSyncHelpers";
+import { normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizeCountyName } from "server/utils/normalization";
+
+/**
+ * Status determination logic (based on current_sale from SFR):
+ * 1. Company→company: If seller matches and buyer is corporate (not trust) → in-renovation, create/find buyer company, set property_owner_id & company_id to buyer
+ * 2. Company→trust/individual: If seller matches and (buyer is individual OR buyer is trust) → sold, property_owner_id=null, company_id unchanged
+ * 3. Seller doesn't match: No company/owner changes; still update status & listing_status from SFR (on-market/off-market)
+ * 4. Sold properties are excluded from fetch (another job handles re-acquisition)
+ * 5. listing_status (on-market/off-market) is always updated from SFR, even when seller doesn't match
+ */
+
 
 const BATCH_SIZE = 100; // Max 100 addresses per batch (SFR API limit)
 const DB_FETCH_BATCH_SIZE = 500; // Fetch properties in chunks from database to avoid memory issues
@@ -77,22 +90,25 @@ export async function UpdatePropertyStatus() {
             }
 
             // Fetch a chunk of properties from database using cursor-based pagination
-            // Exclude properties with status "sold" since they don't need status updates
-            // IMPORTANT: Order by id to ensure consistent pagination (prevents skipping/duplicates)
+            // Join companies to get company name for sold-status logic
             const propertiesChunk = await db
                 .select({
                     propertyId: properties.id,
                     sfrPropertyId: properties.sfrPropertyId,
                     currentStatus: properties.status,
                     currentListingStatus: properties.listingStatus,
+                    companyId: properties.companyId,
+                    propertyOwnerId: properties.propertyOwnerId,
+                    companyName: companies.companyName,
                     address: addresses.formattedStreetAddress,
                     city: addresses.city,
                     state: addresses.state,
                 })
                 .from(properties)
                 .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+                .leftJoin(companies, eq(properties.companyId, companies.id))
                 .where(and(...whereConditions))
-                .orderBy(properties.id) // Ensure consistent ordering for cursor-based pagination
+                .orderBy(properties.id)
                 .limit(DB_FETCH_BATCH_SIZE);
 
             if (propertiesChunk.length === 0) {
@@ -108,6 +124,14 @@ export async function UpdatePropertyStatus() {
             // Check if we got fewer properties than requested (means we're at the end)
             if (propertiesChunk.length < DB_FETCH_BATCH_SIZE) {
                 hasMore = false;
+            }
+
+            // Load companies for buyer lookup (when our company sold to another corporate entity)
+            const allCompanies = await db.select().from(companies);
+            const contactsMap = new Map<string, (typeof allCompanies)[0]>();
+            for (const company of allCompanies) {
+                const key = normalizeCompanyNameForComparison(company.companyName);
+                if (key) contactsMap.set(key, company);
             }
 
             // Step 3: Process this chunk in SFR API batches
@@ -158,12 +182,13 @@ export async function UpdatePropertyStatus() {
                     continue;
                 }
 
-                // Step 4: Process each property in the batch response
-                // The batch API returns items in the same order as input addresses
+                // Step 4: Process each property - apply sold logic from current_sale
                 const updatesToProcess: Array<{
                     propertyId: string;
                     newStatus: string;
                     newListingStatus: string;
+                    newCompanyId?: string | null;
+                    newPropertyOwnerId?: string | null;
                 }> = [];
 
                 for (let j = 0; j < batchResponseData.length && j < batch.length; j++) {
@@ -178,7 +203,6 @@ export async function UpdatePropertyStatus() {
 
                     totalProcessed++;
 
-                    // Skip items with errors or missing property data
                     if (batchItem.error || !batchItem.property) {
                         if (batchItem.error) {
                             console.warn(`[UPDATE PROPERTY STATUS] Error for property ${property.propertyId} (address: ${formattedAddress}): ${batchItem.error}`);
@@ -187,34 +211,87 @@ export async function UpdatePropertyStatus() {
                     }
 
                     const propertyData = batchItem.property;
+                    const currentSale = propertyData.current_sale || propertyData.currentSale;
+                    const owner = propertyData.owner || {};
+                    const seller1 = (currentSale?.seller_1 ?? currentSale?.seller1 ?? "").trim();
+                    const seller2 = (currentSale?.seller_2 ?? currentSale?.seller2 ?? "").trim();
+                    const buyer1 = (currentSale?.buyer_1 ?? currentSale?.buyer1 ?? "").trim() || null;
+                    const corporateOwner = owner.corporate_owner === true;
                     const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
-
-                    // Map listing_status to status:
-                    // - "On Market" → status = "on-market"
-                    // - "Off Market" → status = "in-renovation"
-                    let newStatus: string;
-                    if (propertyListingStatus === "on market" || propertyListingStatus === "on_market") {
-                        newStatus = "on-market";
-                    } else {
-                        // Default to "in-renovation" for "Off Market" or any other value
-                        newStatus = "in-renovation";
-                    }
-
-                    // Store listingStatus as normalized value from API (on-market or off-market)
                     const newListingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
 
-                    // Only update if status or listingStatus has changed
-                    // This ensures we only update properties that actually have different values
-                    if (property.currentStatus !== newStatus || property.currentListingStatus !== newListingStatus) {
+                    const companyNameForCompare = property.companyName ? normalizeCompanyNameForComparison(property.companyName) : null;
+                    const seller1Match = seller1 && companyNameForCompare && normalizeCompanyNameForComparison(seller1) === companyNameForCompare;
+                    const seller2Match = seller2 && companyNameForCompare && normalizeCompanyNameForComparison(seller2) === companyNameForCompare;
+                    const ourCompanySold = seller1Match || seller2Match;
+                    const buyerIsTrust = isTrust(buyer1, null);
+
+                    let newStatus: string;
+                    let newCompanyId: string | null | undefined;
+                    let newPropertyOwnerId: string | null | undefined;
+
+                    if (ourCompanySold) {
+                        if (!corporateOwner || buyerIsTrust) {
+                            // Sold to individual or sold to trust → status = sold, clear property_owner_id only
+                            // company_id stays unchanged (the company that sold it)
+                            // Note: buyerIsTrust needed because trusts often have corporate_owner=true in SFR data
+                            newStatus = "sold";
+                            newPropertyOwnerId = null;
+                        } else {
+                            // Sold to another corporate → in-renovation, update to buyer company
+                            newStatus = "in-renovation";
+                            if (buyer1) {
+                                const normalizedCounty = normalizeCountyName(propertyData.county);
+                                const buyerStorageName = normalizeCompanyNameForStorage(buyer1);
+                                const buyerCompareKey = buyerStorageName ? normalizeCompanyNameForComparison(buyerStorageName) : null;
+                                let buyerCompany = buyerCompareKey ? contactsMap.get(buyerCompareKey) : null;
+
+                                if (!buyerCompany && buyerStorageName) {
+                                    try {
+                                        const [inserted] = await db.insert(companies).values({
+                                            companyName: buyerStorageName,
+                                            counties: normalizedCounty ? [normalizedCounty] : null,
+                                        }).returning();
+                                        if (inserted) {
+                                            buyerCompany = inserted;
+                                            contactsMap.set(buyerCompareKey!, inserted);
+                                        }
+                                    } catch (e: any) {
+                                        if (e?.code === "23505" || e?.message?.includes("duplicate")) {
+                                            const [existing] = await db.select().from(companies).where(eq(companies.companyName, buyerStorageName)).limit(1);
+                                            if (existing) {
+                                                buyerCompany = existing;
+                                                contactsMap.set(buyerCompareKey!, existing);
+                                            }
+                                        }
+                                    }
+                                }
+                                if (buyerCompany) {
+                                    newCompanyId = buyerCompany.id;
+                                    newPropertyOwnerId = buyerCompany.id;
+                                }
+                            }
+                        }
+                    } else {
+                        // Seller doesn't match our company → no company/owner changes, but still update status & listing_status from SFR
+                        newStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "in-renovation";
+                        // newCompanyId, newPropertyOwnerId stay undefined (no changes)
+                    }
+
+                    const shouldUpdate =
+                        property.currentStatus !== newStatus ||
+                        property.currentListingStatus !== newListingStatus ||
+                        (newCompanyId !== undefined && property.companyId !== newCompanyId) ||
+                        (newPropertyOwnerId !== undefined && property.propertyOwnerId !== newPropertyOwnerId);
+
+                    if (shouldUpdate) {
                         updatesToProcess.push({
                             propertyId: property.propertyId,
                             newStatus,
                             newListingStatus,
+                            ...(newCompanyId !== undefined && { newCompanyId }),
+                            ...(newPropertyOwnerId !== undefined && { newPropertyOwnerId }),
                         });
-                    } else {
-                        // Property status hasn't changed - skip update (logged for debugging if needed)
-                        // Uncomment below for verbose logging:
-                        // console.log(`[UPDATE PROPERTY STATUS] Property ${property.propertyId} status unchanged (${property.currentStatus})`);
                     }
                 }
 
@@ -222,54 +299,56 @@ export async function UpdatePropertyStatus() {
                 if (updatesToProcess.length > 0) {
                     console.log(`[UPDATE PROPERTY STATUS] Batch ${batchNum} (global ${globalBatchNum}): ${updatesToProcess.length} properties need updates`);
 
-                    // Use batch update with SQL VALUES clause for efficiency
-                    // This is much faster than individual updates, especially for larger batches
-                    // Uses UPDATE FROM VALUES pattern which works without transactions
-                    try {
-                        // Build VALUES clause manually with proper SQL escaping
-                        // Format: VALUES ('id1'::uuid, 'status1', 'listingStatus1'), ('id2'::uuid, 'status2', 'listingStatus2'), ...
-                        const valuesStrings = updatesToProcess.map(update => {
-                            // Escape single quotes in string values
-                            const escapedStatus = update.newStatus.replace(/'/g, "''");
-                            const escapedListingStatus = update.newListingStatus.replace(/'/g, "''");
-                            // UUIDs must be quoted as strings before casting to uuid
-                            return `('${update.propertyId}'::uuid, '${escapedStatus}', '${escapedListingStatus}')`;
-                        });
-                        const valuesClause = valuesStrings.join(', ');
+                    const hasCompanyUpdates = updatesToProcess.some(u => u.newCompanyId !== undefined || u.newPropertyOwnerId !== undefined);
 
-                        // Execute batch update using UPDATE FROM VALUES
-                        // This updates all properties in a single query (much faster than individual updates)
-                        await db.execute(sql.raw(`
-                            UPDATE properties
-                            SET 
-                                status = updates.status,
-                                listing_status = updates.listing_status,
-                                updated_at = now()
-                            FROM (VALUES ${valuesClause}) AS updates(id, status, listing_status)
-                            WHERE properties.id = updates.id
-                        `));
-                        
-                        totalUpdated += updatesToProcess.length;
-                        console.log(`[UPDATE PROPERTY STATUS] Batch ${batchNum}: Successfully batch updated ${updatesToProcess.length} properties`);
-                    } catch (batchUpdateError: any) {
-                        console.error(`[UPDATE PROPERTY STATUS] Error batch updating properties in batch ${batchNum}:`, batchUpdateError);
-                        // Fallback: try updating individually to see which ones fail
-                        console.log(`[UPDATE PROPERTY STATUS] Attempting individual updates for batch ${batchNum}...`);
+                    if (hasCompanyUpdates) {
                         for (const update of updatesToProcess) {
                             try {
-                                await db
-                                    .update(properties)
-                                    .set({
-                                        status: update.newStatus,
-                                        listingStatus: update.newListingStatus,
-                                        updatedAt: sql`now()`,
-                                    })
-                                    .where(eq(properties.id, update.propertyId));
-                                
+                                const setFields: Record<string, unknown> = {
+                                    status: update.newStatus,
+                                    listingStatus: update.newListingStatus,
+                                    updatedAt: sql`now()`,
+                                };
+                                if (update.newCompanyId !== undefined) setFields.companyId = update.newCompanyId;
+                                if (update.newPropertyOwnerId !== undefined) setFields.propertyOwnerId = update.newPropertyOwnerId;
+                                await db.update(properties).set(setFields as any).where(eq(properties.id, update.propertyId));
                                 totalUpdated++;
                             } catch (individualError: any) {
                                 console.error(`[UPDATE PROPERTY STATUS] Error updating property ${update.propertyId}:`, individualError);
                                 totalErrors++;
+                            }
+                        }
+                        console.log(`[UPDATE PROPERTY STATUS] Batch ${batchNum}: Updated ${updatesToProcess.length} properties (with company/owner changes)`);
+                    } else {
+                        try {
+                            const valuesStrings = updatesToProcess.map(update => {
+                                const escapedStatus = update.newStatus.replace(/'/g, "''");
+                                const escapedListingStatus = update.newListingStatus.replace(/'/g, "''");
+                                return `('${update.propertyId}'::uuid, '${escapedStatus}', '${escapedListingStatus}')`;
+                            });
+                            const valuesClause = valuesStrings.join(', ');
+                            await db.execute(sql.raw(`
+                                UPDATE properties
+                                SET status = updates.status, listing_status = updates.listing_status, updated_at = now()
+                                FROM (VALUES ${valuesClause}) AS updates(id, status, listing_status)
+                                WHERE properties.id = updates.id
+                            `));
+                            totalUpdated += updatesToProcess.length;
+                            console.log(`[UPDATE PROPERTY STATUS] Batch ${batchNum}: Successfully batch updated ${updatesToProcess.length} properties`);
+                        } catch (batchUpdateError: any) {
+                            console.error(`[UPDATE PROPERTY STATUS] Error batch updating properties in batch ${batchNum}:`, batchUpdateError);
+                            for (const update of updatesToProcess) {
+                                try {
+                                    await db.update(properties).set({
+                                        status: update.newStatus,
+                                        listingStatus: update.newListingStatus,
+                                        updatedAt: sql`now()`,
+                                    }).where(eq(properties.id, update.propertyId));
+                                    totalUpdated++;
+                                } catch (individualError: any) {
+                                    console.error(`[UPDATE PROPERTY STATUS] Error updating property ${update.propertyId}:`, individualError);
+                                    totalErrors++;
+                                }
                             }
                         }
                     }

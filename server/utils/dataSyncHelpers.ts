@@ -18,8 +18,8 @@ function parseCountiesArray(counties: any): string[] {
     return [];
 }
 
-// Helper function to check if a name/entity is a trust
-function isTrust(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
+// Helper function to check if a name/entity is a trust (exported for property-status job)
+export function isTrust(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
     if (!name) return false;
     
     // Ownership codes that indicate trusts
