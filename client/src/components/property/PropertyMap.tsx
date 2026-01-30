@@ -25,14 +25,10 @@ const createColoredIcon = (color: string) => {
 
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
-const charcoalIcon = createColoredIcon('#4B5563');
-const grayIcon = createColoredIcon('#808080');
+const charcoalIcon = createColoredIcon('#FF0000');
 
 // Selected marker icons (with orange/yellow color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
-const selectedGreenIcon = createColoredIcon('#FFA500');
-const selectedCharcoalIcon = createColoredIcon('#FFA500');
-const selectedGrayIcon = createColoredIcon('#FFA500');
 
 const getIconForStatus = (status: string | null | undefined, isSelected: boolean = false) => {
   if (isSelected) {
@@ -43,8 +39,6 @@ const getIconForStatus = (status: string | null | undefined, isSelected: boolean
   switch (status) {
     case 'on-market':
       return greenIcon;
-    case 'off-market':
-      return grayIcon;
     case 'sold':
       return charcoalIcon;
     case 'in-renovation':
