@@ -390,6 +390,8 @@ CREATE TABLE property_transactions (
     property_transactions_id SERIAL PRIMARY KEY,
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     transaction_type VARCHAR(50) NOT NULL,
     transaction_date DATE NOT NULL,
     sale_price DECIMAL(15, 2),

@@ -241,6 +241,8 @@ export const propertyTransactions = pgTable("property_transactions", {
   propertyTransactionsId: serial("property_transactions_id").primaryKey(),
   propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
   companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
+  sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
+  buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
   transactionType: varchar("transaction_type", { length: 50 }).notNull(),
   transactionDate: date("transaction_date").notNull(),
   salePrice: decimal("sale_price", { precision: 15, scale: 2 }),
