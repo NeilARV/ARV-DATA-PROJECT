@@ -9,7 +9,7 @@ import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.sche
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { normalizeDateToYMD, normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType } from "server/utils/normalization";
-import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
+import { persistSyncState, isFlippingCompany, findAndCacheCompany, findOrCreateCompany, addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { 
     createPropertyDataCollectors, 
     collectPropertyData, 
@@ -676,7 +676,7 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
                 if (!details || !insertedProp.companyId) continue;
 
-                const { propertyData, recordInfo } = details;
+                const { propertyData, recordInfo, normalizedCounty } = details;
                 const companyId = insertedProp.companyId;
                 const propertyId = insertedProp.id;
 
@@ -686,27 +686,39 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     const transactionDate = lastSale.date || null;
 
                     if (transactionDate) {
-                        // Normalize transaction date to YYYY-MM-DD format
                         const normalizedDate = normalizeDateToYMD(transactionDate);
-                        if (!normalizedDate) continue; // Skip if date is invalid
+                        if (!normalizedDate) continue;
 
-                        // Get buyer name (the company)
+                        // Buyer: from record (buyers/market). We only process corporate buyers, so buyer_id = companyId.
                         const buyerName = recordInfo.record.buyerName || null;
                         const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
+                        const buyerId = companyId; // Corporate buyer = our tracked company
 
-                        // Get seller name from current_sale if available
+                        // Seller: from current_sale. Store name always; store seller_id only if corporate (not trust).
                         let sellerName: string | null = null;
-                        if (propertyData.current_sale || propertyData.currentSale) {
-                            const currentSale = propertyData.current_sale || propertyData.currentSale;
-                            sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
+                        let sellerId: string | null = null;
+                        const currentSale = propertyData.current_sale || propertyData.currentSale;
+                        const rawSellerName = currentSale ? (currentSale.seller_1 || currentSale.seller1 || "").trim() || null : null;
+                        if (rawSellerName) {
+                            sellerName = normalizeCompanyNameForStorage(rawSellerName) || null;
+                            if (isFlippingCompany(rawSellerName, null)) {
+                                const sellerStorageName = normalizeCompanyNameForStorage(rawSellerName);
+                                const sellerCompareKey = sellerStorageName ? normalizeCompanyNameForComparison(sellerStorageName) : null;
+                                const counties = normalizedCounty ? [normalizedCounty] : [];
+                                const sellerCompany = sellerStorageName && sellerCompareKey
+                                    ? await findOrCreateCompany(sellerStorageName, sellerCompareKey, contactsMap, cityCode, counties)
+                                    : null;
+                                sellerId = sellerCompany?.id ?? null;
+                            }
                         }
 
-                        // Build notes with document type if available
                         const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
 
                         transactionsToInsert.push({
                             propertyId,
                             companyId,
+                            sellerId,
+                            buyerId,
                             transactionType: "acquisition",
                             transactionDate: normalizedDate,
                             salePrice: lastSale.price ? String(lastSale.price) : null,
@@ -728,40 +740,48 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const details = propertyDetailsMap.get(existingProp.sfrPropertyId);
                 if (!details) continue;
 
-                // Use updated companyId if available, otherwise use existing
                 const companyId = propUpdate.data.companyId || existingProp.companyId;
                 if (!companyId) continue;
 
-                const { propertyData, recordInfo } = details;
+                const { propertyData, recordInfo, normalizedCounty } = details;
                 const propertyId = propUpdate.id;
 
-                // Create acquisition transaction from last_sale data (when company bought the property)
                 if (propertyData.last_sale || propertyData.lastSale) {
                     const lastSale = propertyData.last_sale || propertyData.lastSale;
                     const transactionDate = lastSale.date || null;
 
                     if (transactionDate) {
-                        // Normalize transaction date to YYYY-MM-DD format
                         const normalizedDate = normalizeDateToYMD(transactionDate);
-                        if (!normalizedDate) continue; // Skip if date is invalid
+                        if (!normalizedDate) continue;
 
-                        // Get buyer name (the company)
                         const buyerName = recordInfo.record.buyerName || null;
                         const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
+                        const buyerId = companyId;
 
-                        // Get seller name from current_sale if available
                         let sellerName: string | null = null;
-                        if (propertyData.current_sale || propertyData.currentSale) {
-                            const currentSale = propertyData.current_sale || propertyData.currentSale;
-                            sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
+                        let sellerId: string | null = null;
+                        const currentSale = propertyData.current_sale || propertyData.currentSale;
+                        const rawSellerName = currentSale ? (currentSale.seller_1 || currentSale.seller1 || "").trim() || null : null;
+                        if (rawSellerName) {
+                            sellerName = normalizeCompanyNameForStorage(rawSellerName) || null;
+                            if (isFlippingCompany(rawSellerName, null)) {
+                                const sellerStorageName = normalizeCompanyNameForStorage(rawSellerName);
+                                const sellerCompareKey = sellerStorageName ? normalizeCompanyNameForComparison(sellerStorageName) : null;
+                                const counties = normalizedCounty ? [normalizedCounty] : [];
+                                const sellerCompany = sellerStorageName && sellerCompareKey
+                                    ? await findOrCreateCompany(sellerStorageName, sellerCompareKey, contactsMap, cityCode, counties)
+                                    : null;
+                                sellerId = sellerCompany?.id ?? null;
+                            }
                         }
 
-                        // Build notes with document type if available
                         const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
 
                         transactionsToInsert.push({
                             propertyId,
                             companyId,
+                            sellerId,
+                            buyerId,
                             transactionType: "acquisition",
                             transactionDate: normalizedDate,
                             salePrice: lastSale.price ? String(lastSale.price) : null,

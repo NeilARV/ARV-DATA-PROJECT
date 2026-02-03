@@ -147,6 +147,58 @@ export async function addCountiesToCompanyIfNeeded(
     company.counties = countiesArray;
 }
 
+// Helper to find or create a company. Used for seller_id when seller is corporate.
+// Finds in cache/DB first; inserts if not found. Returns company or null on error.
+export async function findOrCreateCompany(
+    companyStorageName: string,
+    normalizedCompareKey: string | null,
+    contactsMap: Map<string, typeof companies.$inferSelect>,
+    cityCode: string,
+    counties: string[] = [],
+): Promise<typeof companies.$inferSelect | null> {
+    if (normalizedCompareKey) {
+        const cached = contactsMap.get(normalizedCompareKey);
+        if (cached) return cached;
+    }
+    const found = await findAndCacheCompany(
+        companyStorageName,
+        normalizedCompareKey,
+        contactsMap,
+        cityCode,
+        counties.length > 0 ? counties : undefined,
+    );
+    if (found) return found;
+    try {
+        const [inserted] = await db
+            .insert(companies)
+            .values({
+                companyName: companyStorageName,
+                contactName: null,
+                contactEmail: null,
+                phoneNumber: null,
+                counties: counties.length > 0 ? counties : null,
+                updatedAt: new Date(),
+            })
+            .returning();
+        if (inserted && normalizedCompareKey) {
+            contactsMap.set(normalizedCompareKey, inserted);
+        }
+        return inserted ?? null;
+    } catch (e: any) {
+        if (e?.code === "23505" || e?.message?.includes("duplicate")) {
+            return findAndCacheCompany(
+                companyStorageName,
+                normalizedCompareKey,
+                contactsMap,
+                cityCode,
+                counties.length > 0 ? counties : undefined,
+            );
+        }
+        console.error(`[${cityCode} SYNC] Error inserting company ${companyStorageName}:`, e);
+        return null;
+    }
+}
+
 // Helper to find a company in DB by name, cache it, and optionally update counties
 export async function findAndCacheCompany(
     companyStorageName: string,
