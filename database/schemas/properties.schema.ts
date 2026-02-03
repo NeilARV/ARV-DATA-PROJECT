@@ -28,6 +28,8 @@ export const properties = pgTable("properties", {
   sfrPropertyId: bigint("sfr_property_id", { mode: "number" }).unique().notNull(),
   companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
   propertyOwnerId: uuid("property_owner_id").references(() => companies.id, { onDelete: "set null" }),
+  buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
+  sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
   propertyClassDescription: varchar("property_class_description", { length: 100 }),
   propertyType: varchar("property_type", { length: 100 }),
   vacant: varchar("vacant", { length: 10 }),

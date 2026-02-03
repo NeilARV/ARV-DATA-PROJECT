@@ -85,6 +85,8 @@ CREATE TABLE properties (
     sfr_property_id BIGINT UNIQUE NOT NULL,
     company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     property_owner_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     property_class_description VARCHAR(100),
     property_type VARCHAR(100),
     vacant VARCHAR(10),
