@@ -134,9 +134,18 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
             
             // Extract addresses and track dates
             buyersMarketData.forEach((record: any) => {
-                // Only process if isCorporate is true
-                if (record.isCorporate !== true) {
-                    return; // Skip non-corporate buyers
+                // Check if either buyer or seller is a corporation (not a trust)
+                // We use isFlippingCompany which returns true for corporate entities but false for trusts
+                const buyerName = record.buyerName || "";
+                const sellerName = record.sellerName || "";
+                const buyerOwnershipCode = record.buyerOwnershipCode || null;
+                
+                const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipCode);
+                const isSellerCorporate = isFlippingCompany(sellerName, null); // No ownership code for seller in this API
+                
+                // Skip if neither buyer nor seller is a corporation (excluding trusts)
+                if (!isBuyerCorporate && !isSellerCorporate) {
+                    return; // Skip - neither party is a corporate entity
                 }
                 
                 // Build address string: "ADDRESS, CITY, STATE"
@@ -320,11 +329,19 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     continue;
                 }
                 
-                const buyerName = recordInfo.record.buyerName;
+                // Get buyer and seller names from record and current_sale
+                const buyerName = recordInfo.record.buyerName || "";
+                const sellerName = recordInfo.record.sellerName || "";
+                const buyerOwnershipCode = recordInfo.record.buyerOwnershipCode || null;
                 
-                const isOpendoor = buyerName.toLowerCase().includes("opendoor");
-                const isCorporateEntity = isOpendoor || isFlippingCompany(buyerName, recordInfo.record.buyerOwnershipCode || null);
-                if (!isCorporateEntity) continue;
+                // Check if buyer or seller is a corporation (not a trust)
+                const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipCode);
+                const isSellerCorporate = isFlippingCompany(sellerName, null);
+                
+                // Double-check: skip if neither is corporate (safety check)
+                if (!isBuyerCorporate && !isSellerCorporate) {
+                    continue;
+                }
                 
                 // Normalize county from API response (e.g., "San Diego County, California" -> "San Diego")
                 const normalizedCounty = normalizeCountyName(propertyData.county);
@@ -337,15 +354,31 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     normalizedCounty
                 });
                 
-                // Track company -> counties mapping
-                const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(buyerName);
-                if (normalizedCompanyNameForStorage && normalizedCounty) {
-                    const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
-                    if (normalizedCompanyNameForCompare) {
-                        if (!companyToCountiesMap.has(normalizedCompanyNameForCompare)) {
-                            companyToCountiesMap.set(normalizedCompanyNameForCompare, new Set());
+                // Track BUYER company -> counties mapping (only if buyer is corporate)
+                if (isBuyerCorporate && normalizedCounty) {
+                    const normalizedBuyerNameForStorage = normalizeCompanyNameForStorage(buyerName);
+                    if (normalizedBuyerNameForStorage) {
+                        const normalizedBuyerNameForCompare = normalizeCompanyNameForComparison(normalizedBuyerNameForStorage);
+                        if (normalizedBuyerNameForCompare) {
+                            if (!companyToCountiesMap.has(normalizedBuyerNameForCompare)) {
+                                companyToCountiesMap.set(normalizedBuyerNameForCompare, new Set());
+                            }
+                            companyToCountiesMap.get(normalizedBuyerNameForCompare)!.add(normalizedCounty);
                         }
-                        companyToCountiesMap.get(normalizedCompanyNameForCompare)!.add(normalizedCounty);
+                    }
+                }
+                
+                // Track SELLER company -> counties mapping (only if seller is corporate)
+                if (isSellerCorporate && normalizedCounty) {
+                    const normalizedSellerNameForStorage = normalizeCompanyNameForStorage(sellerName);
+                    if (normalizedSellerNameForStorage) {
+                        const normalizedSellerNameForCompare = normalizeCompanyNameForComparison(normalizedSellerNameForStorage);
+                        if (normalizedSellerNameForCompare) {
+                            if (!companyToCountiesMap.has(normalizedSellerNameForCompare)) {
+                                companyToCountiesMap.set(normalizedSellerNameForCompare, new Set());
+                            }
+                            companyToCountiesMap.get(normalizedSellerNameForCompare)!.add(normalizedCounty);
+                        }
                     }
                 }
             }
@@ -467,6 +500,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 sfrPropertyId: number;
                 companyId: string | null;
                 propertyOwnerId: string | null;
+                buyerId: string | null;
+                sellerId: string | null;
                 propertyClassDescription: string | null;
                 propertyType: string | null;
                 vacant: string | null;
@@ -500,43 +535,89 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     
                     const { propertyData, recordInfo, sfrPropertyId, normalizedCounty } = validProp;
                     
-                    // Get company ID from cache
-                    const buyerName = recordInfo!.record.buyerName;
-                    const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(buyerName);
-                    const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage || '');
-                    let company = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
+                    // Get buyer and seller names
+                    const buyerName = recordInfo!.record.buyerName || "";
+                    const sellerName = recordInfo!.record.sellerName || "";
+                    const buyerOwnershipCode = recordInfo!.record.buyerOwnershipCode || null;
                     
-                    // If not in cache, try database (might have been inserted by another batch)
-                    if (!company && normalizedCompanyNameForStorage) {
-                        company = await findAndCacheCompany(
-                            normalizedCompanyNameForStorage,
-                            normalizedCompanyNameForCompare,
-                            contactsMap,
-                            cityCode,
-                        );
+                    // Determine if buyer and seller are corporate (not trust)
+                    const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipCode);
+                    const isSellerCorporate = isFlippingCompany(sellerName, null);
+                    
+                    // Determine buyer_id (null if buyer is individual or trust)
+                    let buyerId: string | null = null;
+                    if (isBuyerCorporate) {
+                        const normalizedBuyerNameForStorage = normalizeCompanyNameForStorage(buyerName);
+                        const normalizedBuyerNameForCompare = normalizeCompanyNameForComparison(normalizedBuyerNameForStorage || '');
+                        let buyerCompany = normalizedBuyerNameForCompare ? contactsMap.get(normalizedBuyerNameForCompare) : null;
+                        
+                        // If not in cache, try database
+                        if (!buyerCompany && normalizedBuyerNameForStorage) {
+                            buyerCompany = await findAndCacheCompany(
+                                normalizedBuyerNameForStorage,
+                                normalizedBuyerNameForCompare,
+                                contactsMap,
+                                cityCode,
+                            );
+                        }
+                        
+                        if (buyerCompany) {
+                            buyerId = buyerCompany.id;
+                        }
                     }
                     
-                    if (!company) {
-                        console.warn(`[${cityCode} SYNC] Company not found for property ${sfrPropertyId} (buyerName: ${buyerName}, normalized: ${normalizedCompanyNameForCompare}), skipping`);
+                    // Determine seller_id (null if seller is individual or trust)
+                    let sellerId: string | null = null;
+                    if (isSellerCorporate) {
+                        const normalizedSellerNameForStorage = normalizeCompanyNameForStorage(sellerName);
+                        const normalizedSellerNameForCompare = normalizeCompanyNameForComparison(normalizedSellerNameForStorage || '');
+                        let sellerCompany = normalizedSellerNameForCompare ? contactsMap.get(normalizedSellerNameForCompare) : null;
+                        
+                        // If not in cache, try database
+                        if (!sellerCompany && normalizedSellerNameForStorage) {
+                            sellerCompany = await findAndCacheCompany(
+                                normalizedSellerNameForStorage,
+                                normalizedSellerNameForCompare,
+                                contactsMap,
+                                cityCode,
+                            );
+                        }
+                        
+                        if (sellerCompany) {
+                            sellerId = sellerCompany.id;
+                        }
+                    }
+                    
+                    // At least one of buyer or seller should be corporate for us to process
+                    // (this was already checked, but double-check here)
+                    if (!buyerId && !sellerId) {
+                        console.warn(`[${cityCode} SYNC] Neither buyer nor seller company found for property ${sfrPropertyId}, skipping`);
                         totalProcessed--;
                         continue;
                     }
                     
-                    const companyId = company.id;
-                    const propertyOwnerId = companyId;
+                    // companyId and propertyOwnerId: use buyer company if buyer is corporate, otherwise use seller
+                    const companyId = buyerId || sellerId;
+                    const propertyOwnerId = buyerId || sellerId;
                     
                     const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
-                    // SFR API returns "On Market" or "Off Market"
-                    // Map listing_status to status:
-                    // - "On Market" → status = "on-market"
-                    // - "Off Market" → status = "in-renovation"
+                    
+                    // Determine status based on the new logic:
+                    // 1. If seller is corporate AND buyer is NOT corporate (individual or trust) → status = "sold"
+                    // 2. Otherwise: On Market → "on-market", Off Market → "in-renovation"
                     let status: string;
-                    if (propertyListingStatus === "on market" || propertyListingStatus === "on_market") {
+                    const isBuyerIndividualOrTrust = !isBuyerCorporate; // Buyer is individual or trust if NOT corporate
+                    
+                    if (isSellerCorporate && isBuyerIndividualOrTrust) {
+                        // Corporation selling to individual/trust = property was sold (flip completed)
+                        status = "sold";
+                    } else if (propertyListingStatus === "on market" || propertyListingStatus === "on_market") {
                         status = "on-market";
                     } else {
                         // Default to "in-renovation" for "Off Market" or any other value
                         status = "in-renovation";
                     }
+                    
                     // Store listingStatus as normalized value from API (on-market or off-market)
                     const listingStatus = propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
                     
@@ -544,6 +625,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                         sfrPropertyId,
                         companyId,
                         propertyOwnerId,
+                        buyerId,
+                        sellerId,
                         propertyClassDescription: propertyData.property_class_description || null,
                         propertyType: normalizePropertyType(propertyData.property_type) || null,
                         vacant: propertyData.vacant != null ? String(propertyData.vacant) : null,
@@ -679,6 +762,10 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const { propertyData, recordInfo } = details;
                 const companyId = insertedProp.companyId;
                 const propertyId = insertedProp.id;
+                
+                // Get buyer_id and seller_id from the inserted property
+                const txBuyerId = insertedProp.buyerId || null;
+                const txSellerId = insertedProp.sellerId || null;
 
                 // Create acquisition transaction from last_sale data (when company bought the property)
                 if (propertyData.last_sale || propertyData.lastSale) {
@@ -707,6 +794,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                         transactionsToInsert.push({
                             propertyId,
                             companyId,
+                            buyerId: txBuyerId,
+                            sellerId: txSellerId,
                             transactionType: "acquisition",
                             transactionDate: normalizedDate,
                             salePrice: lastSale.price ? String(lastSale.price) : null,
@@ -734,6 +823,10 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
 
                 const { propertyData, recordInfo } = details;
                 const propertyId = propUpdate.id;
+                
+                // Get buyer_id and seller_id from the update data
+                const txBuyerId = propUpdate.data.buyerId !== undefined ? propUpdate.data.buyerId : existingProp.buyerId || null;
+                const txSellerId = propUpdate.data.sellerId !== undefined ? propUpdate.data.sellerId : existingProp.sellerId || null;
 
                 // Create acquisition transaction from last_sale data (when company bought the property)
                 if (propertyData.last_sale || propertyData.lastSale) {
@@ -762,6 +855,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                         transactionsToInsert.push({
                             propertyId,
                             companyId,
+                            buyerId: txBuyerId,
+                            sellerId: txSellerId,
                             transactionType: "acquisition",
                             transactionDate: normalizedDate,
                             salePrice: lastSale.price ? String(lastSale.price) : null,
