@@ -6,6 +6,7 @@
  */
 
 import { db } from "server/storage";
+import { eq } from "drizzle-orm";
 import {
     addresses,
     structures,
@@ -595,5 +596,103 @@ export async function batchInsertPropertyData(collectors: PropertyDataCollectors
     if (collectors.currentSales.length > 0) {
         await db.insert(currentSales).values(collectors.currentSales);
     }
+}
+
+// ============================================================================
+// UPDATE EXISTING PROPERTY DATA
+// For properties that already exist - update 1:1 tables, add 1:many only if new
+// ============================================================================
+
+/**
+ * Updates 1:1 related tables for an existing property.
+ * Tables: addresses, current_sales, exemptions, last_sales, parcels, school_districts, structures, pre_foreclosures.
+ */
+export async function updatePropertyRelatedDataForExisting(
+    propertyId: string,
+    propertyData: SfrPropertyData,
+    normalizedCounty: string | null,
+    recordingDateOverride?: string | null
+): Promise<void> {
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
+
+    if (data.address) {
+        await db.update(addresses).set(omit(data.address, "propertyId")).where(eq(addresses.propertyId, propertyId));
+    }
+    if (data.structure) {
+        await db.update(structures).set(omit(data.structure, "propertyId")).where(eq(structures.propertyId, propertyId));
+    }
+    if (data.exemption) {
+        await db.update(exemptions).set(omit(data.exemption, "propertyId")).where(eq(exemptions.propertyId, propertyId));
+    }
+    if (data.parcel) {
+        await db.update(parcels).set(omit(data.parcel, "propertyId")).where(eq(parcels.propertyId, propertyId));
+    }
+    if (data.schoolDistrict) {
+        await db.update(schoolDistricts).set(omit(data.schoolDistrict, "propertyId")).where(eq(schoolDistricts.propertyId, propertyId));
+    }
+    if (data.lastSale) {
+        await db.update(lastSales).set(omit(data.lastSale, "propertyId")).where(eq(lastSales.propertyId, propertyId));
+    }
+    if (data.currentSale) {
+        await db.update(currentSales).set(omit(data.currentSale, "propertyId")).where(eq(currentSales.propertyId, propertyId));
+    }
+    if (data.preForeclosure) {
+        await db.update(preForeclosures).set(omit(data.preForeclosure, "propertyId")).where(eq(preForeclosures.propertyId, propertyId));
+    }
+}
+
+/**
+ * Adds assessment/tax_record/valuation only if the year/date doesn't already exist for the property.
+ */
+export async function addPropertyOneToManyDataIfNew(
+    propertyId: string,
+    propertyData: SfrPropertyData,
+    normalizedCounty: string | null,
+    recordingDateOverride?: string | null
+): Promise<void> {
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
+
+    if (data.assessment && propertyData.assessed_year) {
+        const existing = await db
+            .select({ assessedYear: assessments.assessedYear })
+            .from(assessments)
+            .where(eq(assessments.propertyId, propertyId));
+        const existingYears = new Set(existing.map((r) => r.assessedYear));
+        if (!existingYears.has(propertyData.assessed_year)) {
+            await db.insert(assessments).values(data.assessment);
+        }
+    }
+
+    if (data.taxRecord && propertyData.tax_year) {
+        const existing = await db
+            .select({ taxYear: taxRecords.taxYear })
+            .from(taxRecords)
+            .where(eq(taxRecords.propertyId, propertyId));
+        const existingYears = new Set(existing.map((r) => r.taxYear));
+        if (!existingYears.has(propertyData.tax_year)) {
+            await db.insert(taxRecords).values(data.taxRecord);
+        }
+    }
+
+    if (data.valuation && propertyData.valuation?.date) {
+        const valDate = normalizeDateToYMD(propertyData.valuation.date);
+        if (valDate) {
+            const existing = await db
+                .select({ valuationDate: valuations.valuationDate })
+                .from(valuations)
+                .where(eq(valuations.propertyId, propertyId));
+            const existingDates = new Set(
+                existing.map((r) => (r.valuationDate ? normalizeDateToYMD(r.valuationDate) : null)).filter(Boolean)
+            );
+            if (!existingDates.has(valDate)) {
+                await db.insert(valuations).values(data.valuation);
+            }
+        }
+    }
+}
+
+function omit<T extends Record<string, unknown>>(obj: T, key: string): Omit<T, typeof key> {
+    const { [key]: _, ...rest } = obj;
+    return rest as Omit<T, typeof key>;
 }
 

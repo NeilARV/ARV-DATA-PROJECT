@@ -6,7 +6,10 @@
  */
 
 import { db } from "server/storage";
-import { properties } from "../../database/schemas/properties.schema";
+import {
+  properties,
+  propertyTransactions,
+} from "../../database/schemas/properties.schema";
 import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState } from "../../database/schemas/sync.schema";
 import { eq, inArray, sql } from "drizzle-orm";
@@ -26,6 +29,8 @@ import {
   createPropertyDataCollectors,
   collectPropertyData,
   batchInsertPropertyData,
+  updatePropertyRelatedDataForExisting,
+  addPropertyOneToManyDataIfNew,
   SfrPropertyData,
 } from "server/utils/propertyDataHelpers";
 
@@ -411,22 +416,26 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
                 updatedAt: new Date(),
               }))
             )
+            .onConflictDoNothing({ target: companies.companyName })
             .returning();
-          for (let j = 0; j < uniqueCompaniesToInsert.length; j++) {
-            const company = newCompanies[j];
+          for (const company of newCompanies) {
             if (company) {
-              contactsMap.set(uniqueCompaniesToInsert[j].normalizedForCompare, company);
+              const match = uniqueCompaniesToInsert.find(
+                (c) => c.companyName === company.companyName
+              );
+              if (match) contactsMap.set(match.normalizedForCompare, company);
             }
           }
-          console.log(`[${cityCode} SYNC V2] Batch inserted ${newCompanies.length} companies`);
-        } catch (companyError: unknown) {
-          const err = companyError as { code?: string; message?: string };
-          if (err?.code?.includes("23505") || err?.message?.includes("duplicate")) {
-            for (const c of uniqueCompaniesToInsert) {
+          for (const c of uniqueCompaniesToInsert) {
+            if (!contactsMap.has(c.normalizedForCompare)) {
               await findAndCacheCompany(c.companyName, c.normalizedForCompare, contactsMap, cityCode, c.counties);
             }
-          } else {
-            console.error(`[${cityCode} SYNC V2] Error batch inserting companies:`, companyError);
+          }
+          console.log(`[${cityCode} SYNC V2] Processed ${uniqueCompaniesToInsert.length} companies (${newCompanies.length} new)`);
+        } catch (companyError: unknown) {
+          console.error(`[${cityCode} SYNC V2] Error inserting companies:`, companyError);
+          for (const c of uniqueCompaniesToInsert) {
+            await findAndCacheCompany(c.companyName, c.normalizedForCompare, contactsMap, cityCode, c.counties);
           }
         }
       }
@@ -440,7 +449,13 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       const existingBySfrId = new Map(existingProps.map((p) => [p.sfrPropertyId, p]));
 
       const toInsert: typeof properties.$inferInsert[] = [];
-      const toUpdate: Array<{ id: string; data: Partial<typeof properties.$inferInsert> }> = [];
+      const toUpdate: Array<{
+        id: string;
+        data: Partial<typeof properties.$inferInsert>;
+        propertyData: SfrPropertyData;
+        normalizedCounty: string | null;
+        recordInfo: { record: Record<string, unknown>; recordingDate: string };
+      }> = [];
 
       for (const { propertyData, recordInfo, normalizedCounty, isBuyerCorporate, isSellerCorporate } of validBatchItems) {
         totalProcessed++;
@@ -508,18 +523,28 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         const existing = existingBySfrId.get(sfrPropertyId);
 
         if (existing) {
-          toUpdate.push({ id: existing.id, data: propertyRecord });
+          toUpdate.push({
+            id: existing.id,
+            data: propertyRecord,
+            propertyData: propertyData as SfrPropertyData,
+            normalizedCounty,
+            recordInfo,
+          });
         } else {
           toInsert.push(propertyRecord);
         }
       }
 
-      // Batch update existing
-      for (const { id, data } of toUpdate) {
+      // Batch update existing properties and their related data
+      for (const { id, data, propertyData: propData, normalizedCounty: county, recordInfo: recInfo } of toUpdate) {
         await db
           .update(properties)
           .set({ ...data, updatedAt: sql`now()` })
           .where(eq(properties.id, id));
+
+        const recordingDateFromRecord = normalizeDateToYMD(recInfo.record.recordingDate as string);
+        await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord);
+        await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord);
       }
       totalUpdated += toUpdate.length;
 
@@ -548,6 +573,130 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       }
 
       await batchInsertPropertyData(batchDataCollectors);
+
+      // -----------------------------------------------------------------------
+      // Insert property_transactions for all properties (new + updated)
+      // Each property in buyers/market = one transaction (from last_sale + current_sale)
+      // -----------------------------------------------------------------------
+      const transactionsToInsert: Array<{
+        propertyId: string;
+        transactionDate: string;
+        buyerId: string | null;
+        sellerId: string | null;
+        transactionType: string;
+        salePrice: string | null;
+        mtgType: string | null;
+        mtgAmount: string | null;
+        buyerName: string | null;
+        sellerName: string | null;
+        notes: string | null;
+      }> = [];
+
+      const allProcessedProperties: Array<{
+        propertyId: string;
+        item: (typeof validBatchItems)[0];
+      }> = [
+        ...toUpdate.map((u) => ({
+          propertyId: u.id,
+          item: validBatchItems.find((v) => Number(v.propertyData.property_id) === Number(u.propertyData.property_id))!,
+        })),
+        ...inserted.map((p) => ({
+          propertyId: p.id,
+          item: validBatchItems.find((v) => Number(v.propertyData.property_id) === p.sfrPropertyId)!,
+        })),
+      ].filter((x) => x.item);
+
+      for (const { propertyId, item } of allProcessedProperties) {
+        const { propertyData, recordInfo, isBuyerCorporate, isSellerCorporate } = item;
+        const lastSale = (propertyData.last_sale || propertyData.lastSale) as Record<string, unknown> | undefined;
+        if (!lastSale?.date) continue;
+
+        const transactionDate = normalizeDateToYMD(lastSale.date as string);
+        if (!transactionDate) continue;
+
+        const buyerName = (recordInfo.record.buyerName as string) || "";
+        const sellerName = (recordInfo.record.sellerName as string) || "";
+        const currentSale = (propertyData.current_sale || propertyData.currentSale) as Record<string, unknown> | undefined;
+        const buyerNameForTx = (currentSale?.buyer_1 || currentSale?.buyer1 || recordInfo.record.buyerName) as string;
+        const sellerNameForTx = (currentSale?.seller_1 || currentSale?.seller1 || recordInfo.record.sellerName) as string;
+
+        let txBuyerId: string | null = null;
+        if (isBuyerCorporate) {
+          const storageName = normalizeCompanyNameForStorage(buyerName);
+          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+          const company = compareKey ? contactsMap.get(compareKey) : null;
+          if (company) txBuyerId = company.id;
+        }
+
+        let txSellerId: string | null = null;
+        if (isSellerCorporate) {
+          const storageName = normalizeCompanyNameForStorage(sellerName);
+          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+          const company = compareKey ? contactsMap.get(compareKey) : null;
+          if (company) txSellerId = company.id;
+        }
+
+        let transactionType: string;
+        if (isBuyerCorporate && !isSellerCorporate) {
+          transactionType = "acquisition";
+        } else if (!isBuyerCorporate && isSellerCorporate) {
+          transactionType = "sale";
+        } else if (isBuyerCorporate && isSellerCorporate) {
+          transactionType = "company-to-company";
+        } else {
+          continue;
+        }
+
+        const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+
+        transactionsToInsert.push({
+          propertyId,
+          transactionDate,
+          buyerId: txBuyerId,
+          sellerId: txSellerId,
+          transactionType,
+          salePrice: lastSale.price ? String(lastSale.price) : null,
+          mtgType: (lastSale.mtg_type as string) || null,
+          mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
+          buyerName: buyerNameForTx ? normalizeCompanyNameForStorage(buyerNameForTx) : null,
+          sellerName: sellerNameForTx ? normalizeCompanyNameForStorage(sellerNameForTx) : null,
+          notes,
+        });
+      }
+
+      if (transactionsToInsert.length > 0) {
+        const propertyIds = Array.from(new Set(transactionsToInsert.map((t) => t.propertyId)));
+        const existingTx = await db
+          .select({ propertyId: propertyTransactions.propertyId, transactionDate: propertyTransactions.transactionDate })
+          .from(propertyTransactions)
+          .where(inArray(propertyTransactions.propertyId, propertyIds));
+
+        const existingKeys = new Set(existingTx.map((e) => `${e.propertyId}-${e.transactionDate}`));
+
+        const newTransactions = transactionsToInsert.filter(
+          (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}`)
+        );
+
+        if (newTransactions.length > 0) {
+          await db.insert(propertyTransactions).values(
+            newTransactions.map((t) => ({
+              propertyId: t.propertyId,
+              companyId: t.transactionType === "sale" ? t.sellerId : t.buyerId,
+              buyerId: t.buyerId,
+              sellerId: t.sellerId,
+              transactionType: t.transactionType,
+              transactionDate: t.transactionDate,
+              salePrice: t.salePrice,
+              mtgType: t.mtgType,
+              mtgAmount: t.mtgAmount,
+              buyerName: t.buyerName,
+              sellerName: t.sellerName,
+              notes: t.notes,
+            }))
+          );
+          console.log(`[${cityCode} SYNC V2] Inserted ${newTransactions.length} property transactions`);
+        }
+      }
     }
 
     // Final sync state update
