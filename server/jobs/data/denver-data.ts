@@ -1,4 +1,4 @@
-import { syncMSA } from "server/routes/data.routes";
+import { syncMSAV2 } from "server/utils/dataSync";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -11,10 +11,16 @@ export async function syncDenverData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        // Call syncMSA - it handles all the sync logic internally, including sync state management
-        const result = await syncMSA(DENVER_MSA, CITY_CODE, API_KEY, API_URL, today);
+        const result = await syncMSAV2({
+            msa: DENVER_MSA,
+            cityCode: CITY_CODE,
+            API_KEY,
+            API_URL,
+            today,
+            excludedAddresses: [],
+        });
 
-        console.log(`[${CITY_CODE} SYNC] Sync complete for ${DENVER_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated, ${result.totalContactsAdded} contacts added`);
+        console.log(`[${CITY_CODE} SYNC] Sync complete for ${DENVER_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
 
         return result;
 

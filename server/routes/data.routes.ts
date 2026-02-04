@@ -9,7 +9,7 @@ import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.sche
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { normalizeDateToYMD, normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType } from "server/utils/normalization";
-import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
+import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesToCompanyIfNeeded, getTransactionType } from "server/utils/dataSyncHelpers";
 import { 
     createPropertyDataCollectors, 
     collectPropertyData, 
@@ -135,7 +135,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
             // Extract addresses and track dates
             buyersMarketData.forEach((record: any) => {
                 // Check if either buyer or seller is a corporation (not a trust)
-                // We use isFlippingCompany which returns true for corporate entities but false for trusts
+                // Include: company buyer, company seller, or both. Exclude: individual/trust to individual/trust.
+                // Trust counts as individual (not corporate) per isFlippingCompany.
                 const buyerName = record.buyerName || "";
                 const sellerName = record.sellerName || "";
                 const buyerOwnershipCode = record.buyerOwnershipCode || null;
@@ -329,7 +330,7 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     continue;
                 }
                 
-                // Get buyer and seller names from record and current_sale
+                // Get buyer and seller names from record
                 const buyerName = recordInfo.record.buyerName || "";
                 const sellerName = recordInfo.record.sellerName || "";
                 const buyerOwnershipCode = recordInfo.record.buyerOwnershipCode || null;
@@ -526,6 +527,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 propertyData: any;
                 recordInfo: { record: any; recordingDate: string };
                 normalizedCounty: string | null;
+                isBuyerCorporate: boolean;
+                isSellerCorporate: boolean;
             }>();
 
             // Process each valid property to determine company IDs and collect data
@@ -588,13 +591,8 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                         }
                     }
                     
-                    // At least one of buyer or seller should be corporate for us to process
-                    // (this was already checked, but double-check here)
-                    if (!buyerId && !sellerId) {
-                        console.warn(`[${cityCode} SYNC] Neither buyer nor seller company found for property ${sfrPropertyId}, skipping`);
-                        totalProcessed--;
-                        continue;
-                    }
+                    // At least one of buyer or seller should be corporate for us to process (checked via isBuyerCorporate/isSellerCorporate).
+                    // We still store property and transaction even when company IDs are unresolved - names are preserved in transaction.
                     
                     // companyId and propertyOwnerId rules:
                     // - If buyer is a company (buyerId exists), they are the new owner: companyId = buyerId, propertyOwnerId = buyerId
@@ -647,7 +645,9 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     propertyDetailsMap.set(sfrPropertyId, {
                         propertyData,
                         recordInfo: recordInfo!,
-                        normalizedCounty
+                        normalizedCounty,
+                        isBuyerCorporate,
+                        isSellerCorporate,
                     });
                     
                     if (existingProperty) {
@@ -748,10 +748,11 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
             await batchInsertPropertyData(dataCollectors);
 
             // ====================================================================
-            // STEP 6: COLLECT AND INSERT PROPERTY TRANSACTIONS (ACQUISITIONS)
+            // STEP 6: COLLECT AND INSERT PROPERTY TRANSACTIONS
             // ====================================================================
-            // Collect transactions for all properties (both inserted and updated)
-            // We'll create transactions based on last_sale data showing when the company acquired the property
+            // Collect transactions for all properties (both inserted and updated).
+            // - acquisition: when company bought (buyer corporate)
+            // - sale: when company sold to individual/trust (seller corporate)
 
             // Collect transaction data for all properties
             const transactionsToInsert: any[] = [];
@@ -761,22 +762,23 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
                 if (!details) continue;
 
-                const { propertyData, recordInfo } = details;
-                // companyId follows same rules as property: buyerId if buyer is company, null otherwise
-                const companyId = insertedProp.companyId; // Can be null if sold to individual
+                const { propertyData, recordInfo, isBuyerCorporate, isSellerCorporate } = details;
                 const propertyId = insertedProp.id;
-                
-                // Get buyer_id and seller_id from the inserted property
                 const txBuyerId = insertedProp.buyerId || null;
                 const txSellerId = insertedProp.sellerId || null;
 
-                // Create acquisition transaction from last_sale data (when company bought the property)
+                // Determine transaction type and companyId:
+                // - Company bought (buyer corporate): acquisition, companyId = buyerId
+                // - Company sold (seller corporate, buyer individual/trust): sale, companyId = sellerId
+                const isCompanySoldToIndividual = isSellerCorporate && !isBuyerCorporate;
+                const transactionType = isCompanySoldToIndividual ? "sale" : "acquisition";
+                const companyId = isCompanySoldToIndividual ? txSellerId : txBuyerId;
+
                 if (propertyData.last_sale || propertyData.lastSale) {
                     const lastSale = propertyData.last_sale || propertyData.lastSale;
                     const transactionDate = lastSale.date || null;
 
                     if (transactionDate) {
-                        // Normalize transaction date to YYYY-MM-DD format
                         const normalizedDate = normalizeDateToYMD(transactionDate);
                         if (!normalizedDate) continue; // Skip if date is invalid
 
@@ -790,8 +792,10 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                             const currentSale = propertyData.current_sale || propertyData.currentSale;
                             sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
                         }
+                        if (!sellerName && recordInfo.record.sellerName) {
+                            sellerName = normalizeCompanyNameForStorage(recordInfo.record.sellerName) || null;
+                        }
 
-                        // Build notes with document type if available
                         const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
 
                         transactionsToInsert.push({
@@ -799,7 +803,7 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                             companyId,
                             buyerId: txBuyerId,
                             sellerId: txSellerId,
-                            transactionType: "acquisition",
+                            transactionType,
                             transactionDate: normalizedDate,
                             salePrice: lastSale.price ? String(lastSale.price) : null,
                             mtgType: lastSale.mtg_type || null,
@@ -820,47 +824,41 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const details = propertyDetailsMap.get(existingProp.sfrPropertyId);
                 if (!details) continue;
 
-                // companyId follows same rules as property: buyerId if buyer is company, null otherwise
-                // Use updated companyId from the update data (can be null if sold to individual)
-                const companyId = propUpdate.data.companyId !== undefined ? propUpdate.data.companyId : existingProp.companyId;
-
-                const { propertyData, recordInfo } = details;
+                const { propertyData, recordInfo, isBuyerCorporate, isSellerCorporate } = details;
                 const propertyId = propUpdate.id;
-                
-                // Get buyer_id and seller_id from the update data
                 const txBuyerId = propUpdate.data.buyerId !== undefined ? propUpdate.data.buyerId : existingProp.buyerId || null;
                 const txSellerId = propUpdate.data.sellerId !== undefined ? propUpdate.data.sellerId : existingProp.sellerId || null;
 
-                // Create acquisition transaction from last_sale data (when company bought the property)
+                const transactionType = getTransactionType(isBuyerCorporate, isSellerCorporate);
+
                 if (propertyData.last_sale || propertyData.lastSale) {
                     const lastSale = propertyData.last_sale || propertyData.lastSale;
                     const transactionDate = lastSale.date || null;
 
                     if (transactionDate) {
-                        // Normalize transaction date to YYYY-MM-DD format
                         const normalizedDate = normalizeDateToYMD(transactionDate);
-                        if (!normalizedDate) continue; // Skip if date is invalid
+                        if (!normalizedDate) continue;
 
-                        // Get buyer name (the company)
                         const buyerName = recordInfo.record.buyerName || null;
                         const normalizedBuyerName = buyerName ? normalizeCompanyNameForStorage(buyerName) : null;
 
-                        // Get seller name from current_sale if available
                         let sellerName: string | null = null;
                         if (propertyData.current_sale || propertyData.currentSale) {
                             const currentSale = propertyData.current_sale || propertyData.currentSale;
                             sellerName = normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null;
                         }
+                        if (!sellerName && recordInfo.record.sellerName) {
+                            sellerName = normalizeCompanyNameForStorage(recordInfo.record.sellerName) || null;
+                        }
 
-                        // Build notes with document type if available
                         const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
 
                         transactionsToInsert.push({
                             propertyId,
-                            companyId,
+                            companyId: txBuyerId,
                             buyerId: txBuyerId,
                             sellerId: txSellerId,
-                            transactionType: "acquisition",
+                            transactionType,
                             transactionDate: normalizedDate,
                             salePrice: lastSale.price ? String(lastSale.price) : null,
                             mtgType: lastSale.mtg_type || null,
@@ -881,10 +879,10 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const companyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.companyId).filter((id): id is string => id !== null)));
                 const hasNullCompanyTransactions = transactionsToInsert.some(tx => tx.companyId === null);
 
-                // Fetch existing transactions for these properties
+                // Fetch existing transactions for these properties (both acquisition and sale types)
                 let existingTransactions: any[] = [];
                 if (propertyIdsToCheck.length > 0) {
-                    // Query for transactions with non-null companyIds
+                    const transactionTypesToCheck = ["acquisition", "sale", "company-to-company"];
                     if (companyIdsToCheck.length > 0) {
                         const withCompanyTx = await db
                             .select({
@@ -898,13 +896,11 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                                 and(
                                     inArray(propertyTransactions.propertyId, propertyIdsToCheck),
                                     inArray(propertyTransactions.companyId, companyIdsToCheck),
-                                    eq(propertyTransactions.transactionType, "acquisition")
+                                    inArray(propertyTransactions.transactionType, transactionTypesToCheck)
                                 )
                             );
                         existingTransactions.push(...withCompanyTx);
                     }
-                    
-                    // Query for transactions with null companyIds (sold to individuals)
                     if (hasNullCompanyTransactions) {
                         const nullCompanyTx = await db
                             .select({
@@ -918,7 +914,7 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                                 and(
                                     inArray(propertyTransactions.propertyId, propertyIdsToCheck),
                                     sql`${propertyTransactions.companyId} IS NULL`,
-                                    eq(propertyTransactions.transactionType, "acquisition")
+                                    inArray(propertyTransactions.transactionType, transactionTypesToCheck)
                                 )
                             );
                         existingTransactions.push(...nullCompanyTx);

@@ -179,3 +179,16 @@ export async function findAndCacheCompany(
         return null;
     }
 }
+
+export function getTransactionType(isBuyerCorporate: boolean, isSellerCorporate: boolean): string | null {
+    if (isBuyerCorporate && isSellerCorporate) {
+        return "company-to-company";
+    }
+    if (isBuyerCorporate && !isSellerCorporate) {
+        return "acquisition";
+    }
+    if (!isBuyerCorporate && isSellerCorporate) {
+        return "sale";
+    }
+    return null;
+}
