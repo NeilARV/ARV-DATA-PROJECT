@@ -123,7 +123,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     // STEP 2: Paginate /buyers/market, persist last_sale_date after each call
     // -------------------------------------------------------------------------
     const addressesSet = new Set<string>();
-    const recordsMap = new Map<string, { record: Record<string, unknown>; recordingDate: string }>();
+    /** Maps address -> all records. Same property can appear multiple times (e.g. acquisition + flip). */
+    const recordsMap = new Map<string, Array<{ record: Record<string, unknown>; recordingDate: string }>>();
 
     let currentMinDate = minSaleDate;
     let pageNum = 1;
@@ -198,12 +199,10 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
 
         const existing = recordsMap.get(addressStr);
         if (existing) {
-          if (recordingDateStr && existing.recordingDate && recordingDateStr > existing.recordingDate) {
-            recordsMap.set(addressStr, { record, recordingDate: recordingDateStr });
-          }
+          existing.push({ record, recordingDate: recordingDateStr });
         } else {
           addressesSet.add(addressStr);
-          recordsMap.set(addressStr, { record, recordingDate: recordingDateStr });
+          recordsMap.set(addressStr, [{ record, recordingDate: recordingDateStr }]);
         }
       }
 
@@ -317,52 +316,54 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         const batchAddress = batchItem.address;
         if (!batchAddress) continue;
 
-        const recordInfo = recordsMap.get(batchAddress);
-        if (!recordInfo) continue;
+        const records = recordsMap.get(batchAddress);
+        if (!records || records.length === 0) continue;
 
         const propertyData = batchItem.property as Record<string, unknown>;
         const sfrPropertyId = propertyData.property_id as number;
         if (!sfrPropertyId) continue;
 
-        const buyerName = (recordInfo.record.buyerName as string) || "";
-        const sellerName = (recordInfo.record.sellerName as string) || "";
-        const buyerOwnershipCode = (recordInfo.record.buyerOwnershipCode as string) || null;
-
-        const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipCode);
-        const isSellerCorporate = isFlippingCompany(sellerName, null);
-
-        if (!isBuyerCorporate && !isSellerCorporate) continue;
-
         const normalizedCounty = normalizeCountyName(propertyData.county as string);
 
-        validBatchItems.push({
-          batchItem,
-          propertyData,
-          recordInfo,
-          normalizedCounty,
-          isBuyerCorporate,
-          isSellerCorporate,
-        });
+        for (const recordInfo of records) {
+          const buyerName = (recordInfo.record.buyerName as string) || "";
+          const sellerName = (recordInfo.record.sellerName as string) || "";
+          const buyerOwnershipCode = (recordInfo.record.buyerOwnershipCode as string) || null;
 
-        // Track companies -> counties for batch insert
-        if (isBuyerCorporate && normalizedCounty) {
-          const storageName = normalizeCompanyNameForStorage(buyerName);
-          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
-          if (compareKey) {
-            if (!companyToCountiesMap.has(compareKey)) {
-              companyToCountiesMap.set(compareKey, new Set());
+          const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipCode);
+          const isSellerCorporate = isFlippingCompany(sellerName, null);
+
+          if (!isBuyerCorporate && !isSellerCorporate) continue;
+
+          validBatchItems.push({
+            batchItem,
+            propertyData,
+            recordInfo,
+            normalizedCounty,
+            isBuyerCorporate,
+            isSellerCorporate,
+          });
+
+          // Track companies -> counties for batch insert
+          if (isBuyerCorporate && normalizedCounty) {
+            const storageName = normalizeCompanyNameForStorage(buyerName);
+            const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+            if (compareKey) {
+              if (!companyToCountiesMap.has(compareKey)) {
+                companyToCountiesMap.set(compareKey, new Set());
+              }
+              companyToCountiesMap.get(compareKey)!.add(normalizedCounty);
             }
-            companyToCountiesMap.get(compareKey)!.add(normalizedCounty);
           }
-        }
-        if (isSellerCorporate && normalizedCounty) {
-          const storageName = normalizeCompanyNameForStorage(sellerName);
-          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
-          if (compareKey) {
-            if (!companyToCountiesMap.has(compareKey)) {
-              companyToCountiesMap.set(compareKey, new Set());
+          if (isSellerCorporate && normalizedCounty) {
+            const storageName = normalizeCompanyNameForStorage(sellerName);
+            const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+            if (compareKey) {
+              if (!companyToCountiesMap.has(compareKey)) {
+                companyToCountiesMap.set(compareKey, new Set());
+              }
+              companyToCountiesMap.get(compareKey)!.add(normalizedCounty);
             }
-            companyToCountiesMap.get(compareKey)!.add(normalizedCounty);
           }
         }
       }
@@ -457,7 +458,22 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         recordInfo: { record: Record<string, unknown>; recordingDate: string };
       }> = [];
 
-      for (const { propertyData, recordInfo, normalizedCounty, isBuyerCorporate, isSellerCorporate } of validBatchItems) {
+      // Property upsert: one per sfr_property_id, use record with latest recordingDate
+      const propertyUpsertBySfrId = new Map<
+        number,
+        (typeof validBatchItems)[0]
+      >();
+      for (const item of validBatchItems) {
+        const sfrId = Number(item.propertyData.property_id);
+        const existing = propertyUpsertBySfrId.get(sfrId);
+        if (!existing || item.recordInfo.recordingDate > existing.recordInfo.recordingDate) {
+          propertyUpsertBySfrId.set(sfrId, item);
+        }
+      }
+
+      for (const { propertyData, recordInfo, normalizedCounty, isBuyerCorporate, isSellerCorporate } of Array.from(
+        propertyUpsertBySfrId.values()
+      )) {
         totalProcessed++;
         const sfrPropertyId = Number(propertyData.property_id);
 
@@ -575,8 +591,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       await batchInsertPropertyData(batchDataCollectors);
 
       // -----------------------------------------------------------------------
-      // Insert property_transactions for all properties (new + updated)
-      // Each property in buyers/market = one transaction (from last_sale + current_sale)
+      // Insert property_transactions: one per /buyers/market record (same property can have multiple sales)
+      // Use recordingDate for transaction_date to handle same-day flips (e.g. saleDate 2026-01-20 for both, recordingDate 2026-01-21 vs 2026-01-26)
       // -----------------------------------------------------------------------
       const transactionsToInsert: Array<{
         propertyId: string;
@@ -592,33 +608,28 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         notes: string | null;
       }> = [];
 
-      const allProcessedProperties: Array<{
-        propertyId: string;
-        item: (typeof validBatchItems)[0];
-      }> = [
-        ...toUpdate.map((u) => ({
-          propertyId: u.id,
-          item: validBatchItems.find((v) => Number(v.propertyData.property_id) === Number(u.propertyData.property_id))!,
-        })),
-        ...inserted.map((p) => ({
-          propertyId: p.id,
-          item: validBatchItems.find((v) => Number(v.propertyData.property_id) === p.sfrPropertyId)!,
-        })),
-      ].filter((x) => x.item);
+      const sfrIdToPropertyId = new Map<number, string>();
+      for (const u of toUpdate) {
+        sfrIdToPropertyId.set(Number(u.propertyData.property_id), u.id);
+      }
+      for (const p of inserted) {
+        sfrIdToPropertyId.set(p.sfrPropertyId, p.id);
+      }
 
-      for (const { propertyId, item } of allProcessedProperties) {
+      for (const item of validBatchItems) {
+        const sfrPropertyId = Number(item.propertyData.property_id);
+        const propertyId = sfrIdToPropertyId.get(sfrPropertyId);
+        if (!propertyId) continue;
+
         const { propertyData, recordInfo, isBuyerCorporate, isSellerCorporate } = item;
-        const lastSale = (propertyData.last_sale || propertyData.lastSale) as Record<string, unknown> | undefined;
-        if (!lastSale?.date) continue;
+        const rec = recordInfo.record;
 
-        const transactionDate = normalizeDateToYMD(lastSale.date as string);
+        // Use recordingDate - uniquely identifies each deed; same-day flips share saleDate but have different recordingDates
+        const transactionDate = normalizeDateToYMD(recordInfo.recordingDate);
         if (!transactionDate) continue;
 
-        const buyerName = (recordInfo.record.buyerName as string) || "";
-        const sellerName = (recordInfo.record.sellerName as string) || "";
-        const currentSale = (propertyData.current_sale || propertyData.currentSale) as Record<string, unknown> | undefined;
-        const buyerNameForTx = (currentSale?.buyer_1 || currentSale?.buyer1 || recordInfo.record.buyerName) as string;
-        const sellerNameForTx = (currentSale?.seller_1 || currentSale?.seller1 || recordInfo.record.sellerName) as string;
+        const buyerName = (rec.buyerName as string) || "";
+        const sellerName = (rec.sellerName as string) || "";
 
         let txBuyerId: string | null = null;
         if (isBuyerCorporate) {
@@ -647,7 +658,20 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           continue;
         }
 
-        const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
+        const lastSale = (propertyData.last_sale || propertyData.lastSale) as Record<string, unknown> | undefined;
+        const salePrice =
+          rec.saleValue != null
+            ? String(rec.saleValue)
+            : rec.salePrice != null
+              ? String(rec.salePrice)
+              : rec.price != null
+                ? String(rec.price)
+                : lastSale?.price != null
+                  ? String(lastSale.price)
+                  : null;
+        const notes =
+          (rec.document_type as string) ||
+          (lastSale?.document_type ? `Document Type: ${lastSale.document_type}` : null);
 
         transactionsToInsert.push({
           propertyId,
@@ -655,11 +679,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           buyerId: txBuyerId,
           sellerId: txSellerId,
           transactionType,
-          salePrice: lastSale.price ? String(lastSale.price) : null,
-          mtgType: (lastSale.mtg_type as string) || null,
-          mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
-          buyerName: buyerNameForTx ? normalizeCompanyNameForStorage(buyerNameForTx) : null,
-          sellerName: sellerNameForTx ? normalizeCompanyNameForStorage(sellerNameForTx) : null,
+          salePrice,
+          mtgType: (lastSale?.mtg_type as string) || null,
+          mtgAmount: lastSale?.mtg_amount != null ? String(lastSale.mtg_amount) : null,
+          buyerName: buyerName ? normalizeCompanyNameForStorage(buyerName) : null,
+          sellerName: sellerName ? normalizeCompanyNameForStorage(sellerName) : null,
           notes,
         });
       }
