@@ -1,4 +1,4 @@
-import { syncMSA } from "server/routes/data.routes";
+import { syncMSAV2 } from "server/utils/dataSync";
 
 const LOS_ANGELES_MSA = "Los Angeles-Long Beach-Anaheim, CA";
 const CITY_CODE = "LA";
@@ -15,11 +15,16 @@ export async function syncLosAngelesData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        // Call syncMSA - it handles all the sync logic internally, including sync state management
-        // Pass excluded addresses to skip specific properties
-        const result = await syncMSA(LOS_ANGELES_MSA, CITY_CODE, API_KEY, API_URL, today, EXCLUDED_ADDRESSES);
+        const result = await syncMSAV2({
+            msa: LOS_ANGELES_MSA,
+            cityCode: CITY_CODE,
+            API_KEY,
+            API_URL,
+            today,
+            excludedAddresses: EXCLUDED_ADDRESSES,
+        });
 
-        console.log(`[${CITY_CODE} SYNC] Sync complete for ${LOS_ANGELES_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated, ${result.totalContactsAdded} contacts added`);
+        console.log(`[${CITY_CODE} SYNC] Sync complete for ${LOS_ANGELES_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
 
         return result;
 
