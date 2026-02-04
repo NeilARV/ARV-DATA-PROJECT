@@ -596,9 +596,11 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                         continue;
                     }
                     
-                    // companyId and propertyOwnerId: use buyer company if buyer is corporate, otherwise use seller
-                    const companyId = buyerId || sellerId;
-                    const propertyOwnerId = buyerId || sellerId;
+                    // companyId and propertyOwnerId rules:
+                    // - If buyer is a company (buyerId exists), they are the new owner: companyId = buyerId, propertyOwnerId = buyerId
+                    // - If seller is a company but buyer is NOT (individual/trust), property was sold: companyId = null, propertyOwnerId = null
+                    const companyId = buyerId; // Only set if buyer is a company
+                    const propertyOwnerId = buyerId; // Only set if buyer is a company
                     
                     const propertyListingStatus = (propertyData.listing_status || "").trim().toLowerCase();
                     
@@ -757,10 +759,11 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
             // Process inserted properties
             for (const insertedProp of insertedProperties) {
                 const details = propertyDetailsMap.get(insertedProp.sfrPropertyId);
-                if (!details || !insertedProp.companyId) continue;
+                if (!details) continue;
 
                 const { propertyData, recordInfo } = details;
-                const companyId = insertedProp.companyId;
+                // companyId follows same rules as property: buyerId if buyer is company, null otherwise
+                const companyId = insertedProp.companyId; // Can be null if sold to individual
                 const propertyId = insertedProp.id;
                 
                 // Get buyer_id and seller_id from the inserted property
@@ -817,9 +820,9 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 const details = propertyDetailsMap.get(existingProp.sfrPropertyId);
                 if (!details) continue;
 
-                // Use updated companyId if available, otherwise use existing
-                const companyId = propUpdate.data.companyId || existingProp.companyId;
-                if (!companyId) continue;
+                // companyId follows same rules as property: buyerId if buyer is company, null otherwise
+                // Use updated companyId from the update data (can be null if sold to individual)
+                const companyId = propUpdate.data.companyId !== undefined ? propUpdate.data.companyId : existingProp.companyId;
 
                 const { propertyData, recordInfo } = details;
                 const propertyId = propUpdate.id;
@@ -875,38 +878,63 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
             if (transactionsToInsert.length > 0) {
                 // Get unique property IDs and company IDs from transactions we want to insert
                 const propertyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.propertyId)));
-                const companyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.companyId).filter(id => id !== null)));
+                const companyIdsToCheck = Array.from(new Set(transactionsToInsert.map(tx => tx.companyId).filter((id): id is string => id !== null)));
+                const hasNullCompanyTransactions = transactionsToInsert.some(tx => tx.companyId === null);
 
-                // Fetch existing transactions for these properties and companies
+                // Fetch existing transactions for these properties
                 let existingTransactions: any[] = [];
-                if (propertyIdsToCheck.length > 0 && companyIdsToCheck.length > 0) {
-                    existingTransactions = await db
-                        .select({
-                            propertyId: propertyTransactions.propertyId,
-                            companyId: propertyTransactions.companyId,
-                            transactionDate: propertyTransactions.transactionDate,
-                            transactionType: propertyTransactions.transactionType,
-                        })
-                        .from(propertyTransactions)
-                        .where(
-                            and(
-                                inArray(propertyTransactions.propertyId, propertyIdsToCheck),
-                                inArray(propertyTransactions.companyId, companyIdsToCheck),
-                                eq(propertyTransactions.transactionType, "acquisition")
-                            )
-                        );
+                if (propertyIdsToCheck.length > 0) {
+                    // Query for transactions with non-null companyIds
+                    if (companyIdsToCheck.length > 0) {
+                        const withCompanyTx = await db
+                            .select({
+                                propertyId: propertyTransactions.propertyId,
+                                companyId: propertyTransactions.companyId,
+                                transactionDate: propertyTransactions.transactionDate,
+                                transactionType: propertyTransactions.transactionType,
+                            })
+                            .from(propertyTransactions)
+                            .where(
+                                and(
+                                    inArray(propertyTransactions.propertyId, propertyIdsToCheck),
+                                    inArray(propertyTransactions.companyId, companyIdsToCheck),
+                                    eq(propertyTransactions.transactionType, "acquisition")
+                                )
+                            );
+                        existingTransactions.push(...withCompanyTx);
+                    }
+                    
+                    // Query for transactions with null companyIds (sold to individuals)
+                    if (hasNullCompanyTransactions) {
+                        const nullCompanyTx = await db
+                            .select({
+                                propertyId: propertyTransactions.propertyId,
+                                companyId: propertyTransactions.companyId,
+                                transactionDate: propertyTransactions.transactionDate,
+                                transactionType: propertyTransactions.transactionType,
+                            })
+                            .from(propertyTransactions)
+                            .where(
+                                and(
+                                    inArray(propertyTransactions.propertyId, propertyIdsToCheck),
+                                    sql`${propertyTransactions.companyId} IS NULL`,
+                                    eq(propertyTransactions.transactionType, "acquisition")
+                                )
+                            );
+                        existingTransactions.push(...nullCompanyTx);
+                    }
                 }
 
                 // Create a Set of existing transaction keys for fast lookup
                 const existingTxKeys = new Set<string>();
                 for (const existingTx of existingTransactions) {
-                    const key = `${existingTx.propertyId}-${existingTx.companyId}-${existingTx.transactionDate}-${existingTx.transactionType}`;
+                    const key = `${existingTx.propertyId}-${existingTx.companyId || 'null'}-${existingTx.transactionDate}-${existingTx.transactionType}`;
                     existingTxKeys.add(key);
                 }
 
                 // Filter out transactions that already exist
                 const newTransactionsToInsert = transactionsToInsert.filter(tx => {
-                    const key = `${tx.propertyId}-${tx.companyId}-${tx.transactionDate}-${tx.transactionType}`;
+                    const key = `${tx.propertyId}-${tx.companyId || 'null'}-${tx.transactionDate}-${tx.transactionType}`;
                     return !existingTxKeys.has(key);
                 });
 
