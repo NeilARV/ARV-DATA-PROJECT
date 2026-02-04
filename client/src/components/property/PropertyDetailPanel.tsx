@@ -145,7 +145,7 @@ export default function PropertyDetailPanel({
 
   if (!property) return null;
 
-  const pricePerSqft = Math.round(property.price / property.squareFeet);
+  const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
