@@ -498,35 +498,45 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Status Filter Toggles */}
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant={statusFilters.has("in-renovation") ? "default" : "outline"}
+        {/* Status Filter Toggles - Segmented Control */}
+        {/* Colors match map pin colors: blue=#69C9E1, green=#22C55E, red=#FF0000 */}
+        <div className="inline-flex rounded-md border border-border overflow-hidden w-full">
+          <button
             onClick={() => toggleStatusFilter("in-renovation")}
-            className={statusFilters.has("in-renovation") ? "bg-primary hover:bg-primary/90" : ""}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
+              statusFilters.has("in-renovation")
+                ? "text-white"
+                : "bg-background text-muted-foreground hover:bg-muted"
+            }`}
+            style={statusFilters.has("in-renovation") ? { backgroundColor: '#69C9E1' } : undefined}
             data-testid="button-filter-in-renovation"
           >
             In Renovation
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilters.has("on-market") ? "default" : "outline"}
+          </button>
+          <button
             onClick={() => toggleStatusFilter("on-market")}
-            className={statusFilters.has("on-market") ? "bg-primary hover:bg-primary/90" : ""}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
+              statusFilters.has("on-market")
+                ? "text-white"
+                : "bg-background text-muted-foreground hover:bg-muted"
+            }`}
+            style={statusFilters.has("on-market") ? { backgroundColor: '#22C55E' } : undefined}
             data-testid="button-filter-on-market"
           >
             On Market
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilters.has("sold") ? "default" : "outline"}
+          </button>
+          <button
             onClick={() => toggleStatusFilter("sold")}
-            className={statusFilters.has("sold") ? "bg-primary hover:bg-primary/90" : ""}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              statusFilters.has("sold")
+                ? "text-white"
+                : "bg-background text-muted-foreground hover:bg-muted"
+            }`}
+            style={statusFilters.has("sold") ? { backgroundColor: '#FF0000' } : undefined}
             data-testid="button-filter-sold"
           >
             Sold
-          </Button>
+          </button>
         </div>
 
         {/* State & County Selection */}
