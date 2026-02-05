@@ -498,10 +498,14 @@ router.get("/:id", async (req, res) => {
                 // Last sale fields (for price and dateSold)
                 price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
                 dateSold: lastSales.saleDate,
-                // Company info from buyer or seller
-                companyName: sql<string | null>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
-                contactName: sql<string | null>`COALESCE(${buyerCompanies.contactName}, ${sellerCompanies.contactName})`,
-                contactEmail: sql<string | null>`COALESCE(${buyerCompanies.contactEmail}, ${sellerCompanies.contactEmail})`,
+                // Buyer company info
+                buyerCompanyName: buyerCompanies.companyName,
+                buyerContactName: buyerCompanies.contactName,
+                buyerContactEmail: buyerCompanies.contactEmail,
+                // Seller company info
+                sellerCompanyName: sellerCompanies.companyName,
+                sellerContactName: sellerCompanies.contactName,
+                sellerContactEmail: sellerCompanies.contactEmail,
             })
             .from(properties)
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -543,13 +547,22 @@ router.get("/:id", async (req, res) => {
             // Price and date
             price: price,
             dateSold: result.dateSold ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold ? (result.dateSold as Date).toISOString().split('T')[0] : (typeof result.dateSold === 'string' ? result.dateSold.split('T')[0] : String(result.dateSold))) : null,
-            // Company info (buyer as primary, seller as fallback)
+            // Buyer company info
+            buyerId: result.buyerId ? String(result.buyerId) : null,
+            buyerCompanyName: result.buyerCompanyName || null,
+            buyerContactName: result.buyerContactName || null,
+            buyerContactEmail: result.buyerContactEmail || null,
+            // Seller company info
+            sellerId: result.sellerId ? String(result.sellerId) : null,
+            sellerCompanyName: result.sellerCompanyName || null,
+            sellerContactName: result.sellerContactName || null,
+            sellerContactEmail: result.sellerContactEmail || null,
+            // Legacy aliases for backward compatibility (buyer as primary, seller as fallback)
             companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
-            companyName: result.companyName || null,
-            companyContactName: result.contactName || null,
-            companyContactEmail: result.contactEmail || null,
-            // Legacy aliases for backward compatibility
-            propertyOwner: result.companyName || null,
+            companyName: result.buyerCompanyName || result.sellerCompanyName || null,
+            companyContactName: result.buyerContactName || result.sellerContactName || null,
+            companyContactEmail: result.buyerContactEmail || result.sellerContactEmail || null,
+            propertyOwner: result.buyerCompanyName || result.sellerCompanyName || null,
             propertyOwnerId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             // Additional fields that might be expected
             description: null, // Not in new schema, set to null

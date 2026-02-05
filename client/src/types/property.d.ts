@@ -23,12 +23,21 @@ export type Property = {
   // Sale info
   price: number;
   dateSold: string | null;
-  // Company info
+  // Buyer company info
+  buyerId: string | null;
+  buyerCompanyName: string | null;
+  buyerContactName: string | null;
+  buyerContactEmail: string | null;
+  // Seller company info
+  sellerId: string | null;
+  sellerCompanyName: string | null;
+  sellerContactName: string | null;
+  sellerContactEmail: string | null;
+  // Legacy aliases (companyId/propertyOwnerId = buyer or seller for display/filter)
   companyId: string | null;
   companyName: string | null;
   companyContactName: string | null;
   companyContactEmail: string | null;
-  // Legacy aliases (companyId/propertyOwnerId = buyer or seller for display/filter)
   propertyOwner: string | null;
   propertyOwnerId: string | null;
   // Optional fields
