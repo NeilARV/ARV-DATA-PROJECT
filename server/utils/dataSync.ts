@@ -673,6 +673,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           (rec.document_type as string) ||
           (lastSale?.document_type ? `Document Type: ${lastSale.document_type}` : null);
 
+        if (txBuyerId === null && txSellerId === null) {
+          console.log(`[${cityCode} SYNC V2] Skipping transaction - no company IDs resolved for property ${propertyId}`);
+          continue;
+        }
+
         transactionsToInsert.push({
           propertyId,
           transactionDate,
@@ -691,15 +696,22 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       if (transactionsToInsert.length > 0) {
         const propertyIds = Array.from(new Set(transactionsToInsert.map((t) => t.propertyId)));
         const existingTx = await db
-          .select({ propertyId: propertyTransactions.propertyId, transactionDate: propertyTransactions.transactionDate })
+          .select({
+            propertyId: propertyTransactions.propertyId,
+            transactionDate: propertyTransactions.transactionDate,
+            transactionType: propertyTransactions.transactionType,
+            buyerId: propertyTransactions.buyerId,
+            sellerId: propertyTransactions.sellerId,
+          })
           .from(propertyTransactions)
           .where(inArray(propertyTransactions.propertyId, propertyIds));
 
-        const existingKeys = new Set(existingTx.map((e) => `${e.propertyId}-${e.transactionDate}`));
-
-        const newTransactions = transactionsToInsert.filter(
-          (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}`)
-        );
+          const existingKeys = new Set(existingTx.map((e) => 
+            `${e.propertyId}-${e.transactionDate}-${e.transactionType}`
+          ));
+          const newTransactions = transactionsToInsert.filter(
+            (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}-${t.transactionType}`)
+          );
 
         if (newTransactions.length > 0) {
           await db.insert(propertyTransactions).values(
