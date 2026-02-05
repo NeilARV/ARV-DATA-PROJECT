@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
 import { companies } from "../../../database/schemas/companies.schema";
-import { eq, sql, and, or } from "drizzle-orm";
+import { eq, sql, and, or, isNotNull, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const buyerCompanies = alias(companies, "buyer_companies");
@@ -29,27 +29,56 @@ export interface MapPropertyData {
 /**
  * Fetches minimal property data for map pins
  * @param county - Optional county filter
+ * @param statusFilter - Optional status filter(s). "sold-b2b" is a special virtual status
+ *                       for properties with in-renovation status AND both buyer_id and seller_id set.
  * @returns Array of property data formatted for map display
  */
 export async function getMapProperties(county?: string, statusFilter?: string | string[]): Promise<MapPropertyData[]> {
     const conditions = [];
 
     // Apply status filter if provided, otherwise show all statuses
+    // "sold-b2b" is a virtual status: in-renovation with both buyer_id AND seller_id NOT NULL
     if (statusFilter) {
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
             const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
-            if (normalizedStatuses.length === 1) {
-                conditions.push(
-                    sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
-                );
-            } else {
-                // Use OR for multiple status values
-                conditions.push(
-                    or(...normalizedStatuses.map(s => 
-                        sql`LOWER(TRIM(${properties.status})) = ${s}`
-                    )) as any
-                );
+            
+            const statusConditions = [];
+            
+            for (const status of normalizedStatuses) {
+                if (status === 'sold-b2b') {
+                    // Sold (B2B) = in-renovation with both buyer_id and seller_id set
+                    statusConditions.push(
+                        and(
+                            sql`LOWER(TRIM(${properties.status})) = 'in-renovation'`,
+                            isNotNull(properties.buyerId),
+                            isNotNull(properties.sellerId)
+                        )
+                    );
+                } else if (status === 'in-renovation') {
+                    // Regular in-renovation = in-renovation with buyer_id OR seller_id NOT both set
+                    // (either buyer_id is null OR seller_id is null)
+                    statusConditions.push(
+                        and(
+                            sql`LOWER(TRIM(${properties.status})) = 'in-renovation'`,
+                            or(
+                                isNull(properties.buyerId),
+                                isNull(properties.sellerId)
+                            )
+                        )
+                    );
+                } else {
+                    // Regular status filter (on-market, sold, etc.)
+                    statusConditions.push(
+                        sql`LOWER(TRIM(${properties.status})) = ${status}`
+                    );
+                }
+            }
+            
+            if (statusConditions.length === 1) {
+                conditions.push(statusConditions[0]);
+            } else if (statusConditions.length > 1) {
+                conditions.push(or(...statusConditions) as any);
             }
         }
     }
@@ -124,6 +153,14 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
             const bid = buyerId ? String(buyerId) : null;
             const sid = sellerId ? String(sellerId) : null;
             
+            // Determine display status - "sold-b2b" is a virtual status for in-renovation
+            // properties where both buyer_id and seller_id are set (company-to-company sale)
+            let displayStatus = prop.status || '';
+            const dbStatus = (prop.status || '').toLowerCase().trim();
+            if (dbStatus === 'in-renovation' && buyerId && sellerId) {
+                displayStatus = 'sold-b2b';
+            }
+            
             return {
                 ...rest,
                 id: String(prop.id),
@@ -137,7 +174,7 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
                 bedrooms: prop.bedrooms ? Number(prop.bedrooms) : null,
                 bathrooms: baths,
                 price: price,
-                status: prop.status || '',
+                status: displayStatus,
                 propertyOwner: companyName || null,
                 companyId,
                 buyerId: bid,

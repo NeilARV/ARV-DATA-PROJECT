@@ -23,9 +23,10 @@ const createColoredIcon = (color: string) => {
   });
 };
 
-const blueIcon = createColoredIcon('#69C9E1');
-const greenIcon = createColoredIcon('#22C55E');
-const charcoalIcon = createColoredIcon('#FF0000');
+const blueIcon = createColoredIcon('#69C9E1');      // In Renovation
+const greenIcon = createColoredIcon('#22C55E');     // On Market
+const charcoalIcon = createColoredIcon('#FF0000');  // Sold
+const purpleIcon = createColoredIcon('#9333EA');    // Sold (B2B) - company-to-company
 
 // Selected marker icons (with orange/yellow color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
@@ -41,6 +42,8 @@ const getIconForStatus = (status: string | null | undefined, isSelected: boolean
       return greenIcon;
     case 'sold':
       return charcoalIcon;
+    case 'sold-b2b':
+      return purpleIcon;
     case 'in-renovation':
     default:
       return blueIcon;

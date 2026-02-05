@@ -499,7 +499,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Status Filter Toggles */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant={statusFilters.has("in-renovation") ? "default" : "outline"}
@@ -526,6 +526,15 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             data-testid="button-filter-sold"
           >
             Sold
+          </Button>
+          <Button
+            size="sm"
+            variant={statusFilters.has("sold-b2b") ? "default" : "outline"}
+            onClick={() => toggleStatusFilter("sold-b2b")}
+            className={statusFilters.has("sold-b2b") ? "bg-primary hover:bg-primary/90" : ""}
+            data-testid="button-filter-sold-b2b"
+          >
+            Sold (B2B)
           </Button>
         </div>
 
