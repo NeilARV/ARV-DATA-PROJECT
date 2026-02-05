@@ -26,8 +26,6 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
 export const properties = pgTable("properties", {
   id: uuid("id").defaultRandom().primaryKey(),
   sfrPropertyId: bigint("sfr_property_id", { mode: "number" }).unique().notNull(),
-  companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
-  propertyOwnerId: uuid("property_owner_id").references(() => companies.id, { onDelete: "set null" }),
   buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
   sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
   propertyClassDescription: varchar("property_class_description", { length: 100 }),
@@ -242,7 +240,6 @@ export const streetviewCache = pgTable("streetview_cache", {
 export const propertyTransactions = pgTable("property_transactions", {
   propertyTransactionsId: serial("property_transactions_id").primaryKey(),
   propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
-  companyId: uuid("company_id").references(() => companies.id, { onDelete: "set null" }),
   sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
   buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
   transactionType: varchar("transaction_type", { length: 50 }).notNull(),

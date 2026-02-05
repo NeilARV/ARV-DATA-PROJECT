@@ -83,8 +83,6 @@ COMMENT ON TABLE sfr_sync_state IS 'Tracks synchronization state for Single Fami
 CREATE TABLE properties (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sfr_property_id BIGINT UNIQUE NOT NULL,
-    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-    property_owner_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     property_class_description VARCHAR(100),
@@ -102,7 +100,8 @@ CREATE TABLE properties (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_properties_company_id ON properties(company_id);
+CREATE INDEX idx_properties_buyer_id ON properties(buyer_id);
+CREATE INDEX idx_properties_seller_id ON properties(seller_id);
 CREATE INDEX idx_properties_status ON properties(status);
 CREATE INDEX idx_properties_msa ON properties(msa);
 CREATE INDEX idx_properties_county ON properties(county);
@@ -112,7 +111,8 @@ COMMENT ON TABLE properties IS 'Main property table - current state of propertie
 COMMENT ON COLUMN properties.id IS 'Internal UUID primary key';
 COMMENT ON COLUMN properties.sfr_property_id IS 'External SFR Analytics API property ID';
 COMMENT ON COLUMN properties.status IS 'Current status: in-renovation, on-market, or sold';
-COMMENT ON COLUMN properties.company_id IS 'Current owner if corporate, NULL if sold to individual';
+COMMENT ON COLUMN properties.buyer_id IS 'Company that bought the property (current owner if corporate)';
+COMMENT ON COLUMN properties.seller_id IS 'Company that sold the property';
 
 -- Address information
 CREATE TABLE addresses (
@@ -391,7 +391,6 @@ COMMENT ON TABLE streetview_cache IS 'Cached Google Street View images for prope
 CREATE TABLE property_transactions (
     property_transactions_id SERIAL PRIMARY KEY,
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     transaction_type VARCHAR(50) NOT NULL,
@@ -406,14 +405,13 @@ CREATE TABLE property_transactions (
 );
 
 CREATE INDEX idx_transactions_property ON property_transactions(property_id);
-CREATE INDEX idx_transactions_company ON property_transactions(company_id);
+CREATE INDEX idx_transactions_buyer ON property_transactions(buyer_id);
+CREATE INDEX idx_transactions_seller ON property_transactions(seller_id);
 CREATE INDEX idx_transactions_type ON property_transactions(transaction_type);
 CREATE INDEX idx_transactions_date ON property_transactions(transaction_date);
-CREATE INDEX idx_transactions_property_company ON property_transactions(property_id, company_id);
 
 COMMENT ON TABLE property_transactions IS 'Complete history of property acquisitions and sales by companies - enables flip tracking';
 COMMENT ON COLUMN property_transactions.transaction_type IS 'acquisition = company bought property, sale = company sold property';
-COMMENT ON COLUMN property_transactions.company_id IS 'The company that performed this transaction';
 COMMENT ON COLUMN property_transactions.buyer_name IS 'Name of buyer from current_sale data';
 COMMENT ON COLUMN property_transactions.seller_name IS 'Name of seller from current_sale data';
 
@@ -425,9 +423,9 @@ COMMENT ON COLUMN property_transactions.seller_name IS 'Name of seller from curr
 CREATE VIEW property_full_details AS
 SELECT 
     p.*,
-    c.company_name,
-    c.contact_name as company_contact,
-    c.contact_email as company_email,
+    COALESCE(buyer_c.company_name, seller_c.company_name) as company_name,
+    COALESCE(buyer_c.contact_name, seller_c.contact_name) as company_contact,
+    COALESCE(buyer_c.contact_email, seller_c.contact_email) as company_email,
     a.formatted_street_address,
     a.city,
     a.state,
@@ -448,7 +446,8 @@ SELECT
     cs.seller_1,
     cs.buyer_1
 FROM properties p
-LEFT JOIN companies c ON p.company_id = c.id
+LEFT JOIN companies buyer_c ON p.buyer_id = buyer_c.id
+LEFT JOIN companies seller_c ON p.seller_id = seller_c.id
 LEFT JOIN addresses a ON p.id = a.property_id
 LEFT JOIN structures s ON p.id = s.property_id
 LEFT JOIN assessments ass ON p.id = ass.property_id
@@ -463,7 +462,7 @@ CREATE VIEW active_flips AS
 SELECT 
     p.id,
     p.sfr_property_id,
-    c.company_name,
+    COALESCE(buyer_c.company_name, seller_c.company_name) as company_name,
     a.formatted_street_address,
     a.city,
     a.state,
@@ -478,12 +477,13 @@ SELECT
     s.total_area_sq_ft,
     CURRENT_DATE - ls.sale_date as days_in_possession
 FROM properties p
-JOIN companies c ON p.company_id = c.id
+LEFT JOIN companies buyer_c ON p.buyer_id = buyer_c.id
+LEFT JOIN companies seller_c ON p.seller_id = seller_c.id
 JOIN addresses a ON p.id = a.property_id
 LEFT JOIN structures s ON p.id = s.property_id
 LEFT JOIN last_sales ls ON p.id = ls.property_id
 WHERE p.status IN ('in-renovation', 'on-market')
-  AND p.company_id IS NOT NULL;
+  AND (p.buyer_id IS NOT NULL OR p.seller_id IS NOT NULL);
 
 COMMENT ON VIEW active_flips IS 'Properties currently being flipped by companies';
 
@@ -492,7 +492,7 @@ CREATE VIEW completed_flips AS
 SELECT 
     pt_buy.property_id,
     p.sfr_property_id,
-    c.company_name as flipper_company,
+    flipper_c.company_name as flipper_company,
     a.formatted_street_address,
     a.city,
     a.state,
@@ -511,9 +511,9 @@ FROM property_transactions pt_buy
 JOIN property_transactions pt_sell 
     ON pt_buy.property_id = pt_sell.property_id
     AND pt_sell.transaction_type = 'sale'
-    AND pt_buy.company_id = pt_sell.company_id
+    AND pt_buy.buyer_id = pt_sell.seller_id
 JOIN properties p ON pt_buy.property_id = p.id
-JOIN companies c ON pt_buy.company_id = c.id
+JOIN companies flipper_c ON pt_buy.buyer_id = flipper_c.id
 JOIN addresses a ON pt_buy.property_id = a.property_id
 LEFT JOIN structures s ON pt_buy.property_id = s.property_id
 WHERE pt_buy.transaction_type = 'acquisition'
@@ -536,16 +536,16 @@ SELECT
         THEN pt_sell.sale_price - pt_buy.sale_price END) as total_profit,
     MAX(pt_sell.transaction_date) as last_flip_date
 FROM companies c
-LEFT JOIN properties p ON c.id = p.company_id
-LEFT JOIN property_transactions pt ON c.id = pt.company_id
+LEFT JOIN properties p ON (c.id = p.buyer_id OR c.id = p.seller_id)
+LEFT JOIN property_transactions pt ON (c.id = pt.buyer_id OR c.id = pt.seller_id)
 LEFT JOIN property_transactions pt_buy 
     ON pt.property_id = pt_buy.property_id 
     AND pt_buy.transaction_type = 'acquisition'
-    AND pt_buy.company_id = c.id
+    AND pt_buy.buyer_id = c.id
 LEFT JOIN property_transactions pt_sell 
     ON pt.property_id = pt_sell.property_id 
     AND pt_sell.transaction_type = 'sale'
-    AND pt_sell.company_id = c.id
+    AND pt_sell.seller_id = c.id
 GROUP BY c.id, c.company_name;
 
 COMMENT ON VIEW company_flip_performance IS 'Aggregate performance metrics for each flipping company';
@@ -607,7 +607,7 @@ BEGIN
     FROM properties p
     JOIN addresses a ON p.id = a.property_id
     LEFT JOIN last_sales ls ON p.id = ls.property_id
-    WHERE p.company_id = company_uuid
+    WHERE (p.buyer_id = company_uuid OR p.seller_id = company_uuid)
       AND p.status IN ('in-renovation', 'on-market')
     ORDER BY ls.sale_date DESC;
 END;
@@ -646,10 +646,10 @@ BEGIN
     JOIN property_transactions pt_sell 
         ON pt_buy.property_id = pt_sell.property_id
         AND pt_sell.transaction_type = 'sale'
-        AND pt_buy.company_id = pt_sell.company_id
+        AND pt_buy.buyer_id = pt_sell.seller_id
     JOIN properties p ON pt_buy.property_id = p.id
     JOIN addresses a ON pt_buy.property_id = a.property_id
-    WHERE pt_buy.company_id = company_uuid
+    WHERE pt_buy.buyer_id = company_uuid
       AND pt_buy.transaction_type = 'acquisition'
     ORDER BY pt_sell.transaction_date DESC;
 END;

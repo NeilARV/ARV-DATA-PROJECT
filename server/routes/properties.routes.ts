@@ -12,6 +12,7 @@ import {
 import { normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { eq, sql, or, and } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import dotenv from "dotenv";
 import { MapsController, StreetviewController, PropertiesController } from "server/controllers/properties";
 
@@ -206,31 +207,34 @@ router.post("/", requireAdminAuth, async (req, res) => {
             }
         };
 
-        // Get company ID from buyer name
-        let companyId: string | null = null;
-        let propertyOwnerId: string | null = null;
+        // Get buyer and seller company IDs from names
+        let buyerId: string | null = null;
+        let sellerId: string | null = null;
+        const sellerName = propertyData.current_sale?.seller_1 || propertyData.currentSale?.seller1 || null;
         
         if (buyerName) {
-            companyId = await upsertCompany(buyerName, normalizedCounty);
-            propertyOwnerId = companyId;
+            buyerId = await upsertCompany(buyerName, normalizedCounty);
+        }
+        if (sellerName) {
+            sellerId = await upsertCompany(sellerName, normalizedCounty);
         }
 
         // Insert acquisition transaction if we have last_sale data (mirrors /api/data/sfr logic)
         const maybeInsertAcquisitionTransaction = async (
             propertyId: string,
-            companyIdVal: string | null,
+            txBuyerId: string | null,
             data: typeof propertyData,
             buyerNameVal: string | null
         ) => {
-            if (!companyIdVal || !buyerNameVal) return;
+            if (!txBuyerId || !buyerNameVal) return;
             const lastSale = data?.last_sale || data?.lastSale;
             if (!lastSale?.date) return;
             const normalizedDate = normalizeDateToYMD(lastSale.date);
             if (!normalizedDate) return;
             const normalizedBuyerName = normalizeCompanyNameForStorage(buyerNameVal);
-            let sellerName: string | null = null;
+            let sellerNameVal: string | null = null;
             const cs = data?.current_sale || data?.currentSale;
-            if (cs) sellerName = normalizeCompanyNameForStorage(cs.seller_1 || cs.seller1) || null;
+            if (cs) sellerNameVal = normalizeCompanyNameForStorage(cs.seller_1 || cs.seller1) || null;
             const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
             const [existing] = await db
                 .select({ propertyId: propertyTransactions.propertyId })
@@ -238,7 +242,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 .where(
                     and(
                         eq(propertyTransactions.propertyId, propertyId),
-                        eq(propertyTransactions.companyId, companyIdVal),
+                        eq(propertyTransactions.buyerId, txBuyerId),
                         eq(propertyTransactions.transactionDate, normalizedDate),
                         eq(propertyTransactions.transactionType, "acquisition")
                     )
@@ -247,14 +251,15 @@ router.post("/", requireAdminAuth, async (req, res) => {
             if (existing) return;
             await db.insert(propertyTransactions).values({
                 propertyId,
-                companyId: companyIdVal,
+                buyerId: txBuyerId,
+                sellerId: sellerId,
                 transactionType: "acquisition",
                 transactionDate: normalizedDate,
                 salePrice: lastSale.price != null ? String(lastSale.price) : null,
                 mtgType: lastSale.mtg_type || null,
                 mtgAmount: lastSale.mtg_amount != null ? String(lastSale.mtg_amount) : null,
                 buyerName: normalizedBuyerName,
-                sellerName,
+                sellerName: sellerNameVal,
                 notes,
             });
         };
@@ -281,8 +286,8 @@ router.post("/", requireAdminAuth, async (req, res) => {
             await db
                 .update(properties)
                 .set({
-                    companyId: companyId,
-                    propertyOwnerId: propertyOwnerId,
+                    buyerId,
+                    sellerId,
                     propertyClassDescription: propertyData.property_class_description || null,
                     propertyType: normalizePropertyType(propertyData.property_type) || null,
                     vacant: propertyData.vacant || null,
@@ -298,7 +303,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 })
                 .where(eq(properties.id, existingProperty.id));
             
-            await maybeInsertAcquisitionTransaction(existingProperty.id, companyId, propertyData, buyerName);
+            await maybeInsertAcquisitionTransaction(existingProperty.id, buyerId, propertyData, buyerName);
             console.log(`Property updated: ${sfrPropertyId}`);
             res.json({ 
                 message: "Property updated successfully",
@@ -311,8 +316,8 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 .insert(properties)
                 .values({
                     sfrPropertyId: Number(sfrPropertyId),
-                    companyId: companyId,
-                    propertyOwnerId: propertyOwnerId,
+                    buyerId,
+                    sellerId,
                     propertyClassDescription: propertyData.property_class_description || null,
                     propertyType: normalizePropertyType(propertyData.property_type) || null,
                     vacant: propertyData.vacant || null,
@@ -331,7 +336,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
             
             // Insert all property-related data using helper function
             await insertPropertyRelatedData(propertyId, propertyData as SfrPropertyData, normalizedCounty);
-            await maybeInsertAcquisitionTransaction(propertyId, companyId, propertyData, buyerName);
+            await maybeInsertAcquisitionTransaction(propertyId, buyerId, propertyData, buyerName);
             console.log(`Property created: ${sfrPropertyId} (ID: ${propertyId})`);
             res.json({ 
                 message: "Property created successfully",
@@ -456,13 +461,15 @@ router.get("/:id", async (req, res) => {
 
         // Query the new normalized schema with joins
         // Join with addresses, structures, lastSales, and companies tables
+        const buyerCompanies = alias(companies, "buyer_companies");
+        const sellerCompanies = alias(companies, "seller_companies");
         const [result] = await db
             .select({
                 // Properties table fields
                 id: properties.id,
                 sfrPropertyId: properties.sfrPropertyId,
-                companyId: properties.companyId,
-                propertyOwnerId: properties.propertyOwnerId,
+                buyerId: properties.buyerId,
+                sellerId: properties.sellerId,
                 propertyClassDescription: properties.propertyClassDescription,
                 propertyType: properties.propertyType,
                 vacant: properties.vacant,
@@ -491,16 +498,17 @@ router.get("/:id", async (req, res) => {
                 // Last sale fields (for price and dateSold)
                 price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
                 dateSold: lastSales.saleDate,
-                // Company info from joined table
-                companyName: companies.companyName,
-                contactName: companies.contactName,
-                contactEmail: companies.contactEmail,
+                // Company info from buyer or seller
+                companyName: sql<string | null>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
+                contactName: sql<string | null>`COALESCE(${buyerCompanies.contactName}, ${sellerCompanies.contactName})`,
+                contactEmail: sql<string | null>`COALESCE(${buyerCompanies.contactEmail}, ${sellerCompanies.contactEmail})`,
             })
             .from(properties)
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
             .leftJoin(structures, eq(properties.id, structures.propertyId))
             .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-            .leftJoin(companies, eq(properties.companyId, companies.id)) // Join on companyId (more reliably filled)
+            .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
+            .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
             .where(eq(properties.id, id))
             .limit(1);
 
@@ -535,14 +543,14 @@ router.get("/:id", async (req, res) => {
             // Price and date
             price: price,
             dateSold: result.dateSold ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold ? (result.dateSold as Date).toISOString().split('T')[0] : (typeof result.dateSold === 'string' ? result.dateSold.split('T')[0] : String(result.dateSold))) : null,
-            // Company info (using companyId, more reliably filled)
-            companyId: result.companyId ? String(result.companyId) : null,
+            // Company info (buyer as primary, seller as fallback)
+            companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             companyName: result.companyName || null,
             companyContactName: result.contactName || null,
             companyContactEmail: result.contactEmail || null,
             // Legacy aliases for backward compatibility
             propertyOwner: result.companyName || null,
-            propertyOwnerId: result.companyId ? String(result.companyId) : null, // Map to companyId for compatibility
+            propertyOwnerId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             // Additional fields that might be expected
             description: null, // Not in new schema, set to null
             imageUrl: null, // Not in new schema, set to null

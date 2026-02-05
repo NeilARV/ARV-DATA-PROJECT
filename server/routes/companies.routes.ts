@@ -4,7 +4,8 @@ import { companies } from "../../database/schemas/companies.schema";
 import { properties, addresses } from "../../database/schemas/properties.schema";
 import { updateCompanySchema } from "../../database/updates/companies.update";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { sql, and, eq, or } from "drizzle-orm";
+import { sql, eq, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 const router = Router();
 
@@ -59,12 +60,12 @@ router.get("/contacts", async (req, res) => {
         
         const contacts = await contactsQuery.orderBy(companies.companyName);
 
-        // Get all properties (filtered by county if provided) - use companyId for counting
+        // Get all properties (filtered by county if provided) - use buyer_id/seller_id for counting
         // Need to check both properties.county and addresses.county for county filtering
         let propertiesQuery = db
             .select({
-                companyId: properties.companyId,
-                propertyOwnerId: properties.propertyOwnerId,
+                buyerId: properties.buyerId,
+                sellerId: properties.sellerId,
                 county: sql<string>`COALESCE(${properties.county}, ${addresses.county}, '')`,
             })
             .from(properties)
@@ -82,11 +83,10 @@ router.get("/contacts", async (req, res) => {
         
         const allProperties = await propertiesQuery;
 
-        // Calculate property count for each company using companyId (consistent identifier)
+        // Calculate property count for each company (match buyer_id OR seller_id)
         const contactsWithCounts = contacts.map(contact => {
-            // Filter properties for this company by matching companyId with company id
             const companyProperties = allProperties.filter(p => {
-                return p.companyId === contact.id;
+                return p.buyerId === contact.id
             });
             
             const propertyCount = companyProperties.length;
@@ -113,16 +113,19 @@ router.get("/leaderboard", async (req, res) => {
         const countyParam = req.query.county?.toString() || "San Diego";
         const normalizedCounty = countyParam.trim().toLowerCase();
         
-        // Get all properties in the specified county with company info (need companyId, companyName, and contactName)
-        // Note: properties table now uses addresses table for address info, so we need to join addresses
+        // Get all properties in the specified county with company info (buyer or seller)
+        const buyerCompanies = alias(companies, "buyer_companies");
+        const sellerCompanies = alias(companies, "seller_companies");
         const allProperties = await db
             .select({
-                companyId: properties.companyId,
-                companyName: companies.companyName,
-                contactName: companies.contactName,
+                buyerCompanyName: buyerCompanies.companyName,
+                buyerContactName: buyerCompanies.contactName,
+                sellerCompanyName: sellerCompanies.companyName,
+                sellerContactName: sellerCompanies.contactName,
             })
             .from(properties)
-            .leftJoin(companies, eq(properties.companyId, companies.id))
+            .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
+            .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
             .where(
                 or(
@@ -131,19 +134,25 @@ router.get("/leaderboard", async (req, res) => {
                 ) as any
             ) as any;
 
-        // Calculate company counts and collect contact names using companyName from joined table
+        // Count each property for both buyer and seller companies (when they are companies)
         const companyCounts: Record<string, number> = {};
         const companyContactNames: Record<string, string | null> = {};
-        allProperties.forEach((p: { companyName: string | null; contactName: string | null }) => {
-            if (p.companyName) {
-                const companyName = p.companyName.trim();
-                companyCounts[companyName] = (companyCounts[companyName] || 0) + 1;
-                // Store contact name for this company (use first non-null contact name found)
-                if (p.contactName && !companyContactNames[companyName]) {
-                    companyContactNames[companyName] = p.contactName.trim();
-                } else if (!(companyName in companyContactNames)) {
-                    companyContactNames[companyName] = null;
+        type Prop = { buyerCompanyName: string | null; buyerContactName: string | null; sellerCompanyName: string | null; sellerContactName: string | null };
+        allProperties.forEach((p: Prop) => {
+            const addCompany = (name: string | null, contact: string | null) => {
+                if (name) {
+                    const companyName = name.trim();
+                    companyCounts[companyName] = (companyCounts[companyName] || 0) + 1;
+                    if (contact && !companyContactNames[companyName]) {
+                        companyContactNames[companyName] = contact.trim();
+                    } else if (!(companyName in companyContactNames)) {
+                        companyContactNames[companyName] = null;
+                    }
                 }
+            };
+            addCompany(p.buyerCompanyName, p.buyerContactName);
+            if (p.sellerCompanyName !== p.buyerCompanyName) {
+                addCompany(p.sellerCompanyName, p.sellerContactName);
             }
         });
 

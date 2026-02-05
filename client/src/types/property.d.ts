@@ -28,7 +28,7 @@ export type Property = {
   companyName: string | null;
   companyContactName: string | null;
   companyContactEmail: string | null;
-  // Legacy aliases
+  // Legacy aliases (companyId/propertyOwnerId = buyer or seller for display/filter)
   propertyOwner: string | null;
   propertyOwnerId: string | null;
   // Optional fields
@@ -54,6 +54,9 @@ export type MapPin = {
   price: number;
   status: string | null;
   propertyOwner: string | null;
+  companyId: string | null;
+  buyerId?: string | null;
+  sellerId?: string | null;
 };
 
 // Type for property rows used in admin/manage tables

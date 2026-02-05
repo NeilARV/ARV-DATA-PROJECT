@@ -496,10 +496,6 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           if (company) sellerId = company.id;
         }
 
-        // company_id & property_owner_id = buyer_id (when buyer is corporate)
-        const companyId = buyerId;
-        const propertyOwnerId = buyerId;
-
         const propertyListingStatus = ((propertyData.listing_status as string) || "").trim().toLowerCase();
         const listingStatus =
           propertyListingStatus === "on market" || propertyListingStatus === "on_market" ? "on-market" : "off-market";
@@ -519,8 +515,6 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
 
         const propertyRecord = {
           sfrPropertyId,
-          companyId,
-          propertyOwnerId,
           buyerId,
           sellerId,
           propertyClassDescription: (propertyData.property_class_description as string) || null,
@@ -717,7 +711,6 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           await db.insert(propertyTransactions).values(
             newTransactions.map((t) => ({
               propertyId: t.propertyId,
-              companyId: t.transactionType === "sale" ? t.sellerId : t.buyerId,
               buyerId: t.buyerId,
               sellerId: t.sellerId,
               transactionType: t.transactionType,

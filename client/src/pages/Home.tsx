@@ -799,7 +799,13 @@ export default function Home() {
   const filteredMapPins = useMemo(() => {
     return mapPins.filter(pin => {
       // Apply company filter first if one is selected
-      if (selectedCompany) {
+      if (selectedCompanyId) {
+        const bid = (pin as { buyerId?: string | null }).buyerId;
+        const sid = (pin as { sellerId?: string | null }).sellerId;
+        if (bid !== selectedCompanyId && sid !== selectedCompanyId) {
+          return false;
+        }
+      } else if (selectedCompany) {
         const ownerName = (pin.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
         const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
         if (ownerName !== selectedName) {
@@ -858,7 +864,7 @@ export default function Home() {
 
       return true;
     });
-  }, [mapPins, filters, selectedCompany, zipCodeList]);
+  }, [mapPins, filters, selectedCompany, selectedCompanyId, zipCodeList]);
 
   // Center map on company properties when a company is selected
   useEffect(() => {
