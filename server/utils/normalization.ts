@@ -59,6 +59,21 @@ export function normalizeSubdivision(subdivision: string | null | undefined): st
     return normalizeToTitleCase(trimmed);
 }
 
+/**
+ * Normalizes an address for lookup/matching.
+ * The /properties/batch API returns "STREET, CITY, STATE ZIP" but /buyers/market uses
+ * "STREET, CITY, STATE" (no zip). This strips the zip so we can match batch responses
+ * to our recordsMap keyed by buyers/market format.
+ */
+export function normalizeAddressForLookup(address: string | null | undefined): string | null {
+  if (!address || typeof address !== "string") return null;
+  const trimmed = address.trim();
+  if (!trimmed) return null;
+  // Strip " 12345" or " 12345-6789" from end (zip only, preserve "STREET, CITY, STATE")
+  const withoutZip = trimmed.replace(/\s+\d{5}(-\d{4})?\s*$/i, "").trim();
+  return withoutZip || trimmed;
+}
+
 // Normalizes a company name for comparison by removing punctuation and standardizing format.
 // This helps match variations like:
 export function normalizeCompanyNameForComparison(name: string | null | undefined): string | null {

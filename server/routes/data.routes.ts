@@ -8,7 +8,7 @@ import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState as sfrSyncStateV2 } from "../../database/schemas/sync.schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { normalizeDateToYMD, normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType } from "server/utils/normalization";
+import { normalizeDateToYMD, normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeAddressForLookup } from "server/utils/normalization";
 import { persistSyncState, isFlippingCompany, findAndCacheCompany, addCountiesToCompanyIfNeeded, getTransactionType } from "server/utils/dataSyncHelpers";
 import { 
     createPropertyDataCollectors, 
@@ -324,7 +324,9 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                 }
                 
                 // Get record for this address (from buyers/market)
-                const recordInfo = batchItem.address ? recordsMap.get(batchItem.address) : null;
+                // Batch API returns "STREET, CITY, STATE ZIP" but recordsMap is keyed by "STREET, CITY, STATE"
+                const lookupKey = batchItem.address ? (normalizeAddressForLookup(batchItem.address) || batchItem.address) : null;
+                const recordInfo = lookupKey ? (recordsMap.get(batchItem.address) ?? recordsMap.get(lookupKey)) : null;
                 if (!recordInfo) {
                     console.log(`[${cityCode} SYNC] Skipping property with no record: ${batchItem.address}`);
                     continue;

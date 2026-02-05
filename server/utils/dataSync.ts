@@ -19,6 +19,7 @@ import {
   normalizePropertyType,
   normalizeCompanyNameForStorage,
   normalizeCompanyNameForComparison,
+  normalizeAddressForLookup,
 } from "server/utils/normalization";
 import {
   isFlippingCompany,
@@ -316,7 +317,9 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         const batchAddress = batchItem.address;
         if (!batchAddress) continue;
 
-        const records = recordsMap.get(batchAddress);
+        // Batch API returns "STREET, CITY, STATE ZIP" but recordsMap is keyed by "STREET, CITY, STATE"
+        const lookupKey = normalizeAddressForLookup(batchAddress) || batchAddress;
+        const records = recordsMap.get(batchAddress) ?? recordsMap.get(lookupKey);
         if (!records || records.length === 0) continue;
 
         const propertyData = batchItem.property as Record<string, unknown>;
