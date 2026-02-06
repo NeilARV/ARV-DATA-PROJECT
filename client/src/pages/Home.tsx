@@ -979,11 +979,11 @@ export default function Home() {
     // If we have selectedCompanyId, filter by ID (most reliable - companyId is always filled)
     // Otherwise fallback to name matching for backward compatibility
     if (selectedCompanyId) {
-      // Filter by ID - API already filtered server-side, but double-check for safety
-      // Use companyId (more reliably filled than propertyOwnerId)
-      if (property.companyId !== selectedCompanyId) {
-        return false;
-      }
+      // API returns buyer OR seller matches; companyId only reflects buyer for b2b (seller) properties
+      const bid = property.buyerId ?? null;
+      const sid = property.sellerId ?? null;
+      const matchesCompany = bid === selectedCompanyId || sid === selectedCompanyId;
+      if (!matchesCompany) return false;
     } else if (selectedCompany) {
       // Fallback to name matching (for backward compatibility)
       const companyName = (property.companyName || property.propertyOwner || "").trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1040,12 +1040,12 @@ export default function Home() {
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
-    // Filter by status (case-insensitive comparison)
-    if (filters.statusFilters && filters.statusFilters.length > 0) {
-      const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
-      const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-      if (!normalizedFilters.includes(propertyStatus)) return false;
-    }
+      // Filter by status - skip when company selected (backend returns all statuses for company view)
+      if (!selectedCompanyId && filters.statusFilters && filters.statusFilters.length > 0) {
+        const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
+        const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+        if (!normalizedFilters.includes(propertyStatus)) return false;
+      }
 
     return true;
   });

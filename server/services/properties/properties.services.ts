@@ -88,22 +88,24 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
 
     // Status filter (can be single value or array)
-    if (status) {
-        const statusArray = Array.isArray(status) ? status : [status];
-        if (statusArray.length > 0) {
-            const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
-            if (normalizedStatuses.length === 1) {
-                conditions.push(
-                    sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
-                );
-            } else {
-                // Use OR for multiple status values
-                conditions.push(
-                    or(...normalizedStatuses.map(s => 
-                        sql`LOWER(TRIM(${properties.status})) = ${s}`
-                    )) as any
-                );
-            }
+    // When companyId is provided, show all properties the company was involved with (all statuses)
+    // so GridView/TableView display owned + b2b (sold to other investors) properties
+    const statusesToUse = (companyId && typeof companyId === 'string' && companyId.trim() !== '')
+        ? ['sold', 'in-renovation', 'b2b', 'on-market']
+        : (Array.isArray(status) ? status : status ? [status] : []);
+    if (statusesToUse.length > 0) {
+        const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
+        if (normalizedStatuses.length === 1) {
+            conditions.push(
+                sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
+            );
+        } else {
+            // Use OR for multiple status values
+            conditions.push(
+                or(...normalizedStatuses.map(s =>
+                    sql`LOWER(TRIM(${properties.status})) = ${s}`
+                )) as any
+            );
         }
     }
 
@@ -362,6 +364,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             dateSold: dateSoldStr,
             // Company info (buyer as primary, seller as fallback - companyId for frontend filter/display)
             companyId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),
+            buyerId: prop.buyerId ? String(prop.buyerId) : null,
+            sellerId: prop.sellerId ? String(prop.sellerId) : null,
             companyName: prop.companyName || null,
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,
