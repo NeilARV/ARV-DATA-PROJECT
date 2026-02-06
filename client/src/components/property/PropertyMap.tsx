@@ -26,16 +26,26 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
+const grayIcon = createColoredIcon('#6B7280');
 
 // Selected marker icons (with orange/yellow color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
 
-const getIconForStatus = (status: string | null | undefined, isSelected: boolean = false) => {
+const getIconForStatus = (
+  status: string | null | undefined,
+  isSelected: boolean = false,
+  selectedCompany: string | null | undefined = undefined
+) => {
   if (isSelected) {
     // All selected markers use the same orange color for visibility
     return selectedBlueIcon;
   }
-  
+
+  // b2b: blue (like in-renovation) when no company selected; gray when company selected (sold to another investor)
+  if (status === 'b2b') {
+    return selectedCompany ? grayIcon : blueIcon;
+  }
+
   switch (status) {
     case 'on-market':
       return greenIcon;
@@ -228,7 +238,7 @@ export default function PropertyMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForStatus(pin.status, isSelected)}
+                icon={getIconForStatus(pin.status, isSelected, selectedCompany)}
                 eventHandlers={{
                   click: () => onPropertyClick?.(pin),
                 }}

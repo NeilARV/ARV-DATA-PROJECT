@@ -811,6 +811,7 @@ export default function Home() {
           propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
           propertyStatus === 'on-market' ? sid === selectedCompanyId :
           propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
+          propertyStatus === 'b2b' ? sid === selectedCompanyId : // company sold to another investor
           (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
         if (!isRelevant) {
           return false;
