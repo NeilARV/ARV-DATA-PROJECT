@@ -695,4 +695,3 @@ function omit<T extends Record<string, unknown>>(obj: T, key: string): Omit<T, t
     const { [key]: _, ...rest } = obj;
     return rest as Omit<T, typeof key>;
 }
-

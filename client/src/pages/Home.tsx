@@ -799,10 +799,20 @@ export default function Home() {
   const filteredMapPins = useMemo(() => {
     return mapPins.filter(pin => {
       // Apply company filter first if one is selected
+      // Ownership/participation depends on status:
+      // - in-renovation: only buyer (current owner renovating; seller already sold - don't show)
+      // - on-market: only seller (current owner listing for sale)
+      // - sold: buyer OR seller (company was either party in the sale - show both acquisitions and dispositions)
       if (selectedCompanyId) {
         const bid = (pin as { buyerId?: string | null }).buyerId;
         const sid = (pin as { sellerId?: string | null }).sellerId;
-        if (bid !== selectedCompanyId && sid !== selectedCompanyId) {
+        const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
+        const isRelevant =
+          propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
+          propertyStatus === 'on-market' ? sid === selectedCompanyId :
+          propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
+          (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
+        if (!isRelevant) {
           return false;
         }
       } else if (selectedCompany) {
