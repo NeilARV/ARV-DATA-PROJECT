@@ -41,6 +41,8 @@ const getIconForStatus = (status: string | null | undefined, isSelected: boolean
       return greenIcon;
     case 'sold':
       return charcoalIcon;
+    case 'b2b':
+      return blueIcon
     case 'in-renovation':
     default:
       return blueIcon;

@@ -182,7 +182,7 @@ export async function findAndCacheCompany(
 
 export function getTransactionType(isBuyerCorporate: boolean, isSellerCorporate: boolean): string | null {
     if (isBuyerCorporate && isSellerCorporate) {
-        return "company-to-company";
+        return "b2b";
     }
     if (isBuyerCorporate && !isSellerCorporate) {
         return "acquisition";

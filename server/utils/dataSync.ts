@@ -26,6 +26,7 @@ import {
   findAndCacheCompany,
   addCountiesToCompanyIfNeeded,
   persistSyncState,
+  getTransactionType,
 } from "server/utils/dataSyncHelpers";
 import {
   createPropertyDataCollectors,
@@ -547,6 +548,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         let status: string;
         if (sellerId !== null && buyerId === null) {
           status = "sold";
+        } else if (sellerId !== null && buyerId !== null) { 
+          status = "b2b"
         } else if (propertyListingStatus === "on market" || propertyListingStatus === "on_market") {
           status = "on-market";
         } else {
@@ -686,7 +689,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         transactionDate: string;
         buyerId: string | null;
         sellerId: string | null;
-        transactionType: string;
+        transactionType: string | null;
         salePrice: string | null;
         mtgType: string | null;
         mtgAmount: string | null;
@@ -734,16 +737,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           if (company) txSellerId = company.id;
         }
 
-        let transactionType: string;
-        if (isBuyerCorporate && !isSellerCorporate) {
-          transactionType = "acquisition";
-        } else if (!isBuyerCorporate && isSellerCorporate) {
-          transactionType = "sale";
-        } else if (isBuyerCorporate && isSellerCorporate) {
-          transactionType = "company-to-company";
-        } else {
-          continue;
-        }
+        let transactionType: string | null = getTransactionType(isBuyerCorporate, isSellerCorporate);
 
         const lastSale = (propertyData.last_sale || propertyData.lastSale) as Record<string, unknown> | undefined;
         const salePrice =
@@ -793,7 +787,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           .from(propertyTransactions)
           .where(inArray(propertyTransactions.propertyId, propertyIds));
 
-          // Include buyerId+sellerId so multiple same-day transactions (e.g. company-to-company then sale) are not deduplicated incorrectly
+          // Include buyerId+sellerId so multiple same-day transactions (e.g. b2b then sale) are not deduplicated incorrectly
           const existingKeys = new Set(existingTx.map((e) =>
             `${e.propertyId}-${e.transactionDate}-${e.transactionType}-${e.buyerId ?? ""}-${e.sellerId ?? ""}`
           ));
