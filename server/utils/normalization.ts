@@ -1,5 +1,14 @@
 import { STREET_TYPE_ABBREVIATIONS } from "server/constants/streetTypes.constants";
 
+/** Normalize address for lookup matching - lowercase, trim, collapse multiple spaces. */
+export function normalizeAddressForLookup(addr: string | null | undefined): string | null {
+  if (!addr || typeof addr !== "string") return null;
+  return addr
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 // Helper function to normalize county name from API response
 // Handles formats like "San Diego County, California" -> "San Diego"
 export function normalizeCountyName(county: string | null | undefined): string | null {

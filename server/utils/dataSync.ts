@@ -37,6 +37,9 @@ import {
 
 const DEFAULT_START_DATE = "2025-12-03";
 const BATCH_SIZE = 100;
+const SFR_RATE_LIMIT_DELAY_MS = 1000; // 1 second between SFR API calls to avoid rate limiting
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export interface SyncMSAV2Params {
   msa: string;
@@ -132,6 +135,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     let shouldContinue = true;
 
     while (shouldContinue) {
+      // Rate limit: 1 second delay between SFR API calls (skip before first call)
+      if (pageNum > 1) {
+        await delay(SFR_RATE_LIMIT_DELAY_MS);
+      }
+
       const buyersMarketParams = new URLSearchParams({
         msa,
         sales_date_min: currentMinDate,
@@ -214,9 +222,9 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         boundaryDate = pageLastSaleDate;
       }
 
-      // Persist last_sale_date after each /buyers/market call (furthest sale_date minus 1)
+      // Persist last_sale_date after each /buyers/market call (furthest sale_date minus 2)
       if (pageLastSaleDate && syncStateId) {
-        const saleDateToSet = normalizeDateToYMD(pageLastSaleDate, { subtractDays: 1 });
+        const saleDateToSet = normalizeDateToYMD(pageLastSaleDate, { subtractDays: 2 });
         await db
           .update(sfrSyncState)
           .set({
@@ -240,7 +248,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     console.log(`[${cityCode} SYNC V2] Collected ${addressesArray.length} unique addresses for batch lookup`);
 
     if (addressesArray.length === 0) {
-      const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 1 }) : null;
+      const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 2 }) : null;
       if (syncStateId) {
         await db
           .update(sfrSyncState)
@@ -268,6 +276,9 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     const BATCH_FETCH_SIZE = 100;
 
     for (let i = 0; i < addressesArray.length; i += BATCH_FETCH_SIZE) {
+      // Rate limit: 1 second delay between SFR API calls
+      await delay(SFR_RATE_LIMIT_DELAY_MS);
+
       const batchDataCollectors = createPropertyDataCollectors();
       const batchAddresses = addressesArray.slice(i, i + BATCH_FETCH_SIZE);
       const batchNum = Math.floor(i / BATCH_FETCH_SIZE) + 1;
@@ -804,7 +815,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     }
 
     // Final sync state update
-    const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 1 }) : null;
+    const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 2 }) : null;
     if (syncStateId) {
       await db
         .update(sfrSyncState)
