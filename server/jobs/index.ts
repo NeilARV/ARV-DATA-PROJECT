@@ -52,10 +52,10 @@ export function startScheduledJobs() {
     //     timezone: "America/Los_Angeles"
     // })
 
-    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:15 AM
-    cron.schedule("48 * * * *", syncLosAngelesData, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:15 AM
+    // cron.schedule("59 * * * *", syncLosAngelesData, {
+    //     timezone: "America/Los_Angeles"
+    // })
 
     // // Start Denver-Aurora-Centennial, CO property data sync every night at 2:30 AM
     // cron.schedule("41 * * * *", syncDenverData, {

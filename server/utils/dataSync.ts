@@ -87,6 +87,7 @@ export interface SyncMSAV2Result {
   totalProcessed: number;
   totalInserted: number;
   totalUpdated: number;
+  totalContactsAdded: number;
   dateRange: { from: string; to: string };
   lastSaleDate: string | null;
 }
@@ -110,6 +111,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
   let totalProcessed = 0;
   let totalInserted = 0;
   let totalUpdated = 0;
+  let totalContactsAdded = 0;
   let boundaryDate: string | null = null;
 
   try {
@@ -286,6 +288,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         totalProcessed: 0,
         totalInserted: 0,
         totalUpdated: 0,
+        totalContactsAdded: 0,
         dateRange: { from: minSaleDate, to: boundaryDate || today },
         lastSaleDate: persisted.lastSaleDate,
       };
@@ -297,6 +300,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     const BATCH_FETCH_SIZE = 100;
 
     for (let i = 0; i < addressesArray.length; i += BATCH_FETCH_SIZE) {
+      try {
       // Rate limit: 1 second delay between SFR API calls
       await delay(SFR_RATE_LIMIT_DELAY_MS);
 
@@ -450,6 +454,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
             )
             .onConflictDoNothing({ target: companies.companyName })
             .returning();
+          totalContactsAdded += newCompanies.length;
           for (const company of newCompanies) {
             if (company) {
               const match = uniqueCompaniesToInsert.find(
@@ -832,6 +837,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           }
         }
       }
+      } catch (batchError: unknown) {
+        const batchNum = Math.floor(i / BATCH_FETCH_SIZE) + 1;
+        const totalBatches = Math.ceil(addressesArray.length / BATCH_FETCH_SIZE);
+        console.error(`[${cityCode} SYNC V2] Batch ${batchNum}/${totalBatches} failed, skipping:`, batchError);
+      }
     }
 
     // Final sync state update - only persist after ALL property batches complete successfully
@@ -845,7 +855,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     });
 
     console.log(
-      `[${cityCode} SYNC V2] Complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated`
+      `[${cityCode} SYNC V2] Complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`
     );
 
     return {
@@ -854,6 +864,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       totalProcessed,
       totalInserted,
       totalUpdated,
+      totalContactsAdded,
       dateRange: { from: minSaleDate, to: boundaryDate || today },
       lastSaleDate: persisted.lastSaleDate,
     };
