@@ -455,13 +455,15 @@ export function transformAllPropertyData(
 /**
  * Inserts all property-related data for a single property.
  * This is used by the single property creation endpoint.
+ * @param recordingDateOverride - Optional override for last_sale.recording_date (used during sync)
  */
 export async function insertPropertyRelatedData(
     propertyId: string,
     propertyData: SfrPropertyData,
-    normalizedCounty: string | null
+    normalizedCounty: string | null,
+    recordingDateOverride?: string | null
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty);
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
 
     // Insert each table's data if it exists
     if (data.address) {

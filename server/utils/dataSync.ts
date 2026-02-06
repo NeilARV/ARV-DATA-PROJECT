@@ -29,6 +29,7 @@ import {
   createPropertyDataCollectors,
   collectPropertyData,
   batchInsertPropertyData,
+  insertPropertyRelatedData,
   updatePropertyRelatedDataForExisting,
   addPropertyOneToManyDataIfNew,
   SfrPropertyData,
@@ -551,24 +552,52 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         }
       }
 
-      // Batch update existing properties and their related data
+      // Batch update existing properties and their related data (per-property try/catch for resilience)
+      let updatedCount = 0;
       for (const { id, data, propertyData: propData, normalizedCounty: county, recordInfo: recInfo } of toUpdate) {
-        await db
-          .update(properties)
-          .set({ ...data, updatedAt: sql`now()` })
-          .where(eq(properties.id, id));
+        try {
+          await db
+            .update(properties)
+            .set({ ...data, updatedAt: sql`now()` })
+            .where(eq(properties.id, id));
 
-        const recordingDateFromRecord = normalizeDateToYMD(recInfo.record.recordingDate as string);
-        await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord);
-        await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord);
+          const recordingDateFromRecord = normalizeDateToYMD(recInfo.record.recordingDate as string);
+          await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord);
+          await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord);
+          updatedCount++;
+        } catch (updateError: unknown) {
+          console.error(`[${cityCode} SYNC V2] Failed to update property ${id} (sfr ${propData.property_id}):`, updateError);
+        }
       }
-      totalUpdated += toUpdate.length;
+      totalUpdated += updatedCount;
 
-      // Batch insert new
+      // Batch insert new properties (with fallback to single-insert on batch failure)
       let inserted: Array<{ id: string; sfrPropertyId: number }> = [];
       if (toInsert.length > 0) {
-        inserted = await db.insert(properties).values(toInsert).returning();
-        totalInserted += inserted.length;
+        try {
+          inserted = await db.insert(properties).values(toInsert).returning();
+          totalInserted += inserted.length;
+          console.log(`[${cityCode} SYNC V2] Batch inserted ${inserted.length} properties`);
+        } catch (insertError: unknown) {
+          console.error(`[${cityCode} SYNC V2] Error batch inserting properties:`, insertError);
+          console.error(`[${cityCode} SYNC V2] First property in failed batch:`, toInsert[0]);
+
+          // Fallback: try inserting one at a time
+          for (const propToInsert of toInsert) {
+            try {
+              const [insertedProp] = await db
+                .insert(properties)
+                .values(propToInsert)
+                .returning();
+              if (insertedProp) {
+                inserted.push(insertedProp);
+                totalInserted++;
+              }
+            } catch (singleError: unknown) {
+              console.error(`[${cityCode} SYNC V2] Failed to insert property ${propToInsert.sfrPropertyId}:`, singleError);
+            }
+          }
+        }
       }
 
       // Insert related data for new properties only
@@ -588,7 +617,30 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         );
       }
 
-      await batchInsertPropertyData(batchDataCollectors);
+      try {
+        await batchInsertPropertyData(batchDataCollectors);
+      } catch (batchRelatedError: unknown) {
+        console.error(`[${cityCode} SYNC V2] Error batch inserting property related data:`, batchRelatedError);
+
+        // Fallback: insert related data one property at a time
+        for (const insertedProp of inserted) {
+          const item = validBatchItems.find(
+            (v) => Number(v.propertyData.property_id) === insertedProp.sfrPropertyId
+          );
+          if (!item) continue;
+          try {
+            const recordingDateFromRecord = normalizeDateToYMD(item.recordInfo.record.recordingDate as string);
+            await insertPropertyRelatedData(
+              insertedProp.id,
+              item.propertyData as SfrPropertyData,
+              item.normalizedCounty,
+              recordingDateFromRecord
+            );
+          } catch (singleRelatedError: unknown) {
+            console.error(`[${cityCode} SYNC V2] Failed to insert related data for property ${insertedProp.sfrPropertyId}:`, singleRelatedError);
+          }
+        }
+      }
 
       // -----------------------------------------------------------------------
       // Insert property_transactions: one per /buyers/market record (same property can have multiple sales)
@@ -714,23 +766,39 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           );
 
         if (newTransactions.length > 0) {
-          await db.insert(propertyTransactions).values(
-            newTransactions.map((t) => ({
-              propertyId: t.propertyId,
-              companyId: t.transactionType === "sale" ? t.sellerId : t.buyerId,
-              buyerId: t.buyerId,
-              sellerId: t.sellerId,
-              transactionType: t.transactionType,
-              transactionDate: t.transactionDate,
-              salePrice: t.salePrice,
-              mtgType: t.mtgType,
-              mtgAmount: t.mtgAmount,
-              buyerName: t.buyerName,
-              sellerName: t.sellerName,
-              notes: t.notes,
-            }))
-          );
-          console.log(`[${cityCode} SYNC V2] Inserted ${newTransactions.length} property transactions`);
+          const txValues = newTransactions.map((t) => ({
+            propertyId: t.propertyId,
+            companyId: t.transactionType === "sale" ? t.sellerId : t.buyerId,
+            buyerId: t.buyerId,
+            sellerId: t.sellerId,
+            transactionType: t.transactionType,
+            transactionDate: t.transactionDate,
+            salePrice: t.salePrice,
+            mtgType: t.mtgType,
+            mtgAmount: t.mtgAmount,
+            buyerName: t.buyerName,
+            sellerName: t.sellerName,
+            notes: t.notes,
+          }));
+
+          try {
+            await db.insert(propertyTransactions).values(txValues);
+            console.log(`[${cityCode} SYNC V2] Inserted ${newTransactions.length} property transactions`);
+          } catch (txError: unknown) {
+            console.error(`[${cityCode} SYNC V2] Error batch inserting property transactions:`, txError);
+
+            // Fallback: try inserting one at a time
+            let txInsertedCount = 0;
+            for (const tx of txValues) {
+              try {
+                await db.insert(propertyTransactions).values(tx);
+                txInsertedCount++;
+              } catch (singleTxError: unknown) {
+                console.error(`[${cityCode} SYNC V2] Failed to insert transaction for property ${tx.propertyId}:`, singleTxError);
+              }
+            }
+            console.log(`[${cityCode} SYNC V2] Inserted ${txInsertedCount} transactions individually (fallback)`);
+          }
         }
       }
     }
