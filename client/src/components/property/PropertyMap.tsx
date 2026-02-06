@@ -26,31 +26,44 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
-const grayIcon = createColoredIcon('#6B7280');
+const purpleIcon = createColoredIcon('#9333EA');
 
-// Selected marker icons (with orange/yellow color to stand out)
+// Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
 
-const getIconForStatus = (
-  status: string | null | undefined,
-  isSelected: boolean = false,
-  selectedCompany: string | null | undefined = undefined
+const getIconForPin = (
+  pin: MapPin,
+  isSelected: boolean,
+  selectedCompanyId: string | null | undefined
 ) => {
-  if (isSelected) {
-    // All selected markers use the same orange color for visibility
-    return selectedBlueIcon;
+  if (isSelected) return selectedBlueIcon;
+
+  const status = (pin.status || '').toLowerCase().trim();
+  const bid = pin.buyerId ?? null;
+  const sid = pin.sellerId ?? null;
+
+  // When a company is selected, icon reflects the company's role (buyer vs seller)
+  if (selectedCompanyId) {
+    if (bid === selectedCompanyId) {
+      // Company owns it (buyer) - blue whether in-renovation or b2b (they're actively holding/renovating)
+      return blueIcon;
+    }
+    if (sid === selectedCompanyId) {
+      // Company sold it - red for sold, purple for b2b (sold to another reno company)
+      if (status === 'b2b') return purpleIcon;
+      if (status === 'sold') return charcoalIcon;
+      return blueIcon; // on-market, in-renovation as seller (edge case)
+    }
   }
 
-  // b2b: blue (like in-renovation) when no company selected; gray when company selected (sold to another investor)
-  if (status === 'b2b') {
-    return selectedCompany ? grayIcon : blueIcon;
-  }
-
+  // No company selected - base colors by status
   switch (status) {
     case 'on-market':
       return greenIcon;
     case 'sold':
       return charcoalIcon;
+    case 'b2b':
+      return purpleIcon;
     case 'in-renovation':
     default:
       return blueIcon;
@@ -67,6 +80,7 @@ interface PropertyMapProps {
   selectedProperty?: Property | null;
   isLoading?: boolean;
   selectedCompany?: string | null;
+  selectedCompanyId?: string | null;
   onDeselectCompany?: () => void;
 }
 
@@ -177,6 +191,7 @@ export default function PropertyMap({
   selectedProperty,
   isLoading = false,
   selectedCompany,
+  selectedCompanyId,
   onDeselectCompany
 }: PropertyMapProps) {
   // Filter map pins with valid coordinates for rendering on map
@@ -238,7 +253,7 @@ export default function PropertyMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForStatus(pin.status, isSelected, selectedCompany)}
+                icon={getIconForPin(pin, isSelected, selectedCompanyId)}
                 eventHandlers={{
                   click: () => onPropertyClick?.(pin),
                 }}

@@ -279,15 +279,18 @@ export default function Home() {
     }
     
     // Status filters (can have multiple)
-    if (filters.statusFilters && filters.statusFilters.length > 0) {
-      filters.statusFilters.forEach(status => {
-        params.append('status', status);
-      });
+    // When company selected + in-renovation selected: also fetch b2b so company-as-buyer b2b shows as blue
+    let statuses = filters.statusFilters && filters.statusFilters.length > 0 ? [...filters.statusFilters] : [];
+    if (selectedCompanyId && statuses.includes('in-renovation') && !statuses.includes('b2b')) {
+      statuses = [...statuses, 'b2b'];
+    }
+    if (statuses.length > 0) {
+      statuses.forEach(status => params.append('status', status));
     }
     
     const queryString = params.toString();
     return queryString ? `/api/properties/map?${queryString}` : `/api/properties/map`;
-  }, [filters.county, filters.statusFilters]);
+  }, [filters.county, filters.statusFilters, selectedCompanyId]);
 
 
   // Fetch map pins (minimal data) for map view
@@ -811,7 +814,7 @@ export default function Home() {
           propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
           propertyStatus === 'on-market' ? sid === selectedCompanyId :
           propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
-          propertyStatus === 'b2b' ? sid === selectedCompanyId : // company sold to another investor
+          propertyStatus === 'b2b' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // buyer = owns (blue), seller = sold to reno (purple)
           (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
         if (!isRelevant) {
           return false;
@@ -867,10 +870,15 @@ export default function Home() {
       }
 
       // Filter by status (case-insensitive comparison)
+      // When company selected: b2b (company as buyer) counts as in-renovation for filter purposes
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        if (!normalizedFilters.includes(propertyStatus)) return false;
+        const statusMatches =
+          normalizedFilters.includes(propertyStatus) ||
+          (selectedCompanyId && propertyStatus === 'b2b' && normalizedFilters.includes('in-renovation') &&
+            (pin as { buyerId?: string | null }).buyerId === selectedCompanyId);
+        if (!statusMatches) return false;
       }
 
       return true;
@@ -1365,6 +1373,7 @@ export default function Home() {
                     selectedProperty={selectedProperty}
                     isLoading={isLoadingMapPins}
                     selectedCompany={selectedCompany}
+                    selectedCompanyId={selectedCompanyId}
                     onDeselectCompany={clearCompanySelection}
                   />
                 </div>

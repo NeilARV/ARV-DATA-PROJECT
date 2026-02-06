@@ -499,7 +499,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Status Filter Toggles - Segmented Control */}
-        {/* Colors match map pin colors: blue=#69C9E1, green=#22C55E, red=#FF0000 */}
+        {/* Colors match map pin colors: blue=#69C9E1, green=#22C55E, red=#FF0000, purple=#9333EA */}
         <div className="inline-flex rounded-md border border-border overflow-hidden w-full">
           <button
             onClick={() => toggleStatusFilter("in-renovation")}
@@ -527,7 +527,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
           </button>
           <button
             onClick={() => toggleStatusFilter("sold")}
-            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
               statusFilters.has("sold")
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
@@ -536,6 +536,18 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             data-testid="button-filter-sold"
           >
             Sold
+          </button>
+          <button
+            onClick={() => toggleStatusFilter("b2b")}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              statusFilters.has("b2b")
+                ? "text-white"
+                : "bg-background text-muted-foreground hover:bg-muted"
+            }`}
+            style={statusFilters.has("b2b") ? { backgroundColor: '#9333EA' } : undefined}
+            data-testid="button-filter-b2b"
+          >
+            Sold (B2B)
           </button>
         </div>
 
