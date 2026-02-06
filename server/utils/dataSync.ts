@@ -24,6 +24,7 @@ import {
   isFlippingCompany,
   findAndCacheCompany,
   addCountiesToCompanyIfNeeded,
+  persistSyncState,
 } from "server/utils/dataSyncHelpers";
 import {
   createPropertyDataCollectors,
@@ -222,18 +223,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         boundaryDate = pageLastSaleDate;
       }
 
-      // Persist last_sale_date after each /buyers/market call (furthest sale_date minus 2)
-      if (pageLastSaleDate && syncStateId) {
-        const saleDateToSet = normalizeDateToYMD(pageLastSaleDate, { subtractDays: 2 });
-        await db
-          .update(sfrSyncState)
-          .set({
-            lastSaleDate: saleDateToSet,
-            lastSyncAt: sql`now()`,
-          })
-          .where(eq(sfrSyncState.id, syncStateId));
-        console.log(`[${cityCode} SYNC V2] Persisted last_sale_date: ${saleDateToSet} after page ${pageNum}`);
-      }
+      // NOTE: Do NOT persist here. Persist only after ALL property batches complete successfully.
+      // Otherwise a crash during batch processing would advance lastSaleDate and we'd miss data on next run.
 
       if (buyersMarketData.length < BATCH_SIZE) {
         shouldContinue = false;
@@ -248,17 +239,14 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     console.log(`[${cityCode} SYNC V2] Collected ${addressesArray.length} unique addresses for batch lookup`);
 
     if (addressesArray.length === 0) {
-      const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 2 }) : null;
-      if (syncStateId) {
-        await db
-          .update(sfrSyncState)
-          .set({
-            lastSaleDate: saleDateToSet,
-            totalRecordsSynced: initialTotalSynced,
-            lastSyncAt: sql`now()`,
-          })
-          .where(eq(sfrSyncState.id, syncStateId));
-      }
+      const persisted = await persistSyncState({
+        syncStateId,
+        previousLastSaleDate: syncState.length > 0 ? normalizeDateToYMD(syncState[0].lastSaleDate) : null,
+        initialTotalSynced,
+        processed: 0,
+        finalSaleDate: boundaryDate,
+        cityCode,
+      });
       return {
         success: true,
         msa,
@@ -266,7 +254,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         totalInserted: 0,
         totalUpdated: 0,
         dateRange: { from: minSaleDate, to: boundaryDate || today },
-        lastSaleDate: saleDateToSet,
+        lastSaleDate: persisted.lastSaleDate,
       };
     }
 
@@ -814,18 +802,15 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       }
     }
 
-    // Final sync state update
-    const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 2 }) : null;
-    if (syncStateId) {
-      await db
-        .update(sfrSyncState)
-        .set({
-          lastSaleDate: saleDateToSet,
-          totalRecordsSynced: initialTotalSynced + totalProcessed,
-          lastSyncAt: sql`now()`,
-        })
-        .where(eq(sfrSyncState.id, syncStateId));
-    }
+    // Final sync state update - only persist after ALL property batches complete successfully
+    const persisted = await persistSyncState({
+      syncStateId,
+      previousLastSaleDate: syncState.length > 0 ? normalizeDateToYMD(syncState[0].lastSaleDate) : null,
+      initialTotalSynced,
+      processed: totalProcessed,
+      finalSaleDate: boundaryDate,
+      cityCode,
+    });
 
     console.log(
       `[${cityCode} SYNC V2] Complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated`
@@ -838,10 +823,19 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       totalInserted,
       totalUpdated,
       dateRange: { from: minSaleDate, to: boundaryDate || today },
-      lastSaleDate: saleDateToSet,
+      lastSaleDate: persisted.lastSaleDate,
     };
   } catch (error) {
     console.error(`[${cityCode} SYNC V2] Error syncing ${msa}:`, error);
+    // Preserve original lastSaleDate so next run doesn't skip data; still update last_sync_at
+    await persistSyncState({
+      syncStateId,
+      previousLastSaleDate: syncState.length > 0 ? normalizeDateToYMD(syncState[0].lastSaleDate) : null,
+      initialTotalSynced,
+      processed: totalProcessed,
+      finalSaleDate: null,
+      cityCode,
+    });
     throw error;
   }
 }
