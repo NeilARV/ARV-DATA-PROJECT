@@ -757,11 +757,12 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           .from(propertyTransactions)
           .where(inArray(propertyTransactions.propertyId, propertyIds));
 
-          const existingKeys = new Set(existingTx.map((e) => 
-            `${e.propertyId}-${e.transactionDate}-${e.transactionType}`
+          // Include buyerId+sellerId so multiple same-day transactions (e.g. company-to-company then sale) are not deduplicated incorrectly
+          const existingKeys = new Set(existingTx.map((e) =>
+            `${e.propertyId}-${e.transactionDate}-${e.transactionType}-${e.buyerId ?? ""}-${e.sellerId ?? ""}`
           ));
           const newTransactions = transactionsToInsert.filter(
-            (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}-${t.transactionType}`)
+            (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}-${t.transactionType}-${t.buyerId ?? ""}-${t.sellerId ?? ""}`)
           );
 
         if (newTransactions.length > 0) {
