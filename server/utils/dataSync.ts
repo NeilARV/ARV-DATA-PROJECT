@@ -19,6 +19,7 @@ import {
   normalizePropertyType,
   normalizeCompanyNameForStorage,
   normalizeCompanyNameForComparison,
+  normalizeAddressForLookup,
 } from "server/utils/normalization";
 import {
   isFlippingCompany,
@@ -39,8 +40,37 @@ import {
 const DEFAULT_START_DATE = "2025-12-03";
 const BATCH_SIZE = 100;
 const SFR_RATE_LIMIT_DELAY_MS = 1000; // 1 second between SFR API calls to avoid rate limiting
+const SFR_API_RETRY_ATTEMPTS = 3;
+const SFR_API_RETRY_DELAY_MS = 5000; // 5 seconds between retries
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Fetch with retries. Retries up to maxAttempts times with retryDelayMs between attempts.
+ * Throws after all attempts fail. Use for /buyers/market and /properties/batch so we don't skip properties.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  options: { maxAttempts?: number; retryDelayMs?: number; label?: string } = {}
+): Promise<Response> {
+  const { maxAttempts = SFR_API_RETRY_ATTEMPTS, retryDelayMs = SFR_API_RETRY_DELAY_MS, label = "API" } = options;
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok) return response;
+      lastError = new Error(`${label} returned ${response.status}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+    if (attempt < maxAttempts) {
+      console.warn(`[${label}] Attempt ${attempt}/${maxAttempts} failed, retrying in ${retryDelayMs}ms...`);
+      await delay(retryDelayMs);
+    }
+  }
+  throw lastError ?? new Error(`${label} failed after ${maxAttempts} attempts`);
+}
 
 export interface SyncMSAV2Params {
   msa: string;
@@ -149,17 +179,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         sort: "sale_date",
       });
 
-      const response = await fetch(`${API_URL}/buyers/market?${buyersMarketParams.toString()}`, {
-        method: "GET",
-        headers: { "X-API-TOKEN": API_KEY },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${cityCode} SYNC V2] Buyers market API error on page ${pageNum}: ${response.status} - ${errorText}`);
-        shouldContinue = false;
-        break;
-      }
+      const response = await fetchWithRetry(
+        `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
+        { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+        { label: `${cityCode} SYNC V2 buyers/market page ${pageNum}` }
+      );
 
       const buyersMarketData = await response.json();
 
@@ -238,6 +262,15 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     const addressesArray = Array.from(addressesSet);
     console.log(`[${cityCode} SYNC V2] Collected ${addressesArray.length} unique addresses for batch lookup`);
 
+    // Build normalized address -> canonical key map for fallback when batch API returns different format (spacing, casing)
+    const normalizedToCanonical = new Map<string, string>();
+    for (const key of Array.from(recordsMap.keys())) {
+      const norm = normalizeAddressForLookup(key);
+      if (norm && !normalizedToCanonical.has(norm)) {
+        normalizedToCanonical.set(norm, key);
+      }
+    }
+
     if (addressesArray.length === 0) {
       const persisted = await persistSyncState({
         syncStateId,
@@ -275,19 +308,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       console.log(`[${cityCode} SYNC V2] Fetching batch ${batchNum}/${totalBatches} (${batchAddresses.length} addresses)`);
 
       const addressesParam = batchAddresses.join("|");
-      const batchResponse = await fetch(
+      const batchResponse = await fetchWithRetry(
         `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
-        {
-          method: "GET",
-          headers: { "X-API-TOKEN": API_KEY },
-        }
+        { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+        { label: `${cityCode} SYNC V2 properties/batch ${batchNum}/${totalBatches}` }
       );
-
-      if (!batchResponse.ok) {
-        const errorText = await batchResponse.text();
-        console.error(`[${cityCode} SYNC V2] Batch API error on batch ${batchNum}:`, errorText);
-        continue;
-      }
 
       const batchData = (await batchResponse.json()) as Array<{ address?: string; property?: Record<string, unknown>; error?: unknown }>;
 
@@ -316,7 +341,13 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         const batchAddress = batchItem.address;
         if (!batchAddress) continue;
 
-        const records = recordsMap.get(batchAddress);
+        // Try exact match first, then normalized fallback (batch API may return different spacing/casing)
+        let records = recordsMap.get(batchAddress);
+        if (!records || records.length === 0) {
+          const norm = normalizeAddressForLookup(batchAddress);
+          const canonicalKey = norm ? normalizedToCanonical.get(norm) : null;
+          records = canonicalKey ? recordsMap.get(canonicalKey) : undefined;
+        }
         if (!records || records.length === 0) continue;
 
         const propertyData = batchItem.property as Record<string, unknown>;
