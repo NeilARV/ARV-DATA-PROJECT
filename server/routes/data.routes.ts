@@ -616,8 +616,6 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
                     
                     const propertyRecord: PropertyToInsert = {
                         sfrPropertyId,
-                        companyId,
-                        propertyOwnerId,
                         buyerId,
                         sellerId,
                         propertyClassDescription: propertyData.property_class_description || null,
@@ -792,7 +790,6 @@ export async function syncMSA(msa: string, cityCode: string, API_KEY: string, AP
 
                         transactionsToInsert.push({
                             propertyId,
-                            companyId,
                             buyerId: txBuyerId,
                             sellerId: txSellerId,
                             transactionType,

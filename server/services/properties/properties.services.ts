@@ -62,46 +62,73 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const conditions = []
 
-    // Company filter - match buyer_id OR seller_id
-    if (companyId && typeof companyId === 'string' && companyId.trim() !== '') {
-        const companyIdTrimmed = companyId.trim();
-        conditions.push(
-            or(
-                eq(properties.buyerId, companyIdTrimmed),
-                eq(properties.sellerId, companyIdTrimmed)
-            ) as any
-        );
-    } else {
-        // Fallback to name-based filter (for backward compatibility)
-        const ownerFilter = company || propertyOwner;
-        if (ownerFilter) {
-            const normalizedSearchTerm = normalizeCompanyNameForComparison(ownerFilter.toString());
-            if (normalizedSearchTerm) {
-                conditions.push(
-                    sql`(
-                        LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${buyerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
-                        OR LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${sellerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
-                    )`
-                )
-            }
-        }
-    }
+    const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
+    const hasCompanyFilter = companyIdTrimmed !== '';
 
-    // Status filter - same logic for all (company or not): use client-selected statuses
+    // Status filter - build condition based on whether company is selected
+    // When company selected: status rules depend on buyer/seller role (b2b: buyer=in-renovation, seller=sold-b2b)
     const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
     if (statusesToUse.length > 0) {
         const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
-        if (normalizedStatuses.length === 1) {
-            conditions.push(
-                sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
-            );
+        const inRenovationSelected = normalizedStatuses.includes('in-renovation');
+        const b2bSelected = normalizedStatuses.includes('b2b');
+
+        if (hasCompanyFilter) {
+            // Company selected: status-specific company role logic
+            // - in-renovation: buyer only (company owns/renovates)
+            // - on-market: seller only (company is listing)
+            // - sold: buyer or seller
+            // - b2b: buyer when in-renovation selected, seller when b2b selected
+            const statusParts: ReturnType<typeof sql>[] = [];
+            if (inRenovationSelected) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'in-renovation' AND ${properties.buyerId} = ${companyIdTrimmed})`);
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'b2b' AND ${properties.buyerId} = ${companyIdTrimmed})`);
+            }
+            if (b2bSelected) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'b2b' AND ${properties.sellerId} = ${companyIdTrimmed})`);
+            }
+            if (normalizedStatuses.includes('on-market')) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'on-market' AND ${properties.sellerId} = ${companyIdTrimmed})`);
+            }
+            if (normalizedStatuses.includes('sold')) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'sold' AND (${properties.buyerId} = ${companyIdTrimmed} OR ${properties.sellerId} = ${companyIdTrimmed}))`);
+            }
+            if (statusParts.length > 0) {
+                conditions.push(or(...statusParts) as any);
+            } else {
+                // Company selected but no status filters - show all properties for company
+                conditions.push(
+                    or(
+                        eq(properties.buyerId, companyIdTrimmed),
+                        eq(properties.sellerId, companyIdTrimmed)
+                    ) as any
+                );
+            }
         } else {
-            // Use OR for multiple status values
-            conditions.push(
-                or(...normalizedStatuses.map(s =>
-                    sql`LOWER(TRIM(${properties.status})) = ${s}`
-                )) as any
-            );
+            // No company: simple OR of statuses; also handle name-based company filter
+            const ownerFilter = company || propertyOwner;
+            if (ownerFilter) {
+                const normalizedSearchTerm = normalizeCompanyNameForComparison(ownerFilter.toString());
+                if (normalizedSearchTerm) {
+                    conditions.push(
+                        sql`(
+                            LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${buyerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
+                            OR LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${sellerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
+                        )`
+                    );
+                }
+            }
+            if (normalizedStatuses.length === 1) {
+                conditions.push(
+                    sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
+                );
+            } else {
+                conditions.push(
+                    or(...normalizedStatuses.map(s =>
+                        sql`LOWER(TRIM(${properties.status})) = ${s}`
+                    )) as any
+                );
+            }
         }
     }
 

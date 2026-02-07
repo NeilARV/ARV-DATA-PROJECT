@@ -237,14 +237,18 @@ export default function Home() {
       });
     }
     
-    // Status filters (can have multiple)
+    // Status filters (can have multiple) - all work together with OR
     if (filters.statusFilters && filters.statusFilters.length > 0) {
       const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
-      // When in-renovation is selected, also fetch b2b properties (they're implicitly included)
-      if (normalizedStatusFilters.includes('in-renovation') && !normalizedStatusFilters.includes('b2b')) {
+      // When in-renovation selected and no company: also fetch b2b. When company selected: backend handles it.
+      if (
+        !selectedCompanyId &&
+        normalizedStatusFilters.includes('in-renovation') &&
+        !normalizedStatusFilters.includes('b2b')
+      ) {
         params.append('status', 'b2b');
       }
     }
@@ -283,19 +287,22 @@ export default function Home() {
       params.append('county', filters.county);
     }
     
-    // Status filters (can have multiple) - same as in-renovation, on-market, sold
+    // Status filters (can have multiple) - same as properties query
     if (filters.statusFilters && filters.statusFilters.length > 0) {
       const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => params.append('status', status));
-      // When in-renovation is selected, also fetch b2b properties (they're implicitly included)
-      if (normalizedFilters.includes('in-renovation') && !normalizedFilters.includes('b2b')) {
+      if (
+        !selectedCompanyId &&
+        normalizedFilters.includes('in-renovation') &&
+        !normalizedFilters.includes('b2b')
+      ) {
         params.append('status', 'b2b');
       }
     }
     
     const queryString = params.toString();
     return queryString ? `/api/properties/map?${queryString}` : `/api/properties/map`;
-  }, [filters.county, filters.statusFilters]);
+  }, [filters.county, filters.statusFilters, selectedCompanyId]);
 
 
   // Fetch map pins (minimal data) for map view
@@ -444,8 +451,11 @@ export default function Home() {
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
-      // When in-renovation is selected, also fetch b2b properties (they're implicitly included)
-      if (normalizedStatusFilters.includes('in-renovation') && !normalizedStatusFilters.includes('b2b')) {
+      if (
+        !selectedCompanyId &&
+        normalizedStatusFilters.includes('in-renovation') &&
+        !normalizedStatusFilters.includes('b2b')
+      ) {
         params.append('status', 'b2b');
       }
     }

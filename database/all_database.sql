@@ -393,7 +393,7 @@ CREATE TABLE property_transactions (
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-    transaction_type VARCHAR(50) NOT NULL,
+    transaction_type VARCHAR(50),
     transaction_date DATE NOT NULL,
     sale_price DECIMAL(15, 2),
     mtg_type VARCHAR(100),

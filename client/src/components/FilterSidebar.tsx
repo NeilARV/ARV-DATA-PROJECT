@@ -98,6 +98,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setStatusFilters(prev => {
       const next = new Set(prev);
       if (next.has(status)) {
+        // Prevent deselecting the last one - at least one must always be selected
+        if (next.size <= 1) return prev;
         next.delete(status);
       } else {
         next.add(status);
