@@ -239,9 +239,14 @@ export default function Home() {
     
     // Status filters (can have multiple)
     if (filters.statusFilters && filters.statusFilters.length > 0) {
+      const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
+      // When in-renovation is selected, also fetch b2b properties (they're implicitly included)
+      if (normalizedStatusFilters.includes('in-renovation') && !normalizedStatusFilters.includes('b2b')) {
+        params.append('status', 'b2b');
+      }
     }
     
     // Company filter - use ID if available, otherwise fallback to name
@@ -280,7 +285,12 @@ export default function Home() {
     
     // Status filters (can have multiple) - same as in-renovation, on-market, sold
     if (filters.statusFilters && filters.statusFilters.length > 0) {
+      const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => params.append('status', status));
+      // When in-renovation is selected, also fetch b2b properties (they're implicitly included)
+      if (normalizedFilters.includes('in-renovation') && !normalizedFilters.includes('b2b')) {
+        params.append('status', 'b2b');
+      }
     }
     
     const queryString = params.toString();
@@ -430,9 +440,14 @@ export default function Home() {
     
     // Status filters (can have multiple)
     if (filters.statusFilters && filters.statusFilters.length > 0) {
+      const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
+      // When in-renovation is selected, also fetch b2b properties (they're implicitly included)
+      if (normalizedStatusFilters.includes('in-renovation') && !normalizedStatusFilters.includes('b2b')) {
+        params.append('status', 'b2b');
+      }
     }
     
     // Company filter - use ID if available, otherwise fallback to name
@@ -809,7 +824,7 @@ export default function Home() {
           propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
           propertyStatus === 'on-market' ? sid === selectedCompanyId :
           propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
-          propertyStatus === 'b2b' ? bid === selectedCompanyId : // b2b: only show when company is buyer (owns it)
+          propertyStatus === 'b2b' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // b2b: show when company is buyer or seller
           (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
         if (!isRelevant) {
           return false;
@@ -864,11 +879,17 @@ export default function Home() {
         if (pin.zipcode !== filters.zipCode.trim()) return false;
       }
 
-      // Filter by status (case-insensitive) - same logic for all statuses including b2b
+      // Filter by status (case-insensitive)
+      // When in-renovation is selected, b2b properties are implicitly included
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        if (!normalizedFilters.includes(propertyStatus)) return false;
+        if (!normalizedFilters.includes(propertyStatus)) {
+          // Allow b2b through when in-renovation is selected (b2b is a subset of renovation activity)
+          if (!(propertyStatus === 'b2b' && normalizedFilters.includes('in-renovation'))) {
+            return false;
+          }
+        }
       }
 
       return true;
@@ -1038,11 +1059,17 @@ export default function Home() {
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
-      // Filter by status - same logic for all (including b2b)
+      // Filter by status (case-insensitive)
+      // When in-renovation is selected, b2b properties are implicitly included
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        if (!normalizedFilters.includes(propertyStatus)) return false;
+        if (!normalizedFilters.includes(propertyStatus)) {
+          // Allow b2b through when in-renovation is selected (b2b is a subset of renovation activity)
+          if (!(propertyStatus === 'b2b' && normalizedFilters.includes('in-renovation'))) {
+            return false;
+          }
+        }
       }
 
     return true;
@@ -1365,6 +1392,7 @@ export default function Home() {
                     selectedCompany={selectedCompany}
                     selectedCompanyId={selectedCompanyId}
                     onDeselectCompany={clearCompanySelection}
+                    statusFilters={filters.statusFilters}
                   />
                 </div>
               </>

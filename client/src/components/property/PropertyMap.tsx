@@ -34,22 +34,29 @@ const selectedBlueIcon = createColoredIcon('#FFA500');
 const getIconForPin = (
   pin: MapPin,
   isSelected: boolean,
-  selectedCompanyId: string | null | undefined
+  selectedCompanyId: string | null | undefined,
+  statusFilters: string[]
 ) => {
   if (isSelected) return selectedBlueIcon;
 
   const status = (pin.status || '').toLowerCase().trim();
   const bid = pin.buyerId ?? null;
   const sid = pin.sellerId ?? null;
+  const b2bFilterActive = statusFilters.map(f => f.toLowerCase().trim()).includes('b2b');
 
   // When a company is selected, icon reflects the company's role (buyer vs seller)
   if (selectedCompanyId) {
-    if (bid === selectedCompanyId) {
-      return status === 'b2b' ? purpleIcon : blueIcon;
+    if (status === 'b2b') {
+      // Company is buyer of b2b → always blue (they own it, it's their renovation)
+      if (bid === selectedCompanyId) return blueIcon;
+      // Company is seller of b2b → always purple (sold to another company)
+      if (sid === selectedCompanyId) return purpleIcon;
     }
-    if (sid === selectedCompanyId) {
+    // Non-b2b statuses keep their standard colors
+    if (bid === selectedCompanyId || sid === selectedCompanyId) {
       if (status === 'sold') return charcoalIcon;
-      return status === 'b2b' ? purpleIcon : blueIcon;
+      if (status === 'on-market') return greenIcon;
+      return blueIcon; // in-renovation or default
     }
   }
 
@@ -60,7 +67,9 @@ const getIconForPin = (
     case 'sold':
       return charcoalIcon;
     case 'b2b':
-      return purpleIcon;
+      // If b2b filter is explicitly active → purple (distinguished)
+      // If showing via in-renovation → blue (blends in)
+      return b2bFilterActive ? purpleIcon : blueIcon;
     case 'in-renovation':
     default:
       return blueIcon;
@@ -79,6 +88,7 @@ interface PropertyMapProps {
   selectedCompany?: string | null;
   selectedCompanyId?: string | null;
   onDeselectCompany?: () => void;
+  statusFilters?: string[];
 }
 
 function MapResizeHandler() {
@@ -189,7 +199,8 @@ export default function PropertyMap({
   isLoading = false,
   selectedCompany,
   selectedCompanyId,
-  onDeselectCompany
+  onDeselectCompany,
+  statusFilters = []
 }: PropertyMapProps) {
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -250,7 +261,7 @@ export default function PropertyMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForPin(pin, isSelected, selectedCompanyId)}
+                icon={getIconForPin(pin, isSelected, selectedCompanyId, statusFilters)}
                 eventHandlers={{
                   click: () => onPropertyClick?.(pin),
                 }}
