@@ -26,7 +26,6 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
-const purpleIcon = createColoredIcon('#9333EA');
 
 // Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
@@ -45,25 +44,21 @@ const getIconForPin = (
   // When a company is selected, icon reflects the company's role (buyer vs seller)
   if (selectedCompanyId) {
     if (bid === selectedCompanyId) {
-      // Company owns it (buyer) - blue whether in-renovation or b2b (they're actively holding/renovating)
       return blueIcon;
     }
     if (sid === selectedCompanyId) {
-      // Company sold it - red for sold, purple for b2b (sold to another reno company)
-      if (status === 'b2b') return purpleIcon;
       if (status === 'sold') return charcoalIcon;
-      return blueIcon; // on-market, in-renovation as seller (edge case)
+      return blueIcon; // b2b, on-market, in-renovation as seller
     }
   }
 
-  // No company selected - base colors by status
+  // No company selected - in-renovation and b2b both blue
   switch (status) {
     case 'on-market':
       return greenIcon;
     case 'sold':
       return charcoalIcon;
     case 'b2b':
-      return purpleIcon;
     case 'in-renovation':
     default:
       return blueIcon;
