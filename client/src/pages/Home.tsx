@@ -880,15 +880,36 @@ export default function Home() {
       }
 
       // Filter by status (case-insensitive)
-      // When in-renovation is selected, b2b properties are implicitly included
+      // B2B properties have special rules when a company is selected
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+        const b2bFilterActive = normalizedFilters.includes('b2b');
+        const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
+        
         if (!normalizedFilters.includes(propertyStatus)) {
-          // Allow b2b through when in-renovation is selected (b2b is a subset of renovation activity)
-          if (!(propertyStatus === 'b2b' && normalizedFilters.includes('in-renovation'))) {
-            return false;
+          // Special handling for b2b properties
+          if (propertyStatus === 'b2b') {
+            if (selectedCompanyId) {
+              const bid = (pin as { buyerId?: string | null }).buyerId;
+              const sid = (pin as { sellerId?: string | null }).sellerId;
+              
+              // Company is BUYER of b2b → treat like in-renovation (show when in-renovation selected)
+              if (bid === selectedCompanyId && inRenovationFilterActive) {
+                return true; // Allow through
+              }
+              // Company is SELLER of b2b → only show when b2b filter explicitly active
+              if (sid === selectedCompanyId && !b2bFilterActive) {
+                return false; // Do not show
+              }
+            } else {
+              // No company selected: allow b2b through when in-renovation is selected
+              if (inRenovationFilterActive) {
+                return true;
+              }
+            }
           }
+          return false;
         }
       }
 
@@ -1060,15 +1081,36 @@ export default function Home() {
     }
 
       // Filter by status (case-insensitive)
-      // When in-renovation is selected, b2b properties are implicitly included
+      // B2B properties have special rules when a company is selected
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+        const b2bFilterActive = normalizedFilters.includes('b2b');
+        const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
+        
         if (!normalizedFilters.includes(propertyStatus)) {
-          // Allow b2b through when in-renovation is selected (b2b is a subset of renovation activity)
-          if (!(propertyStatus === 'b2b' && normalizedFilters.includes('in-renovation'))) {
-            return false;
+          // Special handling for b2b properties
+          if (propertyStatus === 'b2b') {
+            if (selectedCompanyId) {
+              const bid = property.buyerId ?? null;
+              const sid = property.sellerId ?? null;
+              
+              // Company is BUYER of b2b → treat like in-renovation (show when in-renovation selected)
+              if (bid === selectedCompanyId && inRenovationFilterActive) {
+                return true; // Allow through
+              }
+              // Company is SELLER of b2b → only show when b2b filter explicitly active
+              if (sid === selectedCompanyId && !b2bFilterActive) {
+                return false; // Do not show
+              }
+            } else {
+              // No company selected: allow b2b through when in-renovation is selected
+              if (inRenovationFilterActive) {
+                return true;
+              }
+            }
           }
+          return false;
         }
       }
 
