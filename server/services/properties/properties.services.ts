@@ -87,12 +87,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    // Status filter (can be single value or array)
-    // When companyId is provided, show all properties the company was involved with (all statuses)
-    // so GridView/TableView display owned + b2b (sold to other investors) properties
-    const statusesToUse = (companyId && typeof companyId === 'string' && companyId.trim() !== '')
-        ? ['sold', 'in-renovation', 'b2b', 'on-market']
-        : (Array.isArray(status) ? status : status ? [status] : []);
+    // Status filter - same logic for all (company or not): use client-selected statuses
+    const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
     if (statusesToUse.length > 0) {
         const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
         if (normalizedStatuses.length === 1) {

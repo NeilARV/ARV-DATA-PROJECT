@@ -278,14 +278,9 @@ export default function Home() {
       params.append('county', filters.county);
     }
     
-    // Status filters (can have multiple)
-    // When in-renovation selected: also fetch b2b (b2b displays as in-renovation, blue icon)
-    let statuses = filters.statusFilters && filters.statusFilters.length > 0 ? [...filters.statusFilters] : [];
-    if (statuses.includes('in-renovation') && !statuses.includes('b2b')) {
-      statuses = [...statuses, 'b2b'];
-    }
-    if (statuses.length > 0) {
-      statuses.forEach(status => params.append('status', status));
+    // Status filters (can have multiple) - same as in-renovation, on-market, sold
+    if (filters.statusFilters && filters.statusFilters.length > 0) {
+      filters.statusFilters.forEach(status => params.append('status', status));
     }
     
     const queryString = params.toString();
@@ -869,15 +864,11 @@ export default function Home() {
         if (pin.zipcode !== filters.zipCode.trim()) return false;
       }
 
-      // Filter by status (case-insensitive comparison)
-      // b2b counts as in-renovation when in-renovation selected (both display as blue)
+      // Filter by status (case-insensitive) - same logic for all statuses including b2b
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        const statusMatches =
-          normalizedFilters.includes(propertyStatus) ||
-          (propertyStatus === 'b2b' && normalizedFilters.includes('in-renovation'));
-        if (!statusMatches) return false;
+        if (!normalizedFilters.includes(propertyStatus)) return false;
       }
 
       return true;
@@ -1047,8 +1038,8 @@ export default function Home() {
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
-      // Filter by status - skip when company selected (backend returns all statuses for company view)
-      if (!selectedCompanyId && filters.statusFilters && filters.statusFilters.length > 0) {
+      // Filter by status - same logic for all (including b2b)
+      if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
         if (!normalizedFilters.includes(propertyStatus)) return false;

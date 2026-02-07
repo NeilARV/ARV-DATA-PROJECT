@@ -26,6 +26,7 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
+const purpleIcon = createColoredIcon('#9333EA'); // B2B properties
 
 // Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
@@ -44,21 +45,22 @@ const getIconForPin = (
   // When a company is selected, icon reflects the company's role (buyer vs seller)
   if (selectedCompanyId) {
     if (bid === selectedCompanyId) {
-      return blueIcon;
+      return status === 'b2b' ? purpleIcon : blueIcon;
     }
     if (sid === selectedCompanyId) {
       if (status === 'sold') return charcoalIcon;
-      return blueIcon; // b2b, on-market, in-renovation as seller
+      return status === 'b2b' ? purpleIcon : blueIcon;
     }
   }
 
-  // No company selected - in-renovation and b2b both blue
+  // No company selected - status-based colors
   switch (status) {
     case 'on-market':
       return greenIcon;
     case 'sold':
       return charcoalIcon;
     case 'b2b':
+      return purpleIcon;
     case 'in-renovation':
     default:
       return blueIcon;
