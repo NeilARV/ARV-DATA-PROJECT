@@ -1310,6 +1310,14 @@ export default function Home() {
     }
   };
 
+  // Handle property click from grid/table - fetch full property data (includes buyer/seller)
+  const handlePropertyClick = async (property: Property) => {
+    const fullProperty = await fetchPropertyById(property.id);
+    if (fullProperty) {
+      setSelectedProperty(fullProperty);
+    }
+  };
+
   // Calculate total properties owned by selected company
   // For map view, count from mapPins. For grid/table views, use the API response total which respects county filter
   const totalCompanyProperties = useMemo(() => {
@@ -1456,7 +1464,7 @@ export default function Home() {
                 totalCompanyProperties={totalCompanyProperties}
                 totalFilteredProperties={totalFilteredProperties}
                 hasActiveFilters={hasActiveFilters}
-                onPropertyClick={setSelectedProperty}
+                onPropertyClick={handlePropertyClick}
                 onClearCompanyFilter={clearCompanySelection}
                 onClearFilters={handleClearAllFilters}
                 propertiesHasMore={propertiesHasMore}
@@ -1481,7 +1489,7 @@ export default function Home() {
                   hasActiveFilters={hasActiveFilters}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onPropertyClick={setSelectedProperty}
+                  onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
@@ -1508,7 +1516,7 @@ export default function Home() {
                   hasActiveFilters={hasActiveFilters}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onPropertyClick={setSelectedProperty}
+                  onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
