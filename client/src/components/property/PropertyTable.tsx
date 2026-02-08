@@ -11,6 +11,23 @@ import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
 
+// Status dot colors match PropertyMap.tsx map ping colors
+const STATUS_COLORS = {
+  Renovating: "#69C9E1",
+  Sold: "#FF0000",
+  OnMarket: "#22C55E",
+  Wholesale: "#9333EA",
+};
+
+function getStatusDots(status: string): string[] {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "in-renovation") return [STATUS_COLORS.Renovating];
+  if (s === "sold") return [STATUS_COLORS.Sold];
+  if (s === "on-market") return [STATUS_COLORS.OnMarket];
+  if (s === "b2b") return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
+  return [STATUS_COLORS.Renovating];
+}
+
 interface PropertyTableProps {
   properties: Property[];
   onPropertyClick: (property: Property) => void;
@@ -109,6 +126,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-8 px-2" />
             <TableHead className="min-w-[200px]">
               <SortButton column="address">Address</SortButton>
             </TableHead>
@@ -149,6 +167,18 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
               className="cursor-pointer hover-elevate"
               data-testid={`row-property-${property.id}`}
             >
+              <TableCell className="w-8 px-2 align-middle">
+                <div className="flex flex-col gap-1 items-center justify-center">
+                  {getStatusDots(property.status).map((color, i) => (
+                    <span
+                      key={i}
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                      data-testid={`status-dot-${property.id}-${i}`}
+                    />
+                  ))}
+                </div>
+              </TableCell>
               <TableCell className="font-medium">
                 <div>{property.address}</div>
                 <div className="text-xs text-muted-foreground">
@@ -188,7 +218,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
           ))}
           {sortedProperties.length === 0 && (
             <TableRow>
-              <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                 No properties found
               </TableCell>
             </TableRow>
