@@ -11,7 +11,7 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // Check property market status every night at 1:15 AM
+    // Check property market status every night at 12:30 AM
     cron.schedule("30 0 * * *", UpdatePropertyStatus, {
         timezone: "America/Los_Angeles"
     })
@@ -21,7 +21,7 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:0 AM
+    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:00 AM
     cron.schedule("0 2 * * *", syncLosAngelesData, {
         timezone: "America/Los_Angeles"
     })
