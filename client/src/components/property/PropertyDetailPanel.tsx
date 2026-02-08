@@ -148,6 +148,7 @@ export default function PropertyDetailPanel({
   if (!property) return null;
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
+  const priceLabel = (property.status || "").toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price";
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
@@ -182,7 +183,7 @@ export default function PropertyDetailPanel({
 
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Purchase Price</p>
+            <p className="text-xs text-muted-foreground mb-1">{priceLabel}</p>
             <div className="text-2xl font-bold" data-testid="text-panel-price">
               ${property.price.toLocaleString()}
             </div>

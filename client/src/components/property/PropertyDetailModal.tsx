@@ -150,6 +150,7 @@ export default function PropertyDetailModal({
   if (!property) return null;
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
+  const priceLabel = (property.status || "").toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price";
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
@@ -178,7 +179,7 @@ export default function PropertyDetailModal({
 
           <div className="space-y-3">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Purchase Price</p>
+              <p className="text-sm text-muted-foreground mb-1">{priceLabel}</p>
               <div className="text-3xl font-bold" data-testid="text-detail-price">
                 ${property.price.toLocaleString()}
               </div>
