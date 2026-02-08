@@ -165,14 +165,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    // Bedrooms filter (exact match) - from structures table
+    // Bedrooms filter (minimum bedrooms) - from structures table
     if (bedrooms) {
         const bedroomsStr = bedrooms.toString().trim().toLowerCase();
         if (bedroomsStr !== 'any') {
             const bedroomsNum = parseInt(bedroomsStr, 10);
             if (!isNaN(bedroomsNum)) {
                 conditions.push(
-                    sql`${structures.bedsCount} = ${bedroomsNum}`
+                    sql`${structures.bedsCount} >= ${bedroomsNum}`
                 )
             }
         }
