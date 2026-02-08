@@ -95,8 +95,10 @@ export default function PropertyDetailModal({
     }
 
     // Create mailto link
-    const subject = `Contact Request for ${property?.companyContactName || 'Property'}`;
-    const body = `Name: ${requestName}\nEmail: ${requestEmail}\n\nRequesting contact information for:\nProperty: ${property?.address}\nCompany Contact: ${property?.companyContactName}`;
+    const contactNames = [property?.buyerContactName, property?.sellerContactName].filter(Boolean).join(', ') || 'Property';
+    const companyNames = [property?.buyerCompanyName, property?.sellerCompanyName].filter(Boolean).join(', ');
+    const subject = `Contact Request for ${contactNames}`;
+    const body = `Name: ${requestName}\nEmail: ${requestEmail}\n\nRequesting contact information for:\nProperty: ${property?.address}\n${companyNames ? `Companies: ${companyNames}\n` : ''}${contactNames !== 'Property' ? `Contacts: ${contactNames}` : ''}`;
     const mailtoLink = `mailto:neil@arvfinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
     window.location.href = mailtoLink;
@@ -147,7 +149,7 @@ export default function PropertyDetailModal({
 
   if (!property) return null;
 
-  const pricePerSqft = Math.round(property.price / property.squareFeet);
+  const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
@@ -214,52 +216,10 @@ export default function PropertyDetailModal({
                 <div className="font-medium">${pricePerSqft}</div>
               </div>
 
-              {(property.companyName || property.propertyOwner) && (
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Company</div>
-                  <div className="flex items-start gap-1">
-                    <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    {onCompanyNameClick ? (
-                      <button
-                        onClick={() => {
-                          const companyName = property.companyName || property.propertyOwner;
-                          const companyId = property.companyId || property.propertyOwnerId;
-                          onCompanyNameClick(companyName!, companyId || undefined, true);
-                          onClose(); // Close modal so user can see company directory
-                        }}
-                        className="font-medium text-primary hover:underline text-left"
-                        data-testid="text-company-name"
-                      >
-                        {property.companyName || property.propertyOwner}
-                      </button>
-                    ) : (
-                      <span className="font-medium" data-testid="text-company-name">{property.companyName || property.propertyOwner}</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {daysOwned !== null && (
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Days Owned</div>
                   <div className="font-medium">{daysOwned} days</div>
-                </div>
-              )}
-
-              {property.companyContactName && (
-                <div className="col-span-2">
-                  <div className="text-sm text-muted-foreground mb-1">Company Contact</div>
-                  <div className="font-medium mb-2" data-testid="text-company-contact">
-                    {property.companyContactName}
-                  </div>
-                  <Button 
-                    size="sm"
-                    variant="default"
-                    onClick={handleRequestContact}
-                    data-testid="button-request-contact"
-                  >
-                    Request Contact
-                  </Button>
                 </div>
               )}
 
@@ -270,6 +230,78 @@ export default function PropertyDetailModal({
                     <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <span className="font-medium">{formattedDateSold}</span>
                   </div>
+                </div>
+              )}
+
+              {/* Buyer Company */}
+              {property.buyerCompanyName && (
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">Buyer</div>
+                  <div className="flex items-start gap-1">
+                    <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    {onCompanyNameClick ? (
+                      <button
+                        onClick={() => {
+                          onCompanyNameClick(property.buyerCompanyName!, property.buyerId || undefined, true);
+                          onClose();
+                        }}
+                        className="font-medium text-primary hover:underline text-left"
+                        data-testid="text-buyer-company-name"
+                      >
+                        {property.buyerCompanyName}
+                      </button>
+                    ) : (
+                      <span className="font-medium" data-testid="text-buyer-company-name">{property.buyerCompanyName}</span>
+                    )}
+                  </div>
+                  {property.buyerContactName && (
+                    <div className="text-sm text-muted-foreground mt-1 ml-5">
+                      Contact: {property.buyerContactName}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Seller Company */}
+              {property.sellerCompanyName && (
+                <div>
+                  <div className="text-sm text-muted-foreground mb-1">Seller</div>
+                  <div className="flex items-start gap-1">
+                    <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    {onCompanyNameClick ? (
+                      <button
+                        onClick={() => {
+                          onCompanyNameClick(property.sellerCompanyName!, property.sellerId || undefined, true);
+                          onClose();
+                        }}
+                        className="font-medium text-primary hover:underline text-left"
+                        data-testid="text-seller-company-name"
+                      >
+                        {property.sellerCompanyName}
+                      </button>
+                    ) : (
+                      <span className="font-medium" data-testid="text-seller-company-name">{property.sellerCompanyName}</span>
+                    )}
+                  </div>
+                  {property.sellerContactName && (
+                    <div className="text-sm text-muted-foreground mt-1 ml-5">
+                      Contact: {property.sellerContactName}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Request Contact button - show if either buyer or seller has a contact */}
+              {(property.buyerContactName || property.sellerContactName) && (
+                <div className="col-span-2">
+                  <Button 
+                    size="sm"
+                    variant="default"
+                    onClick={handleRequestContact}
+                    data-testid="button-request-contact"
+                  >
+                    Request Contact
+                  </Button>
                 </div>
               )}
 
