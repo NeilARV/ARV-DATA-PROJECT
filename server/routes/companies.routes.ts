@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import { companies } from "../../database/schemas/companies.schema";
-import { properties, addresses } from "../../database/schemas/properties.schema";
+import { properties, addresses, propertyTransactions } from "../../database/schemas/properties.schema";
 import { updateCompanySchema } from "../../database/updates/companies.update";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
-import { sql, eq, or } from "drizzle-orm";
+import { sql, eq, or, and, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const router = Router();
@@ -207,7 +207,7 @@ router.get("/leaderboard", async (req, res) => {
     }
 });
 
-// Get a single company by ID
+// Get a single company by ID (includes propertiesSoldCount from property_transactions)
 router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
@@ -224,9 +224,61 @@ router.get("/:id", async (req, res) => {
             });
         }
 
-        const result = contact[0]
+        const result = contact[0];
 
-        res.json(result);
+        // Count properties where this company is the seller in property_transactions
+        const [sellerCountResult] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(propertyTransactions)
+            .where(eq(propertyTransactions.sellerId, id));
+
+        const propertiesSoldCount = sellerCountResult?.count ?? 0;
+
+        // 90-day acquisition activity: properties where company is buyer_id in last 90 days
+        const now = new Date();
+        const ninetyDaysAgo = new Date(now);
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
+        const todayStr = now.toISOString().slice(0, 10);
+
+        const acquisitions90Day = await db
+            .select({ transactionDate: propertyTransactions.transactionDate })
+            .from(propertyTransactions)
+            .where(
+                and(
+                    eq(propertyTransactions.buyerId, id),
+                    eq(propertyTransactions.transactionType, "acquisition"),
+                    gte(propertyTransactions.transactionDate, ninetyDaysAgoStr),
+                    lte(propertyTransactions.transactionDate, todayStr)
+                )
+            );
+
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const months: { key: string; count: number }[] = [];
+        for (let i = 2; i >= 0; i--) {
+            const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push({ key: monthNames[monthDate.getMonth()], count: 0 });
+        }
+
+        acquisitions90Day.forEach((row) => {
+            const dateStr = row.transactionDate;
+            if (typeof dateStr === "string") {
+                const [y, m] = dateStr.split("-").map(Number);
+                const monthKey = monthNames[m - 1];
+                const existing = months.find((m) => m.key === monthKey);
+                if (existing) existing.count++;
+            }
+        });
+
+        const acquisition90DayTotal = acquisitions90Day.length;
+        const acquisition90DayByMonth = months;
+
+        res.json({
+            ...result,
+            propertiesSoldCount,
+            acquisition90DayTotal,
+            acquisition90DayByMonth,
+        });
 
     } catch (error) {
         console.error("Error fetching company:", error);

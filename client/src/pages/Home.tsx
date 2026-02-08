@@ -1392,6 +1392,7 @@ export default function Home() {
             onSwitchToFilters={() => setSidebarView("filters")}
             onCompanySelect={handleCompanySelect}
             selectedCompany={selectedCompany}
+            selectedCompanyId={selectedCompanyId}
             filters={filters}
             onFilterChange={setFilters}
           />
