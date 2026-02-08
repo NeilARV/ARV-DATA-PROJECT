@@ -192,7 +192,7 @@ export default function PropertyDetailModal({
                 No image available
               </div>
             )}
-            <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+            <div className="absolute top-2 right-2 flex gap-1 items-end">
               {getStatusTags(property.status).map((tag) => (
                 <span
                   key={tag.label}
