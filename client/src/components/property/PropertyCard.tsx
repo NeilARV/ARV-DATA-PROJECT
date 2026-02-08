@@ -5,6 +5,23 @@ import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { format, parseISO, isValid } from "date-fns";
 
+// Status tag colors match PropertyMap.tsx map ping colors
+const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
+  "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#0f172a" },
+  "Sold": { label: "Sold", bg: "#FF0000", text: "#fff" },
+  "On Market": { label: "On Market", bg: "#22C55E", text: "#fff" },
+  "Wholesale": { label: "Wholesale", bg: "#9333EA", text: "#fff" },
+};
+
+function getStatusTags(status: string): { label: string; bg: string; text: string }[] {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "in-renovation") return [STATUS_TAG_STYLES["Renovating"]];
+  if (s === "sold") return [STATUS_TAG_STYLES["Sold"]];
+  if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
+  if (s === "b2b") return [STATUS_TAG_STYLES["Wholesale"], STATUS_TAG_STYLES["Renovating"]];
+  return [STATUS_TAG_STYLES["Renovating"]]; // default fallback
+}
+
 interface PropertyCardProps {
   property: Property;
   onClick?: () => void;
@@ -57,7 +74,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
       onClick={onClick}
       data-testid={`card-property-${property.id}`}
     >
-      <div className="aspect-[4/3] overflow-hidden bg-muted">
+      <div className="aspect-[4/3] overflow-hidden bg-muted relative">
         {isLoading ? (
           <div className="w-full h-full flex items-center justify-center text-muted-foreground">
             Loading...
@@ -74,6 +91,18 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
             No image available
           </div>
         )}
+        <div className="absolute top-2 right-2 flex gap-2 items-end">
+          {getStatusTags(property.status).map((tag) => (
+            <span
+              key={tag.label}
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-sm"
+              style={{ backgroundColor: tag.bg, color: tag.text }}
+              data-testid={`tag-${tag.label.toLowerCase().replace(/\s/g, "-")}-${property.id}`}
+            >
+              {tag.label}
+            </span>
+          ))}
+        </div>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between mb-1">
