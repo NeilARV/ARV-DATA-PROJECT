@@ -525,7 +525,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             style={statusFilters.has("b2b") ? { backgroundColor: '#9333EA' } : undefined}
             data-testid="button-filter-b2b"
           >
-            Sold (B2B)
+            Wholesale
           </button>
           <button
             onClick={() => toggleStatusFilter("on-market")}
