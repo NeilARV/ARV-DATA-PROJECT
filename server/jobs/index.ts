@@ -41,8 +41,14 @@ export function startScheduledJobs() {
     })
 
     // MSA-specific email updates: users who have that MSA selected get 3 most recent properties for that MSA
-    // cron.schedule("44 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
-    // cron.schedule("45 * * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
-    // cron.schedule("42 * * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
-    // cron.schedule("43 * * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("0 10 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("30 10 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("0 11 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
+
+    // cron.schedule("33 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("34 * * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("35 * * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("36 * * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
+    
 }

@@ -91,9 +91,16 @@ CREATE UNIQUE INDEX sfr_sync_state_msa_key ON sfr_sync_state(msa);
 
 COMMENT ON TABLE sfr_sync_state IS 'Tracks synchronization state for Single Family Residential properties by MSA';
 
+-- Email sync state table
 CREATE TABLE email_sync_state (
     id SERIAL PRIMARY KEY,
-)
+    msa VARCHAR(255) UNIQUE NOT NULL,
+    last_email_sent DATE,
+    last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_address_used VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ============================================================================
 -- PROPERTY DATA TABLES

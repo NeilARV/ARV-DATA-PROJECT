@@ -3,7 +3,8 @@ import { db } from "server/storage";
 import { users } from "../../database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "../../database/schemas/msas.schema";
 import { properties, addresses, lastSales } from "../../database/schemas/properties.schema";
-import { eq, desc, and } from "drizzle-orm";
+import { emailSyncState } from "../../database/schemas/sync.schema";
+import { eq, and, sql } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
 
 const PROPERTY_COUNT = 3;
@@ -101,7 +102,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return;
     }
 
-    // 3 most recent properties for this MSA
+    // 3 most recently sold properties for this MSA — same order as GridView "Recently Sold" (properties.services: nulls last, then sale_date DESC)
     const recentProperties = await db
       .select({
         address: addresses.formattedStreetAddress,
@@ -114,12 +115,30 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
       .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
       .where(eq(properties.msa, msaName))
-      .orderBy(desc(properties.createdAt))
+      .orderBy(
+        sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
+        sql`CAST(${lastSales.saleDate} AS DATE) DESC`
+      )
       .limit(PROPERTY_COUNT);
 
     if (recentProperties.length === 0) {
       console.log(`[EMAIL ${msaName}]: No properties in database for this MSA, skipping send`);
       return;
+    }
+
+    const recentAddresses = recentProperties.map((p) => (p.address ?? "").trim());
+    const [syncState] = await db
+      .select()
+      .from(emailSyncState)
+      .where(eq(emailSyncState.msa, msaName))
+      .limit(1);
+
+    if (syncState?.lastAddressUsed) {
+      const lastUsed = syncState.lastAddressUsed.trim();
+      if (recentAddresses.includes(lastUsed)) {
+        console.log(`[EMAIL ${msaName}]: No new properties (last sent address still in top 3), skipping send`);
+        return;
+      }
     }
 
     const propertiesForTemplate = await Promise.all(
@@ -165,7 +184,31 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
     }
 
-    console.log(`[EMAIL ${msaName}]: Sent ${uniqueUsers.length} email(s)`);
+    const mostRecentAddress = recentAddresses[0] ?? null;
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+
+    if (syncState) {
+      await db
+        .update(emailSyncState)
+        .set({
+          lastAddressUsed: mostRecentAddress,
+          lastEmailSent: today,
+          lastEmailAt: now,
+          updatedAt: now,
+        })
+        .where(eq(emailSyncState.msa, msaName));
+    } else {
+      await db.insert(emailSyncState).values({
+        msa: msaName,
+        lastAddressUsed: mostRecentAddress,
+        lastEmailSent: today,
+        lastEmailAt: now,
+        updatedAt: now,
+      });
+    }
+
+    console.log(`[EMAIL ${msaName}]: Sent ${uniqueUsers.length} email(s), updated sync state`);
   } catch (error) {
     console.error(`[EMAIL ${msaName}]: Error -`, error);
     throw error;
