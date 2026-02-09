@@ -19,16 +19,20 @@ import {
   normalizePropertyType,
   normalizeCompanyNameForStorage,
   normalizeCompanyNameForComparison,
+  normalizeAddressForLookup,
 } from "server/utils/normalization";
 import {
   isFlippingCompany,
   findAndCacheCompany,
   addCountiesToCompanyIfNeeded,
+  persistSyncState,
+  getTransactionType,
 } from "server/utils/dataSyncHelpers";
 import {
   createPropertyDataCollectors,
   collectPropertyData,
   batchInsertPropertyData,
+  insertPropertyRelatedData,
   updatePropertyRelatedDataForExisting,
   addPropertyOneToManyDataIfNew,
   SfrPropertyData,
@@ -36,6 +40,38 @@ import {
 
 const DEFAULT_START_DATE = "2025-12-03";
 const BATCH_SIZE = 100;
+const SFR_RATE_LIMIT_DELAY_MS = 1000; // 1 second between SFR API calls to avoid rate limiting
+const SFR_API_RETRY_ATTEMPTS = 3;
+const SFR_API_RETRY_DELAY_MS = 5000; // 5 seconds between retries
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Fetch with retries. Retries up to maxAttempts times with retryDelayMs between attempts.
+ * Throws after all attempts fail. Use for /buyers/market and /properties/batch so we don't skip properties.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  options: { maxAttempts?: number; retryDelayMs?: number; label?: string } = {}
+): Promise<Response> {
+  const { maxAttempts = SFR_API_RETRY_ATTEMPTS, retryDelayMs = SFR_API_RETRY_DELAY_MS, label = "API" } = options;
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok) return response;
+      lastError = new Error(`${label} returned ${response.status}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+    if (attempt < maxAttempts) {
+      console.warn(`[${label}] Attempt ${attempt}/${maxAttempts} failed, retrying in ${retryDelayMs}ms...`);
+      await delay(retryDelayMs);
+    }
+  }
+  throw lastError ?? new Error(`${label} failed after ${maxAttempts} attempts`);
+}
 
 export interface SyncMSAV2Params {
   msa: string;
@@ -52,6 +88,7 @@ export interface SyncMSAV2Result {
   totalProcessed: number;
   totalInserted: number;
   totalUpdated: number;
+  totalContactsAdded: number;
   dateRange: { from: string; to: string };
   lastSaleDate: string | null;
 }
@@ -75,6 +112,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
   let totalProcessed = 0;
   let totalInserted = 0;
   let totalUpdated = 0;
+  let totalContactsAdded = 0;
   let boundaryDate: string | null = null;
 
   try {
@@ -131,6 +169,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     let shouldContinue = true;
 
     while (shouldContinue) {
+      // Rate limit: 1 second delay between SFR API calls (skip before first call)
+      if (pageNum > 1) {
+        await delay(SFR_RATE_LIMIT_DELAY_MS);
+      }
+
       const buyersMarketParams = new URLSearchParams({
         msa,
         sales_date_min: currentMinDate,
@@ -139,17 +182,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         sort: "sale_date",
       });
 
-      const response = await fetch(`${API_URL}/buyers/market?${buyersMarketParams.toString()}`, {
-        method: "GET",
-        headers: { "X-API-TOKEN": API_KEY },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${cityCode} SYNC V2] Buyers market API error on page ${pageNum}: ${response.status} - ${errorText}`);
-        shouldContinue = false;
-        break;
-      }
+      const response = await fetchWithRetry(
+        `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
+        { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+        { label: `${cityCode} SYNC V2 buyers/market page ${pageNum}` }
+      );
 
       const buyersMarketData = await response.json();
 
@@ -213,18 +250,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         boundaryDate = pageLastSaleDate;
       }
 
-      // Persist last_sale_date after each /buyers/market call (furthest sale_date minus 1)
-      if (pageLastSaleDate && syncStateId) {
-        const saleDateToSet = normalizeDateToYMD(pageLastSaleDate, { subtractDays: 1 });
-        await db
-          .update(sfrSyncState)
-          .set({
-            lastSaleDate: saleDateToSet,
-            lastSyncAt: sql`now()`,
-          })
-          .where(eq(sfrSyncState.id, syncStateId));
-        console.log(`[${cityCode} SYNC V2] Persisted last_sale_date: ${saleDateToSet} after page ${pageNum}`);
-      }
+      // NOTE: Do NOT persist here. Persist only after ALL property batches complete successfully.
+      // Otherwise a crash during batch processing would advance lastSaleDate and we'd miss data on next run.
 
       if (buyersMarketData.length < BATCH_SIZE) {
         shouldContinue = false;
@@ -238,26 +265,33 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     const addressesArray = Array.from(addressesSet);
     console.log(`[${cityCode} SYNC V2] Collected ${addressesArray.length} unique addresses for batch lookup`);
 
-    if (addressesArray.length === 0) {
-      const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 1 }) : null;
-      if (syncStateId) {
-        await db
-          .update(sfrSyncState)
-          .set({
-            lastSaleDate: saleDateToSet,
-            totalRecordsSynced: initialTotalSynced,
-            lastSyncAt: sql`now()`,
-          })
-          .where(eq(sfrSyncState.id, syncStateId));
+    // Build normalized address -> canonical key map for fallback when batch API returns different format (spacing, casing)
+    const normalizedToCanonical = new Map<string, string>();
+    for (const key of Array.from(recordsMap.keys())) {
+      const norm = normalizeAddressForLookup(key);
+      if (norm && !normalizedToCanonical.has(norm)) {
+        normalizedToCanonical.set(norm, key);
       }
+    }
+
+    if (addressesArray.length === 0) {
+      const persisted = await persistSyncState({
+        syncStateId,
+        previousLastSaleDate: syncState.length > 0 ? normalizeDateToYMD(syncState[0].lastSaleDate) : null,
+        initialTotalSynced,
+        processed: 0,
+        finalSaleDate: boundaryDate,
+        cityCode,
+      });
       return {
         success: true,
         msa,
         totalProcessed: 0,
         totalInserted: 0,
         totalUpdated: 0,
+        totalContactsAdded: 0,
         dateRange: { from: minSaleDate, to: boundaryDate || today },
-        lastSaleDate: saleDateToSet,
+        lastSaleDate: persisted.lastSaleDate,
       };
     }
 
@@ -267,6 +301,10 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
     const BATCH_FETCH_SIZE = 100;
 
     for (let i = 0; i < addressesArray.length; i += BATCH_FETCH_SIZE) {
+      try {
+      // Rate limit: 1 second delay between SFR API calls
+      await delay(SFR_RATE_LIMIT_DELAY_MS);
+
       const batchDataCollectors = createPropertyDataCollectors();
       const batchAddresses = addressesArray.slice(i, i + BATCH_FETCH_SIZE);
       const batchNum = Math.floor(i / BATCH_FETCH_SIZE) + 1;
@@ -275,19 +313,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       console.log(`[${cityCode} SYNC V2] Fetching batch ${batchNum}/${totalBatches} (${batchAddresses.length} addresses)`);
 
       const addressesParam = batchAddresses.join("|");
-      const batchResponse = await fetch(
+      const batchResponse = await fetchWithRetry(
         `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
-        {
-          method: "GET",
-          headers: { "X-API-TOKEN": API_KEY },
-        }
+        { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+        { label: `${cityCode} SYNC V2 properties/batch ${batchNum}/${totalBatches}` }
       );
-
-      if (!batchResponse.ok) {
-        const errorText = await batchResponse.text();
-        console.error(`[${cityCode} SYNC V2] Batch API error on batch ${batchNum}:`, errorText);
-        continue;
-      }
 
       const batchData = (await batchResponse.json()) as Array<{ address?: string; property?: Record<string, unknown>; error?: unknown }>;
 
@@ -316,7 +346,13 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         const batchAddress = batchItem.address;
         if (!batchAddress) continue;
 
-        const records = recordsMap.get(batchAddress);
+        // Try exact match first, then normalized fallback (batch API may return different spacing/casing)
+        let records = recordsMap.get(batchAddress);
+        if (!records || records.length === 0) {
+          const norm = normalizeAddressForLookup(batchAddress);
+          const canonicalKey = norm ? normalizedToCanonical.get(norm) : null;
+          records = canonicalKey ? recordsMap.get(canonicalKey) : undefined;
+        }
         if (!records || records.length === 0) continue;
 
         const propertyData = batchItem.property as Record<string, unknown>;
@@ -419,6 +455,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
             )
             .onConflictDoNothing({ target: companies.companyName })
             .returning();
+          totalContactsAdded += newCompanies.length;
           for (const company of newCompanies) {
             if (company) {
               const match = uniqueCompaniesToInsert.find(
@@ -507,6 +544,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         let status: string;
         if (sellerId !== null && buyerId === null) {
           status = "sold";
+        } else if (sellerId !== null && buyerId !== null) { 
+          status = "b2b"
         } else if (propertyListingStatus === "on market" || propertyListingStatus === "on_market") {
           status = "on-market";
         } else {
@@ -545,24 +584,52 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         }
       }
 
-      // Batch update existing properties and their related data
+      // Batch update existing properties and their related data (per-property try/catch for resilience)
+      let updatedCount = 0;
       for (const { id, data, propertyData: propData, normalizedCounty: county, recordInfo: recInfo } of toUpdate) {
-        await db
-          .update(properties)
-          .set({ ...data, updatedAt: sql`now()` })
-          .where(eq(properties.id, id));
+        try {
+          await db
+            .update(properties)
+            .set({ ...data, updatedAt: sql`now()` })
+            .where(eq(properties.id, id));
 
-        const recordingDateFromRecord = normalizeDateToYMD(recInfo.record.recordingDate as string);
-        await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord);
-        await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord);
+          const recordingDateFromRecord = normalizeDateToYMD(recInfo.record.recordingDate as string);
+          await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord);
+          await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord);
+          updatedCount++;
+        } catch (updateError: unknown) {
+          console.error(`[${cityCode} SYNC V2] Failed to update property ${id} (sfr ${propData.property_id}):`, updateError);
+        }
       }
-      totalUpdated += toUpdate.length;
+      totalUpdated += updatedCount;
 
-      // Batch insert new
+      // Batch insert new properties (with fallback to single-insert on batch failure)
       let inserted: Array<{ id: string; sfrPropertyId: number }> = [];
       if (toInsert.length > 0) {
-        inserted = await db.insert(properties).values(toInsert).returning();
-        totalInserted += inserted.length;
+        try {
+          inserted = await db.insert(properties).values(toInsert).returning();
+          totalInserted += inserted.length;
+          console.log(`[${cityCode} SYNC V2] Batch inserted ${inserted.length} properties`);
+        } catch (insertError: unknown) {
+          console.error(`[${cityCode} SYNC V2] Error batch inserting properties:`, insertError);
+          console.error(`[${cityCode} SYNC V2] First property in failed batch:`, toInsert[0]);
+
+          // Fallback: try inserting one at a time
+          for (const propToInsert of toInsert) {
+            try {
+              const [insertedProp] = await db
+                .insert(properties)
+                .values(propToInsert)
+                .returning();
+              if (insertedProp) {
+                inserted.push(insertedProp);
+                totalInserted++;
+              }
+            } catch (singleError: unknown) {
+              console.error(`[${cityCode} SYNC V2] Failed to insert property ${propToInsert.sfrPropertyId}:`, singleError);
+            }
+          }
+        }
       }
 
       // Insert related data for new properties only
@@ -582,7 +649,30 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         );
       }
 
-      await batchInsertPropertyData(batchDataCollectors);
+      try {
+        await batchInsertPropertyData(batchDataCollectors);
+      } catch (batchRelatedError: unknown) {
+        console.error(`[${cityCode} SYNC V2] Error batch inserting property related data:`, batchRelatedError);
+
+        // Fallback: insert related data one property at a time
+        for (const insertedProp of inserted) {
+          const item = validBatchItems.find(
+            (v) => Number(v.propertyData.property_id) === insertedProp.sfrPropertyId
+          );
+          if (!item) continue;
+          try {
+            const recordingDateFromRecord = normalizeDateToYMD(item.recordInfo.record.recordingDate as string);
+            await insertPropertyRelatedData(
+              insertedProp.id,
+              item.propertyData as SfrPropertyData,
+              item.normalizedCounty,
+              recordingDateFromRecord
+            );
+          } catch (singleRelatedError: unknown) {
+            console.error(`[${cityCode} SYNC V2] Failed to insert related data for property ${insertedProp.sfrPropertyId}:`, singleRelatedError);
+          }
+        }
+      }
 
       // -----------------------------------------------------------------------
       // Insert property_transactions: one per /buyers/market record (same property can have multiple sales)
@@ -593,7 +683,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         transactionDate: string;
         buyerId: string | null;
         sellerId: string | null;
-        transactionType: string;
+        transactionType: string | null;
         salePrice: string | null;
         mtgType: string | null;
         mtgAmount: string | null;
@@ -641,16 +731,7 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           if (company) txSellerId = company.id;
         }
 
-        let transactionType: string;
-        if (isBuyerCorporate && !isSellerCorporate) {
-          transactionType = "acquisition";
-        } else if (!isBuyerCorporate && isSellerCorporate) {
-          transactionType = "sale";
-        } else if (isBuyerCorporate && isSellerCorporate) {
-          transactionType = "company-to-company";
-        } else {
-          continue;
-        }
+        let transactionType: string | null = getTransactionType(isBuyerCorporate, isSellerCorporate);
 
         const lastSale = (propertyData.last_sale || propertyData.lastSale) as Record<string, unknown> | undefined;
         const salePrice =
@@ -700,49 +781,69 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
           .from(propertyTransactions)
           .where(inArray(propertyTransactions.propertyId, propertyIds));
 
-          const existingKeys = new Set(existingTx.map((e) => 
-            `${e.propertyId}-${e.transactionDate}-${e.transactionType}`
+          // Include buyerId+sellerId so multiple same-day transactions (e.g. b2b then sale) are not deduplicated incorrectly
+          const existingKeys = new Set(existingTx.map((e) =>
+            `${e.propertyId}-${e.transactionDate}-${e.transactionType}-${e.buyerId ?? ""}-${e.sellerId ?? ""}`
           ));
           const newTransactions = transactionsToInsert.filter(
-            (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}-${t.transactionType}`)
+            (t) => !existingKeys.has(`${t.propertyId}-${t.transactionDate}-${t.transactionType}-${t.buyerId ?? ""}-${t.sellerId ?? ""}`)
           );
 
         if (newTransactions.length > 0) {
-          await db.insert(propertyTransactions).values(
-            newTransactions.map((t) => ({
-              propertyId: t.propertyId,
-              buyerId: t.buyerId,
-              sellerId: t.sellerId,
-              transactionType: t.transactionType,
-              transactionDate: t.transactionDate,
-              salePrice: t.salePrice,
-              mtgType: t.mtgType,
-              mtgAmount: t.mtgAmount,
-              buyerName: t.buyerName,
-              sellerName: t.sellerName,
-              notes: t.notes,
-            }))
-          );
-          console.log(`[${cityCode} SYNC V2] Inserted ${newTransactions.length} property transactions`);
+          const txValues = newTransactions.map((t) => ({
+            propertyId: t.propertyId,
+            companyId: t.transactionType === "sale" ? t.sellerId : t.buyerId,
+            buyerId: t.buyerId,
+            sellerId: t.sellerId,
+            transactionType: t.transactionType,
+            transactionDate: t.transactionDate,
+            salePrice: t.salePrice,
+            mtgType: t.mtgType,
+            mtgAmount: t.mtgAmount,
+            buyerName: t.buyerName,
+            sellerName: t.sellerName,
+            notes: t.notes,
+          }));
+
+          try {
+            await db.insert(propertyTransactions).values(txValues);
+            console.log(`[${cityCode} SYNC V2] Inserted ${newTransactions.length} property transactions`);
+          } catch (txError: unknown) {
+            console.error(`[${cityCode} SYNC V2] Error batch inserting property transactions:`, txError);
+
+            // Fallback: try inserting one at a time
+            let txInsertedCount = 0;
+            for (const tx of txValues) {
+              try {
+                await db.insert(propertyTransactions).values(tx);
+                txInsertedCount++;
+              } catch (singleTxError: unknown) {
+                console.error(`[${cityCode} SYNC V2] Failed to insert transaction for property ${tx.propertyId}:`, singleTxError);
+              }
+            }
+            console.log(`[${cityCode} SYNC V2] Inserted ${txInsertedCount} transactions individually (fallback)`);
+          }
         }
+      }
+      } catch (batchError: unknown) {
+        const batchNum = Math.floor(i / BATCH_FETCH_SIZE) + 1;
+        const totalBatches = Math.ceil(addressesArray.length / BATCH_FETCH_SIZE);
+        console.error(`[${cityCode} SYNC V2] Batch ${batchNum}/${totalBatches} failed, skipping:`, batchError);
       }
     }
 
-    // Final sync state update
-    const saleDateToSet = boundaryDate ? normalizeDateToYMD(boundaryDate, { subtractDays: 1 }) : null;
-    if (syncStateId) {
-      await db
-        .update(sfrSyncState)
-        .set({
-          lastSaleDate: saleDateToSet,
-          totalRecordsSynced: initialTotalSynced + totalProcessed,
-          lastSyncAt: sql`now()`,
-        })
-        .where(eq(sfrSyncState.id, syncStateId));
-    }
+    // Final sync state update - only persist after ALL property batches complete successfully
+    const persisted = await persistSyncState({
+      syncStateId,
+      previousLastSaleDate: syncState.length > 0 ? normalizeDateToYMD(syncState[0].lastSaleDate) : null,
+      initialTotalSynced,
+      processed: totalProcessed,
+      finalSaleDate: boundaryDate,
+      cityCode,
+    });
 
     console.log(
-      `[${cityCode} SYNC V2] Complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated`
+      `[${cityCode} SYNC V2] Complete for ${msa}: ${totalProcessed} processed, ${totalInserted} inserted, ${totalUpdated} updated, ${totalContactsAdded} contacts added`
     );
 
     return {
@@ -751,11 +852,21 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       totalProcessed,
       totalInserted,
       totalUpdated,
+      totalContactsAdded,
       dateRange: { from: minSaleDate, to: boundaryDate || today },
-      lastSaleDate: saleDateToSet,
+      lastSaleDate: persisted.lastSaleDate,
     };
   } catch (error) {
     console.error(`[${cityCode} SYNC V2] Error syncing ${msa}:`, error);
+    // Preserve original lastSaleDate so next run doesn't skip data; still update last_sync_at
+    await persistSyncState({
+      syncStateId,
+      previousLastSaleDate: syncState.length > 0 ? normalizeDateToYMD(syncState[0].lastSaleDate) : null,
+      initialTotalSynced,
+      processed: totalProcessed,
+      finalSaleDate: null,
+      cityCode,
+    });
     throw error;
   }
 }

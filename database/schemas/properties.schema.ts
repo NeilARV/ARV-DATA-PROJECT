@@ -242,7 +242,7 @@ export const propertyTransactions = pgTable("property_transactions", {
   propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
   sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
   buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
-  transactionType: varchar("transaction_type", { length: 50 }).notNull(),
+  transactionType: varchar("transaction_type", { length: 50 }),
   transactionDate: date("transaction_date").notNull(),
   salePrice: decimal("sale_price", { precision: 15, scale: 2 }),
   mtgType: varchar("mtg_type", { length: 100 }),
