@@ -18,9 +18,15 @@ import {
 } from "./properties.schema";
 
 export const propertiesRelations = relations(properties, ({ one, many }) => ({
-  company: one(companies, {
-    fields: [properties.companyId],
+  buyer: one(companies, {
+    fields: [properties.buyerId],
     references: [companies.id],
+    relationName: "propertyBuyer",
+  }),
+  seller: one(companies, {
+    fields: [properties.sellerId],
+    references: [companies.id],
+    relationName: "propertySeller",
   }),
   address: one(addresses, {
     fields: [properties.id],
@@ -62,8 +68,10 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
-  properties: many(properties),
-  transactions: many(propertyTransactions),
+  propertiesAsBuyer: many(properties, { relationName: "propertyBuyer" }),
+  propertiesAsSeller: many(properties, { relationName: "propertySeller" }),
+  transactionsAsBuyer: many(propertyTransactions, { relationName: "transactionBuyer" }),
+  transactionsAsSeller: many(propertyTransactions, { relationName: "transactionSeller" }),
 }));
 
 export const addressesRelations = relations(addresses, ({ one }) => ({
@@ -155,8 +163,14 @@ export const propertyTransactionsRelations = relations(propertyTransactions, ({ 
     fields: [propertyTransactions.propertyId],
     references: [properties.id],
   }),
-  company: one(companies, {
-    fields: [propertyTransactions.companyId],
+  buyer: one(companies, {
+    fields: [propertyTransactions.buyerId],
     references: [companies.id],
+    relationName: "transactionBuyer",
+  }),
+  seller: one(companies, {
+    fields: [propertyTransactions.sellerId],
+    references: [companies.id],
+    relationName: "transactionSeller",
   }),
 }));

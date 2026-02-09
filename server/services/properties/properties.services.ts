@@ -3,6 +3,10 @@ import { properties, addresses, structures, lastSales } from "../../../database/
 import { companies } from "../../../database/schemas/companies.schema";
 import { normalizeCompanyNameForComparison } from "server/utils/normalization";
 import { eq, sql, or, and } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+const buyerCompanies = alias(companies, "buyer_companies");
+const sellerCompanies = alias(companies, "seller_companies");
 
 export interface GetPropertiesFilters {
     zipcode?: string;
@@ -16,8 +20,7 @@ export interface GetPropertiesFilters {
     status?: string | string[];
     company?: string;
     propertyOwner?: string;
-    companyId?: string; // Primary company ID filter (more reliably filled)
-    propertyOwnerId?: string; // Legacy, use companyId instead
+    companyId?: string; // Company ID filter - matches buyer_id OR seller_id
     hasDateSold?: string;
     page?: string;
     limit?: string;
@@ -46,7 +49,6 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         company, 
         propertyOwner, 
         companyId,
-        propertyOwnerId, // Legacy, use companyId instead
         hasDateSold,
         page,
         limit,
@@ -60,48 +62,69 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const conditions = []
 
-    // Company filter
-    // Priority: companyId > propertyOwnerId (legacy) > company/propertyOwner name
-    // companyId is the primary filter as it's more reliably filled for in-renovation and sold properties
-    if (companyId && typeof companyId === 'string' && companyId.trim() !== '') {
-        // Direct companyId filter - most efficient and reliable
-        conditions.push(
-            eq(properties.companyId, companyId.trim())
-        );
-    } else if (propertyOwnerId && typeof propertyOwnerId === 'string' && propertyOwnerId.trim() !== '') {
-        // Legacy fallback to propertyOwnerId
-        conditions.push(
-            eq(properties.companyId, propertyOwnerId.trim()) // Map to companyId for compatibility
-        );
-    } else {
-        // Fallback to name-based filter (for backward compatibility)
-        const ownerFilter = company || propertyOwner;
-        if (ownerFilter) {
-            // Normalize the search term the same way company names are stored
-            const normalizedSearchTerm = normalizeCompanyNameForComparison(ownerFilter.toString());
-            if (normalizedSearchTerm) {
-                // Compare normalized versions: remove punctuation and normalize spaces
-                // We need to normalize the database value in SQL for comparison
-                conditions.push(
-                    sql`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${companies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}`
-                )
-            }
-        }
-    }
+    const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
+    const hasCompanyFilter = companyIdTrimmed !== '';
 
-    // Status filter (can be single value or array)
-    if (status) {
-        const statusArray = Array.isArray(status) ? status : [status];
-        if (statusArray.length > 0) {
-            const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
+    // Status filter - build condition based on whether company is selected
+    // When company selected: status rules depend on buyer/seller role (b2b: buyer=in-renovation, seller=sold-b2b)
+    const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
+    if (statusesToUse.length > 0) {
+        const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
+        const inRenovationSelected = normalizedStatuses.includes('in-renovation');
+        const b2bSelected = normalizedStatuses.includes('b2b');
+
+        if (hasCompanyFilter) {
+            // Company selected: status-specific company role logic
+            // - in-renovation: buyer only (company owns/renovates)
+            // - on-market: seller only (company is listing)
+            // - sold: buyer or seller
+            // - b2b: buyer when in-renovation selected, seller when b2b selected
+            const statusParts: ReturnType<typeof sql>[] = [];
+            if (inRenovationSelected) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'in-renovation' AND ${properties.buyerId} = ${companyIdTrimmed})`);
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'b2b' AND ${properties.buyerId} = ${companyIdTrimmed})`);
+            }
+            if (b2bSelected) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'b2b' AND ${properties.sellerId} = ${companyIdTrimmed})`);
+            }
+            if (normalizedStatuses.includes('on-market')) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'on-market' AND ${properties.sellerId} = ${companyIdTrimmed})`);
+            }
+            if (normalizedStatuses.includes('sold')) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'sold' AND (${properties.buyerId} = ${companyIdTrimmed} OR ${properties.sellerId} = ${companyIdTrimmed}))`);
+            }
+            if (statusParts.length > 0) {
+                conditions.push(or(...statusParts) as any);
+            } else {
+                // Company selected but no status filters - show all properties for company
+                conditions.push(
+                    or(
+                        eq(properties.buyerId, companyIdTrimmed),
+                        eq(properties.sellerId, companyIdTrimmed)
+                    ) as any
+                );
+            }
+        } else {
+            // No company: simple OR of statuses; also handle name-based company filter
+            const ownerFilter = company || propertyOwner;
+            if (ownerFilter) {
+                const normalizedSearchTerm = normalizeCompanyNameForComparison(ownerFilter.toString());
+                if (normalizedSearchTerm) {
+                    conditions.push(
+                        sql`(
+                            LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${buyerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
+                            OR LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${sellerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
+                        )`
+                    );
+                }
+            }
             if (normalizedStatuses.length === 1) {
                 conditions.push(
                     sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
                 );
             } else {
-                // Use OR for multiple status values
                 conditions.push(
-                    or(...normalizedStatuses.map(s => 
+                    or(...normalizedStatuses.map(s =>
                         sql`LOWER(TRIM(${properties.status})) = ${s}`
                     )) as any
                 );
@@ -142,14 +165,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    // Bedrooms filter (exact match) - from structures table
+    // Bedrooms filter (minimum bedrooms) - from structures table
     if (bedrooms) {
         const bedroomsStr = bedrooms.toString().trim().toLowerCase();
         if (bedroomsStr !== 'any') {
             const bedroomsNum = parseInt(bedroomsStr, 10);
             if (!isNaN(bedroomsNum)) {
                 conditions.push(
-                    sql`${structures.bedsCount} = ${bedroomsNum}`
+                    sql`${structures.bedsCount} >= ${bedroomsNum}`
                 )
             }
         }
@@ -231,8 +254,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     
     // Join companies if company name filter is used (and not ID filter)
     const ownerFilter = company || propertyOwner;
-    if (ownerFilter && !companyId && !propertyOwnerId) {
-        countQuery = countQuery.leftJoin(companies, eq(properties.companyId, companies.id)) as any;
+    if (ownerFilter && !companyId) {
+        countQuery = countQuery
+            .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id)) as any;
+        countQuery = countQuery
+            .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id)) as any;
     }
     
     if (whereClause) {
@@ -249,7 +275,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             id: properties.id,
             propertyType: properties.propertyType,
             status: properties.status,
-            companyId: properties.companyId, // Use companyId (more reliably filled)
+            buyerId: properties.buyerId,
+            sellerId: properties.sellerId,
             msa: properties.msa,
             county: sql<string>`COALESCE(${properties.county}, ${addresses.county})`,
             createdAt: properties.createdAt,
@@ -269,16 +296,17 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // Last Sale fields
             price: sql<number | null>`CAST(${lastSales.price} AS REAL)`,
             dateSold: lastSales.saleDate,
-            // Company info (joined on companyId)
-            companyName: companies.companyName,
-            contactName: companies.contactName,
-            contactEmail: companies.contactEmail,
+            // Company info (buyer as primary, seller as fallback)
+            companyName: sql<string>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
+            contactName: sql<string | null>`COALESCE(${buyerCompanies.contactName}, ${sellerCompanies.contactName})`,
+            contactEmail: sql<string | null>`COALESCE(${buyerCompanies.contactEmail}, ${sellerCompanies.contactEmail})`,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(companies, eq(properties.companyId, companies.id)); // Join on companyId
+        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
+        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id));
     
     if (whereClause) {
         query = query.where(whereClause) as any;
@@ -357,14 +385,16 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // Price and date
             price: price,
             dateSold: dateSoldStr,
-            // Company info (using companyId, more reliably filled)
-            companyId: prop.companyId ? String(prop.companyId) : null,
+            // Company info (buyer as primary, seller as fallback - companyId for frontend filter/display)
+            companyId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),
+            buyerId: prop.buyerId ? String(prop.buyerId) : null,
+            sellerId: prop.sellerId ? String(prop.sellerId) : null,
             companyName: prop.companyName || null,
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,
             // Legacy aliases for backward compatibility
             propertyOwner: prop.companyName || null,
-            propertyOwnerId: prop.companyId ? String(prop.companyId) : null, // Map to companyId for compatibility
+            propertyOwnerId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),
             // Additional fields that might be expected by frontend but not directly in new schema
             description: null,
             imageUrl: null,

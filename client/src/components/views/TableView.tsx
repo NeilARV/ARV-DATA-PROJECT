@@ -39,9 +39,7 @@ export default function TableView({
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold mb-1">
-            {selectedCompany && totalCompanyProperties > 0
-              ? `${totalFilteredProperties} / ${totalCompanyProperties} Properties`
-              : `${totalFilteredProperties} Properties`}
+            {`${totalFilteredProperties} Properties`}
             {selectedCompany && (
               <span className="text-base font-normal text-muted-foreground ml-2">
                 owned by {selectedCompany}

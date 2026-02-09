@@ -1,5 +1,22 @@
 import type { Property } from "@/types/property";
 import { Button } from "@/components/ui/button";
+
+// Status tag colors match PropertyMap.tsx map ping colors
+const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
+  "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#0f172a" },
+  "Sold": { label: "Sold", bg: "#FF0000", text: "#fff" },
+  "On Market": { label: "On Market", bg: "#22C55E", text: "#fff" },
+  "Wholesale": { label: "Wholesale", bg: "#9333EA", text: "#fff" },
+};
+
+function getStatusTags(status: string): { label: string; bg: string; text: string }[] {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "in-renovation") return [STATUS_TAG_STYLES["Renovating"]];
+  if (s === "sold") return [STATUS_TAG_STYLES["Sold"]];
+  if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
+  if (s === "b2b") return [STATUS_TAG_STYLES["Wholesale"], STATUS_TAG_STYLES["Renovating"]];
+  return [STATUS_TAG_STYLES["Renovating"]];
+}
 import {
   Dialog,
   DialogContent,
@@ -93,8 +110,10 @@ export default function PropertyDetailPanel({
     }
 
     // Create mailto link
-    const subject = `Contact Request for ${property?.companyContactName || 'Property'}`;
-    const body = `Name: ${requestName}\nEmail: ${requestEmail}\n\nRequesting contact information for:\nProperty: ${property?.address}\nCompany Contact: ${property?.companyContactName}`;
+    const contactNames = [property?.buyerContactName, property?.sellerContactName].filter(Boolean).join(', ') || 'Property';
+    const companyNames = [property?.buyerCompanyName, property?.sellerCompanyName].filter(Boolean).join(', ');
+    const subject = `Contact Request for ${contactNames}`;
+    const body = `Name: ${requestName}\nEmail: ${requestEmail}\n\nRequesting contact information for:\nProperty: ${property?.address}\n${companyNames ? `Companies: ${companyNames}\n` : ''}${contactNames !== 'Property' ? `Contacts: ${contactNames}` : ''}`;
     const mailtoLink = `mailto:neil@arvfinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
     window.location.href = mailtoLink;
@@ -146,6 +165,7 @@ export default function PropertyDetailPanel({
   if (!property) return null;
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
+  const priceLabel = (property.status || "").toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price";
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
@@ -159,7 +179,7 @@ export default function PropertyDetailPanel({
       </div>
 
       <div className="p-4 space-y-4">
-        <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted">
+        <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted relative">
           {isLoading ? (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
               Loading...
@@ -176,11 +196,23 @@ export default function PropertyDetailPanel({
               No image available
             </div>
           )}
+          <div className="absolute top-2 right-2 flex gap-1 items-end">
+            {getStatusTags(property.status).map((tag) => (
+              <span
+                key={tag.label}
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-sm"
+                style={{ backgroundColor: tag.bg, color: tag.text }}
+                data-testid={`tag-${tag.label.toLowerCase().replace(/\s/g, "-")}-${property.id}`}
+              >
+                {tag.label}
+              </span>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Purchase Price</p>
+            <p className="text-xs text-muted-foreground mb-1">{priceLabel}</p>
             <div className="text-2xl font-bold" data-testid="text-panel-price">
               ${property.price.toLocaleString()}
             </div>
@@ -220,36 +252,65 @@ export default function PropertyDetailPanel({
               </div>
             </div>
 
-            {(property.companyName || property.propertyOwner) && (
+            {/* Buyer Company */}
+            {property.buyerCompanyName && (
               <div>
-                <div className="text-xs text-muted-foreground mb-1">Company</div>
+                <div className="text-xs text-muted-foreground mb-1">Buyer</div>
                 <div className="flex items-start gap-1">
                   <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                   {onCompanyNameClick ? (
                     <button
                       onClick={() => {
-                        const companyName = property.companyName || property.propertyOwner;
-                        const companyId = property.companyId || property.propertyOwnerId;
-                        onCompanyNameClick(companyName!, companyId || undefined, true);
+                        onCompanyNameClick(property.buyerCompanyName!, property.buyerId || undefined, true);
                       }}
                       className="font-medium text-sm text-primary hover:underline text-left"
-                      data-testid="text-company-name"
+                      data-testid="text-buyer-company-name"
                     >
-                      {property.companyName || property.propertyOwner}
+                      {property.buyerCompanyName}
                     </button>
                   ) : (
-                    <span className="font-medium text-sm" data-testid="text-company-name">{property.companyName || property.propertyOwner}</span>
+                    <span className="font-medium text-sm" data-testid="text-buyer-company-name">{property.buyerCompanyName}</span>
                   )}
                 </div>
+                {property.buyerContactName && (
+                  <div className="text-xs text-muted-foreground mt-1 ml-4">
+                    Contact: {property.buyerContactName}
+                  </div>
+                )}
               </div>
             )}
 
-            {property.companyContactName && (
+            {/* Seller Company */}
+            {property.sellerCompanyName && (
               <div>
-                <div className="text-xs text-muted-foreground mb-1">Company Contact</div>
-                <div className="font-medium text-sm mb-2" data-testid="text-company-contact">
-                  {property.companyContactName}
+                <div className="text-xs text-muted-foreground mb-1">Seller</div>
+                <div className="flex items-start gap-1">
+                  <Building2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  {onCompanyNameClick ? (
+                    <button
+                      onClick={() => {
+                        onCompanyNameClick(property.sellerCompanyName!, property.sellerId || undefined, true);
+                      }}
+                      className="font-medium text-sm text-primary hover:underline text-left"
+                      data-testid="text-seller-company-name"
+                    >
+                      {property.sellerCompanyName}
+                    </button>
+                  ) : (
+                    <span className="font-medium text-sm" data-testid="text-seller-company-name">{property.sellerCompanyName}</span>
+                  )}
                 </div>
+                {property.sellerContactName && (
+                  <div className="text-xs text-muted-foreground mt-1 ml-4">
+                    Contact: {property.sellerContactName}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Request Contact button - show if either buyer or seller has a contact */}
+            {(property.buyerContactName || property.sellerContactName) && (
+              <div>
                 <Button 
                   size="sm"
                   variant="default"

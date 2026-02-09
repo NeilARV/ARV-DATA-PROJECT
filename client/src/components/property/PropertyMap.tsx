@@ -26,23 +26,50 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
+const purpleIcon = createColoredIcon('#9333EA'); // B2B properties
 
-// Selected marker icons (with orange/yellow color to stand out)
+// Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
 
-const getIconForStatus = (status: string | null | undefined, isSelected: boolean = false) => {
-  if (isSelected) {
-    // All selected markers use the same orange color for visibility
-    return selectedBlueIcon;
+const getIconForPin = (
+  pin: MapPin,
+  isSelected: boolean,
+  selectedCompanyId: string | null | undefined,
+  statusFilters: string[]
+) => {
+  if (isSelected) return selectedBlueIcon;
+
+  const status = (pin.status || '').toLowerCase().trim();
+  const bid = pin.buyerId ?? null;
+  const sid = pin.sellerId ?? null;
+  const b2bFilterActive = statusFilters.map(f => f.toLowerCase().trim()).includes('b2b');
+
+  // When a company is selected, icon reflects the company's role (buyer vs seller)
+  if (selectedCompanyId) {
+    if (status === 'b2b') {
+      // Company is buyer of b2b → always blue (they own it, it's their renovation)
+      if (bid === selectedCompanyId) return blueIcon;
+      // Company is seller of b2b → always purple (sold to another company)
+      if (sid === selectedCompanyId) return purpleIcon;
+    }
+    // Non-b2b statuses keep their standard colors
+    if (bid === selectedCompanyId || sid === selectedCompanyId) {
+      if (status === 'sold') return charcoalIcon;
+      if (status === 'on-market') return greenIcon;
+      return blueIcon; // in-renovation or default
+    }
   }
-  
+
+  // No company selected - status-based colors
   switch (status) {
     case 'on-market':
       return greenIcon;
     case 'sold':
       return charcoalIcon;
     case 'b2b':
-      return blueIcon
+      // If b2b filter is explicitly active → purple (distinguished)
+      // If showing via in-renovation → blue (blends in)
+      return b2bFilterActive ? purpleIcon : blueIcon;
     case 'in-renovation':
     default:
       return blueIcon;
@@ -59,7 +86,9 @@ interface PropertyMapProps {
   selectedProperty?: Property | null;
   isLoading?: boolean;
   selectedCompany?: string | null;
+  selectedCompanyId?: string | null;
   onDeselectCompany?: () => void;
+  statusFilters?: string[];
 }
 
 function MapResizeHandler() {
@@ -169,7 +198,9 @@ export default function PropertyMap({
   selectedProperty,
   isLoading = false,
   selectedCompany,
-  onDeselectCompany
+  selectedCompanyId,
+  onDeselectCompany,
+  statusFilters = []
 }: PropertyMapProps) {
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -230,7 +261,7 @@ export default function PropertyMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForStatus(pin.status, isSelected)}
+                icon={getIconForPin(pin, isSelected, selectedCompanyId, statusFilters)}
                 eventHandlers={{
                   click: () => onPropertyClick?.(pin),
                 }}

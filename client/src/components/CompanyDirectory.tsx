@@ -4,14 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
-import type { Property } from "@/types/property";
-import type { CompanyContactWithCounts } from "@/types/companies";
+import type { CompanyContactWithCounts, CompanyContactDetail } from "@/types/companies";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import UpdateDialog from "@/components/modals/UpdateDialog";
 
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
-import { parseISO, isValid, format, isAfter, subDays } from "date-fns";
 import { Card } from "@/components/ui/card";
 import {
   Select,
@@ -71,19 +69,21 @@ interface CompanyDirectoryProps {
   onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
   // Controlled selected company so expanded state can be synced across views
   selectedCompany?: string | null;
+  // Company ID when selected from PropertyDetailPanel, modal, card, etc. (enables fetch by ID)
+  selectedCompanyId?: string | null;
   // Optional: allow syncing status filters with parent filters
   filters?: PropertyFilters;
   onFilterChange?: (filters: PropertyFilters) => void;
 }
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, filters, onFilterChange }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, filters, onFilterChange }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { user } = useAuth();
 
@@ -166,23 +166,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     },
   });
 
-  // Fetch properties only for the 90-day chart (needs monthly breakdown)
-  // The main property counts come from the companies API response above
-  const { data: propertiesResponse } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
-    queryKey: [`/api/properties${countyQueryParam}`],
-    queryFn: async () => {
-      const res = await fetch(`/api/properties${countyQueryParam}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch properties: ${res.status}`);
-      }
-      return res.json();
-    },
-  });
-
-  const properties = propertiesResponse?.properties ?? [];
-
   // Companies already have counts from the API, so we can use them directly
   const companiesWithCounts = companies;
 
@@ -221,6 +204,23 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
 
     return filtered;
   }, [companiesWithCounts, searchQuery, sortBy]);
+
+  // Resolve the expanded company ID: from list when company is in filtered list, else from parent prop (e.g. PropertyDetailPanel, modal, card)
+  const expandedCompanyId = expandedCompany
+    ? (filteredCompanies.find((c) => c.companyName === expandedCompany)?.id ?? selectedCompanyIdProp ?? null)
+    : null;
+
+  // Fetch company details by ID when expanded (dropdown, auto-scroll from property panel, modal, card, etc.)
+  const { data: expandedCompanyDetail } = useQuery<CompanyContactDetail>({
+    queryKey: ["/api/companies", expandedCompanyId],
+    queryFn: async () => {
+      if (!expandedCompanyId) return null as unknown as CompanyContactDetail;
+      const res = await fetch(`/api/companies/${expandedCompanyId}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to fetch company: ${res.status}`);
+      return res.json();
+    },
+    enabled: !!expandedCompanyId,
+  });
 
   // Calculate rankings based on property count (sorted by most properties)
   const companyRankings = useMemo(() => {
@@ -439,7 +439,11 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       <Home className="w-4 h-4 text-primary" />
                       <span className="text-sm">
                         <span className="text-muted-foreground">YTD Properties Sold: </span>
-                        <span className="italic text-muted-foreground">Coming Soon</span>
+                        {expandedCompanyDetail?.propertiesSoldCount !== undefined ? (
+                          <span className="font-semibold text-foreground">{expandedCompanyDetail.propertiesSoldCount}</span>
+                        ) : (
+                          <span className="italic text-muted-foreground">Loading...</span>
+                        )}
                       </span>
                     </div>
                     
@@ -508,124 +512,60 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       </div>
                     )}
                     
-                    {/* 90-Day Acquisition Activity */}
-                    {(() => {
-                      const companyNameNormalized = company.companyName.trim().toLowerCase();
-                      const now = new Date();
+                    {/* 90-Day Acquisition Activity (from property_transactions API) */}
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium text-foreground">90-Day Acquisition Activity</span>
+                      </div>
                       
-                      // Calculate the actual last 90 days from today
-                      const ninetyDaysAgo = subDays(now, 90);
-                      ninetyDaysAgo.setHours(0, 0, 0, 0); // Start of day
-                      
-                      // Get the last 3 months for the chart (including current month if needed)
-                      // This will show the months that overlap with the 90-day period
-                      const months: { key: string; start: Date; end: Date }[] = [];
-                      for (let i = 2; i >= 0; i--) {
-                        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-                        months.push({
-                          key: format(monthDate, 'MMM'),
-                          start: monthDate,
-                          end: monthEnd
-                        });
-                      }
-                      
-                      // Normalize county filter for comparison (case-insensitive, trimmed)
-                      const selectedCountyNormalized = filters?.county 
-                        ? filters.county.trim().toLowerCase() 
-                        : null;
-                      
-                      // Get properties for this company in the last 90 days
-                      const companyProperties = properties.filter(p => {
-                        const ownerName = (p.propertyOwner ?? "").trim().toLowerCase();
-                        if (ownerName !== companyNameNormalized) return false;
-                        
-                        // If county filter is selected, also filter by county
-                        if (selectedCountyNormalized) {
-                          const propertyCounty = (p.county ?? "").trim().toLowerCase();
-                          if (propertyCounty !== selectedCountyNormalized) return false;
-                        }
-                        
-                        if (!p.dateSold) return false;
-                        try {
-                          const date = parseISO(p.dateSold);
-                          // Check if date is within the last 90 days and not in the future
-                          return isValid(date) && isAfter(date, ninetyDaysAgo) && !isAfter(date, now);
-                        } catch {
-                          return false;
-                        }
-                      });
-                      
-                      // Group by month for the chart (only count properties in the last 90 days)
-                      const monthlyData: Record<string, number> = {};
-                      months.forEach(m => {
-                        monthlyData[m.key] = 0;
-                      });
-                      
-                      companyProperties.forEach(p => {
-                        if (p.dateSold) {
-                          try {
-                            const date = parseISO(p.dateSold);
-                            if (isValid(date) && isAfter(date, ninetyDaysAgo) && !isAfter(date, now)) {
-                              const monthKey = format(date, 'MMM');
-                              if (monthlyData[monthKey] !== undefined) {
-                                monthlyData[monthKey]++;
-                              }
-                            }
-                          } catch {}
-                        }
-                      });
-                      
-                      const chartData = months.map(m => ({
-                        month: m.key,
-                        count: monthlyData[m.key]
-                      }));
-                      
-                      const totalLast90Days = companyProperties.length;
-                      // Calculate average per month (90 days ≈ 3 months)
-                      const avgPerMonth = totalLast90Days > 0 ? (totalLast90Days / 3).toFixed(1) : "0";
-                      
-                      return (
-                        <div className="space-y-2 pt-2 border-t border-border">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 text-primary" />
-                            <span className="text-sm font-medium text-foreground">90-Day Acquisition Activity</span>
-                          </div>
-                          
+                      {expandedCompanyDetail?.acquisition90DayTotal !== undefined ? (
+                        <>
                           <div className="flex items-center gap-4 text-sm">
                             <div>
                               <span className="text-muted-foreground">Last 90 days: </span>
-                              <span className="font-semibold text-foreground">{totalLast90Days}</span>
+                              <span className="font-semibold text-foreground">{expandedCompanyDetail.acquisition90DayTotal}</span>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Avg/month: </span>
-                              <span className="font-semibold text-foreground">{avgPerMonth}</span>
+                              <span className="font-semibold text-foreground">
+                                {expandedCompanyDetail.acquisition90DayTotal > 0
+                                  ? (expandedCompanyDetail.acquisition90DayTotal / 3).toFixed(1)
+                                  : "0"}
+                              </span>
                             </div>
                           </div>
                           
-                          {totalLast90Days > 0 ? (
+                          {expandedCompanyDetail.acquisition90DayTotal > 0 &&
+                          expandedCompanyDetail.acquisition90DayByMonth?.length ? (
                             <div className="h-20 w-full">
                               <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-                                  <XAxis 
-                                    dataKey="month" 
-                                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                                <BarChart
+                                  data={expandedCompanyDetail.acquisition90DayByMonth.map((m) => ({
+                                    month: m.key,
+                                    count: m.count,
+                                  }))}
+                                  margin={{ top: 5, right: 5, bottom: 5, left: 0 }}
+                                >
+                                  <XAxis
+                                    dataKey="month"
+                                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                                     axisLine={false}
                                     tickLine={false}
                                   />
                                   <YAxis hide />
-                                  <Tooltip 
-                                    contentStyle={{ 
-                                      backgroundColor: 'hsl(var(--background))',
-                                      border: '1px solid hsl(var(--border))',
-                                      borderRadius: '6px',
-                                      fontSize: '12px'
+                                  <Tooltip
+                                    contentStyle={{
+                                      backgroundColor: "hsl(var(--background))",
+                                      border: "1px solid hsl(var(--border))",
+                                      borderRadius: "6px",
+                                      fontSize: "12px",
                                     }}
-                                    formatter={(value: number) => [`${value} properties`, 'Acquired']}
+                                    formatter={(value: number) => [`${value} properties`, "Acquired"]}
                                   />
-                                  <Bar 
-                                    dataKey="count" 
-                                    fill="hsl(var(--primary))" 
+                                  <Bar
+                                    dataKey="count"
+                                    fill="hsl(var(--primary))"
                                     radius={[4, 4, 0, 0]}
                                   />
                                 </BarChart>
@@ -636,9 +576,11 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                               No acquisitions in the last 90 days
                             </div>
                           )}
-                        </div>
-                      );
-                    })()}
+                        </>
+                      ) : (
+                        <div className="text-xs text-muted-foreground italic">Loading...</div>
+                      )}
+                    </div>
                     
                     {/* Admin Actions - Only visible to admins */}
                     {user?.isAdmin && (
@@ -649,7 +591,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                           className="w-full"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCompanyId(company.id);
+                            setEditDialogCompanyId(company.id);
                             setUpdateDialogOpen(true);
                           }}
                           data-testid="button-edit-company"
@@ -710,9 +652,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         open={updateDialogOpen}
         onClose={() => {
           setUpdateDialogOpen(false);
-          setSelectedCompanyId(null);
+          setEditDialogCompanyId(null);
         }}
-        companyId={selectedCompanyId}
+        companyId={editDialogCompanyId}
         onSuccess={() => {
           // Optionally refresh the companies list
           queryClient.invalidateQueries({ queryKey: ["/api/companies/contacts"] });

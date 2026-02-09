@@ -2,6 +2,10 @@ import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
 import { companies } from "../../../database/schemas/companies.schema";
 import { eq, sql, and, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+const buyerCompanies = alias(companies, "buyer_companies");
+const sellerCompanies = alias(companies, "seller_companies");
 
 export interface MapPropertyData {
     id: string;
@@ -17,6 +21,9 @@ export interface MapPropertyData {
     price: number;
     status: string;
     propertyOwner: string | null;
+    companyId: string | null; // Primary company for display (buyer or seller)
+    buyerId: string | null;
+    sellerId: string | null;
 }
 
 /**
@@ -62,7 +69,7 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
 
     // Select only minimal fields needed for map pins and filtering
     // Join with addresses for location data, structures for bedrooms/bathrooms, 
-    // lastSales for price, and companies for property owner
+    // lastSales for price, and companies for property owner (buyer or seller)
     // Only include properties that have addresses (needed for coordinates)
     let query = db
         .select({
@@ -78,14 +85,17 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
             bathrooms: structures.baths,
             price: lastSales.price,
             status: properties.status,
-            // Company name from joined table
-            companyName: companies.companyName,
+            // Company name and ID from buyer or seller (for client-side filtering)
+            companyName: sql<string | null>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
+            buyerId: properties.buyerId,
+            sellerId: properties.sellerId,
         })
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId)) // Use inner join to only get properties with addresses
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(companies, eq(properties.companyId, companies.id));
+        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
+        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id));
 
     if (whereClause) {
         query = query.where(whereClause) as any;
@@ -104,12 +114,15 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
             return lat != null && lon != null && !isNaN(lat) && !isNaN(lon);
         })
         .map((prop: any) => {
-            const { companyName, ...rest } = prop;
+            const { companyName, buyerId, sellerId, ...rest } = prop;
             // Parse decimal types (they come as strings from the database)
             const lat = prop.latitude ? (typeof prop.latitude === 'string' ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
             const lon = prop.longitude ? (typeof prop.longitude === 'string' ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
             const baths = prop.bathrooms ? (typeof prop.bathrooms === 'string' ? parseFloat(prop.bathrooms) : Number(prop.bathrooms)) : null;
             const price = prop.price ? (typeof prop.price === 'string' ? parseFloat(prop.price) : Number(prop.price)) : 0;
+            const companyId = (buyerId || sellerId) ? String(buyerId || sellerId) : null;
+            const bid = buyerId ? String(buyerId) : null;
+            const sid = sellerId ? String(sellerId) : null;
             
             return {
                 ...rest,
@@ -126,6 +139,9 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
                 price: price,
                 status: prop.status || '',
                 propertyOwner: companyName || null,
+                companyId,
+                buyerId: bid,
+                sellerId: sid,
             };
         });
 

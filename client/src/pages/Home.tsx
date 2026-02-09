@@ -237,11 +237,20 @@ export default function Home() {
       });
     }
     
-    // Status filters (can have multiple)
+    // Status filters (can have multiple) - all work together with OR
     if (filters.statusFilters && filters.statusFilters.length > 0) {
+      const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
+      // When in-renovation selected and no company: also fetch b2b. When company selected: backend handles it.
+      if (
+        !selectedCompanyId &&
+        normalizedStatusFilters.includes('in-renovation') &&
+        !normalizedStatusFilters.includes('b2b')
+      ) {
+        params.append('status', 'b2b');
+      }
     }
     
     // Company filter - use ID if available, otherwise fallback to name
@@ -278,16 +287,22 @@ export default function Home() {
       params.append('county', filters.county);
     }
     
-    // Status filters (can have multiple)
+    // Status filters (can have multiple) - same as properties query
     if (filters.statusFilters && filters.statusFilters.length > 0) {
-      filters.statusFilters.forEach(status => {
-        params.append('status', status);
-      });
+      const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+      filters.statusFilters.forEach(status => params.append('status', status));
+      if (
+        !selectedCompanyId &&
+        normalizedFilters.includes('in-renovation') &&
+        !normalizedFilters.includes('b2b')
+      ) {
+        params.append('status', 'b2b');
+      }
     }
     
     const queryString = params.toString();
     return queryString ? `/api/properties/map?${queryString}` : `/api/properties/map`;
-  }, [filters.county, filters.statusFilters]);
+  }, [filters.county, filters.statusFilters, selectedCompanyId]);
 
 
   // Fetch map pins (minimal data) for map view
@@ -432,9 +447,17 @@ export default function Home() {
     
     // Status filters (can have multiple)
     if (filters.statusFilters && filters.statusFilters.length > 0) {
+      const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
+      if (
+        !selectedCompanyId &&
+        normalizedStatusFilters.includes('in-renovation') &&
+        !normalizedStatusFilters.includes('b2b')
+      ) {
+        params.append('status', 'b2b');
+      }
     }
     
     // Company filter - use ID if available, otherwise fallback to name
@@ -799,7 +822,24 @@ export default function Home() {
   const filteredMapPins = useMemo(() => {
     return mapPins.filter(pin => {
       // Apply company filter first if one is selected
-      if (selectedCompany) {
+      // Ownership/participation depends on status:
+      // - in-renovation: only buyer (current owner renovating; seller already sold - don't show)
+      // - on-market: only seller (current owner listing for sale)
+      // - sold: buyer OR seller (company was either party in the sale - show both acquisitions and dispositions)
+      if (selectedCompanyId) {
+        const bid = (pin as { buyerId?: string | null }).buyerId;
+        const sid = (pin as { sellerId?: string | null }).sellerId;
+        const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
+        const isRelevant =
+          propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
+          propertyStatus === 'on-market' ? sid === selectedCompanyId :
+          propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
+          propertyStatus === 'b2b' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // b2b: show when company is buyer or seller
+          (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
+        if (!isRelevant) {
+          return false;
+        }
+      } else if (selectedCompany) {
         const ownerName = (pin.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
         const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
         if (ownerName !== selectedName) {
@@ -849,16 +889,43 @@ export default function Home() {
         if (pin.zipcode !== filters.zipCode.trim()) return false;
       }
 
-      // Filter by status (case-insensitive comparison)
+      // Filter by status (case-insensitive)
+      // B2B properties have special rules when a company is selected
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        if (!normalizedFilters.includes(propertyStatus)) return false;
+        const b2bFilterActive = normalizedFilters.includes('b2b');
+        const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
+        
+        if (!normalizedFilters.includes(propertyStatus)) {
+          // Special handling for b2b properties
+          if (propertyStatus === 'b2b') {
+            if (selectedCompanyId) {
+              const bid = (pin as { buyerId?: string | null }).buyerId;
+              const sid = (pin as { sellerId?: string | null }).sellerId;
+              
+              // Company is BUYER of b2b → treat like in-renovation (show when in-renovation selected)
+              if (bid === selectedCompanyId && inRenovationFilterActive) {
+                return true; // Allow through
+              }
+              // Company is SELLER of b2b → only show when b2b filter explicitly active
+              if (sid === selectedCompanyId && !b2bFilterActive) {
+                return false; // Do not show
+              }
+            } else {
+              // No company selected: allow b2b through when in-renovation is selected
+              if (inRenovationFilterActive) {
+                return true;
+              }
+            }
+          }
+          return false;
+        }
       }
 
       return true;
     });
-  }, [mapPins, filters, selectedCompany, zipCodeList]);
+  }, [mapPins, filters, selectedCompany, selectedCompanyId, zipCodeList]);
 
   // Center map on company properties when a company is selected
   useEffect(() => {
@@ -962,11 +1029,11 @@ export default function Home() {
     // If we have selectedCompanyId, filter by ID (most reliable - companyId is always filled)
     // Otherwise fallback to name matching for backward compatibility
     if (selectedCompanyId) {
-      // Filter by ID - API already filtered server-side, but double-check for safety
-      // Use companyId (more reliably filled than propertyOwnerId)
-      if (property.companyId !== selectedCompanyId) {
-        return false;
-      }
+      // API returns buyer OR seller matches; companyId only reflects buyer for b2b (seller) properties
+      const bid = property.buyerId ?? null;
+      const sid = property.sellerId ?? null;
+      const matchesCompany = bid === selectedCompanyId || sid === selectedCompanyId;
+      if (!matchesCompany) return false;
     } else if (selectedCompany) {
       // Fallback to name matching (for backward compatibility)
       const companyName = (property.companyName || property.propertyOwner || "").trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1023,12 +1090,39 @@ export default function Home() {
       if (property.zipCode !== filters.zipCode.trim()) return false;
     }
 
-    // Filter by status (case-insensitive comparison)
-    if (filters.statusFilters && filters.statusFilters.length > 0) {
-      const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
-      const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-      if (!normalizedFilters.includes(propertyStatus)) return false;
-    }
+      // Filter by status (case-insensitive)
+      // B2B properties have special rules when a company is selected
+      if (filters.statusFilters && filters.statusFilters.length > 0) {
+        const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
+        const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
+        const b2bFilterActive = normalizedFilters.includes('b2b');
+        const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
+        
+        if (!normalizedFilters.includes(propertyStatus)) {
+          // Special handling for b2b properties
+          if (propertyStatus === 'b2b') {
+            if (selectedCompanyId) {
+              const bid = property.buyerId ?? null;
+              const sid = property.sellerId ?? null;
+              
+              // Company is BUYER of b2b → treat like in-renovation (show when in-renovation selected)
+              if (bid === selectedCompanyId && inRenovationFilterActive) {
+                return true; // Allow through
+              }
+              // Company is SELLER of b2b → only show when b2b filter explicitly active
+              if (sid === selectedCompanyId && !b2bFilterActive) {
+                return false; // Do not show
+              }
+            } else {
+              // No company selected: allow b2b through when in-renovation is selected
+              if (inRenovationFilterActive) {
+                return true;
+              }
+            }
+          }
+          return false;
+        }
+      }
 
     return true;
   });
@@ -1216,6 +1310,14 @@ export default function Home() {
     }
   };
 
+  // Handle property click from grid/table - fetch full property data (includes buyer/seller)
+  const handlePropertyClick = async (property: Property) => {
+    const fullProperty = await fetchPropertyById(property.id);
+    if (fullProperty) {
+      setSelectedProperty(fullProperty);
+    }
+  };
+
   // Calculate total properties owned by selected company
   // For map view, count from mapPins. For grid/table views, use the API response total which respects county filter
   const totalCompanyProperties = useMemo(() => {
@@ -1298,6 +1400,7 @@ export default function Home() {
             onSwitchToFilters={() => setSidebarView("filters")}
             onCompanySelect={handleCompanySelect}
             selectedCompany={selectedCompany}
+            selectedCompanyId={selectedCompanyId}
             filters={filters}
             onFilterChange={setFilters}
           />
@@ -1348,7 +1451,9 @@ export default function Home() {
                     selectedProperty={selectedProperty}
                     isLoading={isLoadingMapPins}
                     selectedCompany={selectedCompany}
+                    selectedCompanyId={selectedCompanyId}
                     onDeselectCompany={clearCompanySelection}
+                    statusFilters={filters.statusFilters}
                   />
                 </div>
               </>
@@ -1359,7 +1464,7 @@ export default function Home() {
                 totalCompanyProperties={totalCompanyProperties}
                 totalFilteredProperties={totalFilteredProperties}
                 hasActiveFilters={hasActiveFilters}
-                onPropertyClick={setSelectedProperty}
+                onPropertyClick={handlePropertyClick}
                 onClearCompanyFilter={clearCompanySelection}
                 onClearFilters={handleClearAllFilters}
                 propertiesHasMore={propertiesHasMore}
@@ -1384,7 +1489,7 @@ export default function Home() {
                   hasActiveFilters={hasActiveFilters}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onPropertyClick={setSelectedProperty}
+                  onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
@@ -1411,7 +1516,7 @@ export default function Home() {
                   hasActiveFilters={hasActiveFilters}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onPropertyClick={setSelectedProperty}
+                  onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}

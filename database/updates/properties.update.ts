@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const updatePropertySchema = z.object({
   sfrPropertyId: z.coerce.number().int().optional(),
-  companyId: z.string().uuid().nullable().optional(),
+  buyerId: z.string().uuid().nullable().optional(),
+  sellerId: z.string().uuid().nullable().optional(),
   propertyClassDescription: z.string().nullable().optional(),
   propertyType: z.string().nullable().optional(),
   vacant: z.boolean().nullable().optional(),
