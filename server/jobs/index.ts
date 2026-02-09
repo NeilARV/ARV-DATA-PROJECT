@@ -2,7 +2,6 @@ import cron from "node-cron"
 import { CleanCache } from "./clean-cache"
 import { syncSanDiegoData, syncLosAngelesData, syncDenverData, syncSanFranciscoData } from "./data"
 import { UpdatePropertyStatus } from "./property-status"
-import { EmailUsers } from "./email"
 import { sendDenverEmail } from "./email/denver-email"
 import { sendLosAngelesEmail } from "./email/los-angeles-email"
 import { sendSanDiegoEmail } from "./email/san-diego-email"
@@ -38,10 +37,6 @@ export function startScheduledJobs() {
 
     // Start San Francisco-Oakland-Fremont, CA property data sync every night at 4:00 AM
     cron.schedule("0 4 * * *", syncSanFranciscoData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    cron.schedule("26 * * * *", EmailUsers, {
         timezone: "America/Los_Angeles"
     })
 
