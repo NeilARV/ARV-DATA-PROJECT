@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2, User, Edit, Save, X } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { MSA } from "@/constants/filters.constants";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
@@ -30,6 +31,7 @@ export default function Profile() {
     email: "",
     phone: "",
     notifications: true,
+    msaSubscriptions: [] as string[],
   });
 
   // Initialize form data when user loads or changes
@@ -39,6 +41,7 @@ export default function Profile() {
       const phone = user.phone 
         ? (user.phone.includes('(') ? user.phone : formatPhoneNumber(user.phone))
         : "";
+      const msaSubscriptions = (user as { msaSubscriptions?: string[] }).msaSubscriptions ?? [];
       
       setFormData({
         firstName: user.firstName,
@@ -46,6 +49,7 @@ export default function Profile() {
         email: user.email,
         phone: phone,
         notifications: user.notifications ?? true,
+        msaSubscriptions,
       });
     }
   }, [user]);
@@ -276,6 +280,47 @@ export default function Profile() {
                 </p>
               </div>
             </div>
+
+            {(isEditing ? formData.notifications : (user.notifications ?? true)) && (
+              <div className="space-y-3 pt-2 border-t">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Location Subscriptions
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  Select the MSAs (Metropolitan Statistical Areas) you want to receive property updates for.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {MSA.map((msaName) => (
+                    <div key={msaName} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`msa-${msaName}`}
+                        checked={formData.msaSubscriptions.includes(msaName)}
+                        disabled={!isEditing}
+                        onCheckedChange={(checked) => {
+                          if (isEditing) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              msaSubscriptions: checked
+                                ? [...prev.msaSubscriptions, msaName]
+                                : prev.msaSubscriptions.filter((m) => m !== msaName),
+                            }));
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`msa-${msaName}`}
+                        className={`text-sm font-medium leading-none ${
+                          !isEditing ? "cursor-default" : "cursor-pointer"
+                        }`}
+                      >
+                        {msaName}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {isEditing && (
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button
@@ -288,12 +333,14 @@ export default function Profile() {
                         : formatPhoneNumber(user.phone)
                       : "";
 
+                    const msaSubscriptions = (user as { msaSubscriptions?: string[] }).msaSubscriptions ?? [];
                     setFormData({
                       firstName: user.firstName,
                       lastName: user.lastName,
                       email: user.email,
                       phone,
                       notifications: user.notifications ?? true,
+                      msaSubscriptions,
                     });
                     setIsEditing(false);
                   }}
@@ -310,6 +357,7 @@ export default function Profile() {
                       email: formData.email.trim(),
                       phone: formData.phone,
                       notifications: formData.notifications,
+                      msaSubscriptions: formData.msaSubscriptions,
                     };
 
                     const validation = updateUserProfileSchema.safeParse(updateData);
@@ -338,7 +386,10 @@ export default function Profile() {
 
                       if (result.success && result.user) {
                         queryClient.setQueryData(["/api/auth/me"], {
-                          user: result.user,
+                          user: {
+                            ...result.user,
+                            msaSubscriptions: formData.msaSubscriptions,
+                          },
                         });
                         toast({
                           title: "Profile Updated",

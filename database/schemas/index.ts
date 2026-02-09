@@ -1,4 +1,5 @@
 export * from "./users.schema";
+export * from "./msas.schema";
 export * from "./companies.schema";
 export * from "./properties.schema";
 export * from "./sync.schema";
