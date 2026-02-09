@@ -3,6 +3,10 @@ import { CleanCache } from "./clean-cache"
 import { syncSanDiegoData, syncLosAngelesData, syncDenverData, syncSanFranciscoData } from "./data"
 import { UpdatePropertyStatus } from "./property-status"
 import { EmailUsers } from "./email"
+import { sendDenverEmail } from "./email/denver-email"
+import { sendLosAngelesEmail } from "./email/los-angeles-email"
+import { sendSanDiegoEmail } from "./email/san-diego-email"
+import { sendSanFranciscoEmail } from "./email/san-francisco-email"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
@@ -37,8 +41,13 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // cron.schedule("52 * * * *", EmailUsers, {
-    //     timezone: "America/Los_Angeles"
-    // })
-    
+    cron.schedule("26 * * * *", EmailUsers, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // MSA-specific email updates: users who have that MSA selected get 3 most recent properties for that MSA
+    // cron.schedule("44 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("45 * * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("42 * * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("43 * * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
 }

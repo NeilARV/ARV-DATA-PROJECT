@@ -2,8 +2,9 @@ import { ServerClient } from "postmark";
 import { db } from "server/storage";
 import { users } from "../../database/schemas/users.schema";
 import { properties, addresses, lastSales } from "../../database/schemas/properties.schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
+import { UserServices } from "server/services/auth";
 
 // Fallback image URLs when Street View is not available for a property
 const MOCK_IMAGE_URLS = [
@@ -75,9 +76,10 @@ export async function EmailUsers() {
   const client = new ServerClient(SERVER_KEY);
 
   try {
-    // Get users with notifications enabled
+    // Get users with notifications enabled (need id for MSA subscriptions)
     const usersToEmail = await db
       .select({
+        id: users.id,
         firstName: users.firstName,
         email: users.email,
       })
@@ -89,53 +91,58 @@ export async function EmailUsers() {
       return;
     }
 
-    // Get 3 most recent properties with address, city, state, price
-    const recentProperties = await db
-      .select({
-        address: addresses.formattedStreetAddress,
-        city: addresses.city,
-        state: addresses.state,
-        price: lastSales.price,
-        propertyId: properties.id,
-        msa: properties.msa,
-      })
-      .from(properties)
-      .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-      .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-      .orderBy(desc(properties.createdAt))
-      .limit(3);
-
-    // Skip sending if no properties in database
-    if (recentProperties.length === 0) {
-      console.log("[EMAIL]: No properties in database, skipping send");
-      return;
-    }
-
-    // Build property objects for template - fetch Street View images, fallback to mock if unavailable
-    const propertiesForTemplate = await Promise.all(
-      recentProperties.map(async (p, i) => {
-        const address = p.address ?? "Unknown";
-        const city = p.city ?? "Unknown";
-        const state = p.state ?? "N/A";
-        const image_url = await getPropertyImageUrl(
-          p.propertyId,
-          address,
-          city,
-          state,
-          MOCK_IMAGE_URLS[i % MOCK_IMAGE_URLS.length]
-        );
-        return {
-          address,
-          city,
-          state,
-          price: formatPrice(p.price?.toString()),
-          image_url,
-        };
-      })
-    );
-
-    // Send email to each user
+    // Send email to each user with 3 most recent properties from their subscribed MSAs
     for (const user of usersToEmail) {
+      const msaNames = await UserServices.getUserMsaSubscriptionNames(user.id);
+
+      if (msaNames.length === 0) {
+        console.log(`[EMAIL]: User ${user.email} has no MSA subscriptions, skipping`);
+        continue;
+      }
+      
+      // Single query: limit 4 properties where msa is equal to any of the user's MSAs
+      const recentProperties = await db
+        .select({
+          address: addresses.formattedStreetAddress,
+          city: addresses.city,
+          state: addresses.state,
+          price: lastSales.price,
+          propertyId: properties.id,
+        })
+        .from(properties)
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+        .where(inArray(properties.msa, msaNames))
+        .orderBy(desc(properties.createdAt))
+        .limit(4);
+
+      if (recentProperties.length === 0) {
+        console.log(`[EMAIL]: No properties in MSAs [${msaNames.join(", ")}] for ${user.email}, skipping`);
+        continue;
+      }
+
+      const propertiesForTemplate = await Promise.all(
+        recentProperties.map(async (p, i) => {
+          const address = p.address ?? "Unknown";
+          const city = p.city ?? "Unknown";
+          const state = p.state ?? "N/A";
+          const image_url = await getPropertyImageUrl(
+            p.propertyId,
+            address,
+            city,
+            state,
+            MOCK_IMAGE_URLS[i % MOCK_IMAGE_URLS.length]
+          );
+          return {
+            address,
+            city,
+            state,
+            price: formatPrice(p.price?.toString()),
+            image_url,
+          };
+        })
+      );
+
       const emailTemplate = {
         From: "justin@arvfinance.com",
         To: user.email,
