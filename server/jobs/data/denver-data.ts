@@ -1,4 +1,5 @@
-import { syncMSAV2 } from "server/utils/dataSync";
+// import { syncMSAV2 } from "server/utils/dataSync";
+import { dataSyncV3 } from "server/utils/dataSyncV3";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -11,7 +12,7 @@ export async function syncDenverData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        const result = await syncMSAV2({
+        const result = await dataSyncV3({
             msa: DENVER_MSA,
             cityCode: CITY_CODE,
             API_KEY,
@@ -20,7 +21,7 @@ export async function syncDenverData() {
             excludedAddresses: [],
         });
 
-        console.log(`[${CITY_CODE} SYNC] Sync complete for ${DENVER_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
+        console.log(`[${CITY_CODE} SYNC] Sync complete for ${DENVER_MSA}`);
 
         return result;
 
