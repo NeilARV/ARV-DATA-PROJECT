@@ -107,17 +107,32 @@ router.get("/contacts", async (req, res) => {
             if (row.sellerId) soldCountByCompanyId.set(row.sellerId, row.count);
         });
 
-        // Calculate property count and propertiesSoldCount for each company
+        // All-time sold count per company (property_transactions where company is seller, no date filter)
+        const soldCountAllTimeRows = await db
+            .select({
+                sellerId: propertyTransactions.sellerId,
+                count: sql<number>`count(*)::int`,
+            })
+            .from(propertyTransactions)
+            .groupBy(propertyTransactions.sellerId);
+        const soldCountAllTimeByCompanyId = new Map<string, number>();
+        soldCountAllTimeRows.forEach((row) => {
+            if (row.sellerId) soldCountAllTimeByCompanyId.set(row.sellerId, row.count);
+        });
+
+        // Calculate property count and sold counts for each company
         const contactsWithCounts = contacts.map(contact => {
             const companyProperties = allProperties.filter(p => {
                 return p.buyerId === contact.id
             });
             const propertyCount = companyProperties.length;
             const propertiesSoldCount = soldCountByCompanyId.get(contact.id) ?? 0;
+            const propertiesSoldCountAllTime = soldCountAllTimeByCompanyId.get(contact.id) ?? 0;
             return {
                 ...contact,
                 propertyCount,
                 propertiesSoldCount,
+                propertiesSoldCountAllTime,
             };
         });
 
@@ -269,6 +284,14 @@ router.get("/:id", async (req, res) => {
 
         const propertiesSoldCount = sellerCountResult?.count ?? 0;
 
+        // Count properties sold all-time (no date filter)
+        const [sellerCountAllTimeResult] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(propertyTransactions)
+            .where(eq(propertyTransactions.sellerId, id));
+
+        const propertiesSoldCountAllTime = sellerCountAllTimeResult?.count ?? 0;
+
         // 90-day acquisition activity: properties where company is buyer_id in last 90 days
         const ninetyDaysAgo = new Date(now);
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -309,6 +332,7 @@ router.get("/:id", async (req, res) => {
         res.json({
             ...result,
             propertiesSoldCount,
+            propertiesSoldCountAllTime,
             acquisition90DayTotal,
             acquisition90DayByMonth,
         });
