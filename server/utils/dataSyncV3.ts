@@ -7,19 +7,20 @@
  */
 
 import { db } from "server/storage";
+import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState } from "../../database/schemas/sync.schema";
 import { eq } from "drizzle-orm";
-import { normalizeDateToYMD } from "server/utils/normalization";
+import { normalizeDateToYMD, normalizeCompanyNameForComparison } from "server/utils/normalization";
 
 const DEFAULT_START_DATE = "2025-12-03";
 
 export interface SyncMSAV3Params {
-  msa: string;
-  cityCode: string;
-  API_KEY: string;
-  API_URL: string;
-  today: string;
-  excludedAddresses?: string[];
+    msa: string;
+    cityCode: string;
+    API_KEY: string;
+    API_URL: string;
+    today: string;
+    excludedAddresses?: string[];
 }
 
 /**
@@ -28,25 +29,33 @@ export interface SyncMSAV3Params {
  * Rows are added manually per MSA; we only read and later update via persistSyncState.
  */
 export interface SyncStateByMSA {
-  id: number;
-  msa: string;
-  /** Raw last_sale_date from DB (null if never synced). */
-  lastSaleDate: Date | string | null;
-  /** Raw last_recording_date from DB. */
-  lastRecordingDate: Date | string | null;
-  totalRecordsSynced: number;
-  lastSyncAt: Date | null;
-  createdAt: Date | null;
-  /** Start of date range for this run (normalized last_sale_date or DEFAULT_START_DATE). */
-  minSaleDate: string;
+    id: number;
+    msa: string;
+    /** Raw last_sale_date from DB (null if never synced). */
+    lastSaleDate: Date | string | null;
+    /** Raw last_recording_date from DB. */
+    lastRecordingDate: Date | string | null;
+    totalRecordsSynced: number;
+    lastSyncAt: Date | null;
+    createdAt: Date | null;
+    /** Start of date range for this run (normalized last_sale_date or DEFAULT_START_DATE). */
+    minSaleDate: string;
 }
 
+/** One company row from DB; used for existence checks. */
+export type CompanyRow = typeof companies.$inferSelect;
+
+/** Map of normalized company name (for comparison) -> company row. Used to see if companies exist yet. */
+export type CompaniesMap = Map<string, CompanyRow>;
+
 export interface SyncMSAV3Result {
-  success: boolean;
-  msa: string;
-  message?: string;
-  /** Sync state from sfr_sync_state so we know which dates we're working with. */
-  syncState?: SyncStateByMSA;
+    success: boolean;
+    msa: string;
+    message?: string;
+    /** Sync state from sfr_sync_state so we know which dates we're working with. */
+    syncState?: SyncStateByMSA;
+    /** All companies keyed by normalized name for existence checks (optional in result for now). */
+    companiesMap?: CompaniesMap;
 }
 
 /**
@@ -56,30 +65,44 @@ export interface SyncMSAV3Result {
  * totalRecordsSynced, lastSyncAt). Throws if no row exists for the MSA.
  */
 export async function getSyncStateByMSA(msa: string): Promise<SyncStateByMSA> {
-  const rows = await db
-    .select()
-    .from(sfrSyncState)
-    .where(eq(sfrSyncState.msa, msa))
-    .limit(1);
+    const rows = await db
+        .select()
+        .from(sfrSyncState)
+        .where(eq(sfrSyncState.msa, msa))
+        .limit(1);
 
-  if (rows.length === 0) {
-    throw new Error(
-      `No sfr_sync_state row for MSA: ${msa}. Add a row manually when adding a new MSA.`
-    );
-  }
+    if (rows.length === 0) {
+        throw new Error(`No sfr_sync_state row for MSA: ${msa}. Add a row manually when adding a new MSA.`);
+    }
 
-  const row = rows[0];
-  const minSaleDate = normalizeDateToYMD(row.lastSaleDate) ?? DEFAULT_START_DATE;
-  return {
-    id: row.id,
-    msa: row.msa,
-    lastSaleDate: row.lastSaleDate,
-    lastRecordingDate: row.lastRecordingDate,
-    totalRecordsSynced: row.totalRecordsSynced ?? 0,
-    lastSyncAt: row.lastSyncAt,
-    createdAt: row.createdAt,
-    minSaleDate,
-  };
+    const row = rows[0];
+    const minSaleDate = normalizeDateToYMD(row.lastSaleDate) ?? DEFAULT_START_DATE;
+    return {
+            id: row.id,
+            msa: row.msa,
+            lastSaleDate: row.lastSaleDate,
+            lastRecordingDate: row.lastRecordingDate,
+            totalRecordsSynced: row.totalRecordsSynced ?? 0,
+            lastSyncAt: row.lastSyncAt,
+            createdAt: row.createdAt,
+            minSaleDate,
+    };
+}
+
+/**
+ * Load all companies into a map keyed by normalized name so we can compare
+ * and see if a company already exists in the database. Same approach as V2.
+ */
+export async function loadCompaniesForComparison(): Promise<CompaniesMap> {
+    const allCompanies = await db.select().from(companies);
+    const map = new Map<string, CompanyRow>();
+    for (const company of allCompanies) {
+        const normalizedKey = normalizeCompanyNameForComparison(company.companyName);
+        if (normalizedKey) {
+            map.set(normalizedKey, company);
+        }
+    }
+    return map;
 }
 
 /**
@@ -87,19 +110,26 @@ export async function getSyncStateByMSA(msa: string): Promise<SyncStateByMSA> {
  * Same parameters as syncMSAV2 for drop-in compatibility.
  */
 export async function dataSyncV3(params: SyncMSAV3Params): Promise<SyncMSAV3Result> {
-  const { msa, cityCode, API_KEY, API_URL, today, excludedAddresses = [] } = params;
+    const { msa, cityCode, API_KEY, API_URL, today, excludedAddresses = [] } = params;
 
-  // -------------------------------------------------------------------------
-  // Pull sfr_sync_state by MSA so we know which dates we're working with
-  // -------------------------------------------------------------------------
-  const syncState = await getSyncStateByMSA(msa);
+    // -------------------------------------------------------------------------
+    // Pull sfr_sync_state by MSA so we know which dates we're working with
+    // -------------------------------------------------------------------------
+    const syncState = await getSyncStateByMSA(msa);
 
-  console.log(`[${cityCode} SYNC V3] sfr_sync_state: id=${syncState.id} last_sale_date=${syncState.lastSaleDate ?? "null"} last_recording_date=${syncState.lastRecordingDate ?? "null"} total_records_synced=${syncState.totalRecordsSynced} → date range ${syncState.minSaleDate} to ${today}`);
+    console.log(`[${cityCode} SYNC V3] sfr_sync_state: id=${syncState.id} last_sale_date=${syncState.lastSaleDate ?? "null"} last_recording_date=${syncState.lastRecordingDate ?? "null"} total_records_synced=${syncState.totalRecordsSynced} → date range ${syncState.minSaleDate} to ${today}`);
 
-  return {
-    success: true,
-    msa,
-    message: `Sync state loaded: working with dates ${syncState.minSaleDate} → ${today}`,
-    syncState,
-  };
+    // -------------------------------------------------------------------------
+    // Load all companies so we have something to compare to (exist or not)
+    // -------------------------------------------------------------------------
+    const companiesMap = await loadCompaniesForComparison();
+    console.log(`[${cityCode} SYNC V3] Loaded ${companiesMap.size} companies into cache for comparison`);
+    
+    return {
+        success: true,
+        msa,
+        message: `Sync state and companies loaded; date range ${syncState.minSaleDate} → ${today}`,
+        syncState,
+        companiesMap,
+    };
 }
