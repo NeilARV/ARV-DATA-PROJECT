@@ -375,35 +375,83 @@ export function transformPreForeclosureData(propertyId: string, propertyData: Sf
     };
 }
 
-export function transformLastSaleData(propertyId: string, propertyData: SfrPropertyData, recordingDateOverride?: string | null) {
+/**
+ * Data from /buyers/market for the sale we're syncing. Stored first; batch fills the rest.
+ * Maps to: last_sales (sale_date, recording_date, price), current_sales (buyer_1, seller_1).
+ */
+export interface BuyersMarketSaleData {
+    saleDate?: string | null;
+    recordingDate?: string | null;
+    saleValue?: number | string | null;
+    buyerName?: string | null;
+    sellerName?: string | null;
+}
+
+/**
+ * Builds last_sales row. When buyersMarket is provided (sync from /buyers/market), use its
+ * sale_date, recording_date, and price (saleValue); use batch for document_type, mtg_*, lender.
+ */
+export function transformLastSaleData(
+    propertyId: string,
+    propertyData: SfrPropertyData,
+    recordingDateOverride?: string | null,
+    buyersMarket?: BuyersMarketSaleData | null
+) {
     const lastSale = propertyData.last_sale || propertyData.lastSale;
-    if (!lastSale) return null;
+    const useBuyersMarket = buyersMarket && (buyersMarket.saleDate !== undefined || buyersMarket.recordingDate !== undefined || buyersMarket.saleValue !== undefined);
+    if (!lastSale && !useBuyersMarket) return null;
+
+    const saleDate = useBuyersMarket && buyersMarket!.saleDate !== undefined
+        ? normalizeDateToYMD(buyersMarket!.saleDate)
+        : (lastSale?.date ?? null);
+    const recordingDate = useBuyersMarket && buyersMarket!.recordingDate !== undefined
+        ? normalizeDateToYMD(buyersMarket!.recordingDate)
+        : (recordingDateOverride !== undefined ? recordingDateOverride : (lastSale?.recording_date ?? null));
+    const price = useBuyersMarket && buyersMarket!.saleValue != null
+        ? String(buyersMarket!.saleValue)
+        : (lastSale?.price ? String(lastSale.price) : null);
 
     return {
         propertyId,
-        saleDate: lastSale.date || null,
-        recordingDate: recordingDateOverride !== undefined ? recordingDateOverride : (lastSale.recording_date || null),
-        price: lastSale.price ? String(lastSale.price) : null,
-        documentType: lastSale.document_type || null,
-        mtgAmount: lastSale.mtg_amount ? String(lastSale.mtg_amount) : null,
-        mtgType: lastSale.mtg_type || null,
-        lender: normalizeCompanyNameForStorage(lastSale.lender) || null,
-        mtgInterestRate: lastSale.mtg_interest_rate != null ? String(lastSale.mtg_interest_rate) : null,
-        mtgTermMonths: lastSale.mtg_term_months != null ? String(lastSale.mtg_term_months) : null,
+        saleDate,
+        recordingDate,
+        price,
+        documentType: lastSale?.document_type ?? null,
+        mtgAmount: lastSale?.mtg_amount ? String(lastSale.mtg_amount) : null,
+        mtgType: lastSale?.mtg_type ?? null,
+        lender: lastSale?.lender ? normalizeCompanyNameForStorage(lastSale.lender) : null,
+        mtgInterestRate: lastSale?.mtg_interest_rate != null ? String(lastSale.mtg_interest_rate) : null,
+        mtgTermMonths: lastSale?.mtg_term_months != null ? String(lastSale.mtg_term_months) : null,
     };
 }
 
-export function transformCurrentSaleData(propertyId: string, propertyData: SfrPropertyData) {
+/**
+ * Builds current_sales row. When buyersMarket is provided (sync from /buyers/market), use its
+ * buyerName and sellerName for buyer_1 and seller_1; use batch for doc_num, buyer_2, seller_2.
+ */
+export function transformCurrentSaleData(
+    propertyId: string,
+    propertyData: SfrPropertyData,
+    buyersMarket?: BuyersMarketSaleData | null
+) {
     const currentSale = propertyData.current_sale || propertyData.currentSale;
-    if (!currentSale) return null;
+    const useBuyersMarket = buyersMarket && (buyersMarket.buyerName !== undefined || buyersMarket.sellerName !== undefined);
+    if (!currentSale && !useBuyersMarket) return null;
+
+    const buyer1 = useBuyersMarket && buyersMarket!.buyerName != null
+        ? normalizeCompanyNameForStorage(buyersMarket!.buyerName)
+        : (currentSale ? normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) : null);
+    const seller1 = useBuyersMarket && buyersMarket!.sellerName != null
+        ? normalizeCompanyNameForStorage(buyersMarket!.sellerName)
+        : (currentSale ? normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) : null);
 
     return {
         propertyId,
-        docNum: currentSale.doc_num || null,
-        buyer1: normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) || null,
-        buyer2: normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) || null,
-        seller1: normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) || null,
-        seller2: normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) || null,
+        docNum: currentSale?.doc_num ?? null,
+        buyer1: buyer1 ?? null,
+        buyer2: currentSale ? normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) : null,
+        seller1: seller1 ?? null,
+        seller2: currentSale ? normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) : null,
     };
 }
 
@@ -430,7 +478,8 @@ export function transformAllPropertyData(
     propertyId: string,
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
-    recordingDateOverride?: string | null
+    recordingDateOverride?: string | null,
+    buyersMarketData?: BuyersMarketSaleData | null
 ): TransformedPropertyData {
     return {
         address: transformAddressData(propertyId, propertyData, normalizedCounty),
@@ -442,8 +491,8 @@ export function transformAllPropertyData(
         taxRecord: transformTaxRecordData(propertyId, propertyData),
         valuation: transformValuationData(propertyId, propertyData),
         preForeclosure: transformPreForeclosureData(propertyId, propertyData),
-        lastSale: transformLastSaleData(propertyId, propertyData, recordingDateOverride),
-        currentSale: transformCurrentSaleData(propertyId, propertyData),
+        lastSale: transformLastSaleData(propertyId, propertyData, recordingDateOverride, buyersMarketData),
+        currentSale: transformCurrentSaleData(propertyId, propertyData, buyersMarketData),
     };
 }
 
@@ -456,14 +505,16 @@ export function transformAllPropertyData(
  * Inserts all property-related data for a single property.
  * This is used by the single property creation endpoint.
  * @param recordingDateOverride - Optional override for last_sale.recording_date (used during sync)
+ * @param buyersMarketData - When syncing from /buyers/market: sale_date, recording_date, price, buyer/seller go to last_sales and current_sales first; batch fills the rest.
  */
 export async function insertPropertyRelatedData(
     propertyId: string,
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
-    recordingDateOverride?: string | null
+    recordingDateOverride?: string | null,
+    buyersMarketData?: BuyersMarketSaleData | null
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
 
     // Insert each table's data if it exists
     if (data.address) {
@@ -538,15 +589,17 @@ export function createPropertyDataCollectors(): PropertyDataCollectors {
 
 /**
  * Collects transformed property data into the collectors for batch insertion.
+ * When buyersMarketData is provided, last_sales and current_sales use /buyers/market values first; batch fills the rest.
  */
 export function collectPropertyData(
     collectors: PropertyDataCollectors,
     propertyId: string,
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
-    recordingDateOverride?: string | null
+    recordingDateOverride?: string | null,
+    buyersMarketData?: BuyersMarketSaleData | null
 ): void {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
 
     if (data.address) collectors.addresses.push(data.address);
     if (data.structure) collectors.structures.push(data.structure);
@@ -608,14 +661,16 @@ export async function batchInsertPropertyData(collectors: PropertyDataCollectors
 /**
  * Updates 1:1 related tables for an existing property.
  * Tables: addresses, current_sales, exemptions, last_sales, parcels, school_districts, structures, pre_foreclosures.
+ * When buyersMarketData is provided, last_sales and current_sales use /buyers/market values first; batch fills the rest.
  */
 export async function updatePropertyRelatedDataForExisting(
     propertyId: string,
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
-    recordingDateOverride?: string | null
+    recordingDateOverride?: string | null,
+    buyersMarketData?: BuyersMarketSaleData | null
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
 
     if (data.address) {
         await db.update(addresses).set(omit(data.address, "propertyId")).where(eq(addresses.propertyId, propertyId));
@@ -650,9 +705,10 @@ export async function addPropertyOneToManyDataIfNew(
     propertyId: string,
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
-    recordingDateOverride?: string | null
+    recordingDateOverride?: string | null,
+    buyersMarketData?: BuyersMarketSaleData | null
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride);
+    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
 
     if (data.assessment && propertyData.assessed_year) {
         const existing = await db
