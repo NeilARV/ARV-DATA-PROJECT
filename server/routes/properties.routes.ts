@@ -495,9 +495,9 @@ router.get("/:id", async (req, res) => {
                 bathrooms: sql<number | null>`CAST(${structures.baths} AS FLOAT)`,
                 squareFeet: structures.livingAreaSqft,
                 yearBuilt: structures.yearBuilt,
-                // Last sale fields (for price and dateSold)
+                // Last sale fields (for price and dateSold; display uses recording_date)
                 price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
-                dateSold: lastSales.saleDate,
+                dateSold: lastSales.recordingDate,
                 // Buyer company info
                 buyerCompanyName: buyerCompanies.companyName,
                 buyerContactName: buyerCompanies.contactName,

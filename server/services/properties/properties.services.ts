@@ -227,7 +227,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     // Has Date Sold filter - from lastSales table
     if (hasDateSold === "true") {
         conditions.push(
-            sql`${lastSales.saleDate} IS NOT NULL`
+            sql`${lastSales.recordingDate} IS NOT NULL`
         )
     }
 
@@ -293,9 +293,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             bathrooms: sql<number | null>`CAST(${structures.baths} AS REAL)`,
             squareFeet: structures.totalAreaSqFt,
             yearBuilt: structures.yearBuilt,
-            // Last Sale fields
+            // Last Sale fields (dateSold = recording_date for "Date Sold" display)
             price: sql<number | null>`CAST(${lastSales.price} AS REAL)`,
-            dateSold: lastSales.saleDate,
+            dateSold: lastSales.recordingDate,
             // Buyer company info
             buyerCompanyName: buyerCompanies.companyName,
             buyerContactName: buyerCompanies.contactName,
@@ -327,17 +327,17 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const sortByValue = sortBy?.toString() || "recently-sold";
     switch (sortByValue) {
         case "recently-sold":
-            // Sort by saleDate DESC (most recent first), nulls last
+            // Sort by recording date DESC (most recent first), nulls last
             query = query.orderBy(
-                sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${lastSales.saleDate} AS DATE) DESC`
+                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.recordingDate} AS DATE) DESC`
             ) as any;
             break;
         case "days-held":
-            // Sort by days held (calculated from dateSold to now) DESC (longest first), nulls last
+            // Sort by days held (from recording date to now) DESC (longest first), nulls last
             query = query.orderBy(
-                sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`(EXTRACT(EPOCH FROM (NOW() - ${lastSales.saleDate})) / 86400) DESC`
+                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`(EXTRACT(EPOCH FROM (NOW() - ${lastSales.recordingDate})) / 86400) DESC`
             ) as any;
             break;
         case "price-high-low":
@@ -355,10 +355,10 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             ) as any;
             break;
         default:
-            // Default to recently-sold
+            // Default to recently-sold (by recording date)
             query = query.orderBy(
-                sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${lastSales.saleDate} AS DATE) DESC`
+                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.recordingDate} AS DATE) DESC`
             ) as any;
     }
 
