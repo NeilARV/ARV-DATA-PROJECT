@@ -7,13 +7,9 @@ import { emailSyncState } from "../../database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
 
-const PROPERTY_COUNT = 3;
-
-const MOCK_IMAGE_URLS = [
-  "https://images.unsplash.com/photo-1560184897-ae75f418493e",
-  "https://images.unsplash.com/photo-1572120360610-d971b9d7767c",
-  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-];
+const PROPERTY_COUNT_TARGET = 3;
+/** Fetch this many recent properties and take the first 3 that have Street View images. */
+const CANDIDATE_POOL_SIZE = 20;
 
 const STREETVIEW_SIZE = "600x400";
 const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
@@ -60,13 +56,16 @@ function buildStreetviewUrl(propertyId: string, address: string, city: string, s
   return `${APP_BASE_URL}/api/properties/streetview?${params.toString()}`;
 }
 
-async function getPropertyImageUrl(
+/**
+ * Returns the Street View image URL if Google has an image for this property, null otherwise.
+ * Used to skip properties without real images so we only send properties with Street View.
+ */
+async function getStreetViewUrlIfAvailable(
   propertyId: string,
   address: string,
   city: string,
-  state: string,
-  mockFallback: string
-): Promise<string> {
+  state: string
+): Promise<string | null> {
   const addr = address || "Unknown";
   const c = city || "";
   const s = state || "";
@@ -84,10 +83,10 @@ async function getPropertyImageUrl(
       return buildStreetviewUrl(propertyId, addr, c, s);
     }
   } catch (err) {
-    console.warn(`[EMAIL ${address}]: Street View lookup failed:`, err);
+    console.warn(`[EMAIL] Street View lookup failed for ${addr}, ${c}, ${s}:`, err);
   }
 
-  return mockFallback;
+  return null;
 }
 
 /**
@@ -126,8 +125,8 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return;
     }
 
-    // 3 most recently sold properties for this MSA — same order as GridView "Recently Sold" (properties.services: nulls last, then sale_date DESC)
-    const recentProperties = await db
+    // Fetch a pool of recent properties (by recording date); we'll keep only those with Street View images
+    const candidateProperties = await db
       .select({
         address: addresses.formattedStreetAddress,
         city: addresses.city,
@@ -135,6 +134,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         zipCode: addresses.zipCode,
         price: lastSales.price,
         saleDate: lastSales.saleDate,
+        recordingDate: lastSales.recordingDate,
         propertyId: properties.id,
         status: properties.status,
         propertyType: properties.propertyType,
@@ -148,67 +148,82 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .leftJoin(structures, eq(properties.id, structures.propertyId))
       .where(eq(properties.msa, msaName))
       .orderBy(
-        sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
-        sql`CAST(${lastSales.saleDate} AS DATE) DESC`
+        sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+        sql`CAST(${lastSales.recordingDate} AS DATE) DESC`
       )
-      .limit(PROPERTY_COUNT);
+      .limit(CANDIDATE_POOL_SIZE);
 
-    if (recentProperties.length === 0) {
+    if (candidateProperties.length === 0) {
       console.log(`[EMAIL ${msaName}]: No properties in database for this MSA, skipping send`);
       return;
     }
 
-    const recentAddresses = recentProperties.map((p) => (p.address ?? "").trim());
     const [syncState] = await db
       .select()
       .from(emailSyncState)
       .where(eq(emailSyncState.msa, msaName))
       .limit(1);
 
-    if (syncState?.lastAddressUsed) {
-      const lastUsed = syncState.lastAddressUsed.trim();
-      if (recentAddresses.includes(lastUsed)) {
-        console.log(`[EMAIL ${msaName}]: No new properties (last sent address still in top 3), skipping send`);
-        return;
-      }
+    // Build list of up to PROPERTY_COUNT_TARGET properties that have Street View images (skip others)
+    const propertiesForTemplate: Array<{
+      address: string;
+      city: string;
+      state: string;
+      zipcode: string;
+      price: string;
+      date_sold: string;
+      bedrooms: string;
+      bathrooms: string;
+      sqft: string;
+      property_type: string;
+      image_url: string;
+      status_tags: { label: string; bg: string; text: string }[];
+    }> = [];
+
+    for (const p of candidateProperties) {
+      if (propertiesForTemplate.length >= PROPERTY_COUNT_TARGET) break;
+
+      const address = p.address ?? "Unknown";
+      const city = p.city ?? "Unknown";
+      const state = p.state ?? "N/A";
+      const image_url = await getStreetViewUrlIfAvailable(p.propertyId, address, city, state);
+      if (image_url === null) continue;
+
+      const statusTags = getStatusTags(p.status ?? null).map((tag) => ({
+        label: tag.label,
+        bg: tag.bg,
+        text: tag.text,
+      }));
+      const bedrooms = p.bedsCount != null ? String(p.bedsCount) : "—";
+      const bathrooms = p.baths != null ? String(p.baths) : "—";
+      const sqft = p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—";
+      propertiesForTemplate.push({
+        address,
+        city,
+        state,
+        zipcode: (p.zipCode ?? "").trim() || "—",
+        price: formatPrice(p.price?.toString()),
+        date_sold: formatDateSold(p.recordingDate ?? p.saleDate ?? null),
+        bedrooms,
+        bathrooms,
+        sqft,
+        property_type: (p.propertyType ?? "").trim() || "—",
+        image_url,
+        status_tags: statusTags,
+      });
     }
 
-    const propertiesForTemplate = await Promise.all(
-      recentProperties.map(async (p, i) => {
-        const address = p.address ?? "Unknown";
-        const city = p.city ?? "Unknown";
-        const state = p.state ?? "N/A";
-        const image_url = await getPropertyImageUrl(
-          p.propertyId,
-          address,
-          city,
-          state,
-          MOCK_IMAGE_URLS[i % MOCK_IMAGE_URLS.length]
-        );
-        const statusTags = getStatusTags(p.status ?? null).map((tag) => ({
-          label: tag.label,
-          bg: tag.bg,
-          text: tag.text,
-        }));
-        const bedrooms = p.bedsCount != null ? String(p.bedsCount) : "—";
-        const bathrooms = p.baths != null ? String(p.baths) : "—";
-        const sqft = p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—";
-        return {
-          address,
-          city,
-          state,
-          zipcode: (p.zipCode ?? "").trim() || "—",
-          price: formatPrice(p.price?.toString()),
-          date_sold: formatDateSold(p.saleDate ?? null),
-          bedrooms,
-          bathrooms,
-          sqft,
-          property_type: (p.propertyType ?? "").trim() || "—",
-          image_url,
-          status_tags: statusTags,
-        };
-      })
-    );
+    if (propertiesForTemplate.length === 0) {
+      console.log(`[EMAIL ${msaName}]: No properties with Street View images found in pool of ${candidateProperties.length}, skipping send`);
+      return;
+    }
+
+    // Skip send if the most recent property we would send was already sent last time
+    const firstAddressSent = propertiesForTemplate[0].address.trim();
+    if (syncState?.lastAddressUsed && syncState.lastAddressUsed.trim() === firstAddressSent) {
+      console.log(`[EMAIL ${msaName}]: No new properties (last sent address still first with image), skipping send`);
+      return;
+    }
 
     for (const user of uniqueUsers) {
       const emailTemplate = {
@@ -231,7 +246,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
     }
 
-    const mostRecentAddress = recentAddresses[0] ?? null;
+    const mostRecentAddress = firstAddressSent ?? null;
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
 
