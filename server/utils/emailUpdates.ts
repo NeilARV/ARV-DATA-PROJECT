@@ -18,6 +18,23 @@ const MOCK_IMAGE_URLS = [
 const STREETVIEW_SIZE = "600x400";
 const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
 
+// Status tag styles — match PropertyCard.tsx (and PropertyMap map ping colors)
+const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
+  Renovating: { label: "Renovating", bg: "#69C9E1", text: "#fff" },
+  Sold: { label: "Sold", bg: "#FF0000", text: "#fff" },
+  "On Market": { label: "On Market", bg: "#22C55E", text: "#fff" },
+  Wholesale: { label: "Wholesale", bg: "#9333EA", text: "#fff" },
+};
+
+function getStatusTags(status: string | null): { label: string; bg: string; text: string }[] {
+  const s = (status || "").toLowerCase().trim();
+  if (s === "in-renovation") return [STATUS_TAG_STYLES.Renovating];
+  if (s === "sold") return [STATUS_TAG_STYLES.Sold];
+  if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
+  if (s === "b2b") return [STATUS_TAG_STYLES.Wholesale, STATUS_TAG_STYLES.Renovating];
+  return [STATUS_TAG_STYLES.Renovating];
+}
+
 function formatPrice(price: string | null | undefined): string {
   if (price == null) return "N/A";
   const num = parseFloat(price);
@@ -110,6 +127,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         state: addresses.state,
         price: lastSales.price,
         propertyId: properties.id,
+        status: properties.status,
       })
       .from(properties)
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -159,6 +177,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
           state,
           price: formatPrice(p.price?.toString()),
           image_url,
+          status_tags: getStatusTags(p.status ?? null),
         };
       })
     );
@@ -167,7 +186,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const emailTemplate = {
         From: "justin@arvfinance.com",
         To: user.email,
-        TemplateAlias: "test-template-1",
+        TemplateAlias: "property-email-v1",
         TemplateModel: {
           name: user.firstName,
           city: city,
