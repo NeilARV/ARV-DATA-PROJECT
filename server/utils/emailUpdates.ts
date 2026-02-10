@@ -2,7 +2,7 @@ import { ServerClient } from "postmark";
 import { db } from "server/storage";
 import { users } from "../../database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "../../database/schemas/msas.schema";
-import { properties, addresses, lastSales } from "../../database/schemas/properties.schema";
+import { properties, addresses, lastSales, structures } from "../../database/schemas/properties.schema";
 import { emailSyncState } from "../../database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
@@ -40,6 +40,13 @@ function formatPrice(price: string | null | undefined): string {
   const num = parseFloat(price);
   if (isNaN(num)) return "N/A";
   return num.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function formatDateSold(saleDate: Date | string | null | undefined): string {
+  if (saleDate == null) return "—";
+  const d = typeof saleDate === "string" ? new Date(saleDate) : saleDate;
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function buildStreetviewUrl(propertyId: string, address: string, city: string, state: string): string {
@@ -125,13 +132,20 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         address: addresses.formattedStreetAddress,
         city: addresses.city,
         state: addresses.state,
+        zipCode: addresses.zipCode,
         price: lastSales.price,
+        saleDate: lastSales.saleDate,
         propertyId: properties.id,
         status: properties.status,
+        propertyType: properties.propertyType,
+        bedsCount: structures.bedsCount,
+        baths: structures.baths,
+        livingAreaSqft: structures.livingAreaSqft,
       })
       .from(properties)
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
       .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+      .leftJoin(structures, eq(properties.id, structures.propertyId))
       .where(eq(properties.msa, msaName))
       .orderBy(
         sql`CASE WHEN ${lastSales.saleDate} IS NULL THEN 1 ELSE 0 END`,
@@ -171,13 +185,27 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
           state,
           MOCK_IMAGE_URLS[i % MOCK_IMAGE_URLS.length]
         );
+        const statusTags = getStatusTags(p.status ?? null).map((tag) => ({
+          label: tag.label,
+          bg: tag.bg,
+          text: tag.text,
+        }));
+        const bedrooms = p.bedsCount != null ? String(p.bedsCount) : "—";
+        const bathrooms = p.baths != null ? String(p.baths) : "—";
+        const sqft = p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—";
         return {
           address,
           city,
           state,
+          zipcode: (p.zipCode ?? "").trim() || "—",
           price: formatPrice(p.price?.toString()),
+          date_sold: formatDateSold(p.saleDate ?? null),
+          bedrooms,
+          bathrooms,
+          sqft,
+          property_type: (p.propertyType ?? "").trim() || "—",
           image_url,
-          status_tags: getStatusTags(p.status ?? null),
+          status_tags: statusTags,
         };
       })
     );
