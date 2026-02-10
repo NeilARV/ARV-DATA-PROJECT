@@ -420,10 +420,15 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {company.propertyCount > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {sortBy !== "most-sold-properties" && company.propertyCount > 0 && (
                           <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
                             {company.propertyCount} {company.propertyCount === 1 ? 'property' : 'properties'}
+                          </div>
+                        )}
+                        {sortBy === "most-sold-properties" && (company.propertiesSoldCount ?? 0) > 0 && (
+                          <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
+                            {company.propertiesSoldCount} sold
                           </div>
                         )}
                         {isExpanded ? (
