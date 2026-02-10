@@ -13,6 +13,10 @@ import { eq } from "drizzle-orm";
 import { normalizeDateToYMD, normalizeCompanyNameForComparison } from "server/utils/normalization";
 
 const DEFAULT_START_DATE = "2025-12-03";
+const BUYERS_MARKET_PAGE_SIZE = 100;
+const SFR_RATE_LIMIT_DELAY_MS = 1000;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export interface SyncMSAV3Params {
     msa: string;
@@ -56,6 +60,8 @@ export interface SyncMSAV3Result {
     syncState?: SyncStateByMSA;
     /** All companies keyed by normalized name for existence checks (optional in result for now). */
     companiesMap?: CompaniesMap;
+    /** Number of records returned from /buyers/market across all pages. */
+    buyersMarketRecordCount?: number;
 }
 
 /**
@@ -105,6 +111,97 @@ export async function loadCompaniesForComparison(): Promise<CompaniesMap> {
     return map;
 }
 
+/** One raw record from SFR /buyers/market (shape from API). */
+export type BuyersMarketRecord = Record<string, unknown>;
+
+/**
+ * Fetch /buyers/market with the given date range and MSA. Returns the array of records.
+ * Params: sales_date_min, sales_date_max (today), sort=recording_date, page_size=100, msa.
+ */
+async function fetchBuyersMarketPage(options: {
+  API_URL: string;
+  API_KEY: string;
+  msa: string;
+  salesDateMin: string;
+  salesDateMax: string;
+}): Promise<BuyersMarketRecord[]> {
+  const { API_URL, API_KEY, msa, salesDateMin, salesDateMax } = options;
+  const params = new URLSearchParams({
+    msa,
+    sales_date_min: salesDateMin,
+    sales_date_max: salesDateMax,
+    sort: "recording_date",
+    page_size: String(BUYERS_MARKET_PAGE_SIZE),
+  });
+  const url = `${API_URL}/buyers/market?${params.toString()}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { "X-API-TOKEN": API_KEY },
+  });
+  if (!response.ok) {
+    throw new Error(`/buyers/market returned ${response.status}`);
+  }
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data as BuyersMarketRecord[];
+}
+
+/**
+ * Loop: call /buyers/market until we get a page with length < page_size (100).
+ * Uses sales_date_min from sync state, sales_date_max = today. After each full page,
+ * advances sales_date_min to the last record's sale_date so the next call gets the next page.
+ */
+export async function fetchAllBuyersMarketPages(options: {
+  API_URL: string;
+  API_KEY: string;
+  msa: string;
+  salesDateMin: string;
+  salesDateMax: string;
+  cityCode: string;
+}): Promise<BuyersMarketRecord[]> {
+  const { API_URL, API_KEY, msa, salesDateMin, salesDateMax, cityCode } = options;
+  const allRecords: BuyersMarketRecord[] = [];
+  let currentMin = salesDateMin;
+  let pageNum = 1;
+
+  while (true) {
+    if (pageNum > 1) {
+      await delay(SFR_RATE_LIMIT_DELAY_MS);
+    }
+
+    const page = await fetchBuyersMarketPage({
+      API_URL,
+      API_KEY,
+      msa,
+      salesDateMin: currentMin,
+      salesDateMax,
+    });
+
+    if (page.length > 0) {
+      allRecords.push(...page);
+      console.log(`[${cityCode} SYNC V3] buyers/market page ${pageNum}: ${page.length} records (total so far: ${allRecords.length})`);
+    }
+
+    if (page.length < BUYERS_MARKET_PAGE_SIZE) {
+      console.log(`[${cityCode} SYNC V3] buyers/market done: ${page.length} on last page, no more pages`);
+      break;
+    }
+
+    const lastRecord = page[page.length - 1];
+    const nextMin = normalizeDateToYMD(lastRecord.saleDate as string);
+    if (!nextMin) {
+      console.warn(`[${cityCode} SYNC V3] Last record had no saleDate, stopping pagination`);
+      break;
+    }
+    currentMin = nextMin;
+    pageNum++;
+  }
+
+  return allRecords;
+}
+
 /**
  * Sync SFR data for a single MSA (V3).
  * Same parameters as syncMSAV2 for drop-in compatibility.
@@ -124,12 +221,26 @@ export async function dataSyncV3(params: SyncMSAV3Params): Promise<SyncMSAV3Resu
     // -------------------------------------------------------------------------
     const companiesMap = await loadCompaniesForComparison();
     console.log(`[${cityCode} SYNC V3] Loaded ${companiesMap.size} companies into cache for comparison`);
-    
+
+    // -------------------------------------------------------------------------
+    // Paginate /buyers/market until we get a page with < 100 records
+    // -------------------------------------------------------------------------
+    const buyersMarketRecords = await fetchAllBuyersMarketPages({
+      API_URL,
+      API_KEY,
+      msa,
+      salesDateMin: syncState.minSaleDate,
+      salesDateMax: today,
+      cityCode,
+    });
+    console.log(`[${cityCode} SYNC V3] buyers/market total records: ${buyersMarketRecords.length}`);
+
     return {
         success: true,
         msa,
         message: `Sync state and companies loaded; date range ${syncState.minSaleDate} → ${today}`,
         syncState,
         companiesMap,
+        buyersMarketRecordCount: buyersMarketRecords.length,
     };
 }
