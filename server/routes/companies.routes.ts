@@ -83,17 +83,30 @@ router.get("/contacts", async (req, res) => {
         
         const allProperties = await propertiesQuery;
 
-        // Calculate property count for each company (match buyer_id OR seller_id)
+        // Sold count per company (from property_transactions where company is seller)
+        const soldCountRows = await db
+            .select({
+                sellerId: propertyTransactions.sellerId,
+                count: sql<number>`count(*)::int`,
+            })
+            .from(propertyTransactions)
+            .groupBy(propertyTransactions.sellerId);
+        const soldCountByCompanyId = new Map<string, number>();
+        soldCountRows.forEach((row) => {
+            if (row.sellerId) soldCountByCompanyId.set(row.sellerId, row.count);
+        });
+
+        // Calculate property count and propertiesSoldCount for each company
         const contactsWithCounts = contacts.map(contact => {
             const companyProperties = allProperties.filter(p => {
                 return p.buyerId === contact.id
             });
-            
             const propertyCount = companyProperties.length;
-            
+            const propertiesSoldCount = soldCountByCompanyId.get(contact.id) ?? 0;
             return {
                 ...contact,
                 propertyCount,
+                propertiesSoldCount,
             };
         });
 

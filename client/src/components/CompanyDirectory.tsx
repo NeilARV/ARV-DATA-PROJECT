@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
-type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "new-buyers";
+type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "new-buyers";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -194,6 +194,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           return b.propertyCount - a.propertyCount;
         case "fewest-properties":
           return a.propertyCount - b.propertyCount;
+        case "most-sold-properties":
+          return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
         case "new-buyers":
           // Sort by property count (fallback since we don't have recentMonthPurchases)
           return b.propertyCount - a.propertyCount;
@@ -346,6 +348,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
               <SelectItem value="fewest-properties" data-testid="sort-fewest-properties">
                 Fewest Properties
               </SelectItem>
+              <SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
+                Most Sold Properties (YTD)
+              </SelectItem>
               <SelectItem value="new-buyers" data-testid="sort-new-buyers">
                 New Buyers
               </SelectItem>
@@ -379,7 +384,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2 flex-1 min-w-0">
-                        {sortBy === "most-properties" && index < 25 && (
+                        {(sortBy === "most-properties" || sortBy === "most-sold-properties") && index < 25 && (
                           <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${index + 1}`}>
                             {index + 1}.
                           </span>
