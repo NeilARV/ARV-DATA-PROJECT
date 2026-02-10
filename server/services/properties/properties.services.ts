@@ -296,10 +296,21 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // Last Sale fields
             price: sql<number | null>`CAST(${lastSales.price} AS REAL)`,
             dateSold: lastSales.saleDate,
-            // Company info (buyer as primary, seller as fallback)
+            // Buyer company info
+            buyerCompanyName: buyerCompanies.companyName,
+            buyerContactName: buyerCompanies.contactName,
+            buyerContactEmail: buyerCompanies.contactEmail,
+            buyerContactPhone: buyerCompanies.phoneNumber,
+            // Seller company info
+            sellerCompanyName: sellerCompanies.companyName,
+            sellerContactName: sellerCompanies.contactName,
+            sellerContactEmail: sellerCompanies.contactEmail,
+            sellerContactPhone: sellerCompanies.phoneNumber,
+            // Legacy company info (buyer as primary, seller as fallback)
             companyName: sql<string>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
             contactName: sql<string | null>`COALESCE(${buyerCompanies.contactName}, ${sellerCompanies.contactName})`,
             contactEmail: sql<string | null>`COALESCE(${buyerCompanies.contactEmail}, ${sellerCompanies.contactEmail})`,
+            contactPhone: sql<string | null>`COALESCE(${buyerCompanies.phoneNumber}, ${sellerCompanies.phoneNumber})`,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -389,9 +400,18 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             companyId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),
             buyerId: prop.buyerId ? String(prop.buyerId) : null,
             sellerId: prop.sellerId ? String(prop.sellerId) : null,
+            buyerCompanyName: prop.buyerCompanyName || null,
+            buyerContactName: prop.buyerContactName || null,
+            buyerContactEmail: prop.buyerContactEmail || null,
+            buyerContactPhone: prop.buyerContactPhone || null,
+            sellerCompanyName: prop.sellerCompanyName || null,
+            sellerContactName: prop.sellerContactName || null,
+            sellerContactEmail: prop.sellerContactEmail || null,
+            sellerContactPhone: prop.sellerContactPhone || null,
             companyName: prop.companyName || null,
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,
+            companyContactPhone: prop.contactPhone || null,
             // Legacy aliases for backward compatibility
             propertyOwner: prop.companyName || null,
             propertyOwnerId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),

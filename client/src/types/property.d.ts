@@ -28,16 +28,19 @@ export type Property = {
   buyerCompanyName: string | null;
   buyerContactName: string | null;
   buyerContactEmail: string | null;
+  buyerContactPhone: string | null;
   // Seller company info
   sellerId: string | null;
   sellerCompanyName: string | null;
   sellerContactName: string | null;
   sellerContactEmail: string | null;
+  sellerContactPhone: string | null;
   // Legacy aliases (companyId/propertyOwnerId = buyer or seller for display/filter)
   companyId: string | null;
   companyName: string | null;
   companyContactName: string | null;
   companyContactEmail: string | null;
+  companyContactPhone: string | null;
   propertyOwner: string | null;
   propertyOwnerId: string | null;
   // Optional fields

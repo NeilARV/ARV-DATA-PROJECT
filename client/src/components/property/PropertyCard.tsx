@@ -1,6 +1,6 @@
 import type { Property } from "@/types/property";
 import { Card } from "@/components/ui/card";
-import { Bed, Bath, Maximize2, Building2, Calendar } from "lucide-react";
+import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { format, parseISO, isValid } from "date-fns";
@@ -107,7 +107,9 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
       <div className="p-4">
         <div className="flex items-start justify-between mb-1">
           <div>
-            <p className="text-sm text-muted-foreground">Purchase Price</p>
+            <p className="text-sm text-muted-foreground">
+              {property.status?.toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price"}
+            </p>
             <div
               className="text-xl font-bold text-foreground"
               data-testid={`text-price-${property.id}`}
@@ -171,17 +173,132 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
         <div className="text-sm text-muted-foreground mt-2">
           {property.propertyType}
         </div>
-        {(property.companyName || property.propertyOwner) && (
-          <div className="flex items-start gap-2 mt-3 pt-3 border-t">
-            <Building2 className="w-4 h-4 text-primary mt-1 flex-shrink-0" />
-            <div>
-              <div className="text-xs text-muted-foreground">Company</div>
-              <div
-                className="font-semibold text-base text-primary"
-                data-testid={`text-company-${property.id}`}
-              >
-                {property.companyName || property.propertyOwner}
-              </div>
+        {(property.buyerId || property.sellerId) && (
+          <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-4 items-stretch">
+            {/* Buyer: always left column when buyerId exists */}
+            <div className="min-w-0 flex flex-col">
+              {property.buyerId ? (
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-muted-foreground">Buyer</div>
+                  <div
+                    className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5"
+                    data-testid={`text-buyer-${property.id}`}
+                  >
+                    <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
+                    <span className="truncate text-primary">
+                      {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                    </span>
+                  </div>
+                  {(property.buyerContactName ||
+                    property.buyerContactEmail ||
+                    property.buyerContactPhone ||
+                    property.companyContactName ||
+                    property.companyContactEmail ||
+                    property.companyContactPhone) && (
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
+                      {(property.buyerContactName || property.companyContactName) && (
+                        <div
+                          className="flex items-center gap-1.5 truncate"
+                          data-testid={`text-buyer-contact-${property.id}`}
+                        >
+                          <User className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{property.buyerContactName || property.companyContactName}</span>
+                        </div>
+                      )}
+                      {(property.buyerContactEmail || property.companyContactEmail) && (
+                        <a
+                          href={`mailto:${property.buyerContactEmail || property.companyContactEmail}`}
+                          className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`text-buyer-email-${property.id}`}
+                        >
+                          <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{property.buyerContactEmail || property.companyContactEmail}</span>
+                        </a>
+                      )}
+                      {(property.buyerContactPhone || property.companyContactPhone) && (
+                        <a
+                          href={`tel:${(property.buyerContactPhone || property.companyContactPhone || "").replace(/\D/g, "")}`}
+                          className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`text-buyer-phone-${property.id}`}
+                        >
+                          <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{property.buyerContactPhone || property.companyContactPhone}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div className="text-xs text-muted-foreground">Buyer</div>
+                  <div className="flex items-center justify-center flex-1 min-h-0 mt-0.5">
+                    <span className="text-primary">—</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Seller: always right column when sellerId exists */}
+            <div className="min-w-0 flex flex-col">
+              {property.sellerId ? (
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-muted-foreground">Seller</div>
+                  <div
+                    className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5"
+                    data-testid={`text-seller-${property.id}`}
+                  >
+                    <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
+                    <span className="truncate text-primary">
+                      {property.sellerCompanyName || "—"}
+                    </span>
+                  </div>
+                  {(property.sellerContactName ||
+                    property.sellerContactEmail ||
+                    property.sellerContactPhone) && (
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
+                      {property.sellerContactName && (
+                        <div
+                          className="flex items-center gap-1.5 truncate"
+                          data-testid={`text-seller-contact-${property.id}`}
+                        >
+                          <User className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{property.sellerContactName}</span>
+                        </div>
+                      )}
+                      {property.sellerContactEmail && (
+                        <a
+                          href={`mailto:${property.sellerContactEmail}`}
+                          className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`text-seller-email-${property.id}`}
+                        >
+                          <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{property.sellerContactEmail}</span>
+                        </a>
+                      )}
+                      {property.sellerContactPhone && (
+                        <a
+                          href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`}
+                          className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`text-seller-phone-${property.id}`}
+                        >
+                          <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{property.sellerContactPhone}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div className="text-xs text-muted-foreground">Seller</div>
+                  <div className="flex items-center justify-center flex-1 min-h-0 mt-0.5">
+                    <span className="text-primary">—</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

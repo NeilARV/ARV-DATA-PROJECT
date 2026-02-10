@@ -502,10 +502,12 @@ router.get("/:id", async (req, res) => {
                 buyerCompanyName: buyerCompanies.companyName,
                 buyerContactName: buyerCompanies.contactName,
                 buyerContactEmail: buyerCompanies.contactEmail,
+                buyerContactPhone: buyerCompanies.phoneNumber,
                 // Seller company info
                 sellerCompanyName: sellerCompanies.companyName,
                 sellerContactName: sellerCompanies.contactName,
                 sellerContactEmail: sellerCompanies.contactEmail,
+                sellerContactPhone: sellerCompanies.phoneNumber,
             })
             .from(properties)
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -552,16 +554,19 @@ router.get("/:id", async (req, res) => {
             buyerCompanyName: result.buyerCompanyName || null,
             buyerContactName: result.buyerContactName || null,
             buyerContactEmail: result.buyerContactEmail || null,
+            buyerContactPhone: result.buyerContactPhone || null,
             // Seller company info
             sellerId: result.sellerId ? String(result.sellerId) : null,
             sellerCompanyName: result.sellerCompanyName || null,
             sellerContactName: result.sellerContactName || null,
             sellerContactEmail: result.sellerContactEmail || null,
+            sellerContactPhone: result.sellerContactPhone || null,
             // Legacy aliases for backward compatibility (buyer as primary, seller as fallback)
             companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             companyName: result.buyerCompanyName || result.sellerCompanyName || null,
             companyContactName: result.buyerContactName || result.sellerContactName || null,
             companyContactEmail: result.buyerContactEmail || result.sellerContactEmail || null,
+            companyContactPhone: result.buyerContactPhone || result.sellerContactPhone || null,
             propertyOwner: result.buyerCompanyName || result.sellerCompanyName || null,
             propertyOwnerId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             // Additional fields that might be expected
