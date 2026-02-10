@@ -110,6 +110,8 @@ export async function UpdatePropertyStatus() {
                     address: addresses.formattedStreetAddress,
                     city: addresses.city,
                     state: addresses.state,
+                    buyerId: properties.buyerId,
+                    sellerId: properties.sellerId
                 })
                 .from(properties)
                 .innerJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -217,7 +219,17 @@ export async function UpdatePropertyStatus() {
                         // Determine status based on listing_status:
                         // - "On Market" → status = "on-market"
                         // - "Off Market" → status = "in-renovation"
-                        const newStatus = newListingStatus === "on-market" ? "on-market" : "in-renovation";
+                        let newStatus: string;
+                        if (newListingStatus === "on-market") {
+                            newStatus = "on-market";
+                        } else {
+                            // off-market: check buyer_id and seller_id
+                            if (property.buyerId != null && property.sellerId != null) {
+                                newStatus = "b2b";
+                            } else {
+                                newStatus = "in-renovation";
+                            }
+                        }
 
                         // Check if status or listing_status changed
                         const statusChanged = property.currentStatus !== newStatus;
