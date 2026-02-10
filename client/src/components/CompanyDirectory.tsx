@@ -40,6 +40,9 @@ import { useToast } from "@/hooks/use-toast";
 
 type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "new-buyers";
 
+const ALL_STATUS_FILTERS = ["in-renovation", "b2b", "on-market", "sold"];
+const DEFAULT_STATUS_FILTERS = ["in-renovation"];
+
 // Profile data for known companies
 const companyProfiles: Record<string, {
   principal?: string;
@@ -100,6 +103,27 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
 
   // Refs to company DOM nodes so we can scroll them into view when selected
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const previousExpandedCompanyRef = useRef<string | null>(null);
+
+  // When a company is selected: turn on all status filters. When deselected: revert to Renovating only.
+  // Important: always spread current filters so we only change statusFilters and never drop county/city/etc.
+  useEffect(() => {
+    const hadSelection = previousExpandedCompanyRef.current != null;
+    const hasSelection = expandedCompany != null;
+    previousExpandedCompanyRef.current = expandedCompany;
+
+    if (hasSelection) {
+      setStatusFilters(new Set(ALL_STATUS_FILTERS));
+      if (onFilterChange && filters) {
+        onFilterChange({ ...filters, statusFilters: ALL_STATUS_FILTERS });
+      }
+    } else if (hadSelection) {
+      setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
+      if (onFilterChange && filters) {
+        onFilterChange({ ...filters, statusFilters: DEFAULT_STATUS_FILTERS });
+      }
+    }
+  }, [expandedCompany]); // Intentionally not depending on filters/onFilterChange to avoid overwriting on filter sync
 
   // Scroll the selected/expanded company into view when it changes
   useEffect(() => {
