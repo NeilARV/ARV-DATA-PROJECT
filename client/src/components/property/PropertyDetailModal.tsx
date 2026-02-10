@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 // Status tag colors match PropertyMap.tsx map ping colors
 const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#0f172a" },
+  "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#fff" },
   "Sold": { label: "Sold", bg: "#FF0000", text: "#fff" },
   "On Market": { label: "On Market", bg: "#22C55E", text: "#fff" },
   "Wholesale": { label: "Wholesale", bg: "#9333EA", text: "#fff" },
