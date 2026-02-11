@@ -38,7 +38,10 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 
-type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "new-buyers";
+type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "new-buyers";
+
+const ALL_STATUS_FILTERS = ["in-renovation", "b2b", "on-market", "sold"];
+const DEFAULT_STATUS_FILTERS = ["in-renovation"];
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -100,6 +103,27 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
 
   // Refs to company DOM nodes so we can scroll them into view when selected
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const previousExpandedCompanyRef = useRef<string | null>(null);
+
+  // When a company is selected: turn on all status filters. When deselected: revert to Renovating only.
+  // Important: always spread current filters so we only change statusFilters and never drop county/city/etc.
+  useEffect(() => {
+    const hadSelection = previousExpandedCompanyRef.current != null;
+    const hasSelection = expandedCompany != null;
+    previousExpandedCompanyRef.current = expandedCompany;
+
+    if (hasSelection) {
+      setStatusFilters(new Set(ALL_STATUS_FILTERS));
+      if (onFilterChange && filters) {
+        onFilterChange({ ...filters, statusFilters: ALL_STATUS_FILTERS });
+      }
+    } else if (hadSelection) {
+      setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
+      if (onFilterChange && filters) {
+        onFilterChange({ ...filters, statusFilters: DEFAULT_STATUS_FILTERS });
+      }
+    }
+  }, [expandedCompany]); // Intentionally not depending on filters/onFilterChange to avoid overwriting on filter sync
 
   // Scroll the selected/expanded company into view when it changes
   useEffect(() => {
@@ -194,6 +218,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           return b.propertyCount - a.propertyCount;
         case "fewest-properties":
           return a.propertyCount - b.propertyCount;
+        case "most-sold-properties":
+          return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
+        case "most-sold-properties-all-time":
+          return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
         case "new-buyers":
           // Sort by property count (fallback since we don't have recentMonthPurchases)
           return b.propertyCount - a.propertyCount;
@@ -346,6 +374,12 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
               <SelectItem value="fewest-properties" data-testid="sort-fewest-properties">
                 Fewest Properties
               </SelectItem>
+              <SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
+                Most Sold Properties (YTD)
+              </SelectItem>
+              <SelectItem value="most-sold-properties-all-time" data-testid="sort-most-sold-properties-all-time">
+                Most Sold Properties (All-Time)
+              </SelectItem>
               <SelectItem value="new-buyers" data-testid="sort-new-buyers">
                 New Buyers
               </SelectItem>
@@ -379,7 +413,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2 flex-1 min-w-0">
-                        {sortBy === "most-properties" && index < 25 && (
+                        {(sortBy === "most-properties" || sortBy === "most-sold-properties" || sortBy === "most-sold-properties-all-time") && index < 25 && (
                           <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${index + 1}`}>
                             {index + 1}.
                           </span>
@@ -391,10 +425,20 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {company.propertyCount > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && company.propertyCount > 0 && (
                           <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
                             {company.propertyCount} {company.propertyCount === 1 ? 'property' : 'properties'}
+                          </div>
+                        )}
+                        {sortBy === "most-sold-properties" && (company.propertiesSoldCount ?? 0) > 0 && (
+                          <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
+                            {company.propertiesSoldCount} sold
+                          </div>
+                        )}
+                        {sortBy === "most-sold-properties-all-time" && (company.propertiesSoldCountAllTime ?? 0) > 0 && (
+                          <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
+                            {company.propertiesSoldCountAllTime} sold
                           </div>
                         )}
                         {isExpanded ? (

@@ -36,6 +36,7 @@ import {
   updatePropertyRelatedDataForExisting,
   addPropertyOneToManyDataIfNew,
   SfrPropertyData,
+  type BuyersMarketSaleData,
 } from "server/utils/propertyDataHelpers";
 
 const DEFAULT_START_DATE = "2025-12-03";
@@ -584,7 +585,8 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         }
       }
 
-      // Batch update existing properties and their related data (per-property try/catch for resilience)
+      // Batch update existing properties and their related data (per-property try/catch for resilience).
+      // Use /buyers/market for sale_date, recording_date, price, buyer/seller in last_sales and current_sales; batch fills the rest.
       let updatedCount = 0;
       for (const { id, data, propertyData: propData, normalizedCounty: county, recordInfo: recInfo } of toUpdate) {
         try {
@@ -593,9 +595,16 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
             .set({ ...data, updatedAt: sql`now()` })
             .where(eq(properties.id, id));
 
-          const recordingDateFromRecord = normalizeDateToYMD(recInfo.record.recordingDate as string);
-          await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord);
-          await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord);
+          const buyersMarketData: BuyersMarketSaleData = {
+            saleDate: normalizeDateToYMD(recInfo.record.saleDate as string),
+            recordingDate: normalizeDateToYMD(recInfo.record.recordingDate as string),
+            saleValue: (recInfo.record.saleValue ?? recInfo.record.salePrice ?? recInfo.record.price) as string | number | null | undefined,
+            buyerName: (recInfo.record.buyerName as string) || null,
+            sellerName: (recInfo.record.sellerName as string) || null,
+          };
+          const recordingDateFromRecord = buyersMarketData.recordingDate ?? normalizeDateToYMD(recInfo.record.recordingDate as string);
+          await updatePropertyRelatedDataForExisting(id, propData, county, recordingDateFromRecord, buyersMarketData);
+          await addPropertyOneToManyDataIfNew(id, propData, county, recordingDateFromRecord, buyersMarketData);
           updatedCount++;
         } catch (updateError: unknown) {
           console.error(`[${cityCode} SYNC V2] Failed to update property ${id} (sfr ${propData.property_id}):`, updateError);
@@ -632,20 +641,30 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
         }
       }
 
-      // Insert related data for new properties only
+      // Insert related data for new properties. Use /buyers/market for sale_date, recording_date, price, buyer/seller; batch fills the rest.
+      // Use same chosen record (latest recordingDate) as for the property row.
       for (const insertedProp of inserted) {
-        const item = validBatchItems.find(
+        const item = propertyUpsertBySfrId.get(insertedProp.sfrPropertyId) ?? validBatchItems.find(
           (v) => Number(v.propertyData.property_id) === insertedProp.sfrPropertyId
         );
         if (!item) continue;
 
-        const recordingDateFromRecord = normalizeDateToYMD(item.recordInfo.record.recordingDate as string);
+        const rec = item.recordInfo.record;
+        const buyersMarketData: BuyersMarketSaleData = {
+          saleDate: normalizeDateToYMD(rec.saleDate as string),
+          recordingDate: normalizeDateToYMD(rec.recordingDate as string),
+          saleValue: (rec.saleValue ?? rec.salePrice ?? rec.price) as string | number | null | undefined,
+          buyerName: (rec.buyerName as string) || null,
+          sellerName: (rec.sellerName as string) || null,
+        };
+        const recordingDateFromRecord = buyersMarketData.recordingDate ?? normalizeDateToYMD(rec.recordingDate as string);
         collectPropertyData(
           batchDataCollectors,
           insertedProp.id,
           item.propertyData as SfrPropertyData,
           item.normalizedCounty,
-          recordingDateFromRecord
+          recordingDateFromRecord,
+          buyersMarketData
         );
       }
 
@@ -656,17 +675,26 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
 
         // Fallback: insert related data one property at a time
         for (const insertedProp of inserted) {
-          const item = validBatchItems.find(
+          const item = propertyUpsertBySfrId.get(insertedProp.sfrPropertyId) ?? validBatchItems.find(
             (v) => Number(v.propertyData.property_id) === insertedProp.sfrPropertyId
           );
           if (!item) continue;
           try {
-            const recordingDateFromRecord = normalizeDateToYMD(item.recordInfo.record.recordingDate as string);
+            const rec = item.recordInfo.record;
+            const buyersMarketData: BuyersMarketSaleData = {
+              saleDate: normalizeDateToYMD(rec.saleDate as string),
+              recordingDate: normalizeDateToYMD(rec.recordingDate as string),
+              saleValue: (rec.saleValue ?? rec.salePrice ?? rec.price) as string | number | null | undefined,
+              buyerName: (rec.buyerName as string) || null,
+              sellerName: (rec.sellerName as string) || null,
+            };
+            const recordingDateFromRecord = buyersMarketData.recordingDate ?? normalizeDateToYMD(rec.recordingDate as string);
             await insertPropertyRelatedData(
               insertedProp.id,
               item.propertyData as SfrPropertyData,
               item.normalizedCounty,
-              recordingDateFromRecord
+              recordingDateFromRecord,
+              buyersMarketData
             );
           } catch (singleRelatedError: unknown) {
             console.error(`[${cityCode} SYNC V2] Failed to insert related data for property ${insertedProp.sfrPropertyId}:`, singleRelatedError);
