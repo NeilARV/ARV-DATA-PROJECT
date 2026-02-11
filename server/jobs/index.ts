@@ -46,7 +46,7 @@ export function startScheduledJobs() {
     // cron.schedule("0 11 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
     // cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
 
-    // cron.schedule("4 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+    cron.schedule("14 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
     // cron.schedule("34 * * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
     // cron.schedule("35 * * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
     // cron.schedule("36 * * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })

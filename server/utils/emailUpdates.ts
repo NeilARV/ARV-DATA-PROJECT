@@ -3,9 +3,14 @@ import { db } from "server/storage";
 import { users } from "../../database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "../../database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures } from "../../database/schemas/properties.schema";
+import { companies } from "../../database/schemas/companies.schema";
 import { emailSyncState } from "../../database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";
+
+const buyerCompanies = alias(companies, "buyer_companies");
+const sellerCompanies = alias(companies, "seller_companies");
 
 const PROPERTY_COUNT_TARGET = 3;
 /** Fetch this many recent properties and take the first 3 that have Street View images. */
@@ -141,11 +146,15 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         bedsCount: structures.bedsCount,
         baths: structures.baths,
         livingAreaSqft: structures.livingAreaSqft,
+        buyerCompanyName: buyerCompanies.companyName,
+        sellerCompanyName: sellerCompanies.companyName,
       })
       .from(properties)
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
       .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
       .leftJoin(structures, eq(properties.id, structures.propertyId))
+      .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
+      .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
       .where(eq(properties.msa, msaName))
       .orderBy(
         sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
@@ -178,6 +187,8 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       property_type: string;
       image_url: string;
       status_tags: { label: string; bg: string; text: string }[];
+      buyer_name: string | null;
+      seller_name: string | null;
     }> = [];
 
     for (const p of candidateProperties) {
@@ -197,6 +208,12 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const bedrooms = p.bedsCount != null ? String(p.bedsCount) : "—";
       const bathrooms = p.baths != null ? String(p.baths) : "—";
       const sqft = p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—";
+      // Coerce to string or null so Postmark/Mustachio receives a plain value (section context works correctly)
+      const rawBuyer = p.buyerCompanyName;
+      const rawSeller = p.sellerCompanyName;
+      const buyer_name = rawBuyer != null && String(rawBuyer).trim() !== "" ? String(rawBuyer).trim() : null;
+      const seller_name = rawSeller != null && String(rawSeller).trim() !== "" ? String(rawSeller).trim() : null;
+
       propertiesForTemplate.push({
         address,
         city,
@@ -210,8 +227,12 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         property_type: (p.propertyType ?? "").trim() || "—",
         image_url,
         status_tags: statusTags,
+        buyer_name,
+        seller_name,
       });
     }
+
+    console.log("PROPERTY TEMPLATE: ", propertiesForTemplate);
 
     if (propertiesForTemplate.length === 0) {
       console.log(`[EMAIL ${msaName}]: No properties with Street View images found in pool of ${candidateProperties.length}, skipping send`);
