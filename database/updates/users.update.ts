@@ -6,4 +6,5 @@ export const updateUserProfileSchema = z.object({
   email: z.string().email("Invalid email address").optional(),
   phone: z.string().min(1, "Phone is required").optional(),
   notifications: z.boolean().optional(),
+  msaSubscriptions: z.array(z.string()).optional(),
 }).strict();

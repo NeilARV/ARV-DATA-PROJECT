@@ -1,6 +1,7 @@
 import { users } from "@database/schemas/users.schema";
+import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 
@@ -41,17 +42,55 @@ export async function updateUser(userId: string, updateData: {
     email?: string;
     phone?: string;
     notifications?: boolean;
+    msaSubscriptions?: string[];
 }) {
+    const { msaSubscriptions, ...dbUpdateData } = updateData;
+
     const [updatedUser] = await db
         .update(users)
         .set({
-            ...updateData,
+            ...dbUpdateData,
             updatedAt: sql`now()`, // Update the timestamp on every update
         })
         .where(eq(users.id, userId))
         .returning();
 
+    if (updatedUser && msaSubscriptions !== undefined) {
+        await syncUserMsaSubscriptions(userId, msaSubscriptions);
+    }
+
     return updatedUser;
+}
+
+/**
+ * Replaces the user's MSA subscriptions with the given list (by MSA name).
+ * Resolves names to msas.id, then deletes existing subscriptions and inserts the new set.
+ */
+async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Promise<void> {
+    if (msaNames.length === 0) {
+        await db.delete(userMsaSubscriptions).where(eq(userMsaSubscriptions.userId, userId));
+        return;
+    }
+
+    const msaRows = await db
+        .select({ id: msas.id })
+        .from(msas)
+        .where(inArray(msas.name, msaNames));
+
+    const msaIds = msaRows.map((r) => r.id);
+    if (msaIds.length === 0) {
+        await db.delete(userMsaSubscriptions).where(eq(userMsaSubscriptions.userId, userId));
+        return;
+    }
+
+    await db.delete(userMsaSubscriptions).where(eq(userMsaSubscriptions.userId, userId));
+
+    await db.insert(userMsaSubscriptions).values(
+        msaIds.map((msaId) => ({
+            userId,
+            msaId,
+        }))
+    );
 }
 
 export async function getUserByEmail(email: string) {
@@ -73,4 +112,16 @@ export async function getUserById(userId: string) {
         .limit(1);
 
     return user
+}
+
+/**
+ * Returns MSA names the user is subscribed to (for profile / me response).
+ */
+export async function getUserMsaSubscriptionNames(userId: string): Promise<string[]> {
+    const rows = await db
+        .select({ name: msas.name })
+        .from(userMsaSubscriptions)
+        .innerJoin(msas, eq(userMsaSubscriptions.msaId, msas.id))
+        .where(eq(userMsaSubscriptions.userId, userId));
+    return rows.map((r) => r.name);
 }

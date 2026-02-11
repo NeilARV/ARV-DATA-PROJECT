@@ -68,9 +68,9 @@ export async function me(req: Request, res: Response, next: NextFunction):Promis
             return;
         }
 
-        // Return user data (without password hash)
+        const msaSubscriptions = await UserServices.getUserMsaSubscriptionNames(user.id);
         const { passwordHash: _, ...userWithoutPassword } = user;
-        res.json({ user: userWithoutPassword });
+        res.json({ user: { ...userWithoutPassword, msaSubscriptions } });
 
     } catch (error) {
         console.error("Error fetching current user:", error);
@@ -115,11 +115,11 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
             return;
         }
 
-        // Return updated user data (without password hash)
+        const msaSubscriptions = await UserServices.getUserMsaSubscriptionNames(updatedUser.id);
         const { passwordHash: _, ...userWithoutPassword } = updatedUser;
         res.json({
             success: true,
-            user: userWithoutPassword,
+            user: { ...userWithoutPassword, msaSubscriptions },
         });
 
     } catch (error) {

@@ -21,6 +21,14 @@ CREATE TABLE email_whitelist (
     created_at TIMESTAMP DEFAULT now()
 );
 
+-- MSA table
+CREATE TABLE msas (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
 CREATE UNIQUE INDEX email_whitelist_email_key ON email_whitelist(email);
 
 COMMENT ON TABLE email_whitelist IS 'Whitelist of approved email addresses for registration';
@@ -42,6 +50,14 @@ CREATE TABLE users (
 CREATE UNIQUE INDEX users_email_unique ON users(email);
 
 COMMENT ON TABLE users IS 'User accounts and authentication information';
+
+CREATE TABLE user_msa_subscriptions (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    msa_id SERIAL REFERENCES msas(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, msa_id)
+)
 
 -- Companies table (corporate property flippers)
 CREATE TABLE companies (
@@ -74,6 +90,17 @@ CREATE TABLE sfr_sync_state (
 CREATE UNIQUE INDEX sfr_sync_state_msa_key ON sfr_sync_state(msa);
 
 COMMENT ON TABLE sfr_sync_state IS 'Tracks synchronization state for Single Family Residential properties by MSA';
+
+-- Email sync state table
+CREATE TABLE email_sync_state (
+    id SERIAL PRIMARY KEY,
+    msa VARCHAR(255) UNIQUE NOT NULL,
+    last_email_sent DATE,
+    last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_property_id UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ============================================================================
 -- PROPERTY DATA TABLES
