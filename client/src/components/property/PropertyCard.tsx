@@ -174,10 +174,9 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           {property.propertyType}
         </div>
         {(property.buyerId || property.sellerId) && (
-          <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-4 items-stretch">
-            {/* Buyer: always left column when buyerId exists */}
-            <div className="min-w-0 flex flex-col">
-              {property.buyerId ? (
+          <div className={`mt-3 pt-3 border-t grid gap-4 items-stretch ${property.buyerId && property.sellerId ? "grid-cols-2" : "grid-cols-1"}`}>
+            {property.buyerId && (
+              <div className="min-w-0 flex flex-col">
                 <div className="min-w-0 flex-1">
                   <div className="text-xs text-muted-foreground">Buyer</div>
                   <div
@@ -189,59 +188,46 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                       {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
                     </span>
                   </div>
-                  {(property.buyerContactName ||
-                    property.buyerContactEmail ||
-                    property.buyerContactPhone ||
-                    property.companyContactName ||
-                    property.companyContactEmail ||
-                    property.companyContactPhone) && (
+                  {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
                     <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
-                      {(property.buyerContactName || property.companyContactName) && (
+                      {property.buyerContactName && (
                         <div
                           className="flex items-center gap-1.5 truncate"
                           data-testid={`text-buyer-contact-${property.id}`}
                         >
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.buyerContactName || property.companyContactName}</span>
+                          <span>{property.buyerContactName}</span>
                         </div>
                       )}
-                      {(property.buyerContactEmail || property.companyContactEmail) && (
+                      {property.buyerContactEmail && (
                         <a
-                          href={`mailto:${property.buyerContactEmail || property.companyContactEmail}`}
+                          href={`mailto:${property.buyerContactEmail}`}
                           className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate"
                           onClick={(e) => e.stopPropagation()}
                           data-testid={`text-buyer-email-${property.id}`}
                         >
                           <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.buyerContactEmail || property.companyContactEmail}</span>
+                          <span>{property.buyerContactEmail}</span>
                         </a>
                       )}
-                      {(property.buyerContactPhone || property.companyContactPhone) && (
+                      {property.buyerContactPhone && (
                         <a
-                          href={`tel:${(property.buyerContactPhone || property.companyContactPhone || "").replace(/\D/g, "")}`}
+                          href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`}
                           className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline"
                           onClick={(e) => e.stopPropagation()}
                           data-testid={`text-buyer-phone-${property.id}`}
                         >
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.buyerContactPhone || property.companyContactPhone}</span>
+                          <span>{property.buyerContactPhone}</span>
                         </a>
                       )}
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex flex-col flex-1 min-h-0">
-                  <div className="text-xs text-muted-foreground">Buyer</div>
-                  <div className="flex items-center justify-center flex-1 min-h-0 mt-0.5">
-                    <span className="text-primary">—</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Seller: always right column when sellerId exists */}
-            <div className="min-w-0 flex flex-col">
-              {property.sellerId ? (
+              </div>
+            )}
+            {property.sellerId && (
+              <div className="min-w-0 flex flex-col">
                 <div className="min-w-0 flex-1">
                   <div className="text-xs text-muted-foreground">Seller</div>
                   <div
@@ -291,15 +277,8 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex flex-col flex-1 min-h-0">
-                  <div className="text-xs text-muted-foreground">Seller</div>
-                  <div className="flex items-center justify-center flex-1 min-h-0 mt-0.5">
-                    <span className="text-primary">—</span>
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>

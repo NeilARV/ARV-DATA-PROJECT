@@ -263,110 +263,98 @@ export default function PropertyDetailModal({
                 </div>
               )}
 
-              {/* Buyer - direct grid child, same spacing as Property Type / Price per Sqft (gap-x-8 gap-y-4) */}
-              {(property.buyerId || property.sellerId) && (
+              {/* Buyer - only show when buyer exists */}
+              {property.buyerId && (
                 <div className="min-w-0">
                   <div className="text-sm text-muted-foreground mb-1">Buyer</div>
-                  {property.buyerId ? (
-                    <>
-                      <div className="flex items-center gap-1.5 font-semibold text-primary">
-                        <Building2 className="w-4 h-4 flex-shrink-0" />
-                        {onCompanyNameClick ? (
-                          <button
-                            onClick={() => {
-                              onCompanyNameClick(property.buyerCompanyName || property.companyName || property.propertyOwner || "", property.buyerId || undefined, true);
-                              onClose();
-                            }}
-                            className="hover:underline text-left truncate"
-                            data-testid="text-buyer-company-name"
-                          >
-                            {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
-                          </button>
-                        ) : (
-                          <span className="font-medium text-foreground truncate" data-testid="text-buyer-company-name">
-                            {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
-                          </span>
-                        )}
-                      </div>
-                      {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone || property.companyContactName || property.companyContactEmail || property.companyContactPhone) && (
-                        <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
-                          {(property.buyerContactName || property.companyContactName) && (
-                            <div className="flex items-center gap-1.5" data-testid="text-buyer-contact">
-                              <User className="w-4 h-4 flex-shrink-0" />
-                              <span>{property.buyerContactName || property.companyContactName}</span>
-                            </div>
-                          )}
-                          {(property.buyerContactEmail || property.companyContactEmail) && (
-                            <a href={`mailto:${property.buyerContactEmail || property.companyContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
-                              <Mail className="w-4 h-4 flex-shrink-0" />
-                              <span className="truncate block">{property.buyerContactEmail || property.companyContactEmail}</span>
-                            </a>
-                          )}
-                          {(property.buyerContactPhone || property.companyContactPhone) && (
-                            <a href={`tel:${(property.buyerContactPhone || property.companyContactPhone || "").replace(/\D/g, "")}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
-                              <Phone className="w-4 h-4 flex-shrink-0" />
-                              <span>{property.buyerContactPhone || property.companyContactPhone}</span>
-                            </a>
-                          )}
+                  <div className="flex items-center gap-1.5 font-semibold text-primary">
+                    <Building2 className="w-4 h-4 flex-shrink-0" />
+                    {onCompanyNameClick ? (
+                      <button
+                        onClick={() => {
+                          onCompanyNameClick(property.buyerCompanyName || property.companyName || property.propertyOwner || "", property.buyerId || undefined, true);
+                          onClose();
+                        }}
+                        className="hover:underline text-left truncate"
+                        data-testid="text-buyer-company-name"
+                      >
+                        {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                      </button>
+                    ) : (
+                      <span className="font-medium text-foreground truncate" data-testid="text-buyer-company-name">
+                        {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                      </span>
+                    )}
+                  </div>
+                  {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
+                      {property.buyerContactName && (
+                        <div className="flex items-center gap-1.5" data-testid="text-buyer-contact">
+                          <User className="w-4 h-4 flex-shrink-0" />
+                          <span>{property.buyerContactName}</span>
                         </div>
                       )}
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                      {property.buyerContactEmail && (
+                        <a href={`mailto:${property.buyerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <Mail className="w-4 h-4 flex-shrink-0" />
+                          <span className="truncate block">{property.buyerContactEmail}</span>
+                        </a>
+                      )}
+                      {property.buyerContactPhone && (
+                        <a href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <Phone className="w-4 h-4 flex-shrink-0" />
+                          <span>{property.buyerContactPhone}</span>
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* Seller - direct grid child, same spacing as Property Type / Price per Sqft */}
-              {(property.buyerId || property.sellerId) && (
+              {/* Seller - only show when seller exists */}
+              {property.sellerId && (
                 <div className="min-w-0">
                   <div className="text-sm text-muted-foreground mb-1">Seller</div>
-                  {property.sellerId ? (
-                    <>
-                      <div className="flex items-center gap-1.5 text-primary ">
-                        <Building2 className="w-4 h-4 flex-shrink-0" />
-                        {onCompanyNameClick ? (
-                          <button
-                            onClick={() => {
-                              onCompanyNameClick(property.sellerCompanyName || "", property.sellerId || undefined, true);
-                              onClose();
-                            }}
-                            className="font-medium hover:underline text-left truncate"
-                            data-testid="text-seller-company-name"
-                          >
-                            {property.sellerCompanyName || "—"}
-                          </button>
-                        ) : (
-                          <span className="font-medium text-foreground truncate" data-testid="text-seller-company-name">
-                            {property.sellerCompanyName || "—"}
-                          </span>
-                        )}
-                      </div>
-                      {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (
-                        <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
-                          {property.sellerContactName && (
-                            <div className="flex items-center gap-1.5" data-testid="text-seller-contact">
-                              <User className="w-4 h-4 flex-shrink-0" />
-                              <span>{property.sellerContactName}</span>
-                            </div>
-                          )}
-                          {property.sellerContactEmail && (
-                            <a href={`mailto:${property.sellerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
-                              <Mail className="w-4 h-4 flex-shrink-0" />
-                              <span className="truncate block">{property.sellerContactEmail}</span>
-                            </a>
-                          )}
-                          {property.sellerContactPhone && (
-                            <a href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
-                              <Phone className="w-4 h-4 flex-shrink-0" />
-                              <span>{property.sellerContactPhone}</span>
-                            </a>
-                          )}
+                  <div className="flex items-center gap-1.5 text-primary ">
+                    <Building2 className="w-4 h-4 flex-shrink-0" />
+                    {onCompanyNameClick ? (
+                      <button
+                        onClick={() => {
+                          onCompanyNameClick(property.sellerCompanyName || "", property.sellerId || undefined, true);
+                          onClose();
+                        }}
+                        className="font-medium hover:underline text-left truncate"
+                        data-testid="text-seller-company-name"
+                      >
+                        {property.sellerCompanyName || "—"}
+                      </button>
+                    ) : (
+                      <span className="font-medium text-foreground truncate" data-testid="text-seller-company-name">
+                        {property.sellerCompanyName || "—"}
+                      </span>
+                    )}
+                  </div>
+                  {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
+                      {property.sellerContactName && (
+                        <div className="flex items-center gap-1.5" data-testid="text-seller-contact">
+                          <User className="w-4 h-4 flex-shrink-0" />
+                          <span>{property.sellerContactName}</span>
                         </div>
                       )}
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
+                      {property.sellerContactEmail && (
+                        <a href={`mailto:${property.sellerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <Mail className="w-4 h-4 flex-shrink-0" />
+                          <span className="truncate block">{property.sellerContactEmail}</span>
+                        </a>
+                      )}
+                      {property.sellerContactPhone && (
+                        <a href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <Phone className="w-4 h-4 flex-shrink-0" />
+                          <span>{property.sellerContactPhone}</span>
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
