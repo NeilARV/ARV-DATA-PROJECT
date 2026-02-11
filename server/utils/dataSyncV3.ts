@@ -11,6 +11,7 @@ import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState } from "../../database/schemas/sync.schema";
 import { eq } from "drizzle-orm";
 import { normalizeDateToYMD, normalizeCompanyNameForComparison } from "server/utils/normalization";
+import { isTrust, isFlippingCompany } from "server/utils/dataSyncHelpers";
 
 const DEFAULT_START_DATE = "2025-12-03";
 const BUYERS_MARKET_PAGE_SIZE = 100;
@@ -115,6 +116,16 @@ export async function loadCompaniesForComparison(): Promise<CompaniesMap> {
 export type BuyersMarketRecord = Record<string, unknown>;
 
 /**
+ * Corporate = not a trust and matches flipping-company patterns (LLC, INC, etc.).
+ * Non-corporate = trust or individual (isFlippingCompany false or isTrust true).
+ * Used to filter market transactions: we only keep records where at least one of buyer/seller is corporate.
+ */
+function isCorporateEntity(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
+  if (!name) return false;
+  return !isTrust(name, ownershipCode) && isFlippingCompany(name, ownershipCode);
+}
+
+/**
  * Fetch /buyers/market with the given date range and MSA. Returns the array of records.
  * Params: sales_date_min, sales_date_max (today), sort=recording_date, page_size=100, msa.
  */
@@ -180,8 +191,17 @@ export async function fetchAllBuyersMarketPages(options: {
     });
 
     if (page.length > 0) {
-      allRecords.push(...page);
-      console.log(`[${cityCode} SYNC V3] buyers/market page ${pageNum}: ${page.length} records (total so far: ${allRecords.length})`);
+      const buyerName = (r: BuyersMarketRecord) => (r.buyerName as string) ?? "";
+      const sellerName = (r: BuyersMarketRecord) => (r.sellerName as string) ?? "";
+      const buyerOwnershipCode = (r: BuyersMarketRecord) => (r.buyerOwnershipCode as string) ?? null;
+      const sellerOwnershipCode = (r: BuyersMarketRecord) => (r.sellerOwnershipCode as string) ?? null;
+      const included = page.filter((r) => {
+        const buyerCorp = isCorporateEntity(buyerName(r), buyerOwnershipCode(r));
+        const sellerCorp = isCorporateEntity(sellerName(r), sellerOwnershipCode(r));
+        return buyerCorp || sellerCorp;
+      });
+      allRecords.push(...included);
+      console.log(`[${cityCode} SYNC V3] buyers/market page ${pageNum}: ${page.length} raw, ${included.length} corporate (total so far: ${allRecords.length})`);
     }
 
     if (page.length < BUYERS_MARKET_PAGE_SIZE) {
