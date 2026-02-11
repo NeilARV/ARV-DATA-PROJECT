@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, date, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, date, integer, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const sfrSyncState = pgTable("sfr_sync_state", {
   id: serial("id").primaryKey(),
@@ -15,7 +15,7 @@ export const emailSyncState = pgTable("email_sync_state", {
   msa: varchar("msa", { length: 255 }).unique().notNull(),
   lastEmailSent: date("last_email_sent"),
   lastEmailAt: timestamp("last_email_at").defaultNow(),
-  lastAddressUsed: varchar("last_address_used", { length: 255 }),
+  lastPropertyId: uuid("last_property_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

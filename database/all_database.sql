@@ -97,7 +97,7 @@ CREATE TABLE email_sync_state (
     msa VARCHAR(255) UNIQUE NOT NULL,
     last_email_sent DATE,
     last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_address_used VARCHAR(255),
+    last_property_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

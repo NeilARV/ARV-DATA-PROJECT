@@ -190,6 +190,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       buyer_name: string | null;
       seller_name: string | null;
     }> = [];
+    let firstPropertyIdSent: string | null = null;
 
     for (const p of candidateProperties) {
       if (propertiesForTemplate.length >= PROPERTY_COUNT_TARGET) break;
@@ -199,6 +200,10 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const state = p.state ?? "N/A";
       const image_url = await getStreetViewUrlIfAvailable(p.propertyId, address, city, state);
       if (image_url === null) continue;
+
+      if (propertiesForTemplate.length === 0) {
+        firstPropertyIdSent = p.propertyId;
+      }
 
       const statusTags = getStatusTags(p.status ?? null).map((tag) => ({
         label: tag.label,
@@ -232,17 +237,14 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       });
     }
 
-    console.log("PROPERTY TEMPLATE: ", propertiesForTemplate);
-
     if (propertiesForTemplate.length === 0) {
       console.log(`[EMAIL ${msaName}]: No properties with Street View images found in pool of ${candidateProperties.length}, skipping send`);
       return;
     }
 
     // Skip send if the most recent property we would send was already sent last time
-    const firstAddressSent = propertiesForTemplate[0].address.trim();
-    if (syncState?.lastAddressUsed && syncState.lastAddressUsed.trim() === firstAddressSent) {
-      console.log(`[EMAIL ${msaName}]: No new properties (last sent address still first with image), skipping send`);
+    if (syncState?.lastPropertyId != null && firstPropertyIdSent != null && syncState.lastPropertyId === firstPropertyIdSent) {
+      console.log(`[EMAIL ${msaName}]: No new properties (last sent property id still first with image), skipping send`);
       return;
     }
 
@@ -267,7 +269,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
     }
 
-    const mostRecentAddress = firstAddressSent ?? null;
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
 
@@ -275,7 +276,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       await db
         .update(emailSyncState)
         .set({
-          lastAddressUsed: mostRecentAddress,
+          lastPropertyId: firstPropertyIdSent,
           lastEmailSent: today,
           lastEmailAt: now,
           updatedAt: now,
@@ -284,7 +285,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     } else {
       await db.insert(emailSyncState).values({
         msa: msaName,
-        lastAddressUsed: mostRecentAddress,
+        lastPropertyId: firstPropertyIdSent,
         lastEmailSent: today,
         lastEmailAt: now,
         updatedAt: now,
