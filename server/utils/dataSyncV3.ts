@@ -62,23 +62,25 @@ export interface PropertiesBatchItem {
 }
 
 /**
- * Property object ready for storage. Prioritized fields from /buyers/market;
- * rest from /properties/batch (address, assessments, parcel, structure, etc.).
+ * Property object ready for storage.
+ * Only sellerName, buyerName, saleValue, recordingDate, saleDate come from /buyers/market.
+ * property_id, address, city, zipcode, msa, state and all other fields come from /properties/batch.
  */
 export interface PropertyForStorage {
-  /** From buyers/market (priority). */
+  /** From /properties/batch. */
   property_id: number;
   address: string;
   city: string;
   zipcode: string;
   msa: string;
+  state: string;
+  /** From /buyers/market only. */
   sellerName: string | null;
   buyerName: string | null;
-  state: string;
   saleValue: number | null;
   recordingDate: string | null;
   saleDate: string | null;
-  /** Rest from /properties/batch (batch property payload, possibly with overlays). */
+  /** Full batch property payload for related data (assessments, parcel, structure, etc.). */
   batch: Record<string, unknown>;
 }
 
@@ -381,23 +383,25 @@ export function buildPropertiesForStorage(
         if (!marketRecord) continue;
 
         const batchProp = item.property as Record<string, unknown>;
-        const propertyId = (marketRecord.property_id ?? batchProp.property_id) as number;
+        const propertyId = (batchProp.property_id as number) ?? (marketRecord.property_id as number);
         if (propertyId == null) continue;
 
-        const address = (marketRecord.address as string) ?? (batchProp.address as Record<string, unknown>)?.formatted_street_address as string ?? "";
-        const city = (marketRecord.city as string) ?? (batchProp.address as Record<string, unknown>)?.city as string ?? "";
-        const state = (marketRecord.state as string) ?? (batchProp.address as Record<string, unknown>)?.state as string ?? "";
-        const zipcode = (marketRecord.zipCode as string) ?? (marketRecord.zip_code as string) ?? (batchProp.address as Record<string, unknown>)?.zip_code as string ?? "";
+        const addr = batchProp.address as Record<string, unknown> | undefined;
+        const address = (addr?.formatted_street_address as string) ?? "";
+        const city = (addr?.city as string) ?? "";
+        const state = (addr?.state as string) ?? "";
+        const zipcode = (addr?.zip_code as string) ?? "";
+        const msa = (batchProp.msa as string) ?? "";
 
         result.push({
             property_id: Number(propertyId),
             address: String(address ?? ""),
             city: String(city ?? ""),
             zipcode: String(zipcode ?? ""),
-            msa: String((marketRecord.msa as string) ?? (batchProp.msa as string) ?? ""),
+            msa: String(msa ?? ""),
+            state: String(state ?? ""),
             sellerName: marketRecord.sellerName != null ? String(marketRecord.sellerName) : null,
             buyerName: marketRecord.buyerName != null ? String(marketRecord.buyerName) : null,
-            state: String(state ?? ""),
             saleValue: marketRecord.saleValue != null ? Number(marketRecord.saleValue) : null,
             recordingDate: marketRecord.recordingDate != null ? normalizeDateToYMD(String(marketRecord.recordingDate)) : null,
             saleDate: marketRecord.saleDate != null ? normalizeDateToYMD(String(marketRecord.saleDate)) : null,
