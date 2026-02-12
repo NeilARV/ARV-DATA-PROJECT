@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import { properties } from "./properties.schema";
-import { companies } from "./companies.schema";
+import { companies, companyMsas } from "./companies.schema";
+import { msas } from "./msas.schema";
 import {
   addresses,
   structures,
@@ -72,6 +73,22 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   propertiesAsSeller: many(properties, { relationName: "propertySeller" }),
   transactionsAsBuyer: many(propertyTransactions, { relationName: "transactionBuyer" }),
   transactionsAsSeller: many(propertyTransactions, { relationName: "transactionSeller" }),
+  companyMsas: many(companyMsas),
+}));
+
+export const companyMsasRelations = relations(companyMsas, ({ one }) => ({
+  company: one(companies, {
+    fields: [companyMsas.companyId],
+    references: [companies.id],
+  }),
+  msa: one(msas, {
+    fields: [companyMsas.msaId],
+    references: [msas.id],
+  }),
+}));
+
+export const msasRelations = relations(msas, ({ many }) => ({
+  companyMsas: many(companyMsas),
 }));
 
 export const addressesRelations = relations(addresses, ({ one }) => ({

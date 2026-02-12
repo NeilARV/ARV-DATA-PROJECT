@@ -76,6 +76,16 @@ CREATE INDEX idx_companies_name ON companies(company_name);
 
 COMMENT ON TABLE companies IS 'Corporate property flippers and investment companies';
 
+CREATE TABLE company_msas (
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (company_id, msa_id)
+);
+
+COMMENT ON TABLE company_msas IS 'Junction table linking companies to MSAs - tracks which areas a company has properties in or is active in';
+
 -- SFR sync state table
 CREATE TABLE sfr_sync_state (
     id SERIAL PRIMARY KEY,
