@@ -1,4 +1,6 @@
 import { syncMSAV2 } from "server/utils/dataSync";
+import { fetchMarket } from "./processes/fetch-market";
+import { cleanMarket } from "./processes/clean-market";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -11,7 +13,8 @@ export async function syncDenverData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        const result = await syncMSAV2({
+
+        const raw = await fetchMarket({
             msa: DENVER_MSA,
             cityCode: CITY_CODE,
             API_KEY,
@@ -20,9 +23,14 @@ export async function syncDenverData() {
             excludedAddresses: [],
         });
 
-        console.log(`[${CITY_CODE} SYNC] Sync complete for ${DENVER_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
+        console.log(`[${CITY_CODE} SYNC] Fetch market complete for ${DENVER_MSA}: ${raw.records.length} records`);
 
-        return result;
+        const cleaned = cleanMarket(raw);
+        console.log(
+            `[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`
+        );
+
+        return cleaned;
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
