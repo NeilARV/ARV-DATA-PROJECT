@@ -53,19 +53,6 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        // Log 2 random properties for verification
-        if (propertiesWithIds.length > 0) {
-            const sampleSize = Math.min(2, propertiesWithIds.length);
-            const indices = new Set<number>();
-            while (indices.size < sampleSize) {
-                indices.add(Math.floor(Math.random() * propertiesWithIds.length));
-            }
-            console.log(`[${CITY_CODE} SYNC] Random sample (${sampleSize} of ${propertiesWithIds.length}):`);
-            for (const i of Array.from(indices)) {
-                console.log(JSON.stringify(propertiesWithIds[i], null, 2));
-            }
-        }
-
         return { ...withCompanies, properties: propertiesWithIds };
 
     } catch (error) {
