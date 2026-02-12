@@ -27,7 +27,7 @@ export function startScheduledJobs() {
     })
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
-    cron.schedule("0 3 * * *", syncDenverData, {
+    cron.schedule("31 * * * *", syncDenverData, {
         timezone: "America/Los_Angeles"
     })
 
@@ -57,10 +57,10 @@ export function startScheduledJobs() {
     //     timezone: "America/Los_Angeles"
     // })
 
-    // Start Denver-Aurora-Centennial, CO property data sync every night at 2:30 AM
-    cron.schedule("55 * * * *", syncDenverData, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Start Denver-Aurora-Centennial, CO property data sync every night at 2:30 AM
+    // cron.schedule("55 * * * *", syncDenverData, {
+    //     timezone: "America/Los_Angeles"
+    // })
 
     // // Start San Francisco-Oakland-Fremont, CA property data sync every night at 2:30 AM
     // cron.schedule("9 * * * *", syncSanFranciscoData, {
