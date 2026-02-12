@@ -2,6 +2,7 @@ import { syncMSAV2 } from "server/utils/dataSync";
 import { fetchMarket } from "./processes/fetch-market";
 import { cleanMarket } from "./processes/clean-market";
 import { insertCompanies } from "./processes/insert-companies";
+import { batchLookup } from "./processes/batch-lookup";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -37,7 +38,15 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        return withCompanies;
+        // Batch lookup properties and merge with buyers/market data
+        const properties = await batchLookup({
+            records: withCompanies.records,
+            API_KEY,
+            API_URL,
+            cityCode: CITY_CODE,
+        });
+
+        return { ...withCompanies, properties };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
