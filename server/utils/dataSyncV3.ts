@@ -10,8 +10,12 @@ import { db } from "server/storage";
 import { companies } from "../../database/schemas/companies.schema";
 import { sfrSyncState } from "../../database/schemas/sync.schema";
 import { eq } from "drizzle-orm";
-import { normalizeDateToYMD, normalizeCompanyNameForComparison } from "server/utils/normalization";
-import { isTrust, isFlippingCompany } from "server/utils/dataSyncHelpers";
+import {
+  normalizeDateToYMD,
+  normalizeCompanyNameForComparison,
+  normalizeCompanyNameForStorage,
+} from "server/utils/normalization";
+import { isTrust, isFlippingCompany, findAndCacheCompany } from "server/utils/dataSyncHelpers";
 
 const DEFAULT_START_DATE = "2025-12-03";
 const BUYERS_MARKET_PAGE_SIZE = 100;
@@ -96,6 +100,8 @@ export interface SyncMSAV3Result {
     buyersMarketRecordCount?: number;
     /** Property objects built from buyers/market + batch, ready for storage. */
     propertiesForStorage?: PropertyForStorage[];
+    /** Number of new companies batch-inserted (no duplicates). */
+    companiesInserted?: number;
 }
 
 /**
@@ -412,6 +418,73 @@ export function buildPropertiesForStorage(
 }
 
 /**
+ * Collect unique corporate buyer/seller names from property records, then batch insert
+ * only companies that do not already exist (by company_name). Updates companiesMap
+ * with newly inserted rows and with any existing rows that were skipped (on conflict).
+ */
+export async function batchInsertNewCompanies(options: {
+  propertiesForStorage: PropertyForStorage[];
+  companiesMap: CompaniesMap;
+  cityCode: string;
+}): Promise<{ inserted: number }> {
+  const { propertiesForStorage, companiesMap, cityCode } = options;
+
+  const uniqueByCompareKey = new Map<string, string>();
+  for (const p of propertiesForStorage) {
+    for (const name of [p.buyerName, p.sellerName]) {
+      if (name == null || name === "") continue;
+      if (!isFlippingCompany(name, null)) continue;
+      const storageName = normalizeCompanyNameForStorage(name);
+      const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+      if (!storageName || !compareKey) continue;
+      if (companiesMap.has(compareKey)) continue;
+      if (!uniqueByCompareKey.has(compareKey)) {
+        uniqueByCompareKey.set(compareKey, storageName);
+      }
+    }
+  }
+
+  const toInsert = Array.from(uniqueByCompareKey.entries()).map(([normalizedForCompare, companyName]) => ({
+    companyName,
+    normalizedForCompare,
+  }));
+
+  if (toInsert.length === 0) {
+    console.log(`[${cityCode} SYNC V3] No new companies to insert`);
+    return { inserted: 0 };
+  }
+
+  const insertedRows = await db
+    .insert(companies)
+    .values(
+      toInsert.map((c) => ({
+        companyName: c.companyName,
+        contactName: null,
+        contactEmail: null,
+        phoneNumber: null,
+        counties: null,
+        updatedAt: new Date(),
+      }))
+    )
+    .onConflictDoNothing({ target: companies.companyName })
+    .returning();
+
+  for (const row of insertedRows) {
+    const key = normalizeCompanyNameForComparison(row.companyName);
+    if (key) companiesMap.set(key, row);
+  }
+
+  for (const c of toInsert) {
+    if (!companiesMap.has(c.normalizedForCompare)) {
+      await findAndCacheCompany(c.companyName, c.normalizedForCompare, companiesMap, cityCode);
+    }
+  }
+
+  console.log(`[${cityCode} SYNC V3] Companies: ${toInsert.length} candidate(s), ${insertedRows.length} new insert(s)`);
+  return { inserted: insertedRows.length };
+}
+
+/**
  * Sync SFR data for a single MSA (V3).
  * Same parameters as syncMSAV2 for drop-in compatibility.
  */
@@ -459,6 +532,19 @@ export async function dataSyncV3(params: SyncMSAV3Params): Promise<SyncMSAV3Resu
       console.log(`[${cityCode} SYNC V3] properties for storage length: ${propertiesForStorage.length}`);
     }
 
+    // -------------------------------------------------------------------------
+    // Batch insert only new companies (corporate buyer/seller names from market)
+    // -------------------------------------------------------------------------
+    let companiesInserted = 0;
+    if (propertiesForStorage.length > 0) {
+      const result = await batchInsertNewCompanies({
+        propertiesForStorage,
+        companiesMap,
+        cityCode,
+      });
+      companiesInserted = result.inserted;
+    }
+
     return {
         success: true,
         msa,
@@ -467,5 +553,6 @@ export async function dataSyncV3(params: SyncMSAV3Params): Promise<SyncMSAV3Resu
         companiesMap,
         buyersMarketRecordCount: buyersMarketRecords.length,
         propertiesForStorage,
+        companiesInserted,
     };
 }
