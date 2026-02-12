@@ -30,6 +30,10 @@ export async function syncDenverData() {
             `[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`
         );
 
+        console.log(
+            `[${CITY_CODE} SYNC] Companies: ${cleaned.companyNames})`
+        );
+
         return cleaned;
 
     } catch (error) {
