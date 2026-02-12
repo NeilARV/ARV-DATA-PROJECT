@@ -3,7 +3,7 @@ import { fetchMarket } from "./processes/fetch-market";
 import { cleanMarket } from "./processes/clean-market";
 import { insertCompanies } from "./processes/insert-companies";
 import { batchLookup } from "./processes/batch-lookup";
-import { resolvePropertyIds } from "./processes/property-ids";
+import { resolvePropertyIds } from "./processes/resolve-ids";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";

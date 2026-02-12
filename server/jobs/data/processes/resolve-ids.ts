@@ -71,6 +71,13 @@ export async function resolvePropertyIds(
     property.buyer_id = buyerId;
     property.seller_id = sellerId;
 
+    // Normalize: we only use buyer_1/seller_1; buyer_2/seller_2 are not needed
+    if (property.current_sale && typeof property.current_sale === "object") {
+      const cs = property.current_sale as Record<string, unknown>;
+      cs.buyer_2 = null;
+      cs.seller_2 = null;
+    }
+
     result.push({
       ...item,
       property: property as MergedProperty["property"] & {
