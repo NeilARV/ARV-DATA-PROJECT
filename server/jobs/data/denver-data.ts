@@ -1,6 +1,7 @@
 import { syncMSAV2 } from "server/utils/dataSync";
 import { fetchMarket } from "./processes/fetch-market";
 import { cleanMarket } from "./processes/clean-market";
+import { insertCompanies } from "./processes/insert-companies";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -14,6 +15,7 @@ export async function syncDenverData() {
 
     try {
 
+        // Retrieve Buyer Market Data
         const raw = await fetchMarket({
             msa: DENVER_MSA,
             cityCode: CITY_CODE,
@@ -22,19 +24,20 @@ export async function syncDenverData() {
             today,
             excludedAddresses: [],
         });
-
         console.log(`[${CITY_CODE} SYNC] Fetch market complete for ${DENVER_MSA}: ${raw.records.length} records`);
 
+        // Clean Buyer Market Data
         const cleaned = cleanMarket(raw);
-        console.log(
-            `[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`
-        );
+        console.log(`[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`);
 
-        console.log(
-            `[${CITY_CODE} SYNC] Companies: ${cleaned.companyNames})`
-        );
+        // Insert Companies Retrieved from Buyer Market Data
+        const withCompanies = await insertCompanies({
+            cleaned,
+            msa: DENVER_MSA,
+            cityCode: CITY_CODE,
+        });
 
-        return cleaned;
+        return withCompanies;
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
