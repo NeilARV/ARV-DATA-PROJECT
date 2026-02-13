@@ -105,8 +105,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
   const client = new ServerClient(SERVER_KEY);
 
   try {
-    // Users who have this MSA subscribed and notifications enabled (Postmark restricted: only @arvfinance.com)
-    const ALLOWED_EMAIL_SUFFIX = "@arvfinance.com";
+    // Users who have this MSA subscribed and notifications enabled
     const usersToEmail = await db
       .select({
         id: users.id,
@@ -116,13 +115,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .from(users)
       .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
       .innerJoin(msas, eq(userMsaSubscriptions.msaId, msas.id))
-      .where(
-        and(
-          eq(msas.name, msaName),
-          eq(users.notifications, true),
-          sql`LOWER(${users.email}) LIKE ${"%" + ALLOWED_EMAIL_SUFFIX}`
-        )
-      );
+      .where(and(eq(msas.name, msaName), eq(users.notifications, true)));
 
     // Dedupe by user id (same user could appear if schema allowed duplicate subscriptions)
     const seen = new Set<string>();
