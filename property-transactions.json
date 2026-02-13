@@ -1,0 +1,48 @@
+{
+    "property_id": 19007044,
+    "address": "3648 NASSAU DR",
+    "transactions": [
+        {
+            "RECORDING_DATE": "2026-02-03",
+            "APN": "478-121-05-00",
+            "BUYER_BORROWER1_NAME": "SMOCK MONIQUE P",
+            "BUYER_BORROWER2_NAME": null,
+            "SALE_DATE": "2026-01-27",
+            "TRANSACTION_TYPE": "Non-Arms Length",
+            "SELLER1_NAME": "SCHULTZ ERNEST SIEGFRIED",
+            "SALE_AMT": "0",
+            "FIRST_MTG_RECORDING_DATE": null,
+            "FIRST_MTG_AMT": 0,
+            "FIRST_MTG_LENDER_NAME": null,
+            "FIRST_MTG_DUE_DATE": null
+        },
+        {
+            "RECORDING_DATE": "2026-02-03",
+            "APN": "478-121-05-00",
+            "BUYER_BORROWER1_NAME": "RSDCO LLC",
+            "BUYER_BORROWER2_NAME": null,
+            "SALE_DATE": "2026-01-28",
+            "TRANSACTION_TYPE": "Arms Length",
+            "SELLER1_NAME": "SMOCK MONIQUE P",
+            "SALE_AMT": "570000",
+            "FIRST_MTG_RECORDING_DATE": "2026-02-03",
+            "FIRST_MTG_AMT": 611000,
+            "FIRST_MTG_LENDER_NAME": "TIER ONE FUNDING CA INC",
+            "FIRST_MTG_DUE_DATE": "2027-03-01"
+        },
+        {
+            "RECORDING_DATE": "1995-04-27",
+            "APN": "478-121-05-00",
+            "BUYER_BORROWER1_NAME": "SCHULTZ ERNEST S",
+            "BUYER_BORROWER2_NAME": "SCHULTZ ALDRIKA J",
+            "SALE_DATE": "1995-04-26",
+            "TRANSACTION_TYPE": "Non-Arms Length",
+            "SELLER1_NAME": "SCHULTZ ERNEST S",
+            "SALE_AMT": "0",
+            "FIRST_MTG_RECORDING_DATE": null,
+            "FIRST_MTG_AMT": 0,
+            "FIRST_MTG_LENDER_NAME": null,
+            "FIRST_MTG_DUE_DATE": null
+        }
+    ]
+}
