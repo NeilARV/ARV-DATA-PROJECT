@@ -33,15 +33,15 @@ export async function syncDenverData() {
         console.log(`[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`);
 
         // Insert Companies Retrieved from Buyer Market Data
-        const withCompanies = await insertCompanies({
-            cleaned,
+        const insertResult = await insertCompanies({
+            companyNames: cleaned.companyNames,
             msa: DENVER_MSA,
             cityCode: CITY_CODE,
         });
 
         // Batch lookup properties and merge with buyers/market data
         const properties = await batchLookup({
-            records: withCompanies.records,
+            records: cleaned.records,
             API_KEY,
             API_URL,
             cityCode: CITY_CODE,
@@ -53,7 +53,15 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        return { ...withCompanies, properties: propertiesWithIds };
+        // Log 2 sample properties after resolvePropertyIds for inspection
+        const samples = propertiesWithIds.slice(0, 2);
+        console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (${samples.length} of ${propertiesWithIds.length}):`);
+        samples.forEach((p, i) => {
+            console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
+            console.log(JSON.stringify(p, null, 2));
+        });
+
+        return { ...cleaned, ...insertResult, properties: propertiesWithIds };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

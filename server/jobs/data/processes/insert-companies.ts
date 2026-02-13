@@ -6,20 +6,14 @@ import {
     normalizeCompanyNameForStorage,
     normalizeCompanyNameForComparison,
 } from "server/utils/normalization";
-import type { CleanMarketResult } from "./clean-market";
 
 export interface InsertCompaniesParams {
-    cleaned: CleanMarketResult;
+    companyNames: string[];
     msa: string;
     cityCode: string;
 }
 
 export interface InsertCompaniesResult {
-    records: CleanMarketResult["records"];
-    companyNames: string[];
-    dateRange: CleanMarketResult["dateRange"];
-    lastSaleDate: CleanMarketResult["lastSaleDate"];
-    stats: CleanMarketResult["stats"];
     companiesInserted: number;
     companyMsasAdded: number;
 }
@@ -52,8 +46,7 @@ async function getOrCreateMsaId(msaName: string): Promise<number> {
 export async function insertCompanies(
     params: InsertCompaniesParams
 ): Promise<InsertCompaniesResult> {
-    const { cleaned, msa, cityCode } = params;
-    const { records, companyNames, dateRange, lastSaleDate, stats } = cleaned;
+    const { companyNames, msa, cityCode } = params;
 
     const msaId = await getOrCreateMsaId(msa);
 
@@ -173,11 +166,6 @@ export async function insertCompanies(
     console.log(`[${cityCode} SYNC] Companies: ${companiesInserted} new, ${companyMsasAdded} MSA associations added`);
 
     return {
-        records,
-        companyNames,
-        dateRange,
-        lastSaleDate,
-        stats,
         companiesInserted,
         companyMsasAdded,
     };
