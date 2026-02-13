@@ -429,16 +429,20 @@ CREATE TABLE property_transactions (
     property_transactions_id SERIAL PRIMARY KEY,
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-    buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-    transaction_type VARCHAR(50),
-    transaction_date DATE NOT NULL,
-    sale_price DECIMAL(15, 2),
-    mtg_type VARCHAR(100),
-    mtg_amount DECIMAL(15, 2),
-    buyer_name VARCHAR(200),
     seller_name VARCHAR(200),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    buyer_name VARCHAR(200),
+    apn VARCHAR(50),
+    transaction_type VARCHAR(50),
+    sale_date DATE NOT NULL,
+    recording_date DATE NOT NULL,
+    sale_price DECIMAL(15, 2),
+    first_mtg_recording_date DATE,
+    first_mtg_amount DECIMAL(15, 2),
+    first_mtg_lender_name VARCHAR(200),
+    first_mtg_due_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_transactions_property ON property_transactions(property_id);
