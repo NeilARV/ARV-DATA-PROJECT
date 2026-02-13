@@ -17,6 +17,7 @@ CREATE TABLE sessions (
 -- Email whitelist table
 CREATE TABLE email_whitelist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    msa SERIAL REFERENCES msas(id),
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT now()
 );
