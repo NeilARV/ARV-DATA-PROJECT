@@ -155,7 +155,12 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .leftJoin(structures, eq(properties.id, structures.propertyId))
       .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
       .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
-      .where(eq(properties.msa, msaName))
+      .where(
+        and(
+          eq(properties.msa, msaName),
+          sql`LOWER(COALESCE(${properties.status}, '')) != 'sold'`
+        )
+      )
       .orderBy(
         sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
         sql`CAST(${lastSales.recordingDate} AS DATE) DESC`

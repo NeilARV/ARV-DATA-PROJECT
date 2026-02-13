@@ -31,7 +31,7 @@ export function startScheduledJobs() {
     })
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
-    cron.schedule("0 3 * * *", syncDenverData, {
+    cron.schedule("* 3 * * *", syncDenverData, {
         timezone: "America/Los_Angeles"
     })
 
@@ -46,9 +46,9 @@ export function startScheduledJobs() {
     cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
     cron.schedule("15 9 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
 
-    // cron.schedule("10 13 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("25 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
     // cron.schedule("34 * * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
     // cron.schedule("38 * * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
-    // cron.schedule("36 * * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
+    // cron.schedule("30 * * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
     
 }
