@@ -17,7 +17,7 @@ CREATE TABLE sessions (
 -- Email whitelist table
 CREATE TABLE email_whitelist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    msa SERIAL REFERENCES msas(id),
+    msa INTEGER REFERENCES msas(id) DEFAULT 1,
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT now()
 );
@@ -54,7 +54,7 @@ COMMENT ON TABLE users IS 'User accounts and authentication information';
 
 CREATE TABLE user_msa_subscriptions (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    msa_id SERIAL REFERENCES msas(id) ON DELETE CASCADE,
+    msa_id INTEGER REFERENCES msas(id) ON DELETE CASCADE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now(),
     PRIMARY KEY (user_id, msa_id)
