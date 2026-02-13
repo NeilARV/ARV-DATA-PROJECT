@@ -56,10 +56,8 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
   });
 
   const addWhitelistMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const response = await apiRequest("POST", "/api/admin/whitelist", {
-        email,
-      });
+    mutationFn: async (payload: { email: string; msaName: string }) => {
+      const response = await apiRequest("POST", "/api/admin/whitelist", payload);
       const data = await response.json();
       return data;
     },
@@ -69,6 +67,7 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
         description: "Email added to whitelist",
       });
       setWhitelistEmail("");
+      setWhitelistMsa(MSA[0]);
       setEmailError(null);
     },
     onError: (error: any) => {
@@ -99,15 +98,22 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
     const trimmed = whitelistEmail.trim();
     if (!trimmed) return;
     setEmailError(null);
-    const result = insertEmailWhitelistSchema.safeParse({ email: trimmed });
+    const result = insertEmailWhitelistSchema.safeParse({
+      email: trimmed,
+      msaName: whitelistMsa,
+    });
     if (!result.success) {
       const msg =
         result.error.flatten().fieldErrors.email?.[0] ??
-        "Please enter a valid email address";
+        result.error.flatten().fieldErrors.msaName?.[0] ??
+        "Please enter a valid email and select an MSA";
       setEmailError(msg);
       return;
     }
-    addWhitelistMutation.mutate(result.data.email);
+    addWhitelistMutation.mutate({
+      email: result.data.email,
+      msaName: result.data.msaName,
+    });
   };
 
   return (

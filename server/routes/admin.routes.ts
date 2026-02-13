@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { users } from "@database/schemas/users.schema";
+import { emailWhitelist, msas } from "@database/schemas";
 import { eq, desc } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
-import { emailWhitelist } from "@database/schemas";
 
 const router = Router();
 
@@ -63,8 +63,22 @@ router.post("/whitelist", requireAdminAuth, async (req, res) => {
             });
         }
 
-        const { email } = validation.data;
+        const { email, msaName } = validation.data;
         const normalizedEmail = email.toLowerCase().trim();
+
+        // Resolve MSA name to id
+        const [msaRow] = await db
+            .select({ id: msas.id })
+            .from(msas)
+            .where(eq(msas.name, msaName))
+            .limit(1);
+
+        if (!msaRow) {
+            return res.status(400).json({
+                message: "Invalid MSA selected"
+            });
+        }
+
         // Check if email already exists in whitelist
         const existingWhitelistEntry = await db
             .select()
@@ -78,9 +92,10 @@ router.post("/whitelist", requireAdminAuth, async (req, res) => {
             });
         }
 
-        // Insert email to whitelist (id and created_at are auto-generated)
+        // Insert email to whitelist with MSA reference (id and created_at are auto-generated)
         await db.insert(emailWhitelist).values({
-            email: normalizedEmail
+            email: normalizedEmail,
+            msa: msaRow.id,
         });
 
         return res.status(201).json({ 
