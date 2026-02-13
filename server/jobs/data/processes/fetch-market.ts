@@ -105,7 +105,14 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
 
         const response = await fetchWithRetry(
             `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
-            { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+            {
+                method: "GET",
+                headers: {
+                    "X-API-TOKEN": API_KEY,
+                    "Accept": "application/json",
+                    "User-Agent": "PostmanRuntime/7.41.0",
+                },
+            },
             { label: `${cityCode} SYNC buyers/market page ${pageNum}` }
         );
 
