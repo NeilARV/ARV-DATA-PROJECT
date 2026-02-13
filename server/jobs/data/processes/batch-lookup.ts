@@ -112,7 +112,13 @@ export async function batchLookup(
         const addressesParam = batchAddresses.join("|");
         const response = await fetchWithRetry(
             `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
-            { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+            {   
+                method: "GET",                 
+                headers: {
+                    "X-API-TOKEN": API_KEY,
+                    "Accept": "application/json",
+                    "User-Agent": "PostmanRuntime/7.41.0",
+                }, },
             { label: `${cityCode} SYNC properties/batch ${batchNum}/${totalBatches}` }
         );
 
