@@ -93,6 +93,13 @@ async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Pro
     );
 }
 
+/**
+ * Adds a single MSA subscription for a user (e.g. from email_whitelist on signup).
+ */
+export async function addUserMsaSubscription(userId: string, msaId: number): Promise<void> {
+    await db.insert(userMsaSubscriptions).values({ userId, msaId });
+}
+
 export async function getUserByEmail(email: string) {
 
     const user = await db

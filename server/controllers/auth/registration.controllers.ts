@@ -17,15 +17,15 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
         const { firstName, lastName, phone, email, password } = validation.data;
 
-        const whitelistUser = await RegistrationServices.isEmailWhiteListed(email)
+        const whitelistEntry = await RegistrationServices.isEmailWhiteListed(email);
 
-        if (whitelistUser.length === 0) {
-            res.status(403).json({message: "You are not authorized to sign up for this service."})
+        if (whitelistEntry.length === 0) {
+            res.status(403).json({ message: "You are not authorized to sign up for this service." });
             return;
         }
 
         // Get user by email
-        const existingUser = await UserServices.getUserByEmail(email)
+        const existingUser = await UserServices.getUserByEmail(email);
 
         // Check if email already exists
         if (existingUser.length > 0) {
@@ -38,8 +38,14 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             lastName,
             phone,
             email,
-            password
-        })
+            password,
+        });
+
+        // Create initial MSA subscription from whitelist if msa was set when they were added
+        const whitelistRow = whitelistEntry[0];
+        if (whitelistRow.msa != null) {
+            await UserServices.addUserMsaSubscription(newUser.id, whitelistRow.msa);
+        }
 
         // Set user session
         req.session.userId = newUser.id;
