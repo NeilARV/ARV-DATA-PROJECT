@@ -7,10 +7,11 @@ export const sessions = pgTable("sessions", {
   expire: integer("expire").notNull(),
 });
 
-// Email Whitelist
+// Email Whitelist (msa references msas.id)
 export const emailWhitelist = pgTable("email_whitelist", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").unique().notNull(),
+  msa: integer("msa"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
