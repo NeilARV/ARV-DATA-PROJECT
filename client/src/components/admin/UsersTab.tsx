@@ -18,7 +18,15 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Plus, Users } from "lucide-react";
+import { MSA } from "@/constants/filters.constants";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -39,6 +47,7 @@ interface UsersTabProps {
 export default function UsersTab({ isAdmin }: UsersTabProps) {
   const { toast } = useToast();
   const [whitelistEmail, setWhitelistEmail] = useState("");
+  const [whitelistMsa, setWhitelistMsa] = useState<string>(MSA[0]);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
@@ -112,7 +121,7 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
       <CardContent>
         <div className="mb-6 p-4 border rounded-lg bg-muted/50">
           <h3 className="text-sm font-semibold mb-3">Add Email to Whitelist</h3>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             <Input
               type="email"
               placeholder="Enter email address"
@@ -131,16 +140,33 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                 }
               }}
               disabled={addWhitelistMutation.isPending}
-              className={`flex-1`}
+              className="flex-[2] min-w-0"
               data-testid="input-whitelist-email"
               aria-invalid={!!emailError}
               aria-describedby={emailError ? "whitelist-email-error" : undefined}
             />
+            <Select
+              value={whitelistMsa}
+              onValueChange={setWhitelistMsa}
+              disabled={addWhitelistMutation.isPending}
+            >
+              <SelectTrigger className="flex-[1] min-w-[280px]" data-testid="select-whitelist-msa">
+                <SelectValue placeholder="Initial MSA subscription" />
+              </SelectTrigger>
+              <SelectContent>
+                {MSA.map((msaName) => (
+                  <SelectItem key={msaName} value={msaName}>
+                    {msaName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               onClick={handleAddWhitelist}
               disabled={
                 !whitelistEmail.trim() || addWhitelistMutation.isPending
               }
+              className="shrink-0"
               data-testid="button-add-whitelist"
             >
               {addWhitelistMutation.isPending ? (
