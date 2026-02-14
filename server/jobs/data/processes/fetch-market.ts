@@ -2,6 +2,7 @@ import { db } from "server/storage";
 import { sfrSyncState } from "@database/schemas/sync.schema";
 import { eq } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
+import { MOCK_BUYER_MARKET_DATA } from "server/constants/mocks";
 
 const DEFAULT_START_DATE = "2025-12-03";
 const PAGE_SIZE = 100;
@@ -103,20 +104,21 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
             sort: "recording_date",
         });
 
-        const response = await fetchWithRetry(
-            `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
-            {
-                method: "GET",
-                headers: {
-                    "X-API-TOKEN": API_KEY,
-                    "Accept": "application/json",
-                    "User-Agent": "PostmanRuntime/7.41.0",
-                },
-            },
-            { label: `${cityCode} SYNC buyers/market page ${pageNum}` }
-        );
-
-        const buyersMarketData = (await response.json()) as BuyersMarketRecord[];
+        // Mock - comment out next line and uncomment block below for real API
+        const buyersMarketData = MOCK_BUYER_MARKET_DATA as BuyersMarketRecord[];
+        // const response = await fetchWithRetry(
+        //     `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
+        //     {
+        //         method: "GET",
+        //         headers: {
+        //             "X-API-TOKEN": API_KEY,
+        //             "Accept": "application/json",
+        //             "User-Agent": "PostmanRuntime/7.41.0",
+        //         },
+        //     },
+        //     { label: `${cityCode} SYNC buyers/market page ${pageNum}` }
+        // );
+        // const buyersMarketData = (await response.json()) as BuyersMarketRecord[];
 
         if (!buyersMarketData || !Array.isArray(buyersMarketData)) {
             console.log(
