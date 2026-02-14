@@ -53,13 +53,13 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        // Log 2 sample properties after resolvePropertyIds for inspection
-        const samples = propertiesWithIds.slice(0, 2);
-        console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (${samples.length} of ${propertiesWithIds.length}):`);
-        samples.forEach((p, i) => {
-            console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
-            console.log(JSON.stringify(p, null, 2));
-        });
+        // // Log 2 sample properties after resolvePropertyIds for inspection
+        // const samples = propertiesWithIds.slice(0, 2);
+        // console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (${samples.length} of ${propertiesWithIds.length}):`);
+        // samples.forEach((p, i) => {
+        //     console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
+        //     console.log(JSON.stringify(p, null, 2));
+        // });
 
         return { ...cleaned, ...insertResult, properties: propertiesWithIds };
 

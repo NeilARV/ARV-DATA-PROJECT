@@ -1,11 +1,13 @@
 import { db } from "server/storage";
 import { companies, companyMsas } from "@database/schemas/companies.schema";
 import { msas } from "@database/schemas/msas.schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
     normalizeCompanyNameForStorage,
     normalizeCompanyNameForComparison,
 } from "server/utils/normalization";
+
+const BATCH_SIZE = 100;
 
 export interface InsertCompaniesParams {
     companyNames: string[];
@@ -40,8 +42,9 @@ async function getOrCreateMsaId(msaName: string): Promise<number> {
 
 /**
  * Inserts or updates companies and company_msas from cleaned market data.
- * - New companies: insert company + company_msas
- * - Existing companies: add company_msas if this MSA is not yet associated
+ * - New companies: batch insert companies, then batch insert company_msas
+ * - Existing companies: batch insert company_msas for this MSA if not yet associated
+ * Uses chunks of BATCH_SIZE (100) and onConflictDoNothing to avoid duplicates.
  */
 export async function insertCompanies(
     params: InsertCompaniesParams
@@ -50,7 +53,19 @@ export async function insertCompanies(
 
     const msaId = await getOrCreateMsaId(msa);
 
-    // Load all companies and their company_msas for this MSA
+    // Dedupe: unique (storageName, compareKey) per raw name
+    const seenKeys = new Set<string>();
+    const toProcess: { storageName: string; compareKey: string }[] = [];
+    for (const rawName of companyNames) {
+        const storageName = normalizeCompanyNameForStorage(rawName);
+        if (!storageName) continue;
+        const compareKey = normalizeCompanyNameForComparison(storageName);
+        if (!compareKey || seenKeys.has(compareKey)) continue;
+        seenKeys.add(compareKey);
+        toProcess.push({ storageName, compareKey });
+    }
+
+    // Load existing companies and company_msas for this MSA
     const existingCompanies = await db.select().from(companies);
     const companyByCompareKey = new Map<string, (typeof existingCompanies)[0]>();
     for (const company of existingCompanies) {
@@ -66,103 +81,113 @@ export async function insertCompanies(
         existingCompanyMsas.map((r) => r.companyId)
     );
 
-    let companiesInserted = 0;
-    let companyMsasAdded = 0;
-
-    for (const rawName of companyNames) {
-        const storageName = normalizeCompanyNameForStorage(rawName);
-        if (!storageName) continue;
-
-        const compareKey = normalizeCompanyNameForComparison(storageName);
-        if (!compareKey) continue;
-
-        const existingCompany = companyByCompareKey.get(compareKey);
-
-        if (!existingCompany) {
-            // Company does not exist: insert company + company_msas
-            try {
-                const [inserted] = await db
-                .insert(companies)
-                .values({
-                    companyName: storageName,
-                    contactName: null,
-                    contactEmail: null,
-                    phoneNumber: null,
-                    counties: [],
-                    updatedAt: new Date(),
-                })
-                .onConflictDoNothing({ target: companies.companyName })
-                .returning();
-
-                if (inserted) {
-                    companiesInserted++;
-                    companyByCompareKey.set(compareKey, inserted);
-                    await db
-                        .insert(companyMsas)
-                        .values({
-                            companyId: inserted.id,
-                            msaId,
-                        })
-                        .onConflictDoNothing({
-                            target: [companyMsas.companyId, companyMsas.msaId],
-                        });
-                    companyMsasAdded++;
-                } else {
-                    // Conflict - another process inserted; fetch and add msa if needed
-                    const [fetched] = await db
-                        .select()
-                        .from(companies)
-                        .where(eq(companies.companyName, storageName))
-                        .limit(1);
-
-                    if (fetched) {
-                        companyByCompareKey.set(compareKey, fetched);
-                        
-                        if (!companyIdsWithThisMsa.has(fetched.id)) {
-                            await db
-                                .insert(companyMsas)
-                                .values({
-                                companyId: fetched.id,
-                                msaId,
-                                })
-                                .onConflictDoNothing({
-                                target: [companyMsas.companyId, companyMsas.msaId],
-                                });
-                            companyMsasAdded++;
-                            companyIdsWithThisMsa.add(fetched.id);
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error(
-                    `[${cityCode} SYNC] Error inserting company ${storageName}:`,
-                        err
-                );
+    // Partition: need only MSA link vs need company + MSA
+    const needMsaOnly: { companyId: string }[] = [];
+    const needCompanyAndMsa: { storageName: string; compareKey: string }[] = [];
+    for (const { storageName, compareKey } of toProcess) {
+        const existing = companyByCompareKey.get(compareKey);
+        if (existing) {
+            if (!companyIdsWithThisMsa.has(existing.id)) {
+                needMsaOnly.push({ companyId: existing.id });
             }
         } else {
-            // Company exists: add company_msas if this MSA not yet associated
-            if (!companyIdsWithThisMsa.has(existingCompany.id)) {
-                try {
-                    await db
-                        .insert(companyMsas)
-                        .values({
-                            companyId: existingCompany.id,
-                            msaId,
-                        })
-                        .onConflictDoNothing({
-                            target: [companyMsas.companyId, companyMsas.msaId],
-                        });
-                        
-                    companyMsasAdded++;
-                    companyIdsWithThisMsa.add(existingCompany.id);
-
-                } catch (err) {
-                    console.error(`[${cityCode} SYNC] Error adding company_msa for ${storageName}:`, err);
-                }
-            }
+            needCompanyAndMsa.push({ storageName, compareKey });
         }
     }
 
+    let companiesInserted = 0;
+    const companyMsasToAdd: { companyId: string; msaId: number }[] = [];
+
+    // Batch insert company_msas for existing companies (no new company row)
+    for (let i = 0; i < needMsaOnly.length; i += BATCH_SIZE) {
+        const chunk = needMsaOnly.slice(i, i + BATCH_SIZE);
+        const values = chunk.map((r) => ({
+            companyId: r.companyId,
+            msaId,
+        }));
+        try {
+            await db
+                .insert(companyMsas)
+                .values(values)
+                .onConflictDoNothing({
+                    target: [companyMsas.companyId, companyMsas.msaId],
+                });
+        } catch (err) {
+            console.error(`[${cityCode} SYNC] Error batch inserting company_msas (existing companies):`, err);
+        }
+    }
+
+    // Batch insert new companies, then collect (companyId, msaId) for company_msas
+    for (let i = 0; i < needCompanyAndMsa.length; i += BATCH_SIZE) {
+        const chunk = needCompanyAndMsa.slice(i, i + BATCH_SIZE);
+        const companyValues = chunk.map(({ storageName }) => ({
+            companyName: storageName,
+            contactName: null,
+            contactEmail: null,
+            phoneNumber: null,
+            counties: [] as string[],
+            updatedAt: new Date(),
+        }));
+
+        try {
+            const inserted = await db
+                .insert(companies)
+                .values(companyValues)
+                .onConflictDoNothing({ target: companies.companyName })
+                .returning({ id: companies.id, companyName: companies.companyName });
+
+            companiesInserted += inserted.length;
+            for (const row of inserted) {
+                const key = normalizeCompanyNameForComparison(row.companyName);
+                if (key) companyByCompareKey.set(key, row as (typeof existingCompanies)[0]);
+                if (!companyIdsWithThisMsa.has(row.id)) {
+                    companyMsasToAdd.push({ companyId: row.id, msaId });
+                    companyIdsWithThisMsa.add(row.id);
+                }
+            }
+
+            // Names that conflicted (already in DB): fetch ids and add to company_msas
+            const insertedNames = new Set(inserted.map((r) => r.companyName));
+            const conflictNames = chunk
+                .map((r) => r.storageName)
+                .filter((name) => !insertedNames.has(name));
+            if (conflictNames.length > 0) {
+                const fetched = await db
+                    .select({ id: companies.id, companyName: companies.companyName })
+                    .from(companies)
+                    .where(inArray(companies.companyName, conflictNames));
+                for (const row of fetched) {
+                    const key = normalizeCompanyNameForComparison(row.companyName);
+                    if (key && !companyByCompareKey.has(key)) {
+                        companyByCompareKey.set(key, row as (typeof existingCompanies)[0]);
+                    }
+                    if (!companyIdsWithThisMsa.has(row.id)) {
+                        companyMsasToAdd.push({ companyId: row.id, msaId });
+                        companyIdsWithThisMsa.add(row.id);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error(`[${cityCode} SYNC] Error batch inserting companies:`, err);
+        }
+    }
+
+    // Batch insert company_msas for newly inserted / conflicted companies
+    for (let i = 0; i < companyMsasToAdd.length; i += BATCH_SIZE) {
+        const chunk = companyMsasToAdd.slice(i, i + BATCH_SIZE);
+        try {
+            await db
+                .insert(companyMsas)
+                .values(chunk)
+                .onConflictDoNothing({
+                    target: [companyMsas.companyId, companyMsas.msaId],
+                });
+        } catch (err) {
+            console.error(`[${cityCode} SYNC] Error batch inserting company_msas (new companies):`, err);
+        }
+    }
+
+    const companyMsasAdded = needMsaOnly.length + companyMsasToAdd.length;
     console.log(`[${cityCode} SYNC] Companies: ${companiesInserted} new, ${companyMsasAdded} MSA associations added`);
 
     return {
