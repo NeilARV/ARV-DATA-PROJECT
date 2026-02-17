@@ -159,13 +159,13 @@ COMMENT ON COLUMN properties.buyer_id IS 'Company that bought the property (curr
 COMMENT ON COLUMN properties.seller_id IS 'Company that sold the property';
 
 
-CREATE TABLE property_statuses {
+CREATE TABLE property_statuses (
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     status_id INTEGER NOT NULL REFERENCES statuses(id) ON DELETE CASCADE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now(),
     PRIMARY KEY (property_id, status_id)
-}
+)
 
 -- Address information
 CREATE TABLE addresses (
