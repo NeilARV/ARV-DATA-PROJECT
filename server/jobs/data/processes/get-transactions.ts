@@ -1,4 +1,4 @@
-import type { PropertyWithIds } from "./resolve-ids";
+import type { MergedProperty } from "./batch-lookup";
 
 const RATE_LIMIT_DELAY_MS = 500;
 const RETRY_ATTEMPTS = 3;
@@ -46,7 +46,7 @@ function parseTransactionsResponse(data: unknown): TransactionRecord[] {
     return [];
 }
 
-function getAddressForProperty(item: PropertyWithIds): string {
+function getAddressForProperty(item: MergedProperty): string {
     if (item.address && String(item.address).trim()) return item.address.trim();
     const p = item.property as Record<string, unknown>;
     const address = (p.address as string) || "";
@@ -58,17 +58,17 @@ function getAddressForProperty(item: PropertyWithIds): string {
 }
 
 export interface GetTransactionsParams {
-    properties: PropertyWithIds[];
+    properties: MergedProperty[];
     API_KEY: string;
     API_URL: string;
     cityCode: string;
 }
 
 /**
- * Property with transactions array attached (same shape as PropertyWithIds
+ * Property with transactions array attached (same shape as input
  * plus transactions for insert later).
  */
-export interface PropertyWithTransactions extends PropertyWithIds {
+export interface PropertyWithTransactions extends MergedProperty {
     transactions: TransactionRecord[];
 }
 

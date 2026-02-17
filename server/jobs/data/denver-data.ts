@@ -42,15 +42,9 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        // Resolve buyer_id and seller_id from companies table
-        const propertiesWithIds = await resolvePropertyIds({
-            properties,
-            cityCode: CITY_CODE,
-        });
-
-        // Fetch transaction history for each property (one API call per property)
+        // Fetch transaction history for each property and add to property array
         const propertiesWithTransactions = await getTransactions({
-            properties: propertiesWithIds,
+            properties,
             API_KEY,
             API_URL,
             cityCode: CITY_CODE,
@@ -59,8 +53,26 @@ export async function syncDenverData() {
         // Extract corporate company names from transaction history
         const transactionCompanies = cleanTransactions(propertiesWithTransactions);
         console.log(`[${CITY_CODE} SYNC] Companies from transactions (${transactionCompanies.companyNames.length}):`, transactionCompanies.companyNames);
+        
+        const insertResult = await insertCompanies({
+            companyNames: transactionCompanies.companyNames,
+            msa: DENVER_MSA,
+            cityCode: CITY_CODE,
+        });
 
-        return { ...cleaned, properties: propertiesWithTransactions };
+        // Resolve buyer_id and seller_id from companies table
+        const propertiesWithIds = await resolvePropertyIds({
+            properties: propertiesWithTransactions,
+            cityCode: CITY_CODE,
+        });
+
+        console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (2 of ${propertiesWithIds.length}):`);
+        propertiesWithIds.slice(0, 2).forEach((p, i) => {
+            console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
+            console.log(JSON.stringify(p, null, 2));
+        });
+
+        return { ...cleaned, ...insertResult, properties: propertiesWithTransactions };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
