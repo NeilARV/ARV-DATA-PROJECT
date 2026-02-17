@@ -185,7 +185,13 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
 
       const response = await fetchWithRetry(
         `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
-        { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+        { method: "GET", headers: { 
+          "X-API-TOKEN": API_KEY,
+          "Accept": "application/json",
+          "User-Agent": "PostmanRuntime/7.41.0",
+         }},
+
+        
         { label: `${cityCode} SYNC V2 buyers/market page ${pageNum}` }
       );
 
@@ -316,7 +322,11 @@ export async function syncMSAV2(params: SyncMSAV2Params): Promise<SyncMSAV2Resul
       const addressesParam = batchAddresses.join("|");
       const batchResponse = await fetchWithRetry(
         `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
-        { method: "GET", headers: { "X-API-TOKEN": API_KEY } },
+        { method: "GET", headers: { 
+          "X-API-TOKEN": API_KEY,
+          "Accept": "application/json",
+          "User-Agent": "PostmanRuntime/7.41.0",
+         } },
         { label: `${cityCode} SYNC V2 properties/batch ${batchNum}/${totalBatches}` }
       );
 
