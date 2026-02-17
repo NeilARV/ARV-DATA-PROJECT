@@ -4,6 +4,7 @@ import { cleanMarket } from "./processes/clean-market";
 import { insertCompanies } from "./processes/insert-companies";
 import { batchLookup } from "./processes/batch-lookup";
 import { resolvePropertyIds } from "./processes/resolve-ids";
+import { getTransactions } from "./processes/get-transactions";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -53,14 +54,22 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        // Log 2 sample properties after resolvePropertyIds for inspection
-        console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (${propertiesWithIds.length} of ${propertiesWithIds.length}):`);
-        propertiesWithIds.forEach((p, i) => {
+        // Fetch transaction history for each property (one API call per property)
+        const propertiesWithTransactions = await getTransactions({
+            properties: propertiesWithIds,
+            API_KEY,
+            API_URL,
+            cityCode: CITY_CODE,
+        });
+
+        // Log 2 sample properties after getTransactions for inspection
+        console.log(`[${CITY_CODE} SYNC] Sample properties after getTransactions (${propertiesWithTransactions.length} of ${propertiesWithTransactions.length}):`);
+        propertiesWithTransactions.slice(0, 2).forEach((p, i) => {
             console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
             console.log(JSON.stringify(p, null, 2));
         });
 
-        return { ...cleaned, ...insertResult, properties: propertiesWithIds };
+        return { ...cleaned, ...insertResult, properties: propertiesWithTransactions };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
