@@ -5,6 +5,7 @@ import { insertCompanies } from "./processes/insert-companies";
 import { batchLookup } from "./processes/batch-lookup";
 import { resolvePropertyIds } from "./processes/resolve-ids";
 import { getTransactions } from "./processes/get-transactions";
+import { cleanTransactions } from "./processes/clean-transactions";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
@@ -62,12 +63,9 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        // Log 2 sample properties after getTransactions for inspection
-        console.log(`[${CITY_CODE} SYNC] Sample properties after getTransactions (${propertiesWithTransactions.length} of ${propertiesWithTransactions.length}):`);
-        propertiesWithTransactions.slice(0, 2).forEach((p, i) => {
-            console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
-            console.log(JSON.stringify(p, null, 2));
-        });
+        // Extract corporate company names from transaction history
+        const transactionCompanies = cleanTransactions(propertiesWithTransactions);
+        console.log(`[${CITY_CODE} SYNC] Companies from transactions (${transactionCompanies.companyNames.length}):`, transactionCompanies.companyNames);
 
         return { ...cleaned, ...insertResult, properties: propertiesWithTransactions };
 
