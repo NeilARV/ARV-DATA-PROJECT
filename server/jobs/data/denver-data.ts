@@ -34,13 +34,6 @@ export async function syncDenverData() {
         const cleaned = cleanMarket(raw);
         console.log(`[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`);
 
-        // Insert Companies Retrieved from Buyer Market Data
-        const insertResult = await insertCompanies({
-            companyNames: cleaned.companyNames,
-            msa: DENVER_MSA,
-            cityCode: CITY_CODE,
-        });
-
         // Batch lookup properties and merge with buyers/market data
         const properties = await batchLookup({
             records: cleaned.records,
@@ -67,7 +60,7 @@ export async function syncDenverData() {
         const transactionCompanies = cleanTransactions(propertiesWithTransactions);
         console.log(`[${CITY_CODE} SYNC] Companies from transactions (${transactionCompanies.companyNames.length}):`, transactionCompanies.companyNames);
 
-        return { ...cleaned, ...insertResult, properties: propertiesWithTransactions };
+        return { ...cleaned, properties: propertiesWithTransactions };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

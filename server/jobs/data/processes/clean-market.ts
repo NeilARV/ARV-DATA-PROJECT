@@ -6,7 +6,6 @@ import type {
 
 export interface CleanMarketResult {
   records: BuyersMarketRecord[];
-  companyNames: string[];
   dateRange: { from: string; to: string };
   lastSaleDate: string | null;
   stats: { total: number; kept: number; removed: number };
@@ -24,7 +23,6 @@ export function cleanMarket(fetchResult: FetchMarketResult): CleanMarketResult {
     const { records, dateRange, lastSaleDate } = fetchResult;
     const total = records.length;
     const kept: BuyersMarketRecord[] = [];
-    const companyNamesSet = new Set<string>();
 
     for (const record of records) {
         const buyerName = (record.buyerName as string) || "";
@@ -36,14 +34,11 @@ export function cleanMarket(fetchResult: FetchMarketResult): CleanMarketResult {
 
         if (isBuyerCorporate || isSellerCorporate) {
             kept.push(record);
-            if (isBuyerCorporate && buyerName) companyNamesSet.add(buyerName);
-            if (isSellerCorporate && sellerName) companyNamesSet.add(sellerName);
         }
     }
 
     return {
         records: kept,
-        companyNames: Array.from(companyNamesSet),
         dateRange,
         lastSaleDate,
         stats: {
