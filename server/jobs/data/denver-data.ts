@@ -66,7 +66,7 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
         console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (2 of ${propertiesWithIds.length}):`);
-        propertiesWithIds.slice(0, 2).forEach((p, i) => {
+        propertiesWithIds.forEach((p, i) => {
             console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
             console.log(JSON.stringify(p, null, 2));
         });
