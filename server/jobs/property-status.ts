@@ -162,7 +162,9 @@ export async function UpdatePropertyStatus() {
                     const batchResponse = await fetch(`${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`, {
                         method: 'GET',
                         headers: {
-                            'X-API-TOKEN': API_KEY,
+                            "X-API-TOKEN": API_KEY,
+                            "Accept": "application/json",
+                            "User-Agent": "PostmanRuntime/7.41.0",
                         },
                     });
 
