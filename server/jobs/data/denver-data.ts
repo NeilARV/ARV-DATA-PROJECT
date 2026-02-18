@@ -4,6 +4,7 @@ import { cleanMarket } from "./processes/clean-market";
 import { insertCompanies } from "./processes/insert-companies";
 import { batchLookup } from "./processes/batch-lookup";
 import { resolvePropertyIds } from "./processes/resolve-ids";
+import { resolveStatus } from "./processes/resolve-status";
 import { getTransactions } from "./processes/get-transactions";
 import { cleanTransactions } from "./processes/clean-transactions";
 
@@ -66,12 +67,20 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
         console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (2 of ${propertiesWithIds.length}):`);
-        propertiesWithIds.forEach((p, i) => {
-            console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
-            console.log(JSON.stringify(p, null, 2));
+        // propertiesWithIds.forEach((p, i) => {
+        //     console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
+        //     console.log(JSON.stringify(p, null, 2));
+        // });
+
+        // Resolve status (on-market, in-renovation, sold, wholesale)
+        const propertiesWithStatus = resolveStatus(propertiesWithIds);
+        console.log(`[${CITY_CODE} SYNC] Property status (${propertiesWithStatus.length}):`);
+        propertiesWithStatus.forEach((p) => {
+            const status = (p.property as { status?: string }).status ?? "unknown";
+            console.log(`[${CITY_CODE} SYNC] status: ${status}`);
         });
 
-        return { ...cleaned, ...insertResult, properties: propertiesWithTransactions };
+        return { ...cleaned, ...insertResult, properties: propertiesWithStatus };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
