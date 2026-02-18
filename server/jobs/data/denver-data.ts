@@ -5,6 +5,8 @@ import { insertCompanies } from "./processes/insert-companies";
 import { batchLookup } from "./processes/batch-lookup";
 import { resolvePropertyIds } from "./processes/resolve-ids";
 import { resolveStatus } from "./processes/resolve-status";
+import { cleanBeforeInsert } from "./processes/clean-before-insert";
+import { insertProperties } from "./processes/insert-properties";
 import { getTransactions } from "./processes/get-transactions";
 import { cleanTransactions } from "./processes/clean-transactions";
 
@@ -67,20 +69,28 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
         console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (2 of ${propertiesWithIds.length}):`);
-        // propertiesWithIds.forEach((p, i) => {
-        //     console.log(`[${CITY_CODE} SYNC] --- Property ${i + 1} ---`);
-        //     console.log(JSON.stringify(p, null, 2));
-        // });
+
 
         // Resolve status (on-market, in-renovation, sold, wholesale)
         const propertiesWithStatus = resolveStatus(propertiesWithIds);
         console.log(`[${CITY_CODE} SYNC] Property status (${propertiesWithStatus.length}):`);
-        propertiesWithStatus.forEach((p) => {
-            const status = (p.property as { status?: string }).status ?? "unknown";
-            console.log(`[${CITY_CODE} SYNC] status: ${status}`);
+
+        // Last-mile cleanup (e.g. county: "Los Angeles" not "Los Angeles County")
+        const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
+
+        // Insert properties, addresses, and transactions into the database
+        const insertPropertiesResult = await insertProperties({
+            properties: propertiesToInsert,
+            msa: DENVER_MSA,
+            cityCode: CITY_CODE,
         });
 
-        return { ...cleaned, ...insertResult, properties: propertiesWithStatus };
+        return {
+            ...cleaned,
+            ...insertResult,
+            ...insertPropertiesResult,
+            properties: propertiesWithStatus,
+        };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
