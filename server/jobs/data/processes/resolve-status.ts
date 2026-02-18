@@ -134,6 +134,7 @@ export function resolveStatus(properties: PropertyWithIds[]): PropertyWithStatus
       } else if (!hasSellerId && hasBuyerId) {
         status = "in-renovation";
       } else if (!hasSellerId && !hasBuyerId) {
+        // Default case that should not occur
         status = "sold";
       } else {
         // seller_id && buyer_id: how long did the current seller hold? (seller bought → then sold)

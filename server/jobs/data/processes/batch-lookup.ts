@@ -110,30 +110,30 @@ export async function batchLookup(
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(addresses.length / BATCH_SIZE);
 
-        // Mock - comment out next line and uncomment block below for real API
-        const batchData = MOCK_BATCH_LOOKUP_DATA as Array<{
-            address?: string;
-            property?: Record<string, unknown>;
-            error?: unknown;
-        }>;
-        // const addressesParam = batchAddresses.join("|");
-        // const response = await fetchWithRetry(
-        //     `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
-        //     {
-        //         method: "GET",
-        //         headers: {
-        //             "X-API-TOKEN": API_KEY,
-        //             "Accept": "application/json",
-        //             "User-Agent": "PostmanRuntime/7.41.0",
-        //         },
-        //     },
-        //     { label: `${cityCode} SYNC properties/batch ${batchNum}/${totalBatches}` }
-        // );
-        // const batchData = (await response.json()) as Array<{
+        // // Mock - comment out next line and uncomment block below for real API
+        // const batchData = MOCK_BATCH_LOOKUP_DATA as Array<{
         //     address?: string;
         //     property?: Record<string, unknown>;
         //     error?: unknown;
         // }>;
+        const addressesParam = batchAddresses.join("|");
+        const response = await fetchWithRetry(
+            `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
+            {
+                method: "GET",
+                headers: {
+                    "X-API-TOKEN": API_KEY,
+                    "Accept": "application/json",
+                    "User-Agent": "PostmanRuntime/7.41.0",
+                },
+            },
+            { label: `${cityCode} SYNC properties/batch ${batchNum}/${totalBatches}` }
+        );
+        const batchData = (await response.json()) as Array<{
+            address?: string;
+            property?: Record<string, unknown>;
+            error?: unknown;
+        }>;
 
         if (!batchData || !Array.isArray(batchData)) {
             console.warn(`[${cityCode} SYNC] Invalid batch response format, skipping batch ${batchNum}`);
