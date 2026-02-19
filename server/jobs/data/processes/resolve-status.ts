@@ -163,8 +163,6 @@ export function resolveStatus(properties: PropertyWithIds[], cityCode: string): 
       status = "sold";
     }
 
-    console.log(`[${cityCode} SYNC] Property length (${properties.length})`);
-
     return {
       ...item,
       property: {

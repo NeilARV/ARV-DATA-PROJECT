@@ -82,7 +82,7 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
             sales_date_min: currentMinDate,
             sales_date_max: saleDateMax,
             page_size: String(PAGE_SIZE),
-            sort: "recording_date",
+            sort: "sale_date",
         });
 
         const response = await fetchWithRetry(

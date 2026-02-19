@@ -25,7 +25,9 @@ export async function syncDenverData() {
 
     try {
         let lastSaleDate: string = (await fetchLastSaleDate(DENVER_MSA)) ?? DEFAULT_START_DATE;
-        
+        /** Sale date of the last property we successfully processed; persisted only at end of run. */
+        let lastSuccessfulSaleDate: string | null = null;
+
         const aggregated = {
             totalRecords: 0,
             companiesInserted: 0,
@@ -52,9 +54,10 @@ export async function syncDenverData() {
 
             if (raw.records.length === 0) {
                 console.log(
-                    `[${CITY_CODE} SYNC] No properties for ${lastSaleDate}; pipeline done until next run.`
+                    `[${CITY_CODE} SYNC] No properties for ${lastSaleDate}; skipping to next date.`
                 );
-                break;
+                lastSaleDate = saleDateMax;
+                continue;
             }
 
             const cleaned = cleanMarket(raw, CITY_CODE);
@@ -99,13 +102,20 @@ export async function syncDenverData() {
                 cityCode: CITY_CODE,
             });
 
-            await updateLastSaleDate(DENVER_MSA, CITY_CODE, saleDateMax);
+            if (raw.lastSaleDate) {
+                lastSuccessfulSaleDate = raw.lastSaleDate;
+            }
 
             aggregated.totalRecords += raw.records.length;
             aggregated.companiesInserted += insertResult.companiesInserted ?? 0;
             aggregated.propertiesInserted += insertPropertiesResult.propertiesInserted ?? 0;
 
             lastSaleDate = saleDateMax;
+        }
+
+        if (lastSuccessfulSaleDate !== null) {
+            const storedDate = addDaysToYMD(lastSuccessfulSaleDate, -1);
+            await updateLastSaleDate(DENVER_MSA, CITY_CODE, storedDate);
         }
 
         console.log(
