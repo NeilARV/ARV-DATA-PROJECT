@@ -73,7 +73,7 @@ export async function syncDenverData() {
 
         // Resolve status (on-market, in-renovation, sold, wholesale)
         const propertiesWithStatus = resolveStatus(propertiesWithIds);
-        console.log(`[${CITY_CODE} SYNC] Property status (${propertiesWithStatus.length}):`);
+        console.log(`[${CITY_CODE} SYNC] Property length (${propertiesWithStatus.length})`);
 
         // Last-mile cleanup (e.g. county: "Los Angeles" not "Los Angeles County")
         const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
