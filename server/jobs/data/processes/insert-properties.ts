@@ -3,11 +3,34 @@ import {
   properties,
   addresses,
   propertyTransactions,
+  assessments,
+  exemptions,
+  parcels,
+  schoolDistricts,
+  structures,
+  taxRecords,
+  valuations,
+  preForeclosures,
+  lastSales,
+  currentSales,
 } from "@database/schemas/properties.schema";
 import { eq } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
 import type { PropertyWithStatus } from "./resolve-status";
 import type { TransactionWithIds } from "./resolve-ids";
+import type { SfrPropertyData } from "server/utils/propertyDataHelpers";
+import {
+  transformStructureData,
+  transformAssessmentData,
+  transformExemptionData,
+  transformParcelData,
+  transformSchoolDistrictData,
+  transformTaxRecordData,
+  transformValuationData,
+  transformPreForeclosureData,
+  transformLastSaleData,
+  transformCurrentSaleData,
+} from "server/utils/propertyDataHelpers";
 
 export interface InsertPropertiesParams {
   properties: PropertyWithStatus[];
@@ -205,6 +228,130 @@ export async function insertProperties(
             censusTract: addressRow.censusTract,
             censusBlock: addressRow.censusBlock,
           },
+        });
+    }
+
+    // Persist all SFR batch lookup child data (assessments, structure, parcel, etc.)
+    const propertyData = p as unknown as SfrPropertyData;
+    const structureRow = transformStructureData(propertyId, propertyData);
+    if (structureRow) {
+      const { propertyId: _pid, ...structureSet } = structureRow;
+      await db
+        .insert(structures)
+        .values(structureRow)
+        .onConflictDoUpdate({
+          target: structures.propertyId,
+          set: structureSet,
+        });
+    }
+    const assessmentRow = transformAssessmentData(propertyId, propertyData);
+    if (assessmentRow) {
+      await db
+        .insert(assessments)
+        .values(assessmentRow)
+        .onConflictDoUpdate({
+          target: [assessments.propertyId, assessments.assessedYear],
+          set: {
+            landValue: assessmentRow.landValue,
+            improvementValue: assessmentRow.improvementValue,
+            assessedValue: assessmentRow.assessedValue,
+            marketValue: assessmentRow.marketValue,
+          },
+        });
+    }
+    const exemptionRow = transformExemptionData(propertyId, propertyData);
+    if (exemptionRow) {
+      const { propertyId: _eid, ...exemptionSet } = exemptionRow;
+      await db
+        .insert(exemptions)
+        .values(exemptionRow)
+        .onConflictDoUpdate({
+          target: exemptions.propertyId,
+          set: exemptionSet,
+        });
+    }
+    const parcelRow = transformParcelData(propertyId, propertyData);
+    if (parcelRow) {
+      const { propertyId: _parid, ...parcelSet } = parcelRow;
+      await db
+        .insert(parcels)
+        .values(parcelRow)
+        .onConflictDoUpdate({
+          target: parcels.propertyId,
+          set: parcelSet,
+        });
+    }
+    const schoolRow = transformSchoolDistrictData(propertyId, propertyData);
+    if (schoolRow) {
+      const { propertyId: _sid, ...schoolSet } = schoolRow;
+      await db
+        .insert(schoolDistricts)
+        .values(schoolRow)
+        .onConflictDoUpdate({
+          target: schoolDistricts.propertyId,
+          set: schoolSet,
+        });
+    }
+    const taxRow = transformTaxRecordData(propertyId, propertyData);
+    if (taxRow) {
+      await db
+        .insert(taxRecords)
+        .values(taxRow)
+        .onConflictDoUpdate({
+          target: [taxRecords.propertyId, taxRecords.taxYear],
+          set: {
+            taxAmount: taxRow.taxAmount,
+            taxDelinquentYear: taxRow.taxDelinquentYear,
+            taxRateCodeArea: taxRow.taxRateCodeArea,
+          },
+        });
+    }
+    const valuationRow = transformValuationData(propertyId, propertyData);
+    if (valuationRow) {
+      await db
+        .insert(valuations)
+        .values(valuationRow)
+        .onConflictDoUpdate({
+          target: [valuations.propertyId, valuations.valuationDate],
+          set: {
+            value: valuationRow.value,
+            high: valuationRow.high,
+            low: valuationRow.low,
+            forecastStandardDeviation: valuationRow.forecastStandardDeviation,
+          },
+        });
+    }
+    const preForeclosureRow = transformPreForeclosureData(propertyId, propertyData);
+    if (preForeclosureRow) {
+      const { propertyId: _pfid, ...preForeclosureSet } = preForeclosureRow;
+      await db
+        .insert(preForeclosures)
+        .values(preForeclosureRow)
+        .onConflictDoUpdate({
+          target: preForeclosures.propertyId,
+          set: preForeclosureSet,
+        });
+    }
+    const lastSaleRow = transformLastSaleData(propertyId, propertyData);
+    if (lastSaleRow) {
+      const { propertyId: _lsid, ...lastSaleSet } = lastSaleRow;
+      await db
+        .insert(lastSales)
+        .values(lastSaleRow)
+        .onConflictDoUpdate({
+          target: lastSales.propertyId,
+          set: lastSaleSet,
+        });
+    }
+    const currentSaleRow = transformCurrentSaleData(propertyId, propertyData);
+    if (currentSaleRow) {
+      const { propertyId: _csid, ...currentSaleSet } = currentSaleRow;
+      await db
+        .insert(currentSales)
+        .values(currentSaleRow)
+        .onConflictDoUpdate({
+          target: currentSales.propertyId,
+          set: currentSaleSet,
         });
     }
 
