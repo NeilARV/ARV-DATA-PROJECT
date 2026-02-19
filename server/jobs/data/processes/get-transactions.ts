@@ -102,27 +102,29 @@ export async function getTransactions(
             continue;
         }
 
+        console.log(`[${cityCode} SYNC] Transactions request ${i + 1}/${properties.length}: ${address}`);
+
         try {
             // Mock - comment out next line and uncomment block below for real API
-            const data = (process.env.MOCK_RESALE === "true"
-                ? MOCK_PROPERTY_TRANSACTIONS_DATA_RESALE
-                : MOCK_PROPERTY_TRANSACTIONS_DATA) as unknown;
-            const transactions = parseTransactionsResponse(data);
-            // const url = `${API_URL}/properties/transactions?address=${encodeURIComponent(address)}`;
-            // const response = await fetchWithRetry(
-            //     url,
-            //     {
-            //         method: "GET",
-            //         headers: {
-            //             "X-API-TOKEN": API_KEY,
-            //             "Accept": "application/json",
-            //             "User-Agent": "PostmanRuntime/7.41.0",
-            //         },
-            //     },
-            //     { label: `${cityCode} SYNC transactions ${i + 1}/${properties.length}` }
-            // );
-            // const data = (await response.json()) as unknown;
+            // const data = (process.env.MOCK_RESALE === "true"
+            //     ? MOCK_PROPERTY_TRANSACTIONS_DATA_RESALE
+            //     : MOCK_PROPERTY_TRANSACTIONS_DATA) as unknown;
             // const transactions = parseTransactionsResponse(data);
+            const url = `${API_URL}/properties/transactions?address=${encodeURIComponent(address)}`;
+            const response = await fetchWithRetry(
+                url,
+                {
+                    method: "GET",
+                    headers: {
+                        "X-API-TOKEN": API_KEY,
+                        "Accept": "application/json",
+                        "User-Agent": "PostmanRuntime/7.41.0",
+                    },
+                },
+                { label: `${cityCode} SYNC transactions ${i + 1}/${properties.length}` }
+            );
+            const data = (await response.json()) as unknown;
+            const transactions = parseTransactionsResponse(data);
             results.push({ ...item, transactions });
         } catch (err) {
             console.warn(

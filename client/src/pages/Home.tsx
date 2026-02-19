@@ -834,7 +834,7 @@ export default function Home() {
           propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
           propertyStatus === 'on-market' ? sid === selectedCompanyId :
           propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
-          propertyStatus === 'b2b' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // b2b: show when company is buyer or seller
+          propertyStatus === 'wholesale' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // b2b: show when company is buyer or seller
           (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
         if (!isRelevant) {
           return false;
