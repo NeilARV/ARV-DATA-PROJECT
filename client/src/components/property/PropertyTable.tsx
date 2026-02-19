@@ -24,7 +24,7 @@ function getStatusDots(status: string): string[] {
   if (s === "in-renovation") return [STATUS_COLORS.Renovating];
   if (s === "sold") return [STATUS_COLORS.Sold];
   if (s === "on-market") return [STATUS_COLORS.OnMarket];
-  if (s === "b2b") return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
+  if (s === "wholesale") return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
   return [STATUS_COLORS.Renovating];
 }
 

@@ -40,7 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "new-buyers";
 
-const ALL_STATUS_FILTERS = ["in-renovation", "b2b", "on-market", "sold"];
+const ALL_STATUS_FILTERS = ["in-renovation", "wholesale", "on-market", "sold"];
 const DEFAULT_STATUS_FILTERS = ["in-renovation"];
 
 // Profile data for known companies

@@ -243,13 +243,13 @@ export default function Home() {
       filters.statusFilters.forEach(status => {
         params.append('status', status);
       });
-      // When in-renovation selected and no company: also fetch b2b. When company selected: backend handles it.
+      // When in-renovation selected and no company: also fetch wholesale. When company selected: backend handles it.
       if (
         !selectedCompanyId &&
         normalizedStatusFilters.includes('in-renovation') &&
-        !normalizedStatusFilters.includes('b2b')
+        !normalizedStatusFilters.includes('wholesale')
       ) {
-        params.append('status', 'b2b');
+        params.append('status', 'wholesale');
       }
     }
     
@@ -294,9 +294,9 @@ export default function Home() {
       if (
         !selectedCompanyId &&
         normalizedFilters.includes('in-renovation') &&
-        !normalizedFilters.includes('b2b')
+        !normalizedFilters.includes('wholesale')
       ) {
-        params.append('status', 'b2b');
+        params.append('status', 'wholesale');
       }
     }
     
@@ -454,9 +454,9 @@ export default function Home() {
       if (
         !selectedCompanyId &&
         normalizedStatusFilters.includes('in-renovation') &&
-        !normalizedStatusFilters.includes('b2b')
+        !normalizedStatusFilters.includes('wholesale')
       ) {
-        params.append('status', 'b2b');
+        params.append('status', 'wholesale');
       }
     }
     
@@ -834,7 +834,7 @@ export default function Home() {
           propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
           propertyStatus === 'on-market' ? sid === selectedCompanyId :
           propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
-          propertyStatus === 'wholesale' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // b2b: show when company is buyer or seller
+          propertyStatus === 'wholesale' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // wholesale: show when company is buyer or seller
           (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
         if (!isRelevant) {
           return false;
@@ -890,30 +890,30 @@ export default function Home() {
       }
 
       // Filter by status (case-insensitive)
-      // B2B properties have special rules when a company is selected
+      // wholesale properties have special rules when a company is selected
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        const b2bFilterActive = normalizedFilters.includes('b2b');
+        const wholesaleFilterActive = normalizedFilters.includes('wholesale');
         const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
         
         if (!normalizedFilters.includes(propertyStatus)) {
-          // Special handling for b2b properties
-          if (propertyStatus === 'b2b') {
+          // Special handling for wholesale properties
+          if (propertyStatus === 'wholesale') {
             if (selectedCompanyId) {
               const bid = (pin as { buyerId?: string | null }).buyerId;
               const sid = (pin as { sellerId?: string | null }).sellerId;
               
-              // Company is BUYER of b2b → treat like in-renovation (show when in-renovation selected)
+              // Company is BUYER of wholesale → treat like in-renovation (show when in-renovation selected)
               if (bid === selectedCompanyId && inRenovationFilterActive) {
                 return true; // Allow through
               }
-              // Company is SELLER of b2b → only show when b2b filter explicitly active
-              if (sid === selectedCompanyId && !b2bFilterActive) {
+              // Company is SELLER of wholesale → only show when wholesale filter explicitly active
+              if (sid === selectedCompanyId && !wholesaleFilterActive) {
                 return false; // Do not show
               }
             } else {
-              // No company selected: allow b2b through when in-renovation is selected
+              // No company selected: allow wholesale through when in-renovation is selected
               if (inRenovationFilterActive) {
                 return true;
               }
@@ -1029,7 +1029,7 @@ export default function Home() {
     // If we have selectedCompanyId, filter by ID (most reliable - companyId is always filled)
     // Otherwise fallback to name matching for backward compatibility
     if (selectedCompanyId) {
-      // API returns buyer OR seller matches; companyId only reflects buyer for b2b (seller) properties
+      // API returns buyer OR seller matches; companyId only reflects buyer for wholesale (seller) properties
       const bid = property.buyerId ?? null;
       const sid = property.sellerId ?? null;
       const matchesCompany = bid === selectedCompanyId || sid === selectedCompanyId;
@@ -1091,30 +1091,30 @@ export default function Home() {
     }
 
       // Filter by status (case-insensitive)
-      // B2B properties have special rules when a company is selected
+      // wholesale properties have special rules when a company is selected
       if (filters.statusFilters && filters.statusFilters.length > 0) {
         const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
         const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        const b2bFilterActive = normalizedFilters.includes('b2b');
+        const wholesaleFilterActive = normalizedFilters.includes('wholesale');
         const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
         
         if (!normalizedFilters.includes(propertyStatus)) {
-          // Special handling for b2b properties
-          if (propertyStatus === 'b2b') {
+          // Special handling for wholesale properties
+          if (propertyStatus === 'wholesale') {
             if (selectedCompanyId) {
               const bid = property.buyerId ?? null;
               const sid = property.sellerId ?? null;
               
-              // Company is BUYER of b2b → treat like in-renovation (show when in-renovation selected)
+              // Company is BUYER of wholesale → treat like in-renovation (show when in-renovation selected)
               if (bid === selectedCompanyId && inRenovationFilterActive) {
                 return true; // Allow through
               }
-              // Company is SELLER of b2b → only show when b2b filter explicitly active
-              if (sid === selectedCompanyId && !b2bFilterActive) {
+              // Company is SELLER of wholesale → only show when wholesale filter explicitly active
+              if (sid === selectedCompanyId && !wholesaleFilterActive) {
                 return false; // Do not show
               }
             } else {
-              // No company selected: allow b2b through when in-renovation is selected
+              // No company selected: allow wholesale through when in-renovation is selected
               if (inRenovationFilterActive) {
                 return true;
               }

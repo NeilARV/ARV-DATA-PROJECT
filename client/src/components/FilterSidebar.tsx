@@ -516,14 +516,14 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             Renovating
           </button>
           <button
-            onClick={() => toggleStatusFilter("b2b")}
+            onClick={() => toggleStatusFilter("wholesale")}
             className={`flex-1 min-w-0 px-2 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
-              statusFilters.has("b2b")
+              statusFilters.has("wholesale")
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
             }`}
-            style={statusFilters.has("b2b") ? { backgroundColor: '#9333EA' } : undefined}
-            data-testid="button-filter-b2b"
+            style={statusFilters.has("wholesale") ? { backgroundColor: '#9333EA' } : undefined}
+            data-testid="button-filter-wholesale"
           >
             Wholesale
           </button>
