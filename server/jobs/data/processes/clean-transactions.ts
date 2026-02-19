@@ -130,7 +130,7 @@ function ensureBuyerTransactionInProperty(
   if (alreadyExists) return;
 
   const newTx = transactionFromBuyerRecord(buyerRecord);
-  property.transactions.push(newTx);
+  property.transactions.unshift(newTx);
 }
 
 /**
