@@ -1,10 +1,5 @@
-import { db } from "server/storage";
-import { sfrSyncState } from "@database/schemas/sync.schema";
-import { eq } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
-import { MOCK_BUYER_MARKET_DATA, MOCK_BUYER_MARKET_DATA_RESALE } from "server/constants/mocks";
 
-const DEFAULT_START_DATE = "2025-12-03";
 const PAGE_SIZE = 100;
 const RATE_LIMIT_DELAY_MS = 1000;
 const RETRY_ATTEMPTS = 3;
@@ -44,8 +39,11 @@ export interface IFetchMarket {
     cityCode: string;
     API_KEY: string;
     API_URL: string;
-    today: string;
-    excludedAddresses: string[];
+    /** Inclusive start of date range (YYYY-MM-DD). */
+    saleDateMin: string;
+    /** Exclusive end of date range (YYYY-MM-DD); e.g. last_sale_date + 1 for one day. */
+    saleDateMax: string;
+    excludedAddresses?: string[];
 }
 
 export type BuyersMarketRecord = Record<string, unknown>;
@@ -57,40 +55,23 @@ export interface FetchMarketResult {
 }
 
 /**
- * Fetches all market transactions from /buyers/market for an MSA between
- * last_sale_date (from sfr_sync_state) and today. Paginates until response
- * length < 100, indicating no more properties.
+ * Fetches market transactions from /buyers/market for an MSA within the given
+ * date range [saleDateMin, saleDateMax). Paginates until response length
+ * &lt; 100 (no more in range) or 0 (no data for range). Caller is responsible
+ * for reading/updating last_sale_date in sfr_sync_state (e.g. via fetch-date
+ * and update-date).
  */
 export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResult> {
-    const { msa, cityCode, API_KEY, API_URL, today } = params;
+    const { msa, cityCode, API_KEY, API_URL, saleDateMin, saleDateMax } = params;
 
-    console.log(`[${cityCode} SYNC] Fetching market data for MSA: ${msa}`);
-
-    // -------------------------------------------------------------------------
-    // Step 1: Read last_sale_date from sfr_sync_state
-    // -------------------------------------------------------------------------
-    const syncStateRows = await db
-        .select({ lastSaleDate: sfrSyncState.lastSaleDate })
-        .from(sfrSyncState)
-        .where(eq(sfrSyncState.msa, msa))
-        .limit(1);
-
-    const salesDateMin =
-        syncStateRows.length > 0 && syncStateRows[0].lastSaleDate != null
-        ? normalizeDateToYMD(syncStateRows[0].lastSaleDate) ?? DEFAULT_START_DATE
-        : DEFAULT_START_DATE;
-
-    console.log(`[${cityCode} SYNC] Fetching market from ${salesDateMin} to ${today}`);
+    console.log(`[${cityCode} SYNC] Fetching market data for MSA: ${msa} [${saleDateMin}, ${saleDateMax})`);
 
     const allRecords: BuyersMarketRecord[] = [];
-    let currentMinDate = salesDateMin;
+    let currentMinDate = saleDateMin;
     let pageNum = 1;
     let shouldContinue = true;
     let boundaryDate: string | null = null;
 
-    // -------------------------------------------------------------------------
-    // Step 2: Paginate /buyers/market until length < PAGE_SIZE
-    // -------------------------------------------------------------------------
     while (shouldContinue) {
         if (pageNum > 1) {
             await delay(RATE_LIMIT_DELAY_MS);
@@ -99,15 +80,11 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
         const buyersMarketParams = new URLSearchParams({
             msa,
             sales_date_min: currentMinDate,
-            sales_date_max: today,
+            sales_date_max: saleDateMax,
             page_size: String(PAGE_SIZE),
             sort: "recording_date",
         });
 
-        // Mock - comment out next line and uncomment block below for real API
-        // const buyersMarketData = (process.env.MOCK_RESALE === "true"
-        //     ? MOCK_BUYER_MARKET_DATA_RESALE
-        //     : MOCK_BUYER_MARKET_DATA) as BuyersMarketRecord[];
         const response = await fetchWithRetry(
             `${API_URL}/buyers/market?${buyersMarketParams.toString()}`,
             {
@@ -163,7 +140,7 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
 
     return {
         records: allRecords,
-        dateRange: { from: salesDateMin, to: boundaryDate ?? today },
+        dateRange: { from: saleDateMin, to: boundaryDate ?? saleDateMax },
         lastSaleDate: boundaryDate,
     };
 }

@@ -271,3 +271,11 @@ export function normalizeDateToYMD(dateValue: string | Date | null | undefined, 
     
     return date.toISOString().split("T")[0];
 }
+
+/** Add days to a YYYY-MM-DD date string; returns YYYY-MM-DD. */
+export function addDaysToYMD(ymd: string, days: number): string {
+    const date = new Date(ymd + "T00:00:00");
+    if (isNaN(date.getTime())) return ymd;
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split("T")[0];
+}
