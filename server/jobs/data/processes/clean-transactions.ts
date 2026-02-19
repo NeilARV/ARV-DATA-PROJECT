@@ -140,7 +140,8 @@ function ensureBuyerTransactionInProperty(
  */
 export function cleanTransactions(
   properties: PropertyWithTransactions[],
-  cleaned: CleanMarketResult
+  cleaned: CleanMarketResult,
+  cityCode: string
 ): CleanTransactionsResult {
   const { byAddress, normalizedToCanonical } = buildBuyerRecordByAddress(cleaned.records);
 
@@ -169,7 +170,10 @@ export function cleanTransactions(
     }
   }
 
+  const companyArr = Array.from(companyNamesSet)
+  console.log(`[${cityCode} SYNC] Companies from transactions (${companyArr.length})`);
+
   return {
-    companyNames: Array.from(companyNamesSet),
+    companyNames: companyArr,
   };
 }

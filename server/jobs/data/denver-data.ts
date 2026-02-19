@@ -14,6 +14,7 @@ const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
 
 export async function syncDenverData() {
+    
     console.log(`[${CITY_CODE} SYNC] Syncing Denver Data for MSA: ${DENVER_MSA}`);
 
     const API_KEY = process.env.SFR_API_KEY!;
@@ -31,11 +32,9 @@ export async function syncDenverData() {
             today,
             excludedAddresses: [],
         });
-        console.log(`[${CITY_CODE} SYNC] Fetch market complete for ${DENVER_MSA}: ${raw.records.length} records`);
 
         // Clean Buyer Market Data
-        const cleaned = cleanMarket(raw);
-        console.log(`[${CITY_CODE} SYNC] Cleaned market: ${cleaned.stats.kept} kept, ${cleaned.stats.removed} removed (${cleaned.stats.total} total)`);
+        const cleaned = cleanMarket(raw, CITY_CODE);
 
         // Batch lookup properties and merge with buyers/market data
         const properties = await batchLookup({
@@ -54,9 +53,9 @@ export async function syncDenverData() {
         });
 
         // Ensure each property has the buyer sale in transactions, then extract company names
-        const transactionCompanies = cleanTransactions(propertiesWithTransactions, cleaned);
-        console.log(`[${CITY_CODE} SYNC] Companies from transactions (${transactionCompanies.companyNames.length}):`, transactionCompanies.companyNames);
+        const transactionCompanies = cleanTransactions(propertiesWithTransactions, cleaned, CITY_CODE);
         
+
         const insertResult = await insertCompanies({
             companyNames: transactionCompanies.companyNames,
             msa: DENVER_MSA,
@@ -68,12 +67,9 @@ export async function syncDenverData() {
             properties: propertiesWithTransactions,
             cityCode: CITY_CODE,
         });
-        console.log(`[${CITY_CODE} SYNC] Sample properties after resolvePropertyIds (2 of ${propertiesWithIds.length}):`);
-
 
         // Resolve status (on-market, in-renovation, sold, wholesale)
-        const propertiesWithStatus = resolveStatus(propertiesWithIds);
-        console.log(`[${CITY_CODE} SYNC] Property length (${propertiesWithStatus.length})`);
+        const propertiesWithStatus = resolveStatus(propertiesWithIds, CITY_CODE);
 
         // Last-mile cleanup (e.g. county: "Los Angeles" not "Los Angeles County")
         const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
@@ -84,6 +80,8 @@ export async function syncDenverData() {
             msa: DENVER_MSA,
             cityCode: CITY_CODE,
         });
+
+        console.log(`[${CITY_CODE} SYNC] Complete Syncing Denver Data for MSA: ${DENVER_MSA}`);
 
         return {
             ...cleaned,

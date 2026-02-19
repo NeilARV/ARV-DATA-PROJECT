@@ -19,7 +19,7 @@ export interface CleanMarketResult {
  * Keep: buyer corporate, seller not | buyer not, seller corporate | both corporate
  * Remove: both buyer and seller are NOT corporate
  */
-export function cleanMarket(fetchResult: FetchMarketResult): CleanMarketResult {
+export function cleanMarket(fetchResult: FetchMarketResult, cityCode: string): CleanMarketResult {
     const { records, dateRange, lastSaleDate } = fetchResult;
     const total = records.length;
     const kept: BuyersMarketRecord[] = [];
@@ -36,6 +36,8 @@ export function cleanMarket(fetchResult: FetchMarketResult): CleanMarketResult {
             kept.push(record);
         }
     }
+
+    console.log(`[${cityCode} SYNC] Cleaned market: ${kept.length} kept, ${total - kept.length} removed (${total} total)`);
 
     return {
         records: kept,

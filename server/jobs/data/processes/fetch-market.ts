@@ -159,9 +159,7 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
         }
     }
 
-    console.log(
-        `[${cityCode} SYNC] Fetched ${allRecords.length} total market records`
-    );
+    console.log(`[${cityCode} SYNC] Fetch market complete for ${msa}: ${allRecords.length} records`);
 
     return {
         records: allRecords,

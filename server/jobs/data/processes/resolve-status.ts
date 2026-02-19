@@ -109,7 +109,7 @@ function getWhenSellerBought(
  * 3. !seller_id && !buyer_id → default sold
  * 4. seller_id && buyer_id → hold time ≤30 days → wholesale, else sold
  */
-export function resolveStatus(properties: PropertyWithIds[]): PropertyWithStatus[] {
+export function resolveStatus(properties: PropertyWithIds[], cityCode: string): PropertyWithStatus[] {
   return properties.map((item) => {
     const property = item.property as Record<string, unknown>;
     const listingStatus = getString(property, "listing_status", "listingStatus");
@@ -162,6 +162,8 @@ export function resolveStatus(properties: PropertyWithIds[]): PropertyWithStatus
     } else {
       status = "sold";
     }
+
+    console.log(`[${cityCode} SYNC] Property length (${properties.length})`);
 
     return {
       ...item,
