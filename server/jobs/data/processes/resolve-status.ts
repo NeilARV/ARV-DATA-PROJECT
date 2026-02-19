@@ -101,10 +101,13 @@ function getWhenSellerBought(
  * current buyer and seller. Same-day flips (company bought then sold same day) are handled so the
  * resale is treated as the most recent event.
  *
- * 1. seller_id && !buyer_id (on most recent tx) → sold
- * 2. !seller_id && buyer_id → in-renovation
- * 3. !seller_id && !buyer_id → should not exist (default sold)
- * 4. seller_id && buyer_id → hold time = current_sale_date - when seller bought; ≤30 days (including same day = 0) → wholesale, else sold
+ * Uses property-level buyer_id and seller_id (from current_sale) so status matches
+ * what is stored on the property, not a different "most recent" transaction.
+ *
+ * 1. seller_id && !buyer_id → sold (company sold to non-company)
+ * 2. !seller_id && buyer_id → in-renovation (company bought from non-company)
+ * 3. !seller_id && !buyer_id → default sold
+ * 4. seller_id && buyer_id → hold time ≤30 days → wholesale, else sold
  */
 export function resolveStatus(properties: PropertyWithIds[]): PropertyWithStatus[] {
   return properties.map((item) => {
@@ -114,10 +117,11 @@ export function resolveStatus(properties: PropertyWithIds[]): PropertyWithStatus
 
     const mostRecent = getMostRecentSale(transactions);
     const currentSaleDate = mostRecent ? getSaleDate(mostRecent as Record<string, unknown>) : null;
-    const currentBuyerId = mostRecent?.buyer_id ?? null;
-    const currentSellerId = mostRecent?.seller_id ?? null;
-    const currentBuyerName = mostRecent ? getString(mostRecent as Record<string, unknown>, "BUYER_BORROWER1_NAME", "buyer_borrower1_name") : "";
-    const currentSellerName = mostRecent ? getString(mostRecent as Record<string, unknown>, "SELLER1_NAME", "seller1_name") : "";
+    const currentBuyerId = (property.buyer_id as string) ?? null;
+    const currentSellerId = (property.seller_id as string) ?? null;
+    const currentSale = (property.current_sale as Record<string, unknown>) || {};
+    const currentBuyerName = getString(currentSale, "buyer_1", "buyer_2") || (mostRecent ? getString(mostRecent as Record<string, unknown>, "BUYER_BORROWER1_NAME", "buyer_borrower1_name") : "");
+    const currentSellerName = getString(currentSale, "seller_1", "seller_2") || (mostRecent ? getString(mostRecent as Record<string, unknown>, "SELLER1_NAME", "seller1_name") : "");
 
     const hasBuyerId = !!currentBuyerId;
     const hasSellerId = !!currentSellerId;

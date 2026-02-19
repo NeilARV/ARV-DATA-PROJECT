@@ -31,7 +31,7 @@ export function startScheduledJobs() {
     })
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
-    cron.schedule("43 * * * *", syncDenverData, {
+    cron.schedule("35 * * * *", syncDenverData, {
         timezone: "America/Los_Angeles"
     })
 
