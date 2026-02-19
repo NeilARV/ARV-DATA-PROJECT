@@ -663,64 +663,115 @@ export const MOCK_BATCH_LOOKUP_DATA = [
 ]
 
 export const MOCK_PROPERTY_TRANSACTIONS_DATA = {
-    "property_id": 158958673,
-    "address": "11560 KALISPELL ST",
+    "property_id": 22356084,
+    "address": "3849 W 118TH PL",
     "transactions": [
         {
             "RECORDING_DATE": "2026-02-06",
-            "APN": "R0189857",
-            "BUYER_BORROWER1_NAME": "NYMAN GAIL",
-            "BUYER_BORROWER2_NAME": "NYMAN DARYL",
-            "SALE_DATE": "2026-02-05",
+            "APN": "R0158234",
+            "BUYER_BORROWER1_NAME": "BRADBURN BUNGALOW LLC",
+            "BUYER_BORROWER2_NAME": null,
+            "SALE_DATE": "2026-01-30",
             "TRANSACTION_TYPE": "Arms Length",
-            "SELLER1_NAME": "STILWELL BRADLEY D",
-            "SALE_AMT": "565000",
+            "SELLER1_NAME": "BEHAN JOHN DAVID",
+            "SALE_AMT": "440000",
             "FIRST_MTG_RECORDING_DATE": null,
             "FIRST_MTG_AMT": 0,
             "FIRST_MTG_LENDER_NAME": null,
             "FIRST_MTG_DUE_DATE": null
         },
         {
-            "RECORDING_DATE": "2021-11-09",
-            "APN": "R0189857",
-            "BUYER_BORROWER1_NAME": "STILWELL BRADLEY D",
-            "BUYER_BORROWER2_NAME": "STILWELL SARAH B",
-            "SALE_DATE": "2021-11-03",
-            "TRANSACTION_TYPE": "REFI LOANS and 2ND TRUST DEEDS",
-            "SELLER1_NAME": null,
-            "SALE_AMT": null,
-            "FIRST_MTG_RECORDING_DATE": "2021-11-09",
-            "FIRST_MTG_AMT": 559440,
-            "FIRST_MTG_LENDER_NAME": "COLTEN MORTGAGE",
-            "FIRST_MTG_DUE_DATE": "2051-12-01"
+            "RECORDING_DATE": "2024-12-02",
+            "APN": "R0158234",
+            "BUYER_BORROWER1_NAME": "STEES FAMILY REVOCABLE TRUST",
+            "BUYER_BORROWER2_NAME": null,
+            "SALE_DATE": "2024-11-26",
+            "TRANSACTION_TYPE": "Non-Arms Length",
+            "SELLER1_NAME": "STEES CHARLES SHELDON",
+            "SALE_AMT": "0",
+            "FIRST_MTG_RECORDING_DATE": null,
+            "FIRST_MTG_AMT": 0,
+            "FIRST_MTG_LENDER_NAME": null,
+            "FIRST_MTG_DUE_DATE": null
         },
         {
-            "RECORDING_DATE": "2021-03-03",
-            "APN": "R0189857",
-            "BUYER_BORROWER1_NAME": "STILWELL BRADLEY D",
-            "BUYER_BORROWER2_NAME": "STILWELL SARAH B",
-            "SALE_DATE": "2021-02-23",
-            "TRANSACTION_TYPE": "REFI LOANS and 2ND TRUST DEEDS",
-            "SELLER1_NAME": null,
-            "SALE_AMT": null,
-            "FIRST_MTG_RECORDING_DATE": "2021-03-03",
-            "FIRST_MTG_AMT": 427987,
-            "FIRST_MTG_LENDER_NAME": "PLANET HOME LENDING LLC",
-            "FIRST_MTG_DUE_DATE": "2051-03-01"
-        },
-        {
-            "RECORDING_DATE": "2020-03-04",
-            "APN": "R0189857",
-            "BUYER_BORROWER1_NAME": "STILWELL BRADLEY D",
-            "BUYER_BORROWER2_NAME": "STILWELL SARAH B",
-            "SALE_DATE": "2020-02-28",
+            "RECORDING_DATE": "2024-12-02",
+            "APN": "R0158234",
+            "BUYER_BORROWER1_NAME": "BEHAN JOHN DAVID",
+            "BUYER_BORROWER2_NAME": "BERNAL CARLY ROSE",
+            "SALE_DATE": "2024-11-26",
             "TRANSACTION_TYPE": "Arms Length",
-            "SELLER1_NAME": "LOKAL BR7 LLC",
-            "SALE_AMT": "427811",
-            "FIRST_MTG_RECORDING_DATE": "2020-03-04",
-            "FIRST_MTG_AMT": 431411,
-            "FIRST_MTG_LENDER_NAME": "COLTEN MORTGAGE",
-            "FIRST_MTG_DUE_DATE": "2050-03-01"
+            "SELLER1_NAME": "STEES FAMILY REVOCABLE TRUST",
+            "SALE_AMT": "450000",
+            "FIRST_MTG_RECORDING_DATE": "2024-12-02",
+            "FIRST_MTG_AMT": 320000,
+            "FIRST_MTG_LENDER_NAME": "ARC HOME LLC",
+            "FIRST_MTG_DUE_DATE": "2054-12-01"
+        },
+        {
+            "RECORDING_DATE": "2006-01-11",
+            "APN": "R0158234",
+            "BUYER_BORROWER1_NAME": "THE STEES FAMILY REVOCABLE TRUST",
+            "BUYER_BORROWER2_NAME": null,
+            "SALE_DATE": "2006-01-05",
+            "TRANSACTION_TYPE": "Non-Arms Length",
+            "SELLER1_NAME": "STEES CHARLES SHELDON",
+            "SALE_AMT": "0",
+            "FIRST_MTG_RECORDING_DATE": null,
+            "FIRST_MTG_AMT": 0,
+            "FIRST_MTG_LENDER_NAME": null,
+            "FIRST_MTG_DUE_DATE": null
+        },
+        {
+            "RECORDING_DATE": "2005-11-30",
+            "APN": "R0158234",
+            "BUYER_BORROWER1_NAME": "STEES CHARLES SHELDON",
+            "BUYER_BORROWER2_NAME": null,
+            "SALE_DATE": "2005-11-28",
+            "TRANSACTION_TYPE": "New Construction",
+            "SELLER1_NAME": "BEAZER HOMES HOLDINGS CORP",
+            "SALE_AMT": "227535",
+            "FIRST_MTG_RECORDING_DATE": "2005-11-30",
+            "FIRST_MTG_AMT": 50000,
+            "FIRST_MTG_LENDER_NAME": "BEAZER MORTGAGE CORP",
+            "FIRST_MTG_DUE_DATE": "2035-12-01"
         }
     ]
-}
+};
+
+/** Resale scenario: 3849 W 118TH PL flipped — seller=BRADBURN BUNGALOW LLC, buyer=SMITH JANE (individual), later date. Use with MOCK_RESALE=true. */
+export const MOCK_BUYER_MARKET_DATA_RESALE: typeof MOCK_BUYER_MARKET_DATA = [
+    ...MOCK_BUYER_MARKET_DATA.slice(0, 2),
+    {
+        ...MOCK_BUYER_MARKET_DATA[2],
+        recordingDate: "2026-06-20",
+        buyerName: "SMITH JANE",
+        sellerName: "BRADBURN BUNGALOW LLC",
+        saleDate: "2026-06-15",
+        saleValue: 460000,
+        isCorporate: false,
+    },
+    ...MOCK_BUYER_MARKET_DATA.slice(3),
+];
+
+/** Same as MOCK_PROPERTY_TRANSACTIONS_DATA but with resale tx at top (BRADBURN BUNGALOW LLC → SMITH JANE). Use with MOCK_RESALE=true. */
+export const MOCK_PROPERTY_TRANSACTIONS_DATA_RESALE = {
+    ...MOCK_PROPERTY_TRANSACTIONS_DATA,
+    transactions: [
+        {
+            RECORDING_DATE: "2026-06-20",
+            APN: "R0158234",
+            BUYER_BORROWER1_NAME: "SMITH JANE",
+            BUYER_BORROWER2_NAME: null,
+            SALE_DATE: "2026-06-15",
+            TRANSACTION_TYPE: "Arms Length",
+            SELLER1_NAME: "BRADBURN BUNGALOW LLC",
+            SALE_AMT: "460000",
+            FIRST_MTG_RECORDING_DATE: null,
+            FIRST_MTG_AMT: 0,
+            FIRST_MTG_LENDER_NAME: null,
+            FIRST_MTG_DUE_DATE: null,
+        },
+        ...MOCK_PROPERTY_TRANSACTIONS_DATA.transactions,
+    ],
+};
