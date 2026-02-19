@@ -53,8 +53,8 @@ export async function syncDenverData() {
             cityCode: CITY_CODE,
         });
 
-        // Extract corporate company names from transaction history
-        const transactionCompanies = cleanTransactions(propertiesWithTransactions);
+        // Ensure each property has the buyer sale in transactions, then extract company names
+        const transactionCompanies = cleanTransactions(propertiesWithTransactions, cleaned);
         console.log(`[${CITY_CODE} SYNC] Companies from transactions (${transactionCompanies.companyNames.length}):`, transactionCompanies.companyNames);
         
         const insertResult = await insertCompanies({
