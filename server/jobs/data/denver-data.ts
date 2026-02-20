@@ -86,6 +86,7 @@ export async function syncDenverData() {
                 companyNames: transactionCompanies.companyNames,
                 msa: DENVER_MSA,
                 cityCode: CITY_CODE,
+                companyCounties: transactionCompanies.companyCounties,
             });
 
             const propertiesWithIds = await resolvePropertyIds({

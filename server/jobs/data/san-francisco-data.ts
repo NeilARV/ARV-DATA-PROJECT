@@ -87,6 +87,7 @@ export async function syncSanFranciscoData() {
                 companyNames: transactionCompanies.companyNames,
                 msa: SF_MSA,
                 cityCode: CITY_CODE,
+                companyCounties: transactionCompanies.companyCounties,
             });
 
             const propertiesWithIds = await resolvePropertyIds({

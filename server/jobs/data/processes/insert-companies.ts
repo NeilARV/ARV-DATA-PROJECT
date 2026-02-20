@@ -6,6 +6,7 @@ import {
     normalizeCompanyNameForStorage,
     normalizeCompanyNameForComparison,
 } from "server/utils/normalization";
+import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 
 const BATCH_SIZE = 100;
 
@@ -13,6 +14,8 @@ export interface InsertCompaniesParams {
     companyNames: string[];
     msa: string;
     cityCode: string;
+    /** Map of company compareKey -> counties (from clean-transactions); used to set/update company county array. */
+    companyCounties?: Record<string, string[]>;
 }
 
 export interface InsertCompaniesResult {
@@ -49,7 +52,7 @@ async function getOrCreateMsaId(msaName: string): Promise<number> {
 export async function insertCompanies(
     params: InsertCompaniesParams
 ): Promise<InsertCompaniesResult> {
-    const { companyNames, msa, cityCode } = params;
+    const { companyNames, msa, cityCode, companyCounties = {} } = params;
 
     const msaId = await getOrCreateMsaId(msa);
 
@@ -81,14 +84,19 @@ export async function insertCompanies(
         existingCompanyMsas.map((r) => r.companyId)
     );
 
-    // Partition: need only MSA link vs need company + MSA
+    // Partition: need only MSA link vs need company + MSA; track existing companies that need county updates
     const needMsaOnly: { companyId: string }[] = [];
     const needCompanyAndMsa: { storageName: string; compareKey: string }[] = [];
+    const needCountyUpdate: { company: (typeof existingCompanies)[0]; counties: string[] }[] = [];
     for (const { storageName, compareKey } of toProcess) {
         const existing = companyByCompareKey.get(compareKey);
         if (existing) {
             if (!companyIdsWithThisMsa.has(existing.id)) {
                 needMsaOnly.push({ companyId: existing.id });
+            }
+            const counties = companyCounties[compareKey];
+            if (counties?.length) {
+                needCountyUpdate.push({ company: existing, counties });
             }
         } else {
             needCompanyAndMsa.push({ storageName, compareKey });
@@ -117,15 +125,24 @@ export async function insertCompanies(
         }
     }
 
+    // Add missing counties to existing companies (same as dataSync addCountiesToCompanyIfNeeded)
+    for (const { company, counties } of needCountyUpdate) {
+        try {
+            await addCountiesToCompanyIfNeeded(company, counties);
+        } catch (err) {
+            console.error(`[${cityCode} SYNC] Error adding counties to company ${company.companyName}:`, err);
+        }
+    }
+
     // Batch insert new companies, then collect (companyId, msaId) for company_msas
     for (let i = 0; i < needCompanyAndMsa.length; i += BATCH_SIZE) {
         const chunk = needCompanyAndMsa.slice(i, i + BATCH_SIZE);
-        const companyValues = chunk.map(({ storageName }) => ({
+        const companyValues = chunk.map(({ storageName, compareKey }) => ({
             companyName: storageName,
             contactName: null,
             contactEmail: null,
             phoneNumber: null,
-            counties: [] as string[],
+            counties: (companyCounties[compareKey] ?? []) as string[],
             updatedAt: new Date(),
         }));
 

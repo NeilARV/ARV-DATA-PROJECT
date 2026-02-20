@@ -91,6 +91,7 @@ export async function syncLosAngelesData() {
                 companyNames: transactionCompanies.companyNames,
                 msa: LOS_ANGELES_MSA,
                 cityCode: CITY_CODE,
+                companyCounties: transactionCompanies.companyCounties,
             });
 
             const propertiesWithIds = await resolvePropertyIds({

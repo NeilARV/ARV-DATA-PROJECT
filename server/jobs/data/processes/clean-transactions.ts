@@ -1,4 +1,10 @@
-import { normalizeAddressForLookup, normalizeDateToYMD } from "server/utils/normalization";
+import {
+  normalizeAddressForLookup,
+  normalizeDateToYMD,
+  normalizeCountyName,
+  normalizeCompanyNameForStorage,
+  normalizeCompanyNameForComparison,
+} from "server/utils/normalization";
 import { isFlippingCompany } from "server/utils/dataSyncHelpers";
 import type { BuyersMarketRecord } from "./fetch-market";
 import type { CleanMarketResult } from "./clean-market";
@@ -6,6 +12,8 @@ import type { PropertyWithTransactions, TransactionRecord } from "./get-transact
 
 export interface CleanTransactionsResult {
   companyNames: string[];
+  /** Map of company compareKey -> counties they own properties in (for company county array updates). */
+  companyCounties: Record<string, string[]>;
 }
 
 function getString(tx: TransactionRecord, ...keys: string[]): string {
@@ -67,6 +75,13 @@ function getPropertyAddress(property: PropertyWithTransactions): string {
   const zip = (p.zip as string) || (p.zipCode as string) || "";
   if (!address || !city || !state) return "";
   return zip ? `${address}, ${city}, ${state} ${zip}` : `${address}, ${city}, ${state}`;
+}
+
+/** Get normalized county from property (batch lookup returns county on property). */
+function getPropertyCounty(property: PropertyWithTransactions): string | null {
+  const p = property.property as Record<string, unknown>;
+  const county = (p.county as string) || "";
+  return normalizeCountyName(county) || null;
 }
 
 /** Check if a transaction record matches the buyer market record (same sale). */
@@ -161,19 +176,49 @@ export function cleanTransactions(
   }
 
   const companyNamesSet = new Set<string>();
+  /** compareKey -> Set of counties (same key insert-companies uses for lookups). */
+  const companyToCountiesMap = new Map<string, Set<string>>();
+
   for (const property of properties) {
+    const county = getPropertyCounty(property);
+
     for (const tx of property.transactions) {
       const buyerName = getString(tx, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
       const sellerName = getString(tx, "SELLER1_NAME", "seller1_name");
-      if (isFlippingCompany(buyerName, null)) companyNamesSet.add(buyerName);
-      if (isFlippingCompany(sellerName, null)) companyNamesSet.add(sellerName);
+
+      if (isFlippingCompany(buyerName, null)) {
+        companyNamesSet.add(buyerName);
+        if (county) {
+          const storageName = normalizeCompanyNameForStorage(buyerName);
+          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+          if (compareKey) {
+            if (!companyToCountiesMap.has(compareKey)) companyToCountiesMap.set(compareKey, new Set());
+            companyToCountiesMap.get(compareKey)!.add(county);
+          }
+        }
+      }
+      if (isFlippingCompany(sellerName, null)) {
+        companyNamesSet.add(sellerName);
+        if (county) {
+          const storageName = normalizeCompanyNameForStorage(sellerName);
+          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
+          if (compareKey) {
+            if (!companyToCountiesMap.has(compareKey)) companyToCountiesMap.set(compareKey, new Set());
+            companyToCountiesMap.get(compareKey)!.add(county);
+          }
+        }
+      }
     }
   }
 
-  const companyArr = Array.from(companyNamesSet)
-  console.log(`[${cityCode} SYNC] Companies from transactions (${companyArr.length})`);
+  const companyArr = Array.from(companyNamesSet);
+  const companyCounties: Record<string, string[]> = Object.fromEntries(
+    Array.from(companyToCountiesMap.entries()).map(([k, set]) => [k, Array.from(set)])
+  );
+  console.log(`[${cityCode} SYNC] Companies from transactions (${companyArr.length}), with county data for ${Object.keys(companyCounties).length} companies`);
 
   return {
     companyNames: companyArr,
+    companyCounties,
   };
 }
