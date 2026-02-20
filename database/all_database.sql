@@ -465,7 +465,7 @@ CREATE INDEX idx_transactions_property ON property_transactions(property_id);
 CREATE INDEX idx_transactions_buyer ON property_transactions(buyer_id);
 CREATE INDEX idx_transactions_seller ON property_transactions(seller_id);
 CREATE INDEX idx_transactions_type ON property_transactions(transaction_type);
-CREATE INDEX idx_transactions_date ON property_transactions(transaction_date);
+CREATE INDEX idx_transactions_date ON property_transactions(recording_date);
 
 COMMENT ON TABLE property_transactions IS 'Complete history of property acquisitions and sales by companies - enables flip tracking';
 COMMENT ON COLUMN property_transactions.transaction_type IS 'acquisition = company bought property, sale = company sold property';
@@ -554,12 +554,12 @@ SELECT
     a.city,
     a.state,
     pt_buy.sale_price as buy_price,
-    pt_buy.transaction_date as buy_date,
+    pt_buy.recording_date as buy_date,
     pt_sell.sale_price as sell_price,
-    pt_sell.transaction_date as sell_date,
+    pt_sell.recording_date as sell_date,
     (pt_sell.sale_price - pt_buy.sale_price) as gross_profit,
     ROUND(((pt_sell.sale_price - pt_buy.sale_price) / pt_buy.sale_price * 100)::numeric, 2) as profit_percentage,
-    (pt_sell.transaction_date - pt_buy.transaction_date) as days_to_flip,
+    (pt_sell.recording_date - pt_buy.recording_date) as days_to_flip,
     pt_sell.buyer_name as sold_to,
     s.beds_count,
     s.baths,
@@ -574,7 +574,7 @@ JOIN companies flipper_c ON pt_buy.buyer_id = flipper_c.id
 JOIN addresses a ON pt_buy.property_id = a.property_id
 LEFT JOIN structures s ON pt_buy.property_id = s.property_id
 WHERE pt_buy.transaction_type = 'acquisition'
-ORDER BY pt_sell.transaction_date DESC;
+ORDER BY pt_sell.recording_date DESC;
 
 COMMENT ON VIEW completed_flips IS 'Analysis of completed property flips with profit calculations';
 
@@ -588,10 +588,10 @@ SELECT
     AVG(CASE WHEN pt_sell.transaction_type = 'sale' 
         THEN pt_sell.sale_price - pt_buy.sale_price END) as avg_profit_per_flip,
     AVG(CASE WHEN pt_sell.transaction_type = 'sale' 
-        THEN pt_sell.transaction_date - pt_buy.transaction_date END) as avg_days_to_flip,
+        THEN pt_sell.recording_date - pt_buy.recording_date END) as avg_days_to_flip,
     SUM(CASE WHEN pt_sell.transaction_type = 'sale' 
         THEN pt_sell.sale_price - pt_buy.sale_price END) as total_profit,
-    MAX(pt_sell.transaction_date) as last_flip_date
+    MAX(pt_sell.recording_date) as last_flip_date
 FROM companies c
 LEFT JOIN properties p ON (c.id = p.buyer_id OR c.id = p.seller_id)
 LEFT JOIN property_transactions pt ON (c.id = pt.buyer_id OR c.id = pt.seller_id)
@@ -696,9 +696,9 @@ BEGIN
         pt_buy.sale_price,
         pt_sell.sale_price,
         pt_sell.sale_price - pt_buy.sale_price,
-        pt_buy.transaction_date,
-        pt_sell.transaction_date,
-        pt_sell.transaction_date - pt_buy.transaction_date
+        pt_buy.recording_date,
+        pt_sell.recording_date,
+        pt_sell.recording_date - pt_buy.recording_date
     FROM property_transactions pt_buy
     JOIN property_transactions pt_sell 
         ON pt_buy.property_id = pt_sell.property_id
@@ -708,7 +708,7 @@ BEGIN
     JOIN addresses a ON pt_buy.property_id = a.property_id
     WHERE pt_buy.buyer_id = company_uuid
       AND pt_buy.transaction_type = 'acquisition'
-    ORDER BY pt_sell.transaction_date DESC;
+    ORDER BY pt_sell.recording_date DESC;
 END;
 $$ LANGUAGE plpgsql;
 
