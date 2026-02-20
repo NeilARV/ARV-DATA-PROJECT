@@ -17,7 +17,7 @@ const CITY_CODE = "SD";
 const DEFAULT_START_DATE = "2025-12-03";
 
 export async function syncSanDiegoData() {
-    console.log(`[${CITY_CODE} SYNC] Syncing Denver Data for MSA: ${SAN_DIEGO_MSA}`);
+    console.log(`[${CITY_CODE} SYNC] Syncing San Diego Data for MSA: ${SAN_DIEGO_MSA}`);
 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
@@ -120,7 +120,7 @@ export async function syncSanDiegoData() {
         }
 
         console.log(
-            `[${CITY_CODE} SYNC] Complete Syncing Denver Data for MSA: ${SAN_DIEGO_MSA} ` +
+            `[${CITY_CODE} SYNC] Complete Syncing San Diego Data for MSA: ${SAN_DIEGO_MSA} ` +
                 `(records: ${aggregated.totalRecords}, companies: ${aggregated.companiesInserted}, properties: ${aggregated.propertiesInserted})`
         );
 

@@ -21,7 +21,7 @@ export function startScheduledJobs() {
     })
 
     // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 1:00 AM
-    cron.schedule("20 * * * *", syncSanDiegoData, {
+    cron.schedule("12 * * * *", syncSanDiegoData, {
         timezone: "America/Los_Angeles"
     })
 
@@ -31,7 +31,7 @@ export function startScheduledJobs() {
     })
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
-    cron.schedule("0 3 * * *", syncDenverData, {
+    cron.schedule("* * * * *", syncDenverData, {
         timezone: "America/Los_Angeles"
     })
 

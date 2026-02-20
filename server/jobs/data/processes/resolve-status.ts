@@ -21,7 +21,7 @@ function getString(obj: Record<string, unknown>, ...keys: string[]): string {
 }
 
 function getRecordingDate(tx: Record<string, unknown>): string | null {
-  const date = getString(tx, "SALE_DATE", "sale_date") || getString(tx, "RECORDING_DATE", "recording_date");
+  const date = getString(tx, "RECORDING_DATE", "recording_date");
   return date ? normalizeDateToYMD(date) : null;
 }
 
@@ -70,21 +70,25 @@ function getMostRecentSale(transactions: TransactionWithIds[]): TransactionWithI
 }
 
 /**
- * When did the given party (seller on the most recent tx) acquire the property?
- * Returns the date of the most recent transaction where they were the buyer, excluding the current sale tx.
+ * When did the seller (on the most recent tx) acquire? Uses RECORDING_DATE only.
+ * Allows acquisition recorded up to WHOLESALE_DAYS_THRESHOLD days after the sale's
+ * recording date so same-day flips are always found.
  */
 function getWhenSellerBought(
   transactions: TransactionWithIds[],
   currentSellerId: string | null,
   currentSellerName: string,
-  currentSaleDate: string,
+  currentSaleRecordingDate: string,
   excludeTx: TransactionWithIds | null
 ): string | null {
   const salesDesc = getSalesChronologicalDesc(transactions);
+  const cutoff = new Date(currentSaleRecordingDate);
+  cutoff.setDate(cutoff.getDate() + WHOLESALE_DAYS_THRESHOLD);
+  const cutoffYMD = cutoff.toISOString().split("T")[0];
   const acquisition = salesDesc.find((tx) => {
     if (tx === excludeTx) return false;
-    const date = getRecordingDate(tx as Record<string, unknown>);
-    if (!date || date > currentSaleDate) return false;
+    const recDate = getRecordingDate(tx as Record<string, unknown>);
+    if (!recDate || recDate > cutoffYMD) return false;
     if (currentSellerId && tx.buyer_id === currentSellerId) return true;
     const txBuyer = getString(tx as Record<string, unknown>, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
     return !!currentSellerName && txBuyer === currentSellerName;
@@ -101,13 +105,14 @@ function getWhenSellerBought(
  * current buyer and seller. Same-day flips (company bought then sold same day) are handled so the
  * resale is treated as the most recent event.
  *
- * Uses property-level buyer_id and seller_id (from current_sale) so status matches
- * what is stored on the property, not a different "most recent" transaction.
+ * Uses the most recent transaction (by RECORDING_DATE, resale first when same day) for
+ * buyer_id/seller_id so flip status is correct. Property current_sale can be the purchase
+ * that triggered the feed, which would wrongly give in-renovation.
  *
  * 1. seller_id && !buyer_id → sold (company sold to non-company)
  * 2. !seller_id && buyer_id → in-renovation (company bought from non-company)
  * 3. !seller_id && !buyer_id → default sold
- * 4. seller_id && buyer_id → hold time ≤30 days → wholesale, else sold
+ * 4. seller_id && buyer_id → hold time ≤30 days (by recording date) → wholesale, else in-renovation
  */
 export function resolveStatus(properties: PropertyWithIds[], cityCode: string): PropertyWithStatus[] {
   return properties.map((item) => {
@@ -116,12 +121,14 @@ export function resolveStatus(properties: PropertyWithIds[], cityCode: string): 
     const transactions = item.transactions ?? [];
 
     const mostRecent = getMostRecentSale(transactions);
+    const mostRecentTx = mostRecent as (TransactionWithIds & Record<string, unknown>) | null;
     const currentSaleDate = mostRecent ? getRecordingDate(mostRecent as Record<string, unknown>) : null;
-    const currentBuyerId = (property.buyer_id as string) ?? null;
-    const currentSellerId = (property.seller_id as string) ?? null;
+    // Use most recent tx's ids so we classify the flip (resale = SD VREV seller, ORCA buyer)
+    const currentBuyerId = (mostRecentTx?.buyer_id as string) ?? (property.buyer_id as string) ?? null;
+    const currentSellerId = (mostRecentTx?.seller_id as string) ?? (property.seller_id as string) ?? null;
     const currentSale = (property.current_sale as Record<string, unknown>) || {};
-    const currentBuyerName = getString(currentSale, "buyer_1", "buyer_2") || (mostRecent ? getString(mostRecent as Record<string, unknown>, "BUYER_BORROWER1_NAME", "buyer_borrower1_name") : "");
-    const currentSellerName = getString(currentSale, "seller_1", "seller_2") || (mostRecent ? getString(mostRecent as Record<string, unknown>, "SELLER1_NAME", "seller1_name") : "");
+    const currentBuyerName = mostRecentTx ? getString(mostRecentTx, "BUYER_BORROWER1_NAME", "buyer_borrower1_name") : (getString(currentSale, "buyer_1", "buyer_2") || "");
+    const currentSellerName = mostRecentTx ? getString(mostRecentTx, "SELLER1_NAME", "seller1_name") : (getString(currentSale, "seller_1", "seller_2") || "");
 
     const hasBuyerId = !!currentBuyerId;
     const hasSellerId = !!currentSellerId;
@@ -163,12 +170,22 @@ export function resolveStatus(properties: PropertyWithIds[], cityCode: string): 
       status = "sold";
     }
 
+    // Write back canonical buyer/seller from most recent transaction so DB and APIs show current owner
+    const propertyOut = { ...property, status } as Record<string, unknown>;
+    if (mostRecentTx) {
+      propertyOut.buyer_id = currentBuyerId;
+      propertyOut.seller_id = currentSellerId;
+      const cs = (propertyOut.current_sale as Record<string, unknown>) || {};
+      propertyOut.current_sale = {
+        ...cs,
+        buyer_1: currentBuyerName,
+        seller_1: currentSellerName,
+      };
+    }
+
     return {
       ...item,
-      property: {
-        ...property,
-        status,
-      } as PropertyWithIds["property"] & { status: PropertyStatus },
+      property: propertyOut as PropertyWithIds["property"] & { status: PropertyStatus },
     };
   });
 }
