@@ -1,7 +1,20 @@
-import { syncMSAV2 } from "server/utils/dataSync";
+import { fetchMarket } from "./processes/fetch-market";
+import { fetchLastSaleDate } from "./processes/fetch-date";
+import { updateLastSaleDate } from "./processes/update-date";
+import { cleanMarket } from "./processes/clean-market";
+import { insertCompanies } from "./processes/insert-companies";
+import { batchLookup } from "./processes/batch-lookup";
+import { resolvePropertyIds } from "./processes/resolve-ids";
+import { resolveStatus } from "./processes/resolve-status";
+import { cleanBeforeInsert } from "./processes/clean-before-insert";
+import { insertProperties } from "./processes/insert-properties";
+import { getTransactions } from "./processes/get-transactions";
+import { cleanTransactions } from "./processes/clean-transactions";
+import { addDaysToYMD } from "server/utils/normalization";
 
 const SAN_DIEGO_MSA = "San Diego-Chula Vista-Carlsbad, CA";
 const CITY_CODE = "SD";
+const DEFAULT_START_DATE = "2025-12-03";
 
 export async function syncSanDiegoData() {
     console.log(`[${CITY_CODE} SYNC] Syncing San Diego Data for MSA: ${SAN_DIEGO_MSA}`);
@@ -11,22 +24,110 @@ export async function syncSanDiegoData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        const result = await syncMSAV2({
-            msa: SAN_DIEGO_MSA,
-            cityCode: CITY_CODE,
-            API_KEY,
-            API_URL,
-            today,
-            excludedAddresses: [],
-        });
+        let lastSaleDate: string = (await fetchLastSaleDate(SAN_DIEGO_MSA)) ?? DEFAULT_START_DATE;
+        /** Sale date of the last property we successfully processed; persisted only at end of run. */
+        let lastSuccessfulSaleDate: string | null = null;
 
-        console.log(`[${CITY_CODE} SYNC] Sync complete for ${SAN_DIEGO_MSA}: ${result.totalProcessed} processed, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
+        const aggregated = {
+            totalRecords: 0,
+            companiesInserted: 0,
+            propertiesInserted: 0,
+        };
 
-        return result;
+        while (true) {
+            if (lastSaleDate >= today) {
+                console.log(`[${CITY_CODE} SYNC] Caught up to today (${today}), stopping.`);
+                break;
+            }
 
+            const saleDateMax = addDaysToYMD(lastSaleDate, 1);
+
+            const raw = await fetchMarket({
+                msa: SAN_DIEGO_MSA,
+                cityCode: CITY_CODE,
+                API_KEY,
+                API_URL,
+                saleDateMin: lastSaleDate,
+                saleDateMax,
+                excludedAddresses: [],
+            });
+
+            if (raw.records.length === 0) {
+                console.log(
+                    `[${CITY_CODE} SYNC] No properties for ${lastSaleDate}; skipping to next date.`
+                );
+                lastSaleDate = saleDateMax;
+                continue;
+            }
+
+            const cleaned = cleanMarket(raw, CITY_CODE);
+
+            const properties = await batchLookup({
+                records: cleaned.records,
+                API_KEY,
+                API_URL,
+                cityCode: CITY_CODE,
+            });
+
+            const propertiesWithTransactions = await getTransactions({
+                properties,
+                API_KEY,
+                API_URL,
+                cityCode: CITY_CODE,
+            });
+
+            const transactionCompanies = cleanTransactions(
+                propertiesWithTransactions,
+                cleaned,
+                CITY_CODE
+            );
+
+            const insertResult = await insertCompanies({
+                companyNames: transactionCompanies.companyNames,
+                msa: SAN_DIEGO_MSA,
+                cityCode: CITY_CODE,
+                companyCounties: transactionCompanies.companyCounties,
+            });
+
+            const propertiesWithIds = await resolvePropertyIds({
+                properties: propertiesWithTransactions,
+                cityCode: CITY_CODE,
+            });
+
+            const propertiesWithStatus = resolveStatus(propertiesWithIds, CITY_CODE);
+            const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
+
+            const insertPropertiesResult = await insertProperties({
+                properties: propertiesToInsert,
+                msa: SAN_DIEGO_MSA,
+                cityCode: CITY_CODE,
+            });
+
+            if (raw.lastSaleDate) {
+                lastSuccessfulSaleDate = raw.lastSaleDate;
+            }
+
+            aggregated.totalRecords += raw.records.length;
+            aggregated.companiesInserted += insertResult.companiesInserted ?? 0;
+            aggregated.propertiesInserted += insertPropertiesResult.propertiesInserted ?? 0;
+
+            lastSaleDate = saleDateMax;
+        }
+
+        if (lastSuccessfulSaleDate !== null) {
+            const storedDate = addDaysToYMD(lastSuccessfulSaleDate, -1);
+            await updateLastSaleDate(SAN_DIEGO_MSA, CITY_CODE, storedDate);
+        }
+
+        console.log(
+            `[${CITY_CODE} SYNC] Complete Syncing San Diego Data for MSA: ${SAN_DIEGO_MSA} ` +
+                `(records: ${aggregated.totalRecords}, companies: ${aggregated.companiesInserted}, properties: ${aggregated.propertiesInserted})`
+        );
+
+        return aggregated;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[${CITY_CODE} SYNC] Fatal error syncing ${SAN_DIEGO_MSA}:`, errorMessage);
-        throw error; // Re-throw so the scheduler can handle it
+        throw error;
     }
 }

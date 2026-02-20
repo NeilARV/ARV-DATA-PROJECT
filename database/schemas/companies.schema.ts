@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, json } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, timestamp, json, integer, primaryKey } from "drizzle-orm/pg-core";
+import { msas } from "./msas.schema";
 
 export const companies = pgTable("companies", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -10,3 +11,18 @@ export const companies = pgTable("companies", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const companyMsas = pgTable(
+  "company_msas",
+  {
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    msaId: integer("msa_id")
+      .notNull()
+      .references(() => msas.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.msaId] })]
+);

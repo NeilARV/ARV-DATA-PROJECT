@@ -26,7 +26,7 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
-const purpleIcon = createColoredIcon('#9333EA'); // B2B properties
+const purpleIcon = createColoredIcon('#9333EA'); // wholesale properties
 
 // Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
@@ -42,17 +42,17 @@ const getIconForPin = (
   const status = (pin.status || '').toLowerCase().trim();
   const bid = pin.buyerId ?? null;
   const sid = pin.sellerId ?? null;
-  const b2bFilterActive = statusFilters.map(f => f.toLowerCase().trim()).includes('b2b');
+  const wholesaleFilterActive = statusFilters.map(f => f.toLowerCase().trim()).includes('wholesale');
 
   // When a company is selected, icon reflects the company's role (buyer vs seller)
   if (selectedCompanyId) {
-    if (status === 'b2b') {
-      // Company is buyer of b2b → always blue (they own it, it's their renovation)
+    if (status === 'wholesale') {
+      // Company is buyer of wholesale → always blue (they own it, it's their renovation)
       if (bid === selectedCompanyId) return blueIcon;
-      // Company is seller of b2b → always purple (sold to another company)
+      // Company is seller of wholesale → always purple (sold to another company)
       if (sid === selectedCompanyId) return purpleIcon;
     }
-    // Non-b2b statuses keep their standard colors
+    // Non-wholesale statuses keep their standard colors
     if (bid === selectedCompanyId || sid === selectedCompanyId) {
       if (status === 'sold') return charcoalIcon;
       if (status === 'on-market') return greenIcon;
@@ -66,10 +66,10 @@ const getIconForPin = (
       return greenIcon;
     case 'sold':
       return charcoalIcon;
-    case 'b2b':
-      // If b2b filter is explicitly active → purple (distinguished)
+    case 'wholesale':
+      // If wholesale filter is explicitly active → purple (distinguished)
       // If showing via in-renovation → blue (blends in)
-      return b2bFilterActive ? purpleIcon : blueIcon;
+      return wholesaleFilterActive ? purpleIcon : blueIcon;
     case 'in-renovation':
     default:
       return blueIcon;

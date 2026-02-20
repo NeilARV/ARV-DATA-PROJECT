@@ -18,7 +18,7 @@ function getStatusTags(status: string): { label: string; bg: string; text: strin
   if (s === "in-renovation") return [STATUS_TAG_STYLES["Renovating"]];
   if (s === "sold") return [STATUS_TAG_STYLES["Sold"]];
   if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
-  if (s === "b2b") return [STATUS_TAG_STYLES["Wholesale"], STATUS_TAG_STYLES["Renovating"]];
+  if (s === "wholesale") return [STATUS_TAG_STYLES["Wholesale"], STATUS_TAG_STYLES["Renovating"]];
   return [STATUS_TAG_STYLES["Renovating"]]; // default fallback
 }
 
