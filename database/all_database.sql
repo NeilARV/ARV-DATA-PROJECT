@@ -29,13 +29,6 @@ CREATE TABLE msas (
     updated_at TIMESTAMP DEFAULT now()
 );
 
-CREATE TABLE statuses (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP DEFAULT now()
-)
-
 CREATE UNIQUE INDEX email_whitelist_email_key ON email_whitelist(email);
 
 COMMENT ON TABLE email_whitelist IS 'Whitelist of approved email addresses for registration';
@@ -158,14 +151,6 @@ COMMENT ON COLUMN properties.status IS 'Current status: in-renovation, on-market
 COMMENT ON COLUMN properties.buyer_id IS 'Company that bought the property (current owner if corporate)';
 COMMENT ON COLUMN properties.seller_id IS 'Company that sold the property';
 
-
-CREATE TABLE property_statuses (
-    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    status_id INTEGER NOT NULL REFERENCES statuses(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP DEFAULT now(),
-    PRIMARY KEY (property_id, status_id)
-)
 
 -- Address information
 CREATE TABLE addresses (
