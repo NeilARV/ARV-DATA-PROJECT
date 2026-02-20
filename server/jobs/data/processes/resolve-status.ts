@@ -154,9 +154,9 @@ export function resolveStatus(properties: PropertyWithIds[], cityCode: string): 
           const current = new Date(currentSaleDate).setHours(0, 0, 0, 0);
           const bought = new Date(sellerBoughtDate).setHours(0, 0, 0, 0);
           const daysHeld = Math.floor((current - bought) / (1000 * 60 * 60 * 24));
-          status = daysHeld <= WHOLESALE_DAYS_THRESHOLD ? "wholesale" : "sold";
+          status = daysHeld <= WHOLESALE_DAYS_THRESHOLD ? "wholesale" : "in-renovation";
         } else {
-          status = "sold";
+          status = "in-renovation";
         }
       }
     } else {
