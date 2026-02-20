@@ -20,7 +20,7 @@ function getString(obj: Record<string, unknown>, ...keys: string[]): string {
   return "";
 }
 
-function getSaleDate(tx: Record<string, unknown>): string | null {
+function getRecordingDate(tx: Record<string, unknown>): string | null {
   const date = getString(tx, "SALE_DATE", "sale_date") || getString(tx, "RECORDING_DATE", "recording_date");
   return date ? normalizeDateToYMD(date) : null;
 }
@@ -40,7 +40,7 @@ function isDeedSale(tx: Record<string, unknown>): boolean {
 function getSalesChronologicalDesc(transactions: TransactionWithIds[]): TransactionWithIds[] {
   const withMeta = transactions
     .filter((tx) => isDeedSale(tx as Record<string, unknown>))
-    .map((tx) => ({ tx, date: getSaleDate(tx as Record<string, unknown>) }))
+    .map((tx) => ({ tx, date: getRecordingDate(tx as Record<string, unknown>) }))
     .filter((m): m is { tx: TransactionWithIds; date: string } => m.date != null);
   if (withMeta.length === 0) return [];
 
@@ -83,13 +83,13 @@ function getWhenSellerBought(
   const salesDesc = getSalesChronologicalDesc(transactions);
   const acquisition = salesDesc.find((tx) => {
     if (tx === excludeTx) return false;
-    const date = getSaleDate(tx as Record<string, unknown>);
+    const date = getRecordingDate(tx as Record<string, unknown>);
     if (!date || date > currentSaleDate) return false;
     if (currentSellerId && tx.buyer_id === currentSellerId) return true;
     const txBuyer = getString(tx as Record<string, unknown>, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
     return !!currentSellerName && txBuyer === currentSellerName;
   });
-  return acquisition ? getSaleDate(acquisition as Record<string, unknown>) : null;
+  return acquisition ? getRecordingDate(acquisition as Record<string, unknown>) : null;
 }
 
 /**
@@ -116,7 +116,7 @@ export function resolveStatus(properties: PropertyWithIds[], cityCode: string): 
     const transactions = item.transactions ?? [];
 
     const mostRecent = getMostRecentSale(transactions);
-    const currentSaleDate = mostRecent ? getSaleDate(mostRecent as Record<string, unknown>) : null;
+    const currentSaleDate = mostRecent ? getRecordingDate(mostRecent as Record<string, unknown>) : null;
     const currentBuyerId = (property.buyer_id as string) ?? null;
     const currentSellerId = (property.seller_id as string) ?? null;
     const currentSale = (property.current_sale as Record<string, unknown>) || {};
