@@ -68,20 +68,19 @@ export async function insertCompanies(
         toProcess.push({ storageName, compareKey });
     }
 
-    // Load existing companies and company_msas for this MSA (guard null on Replit/serverless)
-    const existingCompaniesRaw = await db.select().from(companies);
-    const existingCompanies = Array.isArray(existingCompaniesRaw) ? existingCompaniesRaw : [];
+    // Load existing companies and company_msas for this MSA
+    const existingCompanies = await db.select().from(companies);
     const companyByCompareKey = new Map<string, (typeof existingCompanies)[0]>();
     for (const company of existingCompanies) {
         const key = normalizeCompanyNameForComparison(company.companyName);
         if (key) companyByCompareKey.set(key, company);
     }
 
-    const existingCompanyMsasRaw = await db
+    const existingCompanyMsas = await db
         .select({ companyId: companyMsas.companyId })
         .from(companyMsas)
         .where(eq(companyMsas.msaId, msaId));
-    const existingCompanyMsas = Array.isArray(existingCompanyMsasRaw) ? existingCompanyMsasRaw : [];
+
     const companyIdsWithThisMsa = new Set(
         existingCompanyMsas.map((r) => r.companyId)
     );
@@ -149,12 +148,11 @@ export async function insertCompanies(
         }));
 
         try {
-            const insertedRaw = await db
+            const inserted = await db
                 .insert(companies)
                 .values(companyValues)
                 .onConflictDoNothing({ target: companies.companyName })
                 .returning({ id: companies.id, companyName: companies.companyName });
-            const inserted = Array.isArray(insertedRaw) ? insertedRaw : [];
 
             companiesInserted += inserted.length;
             for (const row of inserted) {
@@ -172,11 +170,10 @@ export async function insertCompanies(
                 .map((r) => r.storageName)
                 .filter((name) => !insertedNames.has(name));
             if (conflictNames.length > 0) {
-                const fetchedRaw = await db
+                const fetched = await db
                     .select({ id: companies.id, companyName: companies.companyName })
                     .from(companies)
                     .where(inArray(companies.companyName, conflictNames));
-                const fetched = Array.isArray(fetchedRaw) ? fetchedRaw : [];
                 for (const row of fetched) {
                     const key = normalizeCompanyNameForComparison(row.companyName);
                     if (key && !companyByCompareKey.has(key)) {
