@@ -88,7 +88,7 @@ router.get("/contacts", async (req, res) => {
         const ytdStartStr = `${now.getFullYear()}-01-01`;
         const todayStr = now.toISOString().slice(0, 10);
 
-        // Sold count per company YTD (property_transactions where company is seller, transaction_date in current year)
+        // Sold count per company YTD (property_transactions where company is seller, recording_date in current year)
         const soldCountRows = await db
             .select({
                 sellerId: propertyTransactions.sellerId,
@@ -97,8 +97,8 @@ router.get("/contacts", async (req, res) => {
             .from(propertyTransactions)
             .where(
                 and(
-                    gte(propertyTransactions.transactionDate, ytdStartStr),
-                    lte(propertyTransactions.transactionDate, todayStr)
+                    gte(propertyTransactions.recordingDate, ytdStartStr),
+                    lte(propertyTransactions.recordingDate, todayStr)
                 )
             )
             .groupBy(propertyTransactions.sellerId);
@@ -277,8 +277,8 @@ router.get("/:id", async (req, res) => {
             .where(
                 and(
                     eq(propertyTransactions.sellerId, id),
-                    gte(propertyTransactions.transactionDate, ytdStartStr),
-                    lte(propertyTransactions.transactionDate, todayStr)
+                    gte(propertyTransactions.recordingDate, ytdStartStr),
+                    lte(propertyTransactions.recordingDate, todayStr)
                 )
             );
 
@@ -298,14 +298,14 @@ router.get("/:id", async (req, res) => {
         const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
 
         const acquisitions90Day = await db
-            .select({ transactionDate: propertyTransactions.transactionDate })
+            .select({ recordingDate: propertyTransactions.recordingDate })
             .from(propertyTransactions)
             .where(
                 and(
                     eq(propertyTransactions.buyerId, id),
                     eq(propertyTransactions.transactionType, "acquisition"),
-                    gte(propertyTransactions.transactionDate, ninetyDaysAgoStr),
-                    lte(propertyTransactions.transactionDate, todayStr)
+                    gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
+                    lte(propertyTransactions.recordingDate, todayStr)
                 )
             );
 
@@ -317,8 +317,9 @@ router.get("/:id", async (req, res) => {
         }
 
         acquisitions90Day.forEach((row) => {
-            const dateStr = row.transactionDate;
-            if (typeof dateStr === "string") {
+            const raw = row.recordingDate as string | Date | null;
+            const dateStr = typeof raw === "string" ? raw : raw instanceof Date ? raw.toISOString().slice(0, 10) : null;
+            if (dateStr) {
                 const [y, m] = dateStr.split("-").map(Number);
                 const monthKey = monthNames[m - 1];
                 const existing = months.find((m) => m.key === monthKey);
