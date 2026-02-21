@@ -3,7 +3,7 @@ import { MOCK_PROPERTY_TRANSACTIONS_DATA, MOCK_PROPERTY_TRANSACTIONS_DATA_RESALE
 
 const RATE_LIMIT_DELAY_MS = 500;
 const RETRY_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 3000;
+const RETRY_DELAY_MS = 1500;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

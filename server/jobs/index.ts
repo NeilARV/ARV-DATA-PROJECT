@@ -21,14 +21,14 @@ export function startScheduledJobs() {
     // })
 
     // // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 1:00 AM
-    // cron.schedule("1 * * * * *", syncSanDiegoData, {
+    // cron.schedule("2 17 * * *", syncSanDiegoData, {
     //     timezone: "America/Los_Angeles"
     // })
 
-    // // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:00 AM
-    // cron.schedule("0 2 * * *", syncLosAngelesData, {
-    //     timezone: "America/Los_Angeles"
-    // })
+    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:00 AM
+    cron.schedule("16 20 * * *", syncLosAngelesData, {
+        timezone: "America/Los_Angeles"
+    })
 
     // // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
     // cron.schedule("* 3 * * *", syncDenverData, {

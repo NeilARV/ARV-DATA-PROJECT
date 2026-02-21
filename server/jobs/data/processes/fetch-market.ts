@@ -56,8 +56,8 @@ export interface FetchMarketResult {
 
 /**
  * Fetches market transactions from /buyers/market for an MSA within the given
- * date range [saleDateMin, saleDateMax). Paginates until response length
- * &lt; 100 (no more in range) or 0 (no data for range). Caller is responsible
+ * date range [saleDateMin, saleDateMax). Paginates by passing page=1, 2, 3, ...
+ * until the API returns fewer than page_size records. Caller is responsible
  * for reading/updating last_sale_date in sfr_sync_state (e.g. via fetch-date
  * and update-date).
  */
@@ -67,22 +67,21 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
     console.log(`[${cityCode} SYNC] Fetching market data for MSA: ${msa} [${saleDateMin}, ${saleDateMax})`);
 
     const allRecords: BuyersMarketRecord[] = [];
-    let currentMinDate = saleDateMin;
     let pageNum = 1;
-    let shouldContinue = true;
     let boundaryDate: string | null = null;
 
-    while (shouldContinue) {
+    while (true) {
         if (pageNum > 1) {
             await delay(RATE_LIMIT_DELAY_MS);
         }
 
         const buyersMarketParams = new URLSearchParams({
             msa,
-            sales_date_min: currentMinDate,
+            sales_date_min: saleDateMin,
             sales_date_max: saleDateMax,
             page_size: String(PAGE_SIZE),
             sort: "sale_date",
+            page: String(pageNum),
         });
 
         const response = await fetchWithRetry(
@@ -112,7 +111,7 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
         }
 
         console.log(
-            `[${cityCode} SYNC] Fetched page ${pageNum} (from ${currentMinDate}) with ${buyersMarketData.length} records`
+            `[${cityCode} SYNC] Fetched page ${pageNum} with ${buyersMarketData.length} records`
         );
 
         allRecords.push(...buyersMarketData);
@@ -121,19 +120,14 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
         const pageLastSaleDate = lastRecord
             ? normalizeDateToYMD(lastRecord.saleDate as string)
             : null;
-
         if (pageLastSaleDate && (!boundaryDate || pageLastSaleDate > boundaryDate)) {
             boundaryDate = pageLastSaleDate;
         }
 
         if (buyersMarketData.length < PAGE_SIZE) {
-            shouldContinue = false;
-        } else if (pageLastSaleDate) {
-            currentMinDate = pageLastSaleDate;
-            pageNum++;
-        } else {
-            shouldContinue = false;
+            break;
         }
+        pageNum++;
     }
 
     console.log(`[${cityCode} SYNC] Fetch market complete for ${msa}: ${allRecords.length} records`);
