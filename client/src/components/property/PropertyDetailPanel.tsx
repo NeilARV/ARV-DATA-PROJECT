@@ -1,22 +1,6 @@
 import type { Property } from "@/types/property";
 import { Button } from "@/components/ui/button";
-
-// Status tag colors match PropertyMap.tsx map ping colors
-const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#fff" },
-  "Sold": { label: "Sold", bg: "#FF0000", text: "#fff" },
-  "On Market": { label: "On Market", bg: "#22C55E", text: "#fff" },
-  "Wholesale": { label: "Wholesale", bg: "#9333EA", text: "#fff" },
-};
-
-function getStatusTags(status: string): { label: string; bg: string; text: string }[] {
-  const s = (status || "").toLowerCase().trim();
-  if (s === "in-renovation") return [STATUS_TAG_STYLES["Renovating"]];
-  if (s === "sold") return [STATUS_TAG_STYLES["Sold"]];
-  if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
-  if (s === "wholesale") return [STATUS_TAG_STYLES["Wholesale"], STATUS_TAG_STYLES["Renovating"]];
-  return [STATUS_TAG_STYLES["Renovating"]];
-}
+import { formatAddress } from "@shared/utils/formatAddress";
 import {
   Dialog,
   DialogContent,
@@ -210,9 +194,9 @@ export default function PropertyDetailPanel({
             </div>
           </div>
           <div>
-            <div className="text-base font-medium">{property.address}</div>
+            <div className="text-base font-medium">{formatAddress(property.address)}</div>
             <div className="text-sm text-muted-foreground">
-              {property.city}, {property.state} {property.zipCode}
+              {formatAddress(property.city)}, {property.state} {property.zipCode}
             </div>
           </div>
 

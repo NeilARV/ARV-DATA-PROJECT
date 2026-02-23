@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { format, parseISO, isValid } from "date-fns";
 import { StatusTag } from "./StatusTag";
+import { formatAddress } from "@shared/utils/formatAddress";
 
 interface PropertyCardProps {
   property: Property;
@@ -117,10 +118,10 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           className="text-base font-medium text-foreground mb-3"
           data-testid={`text-address-${property.id}`}
         >
-          {property.address}
+          {formatAddress(property.address)}
         </div>
         <div className="text-sm text-muted-foreground mb-2">
-          {property.city}, {property.state} {property.zipCode}
+          {formatAddress(property.city)}, {property.state} {property.zipCode}
         </div>
         <div className="flex items-center gap-4 text-sm text-foreground">
           <div

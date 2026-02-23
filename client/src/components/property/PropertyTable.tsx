@@ -10,6 +10,7 @@ import {
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
+import { formatAddress } from "@shared/utils/formatAddress";
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {
@@ -180,12 +181,12 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
                 </div>
               </TableCell>
               <TableCell className="font-medium">
-                <div>{property.address}</div>
+                <div>{formatAddress(property.address)}</div>
                 <div className="text-xs text-muted-foreground">
                   {property.state} {property.zipCode}
                 </div>
               </TableCell>
-              <TableCell>{property.city}</TableCell>
+              <TableCell>{formatAddress(property.city)}</TableCell>
               <TableCell className="font-semibold">
                 ${property.price.toLocaleString()}
               </TableCell>

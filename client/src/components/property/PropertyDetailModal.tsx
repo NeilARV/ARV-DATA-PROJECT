@@ -19,6 +19,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
+import { formatAddress } from "@shared/utils/formatAddress";
 
 interface PropertyDetailModalProps {
   property: Property | null;
@@ -189,9 +190,9 @@ export default function PropertyDetailModal({
               </div>
             </div>
             <div>
-              <div className="text-lg font-medium">{property.address}</div>
+              <div className="text-lg font-medium">{formatAddress(property.address)}</div>
               <div className="text-muted-foreground">
-                {property.city}, {property.state} {property.zipCode}
+                {formatAddress(property.city)}, {property.state} {property.zipCode}
               </div>
             </div>
 
