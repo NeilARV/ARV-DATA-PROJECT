@@ -14,7 +14,6 @@ import { addDaysToYMD } from "server/utils/normalization";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY_CODE = "DEN";
-const DEFAULT_START_DATE = "2025-12-03";
 
 export async function syncDenverData() {
     console.log(`[${CITY_CODE} SYNC] Syncing Denver Data for MSA: ${DENVER_MSA}`);
@@ -24,7 +23,12 @@ export async function syncDenverData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        let lastSaleDate: string = (await fetchLastSaleDate(DENVER_MSA)) ?? DEFAULT_START_DATE;
+        let lastSaleDate: string | null = await fetchLastSaleDate(DENVER_MSA);
+        
+        if (lastSaleDate == null) {
+            throw new Error(`[${CITY_CODE} SYNC] Cannot get last sale date for MSA: ${DENVER_MSA}; sync aborted.`);
+        }
+
         /** Sale date of the last property we successfully processed; persisted only at end of run. */
         let lastSuccessfulSaleDate: string | null = null;
 

@@ -14,7 +14,6 @@ import { addDaysToYMD } from "server/utils/normalization";
 
 const SAN_DIEGO_MSA = "San Diego-Chula Vista-Carlsbad, CA";
 const CITY_CODE = "SD";
-const DEFAULT_START_DATE = "2025-12-03";
 
 export async function syncSanDiegoData() {
     console.log(`[${CITY_CODE} SYNC] Syncing San Diego Data for MSA: ${SAN_DIEGO_MSA}`);
@@ -24,7 +23,12 @@ export async function syncSanDiegoData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        let lastSaleDate: string = (await fetchLastSaleDate(SAN_DIEGO_MSA)) ?? DEFAULT_START_DATE;
+        let lastSaleDate: string | null = await fetchLastSaleDate(SAN_DIEGO_MSA);
+        
+        if (lastSaleDate == null) {
+            throw new Error(`[${CITY_CODE} SYNC] Cannot get last sale date for MSA: ${SAN_DIEGO_MSA}; sync aborted.`);
+        }
+    
         /** Sale date of the last property we successfully processed; persisted only at end of run. */
         let lastSuccessfulSaleDate: string | null = null;
 

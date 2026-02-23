@@ -14,7 +14,6 @@ import { addDaysToYMD } from "server/utils/normalization";
 
 const LOS_ANGELES_MSA = "Los Angeles-Long Beach-Anaheim, CA";
 const CITY_CODE = "LA";
-const DEFAULT_START_DATE = "2025-12-03";
 
 // Excluded addresses - addresses to skip (case-insensitive matching)
 const EXCLUDED_ADDRESSES = [
@@ -29,7 +28,12 @@ export async function syncLosAngelesData() {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        let lastSaleDate: string = (await fetchLastSaleDate(LOS_ANGELES_MSA)) ?? DEFAULT_START_DATE;
+        let lastSaleDate: string | null = await fetchLastSaleDate(LOS_ANGELES_MSA);
+        
+        if (lastSaleDate == null) {
+            throw new Error(`[${CITY_CODE} SYNC] Cannot get last sale date for MSA: ${LOS_ANGELES_MSA}; sync aborted.`);
+        }
+
         /** Sale date of the last property we successfully processed; persisted only at end of run. */
         let lastSuccessfulSaleDate: string | null = null;
 
@@ -49,13 +53,13 @@ export async function syncLosAngelesData() {
 
             const raw = await fetchMarket({
                 msa: LOS_ANGELES_MSA,
-                cityCode: CITY_CODE,
-                API_KEY,
-                API_URL,
-                saleDateMin: lastSaleDate,
-                saleDateMax,
-                excludedAddresses: EXCLUDED_ADDRESSES,
-            });
+        cityCode: CITY_CODE,
+        API_KEY,
+        API_URL,
+        saleDateMin: lastSaleDate,
+        saleDateMax,
+        excludedAddresses: EXCLUDED_ADDRESSES,
+    });
 
             if (raw.records.length === 0) {
                 console.log(
