@@ -4,23 +4,7 @@ import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail } from "lu
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { format, parseISO, isValid } from "date-fns";
-
-// Status tag colors match PropertyMap.tsx map ping colors
-const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#fff" },
-  "Sold": { label: "Sold", bg: "#FF0000", text: "#fff" },
-  "On Market": { label: "On Market", bg: "#22C55E", text: "#fff" },
-  "Wholesale": { label: "Wholesale", bg: "#9333EA", text: "#fff" },
-};
-
-function getStatusTags(status: string): { label: string; bg: string; text: string }[] {
-  const s = (status || "").toLowerCase().trim();
-  if (s === "in-renovation") return [STATUS_TAG_STYLES["Renovating"]];
-  if (s === "sold") return [STATUS_TAG_STYLES["Sold"]];
-  if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
-  if (s === "wholesale") return [STATUS_TAG_STYLES["Wholesale"], STATUS_TAG_STYLES["Renovating"]];
-  return [STATUS_TAG_STYLES["Renovating"]]; // default fallback
-}
+import { StatusTag } from "./StatusTag";
 
 interface PropertyCardProps {
   property: Property;
@@ -92,16 +76,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           </div>
         )}
         <div className="absolute top-2 right-2 flex gap-2 items-end">
-          {getStatusTags(property.status).map((tag) => (
-            <span
-              key={tag.label}
-              className="text-[12px] font-semibold px-2 py-0.5 rounded shadow-sm"
-              style={{ backgroundColor: tag.bg, color: tag.text }}
-              data-testid={`tag-${tag.label.toLowerCase().replace(/\s/g, "-")}-${property.id}`}
-            >
-              {tag.label}
-            </span>
-          ))}
+          <StatusTag status={property.status} section={"card"}/>
         </div>
       </div>
       <div className="p-4">

@@ -35,6 +35,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import { StatusTag } from "./StatusTag";
 
 interface PropertyDetailPanelProps {
   property: Property | null;
@@ -197,16 +198,7 @@ export default function PropertyDetailPanel({
             </div>
           )}
           <div className="absolute top-2 right-2 flex gap-1 items-end">
-            {getStatusTags(property.status).map((tag) => (
-              <span
-                key={tag.label}
-                className="text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm"
-                style={{ backgroundColor: tag.bg, color: tag.text }}
-                data-testid={`tag-${tag.label.toLowerCase().replace(/\s/g, "-")}-${property.id}`}
-              >
-                {tag.label}
-              </span>
-            ))}
+            <StatusTag status={property.status} section={"panel"}/>
           </div>
         </div>
 
