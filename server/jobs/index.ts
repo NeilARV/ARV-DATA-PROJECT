@@ -21,7 +21,7 @@ export function startScheduledJobs() {
     // })
 
     // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 1:00 AM
-    cron.schedule("9 * * * *", syncSanDiegoData, {
+    cron.schedule("38 * * * *", syncSanDiegoData, {
         timezone: "America/Los_Angeles"
     })
 

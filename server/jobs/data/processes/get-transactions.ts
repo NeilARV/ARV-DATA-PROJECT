@@ -1,38 +1,11 @@
 import type { MergedProperty } from "./batch-lookup";
+import { fetchWithRetry } from "server/utils/fetchWithRetry";
+import { delay } from "server/utils/delay";
 import { MOCK_PROPERTY_TRANSACTIONS_DATA, MOCK_PROPERTY_TRANSACTIONS_DATA_RESALE } from "server/constants/mocks";
 
 const RATE_LIMIT_DELAY_MS = 500;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1500;
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function fetchWithRetry(
-    url: string,
-    init: RequestInit,
-    options: { maxAttempts?: number; retryDelayMs?: number; label?: string } = {}
-): Promise<Response> {
-    const {
-        maxAttempts = RETRY_ATTEMPTS,
-        retryDelayMs = RETRY_DELAY_MS,
-        label = "API",
-    } = options;
-    let lastError: Error | null = null;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            const response = await fetch(url, init);
-            if (response.ok) return response;
-            lastError = new Error(`${label} returned ${response.status}`);
-        } catch (err) {
-            lastError = err instanceof Error ? err : new Error(String(err));
-        }
-        if (attempt < maxAttempts) {
-            console.warn(`[${label}] Attempt ${attempt}/${maxAttempts} failed, retrying in ${retryDelayMs}ms...`);
-            await delay(retryDelayMs);
-        }
-    }
-    throw lastError ?? new Error(`${label} failed after ${maxAttempts} attempts`);
-}
 
 /** Transaction record from SFR properties/transactions API (one entry in history). */
 export type TransactionRecord = Record<string, unknown>;
@@ -121,6 +94,8 @@ export async function getTransactions(
                         "User-Agent": "PostmanRuntime/7.41.0",
                     },
                 },
+                RETRY_ATTEMPTS,
+                RETRY_DELAY_MS,
                 { label: `${cityCode} SYNC transactions ${i + 1}/${properties.length}` }
             );
             const data = (await response.json()) as unknown;
