@@ -32,7 +32,7 @@ function getStatusTags(status: string | null): { label: string; bg: string; text
   if (s === "in-renovation") return [STATUS_TAG_STYLES.Renovating];
   if (s === "sold") return [STATUS_TAG_STYLES.Sold];
   if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
-  if (s === "b2b") return [STATUS_TAG_STYLES.Wholesale, STATUS_TAG_STYLES.Renovating];
+  if (s === "wholesale") return [STATUS_TAG_STYLES.Wholesale, STATUS_TAG_STYLES.Renovating];
   return [STATUS_TAG_STYLES.Renovating];
 }
 
@@ -253,6 +253,9 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return;
     }
 
+    let sentCount = 0;
+    const failedRecipients: string[] = [];
+
     for (const user of uniqueUsers) {
       const emailTemplate = {
         From: "neil@arvfinance.com",
@@ -270,34 +273,51 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         },
       };
 
-      await client.sendEmailWithTemplate(emailTemplate);
-      console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
+      try {
+        await client.sendEmailWithTemplate(emailTemplate);
+        sentCount++;
+        console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
+      } catch (err) {
+        failedRecipients.push(user.email);
+        console.error(
+          `[EMAIL ${msaName}]: Failed to send to ${user.email} (inactive/bounce/suppression) -`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
+
+    if (failedRecipients.length > 0) {
+      console.warn(
+        `[EMAIL ${msaName}]: ${failedRecipients.length} recipient(s) skipped (inactive): ${failedRecipients.join(", ")}`
+      );
     }
 
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
 
-    if (syncState) {
-      await db
-        .update(emailSyncState)
-        .set({
+    if (sentCount > 0) {
+      if (syncState) {
+        await db
+          .update(emailSyncState)
+          .set({
+            lastPropertyId: firstPropertyIdSent,
+            lastEmailSent: today,
+            lastEmailAt: now,
+            updatedAt: now,
+          })
+          .where(eq(emailSyncState.msa, msaName));
+      } else {
+        await db.insert(emailSyncState).values({
+          msa: msaName,
           lastPropertyId: firstPropertyIdSent,
           lastEmailSent: today,
           lastEmailAt: now,
           updatedAt: now,
-        })
-        .where(eq(emailSyncState.msa, msaName));
-    } else {
-      await db.insert(emailSyncState).values({
-        msa: msaName,
-        lastPropertyId: firstPropertyIdSent,
-        lastEmailSent: today,
-        lastEmailAt: now,
-        updatedAt: now,
-      });
+        });
+      }
     }
 
-    console.log(`[EMAIL ${msaName}]: Sent ${uniqueUsers.length} email(s), updated sync state`);
+    console.log(`[EMAIL ${msaName}]: Sent ${sentCount}/${uniqueUsers.length} email(s)${sentCount > 0 ? ", updated sync state" : ""}`);
   } catch (error) {
     console.error(`[EMAIL ${msaName}]: Error -`, error);
     throw error;
