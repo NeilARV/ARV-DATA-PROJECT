@@ -95,7 +95,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           {getStatusTags(property.status).map((tag) => (
             <span
               key={tag.label}
-              className="text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-sm"
+              className="text-[12px] font-semibold px-2 py-0.5 rounded shadow-sm"
               style={{ backgroundColor: tag.bg, color: tag.text }}
               data-testid={`tag-${tag.label.toLowerCase().replace(/\s/g, "-")}-${property.id}`}
             >
