@@ -235,7 +235,6 @@ router.post("/", requireAdminAuth, async (req, res) => {
             let sellerNameVal: string | null = null;
             const cs = data?.current_sale || data?.currentSale;
             if (cs) sellerNameVal = normalizeCompanyNameForStorage(cs.seller_1 || cs.seller1) || null;
-            const notes = lastSale.document_type ? `Document Type: ${lastSale.document_type}` : null;
             const [existing] = await db
                 .select({ propertyId: propertyTransactions.propertyId })
                 .from(propertyTransactions)
@@ -243,7 +242,7 @@ router.post("/", requireAdminAuth, async (req, res) => {
                     and(
                         eq(propertyTransactions.propertyId, propertyId),
                         eq(propertyTransactions.buyerId, txBuyerId),
-                        eq(propertyTransactions.transactionDate, normalizedDate),
+                        eq(propertyTransactions.recordingDate, normalizedDate),
                         eq(propertyTransactions.transactionType, "acquisition")
                     )
                 )
@@ -254,13 +253,12 @@ router.post("/", requireAdminAuth, async (req, res) => {
                 buyerId: txBuyerId,
                 sellerId: sellerId,
                 transactionType: "acquisition",
-                transactionDate: normalizedDate,
+                saleDate: normalizedDate,
+                recordingDate: normalizedDate,
                 salePrice: lastSale.price != null ? String(lastSale.price) : null,
-                mtgType: lastSale.mtg_type || null,
-                mtgAmount: lastSale.mtg_amount != null ? String(lastSale.mtg_amount) : null,
+                firstMtgAmount: lastSale.mtg_amount != null ? String(lastSale.mtg_amount) : null,
                 buyerName: normalizedBuyerName,
                 sellerName: sellerNameVal,
-                notes,
             });
         };
 
