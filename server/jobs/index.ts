@@ -20,25 +20,25 @@ export function startScheduledJobs() {
     //     timezone: "America/Los_Angeles"
     // })
 
-    // // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 1:00 AM
-    // cron.schedule("2 17 * * *", syncSanDiegoData, {
-    //     timezone: "America/Los_Angeles"
-    // })
-
-    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:00 AM
-    cron.schedule("16 20 * * *", syncLosAngelesData, {
+    // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 1:00 AM
+    cron.schedule("0 1 * * *", syncSanDiegoData, {
         timezone: "America/Los_Angeles"
     })
 
-    // // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
-    // cron.schedule("* 3 * * *", syncDenverData, {
-    //     timezone: "America/Los_Angeles"
-    // })
+    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 2:00 AM
+    cron.schedule("0 2 * * *", syncLosAngelesData, {
+        timezone: "America/Los_Angeles"
+    })
 
-    // // Start San Francisco-Oakland-Fremont, CA property data sync every night at 4:00 AM
-    // cron.schedule("0 4 * * *", syncSanFranciscoData, {
-    //     timezone: "America/Los_Angeles"
-    // })
+    // Start Denver-Aurora-Centennial, CO property data sync every night at 3:00 AM
+    cron.schedule("0 3 * * *", syncDenverData, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // Start San Francisco-Oakland-Fremont, CA property data sync every night at 4:00 AM
+    cron.schedule("0 4 * * *", syncSanFranciscoData, {
+        timezone: "America/Los_Angeles"
+    })
 
     // MSA-specific email updates: users who have that MSA selected get 3 most recent properties for that MSA
     cron.schedule("0 9 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })

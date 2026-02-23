@@ -123,7 +123,7 @@ CREATE TABLE properties (
     sfr_property_id BIGINT UNIQUE NOT NULL,
     buyer_id UUID REFERENCES companies(id) ON DELETE SET NULL,
     seller_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-    property_class_description VARCHAR(100),
+    property_class_description TEXT,
     property_type VARCHAR(100),
     vacant VARCHAR(10),
     hoa VARCHAR(10),
@@ -291,10 +291,10 @@ CREATE TABLE structures (
     units_count INTEGER,
     water_type VARCHAR(50),
     living_area_sqft INTEGER,
-    ac_description VARCHAR(100),
-    garage_description VARCHAR(100),
-    building_class_description VARCHAR(100),
-    sqft_description VARCHAR(100)
+    ac_description TEXT,
+    garage_description TEXT,
+    building_class_description TEXT,
+    sqft_description TEXT
 );
 
 CREATE INDEX idx_structures_property_id ON structures(property_id);

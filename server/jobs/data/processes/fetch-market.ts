@@ -64,7 +64,7 @@ export interface FetchMarketResult {
 export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResult> {
     const { msa, cityCode, API_KEY, API_URL, saleDateMin, saleDateMax } = params;
 
-    console.log(`[${cityCode} SYNC] Fetching market data for MSA: ${msa} [${saleDateMin}, ${saleDateMax})`);
+    console.log(`[${cityCode} SYNC] Fetching market data for MSA: ${msa} [${saleDateMin}, ${saleDateMax}]`);
 
     const allRecords: BuyersMarketRecord[] = [];
     let pageNum = 1;

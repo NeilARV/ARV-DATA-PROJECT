@@ -28,7 +28,7 @@ export const properties = pgTable("properties", {
   sfrPropertyId: bigint("sfr_property_id", { mode: "number" }).unique().notNull(),
   buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
   sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
-  propertyClassDescription: varchar("property_class_description", { length: 100 }),
+  propertyClassDescription: text("property_class_description"),
   propertyType: varchar("property_type", { length: 100 }),
   vacant: varchar("vacant", { length: 10 }),
   hoa: varchar("hoa", { length: 10 }),
@@ -154,10 +154,10 @@ export const structures = pgTable("structures", {
   unitsCount: integer("units_count"),
   waterType: varchar("water_type", { length: 50 }),
   livingAreaSqft: integer("living_area_sqft"),
-  acDescription: varchar("ac_description", { length: 100 }),
-  garageDescription: varchar("garage_description", { length: 100 }),
-  buildingClassDescription: varchar("building_class_description", { length: 100 }),
-  sqftDescription: varchar("sqft_description", { length: 100 }),
+  acDescription: text("ac_description"),
+  garageDescription: text("garage_description"),
+  buildingClassDescription: text("building_class_description"),
+  sqftDescription: text("sqft_description"),
 });
 
 // Tax Records
