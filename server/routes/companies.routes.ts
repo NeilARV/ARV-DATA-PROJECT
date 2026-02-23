@@ -292,7 +292,7 @@ router.get("/:id", async (req, res) => {
 
         const propertiesSoldCountAllTime = sellerCountAllTimeResult?.count ?? 0;
 
-        // 90-day acquisition activity: properties where company is buyer_id in last 90 days
+        // 90-day acquisition: all property_transactions where this company is buyer_id in the last 90 days
         const ninetyDaysAgo = new Date(now);
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
@@ -303,26 +303,28 @@ router.get("/:id", async (req, res) => {
             .where(
                 and(
                     eq(propertyTransactions.buyerId, id),
-                    eq(propertyTransactions.transactionType, "acquisition"),
                     gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
                     lte(propertyTransactions.recordingDate, todayStr)
                 )
             );
 
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        // Month buckets for the full 90-day window (may span 3–4 calendar months)
         const months: { key: string; count: number }[] = [];
-        for (let i = 2; i >= 0; i--) {
-            const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            months.push({ key: monthNames[monthDate.getMonth()], count: 0 });
+        const cursor = new Date(ninetyDaysAgo.getFullYear(), ninetyDaysAgo.getMonth(), 1);
+        const endMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        while (cursor <= endMonth) {
+            months.push({ key: monthNames[cursor.getMonth()], count: 0 });
+            cursor.setMonth(cursor.getMonth() + 1);
         }
 
         acquisitions90Day.forEach((row) => {
             const raw = row.recordingDate as string | Date | null;
             const dateStr = typeof raw === "string" ? raw : raw instanceof Date ? raw.toISOString().slice(0, 10) : null;
             if (dateStr) {
-                const [y, m] = dateStr.split("-").map(Number);
+                const [, m] = dateStr.split("-").map(Number);
                 const monthKey = monthNames[m - 1];
-                const existing = months.find((m) => m.key === monthKey);
+                const existing = months.find((mo) => mo.key === monthKey);
                 if (existing) existing.count++;
             }
         });
