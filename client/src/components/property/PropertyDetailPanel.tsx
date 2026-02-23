@@ -339,22 +339,6 @@ export default function PropertyDetailPanel({
               </div>
             )}
 
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Location</div>
-              <div className="flex items-start gap-1 text-sm">
-                <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                <div>
-                  <div>{property.address}</div>
-                  <div className="text-muted-foreground">{property.city}, {property.state} {property.zipCode}</div>
-                  {property.latitude !== null && property.longitude !== null && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Coordinates: {property.latitude.toFixed(6)}, {property.longitude.toFixed(6)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
             {user?.isAdmin && (
               <div className="pt-4">
                 <Button
