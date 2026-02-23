@@ -115,7 +115,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           </div>
         </div>
         <div
-          className="text-base font-medium text-foreground mb-3"
+          className="text-base font-medium text-foreground"
           data-testid={`text-address-${property.id}`}
         >
           {formatAddress(property.address)}
