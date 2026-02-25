@@ -66,26 +66,26 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const hasCompanyFilter = companyIdTrimmed !== '';
 
     // Status filter - build condition based on whether company is selected
-    // When company selected: status rules depend on buyer/seller role (b2b: buyer=in-renovation, seller=sold-b2b)
+    // When company selected: status rules depend on buyer/seller role (wholesale: buyer=in-renovation, seller=sold-wholesale)
     const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
     if (statusesToUse.length > 0) {
         const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
         const inRenovationSelected = normalizedStatuses.includes('in-renovation');
-        const b2bSelected = normalizedStatuses.includes('b2b');
+        const wholesaleSelected = normalizedStatuses.includes('wholesale');
 
         if (hasCompanyFilter) {
             // Company selected: status-specific company role logic
             // - in-renovation: buyer only (company owns/renovates)
             // - on-market: seller only (company is listing)
             // - sold: buyer or seller
-            // - b2b: buyer when in-renovation selected, seller when b2b selected
+            // - wholesale: buyer when in-renovation selected, seller when wholesale selected
             const statusParts: ReturnType<typeof sql>[] = [];
             if (inRenovationSelected) {
                 statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'in-renovation' AND ${properties.buyerId} = ${companyIdTrimmed})`);
-                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'b2b' AND ${properties.buyerId} = ${companyIdTrimmed})`);
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'wholesale' AND ${properties.buyerId} = ${companyIdTrimmed})`);
             }
-            if (b2bSelected) {
-                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'b2b' AND ${properties.sellerId} = ${companyIdTrimmed})`);
+            if (wholesaleSelected) {
+                statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'wholesale' AND ${properties.sellerId} = ${companyIdTrimmed})`);
             }
             if (normalizedStatuses.includes('on-market')) {
                 statusParts.push(sql`(LOWER(TRIM(${properties.status})) = 'on-market' AND ${properties.sellerId} = ${companyIdTrimmed})`);
