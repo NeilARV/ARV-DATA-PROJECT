@@ -1266,6 +1266,16 @@ export default function Home() {
     setViewMode(mode);
   };
 
+  // When switching to Buyer Feed, auto-select wholesale and in-renovation status
+  const handleBuyersFeedClick = () => {
+    setSelectedProperty(null);
+    setFilters((prev) => ({
+      ...prev,
+      statusFilters: ["wholesale", "in-renovation"],
+    }));
+    setViewMode("buyers-feed");
+  };
+
   // Fetch full property data by ID
   const fetchPropertyById = async (propertyId: string): Promise<Property | null> => {
     try {
@@ -1379,7 +1389,7 @@ export default function Home() {
           setShowLoginDialog(false);
         }}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
-        onBuyersFeedClick={() => setViewMode("buyers-feed")}
+        onBuyersFeedClick={handleBuyersFeedClick}
         onLogoClick={handleLogoClick}
       />
 
