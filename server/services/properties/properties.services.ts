@@ -2,7 +2,7 @@ import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
 import { companies } from "../../../database/schemas/companies.schema";
 import { normalizeCompanyNameForComparison } from "server/utils/normalization";
-import { eq, sql, or, and } from "drizzle-orm";
+import { eq, sql, or, and, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const buyerCompanies = alias(companies, "buyer_companies");
@@ -199,13 +199,13 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     // County filter - check both properties.county and addresses.county
     if (county) {
-        const normalizedCounty = county.toString().trim().toLowerCase()
+        const normalizedCounty = county.toString().trim().toLowerCase();
         conditions.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
                 sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
             ) as any
-        )
+        );
     }
 
     // Zipcode filter - from addresses table
@@ -267,8 +267,72 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const [totalResult] = await countQuery.execute();
     const total = Number(totalResult?.count || 0);
 
-    // Get paginated results (fetch one extra to check if there are more pages)
-    // Join all necessary tables
+    // Step 1: Get the ordered page of property IDs (ensures one row per property and correct pagination)
+    let idQuery = db
+        .select({ id: properties.id })
+        .from(properties)
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .leftJoin(structures, eq(properties.id, structures.propertyId))
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
+        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id));
+    if (whereClause) {
+        idQuery = idQuery.where(whereClause) as any;
+    }
+    const sortByValue = sortBy?.toString() || "recently-sold";
+    switch (sortByValue) {
+        case "recently-sold":
+            idQuery = idQuery.orderBy(
+                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.recordingDate} AS DATE) DESC`,
+                properties.id
+            ) as any;
+            break;
+        case "days-held":
+            idQuery = idQuery.orderBy(
+                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`(EXTRACT(EPOCH FROM (NOW() - ${lastSales.recordingDate})) / 86400) DESC`,
+                properties.id
+            ) as any;
+            break;
+        case "price-high-low":
+            idQuery = idQuery.orderBy(
+                sql`CASE WHEN ${lastSales.price} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.price} AS REAL) DESC`,
+                properties.id
+            ) as any;
+            break;
+        case "price-low-high":
+            idQuery = idQuery.orderBy(
+                sql`CASE WHEN ${lastSales.price} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.price} AS REAL) ASC`,
+                properties.id
+            ) as any;
+            break;
+        default:
+            idQuery = idQuery.orderBy(
+                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`CAST(${lastSales.recordingDate} AS DATE) DESC`,
+                properties.id
+            ) as any;
+    }
+    const idRows = await idQuery.limit(limitNum + 1).offset(offset).execute();
+    const pageIds = idRows.map((r: { id: string }) => r.id);
+    const hasMore = pageIds.length > limitNum;
+    const idsForPage = hasMore ? pageIds.slice(0, limitNum) : pageIds;
+
+    if (idsForPage.length === 0) {
+        return {
+            properties: [],
+            total,
+            hasMore: false,
+            page: pageNum,
+            limit: limitNum,
+        };
+    }
+
+    // Step 2: Fetch full rows for this page of IDs and preserve order
+    // Step 2: Fetch full rows for this page of IDs and preserve order
     let query = db
         .select({
             // Properties table fields
@@ -317,55 +381,13 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
         .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
-        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id));
+        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
+        .where(inArray(properties.id, idsForPage));
     
-    if (whereClause) {
-        query = query.where(whereClause) as any;
-    }
-
-    // Apply sorting based on sortBy parameter
-    const sortByValue = sortBy?.toString() || "recently-sold";
-    switch (sortByValue) {
-        case "recently-sold":
-            // Sort by recording date DESC (most recent first), nulls last
-            query = query.orderBy(
-                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${lastSales.recordingDate} AS DATE) DESC`
-            ) as any;
-            break;
-        case "days-held":
-            // Sort by days held (from recording date to now) DESC (longest first), nulls last
-            query = query.orderBy(
-                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`(EXTRACT(EPOCH FROM (NOW() - ${lastSales.recordingDate})) / 86400) DESC`
-            ) as any;
-            break;
-        case "price-high-low":
-            // Sort by price DESC
-            query = query.orderBy(
-                sql`CASE WHEN ${lastSales.price} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${lastSales.price} AS REAL) DESC`
-            ) as any;
-            break;
-        case "price-low-high":
-            // Sort by price ASC
-            query = query.orderBy(
-                sql`CASE WHEN ${lastSales.price} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${lastSales.price} AS REAL) ASC`
-            ) as any;
-            break;
-        default:
-            // Default to recently-sold (by recording date)
-            query = query.orderBy(
-                sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-                sql`CAST(${lastSales.recordingDate} AS DATE) DESC`
-            ) as any;
-    }
-
-    const results = await query.limit(limitNum + 1).offset(offset).execute();
-
-    const hasMore = results.length > limitNum;
-    const rawPropertiesList = results.slice(0, limitNum);
+    // Preserve sort order from the id query (order results by position in idsForPage)
+    const idToIndex = new Map(idsForPage.map((id, i) => [id, i]));
+    const results = (await query.execute()).sort((a: any, b: any) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
+    const rawPropertiesList = results;
 
     // Map results to flat Property structure expected by frontend
     const propertiesList = rawPropertiesList.map((prop: any) => {
