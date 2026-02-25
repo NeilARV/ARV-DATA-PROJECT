@@ -21,7 +21,7 @@ import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODE
 import type { MapPin } from '@/types/property';
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
-type ViewType = "map" | "grid" | "table" | "buyers-feed"
+type ViewType = "map" | "grid" | "table" | "buyers-feed" | "wholesale"
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewType>("map");
@@ -332,7 +332,7 @@ export default function Home() {
       }
       return res.json();
     },
-    enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Only fetch when NOT in map or buyers-feed view
+    enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Fetch for grid, table, and wholesale views
   });
 
   // Reset pagination when filters, sortBy, or view mode changes
@@ -345,9 +345,9 @@ export default function Home() {
     }
   }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
 
-  // Accumulate properties when new data arrives (for grid/table views)
+  // Accumulate properties when new data arrives (for grid/table/wholesale views)
   useEffect(() => {
-    if (propertiesResponse && (viewMode === "grid" || viewMode === "table")) {
+    if (propertiesResponse && (viewMode === "grid" || viewMode === "table" || viewMode === "wholesale")) {
       if (propertiesPage === 1) {
         // First page - replace all
         setAllProperties(propertiesResponse.properties);
@@ -364,9 +364,9 @@ export default function Home() {
     }
   }, [propertiesResponse, propertiesPage, viewMode]);
 
-  // Intersection Observer for infinite scroll (grid/table views)
+  // Intersection Observer for infinite scroll (grid/table/wholesale views)
   useEffect(() => {
-    if (viewMode !== "grid" && viewMode !== "table") return;
+    if (viewMode !== "grid" && viewMode !== "table" && viewMode !== "wholesale") return;
     if (!propertiesHasMore || isLoadingMoreProperties || isFetching) return;
     if (!loadMorePropertiesRef.current) return;
 
@@ -1260,7 +1260,7 @@ export default function Home() {
     setSortBy("recently-sold");
   };
 
-  const handleViewModeChange = (mode: "map" | "grid" | "table" | "buyers-feed") => {
+  const handleViewModeChange = (mode: "map" | "grid" | "table" | "buyers-feed" | "wholesale") => {
     // Clear selected property when switching views to avoid modal popping up
     setSelectedProperty(null);
     setViewMode(mode);
@@ -1274,6 +1274,16 @@ export default function Home() {
       statusFilters: ["wholesale", "in-renovation"],
     }));
     setViewMode("buyers-feed");
+  };
+
+  // When switching to Wholesale view, auto-select wholesale status
+  const handleWholesaleClick = () => {
+    setSelectedProperty(null);
+    setFilters((prev) => ({
+      ...prev,
+      statusFilters: ["wholesale"],
+    }));
+    setViewMode("wholesale");
   };
 
   // Fetch full property data by ID
@@ -1390,6 +1400,7 @@ export default function Home() {
         }}
         onLeaderboardClick={() => setShowLeaderboardDialog(true)}
         onBuyersFeedClick={handleBuyersFeedClick}
+        onWholesaleClick={handleWholesaleClick}
         onLogoClick={handleLogoClick}
       />
 

@@ -14,6 +14,7 @@ import {
   Users,
   Menu,
   User,
+  DollarSign,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -24,14 +25,15 @@ import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 
 interface HeaderProps {
-  viewMode: "map" | "grid" | "table" | "buyers-feed";
-  onViewModeChange: (mode: "map" | "grid" | "table" | "buyers-feed") => void;
+  viewMode: "map" | "grid" | "table" | "buyers-feed" | "wholesale";
+  onViewModeChange: (mode: "map" | "grid" | "table" | "buyers-feed" | "wholesale") => void;
   onSearch?: (query: string) => void;
   onPropertySelect?: (propertyId: string) => void;
   onLoginClick?: () => void;
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
   onBuyersFeedClick?: () => void;
+  onWholesaleClick?: () => void;
   onLogoClick?: () => void;
   county?: string; // County filter for suggestions
 }
@@ -53,6 +55,7 @@ export default function Header({
   onSignupClick,
   onLeaderboardClick,
   onBuyersFeedClick,
+  onWholesaleClick,
   onLogoClick,
   county,
 }: HeaderProps) {
@@ -295,6 +298,16 @@ export default function Header({
           >
             <Users className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Buyers Feed</span>
+          </Button>
+
+          <Button
+            variant={viewMode === "wholesale" ? "default" : "outline"}
+            size="sm"
+            onClick={onWholesaleClick}
+            data-testid="button-wholesale"
+          >
+            <DollarSign className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Wholesale</span>
           </Button>
           
           <Button
