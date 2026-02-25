@@ -29,7 +29,7 @@ export function StatusTag({status, section}: IStatusTag) {
             case "panel":
                 return "text-[10px]";
             default:
-                return "text-[12px]";
+                return "text-[13px]";
         }
     }
 
@@ -38,7 +38,7 @@ export function StatusTag({status, section}: IStatusTag) {
             {getStatusTags(status).map((tag) => (
                 <span
                     key={tag.label}
-                    className={`${sectionClass(section)} font-semibold px-2 py-0.5 rounded shadow-sm`}
+                    className={`${sectionClass(section)} font-semibold px-3 py-0.5 rounded shadow-sm`}
                     style={{ backgroundColor: tag.bg, color: tag.text }}
                 >
                     {tag.label}
