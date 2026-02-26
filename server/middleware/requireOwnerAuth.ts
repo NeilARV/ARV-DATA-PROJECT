@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { db } from "server/storage";
 import { eq, and, inArray } from "drizzle-orm";
 
-/** Role names that pass requireAdminAuth (admin and owner). */
+/** Role names that pass requireAdminAuth (owner). */
 const ADMIN_ACCESS_ROLES = ["owner"] as const;
 
 /**
