@@ -3,8 +3,8 @@ import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { db } from "server/storage";
-import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
+import { requireRole } from "server/middleware/requireRole";
 
 const router = Router();
 
@@ -38,7 +38,7 @@ router.get("/status", async (req, res) => {
 });
 
 // Admin: Get all users
-router.get("/users", requireAdminAuth, async (_req, res) => {
+router.get("/users", requireRole(["admin", "owner"]), async (_req, res) => {
     try {
         const allUsers = await db
         .select({
@@ -58,7 +58,7 @@ router.get("/users", requireAdminAuth, async (_req, res) => {
     }
 });
 
-router.post("/whitelist", requireAdminAuth, async (req, res) => { 
+router.post("/whitelist", requireRole(["admin", "owner"]), async (req, res) => { 
     try {
         const validation = insertEmailWhitelistSchema.safeParse(req.body);
 
