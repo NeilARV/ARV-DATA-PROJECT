@@ -22,6 +22,10 @@ CREATE TABLE email_whitelist (
     created_at TIMESTAMP DEFAULT now()
 );
 
+CREATE UNIQUE INDEX email_whitelist_email_key ON email_whitelist(email);
+
+COMMENT ON TABLE email_whitelist IS 'Whitelist of approved email addresses for registration';
+
 -- MSA table
 CREATE TABLE msas (
     id SERIAL PRIMARY KEY,
@@ -29,10 +33,6 @@ CREATE TABLE msas (
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );
-
-CREATE UNIQUE INDEX email_whitelist_email_key ON email_whitelist(email);
-
-COMMENT ON TABLE email_whitelist IS 'Whitelist of approved email addresses for registration';
 
 -- Users table
 CREATE TABLE users (
