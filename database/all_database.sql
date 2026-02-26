@@ -34,6 +34,14 @@ CREATE TABLE msas (
     updated_at TIMESTAMP DEFAULT now()
 );
 
+-- Roles table
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+)
+
 -- Users table
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,6 +49,7 @@ CREATE TABLE users (
     last_name TEXT NOT NULL,
     phone TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     is_admin BOOLEAN NOT NULL DEFAULT false,
@@ -52,6 +61,19 @@ CREATE UNIQUE INDEX users_email_unique ON users(email);
 
 COMMENT ON TABLE users IS 'User accounts and authentication information';
 
+-- User roles table
+CREATE TABLE user_roles (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, role_id)
+);
+
+INSERT INTO roles (name)
+VALUES ('owner'), ('admin'), ('relationship-manager')
+
+-- User MSA subscriptions table
 CREATE TABLE user_msa_subscriptions (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     msa_id INTEGER REFERENCES msas(id) ON DELETE CASCADE,
