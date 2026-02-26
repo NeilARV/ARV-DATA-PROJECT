@@ -19,9 +19,13 @@ CREATE TABLE user_roles (
     PRIMARY KEY (user_id, role_id)
 );
 
--- Update users table with relationship manager id
-ALTER TABLE users
-ADD COLUMN relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE TABLE user_relationship_managers (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    relationship_manager_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, relationship_manager_id)
+)
 
 -- Idx for faster relationship manager look up
 CREATE INDEX idx_users_relationship_manager_id

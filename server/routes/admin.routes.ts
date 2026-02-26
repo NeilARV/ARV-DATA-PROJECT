@@ -1,30 +1,36 @@
 import { Router } from "express";
-import { users } from "@database/schemas/users.schema";
+import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
 
 const router = Router();
 
-// Check admin auth status - depracted?
+const ADMIN_ACCESS_ROLES = ["admin", "owner"] as const;
+
+// Check admin auth status (role-based: admin or owner from user_roles + roles)
 router.get("/status", async (req, res) => {
     try {
-        // Check if user is logged in
         if (!req.session.userId) {
             return res.json({ authenticated: false, isAdmin: false });
         }
 
-        // Check if user is admin
-        const [user] = await db
-            .select({ isAdmin: users.isAdmin })
-            .from(users)
-            .where(eq(users.id, req.session.userId))
+        const allowedRows = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, req.session.userId),
+                    inArray(roles.name, [...ADMIN_ACCESS_ROLES])
+                )
+            )
             .limit(1);
 
-        const isAdmin = user?.isAdmin;
-        res.json({ authenticated: !!req.session.userId, isAdmin });
+        const isAdmin = allowedRows.length > 0;
+        res.json({ authenticated: true, isAdmin });
     } catch (error) {
         console.error("Error checking admin status:", error);
         res.status(500).json({ message: "Error checking admin status" });

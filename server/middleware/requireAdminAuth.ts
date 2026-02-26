@@ -1,11 +1,17 @@
-import { users } from "@database/schemas/users.schema";
+import { userRoles, roles } from "@database/schemas/users.schema";
 import { Request, Response, NextFunction } from "express";
 import { db } from "server/storage";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
+/** Role names that pass requireAdminAuth (admin and owner). */
+const ADMIN_ACCESS_ROLES = ["admin", "owner"] as const;
+
+/**
+ * Determines admin access from user_roles + roles (not users.is_admin).
+ * User must have at least one role in ADMIN_ACCESS_ROLES to pass.
+ */
 export async function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    // Check if user is logged in
     if (!req.session.userId) {
       console.error(
         `[AUTH DENIED] No user session for ${req.path}, Session ID: ${req.sessionID}`,
@@ -13,16 +19,21 @@ export async function requireAdminAuth(req: Request, res: Response, next: NextFu
       return res.status(401).json({ message: "Unauthorized - Please log in" });
     }
 
-    // Check if user is admin
-    const [user] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, req.session.userId))
+    const allowedRows = await db
+      .select({ roleName: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(
+        and(
+          eq(userRoles.userId, req.session.userId),
+          inArray(roles.name, [...ADMIN_ACCESS_ROLES])
+        )
+      )
       .limit(1);
 
-    if (!user || !user.isAdmin) {
+    if (allowedRows.length === 0) {
       console.error(
-        `[AUTH DENIED] User ${req.session.userId} is not an admin for ${req.path}`,
+        `[AUTH DENIED] User ${req.session.userId} has no admin/owner role for ${req.path}`,
       );
       return res
         .status(403)
@@ -30,7 +41,7 @@ export async function requireAdminAuth(req: Request, res: Response, next: NextFu
     }
 
     console.log(
-      `[AUTH GRANTED] Admin user ${req.session.userId} accessing ${req.path}`,
+      `[AUTH GRANTED] User ${req.session.userId} (${allowedRows[0].roleName}) accessing ${req.path}`,
     );
     next();
   } catch (error) {
