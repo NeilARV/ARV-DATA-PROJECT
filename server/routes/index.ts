@@ -4,11 +4,13 @@ import adminRoutes from "./admin.routes"
 import propertyRoutes from "./properties.routes"
 import companyRoutes from "./companies.routes"
 import geocodingRoutes from "./geocoding.routes"
+import userRoutes from "./users.routes"
 
 const router = Router();
 
 router.use("/auth", authRoutes)
 router.use("/admin", adminRoutes)
+router.use("/users", userRoutes)
 router.use("/properties", propertyRoutes)
 router.use("/companies", companyRoutes)
 router.use("/geocoding", geocodingRoutes)

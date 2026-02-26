@@ -42,6 +42,10 @@ CREATE TABLE roles (
     updated_at TIMESTAMP DEFAULT now()
 )
 
+-- Insert rows into roles table
+INSERT INTO roles (name)
+VALUES ('owner'), ('admin'), ('relationship-manager')
+
 -- Users table
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

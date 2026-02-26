@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, asc } from "drizzle-orm";
 import { db } from "server/storage";
 import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
 import { requireRole } from "server/middleware/requireRole";
@@ -34,27 +34,6 @@ router.get("/status", async (req, res) => {
     } catch (error) {
         console.error("Error checking admin status:", error);
         res.status(500).json({ message: "Error checking admin status" });
-    }
-});
-
-// Admin: Get all users
-router.get("/users", requireRole(["admin", "owner"]), async (_req, res) => {
-    try {
-        const allUsers = await db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            phone: users.phone,
-            email: users.email,
-            createdAt: users.createdAt,
-        })
-        .from(users)
-        .orderBy(desc(users.createdAt));
-        res.json(allUsers);
-    } catch (error) {
-        console.error("Error fetching users:", error);
-        res.status(500).json({ message: "Error fetching users" });
     }
 });
 
