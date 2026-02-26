@@ -27,9 +27,9 @@ CREATE TABLE user_relationship_managers (
     PRIMARY KEY (user_id, relationship_manager_id)
 )
 
--- Idx for faster relationship manager look up
-CREATE INDEX idx_users_relationship_manager_id
-ON users(relationship_manager_id);
+-- Drop is_admin column from users table
+ALTER TABLE users
+DROP COLUMN is_admin;
 
 -- Insert admin role for all users where is_admin = TRUE
 INSERT INTO user_roles (user_id, role_id, created_at, updated_at)

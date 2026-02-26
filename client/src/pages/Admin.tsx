@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import type { Property } from "@/types/property";
@@ -31,51 +31,17 @@ import UsersTab from "@/components/admin/UsersTab";
 export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { isLoading: isLoadingUser, isAuthenticated: isUserAuthenticated } = useAuth();
+  const {
+    isLoading: isLoadingUser,
+    isAuthenticated: isUserAuthenticated,
+    isAdmin,
+    isAdminStatusLoading,
+  } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(true);
-  const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
   const [selectedCounty, setSelectedCounty] = useState<string>("San Diego");
 
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      try {
-        const response = await fetch("/api/admin/status", {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setIsAdmin(data.isAdmin ?? false);
-        
-        // If user is logged in but not admin, show dialog
-        if (data.authenticated && !data.isAdmin) {
-          setAccessDeniedDialogOpen(true);
-        }
-      } catch (error) {
-        console.error("Error checking admin status:", error);
-        setIsAdmin(false);
-      } finally {
-        setIsVerifying(false);
-      }
-    };
-    
-    // Wait for user auth to load first, then check admin status
-    if (!isLoadingUser) {
-      checkAdminStatus();
-    }
-    // If isLoadingUser is true, we'll wait for it to become false
-    // The effect will re-run when isLoadingUser changes
-  }, [isLoadingUser]);
-
-  // Ensure dialog opens if user becomes authenticated but not admin
-  useEffect(() => {
-    if (isUserAuthenticated && !isAdmin && !isVerifying) {
-      setAccessDeniedDialogOpen(true);
-    }
-  }, [isUserAuthenticated, isAdmin, isVerifying]);
+  const isVerifying = isLoadingUser || isAdminStatusLoading;
+  const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {
@@ -112,8 +78,7 @@ export default function Admin() {
       });
 
       if (response.ok) {
-        setIsAdmin(false);
-        // Clear all cached queries on logout
+        // Clear all cached queries on logout (auth + admin status)
         queryClient.clear();
         toast({
           title: "Logged Out",
@@ -145,16 +110,13 @@ export default function Admin() {
     return <AdminLogin />;
   }
 
-  // If user is authenticated but not admin, show dialog and don't render admin content
+  // If user is authenticated but not admin (role-based), show dialog and don't render admin content
   if (!isAdmin && isUserAuthenticated) {
     return (
-      <AlertDialog 
-        open={accessDeniedDialogOpen} 
+      <AlertDialog
+        open={showAccessDenied}
         onOpenChange={(open) => {
-          if (!open) {
-            // Redirect when dialog is closed (by any means)
-            setLocation("/");
-          }
+          if (!open) setLocation("/");
         }}
       >
         <AlertDialogContent>
@@ -168,12 +130,7 @@ export default function Admin() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                setAccessDeniedDialogOpen(false);
-                setLocation("/");
-              }}
-            >
+            <AlertDialogAction onClick={() => setLocation("/")}>
               Go to Home Page
             </AlertDialogAction>
           </AlertDialogFooter>

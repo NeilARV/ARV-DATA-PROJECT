@@ -25,7 +25,7 @@ export const emailWhitelist = pgTable("email_whitelist", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Users (is_admin deprecated: use user_roles + roles for admin/owner)
+// Users (admin/owner determined via user_roles + roles, not a column here)
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   firstName: text("first_name").notNull(),
@@ -34,7 +34,6 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  isAdmin: boolean("is_admin").notNull().default(false),
   notifications: boolean("notifications").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

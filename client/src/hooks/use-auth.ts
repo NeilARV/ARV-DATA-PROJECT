@@ -13,10 +13,24 @@ export interface AuthUser {
   createdAt: string;
 }
 
+/** Admin status from GET /api/admin/status (role-based: user_roles + roles, admin or owner). */
+const ADMIN_STATUS_QUERY_KEY = ["/api/admin/status"] as const;
+
 export function useAuth() {
   const { data, isLoading } = useQuery<{ user: AuthUser | null }>({
     queryKey: ["/api/auth/me"],
     staleTime: 5 * 60 * 1000,
+  });
+
+  const isAuthenticated = !!data?.user;
+
+  const {
+    data: adminStatus,
+    isLoading: isAdminStatusLoading,
+  } = useQuery<{ authenticated: boolean; isAdmin: boolean }>({
+    queryKey: ADMIN_STATUS_QUERY_KEY,
+    staleTime: 5 * 60 * 1000,
+    enabled: isAuthenticated,
   });
 
   const logoutMutation = useMutation({
@@ -25,13 +39,17 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ADMIN_STATUS_QUERY_KEY });
     },
   });
 
   return {
     user: data?.user ?? null,
     isLoading,
-    isAuthenticated: !!data?.user,
+    isAuthenticated,
+    /** Role-based admin (admin or owner from user_roles). Only true when authenticated and status loaded. */
+    isAdmin: isAuthenticated && (adminStatus?.isAdmin ?? false),
+    isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
   };
