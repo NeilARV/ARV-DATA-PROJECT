@@ -88,6 +88,67 @@ router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
     }
 });
 
+// Get all users who have the relationship-manager role (id, first_name, last_name, phone, email, roles)
+router.get("/relationship-managers", requireRole(["admin", "owner"]), async (_req, res) => {
+    try {
+        const [relationshipManagerRole] = await db
+            .select({ id: roles.id })
+            .from(roles)
+            .where(eq(roles.name, "relationship-manager"))
+            .limit(1);
+        if (!relationshipManagerRole) {
+            return res.json([]);
+        }
+
+        const rmUserIds = await db
+            .select({ userId: userRoles.userId })
+            .from(userRoles)
+            .where(eq(userRoles.roleId, relationshipManagerRole.id));
+        const ids = rmUserIds.map((r) => r.userId);
+        if (ids.length === 0) {
+            return res.json([]);
+        }
+
+        const relationshipManagers = await db
+            .select({
+                id: users.id,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                phone: users.phone,
+                email: users.email,
+            })
+            .from(users)
+            .where(inArray(users.id, ids))
+            .orderBy(asc(users.lastName), asc(users.firstName));
+
+        const roleRows = await db
+            .select({ userId: userRoles.userId, roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(inArray(userRoles.userId, ids));
+
+        const rolesByUserId = new Map<string, string[]>();
+        for (const row of roleRows) {
+            const list = rolesByUserId.get(row.userId) ?? [];
+            list.push(row.roleName);
+            rolesByUserId.set(row.userId, list);
+        }
+
+        const result = relationshipManagers.map((u) => ({
+            id: u.id,
+            first_name: u.firstName,
+            last_name: u.lastName,
+            phone: u.phone,
+            email: u.email,
+            roles: rolesByUserId.get(u.id) ?? [],
+        }));
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching relationship managers:", error);
+        res.status(500).json({ message: "Error fetching relationship managers" });
+    }
+});
+
 // Admin: Get all roles (full role objects)
 router.get("/roles", requireRole(["admin", "owner"]), async (_req, res) => {
     try {

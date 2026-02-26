@@ -56,7 +56,6 @@ CREATE TABLE users (
     relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    is_admin BOOLEAN NOT NULL DEFAULT false,
     notifications BOOLEAN NOT NULL DEFAULT true,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -76,6 +75,15 @@ CREATE TABLE user_roles (
 
 INSERT INTO roles (name)
 VALUES ('owner'), ('admin'), ('relationship-manager')
+
+-- User MSA subscriptions table
+CREATE TABLE user_relationship_managers (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    relationship_manager_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, relationship_manager_id)
+)
 
 -- User MSA subscriptions table
 CREATE TABLE user_msa_subscriptions (
