@@ -38,3 +38,6 @@ FROM users u
 JOIN roles r ON r.name = 'admin'
 WHERE u.is_admin = TRUE
 ON CONFLICT (user_id, role_id) DO NOTHING;
+
+ALTER TABLE email_whitelist
+ADD COLUMN relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL;
