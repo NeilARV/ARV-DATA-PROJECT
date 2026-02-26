@@ -51,7 +51,7 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
-    queryKey: ["/api/admin/users"],
+    queryKey: ["/api/users/"],
     enabled: isAdmin,
   });
 

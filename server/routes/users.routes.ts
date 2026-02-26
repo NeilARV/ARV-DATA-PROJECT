@@ -7,7 +7,7 @@ import { requireRole } from "server/middleware/requireRole";
 const router = Router();
 
 // Admin: Get all users
-router.get("/users", requireRole(["admin", "owner"]), async (_req, res) => {
+router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
     try {
         const allUsers = await db
         .select({
