@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Loader2, Plus, Users, X } from "lucide-react";
 import { MSA } from "@/constants/filters.constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -45,6 +46,16 @@ interface AdminUser {
 interface RoleOption {
   id: number;
   name: string;
+}
+
+/** From GET /api/users/relationship-managers */
+interface RelationshipManager {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string;
+  roles: string[];
 }
 
 interface UsersTabProps {
@@ -77,6 +88,7 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
   const { toast } = useToast();
   const [whitelistEmail, setWhitelistEmail] = useState("");
   const [whitelistMsa, setWhitelistMsa] = useState<string>(MSA[0]);
+  const [whitelistRelationshipManagerId, setWhitelistRelationshipManagerId] = useState<string>("none");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [roleConfirm, setRoleConfirm] = useState<{
     open: boolean;
@@ -97,6 +109,11 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     enabled: isAdmin,
   });
 
+  const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
+    queryKey: ["/api/users/relationship-managers"],
+    enabled: isAdmin,
+  });
+
   const addWhitelistMutation = useMutation({
     mutationFn: async (payload: { email: string; msaName: string }) => {
       const response = await apiRequest("POST", "/api/admin/whitelist", payload);
@@ -110,6 +127,7 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
       });
       setWhitelistEmail("");
       setWhitelistMsa(MSA[0]);
+      setWhitelistRelationshipManagerId("none");
       setEmailError(null);
     },
     onError: (error: unknown) => {
@@ -231,47 +249,94 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
       <CardContent>
         <div className="mb-6 p-4 border rounded-lg bg-muted/50">
           <h3 className="text-sm font-semibold mb-3">Add Email to Whitelist</h3>
-          <div className="flex flex-wrap gap-2 items-center">
-            <Input
-              type="email"
-              placeholder="Enter email address"
-              value={whitelistEmail}
-              onChange={(e) => {
-                setWhitelistEmail(e.target.value);
-                setEmailError(null);
-              }}
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  whitelistEmail.trim() &&
-                  !addWhitelistMutation.isPending
-                ) {
-                  handleAddWhitelist();
-                }
-              }}
-              disabled={addWhitelistMutation.isPending}
-              className="flex-[2] min-w-0"
-              data-testid="input-whitelist-email"
-              aria-invalid={!!emailError}
-              aria-describedby={emailError ? "whitelist-email-error" : undefined}
-            />
-            <Select
-              value={whitelistMsa}
-              onValueChange={setWhitelistMsa}
-              disabled={addWhitelistMutation.isPending}
-            >
-              <SelectTrigger className="flex-[1] min-w-[280px]" data-testid="select-whitelist-msa">
-                <SelectValue placeholder="Initial MSA subscription" />
-              </SelectTrigger>
-              <SelectContent>
-                {MSA.map((msaName) => (
-                  <SelectItem key={msaName} value={msaName}>
-                    {msaName}
+          <div className="flex flex-wrap gap-x-4 gap-y-4 items-end">
+            <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-w-[280px]">
+              <Label htmlFor="whitelist-email" className="ml-1 text-left">
+                Email
+              </Label>
+              <Input
+                id="whitelist-email"
+                type="email"
+                placeholder="Enter email address"
+                value={whitelistEmail}
+                onChange={(e) => {
+                  setWhitelistEmail(e.target.value);
+                  setEmailError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    whitelistEmail.trim() &&
+                    !addWhitelistMutation.isPending
+                  ) {
+                    handleAddWhitelist();
+                  }
+                }}
+                disabled={addWhitelistMutation.isPending}
+                className="w-full"
+                data-testid="input-whitelist-email"
+                aria-invalid={!!emailError}
+                aria-describedby={emailError ? "whitelist-email-error" : undefined}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-[1] min-w-[280px]">
+              <Label htmlFor="whitelist-msa" className="ml-1 text-left">
+                MSA Subscription
+              </Label>
+              <Select
+                value={whitelistMsa}
+                onValueChange={setWhitelistMsa}
+                disabled={addWhitelistMutation.isPending}
+              >
+                <SelectTrigger id="whitelist-msa" className="w-full" data-testid="select-whitelist-msa">
+                  <SelectValue placeholder="Initial MSA subscription" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MSA.map((msaName) => (
+                    <SelectItem key={msaName} value={msaName}>
+                      {msaName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-[1] min-w-[240px]">
+              <Label htmlFor="whitelist-relationship-manager" className="ml-1 text-left">
+                Relationship Manager
+              </Label>
+              <Select
+                value={whitelistRelationshipManagerId}
+                onValueChange={setWhitelistRelationshipManagerId}
+                disabled={addWhitelistMutation.isPending}
+              >
+                <SelectTrigger
+                  id="whitelist-relationship-manager"
+                  className="w-full"
+                  data-testid="select-whitelist-relationship-manager"
+                >
+                  <SelectValue placeholder="Relationship manager" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" data-testid="option-rm-none">
+                    None
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
+                  {relationshipManagers.map((rm) => (
+                    <SelectItem
+                      key={rm.id}
+                      value={rm.id}
+                      data-testid={`option-rm-${rm.id}`}
+                    >
+                      {rm.first_name} {rm.last_name} — {rm.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <Label className="text-left opacity-0 select-none" aria-hidden="true">
+                Add
+              </Label>
+              <Button
               onClick={handleAddWhitelist}
               disabled={
                 !whitelistEmail.trim() || addWhitelistMutation.isPending
@@ -290,7 +355,8 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
                   Add
                 </>
               )}
-            </Button>
+              </Button>
+            </div>
           </div>
           {emailError && (
             <p

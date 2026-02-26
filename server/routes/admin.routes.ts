@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { users, userRoles, roles } from "@database/schemas/users.schema";
+import { userRoles, roles } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
-import { eq, desc, and, inArray, asc } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "server/storage";
 import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
 import { requireRole } from "server/middleware/requireRole";
