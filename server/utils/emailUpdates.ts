@@ -1,13 +1,18 @@
 import { ServerClient } from "postmark";
 import { db } from "server/storage";
-import { users } from "../../database/schemas/users.schema";
+import { users, userRelationshipManagers } from "../../database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "../../database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures } from "../../database/schemas/properties.schema";
 import { companies } from "../../database/schemas/companies.schema";
 import { emailSyncState } from "../../database/schemas/sync.schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";
+import {
+  listSenderSignatures,
+  findSignatureByEmail,
+  type PostmarkSenderSignature,
+} from "server/services/postmark/postmarkSenders";
 
 const buyerCompanies = alias(companies, "buyer_companies");
 const sellerCompanies = alias(companies, "seller_companies");
@@ -18,6 +23,9 @@ const CANDIDATE_POOL_SIZE = 20;
 
 const STREETVIEW_SIZE = "600x400";
 const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
+
+/** From address when the recipient has no relationship manager or their RM is not a confirmed Postmark sender. */
+const DEFAULT_FROM_EMAIL = "neil@arvfinance.com";
 
 // Status tag styles — match PropertyCard.tsx (and PropertyMap map ping colors)
 const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -129,6 +137,50 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       console.log(`[EMAIL ${msaName}]: No users with this MSA selected and notifications on`);
       return;
     }
+
+    const recipientUserIds = uniqueUsers.map((u) => u.id);
+
+    // Each recipient can have 0 or 1 relationship manager. RM is a user; we need the RM's email to use as From.
+    // user_relationship_managers: (user_id = recipient, relationship_manager_id = RM user id). Join users to get RM email.
+    const relationshipManagerEmailByRecipientId = new Map<string, string>();
+    if (recipientUserIds.length > 0) {
+      const rmRows = await db
+        .select({
+          recipientUserId: userRelationshipManagers.userId,
+          rmEmail: users.email,
+        })
+        .from(userRelationshipManagers)
+        .innerJoin(users, eq(userRelationshipManagers.relationshipManagerId, users.id))
+        .where(inArray(userRelationshipManagers.userId, recipientUserIds));
+      for (const row of rmRows) {
+        if (!relationshipManagerEmailByRecipientId.has(row.recipientUserId) && row.rmEmail) {
+          relationshipManagerEmailByRecipientId.set(row.recipientUserId, row.rmEmail);
+        }
+      }
+      console.log(`[EMAIL ${msaName}]: Found ${relationshipManagerEmailByRecipientId.size} recipient(s) with a relationship manager`);
+    }
+
+    // Postmark sender list: valid From = email in SenderSignatures with Confirmed === true. Fetch all pages.
+    let confirmedSenders: PostmarkSenderSignature[] = [];
+    try {
+      if (process.env.POSTMARK_ACCOUNT_TOKEN) {
+        const pageSize = 50;
+        let offset = 0;
+        let totalCount = 0;
+        do {
+          const res = await listSenderSignatures(pageSize, offset);
+          const page = res.SenderSignatures ?? [];
+          confirmedSenders = confirmedSenders.concat(page);
+          totalCount = res.TotalCount ?? 0;
+          offset += pageSize;
+        } while (offset < totalCount);
+      } else {
+        console.warn(`[EMAIL ${msaName}]: POSTMARK_ACCOUNT_TOKEN not set; all emails will use default From`);
+      }
+    } catch (err) {
+      console.warn(`[EMAIL ${msaName}]: Failed to fetch Postmark senders, using default From:`, err instanceof Error ? err.message : err);
+    }
+    console.log(`[EMAIL ${msaName}]: Postmark sender signatures loaded: ${confirmedSenders.length} (confirmed senders used for From)`);
 
     // Fetch a pool of recent properties (by recording date); we'll keep only those with Street View images
     const candidateProperties = await db
@@ -257,8 +309,17 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     const failedRecipients: string[] = [];
 
     for (const user of uniqueUsers) {
+      let fromAddress = DEFAULT_FROM_EMAIL;
+      const rmEmail = relationshipManagerEmailByRecipientId.get(user.id);
+      if (rmEmail) {
+        const signature = findSignatureByEmail(confirmedSenders, rmEmail);
+        if (signature && signature.Confirmed === true) {
+          fromAddress = signature.EmailAddress;
+        }
+      }
+
       const emailTemplate = {
-        From: "neil@arvfinance.com",
+        From: fromAddress,
         To: user.email,
         TemplateAlias: `${process.env.POSTMARK_TEMPLATE_ALIAS}`,
         TemplateModel: {
