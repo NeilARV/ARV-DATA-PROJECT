@@ -22,6 +22,7 @@ export const emailWhitelist = pgTable("email_whitelist", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").unique().notNull(),
   msa: integer("msa"),
+  relationshipManagerId: uuid("relationship_manager_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

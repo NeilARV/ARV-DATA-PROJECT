@@ -48,7 +48,7 @@ router.post("/whitelist", requireRole(["admin", "owner"]), async (req, res) => {
             });
         }
 
-        const { email, msaName } = validation.data;
+        const { email, msaName, relationshipManagerId } = validation.data;
         const normalizedEmail = email.toLowerCase().trim();
 
         // Resolve MSA name to id
@@ -77,10 +77,11 @@ router.post("/whitelist", requireRole(["admin", "owner"]), async (req, res) => {
             });
         }
 
-        // Insert email to whitelist with MSA reference (id and created_at are auto-generated)
+        // Insert email to whitelist with MSA and optional relationship manager (id and created_at are auto-generated)
         await db.insert(emailWhitelist).values({
             email: normalizedEmail,
             msa: msaRow.id,
+            relationshipManagerId: relationshipManagerId ?? null,
         });
 
         return res.status(201).json({ 

@@ -115,7 +115,11 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
   });
 
   const addWhitelistMutation = useMutation({
-    mutationFn: async (payload: { email: string; msaName: string }) => {
+    mutationFn: async (payload: {
+      email: string;
+      msaName: string;
+      relationshipManagerId?: string | null;
+    }) => {
       const response = await apiRequest("POST", "/api/admin/whitelist", payload);
       const data = await response.json();
       return data;
@@ -182,9 +186,14 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     const trimmed = whitelistEmail.trim();
     if (!trimmed) return;
     setEmailError(null);
+    const relationshipManagerId =
+      whitelistRelationshipManagerId && whitelistRelationshipManagerId !== "none"
+        ? whitelistRelationshipManagerId
+        : undefined;
     const result = insertEmailWhitelistSchema.safeParse({
       email: trimmed,
       msaName: whitelistMsa,
+      relationshipManagerId: relationshipManagerId ?? null,
     });
     if (!result.success) {
       const msg =
@@ -197,6 +206,9 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     addWhitelistMutation.mutate({
       email: result.data.email,
       msaName: result.data.msaName,
+      ...(result.data.relationshipManagerId && {
+        relationshipManagerId: result.data.relationshipManagerId,
+      }),
     });
   };
 

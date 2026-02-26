@@ -18,6 +18,7 @@ CREATE TABLE sessions (
 CREATE TABLE email_whitelist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     msa INTEGER REFERENCES msas(id) DEFAULT 1,
+    relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL;
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT now()
 );
