@@ -33,6 +33,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 
+interface RelationshipManagerAssignment {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 interface AdminUser {
   id: string;
   firstName: string;
@@ -41,6 +47,7 @@ interface AdminUser {
   email: string;
   createdAt: string;
   roles: string[];
+  relationshipManagers: RelationshipManagerAssignment[];
 }
 
 interface RoleOption {
@@ -98,6 +105,15 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     action: "assign" | "remove";
   } | null>(null);
   const [addRoleSelectValue, setAddRoleSelectValue] = useState<Record<string, string>>({});
+  const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
+  const [managerConfirm, setManagerConfirm] = useState<{
+    open: boolean;
+    userId: string;
+    userName: string;
+    relationshipManagerId: string;
+    managerName: string;
+    action: "assign" | "remove";
+  } | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
     queryKey: ["/api/users/"],
@@ -182,6 +198,62 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     },
   });
 
+  const assignRelationshipManagerMutation = useMutation({
+    mutationFn: async ({
+      userId,
+      relationshipManagerId,
+    }: {
+      userId: string;
+      relationshipManagerId: string;
+    }) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/relationship-managers`, {
+        relationshipManagerId,
+      });
+      return res.json();
+    },
+    onSuccess: (_, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
+      toast({ title: "Relationship manager assigned", description: "Manager has been assigned." });
+      setAddManagerSelectValue((prev) => ({ ...prev, [userId]: "" }));
+      setManagerConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error) || "Failed to assign relationship manager",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeRelationshipManagerMutation = useMutation({
+    mutationFn: async ({
+      userId,
+      relationshipManagerId,
+    }: {
+      userId: string;
+      relationshipManagerId: string;
+    }) => {
+      const res = await apiRequest(
+        "DELETE",
+        `/api/users/${userId}/relationship-managers/${relationshipManagerId}`
+      );
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
+      toast({ title: "Relationship manager removed", description: "Manager has been removed." });
+      setManagerConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error) || "Failed to remove relationship manager",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddWhitelist = () => {
     const trimmed = whitelistEmail.trim();
     if (!trimmed) return;
@@ -221,8 +293,25 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     }
   };
 
+  const handleManagerConfirm = () => {
+    if (!managerConfirm) return;
+    if (managerConfirm.action === "assign") {
+      assignRelationshipManagerMutation.mutate({
+        userId: managerConfirm.userId,
+        relationshipManagerId: managerConfirm.relationshipManagerId,
+      });
+    } else {
+      removeRelationshipManagerMutation.mutate({
+        userId: managerConfirm.userId,
+        relationshipManagerId: managerConfirm.relationshipManagerId,
+      });
+    }
+  };
+
   const isRoleMutationPending =
     assignRoleMutation.isPending || removeRoleMutation.isPending;
+  const isManagerMutationPending =
+    assignRelationshipManagerMutation.isPending || removeRelationshipManagerMutation.isPending;
 
   // Owner can assign admin + relationship-manager; admin can only assign relationship-manager
   const assignableRoles = (rolesList ?? []).filter((r) =>
@@ -406,6 +495,7 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
+                      <TableHead>Relationship Manager</TableHead>
                       <TableHead>Roles</TableHead>
                       <TableHead className="w-[140px]">Add role</TableHead>
                     </TableRow>
@@ -421,6 +511,82 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{user.phone}</TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {user.relationshipManagers?.length
+                              ? user.relationshipManagers.map((rm) => (
+                                  <Badge
+                                    key={rm.id}
+                                    variant="secondary"
+                                    className="gap-0.5 pr-0.5 font-normal"
+                                  >
+                                    {rm.firstName} {rm.lastName}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
+                                      aria-label={`Remove ${rm.firstName} ${rm.lastName}`}
+                                      disabled={isManagerMutationPending}
+                                      onClick={() =>
+                                        setManagerConfirm({
+                                          open: true,
+                                          userId: user.id,
+                                          userName: `${user.firstName} ${user.lastName}`,
+                                          relationshipManagerId: rm.id,
+                                          managerName: `${rm.firstName} ${rm.lastName}`,
+                                          action: "remove",
+                                        })
+                                      }
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </Badge>
+                                ))
+                              : null}
+                            {!user.relationshipManagers?.length &&
+                              relationshipManagers.filter((rm) => rm.id !== user.id).length > 0 && (
+                              <Select
+                                value={addManagerSelectValue[user.id] ?? ""}
+                                onValueChange={(value) => {
+                                  if (!value) return;
+                                  const rm = relationshipManagers.find((r) => r.id === value);
+                                  if (!rm) return;
+                                  setAddManagerSelectValue((prev) => ({ ...prev, [user.id]: "" }));
+                                  setManagerConfirm({
+                                    open: true,
+                                    userId: user.id,
+                                    userName: `${user.firstName} ${user.lastName}`,
+                                    relationshipManagerId: value,
+                                    managerName: `${rm.first_name} ${rm.last_name}`,
+                                    action: "assign",
+                                  });
+                                }}
+                                disabled={isManagerMutationPending}
+                              >
+                                <SelectTrigger
+                                  className="h-7 w-[140px] border-dashed"
+                                  data-testid={`select-add-manager-${user.id}`}
+                                >
+                                  <SelectValue placeholder="Add Manager" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {relationshipManagers
+                                    .filter((rm) => rm.id !== user.id)
+                                    .map((rm) => (
+                                      <SelectItem
+                                        key={rm.id}
+                                        value={rm.id}
+                                        data-testid={`option-manager-${rm.id}`}
+                                      >
+                                        {rm.first_name} {rm.last_name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="align-top">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {user.roles?.length
@@ -536,6 +702,28 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
           cancelText="Cancel"
           variant={roleConfirm?.action === "remove" ? "destructive" : "default"}
           isLoading={isRoleMutationPending}
+        />
+
+        <ConfirmationDialog
+          open={managerConfirm?.open ?? false}
+          onClose={() => setManagerConfirm(null)}
+          onConfirm={handleManagerConfirm}
+          title={
+            managerConfirm?.action === "assign"
+              ? "Assign relationship manager"
+              : "Remove relationship manager"
+          }
+          description={
+            managerConfirm
+              ? managerConfirm.action === "assign"
+                ? `Assign ${managerConfirm.managerName} as relationship manager for ${managerConfirm.userName}?`
+                : `Remove ${managerConfirm.managerName} as relationship manager from ${managerConfirm.userName}?`
+              : ""
+          }
+          confirmText={managerConfirm?.action === "assign" ? "Assign" : "Remove"}
+          cancelText="Cancel"
+          variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
+          isLoading={isManagerMutationPending}
         />
       </CardContent>
     </Card>

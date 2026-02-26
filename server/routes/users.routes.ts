@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { users, roles, userRoles } from "@database/schemas/users.schema";
+import { users, roles, userRoles, userRelationshipManagers } from "@database/schemas/users.schema";
 import { desc, asc, eq, and, inArray } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireRole } from "server/middleware/requireRole";
@@ -9,6 +9,7 @@ import {
   deleteSenderSignature,
   findSignatureByEmail,
 } from "server/services/postmark/postmarkSenders";
+import { UserServices } from "server/services/auth";
 
 const router = Router();
 
@@ -77,9 +78,39 @@ router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
             rolesByUserId.set(row.userId, list);
         }
 
+        // Relationship managers per user (user_relationship_managers + RM user details)
+        const rmRows =
+            userIds.length === 0
+                ? []
+                : await db
+                      .select({
+                          userId: userRelationshipManagers.userId,
+                          relationshipManagerId: userRelationshipManagers.relationshipManagerId,
+                          rmFirstName: users.firstName,
+                          rmLastName: users.lastName,
+                      })
+                      .from(userRelationshipManagers)
+                      .innerJoin(users, eq(userRelationshipManagers.relationshipManagerId, users.id))
+                      .where(inArray(userRelationshipManagers.userId, userIds));
+
+        const relationshipManagersByUserId = new Map<
+            string,
+            { id: string; firstName: string; lastName: string }[]
+        >();
+        for (const row of rmRows) {
+            const list = relationshipManagersByUserId.get(row.userId) ?? [];
+            list.push({
+                id: row.relationshipManagerId,
+                firstName: row.rmFirstName,
+                lastName: row.rmLastName,
+            });
+            relationshipManagersByUserId.set(row.userId, list);
+        }
+
         const usersWithRoles = allUsers.map((u) => ({
             ...u,
             roles: rolesByUserId.get(u.id) ?? [],
+            relationshipManagers: relationshipManagersByUserId.get(u.id) ?? [],
         }));
         res.json(usersWithRoles);
     } catch (error) {
@@ -146,6 +177,75 @@ router.get("/relationship-managers", requireRole(["admin", "owner"]), async (_re
     } catch (error) {
         console.error("Error fetching relationship managers:", error);
         res.status(500).json({ message: "Error fetching relationship managers" });
+    }
+});
+
+// Admin/Owner: Assign a relationship manager to a user
+router.post("/:userId/relationship-managers", requireRole(["admin", "owner"]), async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const body = req.body as { relationshipManagerId?: string };
+        const relationshipManagerId = body?.relationshipManagerId;
+        if (!relationshipManagerId || typeof relationshipManagerId !== "string") {
+            return res.status(400).json({ message: "relationshipManagerId is required" });
+        }
+        const [relationshipManagerRole] = await db
+            .select({ id: roles.id })
+            .from(roles)
+            .where(eq(roles.name, "relationship-manager"))
+            .limit(1);
+        if (!relationshipManagerRole) {
+            return res.status(500).json({ message: "Relationship manager role not found" });
+        }
+        const [rmHasRole] = await db
+            .select()
+            .from(userRoles)
+            .where(
+                and(
+                    eq(userRoles.userId, relationshipManagerId),
+                    eq(userRoles.roleId, relationshipManagerRole.id)
+                )
+            )
+            .limit(1);
+        if (!rmHasRole) {
+            return res.status(400).json({ message: "Selected user is not a relationship manager" });
+        }
+        const [targetUser] = await UserServices.getUserById(userId);
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        const existingRm = await db
+            .select({ userId: userRelationshipManagers.userId })
+            .from(userRelationshipManagers)
+            .where(eq(userRelationshipManagers.userId, userId))
+            .limit(1);
+        if (existingRm.length > 0) {
+            return res.status(400).json({ message: "User already has a relationship manager" });
+        }
+        await UserServices.addUserRelationshipManager(userId, relationshipManagerId);
+        return res.status(201).json({ message: "Relationship manager assigned" });
+    } catch (error) {
+        console.error("Error assigning relationship manager:", error);
+        res.status(500).json({ message: "Error assigning relationship manager" });
+    }
+});
+
+// Admin/Owner: Remove a relationship manager from a user
+router.delete("/:userId/relationship-managers/:relationshipManagerId", requireRole(["admin", "owner"]), async (req, res) => {
+    try {
+        const { userId, relationshipManagerId } = req.params;
+        if (!userId || !relationshipManagerId) {
+            return res.status(400).json({ message: "userId and relationshipManagerId are required" });
+        }
+        const [targetUser] = await UserServices.getUserById(userId);
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        await UserServices.removeUserRelationshipManager(userId, relationshipManagerId);
+        return res.status(200).json({ message: "Relationship manager removed" });
+    } catch (error) {
+        console.error("Error removing relationship manager:", error);
+        res.status(500).json({ message: "Error removing relationship manager" });
     }
 });
 

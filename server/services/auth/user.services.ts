@@ -1,7 +1,7 @@
 import { users, userRelationshipManagers } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, and } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 
@@ -105,6 +105,20 @@ export async function addUserMsaSubscription(userId: string, msaId: number): Pro
  */
 export async function addUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
     await db.insert(userRelationshipManagers).values({ userId, relationshipManagerId });
+}
+
+/**
+ * Removes the link between a user and a relationship manager in user_relationship_managers.
+ */
+export async function removeUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
+    await db
+        .delete(userRelationshipManagers)
+        .where(
+            and(
+                eq(userRelationshipManagers.userId, userId),
+                eq(userRelationshipManagers.relationshipManagerId, relationshipManagerId)
+            )
+        );
 }
 
 export async function getUserByEmail(email: string) {
