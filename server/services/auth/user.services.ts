@@ -1,4 +1,4 @@
-import { users } from "@database/schemas/users.schema";
+import { users, userRelationshipManagers } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
 import { eq, sql, inArray } from "drizzle-orm";
@@ -98,6 +98,13 @@ async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Pro
  */
 export async function addUserMsaSubscription(userId: string, msaId: number): Promise<void> {
     await db.insert(userMsaSubscriptions).values({ userId, msaId });
+}
+
+/**
+ * Links a user to a relationship manager in user_relationship_managers (e.g. from email_whitelist on signup).
+ */
+export async function addUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
+    await db.insert(userRelationshipManagers).values({ userId, relationshipManagerId });
 }
 
 export async function getUserByEmail(email: string) {
