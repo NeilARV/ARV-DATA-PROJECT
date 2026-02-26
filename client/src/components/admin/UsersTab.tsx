@@ -38,6 +38,7 @@ interface AdminUser {
   phone: string;
   email: string;
   createdAt: string;
+  roles: string[];
 }
 
 interface UsersTabProps {
@@ -225,6 +226,7 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Signed Up</TableHead>
+                      <TableHead>Roles</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -240,6 +242,9 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                         <TableCell>{user.phone}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {format(new Date(user.createdAt), "MMM d, yyyy h:mm a")}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.roles?.length ? user.roles.join(", ") : "-"}
                         </TableCell>
                       </TableRow>
                     ))}

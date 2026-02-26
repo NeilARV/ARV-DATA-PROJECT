@@ -13,21 +13,43 @@ const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
 };
 const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager"] as const;
 
-// Admin: Get all users
+// Admin: Get all users (with their role names)
 router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
     try {
         const allUsers = await db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            phone: users.phone,
-            email: users.email,
-            createdAt: users.createdAt,
-        })
-        .from(users)
-        .orderBy(desc(users.createdAt));
-        res.json(allUsers);
+            .select({
+                id: users.id,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                phone: users.phone,
+                email: users.email,
+                createdAt: users.createdAt,
+            })
+            .from(users)
+            .orderBy(desc(users.createdAt));
+
+        const userIds = allUsers.map((u) => u.id);
+        const roleRows =
+            userIds.length === 0
+                ? []
+                : await db
+                      .select({ userId: userRoles.userId, roleName: roles.name })
+                      .from(userRoles)
+                      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+                      .where(inArray(userRoles.userId, userIds));
+
+        const rolesByUserId = new Map<string, string[]>();
+        for (const row of roleRows) {
+            const list = rolesByUserId.get(row.userId) ?? [];
+            list.push(row.roleName);
+            rolesByUserId.set(row.userId, list);
+        }
+
+        const usersWithRoles = allUsers.map((u) => ({
+            ...u,
+            roles: rolesByUserId.get(u.id) ?? [],
+        }));
+        res.json(usersWithRoles);
     } catch (error) {
         console.error("Error fetching users:", error);
         res.status(500).json({ message: "Error fetching users" });
