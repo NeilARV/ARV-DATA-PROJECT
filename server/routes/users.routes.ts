@@ -6,12 +6,38 @@ import { requireRole } from "server/middleware/requireRole";
 
 const router = Router();
 
-/** Role names that each caller role is allowed to assign. Owner cannot be assigned via API. */
+/** Role names that each caller role is allowed to assign or remove. Owner cannot be assigned/removed via API. */
 const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
   owner: ["admin", "relationship-manager"],
   admin: ["relationship-manager"],
 };
 const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager"] as const;
+
+/** Hierarchy: higher number = more privilege. Used to block altering users with equal or higher privilege. */
+const ROLE_HIERARCHY: Record<string, number> = {
+  owner: 3,
+  admin: 2,
+  "relationship-manager": 1,
+};
+
+function getAllowedRolesForCaller(callerRoleRows: { roleName: string }[]): string[] {
+  const names = callerRoleRows.map((r) => r.roleName);
+  const isOwner = names.includes("owner");
+  return isOwner ? ASSIGNABLE_BY_CALLER.owner : ASSIGNABLE_BY_CALLER.admin;
+}
+
+function getCallerLevel(callerRoleRows: { roleName: string }[]): number {
+  const levels = callerRoleRows
+    .map((r) => ROLE_HIERARCHY[r.roleName] ?? 0)
+    .filter((n) => n > 0);
+  return levels.length > 0 ? Math.max(...levels) : 0;
+}
+
+function getTargetLevel(targetRoleNames: string[]): number {
+  if (!targetRoleNames.length) return 0;
+  const levels = targetRoleNames.map((name) => ROLE_HIERARCHY[name] ?? 0);
+  return Math.max(...levels);
+}
 
 // Admin: Get all users (with their role names)
 router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
@@ -99,9 +125,7 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
                     inArray(roles.name, ["owner", "admin"])
                 )
             );
-        const callerRoles = callerRoleRows.map((r) => r.roleName);
-        const isOwner = callerRoles.includes("owner");
-        const allowedToAssign = isOwner ? ASSIGNABLE_BY_CALLER.owner : ASSIGNABLE_BY_CALLER.admin;
+        const allowedToAssign = getAllowedRolesForCaller(callerRoleRows);
         if (!allowedToAssign.includes(roleName)) {
             return res.status(403).json({
                 message: "You are not allowed to assign this role",
@@ -117,6 +141,23 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
         const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
         if (!targetUser) {
             return res.status(404).json({ message: "User not found" });
+        }
+
+        const isSelf = userId === req.session.userId;
+        if (!isSelf) {
+            const targetRoleRows = await db
+                .select({ roleName: roles.name })
+                .from(userRoles)
+                .innerJoin(roles, eq(userRoles.roleId, roles.id))
+                .where(eq(userRoles.userId, userId));
+            const targetRoleNames = targetRoleRows.map((r) => r.roleName);
+            const callerLevel = getCallerLevel(callerRoleRows);
+            const targetLevel = getTargetLevel(targetRoleNames);
+            if (callerLevel <= targetLevel) {
+                return res.status(403).json({
+                    message: "You cannot alter roles of a user with equal or higher permissions",
+                });
+            }
         }
 
         const existing = await db
@@ -141,6 +182,93 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
     } catch (error) {
         console.error("Error assigning role:", error);
         res.status(500).json({ message: "Error assigning role" });
+    }
+});
+
+// Admin/Owner: Remove a role from a user (owner can remove admin | relationship-manager; admin can remove relationship-manager only)
+router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), async (req, res) => {
+    try {
+        const { userId, role: roleParam } = req.params;
+        const roleName = roleParam?.trim().toLowerCase() ?? "";
+
+        if (!roleName || !VALID_ROLE_NAMES.includes(roleName as (typeof VALID_ROLE_NAMES)[number])) {
+            return res.status(400).json({
+                message: "Invalid or missing role",
+                allowed: VALID_ROLE_NAMES.filter((r) => r !== "owner"),
+            });
+        }
+        if (roleName === "owner") {
+            if (userId === req.session.userId) {
+                return res.status(403).json({
+                    message: "You cannot remove the owner role from yourself",
+                });
+            }
+            return res.status(403).json({ message: "Removing owner role is not allowed via API" });
+        }
+
+        const callerRoleRows = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, req.session.userId!),
+                    inArray(roles.name, ["owner", "admin"])
+                )
+            );
+        const allowedToRemove = getAllowedRolesForCaller(callerRoleRows);
+        if (!allowedToRemove.includes(roleName)) {
+            return res.status(403).json({
+                message: "You are not allowed to remove this role",
+                removableByYou: allowedToRemove,
+            });
+        }
+
+        const [roleRow] = await db.select().from(roles).where(eq(roles.name, roleName)).limit(1);
+        if (!roleRow) {
+            return res.status(400).json({ message: "Role not found" });
+        }
+
+        const [targetUser] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const isSelf = userId === req.session.userId;
+        if (!isSelf) {
+            const targetRoleRows = await db
+                .select({ roleName: roles.name })
+                .from(userRoles)
+                .innerJoin(roles, eq(userRoles.roleId, roles.id))
+                .where(eq(userRoles.userId, userId));
+            const targetRoleNames = targetRoleRows.map((r) => r.roleName);
+            const callerLevel = getCallerLevel(callerRoleRows);
+            const targetLevel = getTargetLevel(targetRoleNames);
+            if (callerLevel <= targetLevel) {
+                return res.status(403).json({
+                    message: "You cannot alter roles of a user with equal or higher permissions",
+                });
+            }
+        }
+
+        const deleted = await db
+            .delete(userRoles)
+            .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleRow.id)))
+            .returning({ userId: userRoles.userId, roleId: userRoles.roleId });
+
+        if (deleted.length === 0) {
+            return res.status(404).json({ message: "User does not have this role" });
+        }
+
+        return res.status(200).json({
+            message: "Role removed",
+            userId,
+            roleId: roleRow.id,
+            roleName: roleRow.name,
+        });
+    } catch (error) {
+        console.error("Error removing role:", error);
+        res.status(500).json({ message: "Error removing role" });
     }
 });
 

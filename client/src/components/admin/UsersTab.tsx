@@ -25,11 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Plus, Users, X } from "lucide-react";
 import { MSA } from "@/constants/filters.constants";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 
 interface AdminUser {
   id: string;
@@ -41,18 +42,58 @@ interface AdminUser {
   roles: string[];
 }
 
-interface UsersTabProps {
-  isAdmin: boolean;
+interface RoleOption {
+  id: number;
+  name: string;
 }
 
-export default function UsersTab({ isAdmin }: UsersTabProps) {
+interface UsersTabProps {
+  isAdmin: boolean;
+  /** True when current user has owner role (can assign/remove admin; can remove owner only from others is blocked by API). */
+  isOwner?: boolean;
+  /** Current user's id so we can allow editing your own roles (e.g. add/remove relationship-manager from yourself). */
+  currentUserId?: string | null;
+}
+
+function parseRoleApiError(error: unknown): string {
+  let message = "Something went wrong";
+  if (error instanceof Error && error.message) {
+    const match = error.message.match(/^\d+:\s*(.+)$/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        message = parsed.message ?? message;
+      } catch {
+        message = match[1] || message;
+      }
+    } else {
+      message = error.message;
+    }
+  }
+  return message;
+}
+
+export default function UsersTab({ isAdmin, isOwner = false, currentUserId = null }: UsersTabProps) {
   const { toast } = useToast();
   const [whitelistEmail, setWhitelistEmail] = useState("");
   const [whitelistMsa, setWhitelistMsa] = useState<string>(MSA[0]);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [roleConfirm, setRoleConfirm] = useState<{
+    open: boolean;
+    userId: string;
+    userName: string;
+    roleName: string;
+    action: "assign" | "remove";
+  } | null>(null);
+  const [addRoleSelectValue, setAddRoleSelectValue] = useState<Record<string, string>>({});
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
     queryKey: ["/api/users/"],
+    enabled: isAdmin,
+  });
+
+  const { data: rolesList } = useQuery<RoleOption[]>({
+    queryKey: ["/api/users/roles"],
     enabled: isAdmin,
   });
 
@@ -71,25 +112,49 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
       setWhitelistMsa(MSA[0]);
       setEmailError(null);
     },
-    onError: (error: any) => {
-      // Parse error message from apiRequest format: "STATUS_CODE: JSON_STRING"
-      let errorMessage = "Failed to add email to whitelist";
-      if (error?.message) {
-        const match = error.message.match(/^\d+:\s*(.+)$/);
-        if (match) {
-          try {
-            const parsed = JSON.parse(match[1]);
-            errorMessage = parsed.message || errorMessage;
-          } catch {
-            errorMessage = match[1] || errorMessage;
-          }
-        } else {
-          errorMessage = error.message;
-        }
-      }
+    onError: (error: unknown) => {
       toast({
         title: "Error",
-        description: errorMessage,
+        description: parseRoleApiError(error) || "Failed to add email to whitelist",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const assignRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/roles`, { roleName });
+      return res.json();
+    },
+    onSuccess: (_, { roleName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
+      toast({ title: "Role assigned", description: `Role "${roleName}" has been assigned.` });
+      setRoleConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
+      const encodedRole = encodeURIComponent(roleName);
+      const res = await apiRequest("DELETE", `/api/users/${userId}/roles/${encodedRole}`);
+      return res.json();
+    },
+    onSuccess: (_, { roleName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
+      toast({ title: "Role removed", description: `Role "${roleName}" has been removed.` });
+      setRoleConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error),
         variant: "destructive",
       });
     },
@@ -115,6 +180,44 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
       email: result.data.email,
       msaName: result.data.msaName,
     });
+  };
+
+  const handleRoleConfirm = () => {
+    if (!roleConfirm) return;
+    if (roleConfirm.action === "assign") {
+      assignRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
+    } else {
+      removeRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
+    }
+  };
+
+  const isRoleMutationPending =
+    assignRoleMutation.isPending || removeRoleMutation.isPending;
+
+  // Owner can assign admin + relationship-manager; admin can only assign relationship-manager
+  const assignableRoles = (rolesList ?? []).filter((r) =>
+    r.name === "relationship-manager" || (isOwner && r.name === "admin")
+  );
+
+  const ROLE_LEVEL: Record<string, number> = {
+    owner: 3,
+    admin: 2,
+    "relationship-manager": 1,
+  };
+  const getTargetLevel = (roleNames: string[]) => {
+    if (!roleNames.length) return 0;
+    return Math.max(...roleNames.map((name) => ROLE_LEVEL[name] ?? 0));
+  };
+  const callerLevel = isOwner ? 3 : 2;
+  const canAlterUser = (user: AdminUser) =>
+    (currentUserId != null && user.id === currentUserId) ||
+    callerLevel > getTargetLevel(user.roles ?? []);
+
+  const canRemoveRole = (roleName: string, user: AdminUser) => {
+    if (!canAlterUser(user)) return false; // Cannot alter users with equal or higher privilege
+    if (roleName === "owner") return false; // No one can remove owner via UI/API
+    if (roleName === "admin") return isOwner; // Only owner can remove admin
+    return true; // relationship-manager: both owner and admin can remove
   };
 
   return (
@@ -225,8 +328,8 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Signed Up</TableHead>
                       <TableHead>Roles</TableHead>
+                      <TableHead className="w-[140px]">Add role</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -240,11 +343,91 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{user.phone}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {format(new Date(user.createdAt), "MMM d, yyyy h:mm a")}
+                        <TableCell className="align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {user.roles?.length
+                              ? user.roles.map((roleName) => (
+                                  <Badge
+                                    key={roleName}
+                                    variant="secondary"
+                                    className={
+                                      canRemoveRole(roleName, user)
+                                        ? "gap-0.5 pr-0.5 font-normal"
+                                        : "font-normal"
+                                    }
+                                  >
+                                    {roleName}
+                                    {canRemoveRole(roleName, user) && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
+                                        aria-label={`Remove ${roleName}`}
+                                        disabled={isRoleMutationPending}
+                                        onClick={() =>
+                                          setRoleConfirm({
+                                            open: true,
+                                            userId: user.id,
+                                            userName: `${user.firstName} ${user.lastName}`,
+                                            roleName,
+                                            action: "remove",
+                                          })
+                                        }
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </Badge>
+                                ))
+                              : "-"}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {user.roles?.length ? user.roles.join(", ") : "-"}
+                        <TableCell className="align-top">
+                          {canAlterUser(user) &&
+                          assignableRoles.some((r) => !user.roles?.includes(r.name)) ? (
+                            <Select
+                              value={addRoleSelectValue[user.id] ?? ""}
+                              onValueChange={(value) => {
+                                const roleName = assignableRoles.find(
+                                  (r) => String(r.id) === value
+                                )?.name;
+                                if (roleName && !user.roles?.includes(roleName)) {
+                                  setAddRoleSelectValue((prev) => ({ ...prev, [user.id]: "" }));
+                                  setRoleConfirm({
+                                    open: true,
+                                    userId: user.id,
+                                    userName: `${user.firstName} ${user.lastName}`,
+                                    roleName,
+                                    action: "assign",
+                                  });
+                                }
+                              }}
+                              disabled={isRoleMutationPending}
+                            >
+                              <SelectTrigger
+                                className="h-7 w-[120px] border-dashed"
+                                data-testid={`select-add-role-${user.id}`}
+                              >
+                                <SelectValue placeholder="Add role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {assignableRoles
+                                  .filter((r) => !user.roles?.includes(r.name))
+                                  .map((r) => (
+                                    <SelectItem
+                                      key={r.id}
+                                      value={String(r.id)}
+                                      data-testid={`option-role-${r.name}`}
+                                    >
+                                      {r.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -254,6 +437,28 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
             </div>
           </div>
         )}
+
+        <ConfirmationDialog
+          open={roleConfirm?.open ?? false}
+          onClose={() => setRoleConfirm(null)}
+          onConfirm={handleRoleConfirm}
+          title={
+            roleConfirm?.action === "assign"
+              ? "Assign role"
+              : "Remove role"
+          }
+          description={
+            roleConfirm
+              ? roleConfirm.action === "assign"
+                ? `Assign the role "${roleConfirm.roleName}" to ${roleConfirm.userName}?`
+                : `Remove the role "${roleConfirm.roleName}" from ${roleConfirm.userName}?`
+              : ""
+          }
+          confirmText={roleConfirm?.action === "assign" ? "Assign" : "Remove"}
+          cancelText="Cancel"
+          variant={roleConfirm?.action === "remove" ? "destructive" : "default"}
+          isLoading={isRoleMutationPending}
+        />
       </CardContent>
     </Card>
   );

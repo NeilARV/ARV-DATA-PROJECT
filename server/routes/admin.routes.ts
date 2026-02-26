@@ -10,11 +10,11 @@ const router = Router();
 
 const ADMIN_ACCESS_ROLES = ["admin", "owner"] as const;
 
-// Check admin auth status (role-based: admin or owner from user_roles + roles)
+// Check admin auth status (role-based: admin or owner from user_roles + roles). Returns roles so UI can enforce owner > admin > relationship-manager.
 router.get("/status", async (req, res) => {
     try {
         if (!req.session.userId) {
-            return res.json({ authenticated: false, isAdmin: false });
+            return res.json({ authenticated: false, isAdmin: false, roles: [] });
         }
 
         const allowedRows = await db
@@ -26,11 +26,11 @@ router.get("/status", async (req, res) => {
                     eq(userRoles.userId, req.session.userId),
                     inArray(roles.name, [...ADMIN_ACCESS_ROLES])
                 )
-            )
-            .limit(1);
+            );
 
-        const isAdmin = allowedRows.length > 0;
-        res.json({ authenticated: true, isAdmin });
+        const rolesList = allowedRows.map((r) => r.roleName);
+        const isAdmin = rolesList.length > 0;
+        res.json({ authenticated: true, isAdmin, roles: rolesList });
     } catch (error) {
         console.error("Error checking admin status:", error);
         res.status(500).json({ message: "Error checking admin status" });

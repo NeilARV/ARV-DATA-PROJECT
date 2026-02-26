@@ -27,7 +27,7 @@ export function useAuth() {
   const {
     data: adminStatus,
     isLoading: isAdminStatusLoading,
-  } = useQuery<{ authenticated: boolean; isAdmin: boolean }>({
+  } = useQuery<{ authenticated: boolean; isAdmin: boolean; roles: string[] }>({
     queryKey: ADMIN_STATUS_QUERY_KEY,
     staleTime: 5 * 60 * 1000,
     enabled: isAuthenticated,
@@ -43,12 +43,19 @@ export function useAuth() {
     },
   });
 
+  const adminRoles = adminStatus?.roles ?? [];
+  const isOwner = adminRoles.includes("owner");
+
   return {
     user: data?.user ?? null,
     isLoading,
     isAuthenticated,
     /** Role-based admin (admin or owner from user_roles). Only true when authenticated and status loaded. */
     isAdmin: isAuthenticated && (adminStatus?.isAdmin ?? false),
+    /** True when current user has owner role (for role-management permissions). */
+    isOwner,
+    /** Current user's admin-level roles: ["owner"], ["admin"], or ["owner","admin"] */
+    adminRoles,
     isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,

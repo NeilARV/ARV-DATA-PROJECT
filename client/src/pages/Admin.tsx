@@ -32,9 +32,11 @@ export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const {
+    user: authUser,
     isLoading: isLoadingUser,
     isAuthenticated: isUserAuthenticated,
     isAdmin,
+    isOwner,
     isAdminStatusLoading,
   } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -190,7 +192,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} />
+          <UsersTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
         </TabsContent>
       </Tabs>
 
