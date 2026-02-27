@@ -23,7 +23,7 @@ export interface AuthUser {
   relationshipManager?: RelationshipManager | null;
 }
 
-/** Admin status from GET /api/admin/status (role-based: user_roles + roles, admin or owner). */
+/** Admin status from GET /api/admin/status (role-based: admin, owner, or relationship-manager can access panel). */
 const ADMIN_STATUS_QUERY_KEY = ["/api/admin/status"] as const;
 
 export function useAuth() {
@@ -60,7 +60,7 @@ export function useAuth() {
     user: data?.user ?? null,
     isLoading,
     isAuthenticated,
-    /** Role-based admin (admin or owner from user_roles). Only true when authenticated and status loaded. */
+    /** Role-based: true when user has admin, owner, or relationship-manager (can see Admin link and access /admin). */
     isAdmin: isAuthenticated && (adminStatus?.isAdmin ?? false),
     /** True when current user has owner role (for role-management permissions). */
     isOwner,

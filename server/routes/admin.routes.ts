@@ -9,8 +9,10 @@ import { requireRole } from "server/middleware/requireRole";
 const router = Router();
 
 const ADMIN_ACCESS_ROLES = ["admin", "owner"] as const;
+/** Roles that can see and access the admin panel (header link + /admin page). */
+const ADMIN_PANEL_ROLES = ["admin", "owner", "relationship-manager"] as const;
 
-// Check admin auth status (role-based: admin or owner from user_roles + roles). Returns roles so UI can enforce owner > admin > relationship-manager.
+// Check admin auth status (role-based). isAdmin true for admin, owner, or relationship-manager so they can access the panel.
 router.get("/status", async (req, res) => {
     try {
         if (!req.session.userId) {
@@ -24,7 +26,7 @@ router.get("/status", async (req, res) => {
             .where(
                 and(
                     eq(userRoles.userId, req.session.userId),
-                    inArray(roles.name, [...ADMIN_ACCESS_ROLES])
+                    inArray(roles.name, [...ADMIN_PANEL_ROLES])
                 )
             );
 

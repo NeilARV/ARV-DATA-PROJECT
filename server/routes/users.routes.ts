@@ -131,7 +131,7 @@ router.get("/", requireRole(["admin", "owner"]), async (req, res) => {
 });
 
 // Get all users who have the relationship-manager role (id, first_name, last_name, phone, email, roles)
-router.get("/relationship-managers", requireRole(["admin", "owner"]), async (_req, res) => {
+router.get("/relationship-managers", requireRole(["admin", "owner", "relationship-manager"]), async (_req, res) => {
     try {
         const [relationshipManagerRole] = await db
             .select({ id: roles.id })
