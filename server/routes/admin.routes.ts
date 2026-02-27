@@ -37,6 +37,46 @@ router.get("/status", async (req, res) => {
     }
 });
 
+// Get all whitelist entries (id and email) — admin/owner only
+router.get("/whitelist", requireRole(["admin", "owner"]), async (req, res) => {
+    try {
+        const rows = await db
+            .select({ id: emailWhitelist.id, email: emailWhitelist.email })
+            .from(emailWhitelist)
+            .orderBy(emailWhitelist.createdAt);
+
+        return res.json(rows);
+    } catch (error) {
+        console.error("Error fetching email whitelist:", error);
+        res.status(500).json({ message: "Error fetching email whitelist" });
+    }
+});
+
+// Delete whitelist entry by id — admin/owner only
+router.delete("/whitelist/:id", requireRole(["admin", "owner"]), async (req, res) => {
+    try {
+        const id = req.params.id;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            return res.status(400).json({ message: "Invalid whitelist entry id" });
+        }
+
+        const deleted = await db
+            .delete(emailWhitelist)
+            .where(eq(emailWhitelist.id, id))
+            .returning({ id: emailWhitelist.id });
+
+        if (deleted.length === 0) {
+            return res.status(404).json({ message: "Whitelist entry not found" });
+        }
+
+        return res.status(200).json({ message: "Whitelist entry deleted", id: deleted[0].id });
+    } catch (error) {
+        console.error("Error deleting from whitelist:", error);
+        res.status(500).json({ message: "Error deleting from whitelist" });
+    }
+});
+
 router.post("/whitelist", requireRole(["admin", "owner"]), async (req, res) => { 
     try {
         const validation = insertEmailWhitelistSchema.safeParse(req.body);

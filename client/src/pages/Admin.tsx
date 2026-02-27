@@ -26,7 +26,7 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
-import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
+// import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
 import RolesTab from "@/components/admin/RolesTab";
 
@@ -173,10 +173,10 @@ export default function Admin() {
 
       <Tabs defaultValue="manage" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8">
-          <TabsTrigger value="manage" data-testid="tab-manage">
+          {/* <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
             Manage Properties
-          </TabsTrigger>
+          </TabsTrigger> */}
           <TabsTrigger value="users" data-testid="tab-users">
             <Users className="w-4 h-4 mr-2" />
             Users
@@ -187,7 +187,7 @@ export default function Admin() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="manage">
+        {/* <TabsContent value="manage">
           <ManagePropertiesTab
             properties={properties}
             isLoading={isLoading}
@@ -195,7 +195,7 @@ export default function Admin() {
             selectedCounty={selectedCounty}
             onCountyChange={(county) => setSelectedCounty(county)}
           />
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="users">
           <UsersTab isAdmin={isAdmin} />
