@@ -282,13 +282,13 @@ export default function Profile() {
             </div>
 
             {(isEditing ? formData.notifications : (user.notifications ?? true)) && (
-              <div className="space-y-3 pt-2 border-t">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Location Subscriptions
-                </label>
-                <p className="text-sm text-muted-foreground">
-                  Select the MSAs (Metropolitan Statistical Areas) you want to receive property updates for.
-                </p>
+              <div className="space-y-4 pt-6 border-t">
+                <div>
+                  <CardTitle className="text-lg">Location Subscriptions</CardTitle>
+                  <CardDescription>
+                    Select the MSAs (Metropolitan Statistical Areas) you want to receive property updates for.
+                  </CardDescription>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {MSA.map((msaName) => (
                     <div key={msaName} className="flex items-center gap-2">
@@ -322,13 +322,13 @@ export default function Profile() {
             )}
 
             {user.relationshipManager && (
-              <div className="space-y-3 pt-6 border-t">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Your Relationship Manager
-                </label>
-                <p className="text-sm text-muted-foreground">
-                  Contact your relationship manager for support or questions.
-                </p>
+              <div className="space-y-4 pt-6 border-t">
+                <div>
+                  <CardTitle className="text-lg">Your Relationship Manager</CardTitle>
+                  <CardDescription>
+                    Contact your relationship manager for support or questions.
+                  </CardDescription>
+                </div>
                 <div className="rounded-lg border bg-muted/30 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <span className="text-xs text-muted-foreground">First Name</span>
