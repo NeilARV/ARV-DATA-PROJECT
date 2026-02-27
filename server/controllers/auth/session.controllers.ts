@@ -68,9 +68,12 @@ export async function me(req: Request, res: Response, next: NextFunction):Promis
             return;
         }
 
-        const msaSubscriptions = await UserServices.getUserMsaSubscriptionNames(user.id);
+        const [msaSubscriptions, relationshipManager] = await Promise.all([
+            UserServices.getUserMsaSubscriptionNames(user.id),
+            UserServices.getRelationshipManagerForUser(user.id),
+        ]);
         const { passwordHash: _, ...userWithoutPassword } = user;
-        res.json({ user: { ...userWithoutPassword, msaSubscriptions } });
+        res.json({ user: { ...userWithoutPassword, msaSubscriptions, relationshipManager } });
 
     } catch (error) {
         console.error("Error fetching current user:", error);
@@ -115,11 +118,14 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
             return;
         }
 
-        const msaSubscriptions = await UserServices.getUserMsaSubscriptionNames(updatedUser.id);
+        const [msaSubscriptions, relationshipManager] = await Promise.all([
+            UserServices.getUserMsaSubscriptionNames(updatedUser.id),
+            UserServices.getRelationshipManagerForUser(updatedUser.id),
+        ]);
         const { passwordHash: _, ...userWithoutPassword } = updatedUser;
         res.json({
             success: true,
-            user: { ...userWithoutPassword, msaSubscriptions },
+            user: { ...userWithoutPassword, msaSubscriptions, relationshipManager },
         });
 
     } catch (error) {

@@ -2,6 +2,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+export interface RelationshipManager {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+}
+
 export interface AuthUser {
   id: string;
   firstName: string;
@@ -11,6 +19,8 @@ export interface AuthUser {
   isAdmin: boolean;
   notifications: boolean;
   createdAt: string;
+  msaSubscriptions?: string[];
+  relationshipManager?: RelationshipManager | null;
 }
 
 /** Admin status from GET /api/admin/status (role-based: user_roles + roles, admin or owner). */

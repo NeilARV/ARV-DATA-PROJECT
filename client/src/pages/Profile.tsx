@@ -41,7 +41,7 @@ export default function Profile() {
       const phone = user.phone 
         ? (user.phone.includes('(') ? user.phone : formatPhoneNumber(user.phone))
         : "";
-      const msaSubscriptions = (user as { msaSubscriptions?: string[] }).msaSubscriptions ?? [];
+      const msaSubscriptions = user.msaSubscriptions ?? [];
       
       setFormData({
         firstName: user.firstName,
@@ -321,6 +321,45 @@ export default function Profile() {
               </div>
             )}
 
+            {user.relationshipManager && (
+              <div className="space-y-3 pt-6 border-t">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Your Relationship Manager
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  Contact your relationship manager for support or questions.
+                </p>
+                <div className="rounded-lg border bg-muted/30 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-xs text-muted-foreground">First Name</span>
+                    <p className="font-medium">{user.relationshipManager.firstName}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Last Name</span>
+                    <p className="font-medium">{user.relationshipManager.lastName}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Email</span>
+                    <p className="font-medium">
+                      <p className="text-primary">
+                        {user.relationshipManager.email}
+                      </p>
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Phone</span>
+                    <p className="font-medium">
+                      {user.relationshipManager.phone
+                        ? (user.relationshipManager.phone.includes("(")
+                            ? user.relationshipManager.phone
+                            : formatPhoneNumber(user.relationshipManager.phone))
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isEditing && (
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button
@@ -333,7 +372,7 @@ export default function Profile() {
                         : formatPhoneNumber(user.phone)
                       : "";
 
-                    const msaSubscriptions = (user as { msaSubscriptions?: string[] }).msaSubscriptions ?? [];
+                    const msaSubscriptions = user.msaSubscriptions ?? [];
                     setFormData({
                       firstName: user.firstName,
                       lastName: user.lastName,

@@ -143,6 +143,33 @@ export async function getUserById(userId: string) {
 }
 
 /**
+ * Returns the relationship manager for a user (if any) for profile / me response.
+ * Uses user_relationship_managers: current user is user_id, RM is relationship_manager_id.
+ */
+export async function getRelationshipManagerForUser(userId: string): Promise<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+} | null> {
+    const rows = await db
+        .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            phone: users.phone,
+        })
+        .from(userRelationshipManagers)
+        .innerJoin(users, eq(userRelationshipManagers.relationshipManagerId, users.id))
+        .where(eq(userRelationshipManagers.userId, userId))
+        .limit(1);
+    const rm = rows[0];
+    return rm ?? null;
+}
+
+/**
  * Returns MSA names the user is subscribed to (for profile / me response).
  */
 export async function getUserMsaSubscriptionNames(userId: string): Promise<string[]> {
