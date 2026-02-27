@@ -38,7 +38,7 @@ router.get("/status", async (req, res) => {
 });
 
 // Get all whitelist entries (id and email) — admin/owner only
-router.get("/whitelist", requireRole(["admin", "owner"]), async (req, res) => {
+router.get("/whitelist", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const rows = await db
             .select({ id: emailWhitelist.id, email: emailWhitelist.email })
@@ -53,7 +53,7 @@ router.get("/whitelist", requireRole(["admin", "owner"]), async (req, res) => {
 });
 
 // Delete whitelist entry by id — admin/owner only
-router.delete("/whitelist/:id", requireRole(["admin", "owner"]), async (req, res) => {
+router.delete("/whitelist/:id", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const id = req.params.id;
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -77,7 +77,7 @@ router.delete("/whitelist/:id", requireRole(["admin", "owner"]), async (req, res
     }
 });
 
-router.post("/whitelist", requireRole(["admin", "owner"]), async (req, res) => { 
+router.post("/whitelist", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => { 
     try {
         const validation = insertEmailWhitelistSchema.safeParse(req.body);
 
