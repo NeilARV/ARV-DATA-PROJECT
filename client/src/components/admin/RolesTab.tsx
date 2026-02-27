@@ -28,6 +28,7 @@ import { Loader2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 
 interface AdminUser {
   id: string;
@@ -208,7 +209,7 @@ export default function RolesTab({ isAdmin, isOwner = false, currentUserId = nul
                           {user.firstName} {user.lastName}
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.phone}</TableCell>
+                        <TableCell>{formatPhoneNumber(user.phone ?? "")}</TableCell>
                         <TableCell className="align-top">
                           <div className="flex flex-wrap items-center gap-1.5">
                             {user.roles?.length
