@@ -1,8 +1,3 @@
-/**
- * Postmark Sender Signatures API (account-level).
- * Uses X-Postmark-Account-Token. See: https://postmarkapp.com/developer/api/signatures-api
- */
-
 const POSTMARK_SENDERS_BASE = "https://api.postmarkapp.com/senders";
 
 export interface PostmarkSenderSignature {
@@ -25,9 +20,7 @@ function getAccountToken(): string {
   return token;
 }
 
-/**
- * GET /senders — list sender signatures (paginated).
- */
+// GET /senders — list sender signatures (paginated).
 export async function listSenderSignatures(
   count = 50,
   offset = 0
@@ -48,9 +41,7 @@ export async function listSenderSignatures(
   return res.json() as Promise<ListSendersResponse>;
 }
 
-/**
- * POST /senders — create a sender signature.
- */
+// POST /senders — create a sender signature.
 export async function createSenderSignature(params: {
   FromEmail: string;
   Name: string;
@@ -83,9 +74,7 @@ export async function createSenderSignature(params: {
   return res.json();
 }
 
-/**
- * DELETE /senders/:id — remove a sender signature.
- */
+// DELETE /senders/:id — remove a sender signature.
 export async function deleteSenderSignature(signatureId: number): Promise<void> {
   const token = getAccountToken();
   const url = `${POSTMARK_SENDERS_BASE}/${signatureId}`;
@@ -102,10 +91,9 @@ export async function deleteSenderSignature(signatureId: number): Promise<void> 
   }
 }
 
-/**
- * Find a sender signature by email (case-insensitive) in the current page of results.
- * For pagination, call listSenderSignatures in a loop if you have many senders.
- */
+
+// Find a sender signature by email (case-insensitive) in the current page of results.
+// For pagination, call listSenderSignatures in a loop if you have many senders.
 export function findSignatureByEmail(
   signatures: PostmarkSenderSignature[],
   email: string

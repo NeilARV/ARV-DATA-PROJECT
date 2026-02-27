@@ -1,8 +1,3 @@
-/**
- * Postmark transactional email sending.
- * Uses the Server API (POSTMARK_SERVER_API_KEY). Sender verification is handled in senders.services.
- */
-
 import { ServerClient } from "postmark";
 
 const DEFAULT_FROM_EMAIL = "neil@arvfinance.com";
@@ -15,9 +10,7 @@ function getServerKey(): string {
 
 let clientInstance: ServerClient | null = null;
 
-/**
- * Returns the Postmark server client. Throws if POSTMARK_SERVER_API_KEY is not set.
- */
+// Returns the Postmark server client. Throws if POSTMARK_SERVER_API_KEY is not set.
 export function getPostmarkClient(): ServerClient {
   if (!clientInstance) {
     clientInstance = new ServerClient(getServerKey());
@@ -25,9 +18,7 @@ export function getPostmarkClient(): ServerClient {
   return clientInstance;
 }
 
-/**
- * Default From address when the recipient has no relationship manager or their RM is not a confirmed Postmark sender.
- */
+// Default From address when the recipient has no relationship manager or their RM is not a confirmed Postmark sender
 export function getDefaultFromEmail(): string {
   return DEFAULT_FROM_EMAIL;
 }
@@ -39,9 +30,7 @@ export interface SendEmailWithTemplateParams {
   TemplateModel: Record<string, unknown>;
 }
 
-/**
- * Sends a single email using a Postmark template.
- */
+// Sends a single email using a Postmark template
 export async function sendEmailWithTemplate(
   payload: SendEmailWithTemplateParams
 ): Promise<void> {
