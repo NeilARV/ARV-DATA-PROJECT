@@ -1,4 +1,3 @@
-import { ServerClient } from "postmark";
 import { db } from "server/storage";
 import { users, userRelationshipManagers } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
@@ -13,6 +12,10 @@ import {
   findSignatureByEmail,
   type PostmarkSenderSignature,
 } from "server/services/postmark/senders.services";
+import {
+  sendEmailWithTemplate,
+  getDefaultFromEmail,
+} from "server/services/postmark/email.services";
 
 const buyerCompanies = alias(companies, "buyer_companies");
 const sellerCompanies = alias(companies, "seller_companies");
@@ -23,9 +26,6 @@ const CANDIDATE_POOL_SIZE = 20;
 
 const STREETVIEW_SIZE = "600x400";
 const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
-
-/** From address when the recipient has no relationship manager or their RM is not a confirmed Postmark sender. */
-const DEFAULT_FROM_EMAIL = "neil@arvfinance.com";
 
 // Status tag styles — match PropertyCard.tsx (and PropertyMap map ping colors)
 const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -107,11 +107,6 @@ async function getStreetViewUrlIfAvailable(
  * Uses the 3 most recent properties in that MSA for the email content.
  */
 export async function sendEmailUpdatesForMsa(msaName: string, city: string, state: string): Promise<void> {
-  const SERVER_KEY = process.env.POSTMARK_SERVER_API_KEY;
-  if (!SERVER_KEY) throw new Error("[EMAIL]: Failed to load `POSTMARK_SERVER_API_KEY`");
-
-  const client = new ServerClient(SERVER_KEY);
-
   try {
     // Users who have this MSA subscribed and notifications enabled
     const usersToEmail = await db
@@ -309,7 +304,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     const failedRecipients: string[] = [];
 
     for (const user of uniqueUsers) {
-      let fromAddress = DEFAULT_FROM_EMAIL;
+      let fromAddress = getDefaultFromEmail();
       const rmEmail = relationshipManagerEmailByRecipientId.get(user.id);
       if (rmEmail) {
         const signature = findSignatureByEmail(confirmedSenders, rmEmail);
@@ -335,7 +330,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       };
 
       try {
-        await client.sendEmailWithTemplate(emailTemplate);
+        await sendEmailWithTemplate(emailTemplate);
         sentCount++;
         console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
       } catch (err) {
