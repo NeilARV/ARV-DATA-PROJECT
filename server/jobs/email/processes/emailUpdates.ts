@@ -12,7 +12,7 @@ import {
   listSenderSignatures,
   findSignatureByEmail,
   type PostmarkSenderSignature,
-} from "server/services/postmark/postmarkSenders";
+} from "server/services/postmark/senders.services";
 
 const buyerCompanies = alias(companies, "buyer_companies");
 const sellerCompanies = alias(companies, "seller_companies");

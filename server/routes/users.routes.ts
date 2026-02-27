@@ -8,7 +8,7 @@ import {
   createSenderSignature,
   deleteSenderSignature,
   findSignatureByEmail,
-} from "server/services/postmark/postmarkSenders";
+} from "server/services/postmark/senders.services";
 import { UserServices } from "server/services/auth";
 
 const router = Router();
