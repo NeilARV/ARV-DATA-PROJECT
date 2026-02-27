@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { users, roles, userRoles, userRelationshipManagers } from "@database/schemas/users.schema";
-import { desc, asc, eq, and, inArray, ilike } from "drizzle-orm";
+import { desc, asc, eq, and, inArray, ilike, sql } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireRole } from "server/middleware/requireRole";
 import {
@@ -46,10 +46,19 @@ function getTargetLevel(targetRoleNames: string[]): number {
   return Math.max(...levels);
 }
 
-// Admin: Get all users (with their role names). Optional ?domain=arvfinance.com to restrict to that email domain.
+// Admin: Get all users (with their role names).
+// Optional ?domain=arvfinance.com to only include that email domain.
+// Optional ?excludeDomain=arvfinance.com to exclude that email domain.
 router.get("/", requireRole(["admin", "owner"]), async (req, res) => {
     try {
         const domain = req.query.domain === "arvfinance.com" ? "arvfinance.com" : undefined;
+        const excludeDomain = req.query.excludeDomain === "arvfinance.com" ? "arvfinance.com" : undefined;
+        const whereClause =
+            domain
+                ? ilike(users.email, "%@arvfinance.com")
+                : excludeDomain
+                    ? sql`NOT (${users.email} ILIKE ${"%@arvfinance.com"})`
+                    : undefined;
         const allUsers = await db
             .select({
                 id: users.id,
@@ -60,7 +69,7 @@ router.get("/", requireRole(["admin", "owner"]), async (req, res) => {
                 createdAt: users.createdAt,
             })
             .from(users)
-            .where(domain ? ilike(users.email, "%@arvfinance.com") : undefined)
+            .where(whereClause)
             .orderBy(desc(users.createdAt));
 
         const userIds = allUsers.map((u) => u.id);

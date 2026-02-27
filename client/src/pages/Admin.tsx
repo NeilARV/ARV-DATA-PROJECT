@@ -198,7 +198,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
+          <UsersTab isAdmin={isAdmin} />
         </TabsContent>
 
         <TabsContent value="roles">

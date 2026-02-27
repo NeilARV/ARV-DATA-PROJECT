@@ -46,13 +46,7 @@ interface AdminUser {
   phone: string;
   email: string;
   createdAt: string;
-  roles: string[];
   relationshipManagers: RelationshipManagerAssignment[];
-}
-
-interface RoleOption {
-  id: number;
-  name: string;
 }
 
 /** From GET /api/users/relationship-managers */
@@ -67,10 +61,6 @@ interface RelationshipManager {
 
 interface UsersTabProps {
   isAdmin: boolean;
-  /** True when current user has owner role (can assign/remove admin; can remove owner only from others is blocked by API). */
-  isOwner?: boolean;
-  /** Current user's id so we can allow editing your own roles (e.g. add/remove relationship-manager from yourself). */
-  currentUserId?: string | null;
 }
 
 function parseRoleApiError(error: unknown): string {
@@ -91,20 +81,12 @@ function parseRoleApiError(error: unknown): string {
   return message;
 }
 
-export default function UsersTab({ isAdmin, isOwner = false, currentUserId = null }: UsersTabProps) {
+export default function UsersTab({ isAdmin }: UsersTabProps) {
   const { toast } = useToast();
   const [whitelistEmail, setWhitelistEmail] = useState("");
   const [whitelistMsa, setWhitelistMsa] = useState<string>(MSA[0]);
   const [whitelistRelationshipManagerId, setWhitelistRelationshipManagerId] = useState<string>("none");
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [roleConfirm, setRoleConfirm] = useState<{
-    open: boolean;
-    userId: string;
-    userName: string;
-    roleName: string;
-    action: "assign" | "remove";
-  } | null>(null);
-  const [addRoleSelectValue, setAddRoleSelectValue] = useState<Record<string, string>>({});
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
     open: boolean;
@@ -116,12 +98,7 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
   } | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
-    queryKey: ["/api/users/"],
-    enabled: isAdmin,
-  });
-
-  const { data: rolesList } = useQuery<RoleOption[]>({
-    queryKey: ["/api/users/roles"],
+    queryKey: ["/api/users/?excludeDomain=arvfinance.com"],
     enabled: isAdmin,
   });
 
@@ -159,45 +136,6 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     },
   });
 
-  const assignRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
-      const res = await apiRequest("POST", `/api/users/${userId}/roles`, { roleName });
-      return res.json();
-    },
-    onSuccess: (_, { roleName }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
-      toast({ title: "Role assigned", description: `Role "${roleName}" has been assigned.` });
-      setRoleConfirm(null);
-    },
-    onError: (error: unknown) => {
-      toast({
-        title: "Error",
-        description: parseRoleApiError(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const removeRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
-      const encodedRole = encodeURIComponent(roleName);
-      const res = await apiRequest("DELETE", `/api/users/${userId}/roles/${encodedRole}`);
-      return res.json();
-    },
-    onSuccess: (_, { roleName }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
-      toast({ title: "Role removed", description: `Role "${roleName}" has been removed.` });
-      setRoleConfirm(null);
-    },
-    onError: (error: unknown) => {
-      toast({
-        title: "Error",
-        description: parseRoleApiError(error),
-        variant: "destructive",
-      });
-    },
-  });
-
   const assignRelationshipManagerMutation = useMutation({
     mutationFn: async ({
       userId,
@@ -212,7 +150,7 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
       return res.json();
     },
     onSuccess: (_, { userId }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
       toast({ title: "Relationship manager assigned", description: "Manager has been assigned." });
       setAddManagerSelectValue((prev) => ({ ...prev, [userId]: "" }));
       setManagerConfirm(null);
@@ -241,7 +179,7 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
       toast({ title: "Relationship manager removed", description: "Manager has been removed." });
       setManagerConfirm(null);
     },
@@ -284,15 +222,6 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     });
   };
 
-  const handleRoleConfirm = () => {
-    if (!roleConfirm) return;
-    if (roleConfirm.action === "assign") {
-      assignRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
-    } else {
-      removeRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
-    }
-  };
-
   const handleManagerConfirm = () => {
     if (!managerConfirm) return;
     if (managerConfirm.action === "assign") {
@@ -308,43 +237,15 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
     }
   };
 
-  const isRoleMutationPending =
-    assignRoleMutation.isPending || removeRoleMutation.isPending;
   const isManagerMutationPending =
     assignRelationshipManagerMutation.isPending || removeRelationshipManagerMutation.isPending;
-
-  // Owner can assign admin + relationship-manager; admin can only assign relationship-manager
-  const assignableRoles = (rolesList ?? []).filter((r) =>
-    r.name === "relationship-manager" || (isOwner && r.name === "admin")
-  );
-
-  const ROLE_LEVEL: Record<string, number> = {
-    owner: 3,
-    admin: 2,
-    "relationship-manager": 1,
-  };
-  const getTargetLevel = (roleNames: string[]) => {
-    if (!roleNames.length) return 0;
-    return Math.max(...roleNames.map((name) => ROLE_LEVEL[name] ?? 0));
-  };
-  const callerLevel = isOwner ? 3 : 2;
-  const canAlterUser = (user: AdminUser) =>
-    (currentUserId != null && user.id === currentUserId) ||
-    callerLevel > getTargetLevel(user.roles ?? []);
-
-  const canRemoveRole = (roleName: string, user: AdminUser) => {
-    if (!canAlterUser(user)) return false; // Cannot alter users with equal or higher privilege
-    if (roleName === "owner") return false; // No one can remove owner via UI/API
-    if (roleName === "admin") return isOwner; // Only owner can remove admin
-    return true; // relationship-manager: both owner and admin can remove
-  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Registered Users</CardTitle>
         <CardDescription>
-          View all users who have signed up for an account
+          View users who have signed up (excluding @arvfinance.com). Manage relationship manager assignments and whitelist.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -477,14 +378,14 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
           <div className="flex flex-col items-center justify-center py-12 gap-4">
             <Users className="w-16 h-16 text-muted-foreground" />
             <p className="text-muted-foreground">
-              No users have signed up yet
+              No users with other domains found
             </p>
           </div>
         ) : (
           <div>
             <div className="mb-4">
               <p className="text-sm text-muted-foreground">
-                Total: {users.length} user{users.length === 1 ? "" : "s"}
+                Total: {users.length} user{users.length === 1 ? "" : "s"} (excluding @arvfinance.com)
               </p>
             </div>
             <div className="border rounded-lg overflow-hidden">
@@ -496,8 +397,6 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Relationship Manager</TableHead>
-                      <TableHead>Roles</TableHead>
-                      <TableHead className="w-[140px]">Add role</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -587,92 +486,6 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {user.roles?.length
-                              ? user.roles.map((roleName) => (
-                                  <Badge
-                                    key={roleName}
-                                    variant="secondary"
-                                    className={
-                                      canRemoveRole(roleName, user)
-                                        ? "gap-0.5 pr-0.5 font-normal"
-                                        : "font-normal"
-                                    }
-                                  >
-                                    {roleName}
-                                    {canRemoveRole(roleName, user) && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
-                                        aria-label={`Remove ${roleName}`}
-                                        disabled={isRoleMutationPending}
-                                        onClick={() =>
-                                          setRoleConfirm({
-                                            open: true,
-                                            userId: user.id,
-                                            userName: `${user.firstName} ${user.lastName}`,
-                                            roleName,
-                                            action: "remove",
-                                          })
-                                        }
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                  </Badge>
-                                ))
-                              : "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          {canAlterUser(user) &&
-                          assignableRoles.some((r) => !user.roles?.includes(r.name)) ? (
-                            <Select
-                              value={addRoleSelectValue[user.id] ?? ""}
-                              onValueChange={(value) => {
-                                const roleName = assignableRoles.find(
-                                  (r) => String(r.id) === value
-                                )?.name;
-                                if (roleName && !user.roles?.includes(roleName)) {
-                                  setAddRoleSelectValue((prev) => ({ ...prev, [user.id]: "" }));
-                                  setRoleConfirm({
-                                    open: true,
-                                    userId: user.id,
-                                    userName: `${user.firstName} ${user.lastName}`,
-                                    roleName,
-                                    action: "assign",
-                                  });
-                                }
-                              }}
-                              disabled={isRoleMutationPending}
-                            >
-                              <SelectTrigger
-                                className="h-7 w-[120px] border-dashed"
-                                data-testid={`select-add-role-${user.id}`}
-                              >
-                                <SelectValue placeholder="Add role" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {assignableRoles
-                                  .filter((r) => !user.roles?.includes(r.name))
-                                  .map((r) => (
-                                    <SelectItem
-                                      key={r.id}
-                                      value={String(r.id)}
-                                      data-testid={`option-role-${r.name}`}
-                                    >
-                                      {r.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">—</span>
-                          )}
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -681,28 +494,6 @@ export default function UsersTab({ isAdmin, isOwner = false, currentUserId = nul
             </div>
           </div>
         )}
-
-        <ConfirmationDialog
-          open={roleConfirm?.open ?? false}
-          onClose={() => setRoleConfirm(null)}
-          onConfirm={handleRoleConfirm}
-          title={
-            roleConfirm?.action === "assign"
-              ? "Assign role"
-              : "Remove role"
-          }
-          description={
-            roleConfirm
-              ? roleConfirm.action === "assign"
-                ? `Assign the role "${roleConfirm.roleName}" to ${roleConfirm.userName}?`
-                : `Remove the role "${roleConfirm.roleName}" from ${roleConfirm.userName}?`
-              : ""
-          }
-          confirmText={roleConfirm?.action === "assign" ? "Assign" : "Remove"}
-          cancelText="Cancel"
-          variant={roleConfirm?.action === "remove" ? "destructive" : "default"}
-          isLoading={isRoleMutationPending}
-        />
 
         <ConfirmationDialog
           open={managerConfirm?.open ?? false}
