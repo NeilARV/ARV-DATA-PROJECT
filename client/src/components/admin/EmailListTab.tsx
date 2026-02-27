@@ -327,11 +327,6 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
           </div>
         ) : (
           <div>
-            <div className="mb-4">
-              <p className="text-sm text-muted-foreground">
-                Total: {whitelist.length} email{whitelist.length === 1 ? "" : "s"}
-              </p>
-            </div>
             <div className="border rounded-lg overflow-hidden">
               <div className="max-h-[600px] overflow-y-auto">
                 <Table>

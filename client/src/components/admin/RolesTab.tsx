@@ -189,11 +189,6 @@ export default function RolesTab({ isAdmin, isOwner = false, currentUserId = nul
           </div>
         ) : (
           <div>
-            <div className="mb-4">
-              <p className="text-sm text-muted-foreground">
-                Total: {users.length} user{users.length === 1 ? "" : "s"} (@arvfinance.com)
-              </p>
-            </div>
             <div className="border rounded-lg overflow-hidden">
               <div className="max-h-[600px] overflow-y-auto">
                 <Table>
