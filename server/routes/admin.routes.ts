@@ -8,7 +8,6 @@ import { requireRole } from "server/middleware/requireRole";
 
 const router = Router();
 
-const ADMIN_ACCESS_ROLES = ["admin", "owner"] as const;
 /** Roles that can see and access the admin panel (header link + /admin page). */
 const ADMIN_PANEL_ROLES = ["admin", "owner", "relationship-manager"] as const;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
