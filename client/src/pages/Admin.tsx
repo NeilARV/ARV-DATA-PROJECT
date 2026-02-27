@@ -41,6 +41,7 @@ export default function Admin() {
     isAuthenticated: isUserAuthenticated,
     isAdmin,
     isOwner,
+    adminRoles,
     isAdminStatusLoading,
   } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -48,6 +49,8 @@ export default function Admin() {
 
   const isVerifying = isLoadingUser || isAdminStatusLoading;
   const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
+  /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
+  const canManageRoles = isOwner || (adminRoles ?? []).includes("admin");
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {
@@ -174,7 +177,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="users" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className={`grid w-full mb-8 ${canManageRoles ? "grid-cols-3" : "grid-cols-2"}`}>
           {/* <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
             Manage Properties
@@ -187,10 +190,12 @@ export default function Admin() {
             <Mail className="w-4 h-4 mr-2" />
             Email List
           </TabsTrigger>
-          <TabsTrigger value="roles" data-testid="tab-roles">
-            <ShieldCheck className="w-4 h-4 mr-2" />
-            Roles
-          </TabsTrigger>
+          {canManageRoles && (
+            <TabsTrigger value="roles" data-testid="tab-roles">
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Roles
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* <TabsContent value="manage">
@@ -211,9 +216,11 @@ export default function Admin() {
           <EmailListTab isAdmin={isAdmin} />
         </TabsContent>
 
-        <TabsContent value="roles">
-          <RolesTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
-        </TabsContent>
+        {canManageRoles && (
+          <TabsContent value="roles">
+            <RolesTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <UploadDialog
