@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Users, X } from "lucide-react";
+import { Loader2, Trash2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
@@ -57,6 +57,8 @@ interface RelationshipManager {
 
 interface UsersTabProps {
   isAdmin: boolean;
+  /** When true (admin/owner), show delete user button and allow delete. */
+  canDeleteUser?: boolean;
 }
 
 function parseRoleApiError(error: unknown): string {
@@ -77,7 +79,7 @@ function parseRoleApiError(error: unknown): string {
   return message;
 }
 
-export default function UsersTab({ isAdmin }: UsersTabProps) {
+export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabProps) {
   const { toast } = useToast();
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
@@ -87,6 +89,10 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
     relationshipManagerId: string;
     managerName: string;
     action: "assign" | "remove";
+  } | null>(null);
+  const [deleteUserConfirm, setDeleteUserConfirm] = useState<{
+    userId: string;
+    userName: string;
   } | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
@@ -155,6 +161,25 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
     },
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("DELETE", `/api/users/${userId}`);
+      return res.json();
+    },
+    onSuccess: (_, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
+      toast({ title: "User deleted", description: "The user has been removed." });
+      setDeleteUserConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error) || "Failed to delete user",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleManagerConfirm = () => {
     if (!managerConfirm) return;
     if (managerConfirm.action === "assign") {
@@ -168,6 +193,11 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
         relationshipManagerId: managerConfirm.relationshipManagerId,
       });
     }
+  };
+
+  const handleDeleteUserConfirm = () => {
+    if (!deleteUserConfirm) return;
+    deleteUserMutation.mutate(deleteUserConfirm.userId);
   };
 
   const isManagerMutationPending =
@@ -209,6 +239,9 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Relationship Manager</TableHead>
+                      {canDeleteUser && (
+                        <TableHead className="w-[80px] text-right">Actions</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -298,6 +331,27 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
                             )}
                           </div>
                         </TableCell>
+                        {canDeleteUser && (
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Delete user ${user.firstName} ${user.lastName}`}
+                              disabled={deleteUserMutation.isPending}
+                              onClick={() =>
+                                setDeleteUserConfirm({
+                                  userId: user.id,
+                                  userName: `${user.firstName} ${user.lastName}`,
+                                })
+                              }
+                              data-testid={`button-delete-user-${user.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -327,6 +381,22 @@ export default function UsersTab({ isAdmin }: UsersTabProps) {
           cancelText="Cancel"
           variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
           isLoading={isManagerMutationPending}
+        />
+
+        <ConfirmationDialog
+          open={!!deleteUserConfirm}
+          onClose={() => setDeleteUserConfirm(null)}
+          onConfirm={handleDeleteUserConfirm}
+          title="Delete user"
+          description={
+            deleteUserConfirm
+              ? `Delete "${deleteUserConfirm.userName}"? This will permanently remove their account and cannot be undone.`
+              : ""
+          }
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="destructive"
+          isLoading={deleteUserMutation.isPending}
         />
       </CardContent>
     </Card>

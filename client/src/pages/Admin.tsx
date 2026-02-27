@@ -209,7 +209,7 @@ export default function Admin() {
         </TabsContent> */}
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} />
+          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} />
         </TabsContent>
 
         <TabsContent value="email-list">
