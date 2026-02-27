@@ -26,7 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Mail, Plus, Trash2, X } from "lucide-react";
 import { MSA } from "@/constants/filters.constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,8 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 interface WhitelistEntry {
   id: string;
   email: string;
+  msaName: string | null;
+  relationshipManagerId: string | null;
 }
 
 /** From GET /api/users/relationship-managers */
@@ -79,6 +82,18 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string;
     email: string;
+  } | null>(null);
+  const [editConfirm, setEditConfirm] = useState<{
+    id: string;
+    email: string;
+    msaName: string;
+    relationshipManagerId: string | null;
+  } | null>(null);
+  const [removeRmConfirm, setRemoveRmConfirm] = useState<{
+    id: string;
+    email: string;
+    msaName: string;
+    managerName: string;
   } | null>(null);
 
   const { data: whitelist = [], isLoading } = useQuery<WhitelistEntry[]>({
@@ -143,6 +158,37 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
     },
   });
 
+  const updateWhitelistMutation = useMutation({
+    mutationFn: async ({
+      id,
+      msaName,
+      relationshipManagerId,
+    }: {
+      id: string;
+      msaName: string;
+      relationshipManagerId: string | null;
+    }) => {
+      const res = await apiRequest("PATCH", `/api/admin/whitelist/${id}`, {
+        msaName,
+        relationshipManagerId,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/whitelist"] });
+      toast({ title: "Whitelist entry updated", description: "MSA and relationship manager have been updated." });
+      setEditConfirm(null);
+      setRemoveRmConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseApiError(error) || "Failed to update whitelist entry",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddWhitelist = () => {
     const trimmed = whitelistEmail.trim();
     if (!trimmed) return;
@@ -176,6 +222,35 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
   const handleConfirmDelete = () => {
     if (!deleteConfirm) return;
     deleteMutation.mutate(deleteConfirm.id);
+  };
+
+  const handleConfirmEdit = () => {
+    if (!editConfirm) return;
+    updateWhitelistMutation.mutate({
+      id: editConfirm.id,
+      msaName: editConfirm.msaName,
+      relationshipManagerId: editConfirm.relationshipManagerId,
+    });
+  };
+
+  const handleConfirmRemoveRm = () => {
+    if (!removeRmConfirm) return;
+    updateWhitelistMutation.mutate({
+      id: removeRmConfirm.id,
+      msaName: removeRmConfirm.msaName,
+      relationshipManagerId: null,
+    });
+  };
+
+  const handleMsaChange = (entry: WhitelistEntry, newMsaName: string) => {
+    const currentMsa = entry.msaName ?? MSA[0];
+    if (newMsaName === currentMsa) return;
+    setEditConfirm({
+      id: entry.id,
+      email: entry.email,
+      msaName: newMsaName,
+      relationshipManagerId: entry.relationshipManagerId ?? null,
+    });
   };
 
   return (
@@ -327,12 +402,19 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
           </div>
         ) : (
           <div>
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground">
+                Total: {whitelist.length} email{whitelist.length === 1 ? "" : "s"}
+              </p>
+            </div>
             <div className="border rounded-lg overflow-hidden">
               <div className="max-h-[600px] overflow-y-auto">
                 <Table>
                   <TableHeader className="sticky top-0 bg-background">
                     <TableRow>
                       <TableHead>Email</TableHead>
+                      <TableHead>MSA Subscription</TableHead>
+                      <TableHead>Relationship Manager</TableHead>
                       <TableHead className="w-[100px] text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -340,6 +422,101 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
                     {whitelist.map((entry) => (
                       <TableRow key={entry.id} data-testid={`row-whitelist-${entry.id}`}>
                         <TableCell className="font-medium">{entry.email}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={entry.msaName ?? MSA[0]}
+                            onValueChange={(value) => handleMsaChange(entry, value)}
+                            disabled={updateWhitelistMutation.isPending}
+                          >
+                            <SelectTrigger
+                              className="h-8 w-full max-w-[200px]"
+                              data-testid={`select-whitelist-msa-${entry.id}`}
+                            >
+                              <SelectValue placeholder="MSA" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MSA.map((msaName) => (
+                                <SelectItem key={msaName} value={msaName}>
+                                  {msaName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {entry.relationshipManagerId ? (
+                              (() => {
+                                const rm = relationshipManagers.find(
+                                  (r) => r.id === entry.relationshipManagerId
+                                );
+                                return rm ? (
+                                  <Badge
+                                    variant="secondary"
+                                    className="gap-0.5 pr-0.5 font-normal"
+                                  >
+                                    {rm.first_name} {rm.last_name}
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
+                                      aria-label={`Remove ${rm.first_name} ${rm.last_name}`}
+                                      disabled={updateWhitelistMutation.isPending}
+                                      onClick={() =>
+                                        setRemoveRmConfirm({
+                                          id: entry.id,
+                                          email: entry.email,
+                                          msaName: entry.msaName ?? MSA[0],
+                                          managerName: `${rm.first_name} ${rm.last_name}`,
+                                        })
+                                      }
+                                      data-testid={`button-remove-rm-${entry.id}`}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">—</span>
+                                );
+                              })()
+                            ) : (
+                              relationshipManagers.length > 0 && (
+                                <Select
+                                  value=""
+                                  onValueChange={(value) => {
+                                    if (!value) return;
+                                    setEditConfirm({
+                                      id: entry.id,
+                                      email: entry.email,
+                                      msaName: entry.msaName ?? MSA[0],
+                                      relationshipManagerId: value,
+                                    });
+                                  }}
+                                  disabled={updateWhitelistMutation.isPending}
+                                >
+                                  <SelectTrigger
+                                    className="h-7 w-[140px] border-dashed"
+                                    data-testid={`select-add-manager-${entry.id}`}
+                                  >
+                                    <SelectValue placeholder="Add Manager" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {relationshipManagers.map((rm) => (
+                                      <SelectItem
+                                        key={rm.id}
+                                        value={rm.id}
+                                        data-testid={`option-manager-${entry.id}-${rm.id}`}
+                                      >
+                                        {rm.first_name} {rm.last_name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             type="button"
@@ -378,6 +555,46 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
           cancelText="Cancel"
           variant="destructive"
           isLoading={deleteMutation.isPending}
+        />
+
+        <ConfirmationDialog
+          open={!!removeRmConfirm}
+          onClose={() => setRemoveRmConfirm(null)}
+          onConfirm={handleConfirmRemoveRm}
+          title="Remove relationship manager"
+          description={
+            removeRmConfirm
+              ? `Remove ${removeRmConfirm.managerName} from "${removeRmConfirm.email}"? This whitelist entry will have no relationship manager.`
+              : ""
+          }
+          confirmText="Remove"
+          cancelText="Cancel"
+          variant="destructive"
+          isLoading={updateWhitelistMutation.isPending}
+        />
+
+        <ConfirmationDialog
+          open={!!editConfirm}
+          onClose={() => setEditConfirm(null)}
+          onConfirm={handleConfirmEdit}
+          title="Update whitelist entry"
+          description={
+            editConfirm
+              ? (() => {
+                  const rmId = editConfirm.relationshipManagerId;
+                  const rm =
+                    rmId === null
+                      ? null
+                      : relationshipManagers.find((r) => r.id === rmId);
+                  const rmLabel = rm ? `${rm.first_name} ${rm.last_name}` : "None";
+                  return `Update "${editConfirm.email}"? MSA subscription will be set to "${editConfirm.msaName}" and relationship manager to "${rmLabel}".`;
+                })()
+              : ""
+          }
+          confirmText="Update"
+          cancelText="Cancel"
+          variant="default"
+          isLoading={updateWhitelistMutation.isPending}
         />
       </CardContent>
     </Card>
