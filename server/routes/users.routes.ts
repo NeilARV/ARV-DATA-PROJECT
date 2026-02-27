@@ -495,4 +495,55 @@ router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), async (re
     }
 });
 
+// Admin/Owner: Delete a user by id. Cannot delete self. Caller cannot delete users with equal or higher privilege.
+router.delete("/:userId", requireRole(["admin", "owner"]), async (req, res) => {
+    try {
+        const { userId } = req.params;
+        if (!userId) {
+            return res.status(400).json({ message: "Invalid or missing user id" });
+        }
+        if (userId === req.session.userId) {
+            return res.status(403).json({ message: "You cannot delete your own account" });
+        }
+
+        const [targetUser] = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const callerRoleRows = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, req.session.userId!),
+                    inArray(roles.name, ["owner", "admin"])
+                )
+            );
+        const targetRoleRows = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(eq(userRoles.userId, userId));
+        const callerLevel = getCallerLevel(callerRoleRows);
+        const targetLevel = getTargetLevel(targetRoleRows.map((r) => r.roleName));
+        if (callerLevel <= targetLevel) {
+            return res.status(403).json({
+                message: "You cannot delete a user with equal or higher permissions",
+            });
+        }
+
+        await db.delete(users).where(eq(users.id, userId));
+        return res.status(200).json({ message: "User deleted", userId });
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ message: "Error deleting user" });
+    }
+});
+
 export default router;
