@@ -22,12 +22,14 @@ import {
   ArrowLeft,
   Users,
   ShieldCheck,
+  Mail,
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
 // import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
+import EmailListTab from "@/components/admin/EmailListTab";
 import RolesTab from "@/components/admin/RolesTab";
 
 export default function Admin() {
@@ -171,7 +173,7 @@ export default function Admin() {
         </p>
       </div>
 
-      <Tabs defaultValue="manage" className="w-full">
+      <Tabs defaultValue="users" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8">
           {/* <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
@@ -180,6 +182,10 @@ export default function Admin() {
           <TabsTrigger value="users" data-testid="tab-users">
             <Users className="w-4 h-4 mr-2" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="email-list" data-testid="tab-email-list">
+            <Mail className="w-4 h-4 mr-2" />
+            Email List
           </TabsTrigger>
           <TabsTrigger value="roles" data-testid="tab-roles">
             <ShieldCheck className="w-4 h-4 mr-2" />
@@ -199,6 +205,10 @@ export default function Admin() {
 
         <TabsContent value="users">
           <UsersTab isAdmin={isAdmin} />
+        </TabsContent>
+
+        <TabsContent value="email-list">
+          <EmailListTab isAdmin={isAdmin} />
         </TabsContent>
 
         <TabsContent value="roles">
