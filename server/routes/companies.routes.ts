@@ -3,7 +3,7 @@ import { db } from "server/storage";
 import { companies } from "../../database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "../../database/schemas/properties.schema";
 import { updateCompanySchema } from "../../database/updates/companies.update";
-import { requireAdminAuth } from "server/middleware/requireAdminAuth";
+import { requireRole } from "server/middleware/requireRole";
 import { sql, eq, or, and, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
@@ -350,7 +350,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Update company (admin only)
-router.patch("/:id", requireAdminAuth, async (req, res) => {
+router.patch("/:id", requireRole(["admin", "owner"]), async (req, res) => {
     try {
         const { id } = req.params;
 

@@ -2,6 +2,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+export interface RelationshipManager {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+}
+
 export interface AuthUser {
   id: string;
   firstName: string;
@@ -11,12 +19,28 @@ export interface AuthUser {
   isAdmin: boolean;
   notifications: boolean;
   createdAt: string;
+  msaSubscriptions?: string[];
+  relationshipManager?: RelationshipManager | null;
 }
+
+/** Admin status from GET /api/admin/status (role-based: admin, owner, or relationship-manager can access panel). */
+const ADMIN_STATUS_QUERY_KEY = ["/api/admin/status"] as const;
 
 export function useAuth() {
   const { data, isLoading } = useQuery<{ user: AuthUser | null }>({
     queryKey: ["/api/auth/me"],
     staleTime: 5 * 60 * 1000,
+  });
+
+  const isAuthenticated = !!data?.user;
+
+  const {
+    data: adminStatus,
+    isLoading: isAdminStatusLoading,
+  } = useQuery<{ authenticated: boolean; isAdmin: boolean; roles: string[] }>({
+    queryKey: ADMIN_STATUS_QUERY_KEY,
+    staleTime: 5 * 60 * 1000,
+    enabled: isAuthenticated,
   });
 
   const logoutMutation = useMutation({
@@ -25,13 +49,24 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ADMIN_STATUS_QUERY_KEY });
     },
   });
+
+  const adminRoles = adminStatus?.roles ?? [];
+  const isOwner = adminRoles.includes("owner");
 
   return {
     user: data?.user ?? null,
     isLoading,
-    isAuthenticated: !!data?.user,
+    isAuthenticated,
+    /** Role-based: true when user has admin, owner, or relationship-manager (can see Admin link and access /admin). */
+    isAdmin: isAuthenticated && (adminStatus?.isAdmin ?? false),
+    /** True when current user has owner role (for role-management permissions). */
+    isOwner,
+    /** Current user's admin-level roles: ["owner"], ["admin"], or ["owner","admin"] */
+    adminRoles,
+    isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
   };

@@ -76,7 +76,7 @@ export default function Header({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { toast } = useToast();
 
   // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -418,7 +418,7 @@ export default function Header({
                         <User className="w-4 h-4" />
                         Profile Settings
                       </button>
-                      {user.isAdmin && (
+                      {isAdmin && (
                         <button
                           className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                           onClick={() => {

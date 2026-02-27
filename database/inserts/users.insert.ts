@@ -16,6 +16,7 @@ export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omi
 }).extend({
   email: z.string().email("Invalid email address"),
   msaName: z.enum(MSA_NAMES, { message: "Please select an MSA" }),
+  relationshipManagerId: z.string().uuid().optional().nullable(),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({

@@ -1,7 +1,7 @@
-import { users } from "@database/schemas/users.schema";
+import { users, userRelationshipManagers } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, and } from "drizzle-orm";
 import bcrypt from "bcrypt";
 
 
@@ -100,6 +100,27 @@ export async function addUserMsaSubscription(userId: string, msaId: number): Pro
     await db.insert(userMsaSubscriptions).values({ userId, msaId });
 }
 
+/**
+ * Links a user to a relationship manager in user_relationship_managers (e.g. from email_whitelist on signup).
+ */
+export async function addUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
+    await db.insert(userRelationshipManagers).values({ userId, relationshipManagerId });
+}
+
+/**
+ * Removes the link between a user and a relationship manager in user_relationship_managers.
+ */
+export async function removeUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
+    await db
+        .delete(userRelationshipManagers)
+        .where(
+            and(
+                eq(userRelationshipManagers.userId, userId),
+                eq(userRelationshipManagers.relationshipManagerId, relationshipManagerId)
+            )
+        );
+}
+
 export async function getUserByEmail(email: string) {
 
     const user = await db
@@ -119,6 +140,33 @@ export async function getUserById(userId: string) {
         .limit(1);
 
     return user
+}
+
+/**
+ * Returns the relationship manager for a user (if any) for profile / me response.
+ * Uses user_relationship_managers: current user is user_id, RM is relationship_manager_id.
+ */
+export async function getRelationshipManagerForUser(userId: string): Promise<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+} | null> {
+    const rows = await db
+        .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            phone: users.phone,
+        })
+        .from(userRelationshipManagers)
+        .innerJoin(users, eq(userRelationshipManagers.relationshipManagerId, users.id))
+        .where(eq(userRelationshipManagers.userId, userId))
+        .limit(1);
+    const rm = rows[0];
+    return rm ?? null;
 }
 
 /**

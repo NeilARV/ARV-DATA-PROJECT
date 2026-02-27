@@ -18,6 +18,7 @@ CREATE TABLE sessions (
 CREATE TABLE email_whitelist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     msa INTEGER REFERENCES msas(id) DEFAULT 1,
+    relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL;
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT now()
 );
@@ -34,6 +35,18 @@ CREATE TABLE msas (
     updated_at TIMESTAMP DEFAULT now()
 );
 
+-- Roles table
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+)
+
+-- Insert rows into roles table
+INSERT INTO roles (name)
+VALUES ('owner'), ('admin'), ('relationship-manager')
+
 -- Users table
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,9 +54,9 @@ CREATE TABLE users (
     last_name TEXT NOT NULL,
     phone TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
     password_hash TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    is_admin BOOLEAN NOT NULL DEFAULT false,
     notifications BOOLEAN NOT NULL DEFAULT true,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -52,6 +65,28 @@ CREATE UNIQUE INDEX users_email_unique ON users(email);
 
 COMMENT ON TABLE users IS 'User accounts and authentication information';
 
+-- User roles table
+CREATE TABLE user_roles (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, role_id)
+);
+
+INSERT INTO roles (name)
+VALUES ('owner'), ('admin'), ('relationship-manager')
+
+-- User MSA subscriptions table
+CREATE TABLE user_relationship_managers (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    relationship_manager_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, relationship_manager_id)
+)
+
+-- User MSA subscriptions table
 CREATE TABLE user_msa_subscriptions (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     msa_id INTEGER REFERENCES msas(id) ON DELETE CASCADE,

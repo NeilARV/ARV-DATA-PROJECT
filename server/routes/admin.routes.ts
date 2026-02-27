@@ -1,58 +1,155 @@
 import { Router } from "express";
-import { users } from "@database/schemas/users.schema";
+import { userRoles, roles } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "server/storage";
-import { requireAdminAuth } from "server/middleware/requireAdminAuth";
 import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
+import { requireRole } from "server/middleware/requireRole";
 
 const router = Router();
 
-// Check admin auth status - depracted?
+const ADMIN_ACCESS_ROLES = ["admin", "owner"] as const;
+/** Roles that can see and access the admin panel (header link + /admin page). */
+const ADMIN_PANEL_ROLES = ["admin", "owner", "relationship-manager"] as const;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Check admin auth status (role-based). isAdmin true for admin, owner, or relationship-manager so they can access the panel.
 router.get("/status", async (req, res) => {
     try {
-        // Check if user is logged in
         if (!req.session.userId) {
-            return res.json({ authenticated: false, isAdmin: false });
+            return res.json({ authenticated: false, isAdmin: false, roles: [] });
         }
 
-        // Check if user is admin
-        const [user] = await db
-            .select({ isAdmin: users.isAdmin })
-            .from(users)
-            .where(eq(users.id, req.session.userId))
-            .limit(1);
+        const allowedRows = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, req.session.userId),
+                    inArray(roles.name, [...ADMIN_PANEL_ROLES])
+                )
+            );
 
-        const isAdmin = user?.isAdmin;
-        res.json({ authenticated: !!req.session.userId, isAdmin });
+        const rolesList = allowedRows.map((r) => r.roleName);
+        const isAdmin = rolesList.length > 0;
+        res.json({ authenticated: true, isAdmin, roles: rolesList });
     } catch (error) {
         console.error("Error checking admin status:", error);
         res.status(500).json({ message: "Error checking admin status" });
     }
 });
 
-// Admin: Get all users
-router.get("/users", requireAdminAuth, async (_req, res) => {
+// Get all whitelist entries (id, email, msaName, relationshipManagerId) — for admin/owner/relationship-manager
+router.get("/whitelist", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
-        const allUsers = await db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            phone: users.phone,
-            email: users.email,
-            createdAt: users.createdAt,
-        })
-        .from(users)
-        .orderBy(desc(users.createdAt));
-        res.json(allUsers);
+        const rows = await db
+            .select({
+                id: emailWhitelist.id,
+                email: emailWhitelist.email,
+                msaName: msas.name,
+                relationshipManagerId: emailWhitelist.relationshipManagerId,
+            })
+            .from(emailWhitelist)
+            .leftJoin(msas, eq(emailWhitelist.msa, msas.id))
+            .orderBy(emailWhitelist.createdAt);
+
+        return res.json(rows.map((r) => ({
+            id: r.id,
+            email: r.email,
+            msaName: r.msaName ?? null,
+            relationshipManagerId: r.relationshipManagerId ?? null,
+        })));
     } catch (error) {
-        console.error("Error fetching users:", error);
-        res.status(500).json({ message: "Error fetching users" });
+        console.error("Error fetching email whitelist:", error);
+        res.status(500).json({ message: "Error fetching email whitelist" });
     }
 });
 
-router.post("/whitelist", requireAdminAuth, async (req, res) => { 
+// Delete whitelist entry by id — admin/owner/relationship-manager
+router.delete("/whitelist/:id", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (!id || !UUID_REGEX.test(id)) {
+            return res.status(400).json({ message: "Invalid whitelist entry id" });
+        }
+
+        const deleted = await db
+            .delete(emailWhitelist)
+            .where(eq(emailWhitelist.id, id))
+            .returning({ id: emailWhitelist.id });
+
+        if (deleted.length === 0) {
+            return res.status(404).json({ message: "Whitelist entry not found" });
+        }
+
+        return res.status(200).json({ message: "Whitelist entry deleted", id: deleted[0].id });
+    } catch (error) {
+        console.error("Error deleting from whitelist:", error);
+        res.status(500).json({ message: "Error deleting from whitelist" });
+    }
+});
+
+// Update whitelist entry (MSA and/or relationship manager) by id — admin/owner/relationship-manager
+router.patch("/whitelist/:id", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (!id || !UUID_REGEX.test(id)) {
+            return res.status(400).json({ message: "Invalid whitelist entry id" });
+        }
+        const body = req.body as { msaName?: string; relationshipManagerId?: string | null };
+        const { msaName, relationshipManagerId } = body;
+        if (msaName === undefined && relationshipManagerId === undefined) {
+            return res.status(400).json({
+                message: "Provide at least one of msaName or relationshipManagerId to update",
+            });
+        }
+
+        const updates: { msa?: number; relationshipManagerId?: string | null } = {};
+
+        if (msaName !== undefined) {
+            const [msaRow] = await db
+                .select({ id: msas.id })
+                .from(msas)
+                .where(eq(msas.name, msaName))
+                .limit(1);
+            if (!msaRow) {
+                return res.status(400).json({ message: "Invalid MSA selected" });
+            }
+            updates.msa = msaRow.id;
+        }
+
+        if (relationshipManagerId !== undefined) {
+            updates.relationshipManagerId = relationshipManagerId === "" ? null : relationshipManagerId;
+        }
+
+        const updated = await db
+            .update(emailWhitelist)
+            .set(updates)
+            .where(eq(emailWhitelist.id, id))
+            .returning({
+                id: emailWhitelist.id,
+                email: emailWhitelist.email,
+                relationshipManagerId: emailWhitelist.relationshipManagerId,
+            });
+
+        if (updated.length === 0) {
+            return res.status(404).json({ message: "Whitelist entry not found" });
+        }
+
+        return res.status(200).json({
+            message: "Whitelist entry updated",
+            id: updated[0].id,
+            email: updated[0].email,
+            relationshipManagerId: updated[0].relationshipManagerId ?? null,
+        });
+    } catch (error) {
+        console.error("Error updating whitelist entry:", error);
+        res.status(500).json({ message: "Error updating whitelist entry" });
+    }
+});
+
+router.post("/whitelist", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => { 
     try {
         const validation = insertEmailWhitelistSchema.safeParse(req.body);
 
@@ -63,7 +160,7 @@ router.post("/whitelist", requireAdminAuth, async (req, res) => {
             });
         }
 
-        const { email, msaName } = validation.data;
+        const { email, msaName, relationshipManagerId } = validation.data;
         const normalizedEmail = email.toLowerCase().trim();
 
         // Resolve MSA name to id
@@ -92,10 +189,11 @@ router.post("/whitelist", requireAdminAuth, async (req, res) => {
             });
         }
 
-        // Insert email to whitelist with MSA reference (id and created_at are auto-generated)
+        // Insert email to whitelist with MSA and optional relationship manager (id and created_at are auto-generated)
         await db.insert(emailWhitelist).values({
             email: normalizedEmail,
             msa: msaRow.id,
+            relationshipManagerId: relationshipManagerId ?? null,
         });
 
         return res.status(201).json({ 

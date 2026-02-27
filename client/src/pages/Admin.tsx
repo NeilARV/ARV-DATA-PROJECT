@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import type { Property } from "@/types/property";
@@ -21,61 +21,36 @@ import {
   AlertTriangle,
   ArrowLeft,
   Users,
+  ShieldCheck,
+  Mail,
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
-import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
+// import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
+import EmailListTab from "@/components/admin/EmailListTab";
+import RolesTab from "@/components/admin/RolesTab";
 
 export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { isLoading: isLoadingUser, isAuthenticated: isUserAuthenticated } = useAuth();
+  const {
+    user: authUser,
+    isLoading: isLoadingUser,
+    isAuthenticated: isUserAuthenticated,
+    isAdmin,
+    isOwner,
+    adminRoles,
+    isAdminStatusLoading,
+  } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(true);
-  const [accessDeniedDialogOpen, setAccessDeniedDialogOpen] = useState(false);
   const [selectedCounty, setSelectedCounty] = useState<string>("San Diego");
 
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      try {
-        const response = await fetch("/api/admin/status", {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setIsAdmin(data.isAdmin ?? false);
-        
-        // If user is logged in but not admin, show dialog
-        if (data.authenticated && !data.isAdmin) {
-          setAccessDeniedDialogOpen(true);
-        }
-      } catch (error) {
-        console.error("Error checking admin status:", error);
-        setIsAdmin(false);
-      } finally {
-        setIsVerifying(false);
-      }
-    };
-    
-    // Wait for user auth to load first, then check admin status
-    if (!isLoadingUser) {
-      checkAdminStatus();
-    }
-    // If isLoadingUser is true, we'll wait for it to become false
-    // The effect will re-run when isLoadingUser changes
-  }, [isLoadingUser]);
-
-  // Ensure dialog opens if user becomes authenticated but not admin
-  useEffect(() => {
-    if (isUserAuthenticated && !isAdmin && !isVerifying) {
-      setAccessDeniedDialogOpen(true);
-    }
-  }, [isUserAuthenticated, isAdmin, isVerifying]);
+  const isVerifying = isLoadingUser || isAdminStatusLoading;
+  const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
+  /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
+  const canManageRoles = isOwner || (adminRoles ?? []).includes("admin");
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {
@@ -112,8 +87,7 @@ export default function Admin() {
       });
 
       if (response.ok) {
-        setIsAdmin(false);
-        // Clear all cached queries on logout
+        // Clear all cached queries on logout (auth + admin status)
         queryClient.clear();
         toast({
           title: "Logged Out",
@@ -145,16 +119,13 @@ export default function Admin() {
     return <AdminLogin />;
   }
 
-  // If user is authenticated but not admin, show dialog and don't render admin content
+  // If user is authenticated but not admin (role-based), show dialog and don't render admin content
   if (!isAdmin && isUserAuthenticated) {
     return (
-      <AlertDialog 
-        open={accessDeniedDialogOpen} 
+      <AlertDialog
+        open={showAccessDenied}
         onOpenChange={(open) => {
-          if (!open) {
-            // Redirect when dialog is closed (by any means)
-            setLocation("/");
-          }
+          if (!open) setLocation("/");
         }}
       >
         <AlertDialogContent>
@@ -168,12 +139,7 @@ export default function Admin() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                setAccessDeniedDialogOpen(false);
-                setLocation("/");
-              }}
-            >
+            <AlertDialogAction onClick={() => setLocation("/")}>
               Go to Home Page
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -205,24 +171,31 @@ export default function Admin() {
         <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
           Admin Panel
         </h1>
-        <p className="text-muted-foreground">
-          Manage your property data: upload, view, and delete properties
-        </p>
       </div>
 
-      <Tabs defaultValue="manage" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-8">
-          <TabsTrigger value="manage" data-testid="tab-manage">
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className={`grid w-full mb-8 ${canManageRoles ? "grid-cols-3" : "grid-cols-2"}`}>
+          {/* <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
             Manage Properties
-          </TabsTrigger>
+          </TabsTrigger> */}
           <TabsTrigger value="users" data-testid="tab-users">
             <Users className="w-4 h-4 mr-2" />
             Users
           </TabsTrigger>
+          <TabsTrigger value="email-list" data-testid="tab-email-list">
+            <Mail className="w-4 h-4 mr-2" />
+            Email List
+          </TabsTrigger>
+          {canManageRoles && (
+            <TabsTrigger value="roles" data-testid="tab-roles">
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Roles
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="manage">
+        {/* <TabsContent value="manage">
           <ManagePropertiesTab
             properties={properties}
             isLoading={isLoading}
@@ -230,11 +203,21 @@ export default function Admin() {
             selectedCounty={selectedCounty}
             onCountyChange={(county) => setSelectedCounty(county)}
           />
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} />
+          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} />
         </TabsContent>
+
+        <TabsContent value="email-list">
+          <EmailListTab isAdmin={isAdmin} />
+        </TabsContent>
+
+        {canManageRoles && (
+          <TabsContent value="roles">
+            <RolesTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <UploadDialog

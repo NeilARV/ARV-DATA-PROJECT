@@ -41,10 +41,13 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             password,
         });
 
-        // Create initial MSA subscription from whitelist if msa was set when they were added
+        // Create initial MSA subscription and relationship manager link from whitelist when they were added
         const whitelistRow = whitelistEntry[0];
         if (whitelistRow.msa != null) {
             await UserServices.addUserMsaSubscription(newUser.id, whitelistRow.msa);
+        }
+        if (whitelistRow.relationshipManagerId != null) {
+            await UserServices.addUserRelationshipManager(newUser.id, whitelistRow.relationshipManagerId);
         }
 
         // Set user session

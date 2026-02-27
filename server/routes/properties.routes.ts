@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "server/storage";
-import { requireAdminAuth } from "server/middleware/requireAdminAuth";
+import { requireRole } from "server/middleware/requireRole";
 import { companies } from "../../database/schemas/companies.schema";
 import { 
     properties, 
@@ -24,7 +24,7 @@ const router = Router();
 router.get("/", PropertiesController.getProperties);
 
 // Create a single property (requires admin auth)
-router.post("/", requireAdminAuth, async (req, res) => {
+router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
     try {
         console.log("POST /api/properties - Raw request body:", JSON.stringify(req.body, null, 2));
 
@@ -422,7 +422,7 @@ router.get("/streetview", StreetviewController.getStreetview);
 
 // Delete a single property by ID (requires admin auth)
 // Cascades to delete all related data (addresses, structures, assessments, etc.)
-router.delete("/:id", requireAdminAuth, async (req, res) => {
+router.delete("/:id", requireRole(["admin", "owner"]), async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`[DELETE] Attempting to delete property ID: ${id}`);
