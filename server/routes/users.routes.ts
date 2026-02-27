@@ -452,6 +452,13 @@ router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), async (re
             return res.status(404).json({ message: "User does not have this role" });
         }
 
+        // When removing relationship-manager, remove all assignments where this user is the RM
+        if (roleName === "relationship-manager") {
+            await db
+                .delete(userRelationshipManagers)
+                .where(eq(userRelationshipManagers.relationshipManagerId, userId));
+        }
+
         // When removing relationship-manager, remove user's email from Postmark sender signatures if present
         if (roleName === "relationship-manager" && process.env.POSTMARK_ACCOUNT_TOKEN && targetUser.email) {
             try {
