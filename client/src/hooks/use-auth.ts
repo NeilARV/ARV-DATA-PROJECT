@@ -55,6 +55,11 @@ export function useAuth() {
 
   const adminRoles = adminStatus?.roles ?? [];
   const isOwner = adminRoles.includes("owner");
+  /** True when user has owner or admin only (delete property, edit company, etc.). Not relationship-manager. */
+  const isAdminOrOwner =
+    isAuthenticated &&
+    !isAdminStatusLoading &&
+    (isOwner || adminRoles.includes("admin"));
 
   return {
     user: data?.user ?? null,
@@ -62,6 +67,8 @@ export function useAuth() {
     isAuthenticated,
     /** Role-based: true when user has admin, owner, or relationship-manager (can see Admin link and access /admin). */
     isAdmin: isAuthenticated && (adminStatus?.isAdmin ?? false),
+    /** True when user has owner or admin role (e.g. delete property, edit company). Use for property/company actions. */
+    isAdminOrOwner,
     /** True when current user has owner role (for role-management permissions). */
     isOwner,
     /** Current user's admin-level roles: ["owner"], ["admin"], or ["owner","admin"] */

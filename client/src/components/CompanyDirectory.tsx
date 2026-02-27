@@ -88,7 +88,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { isAdminOrOwner } = useAuth();
 
   // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
   useEffect(() => {
@@ -626,8 +626,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       )}
                     </div>
                     
-                    {/* Admin Actions - Only visible to admins */}
-                    {user?.isAdmin && (
+                    {/* Admin Actions - Only visible to owner or admin */}
+                    {isAdminOrOwner && (
                       <div className="pt-3 border-t border-border space-y-2">
                         <Button
                           variant="outline"

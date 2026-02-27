@@ -41,7 +41,7 @@ export default function PropertyDetailModal({
   const [requestEmail, setRequestEmail] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { isAdminOrOwner } = useAuth();
 
   useEffect(() => {
     if (property) {
@@ -335,7 +335,7 @@ export default function PropertyDetailModal({
                 </div>
               )}
 
-              {user?.isAdmin && (
+              {isAdminOrOwner && (
                 <div className="col-span-2 pt-4">
                   <Button
                     variant="destructive"

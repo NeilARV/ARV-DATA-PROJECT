@@ -39,7 +39,7 @@ export default function PropertyDetailPanel({
   const [requestEmail, setRequestEmail] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { isAdminOrOwner } = useAuth();
 
   useEffect(() => {
     if (property) {
@@ -339,7 +339,7 @@ export default function PropertyDetailPanel({
               </div>
             )}
 
-            {user?.isAdmin && (
+            {isAdminOrOwner && (
               <div className="pt-4">
                 <Button
                   variant="destructive"
