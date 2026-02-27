@@ -49,7 +49,7 @@ function getTargetLevel(targetRoleNames: string[]): number {
 // Admin: Get all users (with their role names).
 // Optional ?domain=arvfinance.com to only include that email domain.
 // Optional ?excludeDomain=arvfinance.com to exclude that email domain.
-router.get("/", requireRole(["admin", "owner"]), async (req, res) => {
+router.get("/", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const domain = req.query.domain === "arvfinance.com" ? "arvfinance.com" : undefined;
         const excludeDomain = req.query.excludeDomain === "arvfinance.com" ? "arvfinance.com" : undefined;
@@ -192,7 +192,7 @@ router.get("/relationship-managers", requireRole(["admin", "owner", "relationshi
 });
 
 // Admin/Owner: Assign a relationship manager to a user
-router.post("/:userId/relationship-managers", requireRole(["admin", "owner"]), async (req, res) => {
+router.post("/:userId/relationship-managers", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const { userId } = req.params;
         const body = req.body as { relationshipManagerId?: string };
@@ -242,7 +242,7 @@ router.post("/:userId/relationship-managers", requireRole(["admin", "owner"]), a
 });
 
 // Admin/Owner: Remove a relationship manager from a user
-router.delete("/:userId/relationship-managers/:relationshipManagerId", requireRole(["admin", "owner"]), async (req, res) => {
+router.delete("/:userId/relationship-managers/:relationshipManagerId", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const { userId, relationshipManagerId } = req.params;
         if (!userId || !relationshipManagerId) {
