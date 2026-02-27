@@ -27,10 +27,6 @@ CREATE TABLE user_relationship_managers (
     PRIMARY KEY (user_id, relationship_manager_id)
 )
 
--- Drop is_admin column from users table
-ALTER TABLE users
-DROP COLUMN is_admin;
-
 -- Insert admin role for all users where is_admin = TRUE
 INSERT INTO user_roles (user_id, role_id, created_at, updated_at)
 SELECT u.id, r.id, NOW(), NOW()
@@ -41,3 +37,7 @@ ON CONFLICT (user_id, role_id) DO NOTHING;
 
 ALTER TABLE email_whitelist
 ADD COLUMN relationship_manager_id UUID REFERENCES users(id) ON DELETE SET NULL;
+
+-- Drop is_admin column from users table
+ALTER TABLE users
+DROP COLUMN is_admin;

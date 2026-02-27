@@ -95,6 +95,13 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
     msaName: string;
     managerName: string;
   } | null>(null);
+  const [addRmConfirm, setAddRmConfirm] = useState<{
+    id: string;
+    email: string;
+    msaName: string;
+    relationshipManagerId: string;
+    managerName: string;
+  } | null>(null);
 
   const { data: whitelist = [], isLoading } = useQuery<WhitelistEntry[]>({
     queryKey: ["/api/admin/whitelist"],
@@ -179,6 +186,7 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
       toast({ title: "Whitelist entry updated", description: "MSA and relationship manager have been updated." });
       setEditConfirm(null);
       setRemoveRmConfirm(null);
+      setAddRmConfirm(null);
     },
     onError: (error: unknown) => {
       toast({
@@ -239,6 +247,15 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
       id: removeRmConfirm.id,
       msaName: removeRmConfirm.msaName,
       relationshipManagerId: null,
+    });
+  };
+
+  const handleConfirmAddRm = () => {
+    if (!addRmConfirm) return;
+    updateWhitelistMutation.mutate({
+      id: addRmConfirm.id,
+      msaName: addRmConfirm.msaName,
+      relationshipManagerId: addRmConfirm.relationshipManagerId,
     });
   };
 
@@ -486,11 +503,14 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
                                   value=""
                                   onValueChange={(value) => {
                                     if (!value) return;
-                                    setEditConfirm({
+                                    const rm = relationshipManagers.find((r) => r.id === value);
+                                    if (!rm) return;
+                                    setAddRmConfirm({
                                       id: entry.id,
                                       email: entry.email,
                                       msaName: entry.msaName ?? MSA[0],
                                       relationshipManagerId: value,
+                                      managerName: `${rm.first_name} ${rm.last_name}`,
                                     });
                                   }}
                                   disabled={updateWhitelistMutation.isPending}
@@ -570,6 +590,22 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
           confirmText="Remove"
           cancelText="Cancel"
           variant="destructive"
+          isLoading={updateWhitelistMutation.isPending}
+        />
+
+        <ConfirmationDialog
+          open={!!addRmConfirm}
+          onClose={() => setAddRmConfirm(null)}
+          onConfirm={handleConfirmAddRm}
+          title="Add relationship manager"
+          description={
+            addRmConfirm
+              ? `Add ${addRmConfirm.managerName} as relationship manager for "${addRmConfirm.email}"?`
+              : ""
+          }
+          confirmText="Add"
+          cancelText="Cancel"
+          variant="default"
           isLoading={updateWhitelistMutation.isPending}
         />
 
