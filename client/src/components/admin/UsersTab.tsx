@@ -317,6 +317,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                                       <SelectItem
                                         key={rm.id}
                                         value={rm.id}
+                                        hideIndicator
                                         data-testid={`option-manager-${rm.id}`}
                                       >
                                         {rm.first_name} {rm.last_name}

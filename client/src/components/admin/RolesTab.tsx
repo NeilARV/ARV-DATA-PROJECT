@@ -285,6 +285,7 @@ export default function RolesTab({ isAdmin, isOwner = false, currentUserId = nul
                                     <SelectItem
                                       key={r.id}
                                       value={String(r.id)}
+                                      hideIndicator
                                       data-testid={`option-role-${r.name}`}
                                     >
                                       {r.name}

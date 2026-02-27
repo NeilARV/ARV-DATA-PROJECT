@@ -522,15 +522,16 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
                                     <SelectValue placeholder="Add Manager" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {relationshipManagers.map((rm) => (
-                                      <SelectItem
-                                        key={rm.id}
-                                        value={rm.id}
-                                        data-testid={`option-manager-${entry.id}-${rm.id}`}
-                                      >
-                                        {rm.first_name} {rm.last_name}
-                                      </SelectItem>
-                                    ))}
+{relationshipManagers.map((rm) => (
+                                    <SelectItem
+                                      key={rm.id}
+                                      value={rm.id}
+                                      hideIndicator
+                                      data-testid={`option-manager-${entry.id}-${rm.id}`}
+                                    >
+                                      {rm.first_name} {rm.last_name}
+                                    </SelectItem>
+                                  ))}
                                   </SelectContent>
                                 </Select>
                               )
