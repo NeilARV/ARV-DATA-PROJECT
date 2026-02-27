@@ -1,4 +1,4 @@
-import { sendEmailUpdatesForMsa } from "server/utils/emailUpdates";
+import { sendEmailUpdatesForMsa } from "server/jobs/email/processes/emailUpdates";
 
 const DENVER_MSA = "Denver-Aurora-Centennial, CO";
 const CITY = "Denver";

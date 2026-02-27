@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import { requireRole } from "server/middleware/requireRole";
-import { companies } from "../../database/schemas/companies.schema";
+import { companies } from "@database/schemas/companies.schema";
 import { 
     properties, 
     addresses, 
     structures, 
     lastSales,
     propertyTransactions,
-} from "../../database/schemas/properties.schema";
+} from "@database/schemas/properties.schema";
 import { normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { eq, sql, or, and } from "drizzle-orm";

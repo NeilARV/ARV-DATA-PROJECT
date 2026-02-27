@@ -1,10 +1,10 @@
 import { ServerClient } from "postmark";
 import { db } from "server/storage";
-import { users, userRelationshipManagers } from "../../database/schemas/users.schema";
-import { msas, userMsaSubscriptions } from "../../database/schemas/msas.schema";
-import { properties, addresses, lastSales, structures } from "../../database/schemas/properties.schema";
-import { companies } from "../../database/schemas/companies.schema";
-import { emailSyncState } from "../../database/schemas/sync.schema";
+import { users, userRelationshipManagers } from "@database/schemas/users.schema";
+import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
+import { properties, addresses, lastSales, structures } from "@database/schemas/properties.schema";
+import { companies } from "@database/schemas/companies.schema";
+import { emailSyncState } from "@database/schemas/sync.schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";

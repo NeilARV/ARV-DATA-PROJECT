@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { companies } from "../../database/schemas/companies.schema";
+import { companies } from "@database/schemas/companies.schema";
 import { eq } from "drizzle-orm";
 
 // Helper to parse counties from DB (handles both array and legacy string format)

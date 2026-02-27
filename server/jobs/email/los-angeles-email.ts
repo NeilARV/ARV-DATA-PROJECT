@@ -1,4 +1,4 @@
-import { sendEmailUpdatesForMsa } from "server/utils/emailUpdates";
+import { sendEmailUpdatesForMsa } from "server/jobs/email/processes/emailUpdates";
 
 const LOS_ANGELES_MSA = "Los Angeles-Long Beach-Anaheim, CA";
 const CITY = "Los Angeles";

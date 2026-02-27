@@ -19,7 +19,7 @@ import {
     preForeclosures,
     lastSales,
     currentSales,
-} from "../../database/schemas/properties.schema";
+} from "@database/schemas/properties.schema";
 import {
     normalizeAddress,
     normalizeToTitleCase,

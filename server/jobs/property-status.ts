@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { properties, addresses } from "../../database/schemas/properties.schema";
+import { properties, addresses } from "@database/schemas/properties.schema";
 import { eq, sql, and, isNotNull, ne } from "drizzle-orm";
 
 /**

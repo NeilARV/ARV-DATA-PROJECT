@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db } from "server/storage";
-import { companies } from "../../database/schemas/companies.schema";
-import { properties, addresses, propertyTransactions } from "../../database/schemas/properties.schema";
-import { updateCompanySchema } from "../../database/updates/companies.update";
+import { companies } from "@database/schemas/companies.schema";
+import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
+import { updateCompanySchema } from "@database/updates/companies.update";
 import { requireRole } from "server/middleware/requireRole";
 import { sql, eq, or, and, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";

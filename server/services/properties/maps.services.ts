@@ -1,6 +1,6 @@
 import { db } from "server/storage";
-import { properties, addresses, structures, lastSales } from "../../../database/schemas/properties.schema";
-import { companies } from "../../../database/schemas/companies.schema";
+import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
+import { companies } from "@database/schemas/companies.schema";
 import { eq, sql, and, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
