@@ -171,9 +171,6 @@ export default function Admin() {
         <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
           Admin Panel
         </h1>
-        <p className="text-muted-foreground">
-          Manage your property data: upload, view, and delete properties
-        </p>
       </div>
 
       <Tabs defaultValue="users" className="w-full">
