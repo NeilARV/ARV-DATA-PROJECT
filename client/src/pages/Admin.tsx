@@ -21,12 +21,14 @@ import {
   AlertTriangle,
   ArrowLeft,
   Users,
+  ShieldCheck,
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import UploadDialog from "@/components/modals/UploadDialog";
 import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
+import RolesTab from "@/components/admin/RolesTab";
 
 export default function Admin() {
   const { toast } = useToast();
@@ -170,7 +172,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="manage" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-8">
+        <TabsList className="grid w-full grid-cols-3 mb-8">
           <TabsTrigger value="manage" data-testid="tab-manage">
             <Database className="w-4 h-4 mr-2" />
             Manage Properties
@@ -178,6 +180,10 @@ export default function Admin() {
           <TabsTrigger value="users" data-testid="tab-users">
             <Users className="w-4 h-4 mr-2" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="roles" data-testid="tab-roles">
+            <ShieldCheck className="w-4 h-4 mr-2" />
+            Roles
           </TabsTrigger>
         </TabsList>
 
@@ -193,6 +199,10 @@ export default function Admin() {
 
         <TabsContent value="users">
           <UsersTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
+        </TabsContent>
+
+        <TabsContent value="roles">
+          <RolesTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
         </TabsContent>
       </Tabs>
 

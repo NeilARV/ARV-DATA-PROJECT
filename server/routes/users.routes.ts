@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { users, roles, userRoles, userRelationshipManagers } from "@database/schemas/users.schema";
-import { desc, asc, eq, and, inArray } from "drizzle-orm";
+import { desc, asc, eq, and, inArray, ilike } from "drizzle-orm";
 import { db } from "server/storage";
 import { requireRole } from "server/middleware/requireRole";
 import {
@@ -46,9 +46,10 @@ function getTargetLevel(targetRoleNames: string[]): number {
   return Math.max(...levels);
 }
 
-// Admin: Get all users (with their role names)
-router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
+// Admin: Get all users (with their role names). Optional ?domain=arvfinance.com to restrict to that email domain.
+router.get("/", requireRole(["admin", "owner"]), async (req, res) => {
     try {
+        const domain = req.query.domain === "arvfinance.com" ? "arvfinance.com" : undefined;
         const allUsers = await db
             .select({
                 id: users.id,
@@ -59,6 +60,7 @@ router.get("/", requireRole(["admin", "owner"]), async (_req, res) => {
                 createdAt: users.createdAt,
             })
             .from(users)
+            .where(domain ? ilike(users.email, "%@arvfinance.com") : undefined)
             .orderBy(desc(users.createdAt));
 
         const userIds = allUsers.map((u) => u.id);
@@ -342,28 +344,28 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
         });
 
         // When adding relationship-manager, ensure user's email exists as a Postmark sender signature
-        if (roleName === "relationship-manager" && process.env.POSTMARK_ACCOUNT_TOKEN) {
-            try {
-                const [targetUserRow] = await db
-                    .select({ email: users.email, firstName: users.firstName, lastName: users.lastName })
-                    .from(users)
-                    .where(eq(users.id, userId))
-                    .limit(1);
-                if (targetUserRow?.email) {
-                    const { SenderSignatures } = await listSenderSignatures(50, 0);
-                    const existing = findSignatureByEmail(SenderSignatures, targetUserRow.email);
-                    if (!existing) {
-                        await createSenderSignature({
-                            FromEmail: targetUserRow.email,
-                            Name: [targetUserRow.firstName, targetUserRow.lastName].filter(Boolean).join(" ").trim() || targetUserRow.email,
-                            ReplyToEmail: targetUserRow.email,
-                        });
-                    }
-                }
-            } catch (postmarkError) {
-                console.error("Postmark sender sync after assigning relationship-manager:", postmarkError);
-            }
-        }
+        // if (roleName === "relationship-manager" && process.env.POSTMARK_ACCOUNT_TOKEN) {
+        //     try {
+        //         const [targetUserRow] = await db
+        //             .select({ email: users.email, firstName: users.firstName, lastName: users.lastName })
+        //             .from(users)
+        //             .where(eq(users.id, userId))
+        //             .limit(1);
+        //         if (targetUserRow?.email) {
+        //             const { SenderSignatures } = await listSenderSignatures(50, 0);
+        //             const existing = findSignatureByEmail(SenderSignatures, targetUserRow.email);
+        //             if (!existing) {
+        //                 await createSenderSignature({
+        //                     FromEmail: targetUserRow.email,
+        //                     Name: [targetUserRow.firstName, targetUserRow.lastName].filter(Boolean).join(" ").trim() || targetUserRow.email,
+        //                     ReplyToEmail: targetUserRow.email,
+        //                 });
+        //             }
+        //         }
+        //     } catch (postmarkError) {
+        //         console.error("Postmark sender sync after assigning relationship-manager:", postmarkError);
+        //     }
+        // }
 
         return res.status(201).json({
             message: "Role assigned",
@@ -460,17 +462,17 @@ router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), async (re
         }
 
         // When removing relationship-manager, remove user's email from Postmark sender signatures if present
-        if (roleName === "relationship-manager" && process.env.POSTMARK_ACCOUNT_TOKEN && targetUser.email) {
-            try {
-                const { SenderSignatures } = await listSenderSignatures(50, 0);
-                const existing = findSignatureByEmail(SenderSignatures, targetUser.email);
-                if (existing) {
-                    await deleteSenderSignature(existing.ID);
-                }
-            } catch (postmarkError) {
-                console.error("Postmark sender sync after removing relationship-manager:", postmarkError);
-            }
-        }
+        // if (roleName === "relationship-manager" && process.env.POSTMARK_ACCOUNT_TOKEN && targetUser.email) {
+        //     try {
+        //         const { SenderSignatures } = await listSenderSignatures(50, 0);
+        //         const existing = findSignatureByEmail(SenderSignatures, targetUser.email);
+        //         if (existing) {
+        //             await deleteSenderSignature(existing.ID);
+        //         }
+        //     } catch (postmarkError) {
+        //         console.error("Postmark sender sync after removing relationship-manager:", postmarkError);
+        //     }
+        // }
 
         return res.status(200).json({
             message: "Role removed",
