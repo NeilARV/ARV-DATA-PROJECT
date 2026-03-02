@@ -81,6 +81,11 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        // Spread / P&L colors (match FilterSidebar: green #22C55E, red #FF0000)
+        spread: {
+          positive: "#22C55E",
+          negative: "#FF0000",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

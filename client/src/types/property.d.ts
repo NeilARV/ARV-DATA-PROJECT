@@ -23,15 +23,19 @@ export type Property = {
   // Sale info
   price: number;
   dateSold: string | null;
+  buyerPurchasePrice: number | null;
+  sellerPurchasePrice: number | null;
+  spread: number | null;
   // Buyer company info
   buyerId: string | null;
   buyerCompanyName: string | null;
   buyerContactName: string | null;
   buyerContactEmail: string | null;
   buyerContactPhone: string | null;
-  // Seller company info
+  // Seller company info (sellerName = fallback from transaction when sellerId is null)
   sellerId: string | null;
   sellerCompanyName: string | null;
+  sellerName: string | null;
   sellerContactName: string | null;
   sellerContactEmail: string | null;
   sellerContactPhone: string | null;
