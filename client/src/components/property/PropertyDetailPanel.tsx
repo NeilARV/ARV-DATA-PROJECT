@@ -274,7 +274,7 @@ export default function PropertyDetailPanel({
                         </button>
                       ) : (
                         <span
-                          className="font-medium text-sm text-foreground truncate text-primary"
+                          className="font-medium text-sm text-foreground truncate"
                           data-testid="text-buyer-company-name"
                         >
                           {property.buyerCompanyName ||
@@ -344,7 +344,7 @@ export default function PropertyDetailPanel({
                         </button>
                       ) : (
                         <span
-                          className="font-medium text-sm text-foreground truncate text-primary"
+                          className="font-medium text-sm truncate text-primary"
                           data-testid="text-seller-company-name"
                         >
                           {property.sellerCompanyName || "—"}
