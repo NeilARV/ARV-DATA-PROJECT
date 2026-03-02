@@ -181,18 +181,39 @@ export default function PropertyDetailPanel({
               No image available
             </div>
           )}
-          <div className="absolute top-2 right-2 flex gap-1 items-end">
+          <div className="absolute top-2 right-2 flex gap-2 items-end">
             <StatusTag status={property.status} section={"panel"}/>
           </div>
         </div>
 
         <div className="space-y-3">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">{priceLabel}</p>
-            <div className="text-2xl font-bold" data-testid="text-panel-price">
-              ${property.price.toLocaleString()}
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {priceLabel}
+              </p>
+              <div className="text-2xl font-bold" data-testid="text-panel-price">
+                ${property.price.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="flex items-start gap-6 text-xs">
+              <div className="flex flex-col items-end" data-testid="text-date-sold-panel">
+                <span className="text-xs text-muted-foreground mb-1">Date Sold</span>
+                <div className="flex items-center gap-1 font-semibold text-foreground">
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>
+                    {formattedDateSold ? (
+                      formattedDateSold
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
+
           <div>
             <div className="text-base font-medium">{formatAddress(property.address)}</div>
             <div className="text-sm text-muted-foreground">
@@ -202,70 +223,96 @@ export default function PropertyDetailPanel({
 
           <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-1">
-              <Bed className="w-4 h-4" />
+              <Bed className="w-4 h-4 text-muted-foreground" />
               <span data-testid="text-panel-beds">{property.bedrooms} bd</span>
             </div>
             <div className="flex items-center gap-1">
-              <Bath className="w-4 h-4" />
+              <Bath className="w-4 h-4 text-muted-foreground" />
               <span data-testid="text-panel-baths">{property.bathrooms} ba</span>
             </div>
             <div className="flex items-center gap-1">
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 className="w-4 h-4 text-muted-foreground" />
               <span data-testid="text-panel-sqft">{property.squareFeet.toLocaleString()} sqft</span>
             </div>
           </div>
 
-          <div className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Property Type</div>
-                <div className="font-medium text-sm">{property.propertyType}</div>
-              </div>
+          <div className="text-xs text-muted-foreground mt-2">
+            {property.propertyType}
+          </div>
 
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Price per Sqft</div>
-                <div className="font-medium text-sm">${pricePerSqft}</div>
-              </div>
-            </div>
-
-            {/* Buyer & Seller - only show when each exists */}
-            {(property.buyerId || property.sellerId) && (
-              <div className={`grid gap-3 ${property.buyerId && property.sellerId ? "grid-cols-2" : "grid-cols-1"}`}>
-                {property.buyerId && (
-                  <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground mb-0.5">Buyer</div>
-                    <div className="flex items-center gap-1.5 font-medium text-xs text-primary ">
-                      <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+          {(property.buyerId || property.sellerId) && (
+            <div
+              className={`mt-3 pt-3 border-t grid gap-3 items-stretch ${
+                property.buyerId && property.sellerId ? "grid-cols-2" : "grid-cols-1"
+              }`}
+            >
+              {property.buyerId && (
+                <div className="min-w-0 flex flex-col">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-muted-foreground">Buyer</div>
+                    <div className="flex items-center gap-1.5 font-medium text-xs text-foreground mt-0.5">
+                      <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
                       {onCompanyNameClick ? (
                         <button
-                          onClick={() => onCompanyNameClick(property.buyerCompanyName || property.companyName || property.propertyOwner || "", property.buyerId || undefined, true)}
-                          className="hover:underline text-left truncate"
+                          onClick={() =>
+                            onCompanyNameClick(
+                              property.buyerCompanyName ||
+                                property.companyName ||
+                                property.propertyOwner ||
+                                "",
+                              property.buyerId || undefined,
+                              true
+                            )
+                          }
+                          className="hover:underline text-left truncate text-primary"
                           data-testid="text-buyer-company-name"
                         >
-                          {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                          {property.buyerCompanyName ||
+                            property.companyName ||
+                            property.propertyOwner ||
+                            "—"}
                         </button>
                       ) : (
-                        <span className="font-medium text-sm text-foreground truncate" data-testid="text-buyer-company-name">
-                          {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                        <span
+                          className="font-medium text-sm text-foreground truncate text-primary"
+                          data-testid="text-buyer-company-name"
+                        >
+                          {property.buyerCompanyName ||
+                            property.companyName ||
+                            property.propertyOwner ||
+                            "—"}
                         </span>
                       )}
                     </div>
-                    {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
+                    {(property.buyerContactName ||
+                      property.buyerContactEmail ||
+                      property.buyerContactPhone) && (
                       <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                         {property.buyerContactName && (
-                          <div className="flex items-center gap-1.5" data-testid="text-buyer-contact">
+                          <div
+                            className="flex items-center gap-1.5"
+                            data-testid="text-buyer-contact"
+                          >
                             <User className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>{property.buyerContactName}</span>
                           </div>
                         )}
                         {property.buyerContactEmail && (
-                          <a href={`mailto:${property.buyerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <a
+                            href={`mailto:${property.buyerContactEmail}`}
+                            className="flex items-center gap-1.5 text-muted-foreground hover:underline"
+                          >
                             <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate block">{property.buyerContactEmail}</span>
+                            <span className="truncate block">
+                              {property.buyerContactEmail}
+                            </span>
                           </a>
                         )}
                         {property.buyerContactPhone && (
-                          <a href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <a
+                            href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`}
+                            className="flex items-center gap-1.5 text-muted-foreground hover:underline"
+                          >
                             <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>{property.buyerContactPhone}</span>
                           </a>
@@ -273,42 +320,66 @@ export default function PropertyDetailPanel({
                       </div>
                     )}
                   </div>
-                )}
-                {property.sellerId && (
-                  <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground mb-0.5">Seller</div>
-                    <div className="flex items-center gap-1.5 font-semibold text-xs text-primary ">
-                      <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+                </div>
+              )}
+              {property.sellerId && (
+                <div className="min-w-0 flex flex-col">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-muted-foreground">Seller</div>
+                    <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mt-0.5">
+                      <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
                       {onCompanyNameClick ? (
                         <button
-                          onClick={() => onCompanyNameClick(property.sellerCompanyName || "", property.sellerId || undefined, true)}
-                          className="hover:underline text-left truncate"
+                          onClick={() =>
+                            onCompanyNameClick(
+                              property.sellerCompanyName || "",
+                              property.sellerId || undefined,
+                              true
+                            )
+                          }
+                          className="hover:underline text-left truncate text-primary"
                           data-testid="text-seller-company-name"
                         >
                           {property.sellerCompanyName || "—"}
                         </button>
                       ) : (
-                        <span className="font-medium text-sm text-foreground truncate" data-testid="text-seller-company-name">
+                        <span
+                          className="font-medium text-sm text-foreground truncate text-primary"
+                          data-testid="text-seller-company-name"
+                        >
                           {property.sellerCompanyName || "—"}
                         </span>
                       )}
                     </div>
-                    {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (
+                    {(property.sellerContactName ||
+                      property.sellerContactEmail ||
+                      property.sellerContactPhone) && (
                       <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                         {property.sellerContactName && (
-                          <div className="flex items-center gap-1.5" data-testid="text-seller-contact">
+                          <div
+                            className="flex items-center gap-1.5"
+                            data-testid="text-seller-contact"
+                          >
                             <User className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>{property.sellerContactName}</span>
                           </div>
                         )}
                         {property.sellerContactEmail && (
-                          <a href={`mailto:${property.sellerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <a
+                            href={`mailto:${property.sellerContactEmail}`}
+                            className="flex items-center gap-1.5 text-muted-foreground hover:underline"
+                          >
                             <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate block">{property.sellerContactEmail}</span>
+                            <span className="truncate block">
+                              {property.sellerContactEmail}
+                            </span>
                           </a>
                         )}
                         {property.sellerContactPhone && (
-                          <a href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline">
+                          <a
+                            href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`}
+                            className="flex items-center gap-1.5 text-muted-foreground hover:underline"
+                          >
                             <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                             <span>{property.sellerContactPhone}</span>
                           </a>
@@ -316,45 +387,50 @@ export default function PropertyDetailPanel({
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4 pt-4">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Price per Sqft</div>
+              <div className="font-medium text-sm">${pricePerSqft}</div>
+            </div>
 
             {formattedDateSold && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">Purchased Date</div>
-                  <div className="flex items-start gap-1">
-                    <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                    <span className="font-medium text-sm">{formattedDateSold}</span>
-                  </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Purchased Date</div>
+                <div className="flex items-start gap-1">
+                  <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span className="font-medium text-sm">{formattedDateSold}</span>
                 </div>
-
-                {daysOwned !== null && (
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">Days Owned</div>
-                    <div className="font-medium text-sm">{daysOwned} days</div>
-                  </div>
-                )}
               </div>
             )}
 
-            {isAdminOrOwner && (
-              <div className="pt-4">
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteClick}
-                  disabled={deletePropertyMutation.isPending}
-                  className="w-full"
-                  data-testid="button-delete-property"
-                >
-                  Delete Property
-                </Button>
+            {daysOwned !== null && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Days Owned</div>
+                <div className="font-medium text-sm">{daysOwned} days</div>
               </div>
             )}
           </div>
+
+          {isAdminOrOwner && (
+            <div className="pt-4">
+              <Button
+                variant="destructive"
+                onClick={handleDeleteClick}
+                disabled={deletePropertyMutation.isPending}
+                className="w-full"
+                data-testid="button-delete-property"
+              >
+                Delete Property
+              </Button>
+            </div>
+          )}
         </div>
-      </div>
+        </div>
 
       {/* Contact Request Dialog */}
       <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
@@ -412,19 +488,17 @@ export default function PropertyDetailPanel({
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      {property && (
-        <ConfirmationDialog
-          open={showDeleteDialog}
-          onClose={() => setShowDeleteDialog(false)}
-          onConfirm={handleConfirmDelete}
-          title="Delete Property"
-          description={`Are you sure you want to delete ${property.address}, ${property.city}, ${property.state}?`}
-          confirmText="Yes"
-          cancelText="No"
-          variant="destructive"
-          isLoading={deletePropertyMutation.isPending}
-        />
-      )}
+      <ConfirmationDialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Property"
+        description={`Are you sure you want to delete ${property!.address}, ${property!.city}, ${property!.state}?`}
+        confirmText="Yes"
+        cancelText="No"
+        variant="destructive"
+        isLoading={deletePropertyMutation.isPending}
+      />
     </div>
   );
 }
