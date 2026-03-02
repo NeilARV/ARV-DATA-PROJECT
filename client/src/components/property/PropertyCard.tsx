@@ -155,15 +155,16 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           {property.propertyType}
         </div>
         <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-4 items-stretch">
-            <div className="min-w-0 flex flex-col items-start text-left">
-                <div className="min-w-0 flex-1 w-full">
+            {/* Buyer: left column; truncate only when name actually overflows */}
+            <div className="min-w-0 flex flex-col items-start text-left overflow-hidden">
+                <div className="min-w-0 flex-1 w-full overflow-hidden">
                   <div className="text-xs text-muted-foreground">Buyer</div>
                   <div
-                    className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5"
+                    className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 overflow-hidden w-full"
                     data-testid={`text-buyer-${property.id}`}
                   >
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
-                    <span className="truncate text-primary">
+                    <span className="truncate text-primary min-w-0">
                       {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
                     </span>
                   </div>
@@ -173,51 +174,54 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                     </div>
                   )}
                   {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
-                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1 min-w-0 overflow-hidden w-full">
                       {property.buyerContactName && (
                         <div
-                          className="flex items-center gap-1.5 truncate"
+                          className="flex items-center gap-1.5 min-w-0 overflow-hidden"
                           data-testid={`text-buyer-contact-${property.id}`}
                         >
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.buyerContactName}</span>
+                          <span className="truncate">{property.buyerContactName}</span>
                         </div>
                       )}
                       {property.buyerContactEmail && (
                         <a
                           href={`mailto:${property.buyerContactEmail}`}
-                          className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate"
+                          className="flex items-center gap-1.5 text-muted-foreground hover:underline min-w-0 overflow-hidden"
                           onClick={(e) => e.stopPropagation()}
                           data-testid={`text-buyer-email-${property.id}`}
                         >
                           <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.buyerContactEmail}</span>
+                          <span className="truncate">{property.buyerContactEmail}</span>
                         </a>
                       )}
                       {property.buyerContactPhone && (
                         <a
                           href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`}
-                          className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline"
+                          className="flex items-center gap-1.5 min-w-0 overflow-hidden text-muted-foreground hover:underline"
                           onClick={(e) => e.stopPropagation()}
                           data-testid={`text-buyer-phone-${property.id}`}
                         >
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.buyerContactPhone}</span>
+                          <span className="truncate">{property.buyerContactPhone}</span>
                         </a>
                       )}
                     </div>
                   )}
                 </div>
               </div>
-            <div className="min-w-0 flex flex-col items-end text-right">
-                <div className="min-w-0 flex-1 w-full flex flex-col items-end">
-                  <div className="text-xs text-muted-foreground">Seller</div>
+            {/* Seller: right column, aligned right; ellipsis at end when truncated */}
+            <div className="min-w-0 flex flex-col items-end text-right overflow-hidden">
+                <div className="min-w-0 flex-1 w-full flex flex-col items-end overflow-hidden">
+                  <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
                   <div
-                    className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5 justify-end"
+                    className="flex items-center justify-end gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 w-full overflow-hidden"
                     data-testid={`text-seller-${property.id}`}
                   >
-                    <span className="truncate text-primary">
-                      {property.sellerCompanyName || property.sellerName || "—"}
+                    <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
+                      <span className="truncate text-primary min-w-0 text-right" title={property.sellerCompanyName || property.sellerName || "—"}>
+                        {property.sellerCompanyName || property.sellerName || "—"}
+                      </span>
                     </span>
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                   </div>
@@ -229,36 +233,36 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                   {(property.sellerContactName ||
                     property.sellerContactEmail ||
                     property.sellerContactPhone) && (
-                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1 flex flex-col items-end">
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1 flex flex-col items-end min-w-0 overflow-hidden w-full">
                       {property.sellerContactName && (
                         <div
-                          className="flex items-center gap-1.5 truncate justify-end"
+                          className="flex items-center gap-1.5 min-w-0 overflow-hidden justify-end w-full"
                           data-testid={`text-seller-contact-${property.id}`}
                         >
+                          <span className="truncate min-w-0">{property.sellerContactName}</span>
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.sellerContactName}</span>
                         </div>
                       )}
                       {property.sellerContactEmail && (
                         <a
                           href={`mailto:${property.sellerContactEmail}`}
-                          className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate justify-end"
+                          className="flex items-center gap-1.5 text-muted-foreground hover:underline min-w-0 overflow-hidden justify-end w-full"
                           onClick={(e) => e.stopPropagation()}
                           data-testid={`text-seller-email-${property.id}`}
                         >
+                          <span className="truncate min-w-0">{property.sellerContactEmail}</span>
                           <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.sellerContactEmail}</span>
                         </a>
                       )}
                       {property.sellerContactPhone && (
                         <a
                           href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`}
-                          className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline justify-end"
+                          className="flex items-center gap-1.5 min-w-0 overflow-hidden text-muted-foreground hover:underline justify-end w-full"
                           onClick={(e) => e.stopPropagation()}
                           data-testid={`text-seller-phone-${property.id}`}
                         >
+                          <span className="truncate min-w-0">{property.sellerContactPhone}</span>
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{property.sellerContactPhone}</span>
                         </a>
                       )}
                     </div>
