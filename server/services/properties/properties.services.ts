@@ -1,8 +1,8 @@
 import { db } from "server/storage";
-import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
+import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { normalizeCompanyNameForComparison } from "server/utils/normalization";
-import { eq, sql, or, and, inArray } from "drizzle-orm";
+import { eq, sql, or, and, inArray, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const buyerCompanies = alias(companies, "buyer_companies");
@@ -389,6 +389,47 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const results = (await query.execute()).sort((a: any, b: any) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
     const rawPropertiesList = results;
 
+    // Fetch Arms Length transactions for this page (for fallback buyer/seller names and spread)
+    const armsLengthTxs = await db
+        .select({
+            propertyId: propertyTransactions.propertyId,
+            buyerId: propertyTransactions.buyerId,
+            buyerName: propertyTransactions.buyerName,
+            sellerId: propertyTransactions.sellerId,
+            sellerName: propertyTransactions.sellerName,
+            salePrice: propertyTransactions.salePrice,
+            recordingDate: propertyTransactions.recordingDate,
+            saleDate: propertyTransactions.saleDate,
+            id: propertyTransactions.propertyTransactionsId,
+        })
+        .from(propertyTransactions)
+        .where(
+            and(
+                inArray(propertyTransactions.propertyId, idsForPage),
+                sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
+            )
+        )
+        .orderBy(
+            propertyTransactions.propertyId,
+            desc(propertyTransactions.recordingDate),
+            desc(propertyTransactions.saleDate),
+            desc(propertyTransactions.propertyTransactionsId)
+        );
+
+    // Group by property: each property gets list of txs ordered by most recent first (recording_date DESC, sale_date DESC, id DESC)
+    type TxRow = (typeof armsLengthTxs)[number];
+    const transactionsByPropertyId = new Map<string, TxRow[]>();
+    for (const row of armsLengthTxs) {
+        const pid = row.propertyId;
+        if (!transactionsByPropertyId.has(pid)) {
+            transactionsByPropertyId.set(pid, []);
+        }
+        transactionsByPropertyId.get(pid)!.push(row);
+    }
+
+    // Helper: normalize name for comparison (trim + lower)
+    const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
+
     // Map results to flat Property structure expected by frontend
     const propertiesList = rawPropertiesList.map((prop: any) => {
         const lat = prop.latitude ? Number(prop.latitude) : null;
@@ -396,6 +437,34 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const price = prop.price ? Number(prop.price) : 0;
         const baths = prop.bathrooms ? Number(prop.bathrooms) : 0;
         const dateSoldStr = prop.dateSold ? (prop.dateSold instanceof Date ? prop.dateSold.toISOString().split('T')[0] : prop.dateSold) : null;
+
+        const txs = transactionsByPropertyId.get(prop.id) ?? [];
+        const latest = txs[0] ?? null;
+
+        // Fallback buyer/seller names from most recent Arms Length transaction when company is null
+        const buyerDisplayName = prop.buyerCompanyName || (latest?.buyerName ?? null);
+        const sellerDisplayName = prop.sellerCompanyName || (latest?.sellerName ?? null);
+
+        let buyerPurchasePrice: number | null = null;
+        let sellerPurchasePrice: number | null = null;
+        if (latest?.salePrice != null) {
+            buyerPurchasePrice = Number(latest.salePrice);
+        }
+        if (latest) {
+            for (let i = 1; i < txs.length; i++) {
+                const tx = txs[i];
+                const matchById = latest.sellerId && tx.buyerId && latest.sellerId === tx.buyerId;
+                const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
+                if (matchById || matchByName) {
+                    if (tx.salePrice != null) sellerPurchasePrice = Number(tx.salePrice);
+                    break;
+                }
+            }
+        }
+        const spread =
+            buyerPurchasePrice != null && sellerPurchasePrice != null
+                ? buyerPurchasePrice - sellerPurchasePrice
+                : null;
 
         return {
             id: prop.id,
@@ -422,33 +491,37 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             companyId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),
             buyerId: prop.buyerId ? String(prop.buyerId) : null,
             sellerId: prop.sellerId ? String(prop.sellerId) : null,
-            buyerCompanyName: prop.buyerCompanyName || null,
+            buyerCompanyName: buyerDisplayName,
             buyerContactName: prop.buyerContactName || null,
             buyerContactEmail: prop.buyerContactEmail || null,
             buyerContactPhone: prop.buyerContactPhone || null,
-            sellerCompanyName: prop.sellerCompanyName || null,
+            sellerCompanyName: sellerDisplayName,
             sellerContactName: prop.sellerContactName || null,
             sellerContactEmail: prop.sellerContactEmail || null,
             sellerContactPhone: prop.sellerContactPhone || null,
-            companyName: prop.companyName || null,
+            companyName: prop.companyName || buyerDisplayName || sellerDisplayName || null,
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,
             companyContactPhone: prop.contactPhone || null,
+            // Spread from Arms Length transactions: buyer paid, seller's prior purchase, spread
+            buyerPurchasePrice,
+            sellerPurchasePrice,
+            spread,
+            sellerName: sellerDisplayName,
             // Legacy aliases for backward compatibility
-            propertyOwner: prop.companyName || null,
+            propertyOwner: prop.companyName || buyerDisplayName || sellerDisplayName || null,
             propertyOwnerId: prop.buyerId ? String(prop.buyerId) : (prop.sellerId ? String(prop.sellerId) : null),
             // Additional fields that might be expected by frontend but not directly in new schema
             description: null,
             imageUrl: null,
-            purchasePrice: null,
-            saleValue: null,
+            purchasePrice: sellerPurchasePrice,
+            saleValue: buyerPurchasePrice,
             isCorporate: null,
             isCashBuyer: null,
             isDiscountedPurchase: null,
             isPrivateLender: null,
             buyerPropertiesCount: null,
             buyerTransactionsCount: null,
-            sellerName: null,
             lenderName: null,
             exitValue: null,
             exitBuyerName: null,
