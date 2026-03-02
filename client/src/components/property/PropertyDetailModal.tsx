@@ -20,6 +20,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
+import { isNegative } from "@/utils/isNegative";
 
 interface PropertyDetailModalProps {
   property: Property | null;
@@ -238,178 +239,141 @@ export default function PropertyDetailModal({
             <div className="text-sm text-muted-foreground mt-2">
               {property.propertyType}
             </div>
-
-            {(property.buyerId || property.sellerId) && (
-              <div
-                className={`mt-3 pt-3 border-t grid gap-4 items-stretch ${
-                  property.buyerId && property.sellerId ? "grid-cols-2" : "grid-cols-1"
-                }`}
-              >
-                {property.buyerId && (
-                  <div className="min-w-0 flex flex-col">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs text-muted-foreground">Buyer</div>
-                      <div
-                        className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5"
-                      >
-                        <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
-                        {onCompanyNameClick ? (
-                          <button
-                            onClick={() => {
-                              onCompanyNameClick(
-                                property.buyerCompanyName ||
-                                  property.companyName ||
-                                  property.propertyOwner ||
-                                  "",
-                                property.buyerId || undefined,
-                                true
-                              );
-                              onClose();
-                            }}
-                            className="truncate text-primary hover:underline text-left"
-                            data-testid="text-buyer-company-name"
-                          >
-                            {property.buyerCompanyName ||
-                              property.companyName ||
-                              property.propertyOwner ||
-                              "—"}
-                          </button>
-                        ) : (
-                          <span
-                            className="truncate text-primary"
-                            data-testid="text-buyer-company-name"
-                          >
-                            {property.buyerCompanyName ||
-                              property.companyName ||
-                              property.propertyOwner ||
-                              "—"}
-                          </span>
-                        )}
-                      </div>
-                      {(property.buyerContactName ||
-                        property.buyerContactEmail ||
-                        property.buyerContactPhone) && (
-                        <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
-                          {property.buyerContactName && (
-                            <div
-                              className="flex items-center gap-1.5 truncate"
-                              data-testid="text-buyer-contact"
-                            >
-                              <User className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>{property.buyerContactName}</span>
-                            </div>
-                          )}
-                          {property.buyerContactEmail && (
-                            <a
-                              href={`mailto:${property.buyerContactEmail}`}
-                              className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate"
-                            >
-                              <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate block">
-                                {property.buyerContactEmail}
-                              </span>
-                            </a>
-                          )}
-                          {property.buyerContactPhone && (
-                            <a
-                              href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`}
-                              className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline"
-                            >
-                              <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>{property.buyerContactPhone}</span>
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {property.sellerId && (
-                  <div className="min-w-0 flex flex-col">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs text-muted-foreground">Seller</div>
-                      <div
-                        className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5"
-                      >
-                        <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
-                        {onCompanyNameClick ? (
-                          <button
-                            onClick={() => {
-                              onCompanyNameClick(
-                                property.sellerCompanyName || "",
-                                property.sellerId || undefined,
-                                true
-                              );
-                              onClose();
-                            }}
-                            className="truncate text-primary hover:underline text-left"
-                            data-testid="text-seller-company-name"
-                          >
-                            {property.sellerCompanyName || "—"}
-                          </button>
-                        ) : (
-                          <span
-                            className="truncate text-primary"
-                            data-testid="text-seller-company-name"
-                          >
-                            {property.sellerCompanyName || "—"}
-                          </span>
-                        )}
-                      </div>
-                      {(property.sellerContactName ||
-                        property.sellerContactEmail ||
-                        property.sellerContactPhone) && (
-                        <div className="text-sm text-muted-foreground mt-1.5 space-y-1">
-                          {property.sellerContactName && (
-                            <div
-                              className="flex items-center gap-1.5 truncate"
-                              data-testid="text-seller-contact"
-                            >
-                              <User className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>{property.sellerContactName}</span>
-                            </div>
-                          )}
-                          {property.sellerContactEmail && (
-                            <a
-                              href={`mailto:${property.sellerContactEmail}`}
-                              className="flex items-center gap-1.5 text-muted-foreground hover:underline truncate"
-                            >
-                              <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate block">
-                                {property.sellerContactEmail}
-                              </span>
-                            </a>
-                          )}
-                          {property.sellerContactPhone && (
-                            <a
-                              href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`}
-                              className="flex items-center gap-1.5 truncate text-muted-foreground hover:underline"
-                            >
-                              <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>{property.sellerContactPhone}</span>
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+            {(property.squareFeet > 0 || daysOwned !== null) && (
+              <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-detail-meta">
+                {[
+                  property.squareFeet > 0 && `$${pricePerSqft}/sqft`,
+                  daysOwned !== null && `${daysOwned} days owned`,
+                ].filter(Boolean).join(" · ")}
+              </p>
             )}
 
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4 pt-4">
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Price per Sqft</div>
-                <div className="font-medium">${pricePerSqft}</div>
-              </div>
-
-              {daysOwned !== null && (
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Days Owned</div>
-                  <div className="font-medium">{daysOwned} days</div>
+            {/* Buyer (left) / Seller (right) - same layout as PropertyCard; clickable only when id exists */}
+            <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-4 items-stretch">
+              <div className="min-w-0 flex flex-col items-start text-left overflow-hidden">
+                <div className="min-w-0 flex-1 w-full overflow-hidden">
+                  <div className="text-xs text-muted-foreground">Buyer</div>
+                  <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 overflow-hidden w-full">
+                    <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
+                    {onCompanyNameClick && property.buyerId ? (
+                      <button
+                        onClick={() => {
+                          onCompanyNameClick(
+                            property.buyerCompanyName || property.companyName || property.propertyOwner || "",
+                            property.buyerId || undefined,
+                            true
+                          );
+                          onClose();
+                        }}
+                        className="truncate text-primary hover:underline text-left min-w-0"
+                        data-testid="text-buyer-company-name"
+                      >
+                        {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                      </button>
+                    ) : (
+                      <p className="truncate text-primary text-left min-w-0 m-0" data-testid="text-buyer-company-name">
+                        {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                      </p>
+                    )}
+                  </div>
+                  {property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0 && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1 min-w-0 overflow-hidden w-full">
+                      {property.buyerContactName && (
+                        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden" data-testid="text-buyer-contact">
+                          <User className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{property.buyerContactName}</span>
+                        </div>
+                      )}
+                      {property.buyerContactEmail && (
+                        <a href={`mailto:${property.buyerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline min-w-0 overflow-hidden">
+                          <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{property.buyerContactEmail}</span>
+                        </a>
+                      )}
+                      {property.buyerContactPhone && (
+                        <a href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 min-w-0 overflow-hidden text-muted-foreground hover:underline">
+                          <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{property.buyerContactPhone}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+              <div className="min-w-0 flex flex-col items-end text-right overflow-hidden">
+                <div className="min-w-0 flex-1 w-full flex flex-col items-end overflow-hidden">
+                  <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
+                  <div className="flex items-center justify-end gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 w-full overflow-hidden">
+                    <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
+                      {onCompanyNameClick && property.sellerId ? (
+                        <button
+                          onClick={() => {
+                            onCompanyNameClick(
+                              property.sellerCompanyName || property.sellerName || "",
+                              property.sellerId || undefined,
+                              true
+                            );
+                            onClose();
+                          }}
+                          className="truncate text-primary hover:underline text-right min-w-0"
+                          data-testid="text-seller-company-name"
+                        >
+                          {property.sellerCompanyName || property.sellerName || "—"}
+                        </button>
+                      ) : (
+                        <p className="truncate text-primary text-right min-w-0 m-0" data-testid="text-seller-company-name">
+                          {property.sellerCompanyName || property.sellerName || "—"}
+                        </p>
+                      )}
+                    </span>
+                    <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
+                  </div>
+                  {property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0 && (
+                    <div className="text-xs font-medium text-foreground mt-1">
+                      ${Number(property.sellerPurchasePrice).toLocaleString()}
+                    </div>
+                  )}
+                  {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (
+                    <div className="text-sm text-muted-foreground mt-1.5 space-y-1 flex flex-col items-end min-w-0 overflow-hidden w-full">
+                      {property.sellerContactName && (
+                        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden justify-end w-full" data-testid="text-seller-contact">
+                          <span className="truncate min-w-0">{property.sellerContactName}</span>
+                          <User className="w-3.5 h-3.5 flex-shrink-0" />
+                        </div>
+                      )}
+                      {property.sellerContactEmail && (
+                        <a href={`mailto:${property.sellerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline min-w-0 overflow-hidden justify-end w-full">
+                          <span className="truncate min-w-0">{property.sellerContactEmail}</span>
+                          <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                        </a>
+                      )}
+                      {property.sellerContactPhone && (
+                        <a href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 min-w-0 overflow-hidden text-muted-foreground hover:underline justify-end w-full">
+                          <span className="truncate min-w-0">{property.sellerContactPhone}</span>
+                          <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
+            {property.spread != null && property.spread !== 0 && (
+              <div className="mt-3 flex justify-center items-center gap-1">
+                <span className="text-xs text-muted-foreground">Spread</span>
+                <span
+                  className={`text-sm font-semibold ${isNegative(property.spread) ? "text-spread-negative" : "text-spread-positive"}`}
+                  data-testid={`text-spread-${property.id}-modal`}
+                >
+                  {isNegative(property.spread) ? "-" : ""}${Number(Math.abs(property.spread)).toLocaleString()}
+                </span>
+              </div>
+            )}
 
             {isAdminOrOwner && (
               <div className="pt-4">

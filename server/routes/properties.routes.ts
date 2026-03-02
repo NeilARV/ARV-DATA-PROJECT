@@ -11,7 +11,7 @@ import {
 } from "@database/schemas/properties.schema";
 import { normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
-import { eq, sql, or, and } from "drizzle-orm";
+import { eq, sql, or, and, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import dotenv from "dotenv";
 import { MapsController, StreetviewController, PropertiesController } from "server/controllers/properties";
@@ -520,6 +520,58 @@ router.get("/:id", async (req, res) => {
             return res.status(404).json({ message: "Property not found" });
         }
 
+        // Arms Length transactions for this property (same logic as GET /api/properties)
+        const armsLengthTxs = await db
+            .select({
+                propertyId: propertyTransactions.propertyId,
+                buyerId: propertyTransactions.buyerId,
+                buyerName: propertyTransactions.buyerName,
+                sellerId: propertyTransactions.sellerId,
+                sellerName: propertyTransactions.sellerName,
+                salePrice: propertyTransactions.salePrice,
+                recordingDate: propertyTransactions.recordingDate,
+                saleDate: propertyTransactions.saleDate,
+                id: propertyTransactions.propertyTransactionsId,
+            })
+            .from(propertyTransactions)
+            .where(
+                and(
+                    eq(propertyTransactions.propertyId, id),
+                    sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
+                )
+            )
+            .orderBy(
+                desc(propertyTransactions.recordingDate),
+                desc(propertyTransactions.saleDate),
+                desc(propertyTransactions.propertyTransactionsId)
+            );
+
+        const latest = armsLengthTxs[0] ?? null;
+        const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
+        const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
+
+        let buyerPurchasePrice: number | null = null;
+        let sellerPurchasePrice: number | null = null;
+        if (latest?.salePrice != null) {
+            buyerPurchasePrice = Number(latest.salePrice);
+        }
+        const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
+        if (latest) {
+            for (let i = 1; i < armsLengthTxs.length; i++) {
+                const tx = armsLengthTxs[i];
+                const matchById = latest.sellerId && tx.buyerId && latest.sellerId === tx.buyerId;
+                const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
+                if (matchById || matchByName) {
+                    if (tx.salePrice != null) sellerPurchasePrice = Number(tx.salePrice);
+                    break;
+                }
+            }
+        }
+        const spread =
+            buyerPurchasePrice != null && sellerPurchasePrice != null
+                ? buyerPurchasePrice - sellerPurchasePrice
+                : null;
+
         // Map result to match the Property type expected by frontend
         // Parse decimal types and provide defaults
         const lat = result.latitude ? (typeof result.latitude === 'string' ? parseFloat(result.latitude) : Number(result.latitude)) : null;
@@ -547,32 +599,37 @@ router.get("/:id", async (req, res) => {
             // Price and date
             price: price,
             dateSold: result.dateSold ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold ? (result.dateSold as Date).toISOString().split('T')[0] : (typeof result.dateSold === 'string' ? result.dateSold.split('T')[0] : String(result.dateSold))) : null,
-            // Buyer company info
+            // Buyer company info (fallback name from transactions when no company)
             buyerId: result.buyerId ? String(result.buyerId) : null,
-            buyerCompanyName: result.buyerCompanyName || null,
+            buyerCompanyName: buyerDisplayName,
             buyerContactName: result.buyerContactName || null,
             buyerContactEmail: result.buyerContactEmail || null,
             buyerContactPhone: result.buyerContactPhone || null,
-            // Seller company info
+            // Seller company info (fallback name from transactions when no company)
             sellerId: result.sellerId ? String(result.sellerId) : null,
-            sellerCompanyName: result.sellerCompanyName || null,
+            sellerCompanyName: sellerDisplayName,
+            sellerName: sellerDisplayName,
             sellerContactName: result.sellerContactName || null,
             sellerContactEmail: result.sellerContactEmail || null,
             sellerContactPhone: result.sellerContactPhone || null,
+            // Spread from Arms Length transactions
+            buyerPurchasePrice,
+            sellerPurchasePrice,
+            spread,
             // Legacy aliases for backward compatibility (buyer as primary, seller as fallback)
             companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
-            companyName: result.buyerCompanyName || result.sellerCompanyName || null,
+            companyName: result.buyerCompanyName || result.sellerCompanyName || buyerDisplayName || sellerDisplayName || null,
             companyContactName: result.buyerContactName || result.sellerContactName || null,
             companyContactEmail: result.buyerContactEmail || result.sellerContactEmail || null,
             companyContactPhone: result.buyerContactPhone || result.sellerContactPhone || null,
-            propertyOwner: result.buyerCompanyName || result.sellerCompanyName || null,
+            propertyOwner: result.buyerCompanyName || result.sellerCompanyName || buyerDisplayName || sellerDisplayName || null,
             propertyOwnerId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             // Additional fields that might be expected
             description: null, // Not in new schema, set to null
             imageUrl: null, // Not in new schema, set to null
             // Legacy fields for backward compatibility
-            purchasePrice: price,
-            saleValue: price,
+            purchasePrice: sellerPurchasePrice ?? price,
+            saleValue: buyerPurchasePrice ?? price,
         };
 
         res.status(200).json(property);
