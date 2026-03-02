@@ -153,6 +153,9 @@ export default function PropertyDetailModal({
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price";
+  const dateLabel = ["wholesale", "in-renovation"].includes((property.status || "").toLowerCase().trim())
+    ? "Date Purchased"
+    : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
@@ -195,7 +198,7 @@ export default function PropertyDetailModal({
 
               <div className="flex items-start gap-6 text-sm">
                 <div className="flex flex-col items-end" data-testid="text-date-sold-detail">
-                  <span className="text-sm text-muted-foreground mb-1">Date Sold</span>
+                  <span className="text-sm text-muted-foreground mb-1">{dateLabel}</span>
                   <div className="flex items-center gap-1 font-semibold text-foreground">
                     <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                     <span>
@@ -404,16 +407,6 @@ export default function PropertyDetailModal({
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Days Owned</div>
                   <div className="font-medium">{daysOwned} days</div>
-                </div>
-              )}
-
-              {formattedDateSold && (
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Purchased Date</div>
-                  <div className="flex items-start gap-1">
-                    <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span className="font-medium">{formattedDateSold}</span>
-                  </div>
                 </div>
               )}
             </div>

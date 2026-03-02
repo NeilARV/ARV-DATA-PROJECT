@@ -151,6 +151,9 @@ export default function PropertyDetailPanel({
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price";
+  const dateLabel = ["wholesale", "in-renovation"].includes((property.status || "").toLowerCase().trim())
+    ? "Date Purchased"
+    : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
@@ -199,7 +202,7 @@ export default function PropertyDetailPanel({
 
             <div className="flex items-start gap-6 text-xs">
               <div className="flex flex-col items-end" data-testid="text-date-sold-panel">
-                <span className="text-xs text-muted-foreground mb-1">Date Sold</span>
+                <span className="text-xs text-muted-foreground mb-1">{dateLabel}</span>
                 <div className="flex items-center gap-1 font-semibold text-foreground">
                   <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                   <span>
@@ -397,16 +400,6 @@ export default function PropertyDetailPanel({
               <div className="text-xs text-muted-foreground mb-1">Price per Sqft</div>
               <div className="font-medium text-sm">${pricePerSqft}</div>
             </div>
-
-            {formattedDateSold && (
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Purchased Date</div>
-                <div className="flex items-start gap-1">
-                  <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                  <span className="font-medium text-sm">{formattedDateSold}</span>
-                </div>
-              </div>
-            )}
 
             {daysOwned !== null && (
               <div>

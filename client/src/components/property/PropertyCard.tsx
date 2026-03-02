@@ -96,7 +96,11 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
 
           <div className="flex items-start gap-6 text-sm">
             <div className="flex flex-col items-end" data-testid={`text-date-sold-${property.id}`}>
-              <span className="text-sm text-muted-foreground mb-1">Date Sold</span>
+              <span className="text-sm text-muted-foreground mb-1">
+                {["wholesale", "in-renovation"].includes((property.status || "").toLowerCase().trim())
+                  ? "Date Purchased"
+                  : "Date Sold"}
+              </span>
               <div className="flex items-center gap-1 font-semibold text-foreground">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>
