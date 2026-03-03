@@ -635,9 +635,6 @@ router.get("/:id", async (req, res) => {
             companyContactPhone: result.buyerContactPhone || result.sellerContactPhone || null,
             propertyOwner: result.buyerCompanyName || result.sellerCompanyName || buyerDisplayName || sellerDisplayName || null,
             propertyOwnerId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
-            // Additional fields that might be expected
-            description: null, // Not in new schema, set to null
-            imageUrl: null, // Not in new schema, set to null
             // Legacy fields for backward compatibility
             purchasePrice: sellerPurchasePrice ?? price,
             saleValue: buyerPurchasePrice ?? price,
