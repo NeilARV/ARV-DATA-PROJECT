@@ -34,7 +34,7 @@ export type AdminUser = {
   email: string;
   createdAt: string;
   roles: string[];
-  relationshipManagers?: { id: string; firstName: string; lastName: string }[];
+  relationshipManagers?: RelationshipManagerAssignment[];
 }
 
 export type RoleOption = {
@@ -46,4 +46,24 @@ export type RolesTabProps = {
     isAdmin: boolean;
     isOwner?: boolean;
     currentUserId?: string | null;
+}
+
+export type RelationshipManagerAssignment ={
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+export type RelationshipManager = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string;
+  roles: string[];
+}
+
+export type UsersTabProps = {
+  isAdmin: boolean;
+  canDeleteUser?: boolean;
 }

@@ -29,38 +29,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
-
-interface RelationshipManagerAssignment {
-  id: string;
-  firstName: string;
-  lastName: string;
-}
-
-interface AdminUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email: string;
-  createdAt: string;
-  relationshipManagers: RelationshipManagerAssignment[];
-}
-
-/** From GET /api/users/relationship-managers */
-interface RelationshipManager {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  email: string;
-  roles: string[];
-}
-
-interface UsersTabProps {
-  isAdmin: boolean;
-  /** When true (admin/owner), show delete user button and allow delete. */
-  canDeleteUser?: boolean;
-}
+import type { AdminUser, RelationshipManager, UsersTabProps } from "@/types/admin";
 
 function parseRoleApiError(error: unknown): string {
   let message = "Something went wrong";
