@@ -1,3 +1,6 @@
+import { Section } from "@/types/options";
+import type { StatusTag } from "@/types/property";
+
 // Status tag colors match PropertyMap.tsx map ping colors
 const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
   "Renovating": { label: "Renovating", bg: "#69C9E1", text: "#fff" },
@@ -15,14 +18,7 @@ function getStatusTags(status: string): { label: string; bg: string; text: strin
   return [STATUS_TAG_STYLES["Renovating"]]; // default fallback
 }
 
-type Section = "panel" | "modal" | "card"
-
-type IStatusTag = {
-    status: string;
-    section: Section;
-}
-
-export function StatusTag({status, section}: IStatusTag) {
+export function StatusTag({status, section}: StatusTag) {
 
     const sectionClass = (section: Section) => {
         switch(section) {

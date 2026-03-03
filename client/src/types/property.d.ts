@@ -125,3 +125,8 @@ export type PropertyTable = {
   properties: Property[];
   onPropertyClick: (property: Property) => void;
 }
+
+export type StatusTag = {
+  status: string;
+  section: Section;
+}

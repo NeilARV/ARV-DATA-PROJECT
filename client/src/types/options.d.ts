@@ -4,3 +4,4 @@ export type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-p
 export type Status = "in-renovation" | "wholesale" | "on-market" | "sold";
 export type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squareFeet" | "propertyType" | "dateSold" | "propertyOwner" | "daysOwned";
 export type SortDirection = "asc" | "desc";
+export type Section = "panel" | "modal" | "card";
