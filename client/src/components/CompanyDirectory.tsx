@@ -40,12 +40,6 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
-const contactRequestSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Please enter a valid email address"),
-  message: z.string().min(10, "Message must be at least 10 characters").optional(),
-});
-
 export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, filters, onFilterChange, viewMode }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
