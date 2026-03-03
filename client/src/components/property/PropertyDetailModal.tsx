@@ -194,7 +194,7 @@ export default function PropertyDetailModal({
                 <p className="text-sm text-muted-foreground">
                   {priceLabel}
                 </p>
-                <div className="text-3xl font-bold" data-testid="text-detail-price">
+                <div className="text-2xl font-bold" data-testid="text-detail-price">
                   ${property.price.toLocaleString()}
                 </div>
               </div>
