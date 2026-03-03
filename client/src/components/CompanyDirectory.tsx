@@ -1,14 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import type { PropertyFilters } from "@/components/FilterSidebar";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
-import type { CompanyContactWithCounts, CompanyContactDetail } from "@/types/companies";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
 import UpdateDialog from "@/components/modals/UpdateDialog";
-
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
 import {
@@ -37,6 +34,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import type { CompanyContactWithCounts, CompanyContactDetail } from "@/types/companies";
+import type { PropertyFilters } from "@/types/filters";
 
 type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "new-buyers";
 

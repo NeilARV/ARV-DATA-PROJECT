@@ -11,17 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
-
-export interface ZipCodeWithCount {
-  zipCode: string;
-  count: number;
-  city?: string;
-}
-
-export interface CityWithCount {
-  city: string;
-  count: number;
-}
+import { PropertyFilters, ZipCodeWithCount, CityWithCount } from "@/types/filters";
 
 interface FilterSidebarProps {
   onClose?: () => void;
@@ -29,18 +19,6 @@ interface FilterSidebarProps {
   zipCodesWithCounts?: ZipCodeWithCount[];
   onSwitchToDirectory?: () => void;
   filters?: PropertyFilters; // Controlled filters from parent
-}
-
-export interface PropertyFilters {
-  minPrice: number;
-  maxPrice: number; // Use Number.MAX_SAFE_INTEGER for "no limit"
-  bedrooms: string;
-  bathrooms: string;
-  propertyTypes: string[];
-  zipCode: string;
-  city?: string; // Optional city filter
-  county?: string; // Optional county filter
-  statusFilters: string[];
 }
 
 type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
