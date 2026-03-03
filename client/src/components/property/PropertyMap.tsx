@@ -4,8 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import type { Property } from '@/types/property';
-import type { MapPin } from '@/types/property';
+import type { MapPin, PropertyMap } from '@/types/property';
 
 
 const createColoredIcon = (color: string) => {
@@ -75,21 +74,6 @@ const getIconForPin = (
       return blueIcon;
   }
 };
-
-interface PropertyMapProps {
-  mapPins: MapPin[];
-  onPropertyClick?: (mapPin: MapPin) => void;
-  center?: [number, number];
-  zoom?: number;
-  hasActiveFilters?: boolean;
-  onClearFilters?: () => void;
-  selectedProperty?: Property | null;
-  isLoading?: boolean;
-  selectedCompany?: string | null;
-  selectedCompanyId?: string | null;
-  onDeselectCompany?: () => void;
-  statusFilters?: string[];
-}
 
 function MapResizeHandler() {
   const map = useMap();
@@ -201,7 +185,7 @@ export default function PropertyMap({
   selectedCompanyId,
   onDeselectCompany,
   statusFilters = []
-}: PropertyMapProps) {
+}: PropertyMap) {
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
     p.latitude != null && p.longitude != null && 

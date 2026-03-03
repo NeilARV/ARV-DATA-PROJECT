@@ -105,3 +105,18 @@ export type PropertyDetailPanel = {
   onClose: () => void;
   onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
 }
+
+export type PropertyMap = {
+  mapPins: MapPin[];
+  onPropertyClick?: (mapPin: MapPin) => void;
+  center?: [number, number];
+  zoom?: number;
+  hasActiveFilters?: boolean;
+  onClearFilters?: () => void;
+  selectedProperty?: Property | null;
+  isLoading?: boolean;
+  selectedCompany?: string | null;
+  selectedCompanyId?: string | null;
+  onDeselectCompany?: () => void;
+  statusFilters?: string[];
+}
