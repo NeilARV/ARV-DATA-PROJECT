@@ -29,28 +29,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
-
-interface AdminUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email: string;
-  createdAt: string;
-  roles: string[];
-  relationshipManagers?: { id: string; firstName: string; lastName: string }[];
-}
-
-interface RoleOption {
-  id: number;
-  name: string;
-}
-
-interface RolesTabProps {
-  isAdmin: boolean;
-  isOwner?: boolean;
-  currentUserId?: string | null;
-}
+import type { AdminUser, RoleOption, RolesTabProps } from "@/types/admin";
 
 function parseRoleApiError(error: unknown): string {
   let message = "Something went wrong";
