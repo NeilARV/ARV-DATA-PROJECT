@@ -23,28 +23,7 @@ import lightLogoUrl from "@assets/arv-data-logo-light.png";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
-
-interface HeaderProps {
-  viewMode: "map" | "grid" | "table" | "buyers-feed" | "wholesale";
-  onViewModeChange: (mode: "map" | "grid" | "table" | "buyers-feed" | "wholesale") => void;
-  onSearch?: (query: string) => void;
-  onPropertySelect?: (propertyId: string) => void;
-  onLoginClick?: () => void;
-  onSignupClick?: () => void;
-  onLeaderboardClick?: () => void;
-  onBuyersFeedClick?: () => void;
-  onWholesaleClick?: () => void;
-  onLogoClick?: () => void;
-  county?: string; // County filter for suggestions
-}
-
-interface PropertySuggestion {
-  id: string;
-  address: string;
-  city: string;
-  state: string;
-  zipcode: string;
-}
+import type { HeaderProps, PropertySuggestion } from "@/types/general";
 
 export default function Header({
   viewMode,
