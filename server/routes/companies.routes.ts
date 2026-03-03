@@ -4,7 +4,7 @@ import { companies } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
 import { updateCompanySchema } from "@database/updates/companies.update";
 import { requireRole } from "server/middleware/requireRole";
-import { sql, eq, or, and, gte, lte } from "drizzle-orm";
+import { sql, eq, or, and, gte, lte, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const router = Router();
@@ -142,6 +142,69 @@ router.get("/contacts", async (req, res) => {
     } catch (error) {
         console.error("Error fetching companies:", error);
         res.status(500).json({ message: "Error fetching companies" });
+    }
+});
+
+// Get top 3 wholesalers (companies with most properties where status = 'wholesale', counted by seller_id)
+// Optional query: county (e.g. "San Diego") - filters by properties.county or addresses.county
+router.get("/wholesale-leaderboard", async (req, res) => {
+    try {
+        const countyParam = req.query.county?.toString()?.trim();
+        const normalizedCounty = countyParam ? countyParam.toLowerCase() : null;
+
+        const countRows = await db
+            .select({
+                sellerId: properties.sellerId,
+                count: sql<number>`count(*)::int`,
+            })
+            .from(properties)
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .where(
+                normalizedCounty
+                    ? and(
+                          eq(properties.status, "wholesale"),
+                          or(
+                              sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                              sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                          )
+                      )
+                    : eq(properties.status, "wholesale")
+            )
+            .groupBy(properties.sellerId)
+            .orderBy(sql`count(*) desc`)
+            .limit(3);
+
+        if (countRows.length === 0) {
+            return res.json([]);
+        }
+
+        const sellerIds = countRows.map((r) => r.sellerId).filter(Boolean) as string[];
+        const companyRows = await db
+            .select({
+                id: companies.id,
+                companyName: companies.companyName,
+            })
+            .from(companies)
+            .where(inArray(companies.id, sellerIds));
+
+        const companyById = new Map(companyRows.map((c) => [c.id, c]));
+        const result = countRows
+            .map((row, index) => {
+                const company = row.sellerId ? companyById.get(row.sellerId) : null;
+                if (!company) return null;
+                return {
+                    rank: index + 1,
+                    companyId: company.id,
+                    companyName: company.companyName,
+                    wholesaleCount: row.count,
+                };
+            })
+            .filter(Boolean);
+
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching wholesale leaderboard:", error);
+        res.status(500).json({ message: "Error fetching wholesale leaderboard" });
     }
 });
 

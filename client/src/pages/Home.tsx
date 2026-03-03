@@ -1545,6 +1545,9 @@ export default function Home() {
                   isLoadingMoreProperties={isLoadingMoreProperties}
                   isLoading={isLoading}
                   loadMoreRef={loadMorePropertiesRef}
+                  showWholesaleLeaderboard={viewMode === "wholesale"}
+                  county={filters.county}
+                  onWholesaleLeaderboardCompanyClick={handleLeaderboardCompanyClick}
                 />
               </>
             )}

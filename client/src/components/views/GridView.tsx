@@ -7,9 +7,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trophy } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
+
+interface WholesaleLeaderboardEntry {
+  rank: number;
+  companyId: string;
+  companyName: string;
+  wholesaleCount: number;
+}
 
 interface GridViewProps {
   properties: Property[];
@@ -27,6 +35,12 @@ interface GridViewProps {
   isLoadingMoreProperties: boolean;
   isLoading?: boolean;
   loadMoreRef: React.RefObject<HTMLDivElement>;
+  /** When true (wholesale feed), show top 3 wholesalers leaderboard in the header */
+  showWholesaleLeaderboard?: boolean;
+  /** County filter for wholesale leaderboard (e.g. "San Diego") */
+  county?: string;
+  /** Called when user clicks a company in the wholesale leaderboard */
+  onWholesaleLeaderboardCompanyClick?: (companyName: string, companyId?: string) => void;
 }
 
 export default function GridView({
@@ -45,21 +59,32 @@ export default function GridView({
   isLoadingMoreProperties,
   isLoading = false,
   loadMoreRef,
+  showWholesaleLeaderboard = false,
+  county = "San Diego",
+  onWholesaleLeaderboardCompanyClick,
 }: GridViewProps) {
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 
+  const { data: wholesaleLeaderboard = [], isLoading: isLoadingLeaderboard } = useQuery<
+    WholesaleLeaderboardEntry[]
+  >({
+    queryKey: ["/api/companies/wholesale-leaderboard", county],
+    queryFn: async () => {
+      const url = `/api/companies/wholesale-leaderboard${county ? `?county=${encodeURIComponent(county)}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch wholesale leaderboard");
+      return res.json();
+    },
+    enabled: showWholesaleLeaderboard,
+  });
+
   return (
-    <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
+    <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">
+      <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
           <h2 className="text-2xl font-semibold mb-1">
             {`${totalFilteredProperties} Properties`}
-            {selectedCompany && (
-              <span className="text-base font-normal text-muted-foreground ml-2">
-                owned by {selectedCompany}
-              </span>
-            )}
           </h2>
           {(selectedCompany || hasActiveFilters) && (
             <p className="text-muted-foreground">
@@ -89,7 +114,57 @@ export default function GridView({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {showWholesaleLeaderboard && (
+          <div className="flex items-center gap-2 flex-shrink-0 min-w-0 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
+              Top Wholesalers
+            </span>
+            {isLoadingLeaderboard ? (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            ) : wholesaleLeaderboard.length > 0 ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                {wholesaleLeaderboard.map((entry) => {
+                  const badgeStyles =
+                    entry.rank === 1
+                      ? "bg-amber-400 text-white font-semibold"
+                      : entry.rank === 2
+                        ? "bg-slate-400 text-white font-semibold"
+                        : "bg-amber-700 text-amber-100 font-semibold";
+                  const borderAccent =
+                    entry.rank === 1
+                      ? "border-l-amber-400"
+                      : entry.rank === 2
+                        ? "border-l-slate-400"
+                        : "border-l-amber-700";
+                  return (
+                    <button
+                      key={entry.companyId}
+                      type="button"
+                      onClick={() =>
+                        onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)
+                      }
+                      className={`pl-2 pr-3 py-1.5 rounded-md border border-border border-l-4 bg-background hover:bg-muted/50 transition-colors flex items-center gap-2 text-left min-w-0 cursor-pointer ${borderAccent}`}
+                    >
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
+                        {entry.rank}
+                      </span>
+                      <span className="font-medium text-sm truncate max-w-[120px] text-foreground">
+                        {entry.companyName}
+                      </span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                        {entry.wholesaleCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">No data</span>
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm text-muted-foreground">Sort by:</span>
           <Select value={sortBy} onValueChange={(value) => onSortChange(value as SortOption)}>
             <SelectTrigger className="w-[180px]" data-testid="select-sort">
