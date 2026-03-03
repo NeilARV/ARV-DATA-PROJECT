@@ -333,7 +333,6 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
 
     // Step 2: Fetch full rows for this page of IDs and preserve order
-    // Step 2: Fetch full rows for this page of IDs and preserve order
     let query = db
         .select({
             // Properties table fields
