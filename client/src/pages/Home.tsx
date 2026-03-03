@@ -12,15 +12,14 @@ import UploadDialog from "@/components/modals/UploadDialog";
 import SignupDialog from "@/components/modals/SignupDialog";
 import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
-import type { Property } from "@/types/property";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
-import type { MapPin } from '@/types/property';
-import { SortOption, View } from "@/types/options";
-import { PropertyFilters } from "@/types/filters";
+import type { SortOption, View } from "@/types/options";
+import type { PropertyFilters } from "@/types/filters";
+import type { Property, MapPin } from "@/types/property";
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<View>("map");
