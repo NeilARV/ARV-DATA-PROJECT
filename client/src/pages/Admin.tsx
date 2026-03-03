@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2,
-  Database,
   AlertTriangle,
   ArrowLeft,
   Users,
@@ -61,22 +60,6 @@ export default function Admin() {
     const queryString = params.toString();
     return queryString ? `/api/properties?${queryString}` : '/api/properties';
   }, [selectedCounty]);
-
-  const { data: propertiesResponse, isLoading } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
-    queryKey: [propertiesQueryUrl],
-    queryFn: async () => {
-      const res = await fetch(propertiesQueryUrl, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch properties: ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: isAdmin,
-  });
-
-  const properties = propertiesResponse?.properties ?? [];
 
   const handleLogout = async () => {
     try {
@@ -175,10 +158,6 @@ export default function Admin() {
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className={`grid w-full mb-8 ${canManageRoles ? "grid-cols-3" : "grid-cols-2"}`}>
-          {/* <TabsTrigger value="manage" data-testid="tab-manage">
-            <Database className="w-4 h-4 mr-2" />
-            Manage Properties
-          </TabsTrigger> */}
           <TabsTrigger value="users" data-testid="tab-users">
             <Users className="w-4 h-4 mr-2" />
             Users
@@ -194,16 +173,6 @@ export default function Admin() {
             </TabsTrigger>
           )}
         </TabsList>
-
-        {/* <TabsContent value="manage">
-          <ManagePropertiesTab
-            properties={properties}
-            isLoading={isLoading}
-            onOpenUpload={() => setUploadDialogOpen(true)}
-            selectedCounty={selectedCounty}
-            onCountyChange={(county) => setSelectedCounty(county)}
-          />
-        </TabsContent> */}
 
         <TabsContent value="users">
           <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} />
