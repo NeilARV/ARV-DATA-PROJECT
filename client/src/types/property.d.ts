@@ -120,3 +120,8 @@ export type PropertyMap = {
   onDeselectCompany?: () => void;
   statusFilters?: string[];
 }
+
+export type PropertyTable = {
+  properties: Property[];
+  onPropertyClick: (property: Property) => void;
+}

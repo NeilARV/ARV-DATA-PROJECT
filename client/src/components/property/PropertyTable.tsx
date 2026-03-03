@@ -1,4 +1,3 @@
-import type { Property } from "@/types/property";
 import {
   Table,
   TableBody,
@@ -11,6 +10,8 @@ import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
 import { formatAddress } from "@shared/utils/formatAddress";
+import type { PropertyTable } from "@/types/property";
+import type { SortColumn, SortDirection } from "@/types/options";
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {
@@ -29,14 +30,6 @@ function getStatusDots(status: string): string[] {
   return [STATUS_COLORS.Renovating];
 }
 
-interface PropertyTableProps {
-  properties: Property[];
-  onPropertyClick: (property: Property) => void;
-}
-
-type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squareFeet" | "propertyType" | "dateSold" | "propertyOwner" | "daysOwned";
-type SortDirection = "asc" | "desc";
-
 const getStreetName = (address?: string | null) => {
   if (!address) return "";
   let s = address;
@@ -47,7 +40,7 @@ const getStreetName = (address?: string | null) => {
   return s.toLowerCase().trim();
 };
 
-export default function PropertyTable({ properties, onPropertyClick }: PropertyTableProps) {
+export default function PropertyTable({ properties, onPropertyClick }: PropertyTable) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 

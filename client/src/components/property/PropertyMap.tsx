@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { MapPin, PropertyMap } from '@/types/property';
 
-
 const createColoredIcon = (color: string) => {
   const svgIcon = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="41">
