@@ -552,8 +552,13 @@ router.get("/:id", async (req, res) => {
 
         let buyerPurchasePrice: number | null = null;
         let sellerPurchasePrice: number | null = null;
+        let buyerPurchaseDate: string | null = null;
+        let sellerPurchaseDate: string | null = null;
         if (latest?.salePrice != null) {
             buyerPurchasePrice = Number(latest.salePrice);
+        }
+        if (latest?.recordingDate) {
+            buyerPurchaseDate = typeof latest.recordingDate === 'string' ? latest.recordingDate : (latest.recordingDate as Date).toISOString().split('T')[0];
         }
         const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
         if (latest) {
@@ -563,6 +568,9 @@ router.get("/:id", async (req, res) => {
                 const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
                 if (matchById || matchByName) {
                     if (tx.salePrice != null) sellerPurchasePrice = Number(tx.salePrice);
+                    if (tx.recordingDate) {
+                        sellerPurchaseDate = typeof tx.recordingDate === 'string' ? tx.recordingDate : (tx.recordingDate as Date).toISOString().split('T')[0];
+                    }
                     break;
                 }
             }
@@ -612,9 +620,11 @@ router.get("/:id", async (req, res) => {
             sellerContactName: result.sellerContactName || null,
             sellerContactEmail: result.sellerContactEmail || null,
             sellerContactPhone: result.sellerContactPhone || null,
-            // Spread from Arms Length transactions
+            // Spread from Arms Length transactions; recording dates for those txs
             buyerPurchasePrice,
+            buyerPurchaseDate,
             sellerPurchasePrice,
+            sellerPurchaseDate,
             spread,
             // Legacy aliases for backward compatibility (buyer as primary, seller as fallback)
             companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),

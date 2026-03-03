@@ -447,8 +447,13 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
         let buyerPurchasePrice: number | null = null;
         let sellerPurchasePrice: number | null = null;
+        let buyerPurchaseDate: string | null = null;
+        let sellerPurchaseDate: string | null = null;
         if (latest?.salePrice != null) {
             buyerPurchasePrice = Number(latest.salePrice);
+        }
+        if (latest?.recordingDate) {
+            buyerPurchaseDate = typeof latest.recordingDate === 'string' ? latest.recordingDate : (latest.recordingDate as Date).toISOString().split('T')[0];
         }
         if (latest) {
             for (let i = 1; i < txs.length; i++) {
@@ -457,6 +462,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
                 if (matchById || matchByName) {
                     if (tx.salePrice != null) sellerPurchasePrice = Number(tx.salePrice);
+                    if (tx.recordingDate) {
+                        sellerPurchaseDate = typeof tx.recordingDate === 'string' ? tx.recordingDate : (tx.recordingDate as Date).toISOString().split('T')[0];
+                    }
                     break;
                 }
             }
@@ -503,9 +511,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,
             companyContactPhone: prop.contactPhone || null,
-            // Spread from Arms Length transactions: buyer paid, seller's prior purchase, spread
+            // Spread from Arms Length transactions: buyer paid, seller's prior purchase, spread; recording dates for those txs
             buyerPurchasePrice,
+            buyerPurchaseDate,
             sellerPurchasePrice,
+            sellerPurchaseDate,
             spread,
             sellerName: sellerDisplayName,
             // Legacy aliases for backward compatibility

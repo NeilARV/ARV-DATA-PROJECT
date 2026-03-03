@@ -24,7 +24,9 @@ export type Property = {
   price: number;
   dateSold: string | null;
   buyerPurchasePrice: number | null;
+  buyerPurchaseDate: string | null;
   sellerPurchasePrice: number | null;
+  sellerPurchaseDate: string | null;
   spread: number | null;
   // Buyer company info
   buyerId: string | null;

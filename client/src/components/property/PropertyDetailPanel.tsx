@@ -156,6 +156,8 @@ export default function PropertyDetailPanel({
     ? "Date Purchased"
     : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);
+  const formattedBuyerPurchaseDate = formatDate(property.buyerPurchaseDate);
+  const formattedSellerPurchaseDate = formatDate(property.sellerPurchaseDate);
   const daysOwned = calculateDaysOwned(property.dateSold);
 
   return (
@@ -280,8 +282,11 @@ export default function PropertyDetailPanel({
                   )}
                 </div>
                 {property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0 && (
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                     <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice).toLocaleString()}</span>
+                    {property.buyerPurchaseDate && formattedBuyerPurchaseDate && (
+                      <div className="text-muted-foreground">{formattedBuyerPurchaseDate}</div>
+                    )}
                   </div>
                 )}
                 {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
@@ -336,8 +341,11 @@ export default function PropertyDetailPanel({
                   <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
                 </div>
                 {property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0 && (
-                  <div className="text-xs font-medium text-foreground mt-1">
-                    ${Number(property.sellerPurchasePrice).toLocaleString()}
+                  <div className="text-xs font-medium text-foreground mt-1 space-y-0.5">
+                    <span>${Number(property.sellerPurchasePrice).toLocaleString()}</span>
+                    {property.sellerPurchaseDate && formattedSellerPurchaseDate && (
+                      <div className="text-muted-foreground">{formattedSellerPurchaseDate}</div>
+                    )}
                   </div>
                 )}
                 {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (

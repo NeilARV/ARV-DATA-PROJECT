@@ -169,8 +169,14 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                     </span>
                   </div>
                   {(property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0) && (
-                    <div className="text-xs text-muted-foreground mt-1">
+                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                       <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice).toLocaleString()}</span>
+                      {property.buyerPurchaseDate && (() => {
+                        try {
+                          const d = parseISO(property.buyerPurchaseDate);
+                          return isValid(d) ? <div className="text-muted-foreground">{format(d, "MMM d, yyyy")}</div> : null;
+                        } catch { return null; }
+                      })()}
                     </div>
                   )}
                   {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
@@ -226,8 +232,14 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                   </div>
                   {(property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0) && (
-                    <div className="text-xs font-medium text-foreground mt-1">
-                      ${Number(property.sellerPurchasePrice).toLocaleString()}
+                    <div className="text-xs font-medium text-foreground mt-1 space-y-0.5">
+                      <span>${Number(property.sellerPurchasePrice).toLocaleString()}</span>
+                      {property.sellerPurchaseDate && (() => {
+                        try {
+                          const d = parseISO(property.sellerPurchaseDate);
+                          return isValid(d) ? <div className="text-muted-foreground text-xs">{format(d, "MMM d, yyyy")}</div> : null;
+                        } catch { return null; }
+                      })()}
                     </div>
                   )}
                   {(property.sellerContactName ||
