@@ -19,9 +19,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { MapPin } from '@/types/property';
-
-type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
-type ViewType = "map" | "grid" | "table" | "buyers-feed" | "wholesale"
+import { SortOption, ViewType } from "@/types/options";
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewType>("map");
