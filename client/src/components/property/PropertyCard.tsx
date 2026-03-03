@@ -282,7 +282,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                 </div>
               </div>
         </div>
-        {property.spread != null && property.spread !== 0 && (
+        {property.spread != null && (
           <div className="mt-3 flex justify-center items-center gap-1">
             <span
               className={`text-sm font-semibold ${isNegative(property.spread) ? "text-spread-negative" : "text-spread-positive"}`}

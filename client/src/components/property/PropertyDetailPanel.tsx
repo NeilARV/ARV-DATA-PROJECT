@@ -373,7 +373,7 @@ export default function PropertyDetailPanel({
               </div>
             </div>
           </div>
-          {property.spread != null && property.spread !== 0 && (
+          {property.spread != null && (
             <div className="mt-3 flex justify-center items-center gap-1">
               <span className="text-xs text-muted-foreground">Spread</span>
               <span
