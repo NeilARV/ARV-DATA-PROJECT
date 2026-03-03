@@ -1,21 +1,6 @@
-import type { Property } from "@/types/property";
 import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
-
-interface TableViewProps {
-  properties: Property[];
-  selectedCompany: string | null;
-  totalCompanyProperties: number;
-  totalFilteredProperties: number;
-  hasActiveFilters: boolean;
-  onPropertyClick: (property: Property) => void;
-  onClearCompanyFilter: () => void;
-  onClearFilters: () => void;
-  propertiesHasMore: boolean;
-  isLoadingMoreProperties: boolean;
-  isLoading?: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
-}
+import type { TableView } from "@/types/views";
 
 export default function TableView({
   properties,
@@ -30,7 +15,7 @@ export default function TableView({
   isLoadingMoreProperties,
   isLoading = false,
   loadMoreRef,
-}: TableViewProps) {
+}: TableView) {
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 

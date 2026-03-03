@@ -1,4 +1,3 @@
-import type { Property } from "@/types/property";
 import PropertyCard from "@/components/property/PropertyCard";
 import {
   Select,
@@ -9,39 +8,8 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Trophy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-
-type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
-
-interface WholesaleLeaderboardEntry {
-  rank: number;
-  companyId: string;
-  companyName: string;
-  wholesaleCount: number;
-}
-
-interface GridViewProps {
-  properties: Property[];
-  selectedCompany: string | null;
-  totalCompanyProperties: number;
-  totalFilteredProperties: number;
-  hasActiveFilters: boolean;
-  sortBy: SortOption;
-  onSortChange: (sortBy: SortOption) => void;
-  onPropertyClick: (property: Property) => void;
-  onClearCompanyFilter: () => void;
-  onClearFilters: () => void;
-  gridColsClass: string;
-  propertiesHasMore: boolean;
-  isLoadingMoreProperties: boolean;
-  isLoading?: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
-  /** When true (wholesale feed), show top 3 wholesalers leaderboard in the header */
-  showWholesaleLeaderboard?: boolean;
-  /** County filter for wholesale leaderboard (e.g. "San Diego") */
-  county?: string;
-  /** Called when user clicks a company in the wholesale leaderboard */
-  onWholesaleLeaderboardCompanyClick?: (companyName: string, companyId?: string) => void;
-}
+import type { SortOption } from "@/types/options";
+import { GridView, WholesaleLeaderboardEntry } from "@/types/views";
 
 export default function GridView({
   properties,
@@ -62,7 +30,7 @@ export default function GridView({
   showWholesaleLeaderboard = false,
   county = "San Diego",
   onWholesaleLeaderboardCompanyClick,
-}: GridViewProps) {
+}: GridView) {
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 
