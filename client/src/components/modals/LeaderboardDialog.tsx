@@ -8,19 +8,8 @@ import { Trophy, Building2, MapPin } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCityForZipCode } from "@/lib/zipCodes";
+import type { LeaderboardDialogProps, LeaderboardData } from "@/types/modals";
 
-interface LeaderboardDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCompanyClick?: (companyName: string) => void;
-  onZipCodeClick?: (zipCode: string) => void;
-  county?: string;
-}
-
-interface LeaderboardData {
-  companies: Array<{ rank: number; name: string; count: number; contactName: string | null }>;
-  zipCodes: Array<{ rank: number; zipCode: string; count: number }>;
-}
 
 export default function LeaderboardDialog({ 
   open, 
