@@ -15,34 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import type { CompanyContactWithCounts, CompanyContactDetail } from "@/types/companies";
-import type { PropertyFilters } from "@/types/filters";
+import type { CompanyContactWithCounts, CompanyContactDetail, CompanyDirectoryProps } from "@/types/companies";
+import type { DirectorySortOption, Status } from "@/types/options";
 
-type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "new-buyers";
 
-const ALL_STATUS_FILTERS = ["in-renovation", "wholesale", "on-market", "sold"];
-const DEFAULT_STATUS_FILTERS = ["in-renovation"];
-const WHOLESALE_FEED_STATUS = ["wholesale"];
-const BUYERS_FEED_STATUS = ["in-renovation", "wholesale"];
+const ALL_STATUS_FILTERS: Status[] = ["in-renovation", "wholesale", "on-market", "sold"];
+const DEFAULT_STATUS_FILTERS: Status[] = ["in-renovation"];
+const WHOLESALE_FEED_STATUS: Status[] = ["wholesale"];
+const BUYERS_FEED_STATUS: Status[] = ["in-renovation", "wholesale"];
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -64,30 +46,9 @@ const contactRequestSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters").optional(),
 });
 
-type ContactRequestForm = z.infer<typeof contactRequestSchema>;
-
-export type ViewMode = "map" | "grid" | "table" | "buyers-feed" | "wholesale";
-
-interface CompanyDirectoryProps {
-  onClose?: () => void;
-  onSwitchToFilters?: () => void;
-  // Accept null to indicate clearing the selection, and optional companyId
-  onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
-  // Controlled selected company so expanded state can be synced across views
-  selectedCompany?: string | null;
-  // Company ID when selected from PropertyDetailPanel, modal, card, etc. (enables fetch by ID)
-  selectedCompanyId?: string | null;
-  // Optional: allow syncing status filters with parent filters
-  filters?: PropertyFilters;
-  onFilterChange?: (filters: PropertyFilters) => void;
-  /** Current view: on deselect we revert to feed-specific status (wholesale / buyers-feed) or in-renovation only */
-  viewMode?: ViewMode;
-}
-
 export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, filters, onFilterChange, viewMode }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
-  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
@@ -149,42 +110,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     }
   }, [expandedCompany]);
   const { toast } = useToast();
-
-  const toggleStatusFilter = (status: string) => {
-    setStatusFilters(prev => {
-      const next = new Set(prev);
-      if (next.has(status)) {
-        next.delete(status);
-      } else {
-        next.add(status);
-      }
-
-      // If parent provided a filter setter, update its statusFilters while preserving other values
-      if (onFilterChange) {
-        onFilterChange({
-          minPrice: filters?.minPrice ?? 0,
-          maxPrice: filters?.maxPrice ?? 10000000,
-          bedrooms: filters?.bedrooms ?? 'Any',
-          bathrooms: filters?.bathrooms ?? 'Any',
-          propertyTypes: filters?.propertyTypes ?? [],
-          zipCode: filters?.zipCode ?? '',
-          statusFilters: Array.from(next),
-        });
-      }
-
-      return next;
-    });
-  };
-
-  const form = useForm<ContactRequestForm>({
-    resolver: zodResolver(contactRequestSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      message: "",
-    },
-  });
-
 
   // Fetch companies with property counts (calculated server-side from ALL properties)
   const countyQueryParam = filters?.county ? `?county=${encodeURIComponent(filters.county)}` : '';
@@ -279,46 +204,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         onCompanySelect(next, next ? company.id : null);
       }
       return next;
-    });
-  };
-
-  const handleContactRequest = (data: ContactRequestForm) => {
-    const subject = "Contact Information Request";
-    const body = 
-      `Hello,\n\n` +
-      `I would like to request contact information.\n\n` +
-      `Name: ${data.name}\n` +
-      `Email: ${data.email}\n` +
-      `${data.message ? `Message: ${data.message}\n` : ''}` +
-      `\nThank you.`;
-    
-    const mailtoLink = `mailto:neil@arvfinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    
-    // Attempt to open mailto: link
-    window.location.href = mailtoLink;
-    
-    // Show success message and close dialog
-    toast({
-      title: "Opening Email Client",
-      description: "Your default email client will open. If it doesn't, please use the 'Copy Email' button to get the address.",
-    });
-    
-    setRequestDialogOpen(false);
-    form.reset();
-  };
-
-  const handleCopyEmail = () => {
-    navigator.clipboard.writeText("neil@arvfinance.com").then(() => {
-      toast({
-        title: "Email Copied",
-        description: "neil@arvfinance.com has been copied to your clipboard.",
-      });
-    }).catch(() => {
-      toast({
-        title: "Copy Failed",
-        description: "Please manually copy: neil@arvfinance.com",
-        variant: "destructive",
-      });
     });
   };
 
@@ -721,97 +606,6 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
           {filteredCompanies.length} {filteredCompanies.length === 1 ? 'company' : 'companies'}
         </div>
       </div>
-
-      <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
-        <DialogContent data-testid="dialog-request-contact">
-          <DialogHeader>
-            <DialogTitle>Request Contact Information</DialogTitle>
-            <DialogDescription>
-              Send a contact information request to neil@arvfinance.com. Your default email client will open with a pre-filled message.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleContactRequest)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Your Name *</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="John Doe" data-testid="input-request-name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Your Email *</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="email" placeholder="john@example.com" data-testid="input-request-email" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="message"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Message (Optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Additional details..." data-testid="input-request-message" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    data-testid="button-submit-request"
-                  >
-                    <Mail className="w-4 h-4 mr-2" />
-                    Send Request
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCopyEmail}
-                    className="flex-1"
-                    data-testid="button-copy-email"
-                  >
-                    Copy Email
-                  </Button>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setRequestDialogOpen(false);
-                    form.reset();
-                  }}
-                  className="w-full"
-                  data-testid="button-cancel-request"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

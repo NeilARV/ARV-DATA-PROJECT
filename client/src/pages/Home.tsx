@@ -19,11 +19,11 @@ import { queryClient } from "@/lib/queryClient";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { MapPin } from '@/types/property';
-import { SortOption, ViewType } from "@/types/options";
+import { SortOption, View } from "@/types/options";
 import { PropertyFilters } from "@/types/filters";
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<ViewType>("map");
+  const [viewMode, setViewMode] = useState<View>("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
