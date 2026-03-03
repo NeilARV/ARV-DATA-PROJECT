@@ -23,13 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
 import { updateCompanySchema } from "@database/updates/companies.update";
-
-interface UpdateDialogProps {
-  open: boolean;
-  onClose: () => void;
-  companyId: string | null;
-  onSuccess?: () => void;
-}
+import { UpdateDialogProps } from "@/types/general";
 
 export default function UpdateDialog({
   open,
