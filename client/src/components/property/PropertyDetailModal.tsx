@@ -21,20 +21,14 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
-
-interface PropertyDetailModalProps {
-  property: Property | null;
-  open: boolean;
-  onClose: () => void;
-  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
-}
+import type { PropertyDetailModal } from "@/types/property";
 
 export default function PropertyDetailModal({
   property,
   open,
   onClose,
   onCompanyNameClick,
-}: PropertyDetailModalProps) {
+}: PropertyDetailModal) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -82,10 +76,6 @@ export default function PropertyDetailModal({
       }
     }
   }, [property]);
-
-  const handleRequestContact = () => {
-    setShowContactDialog(true);
-  };
 
   const handleSubmitRequest = () => {
     if (!requestName.trim() || !requestEmail.trim()) {

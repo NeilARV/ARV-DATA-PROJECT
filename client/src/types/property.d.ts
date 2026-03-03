@@ -95,3 +95,10 @@ export type PropertyCard = {
   property: Property;
   onClick?: () => void;
 }
+
+export type PropertyDetailModal = {
+  property: Property | null;
+  open: boolean;
+  onClose: () => void;
+  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
+}
