@@ -10,6 +10,6 @@ import { updateUserProfileSchema } from "../updates/users.update";
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
-export type LoginInput = z.infer<typeof loginSchema>;
 export type EmailWhitelist = typeof emailWhitelist.$inferSelect;
 export type InsertEmailWhitelist = z.infer<typeof insertEmailWhitelistSchema>;
+export type LoginFormData = z.infer<typeof loginSchema>;

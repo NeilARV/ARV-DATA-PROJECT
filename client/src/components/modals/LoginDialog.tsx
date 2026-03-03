@@ -22,21 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { LoginFormData } from "@database/types";
+import type { LoginDialogProps } from "@/types/users";
+import { loginSchema } from "@database/validation/users.validation";
 
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-});
 
-type LoginFormData = z.infer<typeof loginSchema>;
-
-interface LoginDialogProps {
-  open: boolean;
-  forced?: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  onSwitchToSignup: () => void;
-}
 
 export default function LoginDialog({ open, forced = false, onClose, onSuccess, onSwitchToSignup }: LoginDialogProps) {
   const { toast } = useToast();
