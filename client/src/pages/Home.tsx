@@ -15,6 +15,7 @@ import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { SortOption, View } from "@/types/options";
@@ -63,7 +64,7 @@ export default function Home() {
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
   const [isDialogForced, setIsDialogForced] = useState(false);
   
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
   const geolocationAttemptedRef = useRef(false);
   const companySelectionInProgressRef = useRef(false);
@@ -187,89 +188,17 @@ export default function Home() {
     return county ? `?county=${encodeURIComponent(county)}` : '';
   }, [filters.county]);
 
-  const propertiesQueryParam = useMemo(() => {
-    const params = new URLSearchParams();
-    
-    // County filter
-    if (filters.county) {
-      params.append('county', filters.county);
-    }
-    
-    // Zipcode filter
-    if (filters.zipCode && filters.zipCode.trim() !== '') {
-      params.append('zipcode', filters.zipCode.trim());
-    }
-    
-    // City filter
-    if (filters.city && filters.city.trim() !== '') {
-      params.append('city', filters.city.trim());
-    }
-    
-    // Price range filters
-    if (filters.minPrice > 0) {
-      params.append('minPrice', filters.minPrice.toString());
-    }
-    
-    if (filters.maxPrice < 10000000) { // Only add if not the default max
-      params.append('maxPrice', filters.maxPrice.toString());
-    }
-    
-    // Bedrooms filter (only if not 'Any')
-    if (filters.bedrooms && filters.bedrooms !== 'Any') {
-      // Extract number from strings like "1+", "2+", etc.
-      const bedroomsNum = filters.bedrooms.replace('+', '');
-      params.append('bedrooms', bedroomsNum);
-    }
-    
-    // Bathrooms filter (only if not 'Any')
-    if (filters.bathrooms && filters.bathrooms !== 'Any') {
-      // Extract number from strings like "1+", "2+", etc.
-      const bathroomsNum = filters.bathrooms.replace('+', '');
-      params.append('bathrooms', bathroomsNum);
-    }
-    
-    // Property types filter (can have multiple)
-    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
-      filters.propertyTypes.forEach(type => {
-        params.append('propertyType', type);
-      });
-    }
-    
-    // Status filters (can have multiple) - all work together with OR
-    if (filters.statusFilters && filters.statusFilters.length > 0) {
-      const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-      filters.statusFilters.forEach(status => {
-        params.append('status', status);
-      });
-      // When in-renovation selected and no company: also fetch wholesale. When company selected: backend handles it.
-      if (
-        !selectedCompanyId &&
-        normalizedStatusFilters.includes('in-renovation') &&
-        !normalizedStatusFilters.includes('wholesale')
-      ) {
-        params.append('status', 'wholesale');
-      }
-    }
-    
-    // Company filter - use ID if available, otherwise fallback to name
-    if (selectedCompanyId) {
-      params.append('companyId', selectedCompanyId);
-    } else if (selectedCompany) {
-      params.append('company', selectedCompany);
-    }
-    
-    // Pagination - use current page state
-    params.append('page', propertiesPage.toString());
-    // Table view loads 20, grid view loads 10
-    const limit = viewMode === "table" ? "20" : "10";
-    params.append('limit', limit);
-    
-    // Sort by parameter
-    params.append('sortBy', sortBy);
-    
-    const queryString = params.toString();
-    return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode]);
+  const propertiesQueryParam = useMemo(
+    () =>
+      buildPropertyQueryParams(filters, {
+        page: propertiesPage,
+        limit: viewMode === "table" ? "20" : "10",
+        sortBy,
+        selectedCompanyId,
+        selectedCompany,
+      }),
+    [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode]
+  );
 
   // Build the API URL with all filter query parameters for full properties (grid/table views)
   const propertiesQueryUrl = useMemo(() => {
@@ -278,28 +207,15 @@ export default function Home() {
 
   // Build the API URL for map pins (minimal data for map view)
   const mapPinsQueryUrl = useMemo(() => {
-    const params = new URLSearchParams();
-    
-    // County filter
-    if (filters.county) {
-      params.append('county', filters.county);
-    }
-    
-    // Status filters (can have multiple) - same as properties query
-    if (filters.statusFilters && filters.statusFilters.length > 0) {
-      const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-      filters.statusFilters.forEach(status => params.append('status', status));
-      if (
-        !selectedCompanyId &&
-        normalizedFilters.includes('in-renovation') &&
-        !normalizedFilters.includes('wholesale')
-      ) {
-        params.append('status', 'wholesale');
-      }
-    }
-    
-    const queryString = params.toString();
-    return queryString ? `/api/properties/map?${queryString}` : `/api/properties/map`;
+    const queryString = buildPropertyQueryParams(filters, {
+      forMapPins: true,
+      page: 1,
+      limit: "10",
+      sortBy,
+      selectedCompanyId,
+      selectedCompany,
+    });
+    return `/api/properties/map${queryString}`;
   }, [filters.county, filters.statusFilters, selectedCompanyId]);
 
 
@@ -397,87 +313,18 @@ export default function Home() {
   const properties = allProperties; // Total properties matching all filters (county, price, etc.)
 
   // Build query parameters for buyers feed (same as grid view but with hasDateSold=true)
-  const buyersFeedQueryParam = useMemo(() => {
-    const params = new URLSearchParams();
-    
-    // County filter
-    if (filters.county) {
-      params.append('county', filters.county);
-    }
-    
-    // Zipcode filter
-    if (filters.zipCode && filters.zipCode.trim() !== '') {
-      params.append('zipcode', filters.zipCode.trim());
-    }
-    
-    // City filter
-    if (filters.city && filters.city.trim() !== '') {
-      params.append('city', filters.city.trim());
-    }
-    
-    // Price range filters
-    if (filters.minPrice > 0) {
-      params.append('minPrice', filters.minPrice.toString());
-    }
-    
-    if (filters.maxPrice < 10000000) {
-      params.append('maxPrice', filters.maxPrice.toString());
-    }
-    
-    // Bedrooms filter (only if not 'Any')
-    if (filters.bedrooms && filters.bedrooms !== 'Any') {
-      const bedroomsNum = filters.bedrooms.replace('+', '');
-      params.append('bedrooms', bedroomsNum);
-    }
-    
-    // Bathrooms filter (only if not 'Any')
-    if (filters.bathrooms && filters.bathrooms !== 'Any') {
-      const bathroomsNum = filters.bathrooms.replace('+', '');
-      params.append('bathrooms', bathroomsNum);
-    }
-    
-    // Property types filter (can have multiple)
-    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
-      filters.propertyTypes.forEach(type => {
-        params.append('propertyType', type);
-      });
-    }
-    
-    // Status filters (can have multiple)
-    if (filters.statusFilters && filters.statusFilters.length > 0) {
-      const normalizedStatusFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-      filters.statusFilters.forEach(status => {
-        params.append('status', status);
-      });
-      if (
-        !selectedCompanyId &&
-        normalizedStatusFilters.includes('in-renovation') &&
-        !normalizedStatusFilters.includes('wholesale')
-      ) {
-        params.append('status', 'wholesale');
-      }
-    }
-    
-    // Company filter - use ID if available, otherwise fallback to name
-    if (selectedCompanyId) {
-      params.append('companyId', selectedCompanyId);
-    } else if (selectedCompany) {
-      params.append('company', selectedCompany);
-    }
-    
-    // Only properties with dateSold
-    params.append('hasDateSold', 'true');
-    
-    // Pagination - use current page state
-    params.append('page', buyersFeedPage.toString());
-    params.append('limit', '10');
-    
-    // Sort by parameter
-    params.append('sortBy', sortBy);
-    
-    const queryString = params.toString();
-    return queryString ? `?${queryString}` : '';
-  }, [filters, selectedCompanyId, selectedCompany, buyersFeedPage, sortBy]);
+  const buyersFeedQueryParam = useMemo(
+    () =>
+      buildPropertyQueryParams(filters, {
+        hasDateSold: true,
+        page: buyersFeedPage,
+        limit: "10",
+        sortBy,
+        selectedCompanyId,
+        selectedCompany,
+      }),
+    [filters, selectedCompanyId, selectedCompany, buyersFeedPage, sortBy]
+  );
 
   // Build the API URL for buyers feed
   const buyersFeedQueryUrl = useMemo(() => {
