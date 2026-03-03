@@ -1,4 +1,3 @@
-import type { Property } from "@/types/property";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,14 +20,14 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
-import type { PropertyDetailModal } from "@/types/property";
+import type { PropertyDetailModalProps } from "@/types/property";
 
 export default function PropertyDetailModal({
   property,
   open,
   onClose,
   onCompanyNameClick,
-}: PropertyDetailModal) {
+}: PropertyDetailModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

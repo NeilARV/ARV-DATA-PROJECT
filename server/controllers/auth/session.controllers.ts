@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { loginSchema } from "@database/inserts";
+import { loginSchema } from "@database/validation/users.validation";
 import { updateUserProfileSchema } from "@database/updates";
 import { SessionServices, UserServices } from "server/services/auth";
 

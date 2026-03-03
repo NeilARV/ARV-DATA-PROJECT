@@ -10,7 +10,7 @@ import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
 import { formatAddress } from "@shared/utils/formatAddress";
-import type { PropertyTable } from "@/types/property";
+import type { PropertyTableProps } from "@/types/property";
 import type { SortColumn, SortDirection } from "@/types/options";
 
 // Status dot colors match PropertyMap.tsx map ping colors
@@ -40,7 +40,7 @@ const getStreetName = (address?: string | null) => {
   return s.toLowerCase().trim();
 };
 
-export default function PropertyTable({ properties, onPropertyClick }: PropertyTable) {
+export default function PropertyTable({ properties, onPropertyClick }: PropertyTableProps) {
   const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 

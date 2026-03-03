@@ -1,6 +1,6 @@
 import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
-import type { TableView } from "@/types/views";
+import type { TableViewProps } from "@/types/views";
 
 export default function TableView({
   properties,
@@ -15,7 +15,7 @@ export default function TableView({
   isLoadingMoreProperties,
   isLoading = false,
   loadMoreRef,
-}: TableView) {
+}: TableViewProps) {
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 

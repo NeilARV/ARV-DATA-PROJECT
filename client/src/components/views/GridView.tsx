@@ -9,7 +9,7 @@ import {
 import { Loader2, Trophy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { SortOption } from "@/types/options";
-import { GridView, WholesaleLeaderboardEntry } from "@/types/views";
+import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
 
 export default function GridView({
   properties,
@@ -30,7 +30,7 @@ export default function GridView({
   showWholesaleLeaderboard = false,
   county = "San Diego",
   onWholesaleLeaderboardCompanyClick,
-}: GridView) {
+}: GridViewProps) {
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 

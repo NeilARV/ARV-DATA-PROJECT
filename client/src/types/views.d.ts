@@ -5,7 +5,7 @@ export type WholesaleLeaderboardEntry = {
   wholesaleCount: number;
 }
 
-export type GridView = {
+export type GridViewProps = {
   properties: Property[];
   selectedCompany: string | null;
   totalCompanyProperties: number;
@@ -29,7 +29,7 @@ export type GridView = {
   onWholesaleLeaderboardCompanyClick?: (companyName: string, companyId?: string) => void;
 }
 
-export type TableView = {
+export type TableViewProps = {
   properties: Property[];
   selectedCompany: string | null;
   totalCompanyProperties: number;

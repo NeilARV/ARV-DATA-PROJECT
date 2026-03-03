@@ -1,4 +1,3 @@
-import type { Property } from "@/types/property";
 import { Button } from "@/components/ui/button";
 import { formatAddress } from "@shared/utils/formatAddress";
 import {
@@ -21,13 +20,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { isNegative } from "@/utils/isNegative";
-import type { PropertyDetailPanel } from "@/types/property";
+import type { PropertyDetailPanelProps } from "@/types/property";
 
 export default function PropertyDetailPanel({
   property,
   onClose,
   onCompanyNameClick,
-}: PropertyDetailPanel) {
+}: PropertyDetailPanelProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

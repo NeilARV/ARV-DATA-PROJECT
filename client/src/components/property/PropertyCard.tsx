@@ -6,9 +6,9 @@ import { format, parseISO, isValid } from "date-fns";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
-import { PropertyCard } from "@/types/property";
+import { PropertyCardProps } from "@/types/property";
 
-export default function PropertyCard({ property, onClick }: PropertyCard) {
+export default function PropertyCard({ property, onClick }: PropertyCardProps) {
   const [imageUrl, setImageUrl] = useState(property.imageUrl || "");
   const [isLoading, setIsLoading] = useState(true);
 

@@ -88,19 +88,19 @@ export type PropertyRow = {
   propertyOwner: string | null;
 };
 
-export type PropertyCard = {
+export type PropertyCardProps = {
   property: Property;
   onClick?: () => void;
 }
 
-export type PropertyDetailModal = {
+export type PropertyDetailModalProps = {
   property: Property | null;
   open: boolean;
   onClose: () => void;
   onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
 }
 
-export type PropertyDetailPanel = {
+export type PropertyDetailPanelProps = {
   property: Property | null;
   onClose: () => void;
   onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
@@ -121,7 +121,7 @@ export type PropertyMap = {
   statusFilters?: string[];
 }
 
-export type PropertyTable = {
+export type PropertyTableProps = {
   properties: Property[];
   onPropertyClick: (property: Property) => void;
 }
