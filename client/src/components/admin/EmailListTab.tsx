@@ -32,27 +32,7 @@ import { MSA } from "@/constants/filters.constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
-
-interface WhitelistEntry {
-  id: string;
-  email: string;
-  msaName: string | null;
-  relationshipManagerId: string | null;
-}
-
-/** From GET /api/users/relationship-managers */
-interface RelationshipManager {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string;
-  email: string;
-  roles: string[];
-}
-
-interface EmailListTabProps {
-  isAdmin: boolean;
-}
+import type { WhitelistEntry, RelationshipManager, EmailListTabProps } from "@/types/admin";
 
 function parseApiError(error: unknown): string {
   let message = "Something went wrong";
@@ -79,29 +59,10 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
   const [whitelistRelationshipManagerId, setWhitelistRelationshipManagerId] =
     useState<string>("none");
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    id: string;
-    email: string;
-  } | null>(null);
-  const [editConfirm, setEditConfirm] = useState<{
-    id: string;
-    email: string;
-    msaName: string;
-    relationshipManagerId: string | null;
-  } | null>(null);
-  const [removeRmConfirm, setRemoveRmConfirm] = useState<{
-    id: string;
-    email: string;
-    msaName: string;
-    managerName: string;
-  } | null>(null);
-  const [addRmConfirm, setAddRmConfirm] = useState<{
-    id: string;
-    email: string;
-    msaName: string;
-    relationshipManagerId: string;
-    managerName: string;
-  } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{id: string; email: string;} | null>(null);
+  const [editConfirm, setEditConfirm] = useState<{id: string; email: string; msaName: string; relationshipManagerId: string | null;} | null>(null);
+  const [removeRmConfirm, setRemoveRmConfirm] = useState<{id: string; email: string; msaName: string; managerName: string;} | null>(null);
+  const [addRmConfirm, setAddRmConfirm] = useState<{id: string; email: string; msaName: string; relationshipManagerId: string; managerName: string;} | null>(null);
 
   const { data: whitelist = [], isLoading } = useQuery<WhitelistEntry[]>({
     queryKey: ["/api/admin/whitelist"],
