@@ -4,3 +4,9 @@ export type UpdateDialogProps = {
     companyId: string | null;
     onSuccess?: () => void;
 }
+
+export type UploadDialogProps = {
+  open: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}

@@ -22,12 +22,7 @@ import { manualPropertyEntrySchema } from "@database/inserts/properties.insert";
 import type { ManualPropertyEntry } from "@database/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-interface UploadDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
-}
+import { UploadDialogProps } from "@/types/general";
 
 export default function UploadDialog({
   open,
