@@ -1424,6 +1424,7 @@ export default function Home() {
             selectedCompanyId={selectedCompanyId}
             filters={filters}
             onFilterChange={setFilters}
+            viewMode={viewMode}
           />
         )}
 

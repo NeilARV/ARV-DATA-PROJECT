@@ -42,6 +42,8 @@ type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properti
 
 const ALL_STATUS_FILTERS = ["in-renovation", "wholesale", "on-market", "sold"];
 const DEFAULT_STATUS_FILTERS = ["in-renovation"];
+const WHOLESALE_FEED_STATUS = ["wholesale"];
+const BUYERS_FEED_STATUS = ["in-renovation", "wholesale"];
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -65,6 +67,8 @@ const contactRequestSchema = z.object({
 
 type ContactRequestForm = z.infer<typeof contactRequestSchema>;
 
+export type ViewMode = "map" | "grid" | "table" | "buyers-feed" | "wholesale";
+
 interface CompanyDirectoryProps {
   onClose?: () => void;
   onSwitchToFilters?: () => void;
@@ -77,9 +81,11 @@ interface CompanyDirectoryProps {
   // Optional: allow syncing status filters with parent filters
   filters?: PropertyFilters;
   onFilterChange?: (filters: PropertyFilters) => void;
+  /** Current view: on deselect we revert to feed-specific status (wholesale / buyers-feed) or in-renovation only */
+  viewMode?: ViewMode;
 }
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, filters, onFilterChange }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, filters, onFilterChange, viewMode }: CompanyDirectoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
@@ -105,8 +111,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const previousExpandedCompanyRef = useRef<string | null>(null);
 
-  // When a company is selected: turn on all status filters. When deselected: revert to Renovating only.
-  // Important: always spread current filters so we only change statusFilters and never drop county/city/etc.
+  // When a company is selected: always turn on all status filters.
+  // When deselected: revert to feed-specific status (wholesale feed → wholesale only; buyers feed → in-renovation + wholesale; map/grid/table → in-renovation only).
   useEffect(() => {
     const hadSelection = previousExpandedCompanyRef.current != null;
     const hasSelection = expandedCompany != null;
@@ -118,12 +124,18 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         onFilterChange({ ...filters, statusFilters: ALL_STATUS_FILTERS });
       }
     } else if (hadSelection) {
-      setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
+      const statuses =
+        viewMode === "wholesale"
+          ? WHOLESALE_FEED_STATUS
+          : viewMode === "buyers-feed"
+            ? BUYERS_FEED_STATUS
+            : DEFAULT_STATUS_FILTERS;
+      setStatusFilters(new Set(statuses));
       if (onFilterChange && filters) {
-        onFilterChange({ ...filters, statusFilters: DEFAULT_STATUS_FILTERS });
+        onFilterChange({ ...filters, statusFilters: statuses });
       }
     }
-  }, [expandedCompany]); // Intentionally not depending on filters/onFilterChange to avoid overwriting on filter sync
+  }, [expandedCompany, viewMode]);
 
   // Scroll the selected/expanded company into view when it changes
   useEffect(() => {
