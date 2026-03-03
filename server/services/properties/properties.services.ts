@@ -2,6 +2,7 @@ import { db } from "server/storage";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { normalizeCompanyNameForComparison } from "server/utils/normalization";
+import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
 import { eq, sql, or, and, inArray, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
@@ -412,11 +413,10 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .orderBy(
             propertyTransactions.propertyId,
             desc(propertyTransactions.recordingDate),
-            desc(propertyTransactions.saleDate),
             desc(propertyTransactions.propertyTransactionsId)
         );
 
-    // Group by property: each property gets list of txs ordered by most recent first (recording_date DESC, sale_date DESC, id DESC)
+    // Group by property; then reorder so same-day flips: "chain end" (buyer not seller that day) is first
     type TxRow = (typeof armsLengthTxs)[number];
     const transactionsByPropertyId = new Map<string, TxRow[]>();
     for (const row of armsLengthTxs) {
@@ -426,6 +426,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
         transactionsByPropertyId.get(pid)!.push(row);
     }
+    transactionsByPropertyId.forEach((list, pid) => {
+        transactionsByPropertyId.set(pid, orderArmsLengthTransactions(list));
+    });
 
     // Helper: normalize name for comparison (trim + lower)
     const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
@@ -438,7 +441,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const baths = prop.bathrooms ? Number(prop.bathrooms) : 0;
         const dateSoldStr = prop.dateSold ? (prop.dateSold instanceof Date ? prop.dateSold.toISOString().split('T')[0] : prop.dateSold) : null;
 
-        const txs = transactionsByPropertyId.get(prop.id) ?? [];
+        const txs = transactionsByPropertyId.get(prop.id) ?? []; // already reordered by orderArmsLengthTransactions
         const latest = txs[0] ?? null;
 
         // Fallback buyer/seller names from most recent Arms Length transaction when company is null

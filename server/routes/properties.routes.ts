@@ -10,6 +10,7 @@ import {
     propertyTransactions,
 } from "@database/schemas/properties.schema";
 import { normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
+import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { eq, sql, or, and, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -542,11 +543,11 @@ router.get("/:id", async (req, res) => {
             )
             .orderBy(
                 desc(propertyTransactions.recordingDate),
-                desc(propertyTransactions.saleDate),
                 desc(propertyTransactions.propertyTransactionsId)
             );
 
-        const latest = armsLengthTxs[0] ?? null;
+        const orderedTxs = orderArmsLengthTransactions(armsLengthTxs);
+        const latest = orderedTxs[0] ?? null;
         const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
         const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
 
@@ -562,8 +563,8 @@ router.get("/:id", async (req, res) => {
         }
         const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
         if (latest) {
-            for (let i = 1; i < armsLengthTxs.length; i++) {
-                const tx = armsLengthTxs[i];
+            for (let i = 1; i < orderedTxs.length; i++) {
+                const tx = orderedTxs[i];
                 const matchById = latest.sellerId && tx.buyerId && latest.sellerId === tx.buyerId;
                 const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
                 if (matchById || matchByName) {
