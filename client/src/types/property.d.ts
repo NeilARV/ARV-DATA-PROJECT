@@ -90,3 +90,8 @@ export type PropertyRow = {
   price: number;
   propertyOwner: string | null;
 };
+
+export type PropertyCard = {
+  property: Property;
+  onClick?: () => void;
+}

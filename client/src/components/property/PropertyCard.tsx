@@ -1,4 +1,3 @@
-import type { Property } from "@/types/property";
 import { Card } from "@/components/ui/card";
 import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -7,13 +6,9 @@ import { format, parseISO, isValid } from "date-fns";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
+import { PropertyCard } from "@/types/property";
 
-interface PropertyCardProps {
-  property: Property;
-  onClick?: () => void;
-}
-
-export default function PropertyCard({ property, onClick }: PropertyCardProps) {
+export default function PropertyCard({ property, onClick }: PropertyCard) {
   const [imageUrl, setImageUrl] = useState(property.imageUrl || "");
   const [isLoading, setIsLoading] = useState(true);
 
