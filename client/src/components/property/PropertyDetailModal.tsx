@@ -373,7 +373,6 @@ export default function PropertyDetailModal({
             </div>
             {property.spread != null && (
               <div className="mt-3 flex justify-center items-center gap-1">
-                <span className="text-xs text-muted-foreground">Spread</span>
                 <span
                   className={`text-sm font-semibold ${isNegative(property.spread) ? "text-spread-negative" : "text-spread-positive"}`}
                   data-testid={`text-spread-${property.id}-modal`}
