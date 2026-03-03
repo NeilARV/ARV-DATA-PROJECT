@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bed, Bath, Maximize2, MapPin, X, Calendar, Building2, User, Mail, Phone } from "lucide-react";
+import { Bed, Bath, Maximize2, X, Calendar, Building2, User, Mail, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
@@ -21,18 +21,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { isNegative } from "@/utils/isNegative";
-
-interface PropertyDetailPanelProps {
-  property: Property | null;
-  onClose: () => void;
-  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
-}
+import type { PropertyDetailPanel } from "@/types/property";
 
 export default function PropertyDetailPanel({
   property,
   onClose,
   onCompanyNameClick,
-}: PropertyDetailPanelProps) {
+}: PropertyDetailPanel) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -80,10 +75,6 @@ export default function PropertyDetailPanel({
       }
     }
   }, [property]);
-
-  const handleRequestContact = () => {
-    setShowContactDialog(true);
-  };
 
   const handleSubmitRequest = () => {
     if (!requestName.trim() || !requestEmail.trim()) {

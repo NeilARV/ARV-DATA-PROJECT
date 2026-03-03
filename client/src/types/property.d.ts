@@ -1,6 +1,3 @@
-// Core property DTO used throughout the frontend.
-// Mirrors the API response shape returned by /api/properties
-// and /api/properties/:id.
 export type Property = {
   id: string;
   // Address info
@@ -99,6 +96,12 @@ export type PropertyCard = {
 export type PropertyDetailModal = {
   property: Property | null;
   open: boolean;
+  onClose: () => void;
+  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
+}
+
+export type PropertyDetailPanel = {
+  property: Property | null;
   onClose: () => void;
   onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
 }
