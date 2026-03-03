@@ -1,8 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { insertUserSchema } from "@database/inserts";
 import {
   Dialog,
   DialogContent,
@@ -24,31 +22,15 @@ import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
-
-const signupSchema = insertUserSchema
-  .extend({
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
-
-type SignupFormData = z.infer<typeof signupSchema>;
-
-interface SignupDialogProps {
-  open: boolean;
-  forced?: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  onSwitchToLogin: () => void;
-}
+import { insertUserBySignUpSchema } from "@database/inserts";
+import { SignupFormData } from "@database/types";
+import type { SignupDialogProps } from "@/types/users";
 
 export default function SignupDialog({ open, forced = false, onClose, onSuccess, onSwitchToLogin }: SignupDialogProps) {
   const { toast } = useToast();
   
   const form = useForm<SignupFormData>({
-    resolver: zodResolver(signupSchema),
+    resolver: zodResolver(insertUserBySignUpSchema),
     defaultValues: {
       firstName: "",
       lastName: "",

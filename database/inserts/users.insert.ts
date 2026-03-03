@@ -31,7 +31,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
   phone: z.string().min(14, "Valid phone number is required"),
 });
 
-export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-});
+export const insertUserBySignUpSchema = insertUserSchema
+  .extend({
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
