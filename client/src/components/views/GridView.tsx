@@ -79,52 +79,40 @@ export default function GridView({
     enabled: showWholesaleLeaderboard,
   });
 
+  // TODO: remove – temporary mock 3rd wholesaler when DB has < 3
+  const mockThird: WholesaleLeaderboardEntry = {
+    rank: 3,
+    companyId: "__mock_third__",
+    companyName: "Mock Wholesaler Co",
+    wholesaleCount: 1,
+  };
+  const leaderboardDisplay =
+    wholesaleLeaderboard.length < 3
+      ? [...wholesaleLeaderboard, { ...mockThird, rank: wholesaleLeaderboard.length + 1 }]
+      : wholesaleLeaderboard;
+
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">
-      <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <h2 className="text-2xl font-semibold mb-1">
-            {`${totalFilteredProperties} Properties`}
-          </h2>
-          {(selectedCompany || hasActiveFilters) && (
-            <p className="text-muted-foreground">
-              <span className="flex items-center gap-2 flex-wrap">
-                {selectedCompany && (
-                  <button
-                    onClick={onClearCompanyFilter}
-                    className="text-primary hover:underline text-sm"
-                    data-testid="button-clear-company-filter"
-                  >
-                    Deselect Company
-                  </button>
-                )}
-                {selectedCompany && hasActiveFilters && (
-                  <span className="text-muted-foreground">•</span>
-                )}
-                {hasActiveFilters && (
-                  <button
-                    onClick={onClearFilters}
-                    className="text-primary hover:underline text-sm"
-                    data-testid="button-clear-filters-grid"
-                  >
-                    Clear Filters
-                  </button>
-                )}
-              </span>
-            </p>
-          )}
-        </div>
+      <div className="mb-4">
+        {/* Row 1: property count, top wholesalers, sort by — stays on one line */}
+        <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">
+          <div className="min-w-0 flex-shrink-0">
+            <h2 className="text-2xl font-semibold leading-tight">
+              {`${totalFilteredProperties} Properties`}
+            </h2>
+          </div>
         {showWholesaleLeaderboard && (
-          <div className="flex items-center gap-2 flex-shrink-0 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 flex-shrink flex-wrap">
             <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
               <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
               Top Wholesalers
             </span>
             {isLoadingLeaderboard ? (
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            ) : wholesaleLeaderboard.length > 0 ? (
+            ) : leaderboardDisplay.length > 0 ? (
               <div className="flex items-center gap-2 flex-wrap">
-                {wholesaleLeaderboard.map((entry) => {
+                {leaderboardDisplay.map((entry) => {
+                  const isMock = entry.companyId === "__mock_third__";
                   const badgeStyles =
                     entry.rank === 1
                       ? "bg-amber-400 text-white font-semibold"
@@ -141,15 +129,13 @@ export default function GridView({
                     <button
                       key={entry.companyId}
                       type="button"
-                      onClick={() =>
-                        onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)
-                      }
-                      className={`pl-2 pr-3 py-1.5 rounded-md border border-border border-l-4 bg-background hover:bg-muted/50 transition-colors flex items-center gap-2 text-left min-w-0 cursor-pointer ${borderAccent}`}
+                      onClick={() => !isMock && onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)}
+                      className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden ${isMock ? "cursor-default opacity-70" : "cursor-pointer hover:bg-muted/50"} ${borderAccent}`}
                     >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
                         {entry.rank}
                       </span>
-                      <span className="font-medium text-sm truncate max-w-[120px] text-foreground">
+                      <span className="font-medium text-sm truncate min-w-0 flex-1 text-foreground">
                         {entry.companyName}
                       </span>
                       <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
@@ -186,6 +172,35 @@ export default function GridView({
             </SelectContent>
           </Select>
         </div>
+        </div>
+        {/* Row 2: filter links on their own line so they don't affect row 1 layout */}
+        {(selectedCompany || hasActiveFilters) && (
+          <p className="text-muted-foreground mt-1.5">
+            <span className="flex items-center gap-2 flex-wrap">
+              {selectedCompany && (
+                <button
+                  onClick={onClearCompanyFilter}
+                  className="text-primary hover:underline text-sm"
+                  data-testid="button-clear-company-filter"
+                >
+                  Deselect Company
+                </button>
+              )}
+              {selectedCompany && hasActiveFilters && (
+                <span className="text-muted-foreground">•</span>
+              )}
+              {hasActiveFilters && (
+                <button
+                  onClick={onClearFilters}
+                  className="text-primary hover:underline text-sm"
+                  data-testid="button-clear-filters-grid"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </span>
+          </p>
+        )}
       </div>
       {showInitialLoader ? (
         <div className="flex items-center justify-center flex-1">
