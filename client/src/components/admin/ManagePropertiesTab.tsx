@@ -29,19 +29,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Database, Loader2, Pencil, Search, Trash2, X, Plus, CloudUpload, MapPin, Home } from "lucide-react";
+import { Database, Loader2, Search, Trash2, X, Plus, CloudUpload, MapPin, Home } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { COUNTIES } from "@/constants/filters.constants";
-
-interface ManagePropertiesTabProps {
-  properties: PropertyRow[];
-  isLoading: boolean;
-  onOpenUpload: () => void;
-  selectedCounty: string;
-  onCountyChange: (county: string) => void;
-}
+import type { ManagePropertiesTabProps } from "@/types/admin";
 
 export default function ManagePropertiesTab({
   properties,

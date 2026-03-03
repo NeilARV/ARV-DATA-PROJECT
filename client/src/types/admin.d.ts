@@ -17,3 +17,11 @@ export type RelationshipManager = {
 export type EmailListTabProps = {
   isAdmin: boolean;
 }
+
+export type ManagePropertiesTabProps = {
+  properties: PropertyRow[];
+  isLoading: boolean;
+  onOpenUpload: () => void;
+  selectedCounty: string;
+  onCountyChange: (county: string) => void;
+}
