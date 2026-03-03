@@ -20,3 +20,11 @@ export type CityWithCount = {
   city: string;
   count: number;
 }
+
+export type FilterSidebar = {
+  onClose?: () => void;
+  onFilterChange?: (filters: PropertyFilters) => void;
+  zipCodesWithCounts?: ZipCodeWithCount[];
+  onSwitchToDirectory?: () => void;
+  filters?: PropertyFilters; // Controlled filters from parent
+}

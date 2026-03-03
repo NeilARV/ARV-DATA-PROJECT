@@ -11,21 +11,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
-import { PropertyFilters, ZipCodeWithCount, CityWithCount } from "@/types/filters";
-
-interface FilterSidebarProps {
-  onClose?: () => void;
-  onFilterChange?: (filters: PropertyFilters) => void;
-  zipCodesWithCounts?: ZipCodeWithCount[];
-  onSwitchToDirectory?: () => void;
-  filters?: PropertyFilters; // Controlled filters from parent
-}
-
-type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
+import type { ZipCodeWithCount, CityWithCount, FilterSidebar } from "@/types/filters";
+import type { ZipCodeSortOption } from "@/types/options";
 
 const MAX_PRICE = 10000000;
 
-export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, filters }: FilterSidebarProps) {
+export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, filters }: FilterSidebar) {
   const [priceRange, setPriceRange] = useState<[number, number]>([filters?.minPrice ?? 0, filters?.maxPrice ?? MAX_PRICE]);
 
   const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters?.bedrooms ?? 'Any');
