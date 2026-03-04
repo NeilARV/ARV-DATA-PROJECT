@@ -3,6 +3,30 @@ import type { MapPin, Property } from "@/types/property";
 
 export type ZipCodeListEntry = { zip: string; city: string };
 
+// ---- Effective status filters (single source of truth for wholesale / in-renovation) ----
+
+/**
+ * Returns the status list to use for filtering (API params and client-side).
+ * When in-renovation is selected and no company is selected, wholesale is included
+ * so both in-renovation and wholesale properties are requested/shown.
+ */
+export function getEffectiveStatusFilters(
+  filters: PropertyFilters,
+  selectedCompanyId: string | null
+): string[] {
+  if (!filters.statusFilters || filters.statusFilters.length === 0)
+    return [];
+  const normalized = filters.statusFilters.map((f) => f.toLowerCase().trim());
+  if (
+    !selectedCompanyId &&
+    normalized.includes("in-renovation") &&
+    !normalized.includes("wholesale")
+  ) {
+    return [...filters.statusFilters, "wholesale"];
+  }
+  return filters.statusFilters;
+}
+
 // ---- Shared filter dimension helpers ----
 
 export function matchesPrice(
@@ -84,30 +108,26 @@ export function matchesStatusWithWholesale(
   filters: PropertyFilters,
   selectedCompanyId: string | null
 ): boolean {
-  if (!filters.statusFilters || filters.statusFilters.length === 0)
-    return true;
+  const effective = getEffectiveStatusFilters(filters, selectedCompanyId);
+  if (effective.length === 0) return true;
+
   const propertyStatus = (item.status || "in-renovation").toLowerCase().trim();
-  const normalizedFilters = filters.statusFilters.map((f) =>
-    f.toLowerCase().trim()
-  );
-  const wholesaleFilterActive = normalizedFilters.includes("wholesale");
-  const inRenovationFilterActive = normalizedFilters.includes("in-renovation");
+  const normalizedEffective = effective.map((s) => s.toLowerCase().trim());
 
-  if (normalizedFilters.includes(propertyStatus)) return true;
+  if (!normalizedEffective.includes(propertyStatus)) return false;
 
-  // Special handling for wholesale properties
-  if (propertyStatus === "wholesale") {
-    if (selectedCompanyId) {
-      const bid = item.buyerId ?? null;
-      const sid = item.sellerId ?? null;
-      if (bid === selectedCompanyId && inRenovationFilterActive) return true;
-      if (sid === selectedCompanyId && !wholesaleFilterActive) return false;
-      if (sid === selectedCompanyId && wholesaleFilterActive) return true;
-    } else {
-      if (inRenovationFilterActive) return true;
-    }
+  // Exception: wholesale property where company is seller - only show if wholesale is explicitly in filters
+  if (
+    propertyStatus === "wholesale" &&
+    selectedCompanyId &&
+    item.sellerId === selectedCompanyId
+  ) {
+    const wholesaleInFilters = filters.statusFilters
+      .map((f) => f.toLowerCase().trim())
+      .includes("wholesale");
+    if (!wholesaleInFilters) return false;
   }
-  return false;
+  return true;
 }
 
 // ---- Company matching (different for pin vs full property) ----

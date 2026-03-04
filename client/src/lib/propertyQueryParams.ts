@@ -1,6 +1,7 @@
 import { MAX_PRICE } from "@/constants/filters.constants";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
+import { getEffectiveStatusFilters } from "@/lib/propertyFilters";
 
 export type BuildPropertyQueryParamsOptions = {
   /** When true, only county and status filters are included (for map pins endpoint). */
@@ -41,20 +42,12 @@ export function buildPropertyQueryParams(
     params.append("county", filters.county);
   }
 
-  // Status filters (and wholesale logic) - shared by all modes
-  if (filters.statusFilters && filters.statusFilters.length > 0) {
-    const normalizedStatusFilters = filters.statusFilters.map((f) =>
-      f.toLowerCase().trim()
-    );
-    filters.statusFilters.forEach((status) => params.append("status", status));
-    if (
-      !selectedCompanyId &&
-      normalizedStatusFilters.includes("in-renovation") &&
-      !normalizedStatusFilters.includes("wholesale")
-    ) {
-      params.append("status", "wholesale");
-    }
-  }
+  // Status filters (effective list includes wholesale when in-renovation selected and no company)
+  const effectiveStatuses = getEffectiveStatusFilters(
+    filters,
+    selectedCompanyId ?? null
+  );
+  effectiveStatuses.forEach((status) => params.append("status", status));
 
   // Map pins: only county + status
   if (forMapPins) {
