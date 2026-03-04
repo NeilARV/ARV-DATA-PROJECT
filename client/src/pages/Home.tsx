@@ -19,8 +19,6 @@ import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
-import { useAccumulatePaginatedList } from "@/hooks/useAccumulatePaginatedList";
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
 import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
 import { useStableCounts } from "@/hooks/useStableCounts";
@@ -53,13 +51,6 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
 
-  // Pagination state for buyers feed view
-  const [buyersFeedPage, setBuyersFeedPage] = useState(1);
-  const [allBuyersFeedProperties, setAllBuyersFeedProperties] = useState<Property[]>([]);
-  const [buyersFeedHasMore, setBuyersFeedHasMore] = useState(true);
-  const [isLoadingMoreBuyersFeed, setIsLoadingMoreBuyersFeed] = useState(false);
-  const loadMoreBuyersFeedRef = useRef<HTMLDivElement>(null);
-
   const {
     properties,
     propertiesHasMore,
@@ -74,15 +65,8 @@ export default function Home() {
     sortBy,
     selectedCompanyId,
     selectedCompany,
+    hasDateSold: viewMode === "buyers-feed",
   });
-
-  // Reset buyers-feed pagination when filters, sort, or company change.
-  useEffect(() => {
-    setBuyersFeedPage(1);
-    setAllBuyersFeedProperties([]);
-    setBuyersFeedHasMore(true);
-    setIsLoadingMoreBuyersFeed(false);
-  }, [filters, sortBy, selectedCompanyId, selectedCompany, viewMode]);
 
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -131,67 +115,23 @@ export default function Home() {
     enabled: viewMode === "map", // Only fetch when in map view
   });
 
-  // Build query parameters for buyers feed (same as grid view but with hasDateSold=true)
-  const buyersFeedQueryParam = useMemo(
-    () =>
-      buildPropertyQueryParams(filters, {
-        hasDateSold: true,
-        page: buyersFeedPage,
-        limit: "10",
-        sortBy,
-        selectedCompanyId,
-        selectedCompany,
-      }),
-    [filters, selectedCompanyId, selectedCompany, buyersFeedPage, sortBy]
-  );
-
-  // Build the API URL for buyers feed
-  const buyersFeedQueryUrl = useMemo(() => {
-    return `/api/properties${buyersFeedQueryParam}`;
-  }, [buyersFeedQueryParam]);
-
-  // Fetch buyers feed properties with pagination
-  const { data: buyersFeedResponse, isLoading: isLoadingBuyersFeed, isFetching: isFetchingBuyersFeed } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
-    queryKey: [buyersFeedQueryUrl],
-    queryFn: async () => {
-      const res = await fetch(buyersFeedQueryUrl, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch buyers feed properties: ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: viewMode === "buyers-feed",
-  });
-
   const { stablePropertyCount, stableCompanyPropertyCount } = useStableCounts({
     viewMode,
     propertiesResponseTotal: propertiesResponse?.total,
-    buyersFeedResponseTotal: buyersFeedResponse?.total,
+    buyersFeedResponseTotal: propertiesResponse?.total,
     isLoadingProperties: isLoading,
-    isLoadingBuyersFeed,
+    isLoadingBuyersFeed: isLoading,
     selectedCompanyPropertyCount,
     selectedCompany,
   });
 
-  // Use stable counts to avoid flashing "0" during loading
   const totalFilteredProperties = useMemo(() => {
-    if (viewMode === "buyers-feed") {
-      // During loading, preserve previous value; otherwise use new value
-      const buyersTotal = buyersFeedResponse?.total;
-      return isLoadingBuyersFeed && buyersTotal === undefined
-        ? stablePropertyCount
-        : (buyersTotal ?? stablePropertyCount);
-    } else if (viewMode !== "map") {
-      // During loading, preserve previous value; otherwise use new value
-      const propertiesTotal = propertiesResponse?.total;
-      return isLoading && propertiesTotal === undefined
-        ? stablePropertyCount
-        : (propertiesTotal ?? stablePropertyCount);
-    }
-    return 0;
-  }, [viewMode, buyersFeedResponse, propertiesResponse, isLoading, isLoadingBuyersFeed, stablePropertyCount]);
+    if (viewMode === "map") return 0;
+    const propertiesTotal = propertiesResponse?.total;
+    return isLoading && propertiesTotal === undefined
+      ? stablePropertyCount
+      : (propertiesTotal ?? stablePropertyCount);
+  }, [viewMode, propertiesResponse, isLoading, stablePropertyCount]);
 
   // Use stable company property count to avoid flashing "0"
   const displayCompanyPropertyCount = useMemo(() => {
@@ -199,30 +139,6 @@ export default function Home() {
     // If we're fetching and don't have a value yet, use the stable one
     return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
   }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
-
-  useAccumulatePaginatedList({
-    response: buyersFeedResponse,
-    page: buyersFeedPage,
-    enabled: viewMode === "buyers-feed",
-    setList: setAllBuyersFeedProperties,
-    setHasMore: setBuyersFeedHasMore,
-    setLoading: setIsLoadingMoreBuyersFeed,
-  });
-
-  useInfiniteScroll({
-    ref: loadMoreBuyersFeedRef,
-    hasMore: buyersFeedHasMore,
-    loading: isLoadingMoreBuyersFeed,
-    isFetching: isFetchingBuyersFeed,
-    onLoadMore: () => {
-      setIsLoadingMoreBuyersFeed(true);
-      setBuyersFeedPage((prev) => prev + 1);
-    },
-    enabled: viewMode === "buyers-feed",
-    deps: [allBuyersFeedProperties.length],
-  });
-
-  const buyersFeedPurchases = allBuyersFeedProperties;
 
   const handleUploadSuccess = () => {
     // Refresh properties after upload - invalidate all property queries
@@ -320,8 +236,7 @@ export default function Home() {
     companySelectionInProgressRef,
   });
 
-  // Use buyers feed properties when in buyers-feed view, otherwise use regular properties
-  const propertiesToFilter = viewMode === "buyers-feed" ? buyersFeedPurchases : properties;
+  const propertiesToFilter = properties;
 
   // Filter full properties for grid/table views
   const filteredProperties = propertiesToFilter.filter((property) =>
@@ -701,10 +616,10 @@ export default function Home() {
                   onClearCompanyFilter={clearCompanySelection}
                   onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
-                  propertiesHasMore={buyersFeedHasMore}
-                  isLoadingMoreProperties={isLoadingMoreBuyersFeed}
-                  isLoading={isLoadingBuyersFeed}
-                  loadMoreRef={loadMoreBuyersFeedRef}
+                  propertiesHasMore={propertiesHasMore}
+                  isLoadingMoreProperties={isLoadingMoreProperties}
+                  isLoading={isLoading}
+                  loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
                 />
               </>
             ) : (
@@ -810,3 +725,4 @@ export default function Home() {
     </div>
   );
 }
+// 728

@@ -19,6 +19,7 @@ export type UsePropertiesOptions = {
     sortBy: SortOption;
     selectedCompanyId: string | null;
     selectedCompany: string | null;
+    hasDateSold?: boolean;
 };
 
 export type UsePropertiesResult = {
@@ -33,13 +34,13 @@ export type UsePropertiesResult = {
     propertiesResponse: PropertiesResponse | undefined;
 };
 
-const propertiesListEnabled = (viewMode: string) => viewMode === "grid" || viewMode === "table" || viewMode === "wholesale";
+const propertiesListEnabled = (viewMode: string) => viewMode === "grid" || viewMode === "table" || viewMode === "wholesale" || viewMode === "buyers-feed";
 
 /**
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, useAccumulatePaginatedList, and useInfiniteScroll.
  */
-export function useProperties({filters, viewMode, sortBy, selectedCompanyId, selectedCompany}: UsePropertiesOptions): UsePropertiesResult {
+export function useProperties({filters, viewMode, sortBy, selectedCompanyId, selectedCompany, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
@@ -61,8 +62,9 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
             sortBy,
             selectedCompanyId,
             selectedCompany,
+            hasDateSold,
         }), 
-        [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode]
+        [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode, hasDateSold]
     );
 
     const propertiesQueryUrl = useMemo(() => `/api/properties${propertiesQueryParam}`, [propertiesQueryParam]);
@@ -76,7 +78,7 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
             }
             return res.json();
         },
-        enabled: viewMode !== "map" && viewMode !== "buyers-feed",
+        enabled: viewMode !== "map",
     });
 
     useAccumulatePaginatedList({
