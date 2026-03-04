@@ -18,6 +18,7 @@ import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { cityMatchesFilter, getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
+import { useAccumulatePaginatedList } from "@/hooks/useAccumulatePaginatedList";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { SortOption, View } from "@/types/options";
@@ -251,24 +252,15 @@ export default function Home() {
     }
   }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
 
-  // Accumulate properties when new data arrives (for grid/table/wholesale views)
-  useEffect(() => {
-    if (propertiesResponse && (viewMode === "grid" || viewMode === "table" || viewMode === "wholesale")) {
-      if (propertiesPage === 1) {
-        // First page - replace all
-        setAllProperties(propertiesResponse.properties);
-      } else {
-        // Subsequent pages - append, but filter out duplicates by ID
-        setAllProperties((prev) => {
-          const existingIds = new Set(prev.map(p => p.id));
-          const newProperties = propertiesResponse.properties.filter(p => !existingIds.has(p.id));
-          return [...prev, ...newProperties];
-        });
-      }
-      setPropertiesHasMore(propertiesResponse.hasMore);
-      setIsLoadingMoreProperties(false);
-    }
-  }, [propertiesResponse, propertiesPage, viewMode]);
+  useAccumulatePaginatedList({
+    response: propertiesResponse,
+    page: propertiesPage,
+    enabled:
+      viewMode === "grid" || viewMode === "table" || viewMode === "wholesale",
+    setList: setAllProperties,
+    setHasMore: setPropertiesHasMore,
+    setLoading: setIsLoadingMoreProperties,
+  });
 
   useInfiniteScroll({
     ref: loadMorePropertiesRef,
@@ -393,24 +385,14 @@ export default function Home() {
     }
   }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
 
-  // Accumulate buyers feed properties when new data arrives
-  useEffect(() => {
-    if (buyersFeedResponse && viewMode === "buyers-feed") {
-      if (buyersFeedPage === 1) {
-        // First page - replace all
-        setAllBuyersFeedProperties(buyersFeedResponse.properties);
-      } else {
-        // Subsequent pages - append, but filter out duplicates by ID
-        setAllBuyersFeedProperties((prev) => {
-          const existingIds = new Set(prev.map(p => p.id));
-          const newProperties = buyersFeedResponse.properties.filter(p => !existingIds.has(p.id));
-          return [...prev, ...newProperties];
-        });
-      }
-      setBuyersFeedHasMore(buyersFeedResponse.hasMore);
-      setIsLoadingMoreBuyersFeed(false);
-    }
-  }, [buyersFeedResponse, buyersFeedPage, viewMode]);
+  useAccumulatePaginatedList({
+    response: buyersFeedResponse,
+    page: buyersFeedPage,
+    enabled: viewMode === "buyers-feed",
+    setList: setAllBuyersFeedProperties,
+    setHasMore: setBuyersFeedHasMore,
+    setLoading: setIsLoadingMoreBuyersFeed,
+  });
 
   useInfiniteScroll({
     ref: loadMoreBuyersFeedRef,
