@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
-import { matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
+import { cityMatchesFilter, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { SortOption, View } from "@/types/options";
@@ -575,15 +575,9 @@ export default function Home() {
         const currentZipCodeList = msaZipCodes[countyKey] || [];
         
         // Get the first zip code for this city to use for geocoding
-        const cityZipCodes = currentZipCodeList.filter(z => {
-          if (filters.city === 'San Diego') {
-            return z.city.startsWith('San Diego');
-          } else if (filters.city === 'Los Angeles') {
-            return z.city.startsWith('Los Angeles') || z.city === 'Los Angeles';
-          } else {
-            return z.city === filters.city;
-          }
-        });
+        const cityZipCodes = currentZipCodeList.filter((z) =>
+          cityMatchesFilter(filters.city!, z.city)
+        );
         
         if (cityZipCodes.length > 0) {
           try {

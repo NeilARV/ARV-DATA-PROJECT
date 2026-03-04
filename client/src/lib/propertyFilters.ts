@@ -66,6 +66,22 @@ export function matchesPropertyType(
 }
 
 /**
+ * Returns whether a city value (e.g. from data) matches the selected filter city.
+ * San Diego / Los Angeles use startsWith; other cities use exact match.
+ */
+export function cityMatchesFilter(
+  filterCity: string,
+  cityFromData: string
+): boolean {
+  const filter = filterCity.trim();
+  const city = cityFromData.trim();
+  if (filter === "San Diego") return city.startsWith("San Diego");
+  if (filter === "Los Angeles")
+    return city.startsWith("Los Angeles") || city === "Los Angeles";
+  return city === filter;
+}
+
+/**
  * Returns zip codes that match the city filter (for San Diego / Los Angeles, uses startsWith).
  */
 export function getCityZipCodesForFilter(
@@ -74,12 +90,7 @@ export function getCityZipCodesForFilter(
 ): string[] {
   if (!city || city.trim() === "") return [];
   return zipCodeList
-    .filter((z) => {
-      if (city === "San Diego") return z.city.startsWith("San Diego");
-      if (city === "Los Angeles")
-        return z.city.startsWith("Los Angeles") || z.city === "Los Angeles";
-      return z.city === city;
-    })
+    .filter((z) => cityMatchesFilter(city, z.city))
     .map((z) => z.zip);
 }
 
