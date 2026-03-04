@@ -24,8 +24,8 @@ import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
 import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
 import { useStableCounts } from "@/hooks/useStableCounts";
-import { useResetPaginationOnFilterChange } from "@/hooks/useResetPaginationOnFilterChange";
-import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
+import { useProperties } from "@/hooks/useProperties";
+import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, MAX_PRICE } from "@/constants/filters.constants";
 import {
   MAP_ZOOM_DEFAULT,
   MAP_ZOOM_LOGO,
