@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
-import { cityMatchesFilter, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
+import { cityMatchesFilter, getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { SortOption, View } from "@/types/options";
@@ -28,17 +28,7 @@ export default function Home() {
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [filters, setFilters] = useState<PropertyFilters>({
-    minPrice: 0,
-    maxPrice: 10000000, // Default to max slider value
-    bedrooms: 'Any',
-    bathrooms: 'Any',
-    propertyTypes: [],
-    zipCode: '',
-    city: undefined,
-    county: 'San Diego', // Default to San Diego county
-    statusFilters: ['in-renovation'],
-  });
+  const [filters, setFilters] = useState<PropertyFilters>(getDefaultFilters());
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
@@ -490,17 +480,7 @@ export default function Home() {
 
   // Reset filters to initial state (does not clear company selection; preserves county and state)
   const handleClearAllFilters = () => {
-    setFilters({
-      minPrice: 0,
-      maxPrice: MAX_PRICE,
-      bedrooms: 'Any',
-      bathrooms: 'Any',
-      propertyTypes: [],
-      zipCode: '',
-      city: undefined,
-      county: filters.county ?? 'San Diego',
-      statusFilters: ['in-renovation'],
-    });
+    setFilters(getDefaultFilters({ county: filters.county ?? "San Diego" }));
   };
 
   // Calculate zip codes with property counts
@@ -874,17 +854,13 @@ export default function Home() {
     // Clear company filter and set zip code filter. Preserve current county so the
     // zip (which belongs to the leaderboard's county) matches the map's data.
     clearCompanySelection();
-    setFilters({
-      minPrice: 0,
-      maxPrice: 10000000, // Default to max slider value
-      bedrooms: 'Any',
-      bathrooms: 'Any',
-      propertyTypes: [],
-      zipCode: zipCode,
-      city: undefined,
-      county: filters.county ?? 'San Diego',
-      statusFilters: ["in-renovation", "on-market", "sold"],
-    });
+    setFilters(
+      getDefaultFilters({
+        zipCode,
+        county: filters.county ?? "San Diego",
+        statusFilters: ["in-renovation", "on-market", "sold"],
+      })
+    );
     // Open/keep FilterSidebar open when selecting a zip (like company click opens directory)
     setSidebarView("filters");
     setMapCenter(undefined);
@@ -895,17 +871,7 @@ export default function Home() {
     // Reset everything to default state (like first visit)
     setViewMode("map");
     setSidebarView("directory");
-    setFilters({
-      minPrice: 0,
-      maxPrice: 10000000, // Default to max slider value
-      bedrooms: 'Any',
-      bathrooms: 'Any',
-      propertyTypes: [],
-      zipCode: '',
-      city: undefined,
-      county: 'San Diego', // Reset to default San Diego county
-      statusFilters: ['in-renovation'],
-    });
+    setFilters(getDefaultFilters());
     clearCompanySelection();
     setSelectedProperty(null);
     setMapCenter(undefined);

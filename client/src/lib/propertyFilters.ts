@@ -1,7 +1,31 @@
+import { MAX_PRICE } from "@/constants/filters.constants";
 import type { PropertyFilters } from "@/types/filters";
 import type { MapPin, Property } from "@/types/property";
 
 export type ZipCodeListEntry = { zip: string; city: string };
+
+// ---- Default filters (single source of truth for initial and reset state) ----
+
+const DEFAULT_FILTERS: PropertyFilters = {
+  minPrice: 0,
+  maxPrice: MAX_PRICE,
+  bedrooms: "Any",
+  bathrooms: "Any",
+  propertyTypes: [],
+  zipCode: "",
+  city: undefined,
+  county: "San Diego",
+  statusFilters: ["in-renovation"],
+};
+
+/**
+ * Returns default filter state. Pass overrides to preserve or set specific values (e.g. county on clear, zipCode for leaderboard click).
+ */
+export function getDefaultFilters(
+  overrides?: Partial<PropertyFilters>
+): PropertyFilters {
+  return overrides ? { ...DEFAULT_FILTERS, ...overrides } : { ...DEFAULT_FILTERS };
+}
 
 // ---- Effective status filters (single source of truth for wholesale / in-renovation) ----
 
