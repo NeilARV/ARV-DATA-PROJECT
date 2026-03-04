@@ -16,22 +16,20 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
-import { getCountyCenter, getDefaultMapCenter, getStateFromCounty, countyNameToKey } from "@/lib/county";
-import { cityMatchesFilter, getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
+import { getStateFromCounty, countyNameToKey } from "@/lib/county";
+import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { useAccumulatePaginatedList } from "@/hooks/useAccumulatePaginatedList";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
+import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
+import { useStableCounts } from "@/hooks/useStableCounts";
+import { useResetPaginationOnFilterChange } from "@/hooks/useResetPaginationOnFilterChange";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import {
   MAP_ZOOM_DEFAULT,
-  MAP_ZOOM_COUNTY,
-  MAP_ZOOM_CITY,
-  MAP_ZOOM_ZIP,
   MAP_ZOOM_LOGO,
   MAP_ZOOM_PROPERTY,
-  MAP_ZOOM_SINGLE_PROPERTY,
-  MAP_ZOOM_MIN,
-  MAP_ZOOM_MAX,
 } from "@/constants/map.constants";
 import {
   BUYERS_FEED_STATUS_FILTERS,
@@ -76,7 +74,6 @@ export default function Home() {
   
   const { isAuthenticated } = useAuth();
   const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
-  const geolocationAttemptedRef = useRef(false);
   const companySelectionInProgressRef = useRef(false);
 
   useEffect(() => {
@@ -86,89 +83,7 @@ export default function Home() {
     }
   }, [shouldShowSignup, isAuthenticated, isForced]);
 
-  // Get user's location on initial mount (only runs once)
-  useEffect(() => {
-    // Only attempt geolocation once on mount
-    if (geolocationAttemptedRef.current) {
-      return;
-    }
-
-    geolocationAttemptedRef.current = true;
-
-    // Check if geolocation is available
-    if (!navigator.geolocation) {
-      console.log('Geolocation is not supported by this browser. Using San Diego as default.');
-      setMapCenter(getDefaultMapCenter());
-      setMapZoom(MAP_ZOOM_DEFAULT);
-      return;
-    }
-
-    // Request user's location with timeout
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        
-        try {
-          // Reverse geocode to get county using backend API (proxies Census API to avoid CORS)
-          const response = await fetch(`/api/geocoding/county?longitude=${longitude}&latitude=${latitude}`, {
-            credentials: "include",
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch county: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          const userCounty = data.county;
-          
-          if (userCounty) {
-            // Check if user's county is in the enabled counties list
-            // Currently enabled: San Diego
-            // Future: Orange, Los Angeles, Denver (currently disabled in COUNTIES)
-            const enabledCounties = COUNTIES.map(c => c.county);
-            const isEnabledCounty = enabledCounties.some(
-              enabledCounty => enabledCounty.toLowerCase() === userCounty.toLowerCase()
-            );
-            
-            if (isEnabledCounty) {
-              // User is in an enabled county - center to their location
-              setMapCenter([latitude, longitude]);
-              setMapZoom(MAP_ZOOM_DEFAULT);
-              console.log(`User located in ${userCounty} County - centering map to user location`);
-            } else {
-              // User is not in an enabled county - use default county center
-              const defaultCounty = enabledCounties[0] || 'San Diego';
-              const defaultCenter = getCountyCenter(defaultCounty) ?? getDefaultMapCenter();
-              setMapCenter(defaultCenter);
-              setMapZoom(MAP_ZOOM_DEFAULT);
-              console.log(`User located in ${userCounty} County (not enabled) - using default center for ${defaultCounty}`);
-            }
-          } else {
-            // Reverse geocoding failed - center to user location anyway
-            console.warn('Failed to reverse geocode user location, centering to user coordinates');
-            setMapCenter([latitude, longitude]);
-            setMapZoom(MAP_ZOOM_DEFAULT);
-          }
-        } catch (error) {
-          // Error fetching county - center to user location anyway
-          console.error('Error fetching county from user location:', error);
-          setMapCenter([latitude, longitude]);
-          setMapZoom(MAP_ZOOM_DEFAULT);
-        }
-      },
-      (error) => {
-        // Fall back to San Diego if geolocation fails or is denied
-        console.log('Geolocation failed or denied, using San Diego as default:', error);
-        setMapCenter(getDefaultMapCenter());
-        setMapZoom(MAP_ZOOM_DEFAULT);
-      },
-      {
-        enableHighAccuracy: false, // Use less accurate but faster method
-        timeout: 5000, // 5 second timeout
-        maximumAge: 300000, // Accept cached location up to 5 minutes old
-      }
-    );
-  }, []); // Empty dependency array - only runs once on mount
+  useGeolocationMapCenter(setMapCenter, setMapZoom);
 
   const propertiesQueryParam = useMemo(
     () =>
@@ -231,15 +146,21 @@ export default function Home() {
     enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Fetch for grid, table, and wholesale views
   });
 
-  // Reset pagination when filters, sortBy, or view mode changes
-  useEffect(() => {
-    if (viewMode !== "map" && viewMode !== "buyers-feed") {
-      setPropertiesPage(1);
-      setAllProperties([]);
-      setPropertiesHasMore(true);
-      setIsLoadingMoreProperties(false);
-    }
-  }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
+  useResetPaginationOnFilterChange({
+    viewMode,
+    filters,
+    selectedCompanyId,
+    selectedCompany,
+    sortBy,
+    setPropertiesPage,
+    setAllProperties,
+    setPropertiesHasMore,
+    setIsLoadingMoreProperties,
+    setBuyersFeedPage,
+    setAllBuyersFeedProperties,
+    setBuyersFeedHasMore,
+    setIsLoadingMoreBuyersFeed,
+  });
 
   useAccumulatePaginatedList({
     response: propertiesResponse,
@@ -302,42 +223,15 @@ export default function Home() {
     enabled: viewMode === "buyers-feed",
   });
 
-  // Track stable property count to avoid flashing "0" during loading
-  const [stablePropertyCount, setStablePropertyCount] = useState<number>(0);
-  const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState<number>(0);
-
-  // Reset stable count when filters or view mode changes (but not during the same query)
-  useEffect(() => {
-    // Only reset if we're switching views or if filters changed significantly
-    // The actual update will happen when new data arrives
-    if (viewMode === "map" || viewMode === "buyers-feed") {
-      // For map view, we don't need stable count
-      // For buyers-feed, we'll update when data arrives
-    }
-  }, [viewMode, filters.county, filters.zipCode, filters.city, selectedCompanyId, selectedCompany]);
-
-  // Update stable counts only when we have actual data (not during loading)
-  useEffect(() => {
-    if (viewMode === "buyers-feed") {
-      if (buyersFeedResponse?.total !== undefined && !isLoadingBuyersFeed) {
-        setStablePropertyCount(buyersFeedResponse.total);
-      }
-    } else if (viewMode !== "map") {
-      if (propertiesResponse?.total !== undefined && !isLoading) {
-        setStablePropertyCount(propertiesResponse.total);
-      }
-    }
-  }, [viewMode, buyersFeedResponse?.total, propertiesResponse?.total, isLoading, isLoadingBuyersFeed]);
-
-  // Update stable company property count when it's fetched
-  useEffect(() => {
-    if (selectedCompanyPropertyCount > 0) {
-      setStableCompanyPropertyCount(selectedCompanyPropertyCount);
-    } else if (!selectedCompany) {
-      // Reset when company is deselected
-      setStableCompanyPropertyCount(0);
-    }
-  }, [selectedCompanyPropertyCount, selectedCompany]);
+  const { stablePropertyCount, stableCompanyPropertyCount } = useStableCounts({
+    viewMode,
+    propertiesResponseTotal: propertiesResponse?.total,
+    buyersFeedResponseTotal: buyersFeedResponse?.total,
+    isLoadingProperties: isLoading,
+    isLoadingBuyersFeed,
+    selectedCompanyPropertyCount,
+    selectedCompany,
+  });
 
   // Use stable counts to avoid flashing "0" during loading
   const totalFilteredProperties = useMemo(() => {
@@ -363,16 +257,6 @@ export default function Home() {
     // If we're fetching and don't have a value yet, use the stable one
     return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
   }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
-
-  // Reset pagination when filters, sortBy, or view mode changes for buyers feed
-  useEffect(() => {
-    if (viewMode === "buyers-feed") {
-      setBuyersFeedPage(1);
-      setAllBuyersFeedProperties([]);
-      setBuyersFeedHasMore(true);
-      setIsLoadingMoreBuyersFeed(false);
-    }
-  }, [filters, selectedCompanyId, selectedCompany, viewMode, sortBy]);
 
   useAccumulatePaginatedList({
     response: buyersFeedResponse,
@@ -439,115 +323,6 @@ export default function Home() {
     }));
   }, [properties, mapPins, viewMode]);
 
-  useEffect(() => {
-    const fetchLocation = async () => {
-      // Don't center on zipcode/city/county if a company is selected or being processed (company takes priority)
-      if (selectedCompany || companySelectionInProgressRef.current) {
-        return;
-      }
-      
-      // Priority: zipcode > city > county (most specific to least specific)
-      
-      // Handle zip code filter (highest priority - most specific)
-      if (filters?.zipCode && filters.zipCode.trim() !== '') {
-        try {
-          const response = await fetch(`https://api.zippopotam.us/us/${filters.zipCode.trim()}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.places && data.places.length > 0) {
-              const lat = parseFloat(data.places[0].latitude);
-              const lng = parseFloat(data.places[0].longitude);
-              setMapCenter([lat, lng]);
-              setMapZoom(MAP_ZOOM_ZIP);
-              return; // Exit early, zipcode takes priority
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching zip code location:', error);
-        }
-      }
-      
-      // Handle city filter (medium priority)
-      if (filters?.city && filters.city.trim() !== '') {
-        // Get the appropriate zip code list based on state and county
-        const countyName = filters?.county ?? 'San Diego';
-        const state = getStateFromCounty(countyName);
-        const countyKey = countyNameToKey(countyName);
-
-        // Get the appropriate MSA zip codes object based on state
-        let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
-        if (state === 'CA') {
-          // Check if it's Los Angeles MSA (Los Angeles or Orange county)
-          if (countyName === 'Los Angeles' || countyName === 'Orange') {
-            msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
-          } else {
-            // San Diego MSA (San Diego county)
-            msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-          }
-        } else if (state === 'CO') {
-          // Denver MSA
-          msaZipCodes = DENVER_MSA_ZIP_CODES;
-        } else {
-          // Default to San Diego MSA
-          msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-        }
-
-        // Get the zip codes for the specific county
-        const currentZipCodeList = msaZipCodes[countyKey] || [];
-        
-        // Get the first zip code for this city to use for geocoding
-        const cityZipCodes = currentZipCodeList.filter((z) =>
-          cityMatchesFilter(filters.city!, z.city)
-        );
-        
-        if (cityZipCodes.length > 0) {
-          try {
-            const response = await fetch(`https://api.zippopotam.us/us/${cityZipCodes[0].zip}`);
-            if (response.ok) {
-              const data = await response.json();
-              if (data.places && data.places.length > 0) {
-                const lat = parseFloat(data.places[0].latitude);
-                const lng = parseFloat(data.places[0].longitude);
-                setMapCenter([lat, lng]);
-                setMapZoom(MAP_ZOOM_CITY);
-                return; // Exit early, city takes priority over county
-              }
-            }
-          } catch (error) {
-            console.error('Error fetching city location:', error);
-          }
-        }
-      }
-      
-      // Handle county filter (lowest priority - most general)
-      // Only center on county if no zipcode or city is selected
-      if (filters?.county && filters.county.trim() !== '') {
-        const countyCenter = getCountyCenter(filters.county);
-        if (countyCenter) {
-          setMapCenter(countyCenter);
-          setMapZoom(MAP_ZOOM_COUNTY);
-          return; // Exit early
-        }
-      }
-      
-      // Fallback: If no specific location filter, center on the default county (San Diego)
-      // BUT only if no company is selected (company selection takes priority)
-      if (!selectedCompany) {
-        const defaultCounty = filters?.county ?? 'San Diego';
-        const countyCenter = getCountyCenter(defaultCounty);
-        if (countyCenter) {
-          setMapCenter(countyCenter);
-          setMapZoom(MAP_ZOOM_COUNTY);
-        } else {
-          setMapCenter(undefined);
-          setMapZoom(MAP_ZOOM_DEFAULT);
-        }
-      }
-    };
-
-    fetchLocation();
-  }, [filters?.zipCode, filters?.city, filters?.county, selectedCompany]);
-
   // Get the appropriate zip code list based on state and county filter
   const zipCodeList = useMemo(() => {
     const countyName = filters.county ?? 'San Diego';
@@ -594,87 +369,14 @@ export default function Home() {
     [mapPins, filters, selectedCompany, selectedCompanyId, zipCodeList]
   );
 
-  // Center map on company properties when a company is selected
-  useEffect(() => {
-    // Only run this effect if a company is selected
-    if (!selectedCompany) {
-      companySelectionInProgressRef.current = false;
-      return;
-    }
-    
-    // Mark that we're processing a company selection
-    companySelectionInProgressRef.current = true;
-    
-    // Wait for filteredMapPins to be available
-    if (filteredMapPins.length === 0) {
-      return;
-    }
-    
-    // Filter pins with valid coordinates
-    const validPins = filteredMapPins.filter(p => 
-      p.latitude != null && p.longitude != null && 
-      !isNaN(p.latitude) && !isNaN(p.longitude)
-    );
-    
-    if (validPins.length > 0) {
-      // Calculate average latitude and longitude
-      const avgLat = validPins.reduce((sum, p) => sum + p.latitude!, 0) / validPins.length;
-      const avgLng = validPins.reduce((sum, p) => sum + p.longitude!, 0) / validPins.length;
-      
-      // Only set center if we have valid coordinates (not NaN)
-      if (!isNaN(avgLat) && !isNaN(avgLng)) {
-        setMapCenter([avgLat, avgLng]);
-        
-        // Calculate dynamic zoom based on property spread
-        let calculatedZoom = 10; // Default zoom
-        
-        if (validPins.length > 1) {
-          // Calculate bounds to determine spread
-          const lats = validPins.map(p => p.latitude!);
-          const lngs = validPins.map(p => p.longitude!);
-          const minLat = Math.min(...lats);
-          const maxLat = Math.max(...lats);
-          const minLng = Math.min(...lngs);
-          const maxLng = Math.max(...lngs);
-          
-          // Calculate span in degrees
-          const latSpan = maxLat - minLat;
-          const lngSpan = maxLng - minLng;
-          const maxSpan = Math.max(latSpan, lngSpan);
-          
-          // Map span to zoom level (smaller span = higher zoom)
-          // Add some padding by using a slightly larger span
-          const paddedSpan = maxSpan * 1.5;
-          
-          if (paddedSpan < 0.005) {
-            calculatedZoom = 17;
-          } else if (paddedSpan < 0.01) {
-            calculatedZoom = 16;
-          } else if (paddedSpan < 0.02) {
-            calculatedZoom = 15;
-          } else if (paddedSpan < 0.05) {
-            calculatedZoom = 14;
-          } else if (paddedSpan < 0.1) {
-            calculatedZoom = 13;
-          } else if (paddedSpan < 0.2) {
-            calculatedZoom = 12;
-          } else if (paddedSpan < 0.5) {
-            calculatedZoom = 11;
-          } else {
-            calculatedZoom = MAP_ZOOM_COUNTY;
-          }
-        } else {
-          calculatedZoom = MAP_ZOOM_SINGLE_PROPERTY;
-        }
-        calculatedZoom = Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, calculatedZoom));
-        
-        setMapZoom(calculatedZoom);
-        // Mark that company selection is complete
-        companySelectionInProgressRef.current = false;
-      }
-    }
-  }, [selectedCompany, filteredMapPins]);
-
+  useMapCenterFromFilters({
+    filters,
+    selectedCompany,
+    filteredMapPins,
+    setMapCenter,
+    setMapZoom,
+    companySelectionInProgressRef,
+  });
 
   // Use buyers feed properties when in buyers-feed view, otherwise use regular properties
   const propertiesToFilter = viewMode === "buyers-feed" ? buyersFeedPurchases : properties;
