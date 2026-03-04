@@ -52,13 +52,6 @@ export default function Home() {
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
-  
-  // Pagination state for infinite scroll (grid/table views)
-  const [propertiesPage, setPropertiesPage] = useState(1);
-  const [allProperties, setAllProperties] = useState<Property[]>([]);
-  const [propertiesHasMore, setPropertiesHasMore] = useState(true);
-  const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
-  const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
 
   // Pagination state for buyers feed view
   const [buyersFeedPage, setBuyersFeedPage] = useState(1);
@@ -66,7 +59,31 @@ export default function Home() {
   const [buyersFeedHasMore, setBuyersFeedHasMore] = useState(true);
   const [isLoadingMoreBuyersFeed, setIsLoadingMoreBuyersFeed] = useState(false);
   const loadMoreBuyersFeedRef = useRef<HTMLDivElement>(null);
-  
+
+  const {
+    properties,
+    propertiesHasMore,
+    isLoadingMoreProperties,
+    loadMorePropertiesRef,
+    isLoading,
+    isFetching,
+    propertiesResponse,
+  } = useProperties({
+    filters,
+    viewMode,
+    sortBy,
+    selectedCompanyId,
+    selectedCompany,
+  });
+
+  // Reset buyers-feed pagination when filters, sort, or company change.
+  useEffect(() => {
+    setBuyersFeedPage(1);
+    setAllBuyersFeedProperties([]);
+    setBuyersFeedHasMore(true);
+    setIsLoadingMoreBuyersFeed(false);
+  }, [filters, sortBy, selectedCompanyId, selectedCompany, viewMode]);
+
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
@@ -84,23 +101,6 @@ export default function Home() {
   }, [shouldShowSignup, isAuthenticated, isForced]);
 
   useGeolocationMapCenter(setMapCenter, setMapZoom);
-
-  const propertiesQueryParam = useMemo(
-    () =>
-      buildPropertyQueryParams(filters, {
-        page: propertiesPage,
-        limit: viewMode === "table" ? "20" : "10",
-        sortBy,
-        selectedCompanyId,
-        selectedCompany,
-      }),
-    [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode]
-  );
-
-  // Build the API URL with all filter query parameters for full properties (grid/table views)
-  const propertiesQueryUrl = useMemo(() => {
-    return `/api/properties${propertiesQueryParam}`;
-  }, [propertiesQueryParam]);
 
   // Build the API URL for map pins (minimal data for map view)
   const mapPinsQueryUrl = useMemo(() => {
@@ -130,64 +130,6 @@ export default function Home() {
     },
     enabled: viewMode === "map", // Only fetch when in map view
   });
-
-  // Fetch full properties from backend filtered by county (for grid/table views)
-  const { data: propertiesResponse, isLoading, isFetching } = useQuery<{ properties: Property[]; total: number; hasMore: boolean }>({
-    queryKey: [propertiesQueryUrl],
-    queryFn: async () => {
-      const res = await fetch(propertiesQueryUrl, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch properties: ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: viewMode !== "map" && viewMode !== "buyers-feed", // Fetch for grid, table, and wholesale views
-  });
-
-  useResetPaginationOnFilterChange({
-    viewMode,
-    filters,
-    selectedCompanyId,
-    selectedCompany,
-    sortBy,
-    setPropertiesPage,
-    setAllProperties,
-    setPropertiesHasMore,
-    setIsLoadingMoreProperties,
-    setBuyersFeedPage,
-    setAllBuyersFeedProperties,
-    setBuyersFeedHasMore,
-    setIsLoadingMoreBuyersFeed,
-  });
-
-  useAccumulatePaginatedList({
-    response: propertiesResponse,
-    page: propertiesPage,
-    enabled:
-      viewMode === "grid" || viewMode === "table" || viewMode === "wholesale",
-    setList: setAllProperties,
-    setHasMore: setPropertiesHasMore,
-    setLoading: setIsLoadingMoreProperties,
-  });
-
-  useInfiniteScroll({
-    ref: loadMorePropertiesRef,
-    hasMore: propertiesHasMore,
-    loading: isLoadingMoreProperties,
-    isFetching,
-    onLoadMore: () => {
-      setIsLoadingMoreProperties(true);
-      setPropertiesPage((prev) => prev + 1);
-    },
-    enabled:
-      viewMode === "grid" || viewMode === "table" || viewMode === "wholesale",
-    useScrollableRoot: true,
-    deps: [allProperties.length],
-  });
-
-  const properties = allProperties; // Total properties matching all filters (county, price, etc.)
 
   // Build query parameters for buyers feed (same as grid view but with hasDateSold=true)
   const buyersFeedQueryParam = useMemo(
@@ -736,7 +678,7 @@ export default function Home() {
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
                 isLoading={isLoading}
-                loadMoreRef={loadMorePropertiesRef}
+                loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
               />
             ) : viewMode === "buyers-feed" ? (
               <>
@@ -789,7 +731,7 @@ export default function Home() {
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
                   isLoading={isLoading}
-                  loadMoreRef={loadMorePropertiesRef}
+                  loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
                   showWholesaleLeaderboard={viewMode === "wholesale"}
                   county={filters.county}
                   onWholesaleLeaderboardCompanyClick={handleLeaderboardCompanyClick}
