@@ -35,8 +35,6 @@ import {
 } from "@/constants/map.constants";
 import {
   BUYERS_FEED_STATUS_FILTERS,
-  DEFAULT_STATUS_FILTERS,
-  LEADERBOARD_ZIP_STATUS_FILTERS,
   PROPERTY_STATUS,
   WHOLESALE_VIEW_STATUS_FILTERS,
 } from "@/constants/propertyStatus.constants";

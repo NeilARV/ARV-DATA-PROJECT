@@ -47,18 +47,6 @@ export default function GridView({
     enabled: showWholesaleLeaderboard,
   });
 
-  // TODO: remove – temporary mock 3rd wholesaler when DB has < 3
-  const mockThird: WholesaleLeaderboardEntry = {
-    rank: 3,
-    companyId: "__mock_third__",
-    companyName: "Mock Wholesaler Co",
-    wholesaleCount: 1,
-  };
-  const leaderboardDisplay =
-    wholesaleLeaderboard.length < 3
-      ? [...wholesaleLeaderboard, { ...mockThird, rank: wholesaleLeaderboard.length + 1 }]
-      : wholesaleLeaderboard;
-
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">
       <div className="mb-4">
@@ -77,10 +65,9 @@ export default function GridView({
             </span>
             {isLoadingLeaderboard ? (
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            ) : leaderboardDisplay.length > 0 ? (
+            ) : wholesaleLeaderboard.length > 0 ? (
               <div className="flex items-center gap-2 flex-wrap">
-                {leaderboardDisplay.map((entry) => {
-                  const isMock = entry.companyId === "__mock_third__";
+                {wholesaleLeaderboard.map((entry) => {
                   const badgeStyles =
                     entry.rank === 1
                       ? "bg-amber-400 text-white font-semibold"
@@ -97,8 +84,8 @@ export default function GridView({
                     <button
                       key={entry.companyId}
                       type="button"
-                      onClick={() => !isMock && onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)}
-                      className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden ${isMock ? "cursor-default opacity-70" : "cursor-pointer hover:bg-muted/50"} ${borderAccent}`}
+                      onClick={() => onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)}
+                      className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
                     >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
                         {entry.rank}
