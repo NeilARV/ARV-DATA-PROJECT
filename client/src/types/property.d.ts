@@ -96,7 +96,8 @@ export type ViewFunctions = {
   onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
 }
 
-export type PropertyCardProps = PropertyDetails & {
+export type PropertyCardProps = {
+  property: Property;
   onClick?: () => void;
 }
 

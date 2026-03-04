@@ -143,7 +143,7 @@ export default function PropertyDetailPanel({
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
-  const dateLabel = [PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION].includes((property.status || "").toLowerCase().trim())
+  const dateLabel = ([PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION] as readonly string[]).includes((property.status || "").toLowerCase().trim())
     ? "Date Purchased"
     : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);
