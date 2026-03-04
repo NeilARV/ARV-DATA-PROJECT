@@ -18,6 +18,7 @@ import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { cityMatchesFilter, getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { SortOption, View } from "@/types/options";
 import type { PropertyFilters } from "@/types/filters";
@@ -269,37 +270,20 @@ export default function Home() {
     }
   }, [propertiesResponse, propertiesPage, viewMode]);
 
-  // Intersection Observer for infinite scroll (grid/table/wholesale views)
-  useEffect(() => {
-    if (viewMode !== "grid" && viewMode !== "table" && viewMode !== "wholesale") return;
-    if (!propertiesHasMore || isLoadingMoreProperties || isFetching) return;
-    if (!loadMorePropertiesRef.current) return;
-
-    // Find the scrollable container
-    const scrollableContainer = loadMorePropertiesRef.current.closest('.overflow-y-auto') as HTMLElement | null;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && propertiesHasMore && !isLoadingMoreProperties && !isFetching) {
-          setIsLoadingMoreProperties(true);
-          setPropertiesPage((prev) => prev + 1);
-        }
-      },
-      { 
-        threshold: 0.1,
-        rootMargin: '100px', // Start loading 100px before reaching the element
-        root: scrollableContainer || null // Use scrollable container as root
-      }
-    );
-
-    const currentRef = loadMorePropertiesRef.current;
-    observer.observe(currentRef);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [viewMode, propertiesHasMore, isLoadingMoreProperties, isFetching, allProperties.length]);
+  useInfiniteScroll({
+    ref: loadMorePropertiesRef,
+    hasMore: propertiesHasMore,
+    loading: isLoadingMoreProperties,
+    isFetching,
+    onLoadMore: () => {
+      setIsLoadingMoreProperties(true);
+      setPropertiesPage((prev) => prev + 1);
+    },
+    enabled:
+      viewMode === "grid" || viewMode === "table" || viewMode === "wholesale",
+    useScrollableRoot: true,
+    deps: [allProperties.length],
+  });
 
   const properties = allProperties; // Total properties matching all filters (county, price, etc.)
 
@@ -428,32 +412,18 @@ export default function Home() {
     }
   }, [buyersFeedResponse, buyersFeedPage, viewMode]);
 
-  // Intersection Observer for infinite scroll in buyers feed
-  useEffect(() => {
-    if (viewMode !== "buyers-feed") return;
-    if (!buyersFeedHasMore || isLoadingMoreBuyersFeed || isFetchingBuyersFeed) return;
-    if (!loadMoreBuyersFeedRef.current) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && buyersFeedHasMore && !isLoadingMoreBuyersFeed && !isFetchingBuyersFeed) {
-          setIsLoadingMoreBuyersFeed(true);
-          setBuyersFeedPage((prev) => prev + 1);
-        }
-      },
-      { 
-        threshold: 0.1,
-        rootMargin: '100px'
-      }
-    );
-
-    const currentRef = loadMoreBuyersFeedRef.current;
-    observer.observe(currentRef);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [viewMode, buyersFeedHasMore, isLoadingMoreBuyersFeed, isFetchingBuyersFeed, allBuyersFeedProperties.length]);
+  useInfiniteScroll({
+    ref: loadMoreBuyersFeedRef,
+    hasMore: buyersFeedHasMore,
+    loading: isLoadingMoreBuyersFeed,
+    isFetching: isFetchingBuyersFeed,
+    onLoadMore: () => {
+      setIsLoadingMoreBuyersFeed(true);
+      setBuyersFeedPage((prev) => prev + 1);
+    },
+    enabled: viewMode === "buyers-feed",
+    deps: [allBuyersFeedProperties.length],
+  });
 
   const buyersFeedPurchases = allBuyersFeedProperties;
 
