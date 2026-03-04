@@ -1,0 +1,213 @@
+import type { PropertyFilters } from "@/types/filters";
+import type { MapPin, Property } from "@/types/property";
+
+export type ZipCodeListEntry = { zip: string; city: string };
+
+// ---- Shared filter dimension helpers ----
+
+export function matchesPrice(
+  item: { price: number | null },
+  filters: PropertyFilters
+): boolean {
+  if (item.price == null) return true;
+  return (
+    item.price >= filters.minPrice && item.price <= filters.maxPrice
+  );
+}
+
+export function matchesBedrooms(
+  item: { bedrooms: number },
+  filters: PropertyFilters
+): boolean {
+  if (filters.bedrooms === "Any") return true;
+  const minBeds = parseInt(filters.bedrooms.replace("+", ""), 10);
+  return item.bedrooms >= minBeds;
+}
+
+export function matchesBathrooms(
+  item: { bathrooms: number },
+  filters: PropertyFilters
+): boolean {
+  if (filters.bathrooms === "Any") return true;
+  const minBaths = parseInt(filters.bathrooms.replace("+", ""), 10);
+  return item.bathrooms >= minBaths;
+}
+
+export function matchesPropertyType(
+  item: { propertyType: string },
+  filters: PropertyFilters
+): boolean {
+  if (filters.propertyTypes.length === 0) return true;
+  return filters.propertyTypes.includes(item.propertyType);
+}
+
+/**
+ * Returns zip codes that match the city filter (for San Diego / Los Angeles, uses startsWith).
+ */
+export function getCityZipCodesForFilter(
+  city: string | undefined,
+  zipCodeList: ZipCodeListEntry[]
+): string[] {
+  if (!city || city.trim() === "") return [];
+  return zipCodeList
+    .filter((z) => {
+      if (city === "San Diego") return z.city.startsWith("San Diego");
+      if (city === "Los Angeles")
+        return z.city.startsWith("Los Angeles") || z.city === "Los Angeles";
+      return z.city === city;
+    })
+    .map((z) => z.zip);
+}
+
+export function matchesLocation(
+  itemZipCode: string,
+  filters: PropertyFilters,
+  zipCodeList: ZipCodeListEntry[]
+): boolean {
+  if (filters.city && filters.city.trim() !== "") {
+    const cityZipCodes = getCityZipCodesForFilter(filters.city, zipCodeList);
+    return cityZipCodes.includes(itemZipCode);
+  }
+  if (filters.zipCode && filters.zipCode.trim() !== "") {
+    return itemZipCode === filters.zipCode.trim();
+  }
+  return true;
+}
+
+/** Item must have status and optional buyerId/sellerId for wholesale special case. */
+export function matchesStatusWithWholesale(
+  item: {
+    status: string | null;
+    buyerId?: string | null;
+    sellerId?: string | null;
+  },
+  filters: PropertyFilters,
+  selectedCompanyId: string | null
+): boolean {
+  if (!filters.statusFilters || filters.statusFilters.length === 0)
+    return true;
+  const propertyStatus = (item.status || "in-renovation").toLowerCase().trim();
+  const normalizedFilters = filters.statusFilters.map((f) =>
+    f.toLowerCase().trim()
+  );
+  const wholesaleFilterActive = normalizedFilters.includes("wholesale");
+  const inRenovationFilterActive = normalizedFilters.includes("in-renovation");
+
+  if (normalizedFilters.includes(propertyStatus)) return true;
+
+  // Special handling for wholesale properties
+  if (propertyStatus === "wholesale") {
+    if (selectedCompanyId) {
+      const bid = item.buyerId ?? null;
+      const sid = item.sellerId ?? null;
+      if (bid === selectedCompanyId && inRenovationFilterActive) return true;
+      if (sid === selectedCompanyId && !wholesaleFilterActive) return false;
+      if (sid === selectedCompanyId && wholesaleFilterActive) return true;
+    } else {
+      if (inRenovationFilterActive) return true;
+    }
+  }
+  return false;
+}
+
+// ---- Company matching (different for pin vs full property) ----
+
+export function matchesCompanyForPin(
+  pin: MapPin,
+  selectedCompanyId: string | null,
+  selectedCompany: string | null
+): boolean {
+  if (selectedCompanyId) {
+    const bid = pin.buyerId ?? null;
+    const sid = pin.sellerId ?? null;
+    const propertyStatus = (pin.status || "in-renovation").toLowerCase().trim();
+    // in-renovation: only buyer; on-market: only seller; sold/wholesale/other: buyer or seller
+    const isRelevant =
+      propertyStatus === "in-renovation"
+        ? bid === selectedCompanyId
+        : propertyStatus === "on-market"
+          ? sid === selectedCompanyId
+          : bid === selectedCompanyId || sid === selectedCompanyId;
+    return isRelevant;
+  }
+  if (selectedCompany) {
+    const ownerName = (pin.propertyOwner ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    const selectedName = selectedCompany
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    return ownerName === selectedName;
+  }
+  return true;
+}
+
+export function matchesCompanyForProperty(
+  property: Property,
+  selectedCompanyId: string | null,
+  selectedCompany: string | null
+): boolean {
+  if (selectedCompanyId) {
+    const bid = property.buyerId ?? null;
+    const sid = property.sellerId ?? null;
+    return bid === selectedCompanyId || sid === selectedCompanyId;
+  }
+  if (selectedCompany) {
+    const companyName = (
+      property.companyName ||
+      property.propertyOwner ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    const selectedName = selectedCompany
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    return companyName === selectedName;
+  }
+  return true;
+}
+
+// ---- Full filter match (combine all dimensions) ----
+
+export function matchesFiltersForPin(
+  pin: MapPin,
+  filters: PropertyFilters,
+  zipCodeList: ZipCodeListEntry[],
+  selectedCompanyId: string | null,
+  selectedCompany: string | null
+): boolean {
+  if (!matchesCompanyForPin(pin, selectedCompanyId, selectedCompany))
+    return false;
+  if (!matchesPrice(pin, filters)) return false;
+  if (!matchesBedrooms(pin, filters)) return false;
+  if (!matchesBathrooms(pin, filters)) return false;
+  if (!matchesPropertyType(pin, filters)) return false;
+  if (!matchesLocation(pin.zipcode, filters, zipCodeList)) return false;
+  if (!matchesStatusWithWholesale(pin, filters, selectedCompanyId))
+    return false;
+  return true;
+}
+
+export function matchesFiltersForProperty(
+  property: Property,
+  filters: PropertyFilters,
+  zipCodeList: ZipCodeListEntry[],
+  selectedCompanyId: string | null,
+  selectedCompany: string | null
+): boolean {
+  if (!matchesCompanyForProperty(property, selectedCompanyId, selectedCompany))
+    return false;
+  if (!matchesPrice(property, filters)) return false;
+  if (!matchesBedrooms(property, filters)) return false;
+  if (!matchesBathrooms(property, filters)) return false;
+  if (!matchesPropertyType(property, filters)) return false;
+  if (!matchesLocation(property.zipCode, filters, zipCodeList)) return false;
+  if (!matchesStatusWithWholesale(property, filters, selectedCompanyId))
+    return false;
+  return true;
+}

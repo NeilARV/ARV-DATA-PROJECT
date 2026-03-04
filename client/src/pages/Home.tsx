@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
+import { matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
 import type { SortOption, View } from "@/types/options";
@@ -664,113 +665,19 @@ export default function Home() {
   }, [filters.county]);
 
   // Filter map pins for map view (using minimal data)
-  const filteredMapPins = useMemo(() => {
-    return mapPins.filter(pin => {
-      // Apply company filter first if one is selected
-      // Ownership/participation depends on status:
-      // - in-renovation: only buyer (current owner renovating; seller already sold - don't show)
-      // - on-market: only seller (current owner listing for sale)
-      // - sold: buyer OR seller (company was either party in the sale - show both acquisitions and dispositions)
-      if (selectedCompanyId) {
-        const bid = (pin as { buyerId?: string | null }).buyerId;
-        const sid = (pin as { sellerId?: string | null }).sellerId;
-        const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
-        const isRelevant =
-          propertyStatus === 'in-renovation' ? bid === selectedCompanyId :
-          propertyStatus === 'on-market' ? sid === selectedCompanyId :
-          propertyStatus === 'sold' ? (bid === selectedCompanyId || sid === selectedCompanyId) :
-          propertyStatus === 'wholesale' ? (bid === selectedCompanyId || sid === selectedCompanyId) : // wholesale: show when company is buyer or seller
-          (bid === selectedCompanyId || sid === selectedCompanyId); // fallback for unknown status
-        if (!isRelevant) {
-          return false;
-        }
-      } else if (selectedCompany) {
-        const ownerName = (pin.propertyOwner ?? "").trim().toLowerCase().replace(/\s+/g, ' ');
-        const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
-        if (ownerName !== selectedName) {
-          return false;
-        }
-      }
-
-      // Filter by price
-      if (pin.price != null) {
-        if (pin.price < filters.minPrice || pin.price > filters.maxPrice) {
-          return false;
-        }
-      }
-
-      // Filter by bedrooms
-      if (filters.bedrooms !== 'Any') {
-        const minBeds = parseInt(filters.bedrooms);
-        if (pin.bedrooms < minBeds) return false;
-      }
-
-      // Filter by bathrooms
-      if (filters.bathrooms !== 'Any') {
-        const minBaths = parseInt(filters.bathrooms);
-        if (pin.bathrooms < minBaths) return false;
-      }
-
-      // Filter by property type
-      if (filters.propertyTypes.length > 0 && !filters.propertyTypes.includes(pin.propertyType)) {
-        return false;
-      }
-
-      // Filter by zip code or city
-      if (filters.city && filters.city.trim() !== '') {
-        const cityZipCodes = zipCodeList
-          .filter(z => {
-            if (filters.city === 'San Diego') {
-              return z.city.startsWith('San Diego');
-            } else if (filters.city === 'Los Angeles') {
-              return z.city.startsWith('Los Angeles') || z.city === 'Los Angeles';
-            } else {
-              return z.city === filters.city;
-            }
-          })
-          .map(z => z.zip);
-        if (!cityZipCodes.includes(pin.zipcode)) return false;
-      } else if (filters.zipCode && filters.zipCode.trim() !== '') {
-        if (pin.zipcode !== filters.zipCode.trim()) return false;
-      }
-
-      // Filter by status (case-insensitive)
-      // wholesale properties have special rules when a company is selected
-      if (filters.statusFilters && filters.statusFilters.length > 0) {
-        const propertyStatus = (pin.status || 'in-renovation').toLowerCase().trim();
-        const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        const wholesaleFilterActive = normalizedFilters.includes('wholesale');
-        const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
-        
-        if (!normalizedFilters.includes(propertyStatus)) {
-          // Special handling for wholesale properties
-          if (propertyStatus === 'wholesale') {
-            if (selectedCompanyId) {
-              const bid = (pin as { buyerId?: string | null }).buyerId;
-              const sid = (pin as { sellerId?: string | null }).sellerId;
-              
-              // Company is BUYER of wholesale → treat like in-renovation (show when in-renovation selected)
-              if (bid === selectedCompanyId && inRenovationFilterActive) {
-                return true; // Allow through
-              }
-              // Company is SELLER of wholesale → only show when wholesale filter explicitly active
-              if (sid === selectedCompanyId && !wholesaleFilterActive) {
-                return false; // Do not show
-              }
-            } else {
-              // No company selected: allow wholesale through when in-renovation is selected
-              if (inRenovationFilterActive) {
-                return true;
-              }
-            }
-          }
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [mapPins, filters, selectedCompany, selectedCompanyId, zipCodeList]);
+  const filteredMapPins = useMemo(
+    () =>
+      mapPins.filter((pin) =>
+        matchesFiltersForPin(
+          pin,
+          filters,
+          zipCodeList,
+          selectedCompanyId,
+          selectedCompany
+        )
+      ),
+    [mapPins, filters, selectedCompany, selectedCompanyId, zipCodeList]
+  );
 
   // Center map on company properties when a company is selected
   useEffect(() => {
@@ -869,108 +776,15 @@ export default function Home() {
   const propertiesToFilter = viewMode === "buyers-feed" ? buyersFeedPurchases : properties;
 
   // Filter full properties for grid/table views
-  const filteredProperties = propertiesToFilter.filter(property => {
-    // Apply company filter first if one is selected
-    // If we have selectedCompanyId, filter by ID (most reliable - companyId is always filled)
-    // Otherwise fallback to name matching for backward compatibility
-    if (selectedCompanyId) {
-      // API returns buyer OR seller matches; companyId only reflects buyer for wholesale (seller) properties
-      const bid = property.buyerId ?? null;
-      const sid = property.sellerId ?? null;
-      const matchesCompany = bid === selectedCompanyId || sid === selectedCompanyId;
-      if (!matchesCompany) return false;
-    } else if (selectedCompany) {
-      // Fallback to name matching (for backward compatibility)
-      const companyName = (property.companyName || property.propertyOwner || "").trim().toLowerCase().replace(/\s+/g, ' ');
-      const selectedName = selectedCompany.trim().toLowerCase().replace(/\s+/g, ' ');
-      
-      if (companyName !== selectedName) {
-        return false;
-      }
-    }
-
-    // Apply regular filters with null safety
-    // Filter by price if price is not null
-    if (property.price != null) {
-      if (property.price < filters.minPrice || property.price > filters.maxPrice) {
-        return false;
-      }
-    }
-    
-    if (filters.bedrooms !== 'Any') {
-      const minBeds = parseInt(filters.bedrooms);
-
-      if (property.bedrooms < minBeds) return false;
-    }
-
-    if (filters.bathrooms !== 'Any') {
-      const minBaths = parseInt(filters.bathrooms);
-      if (property.bathrooms < minBaths) return false;
-    }
-
-    if (filters.propertyTypes.length > 0 && !filters.propertyTypes.includes(property.propertyType)) {
-      return false;
-    }
-
-    // Filter by zip code or city
-    if (filters.city && filters.city.trim() !== '') {
-      // If city filter is set, get all zip codes for that city
-      // For "San Diego", match all cities that start with "San Diego" (e.g., "San Diego - Downtown", "San Diego", etc.)
-      // For "Los Angeles", match all cities that start with "Los Angeles" or are exactly "Los Angeles"
-      // For other cities, do exact match
-      const cityZipCodes = zipCodeList
-        .filter(z => {
-          if (filters.city === 'San Diego') {
-            return z.city.startsWith('San Diego');
-          } else if (filters.city === 'Los Angeles') {
-            return z.city.startsWith('Los Angeles') || z.city === 'Los Angeles';
-          } else {
-            return z.city === filters.city;
-          }
-        })
-        .map(z => z.zip);
-      if (!cityZipCodes.includes(property.zipCode)) return false;
-    } else if (filters.zipCode && filters.zipCode.trim() !== '') {
-      // If zip code filter is set, filter by zip code
-      if (property.zipCode !== filters.zipCode.trim()) return false;
-    }
-
-      // Filter by status (case-insensitive)
-      // wholesale properties have special rules when a company is selected
-      if (filters.statusFilters && filters.statusFilters.length > 0) {
-        const propertyStatus = (property.status || 'in-renovation').toLowerCase().trim();
-        const normalizedFilters = filters.statusFilters.map(f => f.toLowerCase().trim());
-        const wholesaleFilterActive = normalizedFilters.includes('wholesale');
-        const inRenovationFilterActive = normalizedFilters.includes('in-renovation');
-        
-        if (!normalizedFilters.includes(propertyStatus)) {
-          // Special handling for wholesale properties
-          if (propertyStatus === 'wholesale') {
-            if (selectedCompanyId) {
-              const bid = property.buyerId ?? null;
-              const sid = property.sellerId ?? null;
-              
-              // Company is BUYER of wholesale → treat like in-renovation (show when in-renovation selected)
-              if (bid === selectedCompanyId && inRenovationFilterActive) {
-                return true; // Allow through
-              }
-              // Company is SELLER of wholesale → only show when wholesale filter explicitly active
-              if (sid === selectedCompanyId && !wholesaleFilterActive) {
-                return false; // Do not show
-              }
-            } else {
-              // No company selected: allow wholesale through when in-renovation is selected
-              if (inRenovationFilterActive) {
-                return true;
-              }
-            }
-          }
-          return false;
-        }
-      }
-
-    return true;
-  });
+  const filteredProperties = propertiesToFilter.filter((property) =>
+    matchesFiltersForProperty(
+      property,
+      filters,
+      zipCodeList,
+      selectedCompanyId,
+      selectedCompany
+    )
+  );
 
 
   // Helper function to fetch company property count
