@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { MAP_ZOOM_LOGO } from '@/constants/map.constants';
 import type { MapPin, PropertyMap } from '@/types/property';
 
 const createColoredIcon = (color: string) => {
@@ -175,7 +176,7 @@ export default function PropertyMap({
   mapPins, 
   onPropertyClick, 
   center = [32.7157, -117.1611], 
-  zoom = 14,
+  zoom = MAP_ZOOM_LOGO,
   hasActiveFilters = false,
   onClearFilters,
   selectedProperty,

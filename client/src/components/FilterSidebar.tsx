@@ -11,11 +11,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { countyNameToKey } from "@/lib/county";
-import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, MAX_PRICE, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import type { ZipCodeWithCount, CityWithCount, FilterSidebar } from "@/types/filters";
 import type { ZipCodeSortOption } from "@/types/options";
-
-const MAX_PRICE = 10000000;
 
 export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, filters }: FilterSidebar) {
   const [priceRange, setPriceRange] = useState<[number, number]>([filters?.minPrice ?? 0, filters?.maxPrice ?? MAX_PRICE]);
@@ -33,7 +32,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
   const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
   const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const countyInputRef = useRef<HTMLInputElement>(null);
@@ -216,7 +215,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setZipCode('');
     setSelectedState(stateToKeep);
     setCounty(`${countyToKeep} County`);
-    setStatusFilters(new Set(["in-renovation"]));
+    setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
     onFilterChange?.({
       minPrice: 0,
       maxPrice: MAX_PRICE,
@@ -226,7 +225,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       zipCode: '',
       city: undefined,
       county: countyToKeep,
-      statusFilters: ["in-renovation"],
+      statusFilters: DEFAULT_STATUS_FILTERS,
     });
   };
 
@@ -366,7 +365,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       setSelectedBathrooms('Any');
       setSelectedTypes([]);
       setZipCode('');
-      setStatusFilters(new Set(["in-renovation"]));
+      setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
 
       onFilterChange?.({
         minPrice: 0,
@@ -377,7 +376,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         zipCode: '',
         city: undefined,
         county: firstCounty.county,
-        statusFilters: ["in-renovation"],
+        statusFilters: DEFAULT_STATUS_FILTERS,
       });
     }
 
@@ -394,7 +393,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setSelectedBathrooms('Any');
     setSelectedTypes([]);
     setZipCode('');
-    setStatusFilters(new Set(["in-renovation"]));
+    setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
 
     onFilterChange?.({
       minPrice: 0,
@@ -405,7 +404,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       zipCode: '',
       city: undefined,
       county: countyObj.county,
-      statusFilters: ["in-renovation"],
+      statusFilters: DEFAULT_STATUS_FILTERS,
     });
   };
 
@@ -469,49 +468,49 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         {/* Colors match map pin colors: blue=#69C9E1, green=#22C55E, red=#FF0000 */}
         <div className="inline-flex rounded-md border border-border overflow-hidden w-full flex-wrap">
           <button
-            onClick={() => toggleStatusFilter("in-renovation")}
+            onClick={() => toggleStatusFilter(PROPERTY_STATUS.IN_RENOVATION)}
             className={`flex-1 min-w-0 px-2 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
-              statusFilters.has("in-renovation")
+              statusFilters.has(PROPERTY_STATUS.IN_RENOVATION)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
             }`}
-            style={statusFilters.has("in-renovation") ? { backgroundColor: '#69C9E1' } : undefined}
+            style={statusFilters.has(PROPERTY_STATUS.IN_RENOVATION) ? { backgroundColor: '#69C9E1' } : undefined}
             data-testid="button-filter-in-renovation"
           >
             Renovating
           </button>
           <button
-            onClick={() => toggleStatusFilter("wholesale")}
+            onClick={() => toggleStatusFilter(PROPERTY_STATUS.WHOLESALE)}
             className={`flex-1 min-w-0 px-2 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
-              statusFilters.has("wholesale")
+              statusFilters.has(PROPERTY_STATUS.WHOLESALE)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
             }`}
-            style={statusFilters.has("wholesale") ? { backgroundColor: '#9333EA' } : undefined}
+            style={statusFilters.has(PROPERTY_STATUS.WHOLESALE) ? { backgroundColor: '#9333EA' } : undefined}
             data-testid="button-filter-wholesale"
           >
             Wholesale
           </button>
           <button
-            onClick={() => toggleStatusFilter("on-market")}
+            onClick={() => toggleStatusFilter(PROPERTY_STATUS.ON_MARKET)}
             className={`flex-1 min-w-0 px-2 py-1.5 text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
-              statusFilters.has("on-market")
+              statusFilters.has(PROPERTY_STATUS.ON_MARKET)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
             }`}
-            style={statusFilters.has("on-market") ? { backgroundColor: '#22C55E' } : undefined}
+            style={statusFilters.has(PROPERTY_STATUS.ON_MARKET) ? { backgroundColor: '#22C55E' } : undefined}
             data-testid="button-filter-on-market"
           >
             On Market
           </button>
           <button
-            onClick={() => toggleStatusFilter("sold")}
+            onClick={() => toggleStatusFilter(PROPERTY_STATUS.SOLD)}
             className={`flex-1 min-w-0 px-2 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              statusFilters.has("sold")
+              statusFilters.has(PROPERTY_STATUS.SOLD)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
             }`}
-            style={statusFilters.has("sold") ? { backgroundColor: '#FF0000' } : undefined}
+            style={statusFilters.has(PROPERTY_STATUS.SOLD) ? { backgroundColor: '#FF0000' } : undefined}
             data-testid="button-filter-sold"
           >
             Sold

@@ -1,4 +1,5 @@
 import { MAX_PRICE } from "@/constants/filters.constants";
+import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import type { PropertyFilters } from "@/types/filters";
 import type { MapPin, Property } from "@/types/property";
 
@@ -15,7 +16,7 @@ const DEFAULT_FILTERS: PropertyFilters = {
   zipCode: "",
   city: undefined,
   county: "San Diego",
-  statusFilters: ["in-renovation"],
+  statusFilters: [...DEFAULT_STATUS_FILTERS],
 };
 
 /**
@@ -43,10 +44,10 @@ export function getEffectiveStatusFilters(
   const normalized = filters.statusFilters.map((f) => f.toLowerCase().trim());
   if (
     !selectedCompanyId &&
-    normalized.includes("in-renovation") &&
-    !normalized.includes("wholesale")
+    normalized.includes(PROPERTY_STATUS.IN_RENOVATION) &&
+    !normalized.includes(PROPERTY_STATUS.WHOLESALE)
   ) {
-    return [...filters.statusFilters, "wholesale"];
+    return [...filters.statusFilters, PROPERTY_STATUS.WHOLESALE];
   }
   return filters.statusFilters;
 }
@@ -146,20 +147,20 @@ export function matchesStatusWithWholesale(
   const effective = getEffectiveStatusFilters(filters, selectedCompanyId);
   if (effective.length === 0) return true;
 
-  const propertyStatus = (item.status || "in-renovation").toLowerCase().trim();
+  const propertyStatus = (item.status || PROPERTY_STATUS.IN_RENOVATION).toLowerCase().trim();
   const normalizedEffective = effective.map((s) => s.toLowerCase().trim());
 
   if (!normalizedEffective.includes(propertyStatus)) return false;
 
   // Exception: wholesale property where company is seller - only show if wholesale is explicitly in filters
   if (
-    propertyStatus === "wholesale" &&
+    propertyStatus === PROPERTY_STATUS.WHOLESALE &&
     selectedCompanyId &&
     item.sellerId === selectedCompanyId
   ) {
     const wholesaleInFilters = filters.statusFilters
       .map((f) => f.toLowerCase().trim())
-      .includes("wholesale");
+      .includes(PROPERTY_STATUS.WHOLESALE);
     if (!wholesaleInFilters) return false;
   }
   return true;
@@ -175,12 +176,12 @@ export function matchesCompanyForPin(
   if (selectedCompanyId) {
     const bid = pin.buyerId ?? null;
     const sid = pin.sellerId ?? null;
-    const propertyStatus = (pin.status || "in-renovation").toLowerCase().trim();
+    const propertyStatus = (pin.status || PROPERTY_STATUS.IN_RENOVATION).toLowerCase().trim();
     // in-renovation: only buyer; on-market: only seller; sold/wholesale/other: buyer or seller
     const isRelevant =
-      propertyStatus === "in-renovation"
+      propertyStatus === PROPERTY_STATUS.IN_RENOVATION
         ? bid === selectedCompanyId
-        : propertyStatus === "on-market"
+        : propertyStatus === PROPERTY_STATUS.ON_MARKET
           ? sid === selectedCompanyId
           : bid === selectedCompanyId || sid === selectedCompanyId;
     return isRelevant;

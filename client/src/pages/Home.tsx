@@ -22,6 +22,24 @@ import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { useAccumulatePaginatedList } from "@/hooks/useAccumulatePaginatedList";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, COUNTIES, MAX_PRICE } from "@/constants/filters.constants";
+import {
+  MAP_ZOOM_DEFAULT,
+  MAP_ZOOM_COUNTY,
+  MAP_ZOOM_CITY,
+  MAP_ZOOM_ZIP,
+  MAP_ZOOM_LOGO,
+  MAP_ZOOM_PROPERTY,
+  MAP_ZOOM_SINGLE_PROPERTY,
+  MAP_ZOOM_MIN,
+  MAP_ZOOM_MAX,
+} from "@/constants/map.constants";
+import {
+  BUYERS_FEED_STATUS_FILTERS,
+  DEFAULT_STATUS_FILTERS,
+  LEADERBOARD_ZIP_STATUS_FILTERS,
+  PROPERTY_STATUS,
+  WHOLESALE_VIEW_STATUS_FILTERS,
+} from "@/constants/propertyStatus.constants";
 import type { SortOption, View } from "@/types/options";
 import type { PropertyFilters } from "@/types/filters";
 import type { Property, MapPin } from "@/types/property";
@@ -83,7 +101,7 @@ export default function Home() {
     if (!navigator.geolocation) {
       console.log('Geolocation is not supported by this browser. Using San Diego as default.');
       setMapCenter(getDefaultMapCenter());
-      setMapZoom(12);
+      setMapZoom(MAP_ZOOM_DEFAULT);
       return;
     }
 
@@ -117,34 +135,34 @@ export default function Home() {
             if (isEnabledCounty) {
               // User is in an enabled county - center to their location
               setMapCenter([latitude, longitude]);
-              setMapZoom(12);
+              setMapZoom(MAP_ZOOM_DEFAULT);
               console.log(`User located in ${userCounty} County - centering map to user location`);
             } else {
               // User is not in an enabled county - use default county center
               const defaultCounty = enabledCounties[0] || 'San Diego';
               const defaultCenter = getCountyCenter(defaultCounty) ?? getDefaultMapCenter();
               setMapCenter(defaultCenter);
-              setMapZoom(12);
+              setMapZoom(MAP_ZOOM_DEFAULT);
               console.log(`User located in ${userCounty} County (not enabled) - using default center for ${defaultCounty}`);
             }
           } else {
             // Reverse geocoding failed - center to user location anyway
             console.warn('Failed to reverse geocode user location, centering to user coordinates');
             setMapCenter([latitude, longitude]);
-            setMapZoom(12);
+            setMapZoom(MAP_ZOOM_DEFAULT);
           }
         } catch (error) {
           // Error fetching county - center to user location anyway
           console.error('Error fetching county from user location:', error);
           setMapCenter([latitude, longitude]);
-          setMapZoom(12);
+          setMapZoom(MAP_ZOOM_DEFAULT);
         }
       },
       (error) => {
         // Fall back to San Diego if geolocation fails or is denied
         console.log('Geolocation failed or denied, using San Diego as default:', error);
         setMapCenter(getDefaultMapCenter());
-        setMapZoom(12);
+        setMapZoom(MAP_ZOOM_DEFAULT);
       },
       {
         enableHighAccuracy: false, // Use less accurate but faster method
@@ -399,7 +417,7 @@ export default function Home() {
       filters.zipCode !== '' ||
       filters.city !== undefined ||
       filters.statusFilters.length !== 1 ||
-      filters.statusFilters[0] !== 'in-renovation'
+      filters.statusFilters[0] !== PROPERTY_STATUS.IN_RENOVATION
     );
   }, [filters]);
 
@@ -442,7 +460,7 @@ export default function Home() {
               const lat = parseFloat(data.places[0].latitude);
               const lng = parseFloat(data.places[0].longitude);
               setMapCenter([lat, lng]);
-              setMapZoom(13); // Closer zoom for zip code
+              setMapZoom(MAP_ZOOM_ZIP);
               return; // Exit early, zipcode takes priority
             }
           }
@@ -493,7 +511,7 @@ export default function Home() {
                 const lat = parseFloat(data.places[0].latitude);
                 const lng = parseFloat(data.places[0].longitude);
                 setMapCenter([lat, lng]);
-                setMapZoom(12); // Medium zoom for city view
+                setMapZoom(MAP_ZOOM_CITY);
                 return; // Exit early, city takes priority over county
               }
             }
@@ -509,7 +527,7 @@ export default function Home() {
         const countyCenter = getCountyCenter(filters.county);
         if (countyCenter) {
           setMapCenter(countyCenter);
-          setMapZoom(10); // Wider zoom for county view
+          setMapZoom(MAP_ZOOM_COUNTY);
           return; // Exit early
         }
       }
@@ -521,10 +539,10 @@ export default function Home() {
         const countyCenter = getCountyCenter(defaultCounty);
         if (countyCenter) {
           setMapCenter(countyCenter);
-          setMapZoom(10);
+          setMapZoom(MAP_ZOOM_COUNTY);
         } else {
           setMapCenter(undefined);
-          setMapZoom(12);
+          setMapZoom(MAP_ZOOM_DEFAULT);
         }
       }
     };
@@ -631,37 +649,26 @@ export default function Home() {
           const paddedSpan = maxSpan * 1.5;
           
           if (paddedSpan < 0.005) {
-            // Very close properties (same street/block)
             calculatedZoom = 17;
           } else if (paddedSpan < 0.01) {
-            // Close properties (same neighborhood)
             calculatedZoom = 16;
           } else if (paddedSpan < 0.02) {
-            // Nearby properties (same area)
             calculatedZoom = 15;
           } else if (paddedSpan < 0.05) {
-            // Properties in same region
             calculatedZoom = 14;
           } else if (paddedSpan < 0.1) {
-            // Properties spread across area
             calculatedZoom = 13;
           } else if (paddedSpan < 0.2) {
-            // Properties spread across larger area
             calculatedZoom = 12;
           } else if (paddedSpan < 0.5) {
-            // Properties spread across city
             calculatedZoom = 11;
           } else {
-            // Properties spread across large area
-            calculatedZoom = 10;
+            calculatedZoom = MAP_ZOOM_COUNTY;
           }
         } else {
-          // Single property - zoom in closer
-          calculatedZoom = 15;
+          calculatedZoom = MAP_ZOOM_SINGLE_PROPERTY;
         }
-        
-        // Ensure zoom is within valid range (8-18)
-        calculatedZoom = Math.max(8, Math.min(18, calculatedZoom));
+        calculatedZoom = Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, calculatedZoom));
         
         setMapZoom(calculatedZoom);
         // Mark that company selection is complete
@@ -789,7 +796,7 @@ export default function Home() {
     // Open/keep FilterSidebar open when selecting a zip (like company click opens directory)
     setSidebarView("filters");
     setMapCenter(undefined);
-    setMapZoom(12);
+    setMapZoom(MAP_ZOOM_DEFAULT);
   };
 
   const handleLogoClick = () => {
@@ -800,7 +807,7 @@ export default function Home() {
     clearCompanySelection();
     setSelectedProperty(null);
     setMapCenter(undefined);
-    setMapZoom(14);
+    setMapZoom(MAP_ZOOM_LOGO);
     setSortBy("recently-sold");
   };
 
@@ -813,20 +820,13 @@ export default function Home() {
   // When switching to Buyer Feed, auto-select wholesale and in-renovation status
   const handleBuyersFeedClick = () => {
     setSelectedProperty(null);
-    setFilters((prev) => ({
-      ...prev,
-      statusFilters: ["wholesale", "in-renovation"],
-    }));
+    setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
     setViewMode("buyers-feed");
   };
 
-  // When switching to Wholesale view, auto-select wholesale status
   const handleWholesaleClick = () => {
     setSelectedProperty(null);
-    setFilters((prev) => ({
-      ...prev,
-      statusFilters: ["wholesale"],
-    }));
+    setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
     setViewMode("wholesale");
   };
 
@@ -861,7 +861,7 @@ export default function Home() {
       // If on map view, center on the property if it has coordinates
       if (viewMode === "map" && property.latitude && property.longitude) {
         setMapCenter([property.latitude, property.longitude]);
-        setMapZoom(16);
+        setMapZoom(MAP_ZOOM_PROPERTY);
       }
     }
   };

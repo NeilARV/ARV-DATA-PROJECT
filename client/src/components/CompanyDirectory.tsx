@@ -17,13 +17,13 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { CompanyContactWithCounts, CompanyContactDetail, CompanyDirectoryProps } from "@/types/companies";
-import type { DirectorySortOption, Status } from "@/types/options";
-
-
-const ALL_STATUS_FILTERS: Status[] = ["in-renovation", "wholesale", "on-market", "sold"];
-const DEFAULT_STATUS_FILTERS: Status[] = ["in-renovation"];
-const WHOLESALE_FEED_STATUS: Status[] = ["wholesale"];
-const BUYERS_FEED_STATUS: Status[] = ["in-renovation", "wholesale"];
+import type { DirectorySortOption } from "@/types/options";
+import {
+  ALL_STATUS_FILTERS,
+  BUYERS_FEED_STATUS_FILTERS,
+  DEFAULT_STATUS_FILTERS,
+  WHOLESALE_VIEW_STATUS_FILTERS,
+} from "@/constants/propertyStatus.constants";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -43,7 +43,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? ["in-renovation"]));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
@@ -79,9 +79,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     } else if (hadSelection) {
       const statuses =
         viewMode === "wholesale"
-          ? WHOLESALE_FEED_STATUS
+          ? WHOLESALE_VIEW_STATUS_FILTERS
           : viewMode === "buyers-feed"
-            ? BUYERS_FEED_STATUS
+            ? BUYERS_FEED_STATUS_FILTERS
             : DEFAULT_STATUS_FILTERS;
       setStatusFilters(new Set(statuses));
       if (onFilterChange && filters) {

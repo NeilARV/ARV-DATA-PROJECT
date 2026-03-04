@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
@@ -80,7 +81,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
         <div className="flex items-start justify-between mb-1">
           <div>
             <p className="text-sm text-muted-foreground">
-              {property.status?.toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price"}
+              {property.status?.toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price"}
             </p>
             <div
               className="text-xl font-bold text-foreground"
@@ -93,7 +94,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
           <div className="flex items-start gap-6 text-sm">
             <div className="flex flex-col items-end" data-testid={`text-date-sold-${property.id}`}>
               <span className="text-sm text-muted-foreground mb-1">
-                {["wholesale", "in-renovation"].includes((property.status || "").toLowerCase().trim())
+                {[PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION].includes((property.status || "").toLowerCase().trim())
                   ? "Date Purchased"
                   : "Date Sold"}
               </span>

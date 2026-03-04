@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import {
   Dialog,
   DialogContent,
@@ -142,8 +143,8 @@ export default function PropertyDetailModal({
   if (!property) return null;
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
-  const priceLabel = (property.status || "").toLowerCase().trim() === "sold" ? "Sold Price" : "Purchase Price";
-  const dateLabel = ["wholesale", "in-renovation"].includes((property.status || "").toLowerCase().trim())
+  const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
+  const dateLabel = [PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION].includes((property.status || "").toLowerCase().trim())
     ? "Date Purchased"
     : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);

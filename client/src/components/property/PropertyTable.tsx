@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
@@ -23,10 +24,10 @@ const STATUS_COLORS = {
 
 function getStatusDots(status: string): string[] {
   const s = (status || "").toLowerCase().trim();
-  if (s === "in-renovation") return [STATUS_COLORS.Renovating];
-  if (s === "sold") return [STATUS_COLORS.Sold];
-  if (s === "on-market") return [STATUS_COLORS.OnMarket];
-  if (s === "wholesale") return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
+  if (s === PROPERTY_STATUS.IN_RENOVATION) return [STATUS_COLORS.Renovating];
+  if (s === PROPERTY_STATUS.SOLD) return [STATUS_COLORS.Sold];
+  if (s === PROPERTY_STATUS.ON_MARKET) return [STATUS_COLORS.OnMarket];
+  if (s === PROPERTY_STATUS.WHOLESALE) return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
   return [STATUS_COLORS.Renovating];
 }
 
