@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { countyNameToKey } from "@/lib/county";
 import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
 import type { ZipCodeWithCount, CityWithCount, FilterSidebar } from "@/types/filters";
 import type { ZipCodeSortOption } from "@/types/options";
@@ -99,11 +100,6 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const countiesByState = useMemo(() => {
     return COUNTIES.filter(c => c.state === selectedState);
   }, [selectedState]);
-
-  // Helper function to convert county name to object key format (e.g., "San Diego" -> "san_diego")
-  const countyNameToKey = (countyName: string): string => {
-    return countyName.toLowerCase().replace(/\s+/g, '_');
-  };
 
   // Select the appropriate zip code list based on state and county filter
   const zipCodeList = useMemo(() => {

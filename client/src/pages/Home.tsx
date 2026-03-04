@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
+import { getCountyCenter, getDefaultMapCenter, getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { cityMatchesFilter, getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { useAccumulatePaginatedList } from "@/hooks/useAccumulatePaginatedList";
@@ -61,29 +62,7 @@ export default function Home() {
   const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
   const geolocationAttemptedRef = useRef(false);
   const companySelectionInProgressRef = useRef(false);
-  
-  // Helper function to get county center from COUNTIES array
-  const getCountyCenter = (countyName: string): [number, number] | undefined => {
-    const county = COUNTIES.find(c => c.county === countyName);
-    return county?.center as [number, number] | undefined;
-  };
 
-  // Helper function to get state from county name
-  const getStateFromCounty = (countyName: string): string => {
-    const county = COUNTIES.find(c => c.county === countyName);
-    return county?.state ?? 'CA'; // Default to CA if not found
-  };
-
-  // Helper function to convert county name to object key format (e.g., "San Diego" -> "san_diego")
-  const countyNameToKey = (countyName: string): string => {
-    return countyName.toLowerCase().replace(/\s+/g, '_');
-  };
-  
-  // Get default San Diego center from COUNTIES array
-  const getDefaultMapCenter = (): [number, number] => {
-    return getCountyCenter('San Diego') ?? [32.7157, -117.1611]; // Fallback if not found
-  };
-  
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
       setShowSignupDialog(true);
@@ -174,12 +153,6 @@ export default function Home() {
       }
     );
   }, []); // Empty dependency array - only runs once on mount
-
-  // Build query parameters based on county filter
-  const countyQueryParam = useMemo(() => {
-    const county = filters.county ?? 'San Diego';
-    return county ? `?county=${encodeURIComponent(county)}` : '';
-  }, [filters.county]);
 
   const propertiesQueryParam = useMemo(
     () =>
