@@ -109,7 +109,6 @@ export type PropertyDetailPanelProps = PropertyDetails & ViewFunctions
 
 export type PropertyTableProps = {
   properties: Property[];
-  onPropertyClick: (property: Property) => void;
 }
 
 export type StatusTag = {

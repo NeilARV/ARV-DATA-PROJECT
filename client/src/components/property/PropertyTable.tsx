@@ -13,6 +13,7 @@ import { useState } from "react";
 import { formatAddress } from "@shared/utils/formatAddress";
 import type { PropertyTableProps } from "@/types/property";
 import type { SortColumn, SortDirection } from "@/types/options";
+import { useProperty } from "@/hooks/useProperty";
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {
@@ -41,7 +42,10 @@ const getStreetName = (address?: string | null) => {
   return s.toLowerCase().trim();
 };
 
-export default function PropertyTable({ properties, onPropertyClick }: PropertyTableProps) {
+export default function PropertyTable({ properties }: PropertyTableProps) {
+
+  const { fetchProperty } = useProperty();
+
   const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -158,7 +162,7 @@ export default function PropertyTable({ properties, onPropertyClick }: PropertyT
           {sortedProperties.map((property) => (
             <TableRow
               key={property.id}
-              onClick={() => onPropertyClick(property)}
+              onClick={() => fetchProperty(property.id)}
               className="cursor-pointer hover-elevate"
               data-testid={`row-property-${property.id}`}
             >

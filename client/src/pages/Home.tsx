@@ -27,20 +27,17 @@ import {
   MAP_ZOOM_LOGO,
   MAP_ZOOM_PROPERTY,
 } from "@/constants/map.constants";
-import {
-  BUYERS_FEED_STATUS_FILTERS,
-  WHOLESALE_VIEW_STATUS_FILTERS,
-} from "@/constants/propertyStatus.constants";
 import type { SortOption } from "@/types/options";
 import type { Property, MapPin } from "@/types/property";
 import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
+import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 
 function HomeContent() {
   const { filters, setFilters } = useFilters();
   const { view, setView } = useView();
+  const { property, setProperty, fetchProperty } = useProperty();
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
@@ -239,7 +236,7 @@ function HomeContent() {
       // Selecting a company: set the company first, then let the effect handle centering
       setSelectedCompany(companyName);
       setSelectedCompanyId(companyId || null);
-      setSelectedProperty(null); // Close property panel when selecting a different company
+      setProperty(null); // Close property panel when selecting a different company
       // Don't clear center/zoom here - let the company selection effect handle it
       // This prevents race conditions with the location filter effect
       
@@ -261,7 +258,7 @@ function HomeContent() {
     setSelectedCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory"); // Keep directory open to show selected company
-    setSelectedProperty(null); // Close property panel when selecting a different company
+    setProperty(null); // Close property panel when selecting a different company
     // Don't clear center/zoom here - let the company selection effect handle it
     
     // Fetch the company's total property count
@@ -278,7 +275,7 @@ function HomeContent() {
     setSidebarView("directory");
     // Only close property panel if not clicking from within the panel itself
     if (!keepPanelOpen) {
-      setSelectedProperty(null);
+      setProperty(null);
     }
     // Don't clear center/zoom here - let the company selection effect handle it
     
@@ -310,7 +307,7 @@ function HomeContent() {
     setView("map");
     setSidebarView("directory");
     clearCompanySelection();
-    setSelectedProperty(null);
+    setProperty(null);
     setMapCenter(undefined);
     setMapZoom(MAP_ZOOM_LOGO);
     setSortBy("recently-sold");
@@ -320,29 +317,13 @@ function HomeContent() {
   const handlePropertySelectById = async (propertyId: string) => {
     const property = await fetchPropertyById(propertyId);
     if (property) {
-      setSelectedProperty(property);
+      setProperty(property);
       
       // If on map view, center on the property if it has coordinates
       if (view === "map" && property.latitude && property.longitude) {
         setMapCenter([property.latitude, property.longitude]);
         setMapZoom(MAP_ZOOM_PROPERTY);
       }
-    }
-  };
-
-  // Handle map pin click - fetch full property data
-  const handleMapPinClick = async (mapPin: MapPin) => {
-    const property = await fetchPropertyById(mapPin.id);
-    if (property) {
-      setSelectedProperty(property);
-    }
-  };
-
-  // Handle property click from grid/table - fetch full property data (includes buyer/seller)
-  const handlePropertyClick = async (property: Property) => {
-    const fullProperty = await fetchPropertyById(property.id);
-    if (fullProperty) {
-      setSelectedProperty(fullProperty);
     }
   };
 
@@ -353,7 +334,7 @@ function HomeContent() {
   // Calculate grid columns based on sidebar and property detail panel visibility
   const gridColsClass = useMemo(() => {
     const hasSidebar = sidebarView !== "none";
-    const hasPropertyPanel = selectedProperty !== null;
+    const hasPropertyPanel = property !== null;
     
     // Both sidebar and panel open - use 2 columns max
     if (hasSidebar && hasPropertyPanel) {
@@ -365,7 +346,7 @@ function HomeContent() {
     }
     // Neither open - full 3 columns
     return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
-  }, [sidebarView, selectedProperty]);
+  }, [sidebarView, property]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -376,7 +357,6 @@ function HomeContent() {
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
         onLogoClick={handleLogoClick}
-        setSelectedProperty={setSelectedProperty}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -425,20 +405,19 @@ function HomeContent() {
           <div className="flex-1 overflow-hidden flex">
             {view === "map" ? (
               <>
-                {selectedProperty && (
+                {property && (
                   <PropertyDetailPanel
-                    property={selectedProperty}
-                    onClose={() => setSelectedProperty(null)}
+                    property={property}
+                    onClose={() => setProperty(null)}
                     onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <div className="flex-1">
                   <PropertyMap
                     mapPins={filteredMapPins}
-                    onPropertyClick={handleMapPinClick}
                     center={mapCenter}
                     zoom={mapZoom}
-                    selectedProperty={selectedProperty}
+                    selectedProperty={property}
                     isLoading={isLoadingMapPins}
                     selectedCompany={selectedCompany}
                     selectedCompanyId={selectedCompanyId}
@@ -452,7 +431,6 @@ function HomeContent() {
                 properties={sortedProperties}
                 selectedCompany={selectedCompany}
                 totalFilteredProperties={totalFilteredProperties}
-                onPropertyClick={handlePropertyClick}
                 onClearCompanyFilter={clearCompanySelection}
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
@@ -461,10 +439,10 @@ function HomeContent() {
               />
             ) : view === "buyers-feed" ? (
               <>
-                {selectedProperty && (
+                {property && (
                   <PropertyDetailPanel
-                    property={selectedProperty}
-                    onClose={() => setSelectedProperty(null)}
+                    property={property}
+                    onClose={() => setProperty(null)}
                     onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
@@ -474,7 +452,6 @@ function HomeContent() {
                   totalFilteredProperties={totalFilteredProperties}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
@@ -485,10 +462,10 @@ function HomeContent() {
               </>
             ) : (
               <>
-                {selectedProperty && (
+                {property && (
                   <PropertyDetailPanel
-                    property={selectedProperty}
-                    onClose={() => setSelectedProperty(null)}
+                    property={property}
+                    onClose={() => setProperty(null)}
                     onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
@@ -498,7 +475,6 @@ function HomeContent() {
                   totalFilteredProperties={totalFilteredProperties}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
@@ -517,9 +493,9 @@ function HomeContent() {
 
       {view === "table" && (
         <PropertyDetailModal
-          property={selectedProperty}
-          open={!!selectedProperty}
-          onClose={() => setSelectedProperty(null)}
+          property={property}
+          open={!!property}
+          onClose={() => setProperty(null)}
           onCompanyNameClick={handleCompanyNameClick}
         />
       )}
@@ -542,7 +518,9 @@ export default function Home() {
   return (
     <ViewProvider>
       <FiltersProvider>
-        <HomeContent />
+        <PropertyProvider>
+          <HomeContent />
+        </PropertyProvider>
       </FiltersProvider>
     </ViewProvider>
   );

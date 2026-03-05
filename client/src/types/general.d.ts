@@ -19,7 +19,6 @@ export type HeaderProps = {
   onLeaderboardClick?: () => void;
   onLogoClick?: () => void;
   county?: string; // County filter for suggestions
-  setSelectedProperty: (property: Property) => void;
 }
 
 export type PropertySuggestion = {

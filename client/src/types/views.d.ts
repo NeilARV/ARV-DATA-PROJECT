@@ -11,7 +11,6 @@ export type GridViewProps = {
   totalFilteredProperties: number;
   sortBy: SortOption;
   onSortChange: (sortBy: SortOption) => void;
-  onPropertyClick: (property: Property) => void;
   onClearCompanyFilter: () => void;
   gridColsClass: string;
   propertiesHasMore: boolean;
@@ -30,7 +29,6 @@ export type TableViewProps = {
   properties: Property[];
   selectedCompany: string | null;
   totalFilteredProperties: number;
-  onPropertyClick: (property: Property) => void;
   onClearCompanyFilter: () => void;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;

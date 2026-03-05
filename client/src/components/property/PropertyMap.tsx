@@ -7,6 +7,7 @@ import { X } from 'lucide-react';
 import { MAP_ZOOM_LOGO } from '@/constants/map.constants';
 import type { MapPin, PropertyMap } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
+import { useProperty } from '@/hooks/useProperty';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -175,7 +176,6 @@ function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin
 
 export default function PropertyMap({ 
   mapPins, 
-  onPropertyClick, 
   center = [32.7157, -117.1611], 
   zoom = MAP_ZOOM_LOGO,
   selectedProperty,
@@ -187,6 +187,7 @@ export default function PropertyMap({
 }: PropertyMap) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+  const { fetchProperty } = useProperty();
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -249,7 +250,7 @@ export default function PropertyMap({
                 position={[pin.latitude!, pin.longitude!]}
                 icon={getIconForPin(pin, isSelected, selectedCompanyId, statusFilters)}
                 eventHandlers={{
-                  click: () => onPropertyClick?.(pin),
+                  click: () => fetchProperty?.(pin.id),
                 }}
               />
             );

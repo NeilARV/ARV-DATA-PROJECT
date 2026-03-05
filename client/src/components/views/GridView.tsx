@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { SortOption } from "@/types/options";
 import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
+import { useProperty } from "@/hooks/useProperty";
 
 export default function GridView({
   properties,
@@ -18,7 +19,6 @@ export default function GridView({
   totalFilteredProperties,
   sortBy,
   onSortChange,
-  onPropertyClick,
   onClearCompanyFilter,
   gridColsClass,
   propertiesHasMore,
@@ -31,6 +31,7 @@ export default function GridView({
 }: GridViewProps) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+  const { fetchProperty } = useProperty();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -172,7 +173,7 @@ export default function GridView({
               <PropertyCard
                 key={property.id}
                 property={property}
-                onClick={() => onPropertyClick(property)}
+                onClick={() => fetchProperty(property.id)}
               />
             ))}
           </div>

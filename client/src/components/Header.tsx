@@ -28,6 +28,7 @@ import { useView } from "@/hooks/useView";
 import { useFilters } from "@/hooks/useFilters";
 import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
+import { useProperty } from "@/hooks/useProperty";
 
 export default function Header({
   onSearch,
@@ -37,11 +38,11 @@ export default function Header({
   onLeaderboardClick,
   onLogoClick,
   county,
-  setSelectedProperty,
 }: HeaderProps) {
 
   const { setFilters } = useFilters();
   const { view, setView } = useView();
+  const { setProperty } = useProperty();
 
   const [searchQuery, setSearchQuery] = useState("");
   // Initialize isDark synchronously to avoid wrong logo on first render
@@ -193,15 +194,20 @@ export default function Header({
   };
 
   const onBuyersFeedClick = async () => {
-    setSelectedProperty(null);
+    setProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
     setView("buyers-feed");
   }
 
   const onWholesaleClick = async () => {
-    setSelectedProperty(null);
+    setProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
     setView("wholesale");
+  }
+
+  const onTableViewClick = async () => {
+    setProperty(null);
+    setView("table")
   }
 
   return (
@@ -340,7 +346,7 @@ export default function Header({
             <Button
               variant={view === "table" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setView("table")}
+              onClick={onTableViewClick}
               className="rounded-l-none"
               data-testid="button-view-table"
             >

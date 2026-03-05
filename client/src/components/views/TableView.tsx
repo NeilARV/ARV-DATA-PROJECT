@@ -7,7 +7,6 @@ export default function TableView({
   properties,
   selectedCompany,
   totalFilteredProperties,
-  onPropertyClick,
   onClearCompanyFilter,
   propertiesHasMore,
   isLoadingMoreProperties,
@@ -72,7 +71,6 @@ export default function TableView({
         <div>
           <PropertyTable
             properties={properties}
-            onPropertyClick={onPropertyClick}
           />
           {/* Infinite scroll trigger */}
           {propertiesHasMore && (
