@@ -34,7 +34,7 @@ function HomeContent() {
   const { filters, setFilters, setSortBy } = useFilters();
   const { view, setView, sidebarView, setSidebarView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
-  const { company, setCompany, companies, loadCompanies, companySelectionInProgressRef, handleCompanyClick } = useCompanies();
+  const { company, setCompany, loadCompanies } = useCompanies();
 
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
@@ -174,47 +174,6 @@ function HomeContent() {
       zipCodeList,
     )
   );
-
-  const handleLeaderboardCompanyClick = (companyName: string, companyId?: string) => {
-    companySelectionInProgressRef.current = true;
-    const found = companies.find(
-      (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
-    );
-    setCompany(
-      found ??
-        ({
-          id: companyId ?? "",
-          companyName,
-          propertyCount: 0,
-          propertiesSoldCount: 0,
-          propertiesSoldCountAllTime: 0,
-        } as CompanyContactWithCounts)
-    );
-    setSidebarView("directory");
-    setProperty(null);
-  };
-
-  const handleCompanyNameClick = (companyName: string, companyId?: string, keepPanelOpen?: boolean) => {
-    companySelectionInProgressRef.current = true;
-    const found = companies.find(
-      (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
-    );
-    setCompany(
-      found ??
-        ({
-          id: companyId ?? "",
-          companyName,
-          propertyCount: 0,
-          propertiesSoldCount: 0,
-          propertiesSoldCountAllTime: 0,
-        } as CompanyContactWithCounts)
-    );
-    setSidebarView("directory");
-    if (!keepPanelOpen) {
-      setProperty(null);
-    }
-  };
-
 
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
     // Clear company filter and set zip code filter. Preserve current county so the
@@ -395,7 +354,6 @@ function HomeContent() {
                   loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
                   showWholesaleLeaderboard={view === "wholesale"}
                   county={filters.county}
-                  onWholesaleLeaderboardCompanyClick={handleLeaderboardCompanyClick}
                 />
               </>
             )}
@@ -417,7 +375,6 @@ function HomeContent() {
 
       <LeaderboardDialog
         {...leaderboardDialogProps}
-        onCompanyClick={handleLeaderboardCompanyClick}
         onZipCodeClick={handleLeaderboardZipCodeClick}
       />
 

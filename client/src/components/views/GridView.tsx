@@ -24,12 +24,11 @@ export default function GridView({
   loadMoreRef,
   showWholesaleLeaderboard = false,
   county = "San Diego",
-  onWholesaleLeaderboardCompanyClick,
 }: GridViewProps) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { fetchProperty } = useProperty();
-  const { company, setCompany } = useCompanies();
+  const { company, setCompany, handleCompanyClick } = useCompanies();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -84,7 +83,7 @@ export default function GridView({
                     <button
                       key={entry.companyId}
                       type="button"
-                      onClick={() => onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)}
+                      onClick={() => handleCompanyClick?.(entry.companyName, entry.companyId)}
                       className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
                     >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>

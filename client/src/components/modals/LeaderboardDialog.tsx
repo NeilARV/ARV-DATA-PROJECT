@@ -10,16 +10,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getCityForZipCode } from "@/lib/zipCodes";
 import type { LeaderboardDialogProps, LeaderboardData } from "@/types/modals";
 import { useFilters } from "@/hooks/useFilters";
+import { useCompanies } from "@/hooks/useCompanies";
 
 
 export default function LeaderboardDialog({ 
   open, 
   onOpenChange,
-  onCompanyClick,
   onZipCodeClick,
 }: LeaderboardDialogProps) {
 
   const { filters } = useFilters()
+  const { handleCompanyClick } = useCompanies();
 
   // Fetch leaderboard data from dedicated endpoint (filtered by county)
   const { data: leaderboardData, isLoading, error } = useQuery<LeaderboardData>({
@@ -43,11 +44,9 @@ export default function LeaderboardDialog({
   const topCompanies = leaderboardData?.companies ?? [];
   const topZipCodes = leaderboardData?.zipCodes ?? [];
 
-  const handleCompanyClick = (companyName: string) => {
-    if (onCompanyClick) {
-      onCompanyClick(companyName);
-      onOpenChange(false);
-    }
+  const onCompanyClick = (companyName: string) => {
+    handleCompanyClick(companyName, null);
+    onOpenChange(false);
   };
 
   const handleZipCodeClick = (zipCode: string) => {
@@ -90,7 +89,7 @@ export default function LeaderboardDialog({
                 {topCompanies.map((company) => (
                   <button
                     key={company.name}
-                    onClick={() => handleCompanyClick(company.name)}
+                    onClick={() => onCompanyClick(company.name)}
                     className="w-full flex items-center justify-between p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer text-left transition-colors"
                     data-testid={`leaderboard-company-${company.rank}`}
                   >
