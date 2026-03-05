@@ -19,7 +19,6 @@ export default function GridView({
   totalFilteredProperties,
   sortBy,
   onSortChange,
-  onClearCompanyFilter,
   gridColsClass,
   propertiesHasMore,
   isLoadingMoreProperties,
@@ -32,7 +31,7 @@ export default function GridView({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
-  const { company } = useCompanies();
+  const { company, setCompany } = useCompanies();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -137,7 +136,7 @@ export default function GridView({
             <span className="flex items-center gap-2 flex-wrap">
               {company?.companyName && (
                 <button
-                  onClick={onClearCompanyFilter}
+                  onClick={() => setCompany(null)}
                   className="text-primary hover:underline text-sm"
                   data-testid="button-clear-company-filter"
                 >

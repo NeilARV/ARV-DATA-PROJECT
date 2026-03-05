@@ -189,12 +189,6 @@ function HomeContent() {
     )
   );
 
-
-  // Helper function to clear company selection
-  const clearCompanySelection = () => {
-    setCompany(null);
-  };
-
   const handleCompanySelect = (selected: CompanyContactWithCounts | null) => {
     if (selected) {
       companySelectionInProgressRef.current = true;
@@ -387,7 +381,6 @@ function HomeContent() {
               <TableView
                 properties={sortedProperties}
                 totalFilteredProperties={totalFilteredProperties}
-                onClearCompanyFilter={clearCompanySelection}
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
                 isLoading={isLoading}
@@ -407,7 +400,6 @@ function HomeContent() {
                   totalFilteredProperties={totalFilteredProperties}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onClearCompanyFilter={clearCompanySelection}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
@@ -429,7 +421,6 @@ function HomeContent() {
                   totalFilteredProperties={totalFilteredProperties}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
-                  onClearCompanyFilter={clearCompanySelection}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}

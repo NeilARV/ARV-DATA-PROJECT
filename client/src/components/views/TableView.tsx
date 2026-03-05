@@ -7,7 +7,6 @@ import { useCompanies } from "@/hooks/useCompanies";
 export default function TableView({
   properties,
   totalFilteredProperties,
-  onClearCompanyFilter,
   propertiesHasMore,
   isLoadingMoreProperties,
   isLoading = false,
@@ -15,7 +14,7 @@ export default function TableView({
 }: TableViewProps) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
-  const { company } = useCompanies();
+  const { company, setCompany } = useCompanies();
   const selectedCompanyName = company?.companyName ?? null;
 
   // Show loader when initially loading and no properties yet
@@ -38,7 +37,7 @@ export default function TableView({
               <span className="flex items-center gap-2 flex-wrap">
                 {selectedCompanyName && (
                   <button
-                    onClick={onClearCompanyFilter}
+                    onClick={() => setCompany(null)}
                     className="text-primary hover:underline text-sm"
                     data-testid="button-clear-company-filter"
                   >

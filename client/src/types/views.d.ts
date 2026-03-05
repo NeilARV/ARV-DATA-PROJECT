@@ -10,7 +10,6 @@ export type GridViewProps = {
   totalFilteredProperties: number;
   sortBy: SortOption;
   onSortChange: (sortBy: SortOption) => void;
-  onClearCompanyFilter: () => void;
   gridColsClass: string;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
@@ -27,7 +26,6 @@ export type GridViewProps = {
 export type TableViewProps = {
   properties: Property[];
   totalFilteredProperties: number;
-  onClearCompanyFilter: () => void;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
   isLoading?: boolean;
