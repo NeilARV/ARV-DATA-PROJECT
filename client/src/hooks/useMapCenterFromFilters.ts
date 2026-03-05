@@ -17,13 +17,13 @@ import {
 } from "@/constants/map.constants";
 import { getCountyCenter, getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { cityMatchesFilter } from "@/lib/propertyFilters";
+import { useCompanies } from "./useCompanies";
 
 type SetMapCenter = (center: [number, number] | undefined) => void;
 type SetMapZoom = (zoom: number) => void;
 
 export interface UseMapCenterFromFiltersOptions {
   filters: PropertyFilters;
-  selectedCompany: string | null;
   filteredMapPins: MapPin[];
   setMapCenter: SetMapCenter;
   setMapZoom: SetMapZoom;
@@ -31,7 +31,7 @@ export interface UseMapCenterFromFiltersOptions {
 }
 
 /**
- * Effect 1: When filters (zip/city/county) or selectedCompany change, update map center/zoom
+ * Effect 1: When filters (zip/city/county) or company change, update map center/zoom
  * from location (zip > city > county). Skips when a company is selected or selection in progress.
  *
  * Effect 2: When a company is selected and filteredMapPins are available, center map on
@@ -39,16 +39,18 @@ export interface UseMapCenterFromFiltersOptions {
  */
 export function useMapCenterFromFilters({
   filters,
-  selectedCompany,
   filteredMapPins,
   setMapCenter,
   setMapZoom,
   companySelectionInProgressRef,
 }: UseMapCenterFromFiltersOptions): void {
+
+  const { company } = useCompanies();
+
   // Effect 1: Map center from filters (zip / city / county)
   useEffect(() => {
     const fetchLocation = async () => {
-      if (selectedCompany || companySelectionInProgressRef.current) return;
+      if (company || companySelectionInProgressRef.current) return;
 
       if (filters?.zipCode?.trim()) {
         try {
@@ -119,7 +121,7 @@ export function useMapCenterFromFilters({
         }
       }
 
-      if (!selectedCompany) {
+      if (!company) {
         const defaultCounty = filters?.county ?? "San Diego";
         const countyCenter = getCountyCenter(defaultCounty);
         if (countyCenter) {
@@ -137,7 +139,7 @@ export function useMapCenterFromFilters({
     filters?.zipCode,
     filters?.city,
     filters?.county,
-    selectedCompany,
+    company,
     companySelectionInProgressRef,
     setMapCenter,
     setMapZoom,
@@ -145,7 +147,7 @@ export function useMapCenterFromFilters({
 
   // Effect 2: Center map on company properties when a company is selected
   useEffect(() => {
-    if (!selectedCompany) {
+    if (!company) {
       companySelectionInProgressRef.current = false;
       return;
     }
@@ -199,7 +201,7 @@ export function useMapCenterFromFilters({
     setMapZoom(calculatedZoom);
     companySelectionInProgressRef.current = false;
   }, [
-    selectedCompany,
+    company,
     filteredMapPins,
     setMapCenter,
     setMapZoom,

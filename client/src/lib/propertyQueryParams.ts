@@ -2,6 +2,7 @@ import { MAX_PRICE } from "@/constants/filters.constants";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import { getEffectiveStatusFilters } from "@/lib/propertyFilters";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export type BuildPropertyQueryParamsOptions = {
   /** When true, only county and status filters are included (for map pins endpoint). */
@@ -12,7 +13,6 @@ export type BuildPropertyQueryParamsOptions = {
   limit: string;
   sortBy: SortOption;
   selectedCompanyId?: string | null;
-  selectedCompany?: string | null;
 };
 
 /**
@@ -32,8 +32,9 @@ export function buildPropertyQueryParams(
     limit,
     sortBy,
     selectedCompanyId = null,
-    selectedCompany = null,
   } = options;
+
+  const { company } = useCompanies();
 
   const params = new URLSearchParams();
 
@@ -82,8 +83,8 @@ export function buildPropertyQueryParams(
 
   if (selectedCompanyId) {
     params.append("companyId", selectedCompanyId);
-  } else if (selectedCompany) {
-    params.append("company", selectedCompany);
+  } else if (company) {
+    params.append("company", company);
   }
 
   if (hasDateSold) {

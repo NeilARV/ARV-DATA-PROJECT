@@ -12,10 +12,10 @@ import type { SortOption } from "@/types/options";
 import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
 import { useProperty } from "@/hooks/useProperty";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export default function GridView({
   properties,
-  selectedCompany,
   totalFilteredProperties,
   sortBy,
   onSortChange,
@@ -32,6 +32,7 @@ export default function GridView({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
+  const { company } = useCompanies();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -131,10 +132,10 @@ export default function GridView({
         </div>
         </div>
         {/* Row 2: filter links on their own line so they don't affect row 1 layout */}
-        {(selectedCompany || hasActiveFilters) && (
+        {(company || hasActiveFilters) && (
           <p className="text-muted-foreground mt-1.5">
             <span className="flex items-center gap-2 flex-wrap">
-              {selectedCompany && (
+              {company && (
                 <button
                   onClick={onClearCompanyFilter}
                   className="text-primary hover:underline text-sm"
@@ -143,7 +144,7 @@ export default function GridView({
                   Deselect Company
                 </button>
               )}
-              {selectedCompany && hasActiveFilters && (
+              {company && hasActiveFilters && (
                 <span className="text-muted-foreground">•</span>
               )}
               {hasActiveFilters && (

@@ -32,13 +32,15 @@ import type { Property, MapPin } from "@/types/property";
 import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
+import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 
 function HomeContent() {
   const { filters, setFilters } = useFilters();
   const { view, setView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
+  const { company, setCompany } = useCompanies();
+
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
@@ -60,7 +62,6 @@ function HomeContent() {
     view,
     sortBy,
     selectedCompanyId,
-    selectedCompany,
     selectedCompanyPropertyCount,
     hasDateSold: view === "buyers-feed",
   });
@@ -83,7 +84,6 @@ function HomeContent() {
       limit: "10",
       sortBy,
       selectedCompanyId,
-      selectedCompany,
     });
     return `/api/properties/map${queryString}`;
   }, [filters.county, filters.statusFilters, selectedCompanyId]);
@@ -167,15 +167,14 @@ function HomeContent() {
           filters,
           zipCodeList,
           selectedCompanyId,
-          selectedCompany
+          company
         )
       ),
-    [mapPins, filters, selectedCompany, selectedCompanyId, zipCodeList]
+    [mapPins, filters, company, selectedCompanyId, zipCodeList]
   );
 
   useMapCenterFromFilters({
     filters,
-    selectedCompany,
     filteredMapPins,
     setMapCenter,
     setMapZoom,
@@ -191,7 +190,7 @@ function HomeContent() {
       filters,
       zipCodeList,
       selectedCompanyId,
-      selectedCompany
+      company
     )
   );
 
@@ -223,7 +222,7 @@ function HomeContent() {
 
   // Helper function to clear company selection
   const clearCompanySelection = () => {
-    setSelectedCompany(null);
+    setCompany(null);
     setSelectedCompanyId(null);
     setSelectedCompanyPropertyCount(0);
   };
@@ -234,7 +233,7 @@ function HomeContent() {
       companySelectionInProgressRef.current = true;
       
       // Selecting a company: set the company first, then let the effect handle centering
-      setSelectedCompany(companyName);
+      setCompany(companyName);
       setSelectedCompanyId(companyId || null);
       setProperty(null); // Close property panel when selecting a different company
       // Don't clear center/zoom here - let the company selection effect handle it
@@ -255,7 +254,7 @@ function HomeContent() {
     companySelectionInProgressRef.current = true;
     
     // Preserve all existing filters when selecting a company from leaderboard
-    setSelectedCompany(companyName);
+    setCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory"); // Keep directory open to show selected company
     setProperty(null); // Close property panel when selecting a different company
@@ -270,7 +269,7 @@ function HomeContent() {
     companySelectionInProgressRef.current = true;
     
     // Open the directory and select the company
-    setSelectedCompany(companyName);
+    setCompany(companyName);
     setSelectedCompanyId(companyId || null);
     setSidebarView("directory");
     // Only close property panel if not clicking from within the panel itself
@@ -373,7 +372,6 @@ function HomeContent() {
             onClose={() => setSidebarView("none")}
             onSwitchToFilters={() => setSidebarView("filters")}
             onCompanySelect={handleCompanySelect}
-            selectedCompany={selectedCompany}
             selectedCompanyId={selectedCompanyId}
           />
         )}
@@ -419,7 +417,6 @@ function HomeContent() {
                     zoom={mapZoom}
                     selectedProperty={property}
                     isLoading={isLoadingMapPins}
-                    selectedCompany={selectedCompany}
                     selectedCompanyId={selectedCompanyId}
                     onDeselectCompany={clearCompanySelection}
                     statusFilters={filters.statusFilters}
@@ -429,7 +426,6 @@ function HomeContent() {
             ) : view === "table" ? (
               <TableView
                 properties={sortedProperties}
-                selectedCompany={selectedCompany}
                 totalFilteredProperties={totalFilteredProperties}
                 onClearCompanyFilter={clearCompanySelection}
                 propertiesHasMore={propertiesHasMore}
@@ -448,7 +444,6 @@ function HomeContent() {
                 )}
                 <GridView
                   properties={sortedProperties}
-                  selectedCompany={selectedCompany}
                   totalFilteredProperties={totalFilteredProperties}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
@@ -471,7 +466,6 @@ function HomeContent() {
                 )}
                 <GridView
                   properties={sortedProperties}
-                  selectedCompany={selectedCompany}
                   totalFilteredProperties={totalFilteredProperties}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
@@ -518,9 +512,11 @@ export default function Home() {
   return (
     <ViewProvider>
       <FiltersProvider>
-        <PropertyProvider>
-          <HomeContent />
-        </PropertyProvider>
+        <CompaniesProvider>
+          <PropertyProvider>
+            <HomeContent />
+          </PropertyProvider>
+        </CompaniesProvider>
       </FiltersProvider>
     </ViewProvider>
   );

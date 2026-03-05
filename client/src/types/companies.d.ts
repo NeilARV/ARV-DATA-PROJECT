@@ -19,6 +19,5 @@ export type CompanyDirectoryProps = {
   onClose?: () => void;
   onSwitchToFilters?: () => void;
   onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
-  selectedCompany?: string | null;
   selectedCompanyId?: string | null;
 }

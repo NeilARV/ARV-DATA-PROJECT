@@ -123,7 +123,6 @@ export type PropertyMap = {
   zoom?: number;
   selectedProperty?: Property | null;
   isLoading?: boolean;
-  selectedCompany?: string | null;
   selectedCompanyId?: string | null;
   onDeselectCompany?: () => void;
   statusFilters?: string[];

@@ -8,6 +8,7 @@ import { MAP_ZOOM_LOGO } from '@/constants/map.constants';
 import type { MapPin, PropertyMap } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
 import { useProperty } from '@/hooks/useProperty';
+import { useCompanies } from '@/hooks/useCompanies';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -112,7 +113,7 @@ function MapResizeHandler() {
   return null;
 }
 
-function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin[], center?: [number, number], zoom?: number, selectedCompany?: string | null }) {
+function MapBounds({ mapPins, center, zoom, company }: { mapPins: MapPin[], center?: [number, number], zoom?: number, company?: string | null }) {
   const map = useMap();
   const previousPropertyIdsRef = useRef<string>('');
   const previousCenterRef = useRef<[number, number] | undefined>(undefined);
@@ -127,8 +128,8 @@ function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin
     previousPropertyIdsRef.current = currentPropertyIds;
     
     // Check if selected company changed (triggers refit even if same properties)
-    const companyChanged = selectedCompany !== previousSelectedCompanyRef.current;
-    previousSelectedCompanyRef.current = selectedCompany;
+    const companyChanged = company !== previousSelectedCompanyRef.current;
+    previousSelectedCompanyRef.current = company;
     
     // Check if center changed
     const centerChanged = center !== undefined && (
@@ -169,7 +170,7 @@ function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin
       // No properties at all, use default view
       map.setView(center, zoom);
     }
-  }, [mapPins, center, zoom, map, selectedCompany]);
+  }, [mapPins, center, zoom, map, company]);
 
   return null;
 }
@@ -180,7 +181,6 @@ export default function PropertyMap({
   zoom = MAP_ZOOM_LOGO,
   selectedProperty,
   isLoading = false,
-  selectedCompany,
   selectedCompanyId,
   onDeselectCompany,
   statusFilters = []
@@ -188,6 +188,7 @@ export default function PropertyMap({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
+  const { company } = useCompanies();
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -197,9 +198,9 @@ export default function PropertyMap({
 
   return (
     <div className="w-full h-full relative" data-testid="map-container">
-      {(hasActiveFilters) || (selectedCompany && onDeselectCompany) ? (
+      {(hasActiveFilters) || (company && onDeselectCompany) ? (
         <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
-          {selectedCompany && onDeselectCompany && (
+          {company && onDeselectCompany && (
             <Button
               variant="default"
               size="sm"
@@ -236,7 +237,7 @@ export default function PropertyMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapResizeHandler />
-        <MapBounds mapPins={validPins} center={center} zoom={zoom} selectedCompany={selectedCompany} />
+        <MapBounds mapPins={validPins} center={center} zoom={zoom} company={company} />
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>

@@ -7,7 +7,6 @@ export type WholesaleLeaderboardEntry = {
 
 export type GridViewProps = {
   properties: Property[];
-  selectedCompany: string | null;
   totalFilteredProperties: number;
   sortBy: SortOption;
   onSortChange: (sortBy: SortOption) => void;
@@ -27,7 +26,6 @@ export type GridViewProps = {
 
 export type TableViewProps = {
   properties: Property[];
-  selectedCompany: string | null;
   totalFilteredProperties: number;
   onClearCompanyFilter: () => void;
   propertiesHasMore: boolean;

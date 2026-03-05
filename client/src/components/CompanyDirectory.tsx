@@ -26,6 +26,7 @@ import {
   WHOLESALE_VIEW_STATUS_FILTERS,
 } from "@/constants/propertyStatus.constants";
 import { useView } from "@/hooks/useView";
+import { useCompanies } from "@/hooks/useCompanies";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -41,7 +42,7 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompanyId: selectedCompanyIdProp }: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
@@ -52,11 +53,12 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
+  const { company } = useCompanies();
 
-  // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
+  // Keep expanded state in sync with parent's company so it persists across view switches
   useEffect(() => {
-    setExpandedCompany(selectedCompany ?? null);
-  }, [selectedCompany]);
+    setExpandedCompany(company ?? null);
+  }, [company]);
 
   // Sync local status filter UI when context filters change
   useEffect(() => {

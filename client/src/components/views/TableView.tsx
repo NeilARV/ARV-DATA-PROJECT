@@ -2,10 +2,10 @@ import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
 import type { TableViewProps } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export default function TableView({
   properties,
-  selectedCompany,
   totalFilteredProperties,
   onClearCompanyFilter,
   propertiesHasMore,
@@ -15,6 +15,7 @@ export default function TableView({
 }: TableViewProps) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+  const { company } = useCompanies();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -25,16 +26,16 @@ export default function TableView({
         <div>
           <h2 className="text-2xl font-semibold mb-1">
             {`${totalFilteredProperties} Properties`}
-            {selectedCompany && (
+            {company && (
               <span className="text-base font-normal text-muted-foreground ml-2">
-                owned by {selectedCompany}
+                owned by {company}
               </span>
             )}
           </h2>
-          {(selectedCompany || hasActiveFilters) && (
+          {(company || hasActiveFilters) && (
             <p className="text-muted-foreground">
               <span className="flex items-center gap-2 flex-wrap">
-                {selectedCompany && (
+                {company && (
                   <button
                     onClick={onClearCompanyFilter}
                     className="text-primary hover:underline text-sm"
@@ -43,7 +44,7 @@ export default function TableView({
                     Deselect Company
                   </button>
                 )}
-                {selectedCompany && hasActiveFilters && (
+                {company && hasActiveFilters && (
                   <span className="text-muted-foreground">•</span>
                 )}
                 {hasActiveFilters && (
