@@ -186,11 +186,9 @@ function HomeContent() {
   // Helper function to fetch company property count
   const fetchCompanyPropertyCount = async (companyName: string) => {
     try {
-      const response = await fetch(`/api/companies/contacts`, {
-        credentials: "include",
-      });
-      if (response.ok) {
-        const companies = await response.json();
+      const companies = await fetchCompanyContacts()
+
+      if (companies) {
         const company = companies.find((c: any) => 
           c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
         );
