@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar from "@/components/FilterSidebar";
@@ -35,10 +35,10 @@ import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 
 function HomeContent() {
-  const { filters, setFilters, sortBy, setSortBy } = useFilters();
+  const { filters, setFilters, setSortBy } = useFilters();
   const { view, setView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
-  const { company, setCompany, companies, loadCompanies } = useCompanies();
+  const { company, setCompany, companies, loadCompanies, companySelectionInProgressRef } = useCompanies();
 
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
@@ -69,8 +69,6 @@ function HomeContent() {
     leaderboardDialogProps,
     headerDialogHandlers,
   } = useDialogs();
-
-  const companySelectionInProgressRef = useRef(false);
 
   useGeolocationMapCenter(setMapCenter, setMapZoom);
 
@@ -170,7 +168,6 @@ function HomeContent() {
     filteredMapPins,
     setMapCenter,
     setMapZoom,
-    companySelectionInProgressRef,
   });
 
   const propertiesToFilter = properties;
@@ -182,17 +179,6 @@ function HomeContent() {
       zipCodeList,
     )
   );
-
-  const handleCompanySelect = (selected: CompanyContactWithCounts | null) => {
-    if (selected) {
-      companySelectionInProgressRef.current = true;
-      setCompany(selected);
-      setProperty(null);
-    } else {
-      companySelectionInProgressRef.current = false;
-      setCompany(null)
-    }
-  };
 
   const handleLeaderboardCompanyClick = (companyName: string, companyId?: string) => {
     companySelectionInProgressRef.current = true;
@@ -322,7 +308,6 @@ function HomeContent() {
           <CompanyDirectory
             onClose={() => setSidebarView("none")}
             onSwitchToFilters={() => setSidebarView("filters")}
-            onCompanySelect={handleCompanySelect}
           />
         )}
 

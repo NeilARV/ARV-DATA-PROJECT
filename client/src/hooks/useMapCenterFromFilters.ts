@@ -1,4 +1,4 @@
-import { useEffect, MutableRefObject } from "react";
+import { useEffect } from "react";
 import type { PropertyFilters } from "@/types/filters";
 import type { MapPin } from "@/types/property";
 import {
@@ -27,7 +27,6 @@ export interface UseMapCenterFromFiltersOptions {
   filteredMapPins: MapPin[];
   setMapCenter: SetMapCenter;
   setMapZoom: SetMapZoom;
-  companySelectionInProgressRef: MutableRefObject<boolean>;
 }
 
 /**
@@ -41,10 +40,8 @@ export function useMapCenterFromFilters({
   filteredMapPins,
   setMapCenter,
   setMapZoom,
-  companySelectionInProgressRef,
 }: UseMapCenterFromFiltersOptions): void {
-
-  const { company } = useCompanies();
+  const { company, companySelectionInProgressRef } = useCompanies();
   const { filters } = useFilters();
 
   // Effect 1: Map center from filters (zip / city / county)
@@ -140,7 +137,6 @@ export function useMapCenterFromFilters({
     filters?.city,
     filters?.county,
     company,
-    companySelectionInProgressRef,
     setMapCenter,
     setMapZoom,
   ]);
@@ -205,6 +201,5 @@ export function useMapCenterFromFilters({
     filteredMapPins,
     setMapCenter,
     setMapZoom,
-    companySelectionInProgressRef,
   ]);
 }

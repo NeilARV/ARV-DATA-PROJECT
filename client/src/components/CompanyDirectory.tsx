@@ -26,6 +26,7 @@ import {
 } from "@/constants/propertyStatus.constants";
 import { useView } from "@/hooks/useView";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperty } from "@/hooks/useProperty";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -41,7 +42,7 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters }: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
@@ -51,7 +52,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
-  const { company, setCompany, companies, isLoadingCompanies: isLoading, loadCompanies } = useCompanies();
+  const { company, setCompany, companies, isLoadingCompanies: isLoading, loadCompanies, companySelectionInProgressRef } = useCompanies();
+  const { setProperty } = useProperty();
 
   // Sync local status filter UI when context filters change
   useEffect(() => {
@@ -167,8 +169,14 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
 
   const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
     const next = company?.id === clickedCompany.id ? null : clickedCompany;
-    setCompany(next);
-    onCompanySelect?.(next);
+    if (next) {
+      companySelectionInProgressRef.current = true;
+      setCompany(next);
+      setProperty(null);
+    } else {
+      companySelectionInProgressRef.current = false;
+      setCompany(null);
+    }
   };
 
   return (
@@ -560,7 +568,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         }}
         companyId={editDialogCompanyId}
         onSuccess={() => {
-          loadCompanies(filters.county);
+          loadCompanies();
         }}
       />
 
