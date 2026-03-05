@@ -91,21 +91,20 @@ export type PropertyRow = {
 export type PropertyDetails = {
   property: Property | null;
 }
-export type ViewFunctions = {
-  onClose: () => void;
-  onCompanyNameClick?: (companyName: string, companyId?: string, keepPanelOpen?: boolean) => void;
-}
 
 export type PropertyCardProps = {
   property: Property;
   onClick?: () => void;
 }
 
-export type PropertyDetailModalProps = PropertyDetails & ViewFunctions & {
+export type PropertyDetailModalProps = PropertyDetails & {
   open: boolean;
+  onClose: () => void;
 }
 
-export type PropertyDetailPanelProps = PropertyDetails & ViewFunctions
+export type PropertyDetailPanelProps = PropertyDetails & {
+  onClose: () => void;
+}
 
 export type PropertyTableProps = {
   properties: Property[];

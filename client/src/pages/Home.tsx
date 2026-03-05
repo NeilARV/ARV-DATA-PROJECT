@@ -22,11 +22,7 @@ import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
 import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
-import {
-  MAP_ZOOM_DEFAULT,
-  MAP_ZOOM_LOGO,
-  MAP_ZOOM_PROPERTY,
-} from "@/constants/map.constants";
+import { MAP_ZOOM_DEFAULT, MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY } from "@/constants/map.constants";
 import type { Property, MapPin } from "@/types/property";
 import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchPropertyById } from "@/api/properties.api";
@@ -36,11 +32,10 @@ import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 
 function HomeContent() {
   const { filters, setFilters, setSortBy } = useFilters();
-  const { view, setView } = useView();
+  const { view, setView, sidebarView, setSidebarView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
-  const { company, setCompany, companies, loadCompanies, companySelectionInProgressRef } = useCompanies();
+  const { company, setCompany, companies, loadCompanies, companySelectionInProgressRef, handleCompanyClick } = useCompanies();
 
-  const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
 
@@ -342,7 +337,6 @@ function HomeContent() {
                   <PropertyDetailPanel
                     property={property}
                     onClose={() => setProperty(null)}
-                    onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <div className="flex-1">
@@ -371,7 +365,6 @@ function HomeContent() {
                   <PropertyDetailPanel
                     property={property}
                     onClose={() => setProperty(null)}
-                    onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <GridView
@@ -390,7 +383,6 @@ function HomeContent() {
                   <PropertyDetailPanel
                     property={property}
                     onClose={() => setProperty(null)}
-                    onCompanyNameClick={handleCompanyNameClick}
                   />
                 )}
                 <GridView
@@ -416,7 +408,6 @@ function HomeContent() {
           property={property}
           open={!!property}
           onClose={() => setProperty(null)}
-          onCompanyNameClick={handleCompanyNameClick}
         />
       )}
 
@@ -438,11 +429,11 @@ export default function Home() {
   return (
     <ViewProvider>
       <FiltersProvider>
-        <CompaniesProvider>
-          <PropertyProvider>
+        <PropertyProvider>
+          <CompaniesProvider>
             <HomeContent />
-          </PropertyProvider>
-        </CompaniesProvider>
+          </CompaniesProvider>
+        </PropertyProvider>
       </FiltersProvider>
     </ViewProvider>
   );

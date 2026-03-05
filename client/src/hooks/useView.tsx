@@ -1,9 +1,11 @@
 import { createContext, ReactNode, useContext, useState } from "react";
-import { View } from "@/types/options";
+import { SidebarView, View } from "@/types/options";
 
 type ViewContextValue = {
     view: View,
     setView: (view: View) => void;
+    sidebarView: SidebarView;
+    setSidebarView: (sidebarView: SidebarView) => void;
 }
 
 const ViewContext = createContext<ViewContextValue | null>(null)
@@ -14,10 +16,13 @@ type ViewProviderProps = {
 
 export function ViewProvider({children}: ViewProviderProps) {
     const [view, setView] = useState<View>("map");
+    const [sidebarView, setSidebarView] = useState<SidebarView>("directory");
 
     const value = {
         view,
-        setView
+        setView,
+        sidebarView,
+        setSidebarView
     }
 
     return (

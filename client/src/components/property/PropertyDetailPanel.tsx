@@ -22,11 +22,11 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { isNegative } from "@/utils/isNegative";
 import type { PropertyDetailPanelProps } from "@/types/property";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export default function PropertyDetailPanel({
   property,
   onClose,
-  onCompanyNameClick,
 }: PropertyDetailPanelProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -36,6 +36,7 @@ export default function PropertyDetailPanel({
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
+  const { handleCompanyClick } = useCompanies();
 
   useEffect(() => {
     if (property) {
@@ -252,12 +253,12 @@ export default function PropertyDetailPanel({
                 <div className="text-xs text-muted-foreground">Buyer</div>
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mt-0.5 min-w-0 overflow-hidden w-full">
                   <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
-                  {onCompanyNameClick && property.buyerId ? (
+                  {property.buyerId ? (
                     <button
                       onClick={() =>
-                        onCompanyNameClick(
+                        handleCompanyClick(
                           property.buyerCompanyName || property.companyName || property.propertyOwner || "",
-                          property.buyerId || undefined,
+                          property.buyerId || null,
                           true
                         )
                       }
@@ -309,12 +310,12 @@ export default function PropertyDetailPanel({
                 <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
                 <div className="flex items-center justify-end gap-1.5 font-semibold text-xs text-foreground mt-0.5 min-w-0 w-full overflow-hidden">
                   <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
-                    {onCompanyNameClick && property.sellerId ? (
+                    {property.sellerId ? (
                       <button
                         onClick={() =>
-                          onCompanyNameClick(
+                          handleCompanyClick(
                             property.sellerCompanyName || property.sellerName || "",
-                            property.sellerId || undefined,
+                            property.sellerId || null,
                             true
                           )
                         }

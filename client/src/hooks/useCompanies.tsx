@@ -2,28 +2,18 @@ import { createContext, ReactNode, useContext, useState, useCallback, useRef } f
 import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchCompanyContacts } from "@/api/companies.api";
 import { useFilters } from "./useFilters";
+import { useView } from "./useView";
+import { useProperty } from "./useProperty";
 
 export type CompaniesContextValue = {
-  /** Currently selected company (full object) or null */
   company: CompanyContactWithCounts | null;
   setCompany: (company: CompanyContactWithCounts | null) => void;
-
-  /** List of companies (e.g. for directory). Fetched via loadCompanies(county?). */
   companies: CompanyContactWithCounts[];
   setCompanies: (companies: CompanyContactWithCounts[]) => void;
-
-  /** True while loadCompanies is in progress. */
   isLoadingCompanies: boolean;
-
-  /** Fetch companies from API and set companies state. Optional county filter. */
   loadCompanies: () => Promise<void>;
-
-  /**
-   * Ref set to true while a company selection is in progress (e.g. before setCompany).
-   * Used by useMapCenterFromFilters to avoid moving the map from filters until we've centered on the company.
-   * Set to true when initiating selection; useMapCenterFromFilters sets to false when done centering.
-   */
   companySelectionInProgressRef: React.MutableRefObject<boolean>;
+  handleCompanyClick: (companyName: string, companyId: string | null, keepPanelOpen?: boolean) => void
 };
 
 const CompaniesContext = createContext<CompaniesContextValue | null>(null);
@@ -34,6 +24,8 @@ type CompanyProviderProps = {
 
 export function CompaniesProvider({ children }: CompanyProviderProps) {
   const { filters } = useFilters();
+  const { setSidebarView } = useView();
+  const { setProperty } = useProperty();
   const [company, setCompany] = useState<CompanyContactWithCounts | null>(null);
   const [companies, setCompaniesState] = useState<CompanyContactWithCounts[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
@@ -49,6 +41,27 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     }
   }, [filters.county]);
 
+  const handleCompanyClick = (companyName: string, companyId: string | null, keepPanelOpen?: boolean) => {
+    companySelectionInProgressRef.current = true;
+    const found = companies.find(
+      (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
+    );
+    setCompany(
+      found ??
+        ({
+          id: companyId ?? "",
+          companyName,
+          propertyCount: 0,
+          propertiesSoldCount: 0,
+          propertiesSoldCountAllTime: 0,
+        } as CompanyContactWithCounts)
+    );
+    setSidebarView("directory");
+    if (!keepPanelOpen) {
+      setProperty(null);
+    }
+  }
+
   const value: CompaniesContextValue = {
     company,
     setCompany,
@@ -57,6 +70,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     isLoadingCompanies,
     loadCompanies,
     companySelectionInProgressRef,
+    handleCompanyClick
   };
 
   return (

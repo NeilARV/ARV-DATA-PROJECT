@@ -2,6 +2,8 @@ export type SortOption = "recently-sold" | "days-held" | "price-high-low" | "pri
 
 export type View = "map" | "grid" | "table" | "buyers-feed" | "wholesale"
 
+export type SidebarView = "filters" | "directory" | "none";
+
 export type DirectorySortOption = "alphabetical" | "most-properties" | "fewest-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "new-buyers";
 
 export type Status = "in-renovation" | "wholesale" | "on-market" | "sold";

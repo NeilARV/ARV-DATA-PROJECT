@@ -22,12 +22,12 @@ import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
 import type { PropertyDetailModalProps } from "@/types/property";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export default function PropertyDetailModal({
   property,
   open,
   onClose,
-  onCompanyNameClick,
 }: PropertyDetailModalProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
@@ -37,6 +37,7 @@ export default function PropertyDetailModal({
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
+  const { handleCompanyClick } = useCompanies();
 
   useEffect(() => {
     if (property) {
@@ -247,12 +248,12 @@ export default function PropertyDetailModal({
                   <div className="text-xs text-muted-foreground">Buyer</div>
                   <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 overflow-hidden w-full">
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
-                    {onCompanyNameClick && property.buyerId ? (
+                    {property.buyerId ? (
                       <button
                         onClick={() => {
-                          onCompanyNameClick(
+                          handleCompanyClick(
                             property.buyerCompanyName || property.companyName || property.propertyOwner || "",
-                            property.buyerId || undefined,
+                            property.buyerId || null,
                             true
                           );
                           onClose();
@@ -305,12 +306,12 @@ export default function PropertyDetailModal({
                   <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
                   <div className="flex items-center justify-end gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 w-full overflow-hidden">
                     <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
-                      {onCompanyNameClick && property.sellerId ? (
+                      {property.sellerId ? (
                         <button
                           onClick={() => {
-                            onCompanyNameClick(
+                            handleCompanyClick(
                               property.sellerCompanyName || property.sellerName || "",
-                              property.sellerId || undefined,
+                              property.sellerId || null,
                               true
                             );
                             onClose();
