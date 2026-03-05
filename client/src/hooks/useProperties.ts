@@ -18,6 +18,8 @@ export type UsePropertiesOptions = {
     sortBy: SortOption;
     selectedCompanyId: string | null;
     selectedCompany: string | null;
+    /** Count for selected company (from directory); used for stable display count. */
+    selectedCompanyPropertyCount?: number;
     hasDateSold?: boolean;
 };
 
@@ -31,6 +33,10 @@ export type UsePropertiesResult = {
     isFetching: boolean;
     /** Raw API response (for total count, etc.) */
     propertiesResponse: PropertiesResponse | undefined;
+    /** Stable total count (avoids flashing 0 during loading) */
+    stablePropertyCount: number;
+    /** Stable company count (avoids flashing 0 when refetching) */
+    stableCompanyPropertyCount: number;
 };
 
 const propertiesListEnabled = (viewMode: string) => viewMode === "grid" || viewMode === "table" || viewMode === "wholesale" || viewMode === "buyers-feed";
@@ -39,11 +45,13 @@ const propertiesListEnabled = (viewMode: string) => viewMode === "grid" || viewM
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({filters, viewMode, sortBy, selectedCompanyId, selectedCompany, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
+export function useProperties({filters, viewMode, sortBy, selectedCompanyId, selectedCompany, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
     const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
+    const [stablePropertyCount, setStablePropertyCount] = useState(0);
+    const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState(0);
     const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
 
     // Reset pagination when filters, sort, or company change so we fetch page 1 of the new result set.
@@ -110,6 +118,21 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
         deps: [allProperties.length],
     });
 
+    // Stable counts: avoid flashing "0" during loading; update only when we have data.
+    useEffect(() => {
+        if (viewMode !== "map" && propertiesResponse?.total !== undefined && !isLoading) {
+            setStablePropertyCount(propertiesResponse.total);
+        }
+    }, [viewMode, propertiesResponse?.total, isLoading]);
+
+    useEffect(() => {
+        if (selectedCompanyPropertyCount > 0) {
+            setStableCompanyPropertyCount(selectedCompanyPropertyCount);
+        } else if (!selectedCompany) {
+            setStableCompanyPropertyCount(0);
+        }
+    }, [selectedCompanyPropertyCount, selectedCompany]);
+
     return {
         properties: allProperties,
         propertiesHasMore,
@@ -118,5 +141,7 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
         isLoading,
         isFetching,
         propertiesResponse,
+        stablePropertyCount,
+        stableCompanyPropertyCount,
     };
 }

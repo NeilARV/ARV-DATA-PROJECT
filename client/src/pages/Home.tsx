@@ -21,7 +21,6 @@ import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } fr
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
 import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
-import { useStableCounts } from "@/hooks/useStableCounts";
 import { useProperties } from "@/hooks/useProperties";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, MAX_PRICE } from "@/constants/filters.constants";
 import {
@@ -59,12 +58,15 @@ export default function Home() {
     isLoading,
     isFetching,
     propertiesResponse,
+    stablePropertyCount,
+    stableCompanyPropertyCount,
   } = useProperties({
     filters,
     viewMode,
     sortBy,
     selectedCompanyId,
     selectedCompany,
+    selectedCompanyPropertyCount,
     hasDateSold: viewMode === "buyers-feed",
   });
 
@@ -113,16 +115,6 @@ export default function Home() {
       return res.json();
     },
     enabled: viewMode === "map", // Only fetch when in map view
-  });
-
-  const { stablePropertyCount, stableCompanyPropertyCount } = useStableCounts({
-    viewMode,
-    propertiesResponseTotal: propertiesResponse?.total,
-    buyersFeedResponseTotal: propertiesResponse?.total,
-    isLoadingProperties: isLoading,
-    isLoadingBuyersFeed: isLoading,
-    selectedCompanyPropertyCount,
-    selectedCompany,
   });
 
   const totalFilteredProperties = useMemo(() => {
