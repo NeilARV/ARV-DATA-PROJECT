@@ -5,7 +5,6 @@ import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useCompanies } from "./useCompanies";
 import { useFilters } from "./useFilters";
 import { useView } from "./useView";
-import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import type { Property } from "@/types/property";
 
@@ -17,7 +16,6 @@ export type PropertiesResponse = {
 
 export type UsePropertiesOptions = {
     sortBy: SortOption;
-    hasDateSold?: boolean;
 };
 
 export type UsePropertiesResult = {
@@ -42,7 +40,7 @@ const propertiesListEnabled = (view: string) => view === "grid" || view === "tab
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({ sortBy, hasDateSold = false }: UsePropertiesOptions): UsePropertiesResult {
+export function useProperties({ sortBy }: UsePropertiesOptions): UsePropertiesResult {
     const { company } = useCompanies();
     const { view } = useView();
     const { filters } = useFilters();
@@ -53,6 +51,8 @@ export function useProperties({ sortBy, hasDateSold = false }: UsePropertiesOpti
     const [stablePropertyCount, setStablePropertyCount] = useState(0);
     const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState(0);
     const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
+
+    const hasDateSold = view === 'buyers-feed';
 
     // Reset pagination when filters, sort, or company change so we fetch page 1 of the new result set.
     useEffect(() => {

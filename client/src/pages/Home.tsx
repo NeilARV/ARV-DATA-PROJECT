@@ -58,7 +58,6 @@ function HomeContent() {
     stableCompanyPropertyCount,
   } = useProperties({
     sortBy,
-    hasDateSold: view === "buyers-feed",
   });
 
   // Load companies when directory is open (with county filter)
