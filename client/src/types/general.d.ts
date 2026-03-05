@@ -12,8 +12,6 @@ export type UploadDialogProps = {
 }
 
 export type HeaderProps = {
-  viewMode: View;
-  onViewModeChange: (mode: View) => void;
   onSearch?: (query: string) => void;
   onPropertySelect?: (propertyId: string) => void;
   onLoginClick?: () => void;

@@ -21,5 +21,4 @@ export type CompanyDirectoryProps = {
   onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
   selectedCompany?: string | null;
   selectedCompanyId?: string | null;
-  viewMode?: View;
 }

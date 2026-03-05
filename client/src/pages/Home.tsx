@@ -33,13 +33,12 @@ import {
 } from "@/constants/propertyStatus.constants";
 import type { SortOption, View } from "@/types/options";
 import type { Property, MapPin } from "@/types/property";
-
-
 import { fetchPropertyById } from "@/api/properties.api";
+import { ViewProvider, useView } from "@/hooks/useView";
 
 function HomeContent() {
   const { filters, setFilters } = useFilters();
-  const [viewMode, setViewMode] = useState<View>("map");
+  const { view, setView } = useView();
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
@@ -61,12 +60,12 @@ function HomeContent() {
     stableCompanyPropertyCount,
   } = useProperties({
     filters,
-    viewMode,
+    view,
     sortBy,
     selectedCompanyId,
     selectedCompany,
     selectedCompanyPropertyCount,
-    hasDateSold: viewMode === "buyers-feed",
+    hasDateSold: view === "buyers-feed",
   });
 
   const {
@@ -105,16 +104,16 @@ function HomeContent() {
       }
       return res.json();
     },
-    enabled: viewMode === "map", // Only fetch when in map view
+    enabled: view === "map", // Only fetch when in map view
   });
 
   const totalFilteredProperties = useMemo(() => {
-    if (viewMode === "map") return 0;
+    if (view === "map") return 0;
     const propertiesTotal = propertiesResponse?.total;
     return isLoading && propertiesTotal === undefined
       ? stablePropertyCount
       : (propertiesTotal ?? stablePropertyCount);
-  }, [viewMode, propertiesResponse, isLoading, stablePropertyCount]);
+  }, [view, propertiesResponse, isLoading, stablePropertyCount]);
 
   // Use stable company property count to avoid flashing "0"
   const displayCompanyPropertyCount = useMemo(() => {
@@ -126,17 +125,17 @@ function HomeContent() {
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
   const zipCodesWithCounts = useMemo(() => {
-    const dataSource = viewMode === "map" ? mapPins : properties;
+    const dataSource = view === "map" ? mapPins : properties;
     const counts: Record<string, number> = {};
     dataSource.forEach(p => {
-      const zipCode = viewMode === "map" ? (p as MapPin).zipcode : (p as Property).zipCode;
+      const zipCode = view === "map" ? (p as MapPin).zipcode : (p as Property).zipCode;
       counts[zipCode] = (counts[zipCode] || 0) + 1;
     });
     return Object.entries(counts).map(([zipCode, count]) => ({
       zipCode,
       count
     }));
-  }, [properties, mapPins, viewMode]);
+  }, [properties, mapPins, view]);
 
   // Get the appropriate zip code list based on state and county filter
   const zipCodeList = useMemo(() => {
@@ -315,7 +314,7 @@ function HomeContent() {
 
   const handleLogoClick = () => {
     // Reset everything to default state (like first visit)
-    setViewMode("map");
+    setView("map");
     setSidebarView("directory");
     clearCompanySelection();
     setSelectedProperty(null);
@@ -324,23 +323,17 @@ function HomeContent() {
     setSortBy("recently-sold");
   };
 
-  const handleViewModeChange = (mode: "map" | "grid" | "table" | "buyers-feed" | "wholesale") => {
-    // Clear selected property when switching views to avoid modal popping up
-    setSelectedProperty(null);
-    setViewMode(mode);
-  };
-
   // When switching to Buyer Feed, auto-select wholesale and in-renovation status
   const handleBuyersFeedClick = () => {
     setSelectedProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
-    setViewMode("buyers-feed");
+    setView("buyers-feed");
   };
 
   const handleWholesaleClick = () => {
     setSelectedProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
-    setViewMode("wholesale");
+    setView("wholesale");
   };
 
   // Handle property selection by ID (for search suggestions)
@@ -350,7 +343,7 @@ function HomeContent() {
       setSelectedProperty(property);
       
       // If on map view, center on the property if it has coordinates
-      if (viewMode === "map" && property.latitude && property.longitude) {
+      if (view === "map" && property.latitude && property.longitude) {
         setMapCenter([property.latitude, property.longitude]);
         setMapZoom(MAP_ZOOM_PROPERTY);
       }
@@ -397,8 +390,6 @@ function HomeContent() {
   return (
     <div className="h-screen flex flex-col">
       <Header
-        viewMode={viewMode}
-        onViewModeChange={handleViewModeChange}
         onPropertySelect={handlePropertySelectById}
         county={filters.county}
         onLoginClick={headerDialogHandlers.onLoginClick}
@@ -425,7 +416,6 @@ function HomeContent() {
             onCompanySelect={handleCompanySelect}
             selectedCompany={selectedCompany}
             selectedCompanyId={selectedCompanyId}
-            viewMode={viewMode}
           />
         )}
 
@@ -454,7 +444,7 @@ function HomeContent() {
           )}
 
           <div className="flex-1 overflow-hidden flex">
-            {viewMode === "map" ? (
+            {view === "map" ? (
               <>
                 {selectedProperty && (
                   <PropertyDetailPanel
@@ -478,7 +468,7 @@ function HomeContent() {
                   />
                 </div>
               </>
-            ) : viewMode === "table" ? (
+            ) : view === "table" ? (
               <TableView
                 properties={sortedProperties}
                 selectedCompany={selectedCompany}
@@ -490,7 +480,7 @@ function HomeContent() {
                 isLoading={isLoading}
                 loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
               />
-            ) : viewMode === "buyers-feed" ? (
+            ) : view === "buyers-feed" ? (
               <>
                 {selectedProperty && (
                   <PropertyDetailPanel
@@ -536,7 +526,7 @@ function HomeContent() {
                   isLoadingMoreProperties={isLoadingMoreProperties}
                   isLoading={isLoading}
                   loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
-                  showWholesaleLeaderboard={viewMode === "wholesale"}
+                  showWholesaleLeaderboard={view === "wholesale"}
                   county={filters.county}
                   onWholesaleLeaderboardCompanyClick={handleLeaderboardCompanyClick}
                 />
@@ -546,7 +536,7 @@ function HomeContent() {
         </div>
       </div>
 
-      {viewMode === "table" && (
+      {view === "table" && (
         <PropertyDetailModal
           property={selectedProperty}
           open={!!selectedProperty}
@@ -571,8 +561,10 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <FiltersProvider>
-      <HomeContent />
-    </FiltersProvider>
+    <ViewProvider>
+      <FiltersProvider>+
+        <HomeContent />
+      </FiltersProvider>
+    </ViewProvider>
   );
 }

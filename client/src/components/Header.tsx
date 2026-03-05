@@ -24,10 +24,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 import type { HeaderProps, PropertySuggestion } from "@/types/general";
+import { useView } from "@/hooks/useView";
 
 export default function Header({
-  viewMode,
-  onViewModeChange,
   onSearch,
   onPropertySelect,
   onLoginClick,
@@ -38,6 +37,9 @@ export default function Header({
   onLogoClick,
   county,
 }: HeaderProps) {
+
+  const { view, setView } = useView();
+
   const [searchQuery, setSearchQuery] = useState("");
   // Initialize isDark synchronously to avoid wrong logo on first render
   const [isDark, setIsDark] = useState(() => {
@@ -270,7 +272,7 @@ export default function Header({
 
             
           <Button
-            variant={viewMode === "buyers-feed" ? "default" : "outline"}
+            variant={view === "buyers-feed" ? "default" : "outline"}
             size="sm"
             onClick={onBuyersFeedClick}
             data-testid="button-buyers-feed"
@@ -280,7 +282,7 @@ export default function Header({
           </Button>
 
           <Button
-            variant={viewMode === "wholesale" ? "default" : "outline"}
+            variant={view === "wholesale" ? "default" : "outline"}
             size="sm"
             onClick={onWholesaleClick}
             data-testid="button-wholesale"
@@ -301,9 +303,9 @@ export default function Header({
 
           <div className="flex items-center border border-border rounded-md">
             <Button
-              variant={viewMode === "map" ? "default" : "ghost"}
+              variant={view === "map" ? "default" : "ghost"}
               size="sm"
-              onClick={() => onViewModeChange("map")}
+              onClick={() => setView("map")}
               className="rounded-r-none border-r"
               data-testid="button-view-map"
             >
@@ -311,9 +313,9 @@ export default function Header({
               <span className="hidden sm:inline">Map</span>
             </Button>
             <Button
-              variant={viewMode === "grid" ? "default" : "ghost"}
+              variant={view === "grid" ? "default" : "ghost"}
               size="sm"
-              onClick={() => onViewModeChange("grid")}
+              onClick={() => setView("grid")}
               className="rounded-none border-r"
               data-testid="button-view-grid"
             >
@@ -321,9 +323,9 @@ export default function Header({
               <span className="hidden sm:inline">Grid</span>
             </Button>
             <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
+              variant={view === "table" ? "default" : "ghost"}
               size="sm"
-              onClick={() => onViewModeChange("table")}
+              onClick={() => setView("table")}
               className="rounded-l-none"
               data-testid="button-view-table"
             >

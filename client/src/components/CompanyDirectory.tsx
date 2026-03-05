@@ -25,6 +25,7 @@ import {
   DEFAULT_STATUS_FILTERS,
   WHOLESALE_VIEW_STATUS_FILTERS,
 } from "@/constants/propertyStatus.constants";
+import { useView } from "@/hooks/useView";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -40,7 +41,7 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, viewMode }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp }: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
@@ -50,6 +51,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
+  const { view } = useView();
 
   // Keep expanded state in sync with parent's selectedCompany so it persists across view switches
   useEffect(() => {
@@ -77,15 +79,15 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS });
     } else if (hadSelection) {
       const statuses =
-        viewMode === "wholesale"
+        view === "wholesale"
           ? WHOLESALE_VIEW_STATUS_FILTERS
-          : viewMode === "buyers-feed"
+          : view === "buyers-feed"
             ? BUYERS_FEED_STATUS_FILTERS
             : DEFAULT_STATUS_FILTERS;
       setStatusFilters(new Set(statuses));
       setFilters({ ...filters, statusFilters: statuses });
     }
-  }, [expandedCompany, viewMode]);
+  }, [expandedCompany, view]);
 
   // Scroll the selected/expanded company into view when it changes
   useEffect(() => {

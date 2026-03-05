@@ -14,7 +14,7 @@ export type PropertiesResponse = {
 
 export type UsePropertiesOptions = {
     filters: PropertyFilters;
-    viewMode: string;
+    view: string;
     sortBy: SortOption;
     selectedCompanyId: string | null;
     selectedCompany: string | null;
@@ -39,13 +39,13 @@ export type UsePropertiesResult = {
     stableCompanyPropertyCount: number;
 };
 
-const propertiesListEnabled = (viewMode: string) => viewMode === "grid" || viewMode === "table" || viewMode === "wholesale" || viewMode === "buyers-feed";
+const propertiesListEnabled = (view: string) => view === "grid" || view === "table" || view === "wholesale" || view === "buyers-feed";
 
 /**
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({filters, viewMode, sortBy, selectedCompanyId, selectedCompany, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
+export function useProperties({filters, view, sortBy, selectedCompanyId, selectedCompany, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
@@ -60,18 +60,18 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
         setAllProperties([]);
         setPropertiesHasMore(true);
         setIsLoadingMoreProperties(false);
-    }, [filters, sortBy, selectedCompanyId, selectedCompany, viewMode]);
+    }, [filters, sortBy, selectedCompanyId, selectedCompany, view]);
 
     const propertiesQueryParam = useMemo(() =>
         buildPropertyQueryParams(filters, {
             page: propertiesPage,
-            limit: viewMode === "table" ? "20" : "10",
+            limit: view === "table" ? "20" : "10",
             sortBy,
             selectedCompanyId,
             selectedCompany,
             hasDateSold,
         }), 
-        [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, viewMode, hasDateSold]
+        [filters, selectedCompanyId, selectedCompany, propertiesPage, sortBy, view, hasDateSold]
     );
 
     const propertiesQueryUrl = useMemo(() => `/api/properties${propertiesQueryParam}`, [propertiesQueryParam]);
@@ -85,12 +85,12 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
             }
             return res.json();
         },
-        enabled: viewMode !== "map",
+        enabled: view !== "map",
     });
 
     // Accumulate paginated results: page 1 replaces list, page > 1 appends and dedupes by id.
     useEffect(() => {
-        if (!propertiesResponse || !propertiesListEnabled(viewMode)) return;
+        if (!propertiesResponse || !propertiesListEnabled(view)) return;
         if (propertiesPage === 1) {
             setAllProperties(propertiesResponse.properties);
         } else {
@@ -102,7 +102,7 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
         }
         setPropertiesHasMore(propertiesResponse.hasMore);
         setIsLoadingMoreProperties(false);
-    }, [propertiesResponse, propertiesPage, viewMode]);
+    }, [propertiesResponse, propertiesPage, view]);
 
     useInfiniteScroll({
         ref: loadMorePropertiesRef,
@@ -113,17 +113,17 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
             setIsLoadingMoreProperties(true);
             setPropertiesPage((prev) => prev + 1);
         },
-        enabled: propertiesListEnabled(viewMode),
+        enabled: propertiesListEnabled(view),
         useScrollableRoot: true,
         deps: [allProperties.length],
     });
 
     // Stable counts: avoid flashing "0" during loading; update only when we have data.
     useEffect(() => {
-        if (viewMode !== "map" && propertiesResponse?.total !== undefined && !isLoading) {
+        if (view !== "map" && propertiesResponse?.total !== undefined && !isLoading) {
             setStablePropertyCount(propertiesResponse.total);
         }
-    }, [viewMode, propertiesResponse?.total, isLoading]);
+    }, [view, propertiesResponse?.total, isLoading]);
 
     useEffect(() => {
         if (selectedCompanyPropertyCount > 0) {
