@@ -34,8 +34,11 @@ import {
 import type { SortOption, View } from "@/types/options";
 import type { Property, MapPin } from "@/types/property";
 
+
+import { fetchPropertyById } from "@/api/properties.api";
+
 function HomeContent() {
-  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+  const { filters, setFilters } = useFilters();
   const [viewMode, setViewMode] = useState<View>("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -314,7 +317,6 @@ function HomeContent() {
     // Reset everything to default state (like first visit)
     setViewMode("map");
     setSidebarView("directory");
-    clearFilters();
     clearCompanySelection();
     setSelectedProperty(null);
     setMapCenter(undefined);
@@ -339,28 +341,6 @@ function HomeContent() {
     setSelectedProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
     setViewMode("wholesale");
-  };
-
-  // Fetch full property data by ID
-  const fetchPropertyById = async (propertyId: string): Promise<Property | null> => {
-    try {
-      const response = await fetch(`/api/properties/${propertyId}`, {
-        credentials: "include",
-      });
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.error("Property not found");
-          return null;
-        }
-        throw new Error(`Failed to fetch property: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error("Error fetching property by ID:", error);
-      return null;
-    }
   };
 
   // Handle property selection by ID (for search suggestions)
