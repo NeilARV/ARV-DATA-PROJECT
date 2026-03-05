@@ -13,7 +13,6 @@ import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
@@ -121,12 +120,6 @@ export default function Home() {
     // If we're fetching and don't have a value yet, use the stable one
     return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
   }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
-
-  const handleUploadSuccess = () => {
-    // Refresh properties after upload - invalidate all property queries
-    //queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
-  };
 
   // Check if filters are active (not in initial state) - excludes company selection and county/state (those are preserved on clear)
   const hasActiveFilters = useMemo(() => {
