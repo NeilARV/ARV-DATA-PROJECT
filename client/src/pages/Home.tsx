@@ -64,7 +64,7 @@ function HomeContent() {
   // Load companies when directory is open (with county filter)
   useEffect(() => {
     if (sidebarView === "directory") {
-      loadCompanies(filters.county);
+      loadCompanies();
     }
   }, [sidebarView, filters.county, loadCompanies]);
 

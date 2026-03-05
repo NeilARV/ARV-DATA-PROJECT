@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useState, useCallback } from "react";
 import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchCompanyContacts } from "@/api/companies.api";
+import { useFilters } from "./useFilters";
 
 export type CompaniesContextValue = {
   /** Currently selected company (full object) or null */
@@ -15,7 +16,7 @@ export type CompaniesContextValue = {
   isLoadingCompanies: boolean;
 
   /** Fetch companies from API and set companies state. Optional county filter. */
-  loadCompanies: (county?: string) => Promise<void>;
+  loadCompanies: () => Promise<void>;
 };
 
 const CompaniesContext = createContext<CompaniesContextValue | null>(null);
@@ -25,38 +26,40 @@ type CompanyProviderProps = {
 };
 
 export function CompaniesProvider({ children }: CompanyProviderProps) {
-  const [company, setCompany] = useState<CompanyContactWithCounts | null>(null);
-  const [companies, setCompaniesState] = useState<CompanyContactWithCounts[]>([]);
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
-  const loadCompanies = useCallback(async (county?: string) => {
-    setIsLoadingCompanies(true);
-    try {
-      const data = await fetchCompanyContacts(county);
-      setCompaniesState(data ?? []);
-    } finally {
-      setIsLoadingCompanies(false);
-    }
-  }, []);
+    const { filters } = useFilters();
+    const [company, setCompany] = useState<CompanyContactWithCounts | null>(null);
+    const [companies, setCompaniesState] = useState<CompanyContactWithCounts[]>([]);
+    const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
-  const value: CompaniesContextValue = {
-    company,
-    setCompany,
-    companies,
-    setCompanies: setCompaniesState,
-    isLoadingCompanies,
-    loadCompanies,
-  };
+    const loadCompanies = useCallback(async () => {
+        setIsLoadingCompanies(true);
+            try {
+                const data = await fetchCompanyContacts(filters.county);
+                setCompaniesState(data ?? []);
+            } finally {
+                setIsLoadingCompanies(false);
+            }
+    }, []);
 
-  return (
-    <CompaniesContext.Provider value={value}>{children}</CompaniesContext.Provider>
-  );
+    const value: CompaniesContextValue = {
+        company,
+        setCompany,
+        companies,
+        setCompanies: setCompaniesState,
+        isLoadingCompanies,
+        loadCompanies,
+    };
+
+    return (
+        <CompaniesContext.Provider value={value}>{children}</CompaniesContext.Provider>
+    );
 }
 
 export function useCompanies(): CompaniesContextValue {
-  const ctx = useContext(CompaniesContext);
-  if (!ctx) {
-    throw new Error("useCompanies must be used within a CompaniesProvider");
-  }
-  return ctx;
+    const ctx = useContext(CompaniesContext);
+    if (!ctx) {
+        throw new Error("useCompanies must be used within a CompaniesProvider");
+    }
+    return ctx;
 }
