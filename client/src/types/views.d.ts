@@ -8,14 +8,11 @@ export type WholesaleLeaderboardEntry = {
 export type GridViewProps = {
   properties: Property[];
   selectedCompany: string | null;
-  totalCompanyProperties: number;
   totalFilteredProperties: number;
-  hasActiveFilters: boolean;
   sortBy: SortOption;
   onSortChange: (sortBy: SortOption) => void;
   onPropertyClick: (property: Property) => void;
   onClearCompanyFilter: () => void;
-  onClearFilters: () => void;
   gridColsClass: string;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
@@ -32,12 +29,9 @@ export type GridViewProps = {
 export type TableViewProps = {
   properties: Property[];
   selectedCompany: string | null;
-  totalCompanyProperties: number;
   totalFilteredProperties: number;
-  hasActiveFilters: boolean;
   onPropertyClick: (property: Property) => void;
   onClearCompanyFilter: () => void;
-  onClearFilters: () => void;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
   isLoading?: boolean;

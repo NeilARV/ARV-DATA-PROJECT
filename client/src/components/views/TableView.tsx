@@ -1,21 +1,22 @@
 import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
 import type { TableViewProps } from "@/types/views";
+import { useFilters } from "@/hooks/useFilters";
 
 export default function TableView({
   properties,
   selectedCompany,
-  totalCompanyProperties,
   totalFilteredProperties,
-  hasActiveFilters,
   onPropertyClick,
   onClearCompanyFilter,
-  onClearFilters,
   propertiesHasMore,
   isLoadingMoreProperties,
   isLoading = false,
   loadMoreRef,
 }: TableViewProps) {
+
+  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 
@@ -48,7 +49,7 @@ export default function TableView({
                 )}
                 {hasActiveFilters && (
                   <button
-                    onClick={onClearFilters}
+                    onClick={() => clearFilters()}
                     className="text-primary hover:underline text-sm"
                     data-testid="button-clear-filters-table"
                   >

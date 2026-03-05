@@ -178,7 +178,6 @@ export default function PropertyMap({
   onPropertyClick, 
   center = [32.7157, -117.1611], 
   zoom = MAP_ZOOM_LOGO,
-  onClearFilters,
   selectedProperty,
   isLoading = false,
   selectedCompany,
@@ -197,7 +196,7 @@ export default function PropertyMap({
 
   return (
     <div className="w-full h-full relative" data-testid="map-container">
-      {(hasActiveFilters && onClearFilters) || (selectedCompany && onDeselectCompany) ? (
+      {(hasActiveFilters) || (selectedCompany && onDeselectCompany) ? (
         <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
           {selectedCompany && onDeselectCompany && (
             <Button
@@ -211,11 +210,11 @@ export default function PropertyMap({
               Deselect Company
             </Button>
           )}
-          {hasActiveFilters && onClearFilters && (
+          {hasActiveFilters && (
             <Button
               variant="default"
               size="sm"
-              onClick={onClearFilters}
+              onClick={() => clearFilters()}
               className="shadow-lg h-8 px-2 text-xs"
               data-testid="button-clear-filters-map"
             >

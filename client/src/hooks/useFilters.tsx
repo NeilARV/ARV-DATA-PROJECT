@@ -54,8 +54,8 @@ export function FiltersProvider({ children, defaultOverrides }: FiltersProviderP
   }, [filters]);
 
   const clearFilters = useCallback((overrides?: Partial<PropertyFilters>) => {
-    setFilters(getDefaultFilters(overrides));
-  }, []);
+    setFilters(getDefaultFilters({ ...overrides, county: filters.county}));
+  }, [filters.county]);
 
   const value = useMemo<FiltersContextValue>(
     () => ({

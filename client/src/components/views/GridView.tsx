@@ -10,18 +10,16 @@ import { Loader2, Trophy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { SortOption } from "@/types/options";
 import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
+import { useFilters } from "@/hooks/useFilters";
 
 export default function GridView({
   properties,
   selectedCompany,
-  totalCompanyProperties,
   totalFilteredProperties,
-  hasActiveFilters,
   sortBy,
   onSortChange,
   onPropertyClick,
   onClearCompanyFilter,
-  onClearFilters,
   gridColsClass,
   propertiesHasMore,
   isLoadingMoreProperties,
@@ -31,6 +29,9 @@ export default function GridView({
   county = "San Diego",
   onWholesaleLeaderboardCompanyClick,
 }: GridViewProps) {
+
+  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 
@@ -146,7 +147,7 @@ export default function GridView({
               )}
               {hasActiveFilters && (
                 <button
-                  onClick={onClearFilters}
+                  onClick={() => clearFilters()}
                   className="text-primary hover:underline text-sm"
                   data-testid="button-clear-filters-grid"
                 >

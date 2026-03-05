@@ -120,11 +120,6 @@ function HomeContent() {
     return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
   }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
 
-  // Reset filters to initial state (does not clear company selection; preserves county and state)
-  const handleClearAllFilters = () => {
-    clearFilters({ county: filters.county});
-  };
-
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
   const zipCodesWithCounts = useMemo(() => {
@@ -514,7 +509,6 @@ function HomeContent() {
                     onPropertyClick={handleMapPinClick}
                     center={mapCenter}
                     zoom={mapZoom}
-                    onClearFilters={handleClearAllFilters}
                     selectedProperty={selectedProperty}
                     isLoading={isLoadingMapPins}
                     selectedCompany={selectedCompany}
@@ -528,12 +522,9 @@ function HomeContent() {
               <TableView
                 properties={sortedProperties}
                 selectedCompany={selectedCompany}
-                totalCompanyProperties={totalCompanyProperties}
                 totalFilteredProperties={totalFilteredProperties}
-                hasActiveFilters={hasActiveFilters}
                 onPropertyClick={handlePropertyClick}
                 onClearCompanyFilter={clearCompanySelection}
-                onClearFilters={handleClearAllFilters}
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
                 isLoading={isLoading}
@@ -551,14 +542,11 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   selectedCompany={selectedCompany}
-                  totalCompanyProperties={totalCompanyProperties}
                   totalFilteredProperties={totalFilteredProperties}
-                  hasActiveFilters={hasActiveFilters}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
                   onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
-                  onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
@@ -578,14 +566,11 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   selectedCompany={selectedCompany}
-                  totalCompanyProperties={totalCompanyProperties}
                   totalFilteredProperties={totalFilteredProperties}
-                  hasActiveFilters={hasActiveFilters}
                   sortBy={sortBy}
                   onSortChange={setSortBy}
                   onPropertyClick={handlePropertyClick}
                   onClearCompanyFilter={clearCompanySelection}
-                  onClearFilters={handleClearAllFilters}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
