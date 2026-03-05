@@ -17,10 +17,11 @@ import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useDialogs } from "@/hooks/useDialogs";
+import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
 import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
 import { useProperties } from "@/hooks/useProperties";
-import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, MAX_PRICE } from "@/constants/filters.constants";
+import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import {
   MAP_ZOOM_DEFAULT,
   MAP_ZOOM_LOGO,
@@ -28,18 +29,16 @@ import {
 } from "@/constants/map.constants";
 import {
   BUYERS_FEED_STATUS_FILTERS,
-  PROPERTY_STATUS,
   WHOLESALE_VIEW_STATUS_FILTERS,
 } from "@/constants/propertyStatus.constants";
 import type { SortOption, View } from "@/types/options";
-import type { PropertyFilters } from "@/types/filters";
 import type { Property, MapPin } from "@/types/property";
 
-export default function Home() {
+function HomeContent() {
+  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const [viewMode, setViewMode] = useState<View>("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [filters, setFilters] = useState<PropertyFilters>(getDefaultFilters());
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
@@ -121,24 +120,9 @@ export default function Home() {
     return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
   }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
 
-  // Check if filters are active (not in initial state) - excludes company selection and county/state (those are preserved on clear)
-  const hasActiveFilters = useMemo(() => {
-    return (
-      filters.minPrice > 0 ||
-      filters.maxPrice < MAX_PRICE ||
-      filters.bedrooms !== 'Any' ||
-      filters.bathrooms !== 'Any' ||
-      filters.propertyTypes.length > 0 ||
-      filters.zipCode !== '' ||
-      filters.city !== undefined ||
-      filters.statusFilters.length !== 1 ||
-      filters.statusFilters[0] !== PROPERTY_STATUS.IN_RENOVATION
-    );
-  }, [filters]);
-
   // Reset filters to initial state (does not clear company selection; preserves county and state)
   const handleClearAllFilters = () => {
-    setFilters(getDefaultFilters({ county: filters.county ?? "San Diego" }));
+    clearFilters({ county: filters.county ?? "San Diego" });
   };
 
   // Calculate zip codes with property counts
@@ -335,7 +319,7 @@ export default function Home() {
     // Reset everything to default state (like first visit)
     setViewMode("map");
     setSidebarView("directory");
-    setFilters(getDefaultFilters());
+    clearFilters();
     clearCompanySelection();
     setSelectedProperty(null);
     setMapCenter(undefined);
@@ -474,8 +458,6 @@ export default function Home() {
         {sidebarView === "filters" && (
           <FilterSidebar
             onClose={() => setSidebarView("none")}
-            onFilterChange={setFilters}
-            filters={filters}
             zipCodesWithCounts={zipCodesWithCounts}
             onSwitchToDirectory={() => setSidebarView("directory")}
           />
@@ -488,8 +470,6 @@ export default function Home() {
             onCompanySelect={handleCompanySelect}
             selectedCompany={selectedCompany}
             selectedCompanyId={selectedCompanyId}
-            filters={filters}
-            onFilterChange={setFilters}
             viewMode={viewMode}
           />
         )}
@@ -645,4 +625,11 @@ export default function Home() {
     </div>
   );
 }
-// 728
+
+export default function Home() {
+  return (
+    <FiltersProvider>
+      <HomeContent />
+    </FiltersProvider>
+  );
+}

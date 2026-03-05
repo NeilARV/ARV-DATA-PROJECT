@@ -21,7 +21,5 @@ export type CompanyDirectoryProps = {
   onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
   selectedCompany?: string | null;
   selectedCompanyId?: string | null;
-  filters?: PropertyFilters;
-  onFilterChange?: (filters: PropertyFilters) => void;
   viewMode?: View;
 }

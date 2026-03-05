@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useFilters } from "@/hooks/useFilters";
 import type { CompanyContactWithCounts, CompanyContactDetail, CompanyDirectoryProps } from "@/types/companies";
 import type { DirectorySortOption } from "@/types/options";
 import {
@@ -39,11 +40,12 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, filters, onFilterChange, viewMode }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompany, selectedCompanyId: selectedCompanyIdProp, viewMode }: CompanyDirectoryProps) {
+  const { filters, setFilters } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? DEFAULT_STATUS_FILTERS));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
@@ -54,9 +56,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     setExpandedCompany(selectedCompany ?? null);
   }, [selectedCompany]);
 
-  // Sync local status filter UI when parent filters change
+  // Sync local status filter UI when context filters change
   useEffect(() => {
-    if (!filters) return;
     setStatusFilters(new Set(filters.statusFilters ?? []));
   }, [filters]);
 
@@ -73,9 +74,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
 
     if (hasSelection) {
       setStatusFilters(new Set(ALL_STATUS_FILTERS));
-      if (onFilterChange && filters) {
-        onFilterChange({ ...filters, statusFilters: ALL_STATUS_FILTERS });
-      }
+      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS });
     } else if (hadSelection) {
       const statuses =
         viewMode === "wholesale"
@@ -84,9 +83,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             ? BUYERS_FEED_STATUS_FILTERS
             : DEFAULT_STATUS_FILTERS;
       setStatusFilters(new Set(statuses));
-      if (onFilterChange && filters) {
-        onFilterChange({ ...filters, statusFilters: statuses });
-      }
+      setFilters({ ...filters, statusFilters: statuses });
     }
   }, [expandedCompany, viewMode]);
 
@@ -105,7 +102,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const { toast } = useToast();
 
   // Fetch companies with property counts (calculated server-side from ALL properties)
-  const countyQueryParam = filters?.county ? `?county=${encodeURIComponent(filters.county)}` : '';
+  const countyQueryParam = filters.county ? `?county=${encodeURIComponent(filters.county)}` : "";
   const { data: companies = [], isLoading } = useQuery<CompanyContactWithCounts[]>({
     queryKey: [`/api/companies/contacts${countyQueryParam}`],
     queryFn: async () => {
