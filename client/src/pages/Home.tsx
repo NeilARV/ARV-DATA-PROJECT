@@ -74,6 +74,7 @@ function HomeContent() {
     leaderboardDialogProps,
     headerDialogHandlers,
   } = useDialogs();
+
   const companySelectionInProgressRef = useRef(false);
 
   useGeolocationMapCenter(setMapCenter, setMapZoom);
@@ -201,7 +202,7 @@ function HomeContent() {
       setProperty(null);
     } else {
       companySelectionInProgressRef.current = false;
-      clearCompanySelection();
+      setCompany(null)
     }
   };
 
@@ -249,7 +250,7 @@ function HomeContent() {
   const handleLeaderboardZipCodeClick = (zipCode: string) => {
     // Clear company filter and set zip code filter. Preserve current county so the
     // zip (which belongs to the leaderboard's county) matches the map's data.
-    clearCompanySelection();
+    setCompany(null);
     setFilters(
       getDefaultFilters({
         zipCode,
@@ -267,7 +268,7 @@ function HomeContent() {
     // Reset everything to default state (like first visit)
     setView("map");
     setSidebarView("directory");
-    clearCompanySelection();
+    setCompany(null);
     setProperty(null);
     setMapCenter(undefined);
     setMapZoom(MAP_ZOOM_LOGO);
@@ -378,7 +379,6 @@ function HomeContent() {
                     zoom={mapZoom}
                     selectedProperty={property}
                     isLoading={isLoadingMapPins}
-                    onDeselectCompany={clearCompanySelection}
                     statusFilters={filters.statusFilters}
                   />
                 </div>

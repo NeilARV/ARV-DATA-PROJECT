@@ -9,6 +9,7 @@ import type { MapPin, PropertyMap } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
 import { useProperty } from '@/hooks/useProperty';
 import { useCompanies } from '@/hooks/useCompanies';
+import { CompanyContactWithCounts } from '@/types/companies';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -113,8 +114,9 @@ function MapResizeHandler() {
   return null;
 }
 
-function MapBounds({ mapPins, center, zoom, company }: { mapPins: MapPin[], center?: [number, number], zoom?: number, company?: string | null }) {
+function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [number, number], zoom?: number }) {
   const map = useMap();
+  const { company } = useCompanies();
   const previousPropertyIdsRef = useRef<string>('');
   const previousCenterRef = useRef<[number, number] | undefined>(undefined);
   const previousSelectedCompanyRef = useRef<string | null | undefined>(undefined);
@@ -128,8 +130,8 @@ function MapBounds({ mapPins, center, zoom, company }: { mapPins: MapPin[], cent
     previousPropertyIdsRef.current = currentPropertyIds;
     
     // Check if selected company changed (triggers refit even if same properties)
-    const companyChanged = company !== previousSelectedCompanyRef.current;
-    previousSelectedCompanyRef.current = company;
+    const companyChanged = company?.companyName !== previousSelectedCompanyRef.current;
+    previousSelectedCompanyRef.current = company?.companyName;
     
     // Check if center changed
     const centerChanged = center !== undefined && (
@@ -181,13 +183,12 @@ export default function PropertyMap({
   zoom = MAP_ZOOM_LOGO,
   selectedProperty,
   isLoading = false,
-  onDeselectCompany,
   statusFilters = []
 }: PropertyMap) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
-  const { company } = useCompanies();
+  const { company, setCompany } = useCompanies();
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -197,13 +198,13 @@ export default function PropertyMap({
 
   return (
     <div className="w-full h-full relative" data-testid="map-container">
-      {(hasActiveFilters) || (company && onDeselectCompany) ? (
+      {(hasActiveFilters) || (company) ? (
         <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
-          {company && onDeselectCompany && (
+          {company && (
             <Button
               variant="default"
               size="sm"
-              onClick={onDeselectCompany}
+              onClick={() => setCompany(null)}
               className="shadow-lg h-8 px-2 text-xs"
               data-testid="button-deselect-company-map"
             >
@@ -236,7 +237,7 @@ export default function PropertyMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapResizeHandler />
-        <MapBounds mapPins={validPins} center={center} zoom={zoom} company={company} />
+        <MapBounds mapPins={validPins} center={center} zoom={zoom}/>
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>
