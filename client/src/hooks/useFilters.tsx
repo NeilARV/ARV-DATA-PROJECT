@@ -10,16 +10,15 @@ import { getDefaultFilters } from "@/lib/propertyFilters";
 import { MAX_PRICE } from "@/constants/filters.constants";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import type { PropertyFilters } from "@/types/filters";
+import type { SortOption } from "@/types/options";
 
 export interface FiltersContextValue {
-  /** Current filter state */
   filters: PropertyFilters;
-  /** Update filters (replace or use updater function) */
   setFilters: React.Dispatch<React.SetStateAction<PropertyFilters>>;
-  /** Reset filters to defaults, with optional overrides (e.g. preserve county) */
   clearFilters: (overrides?: Partial<PropertyFilters>) => void;
-  /** Whether any filter is active (excluding company selection) */
   hasActiveFilters: boolean;
+  sortBy: SortOption;
+  setSortBy: React.Dispatch<React.SetStateAction<SortOption>>;
 }
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);
@@ -38,6 +37,8 @@ export function FiltersProvider({ children, defaultOverrides }: FiltersProviderP
   const [filters, setFilters] = useState<PropertyFilters>(() =>
     getDefaultFilters(defaultOverrides)
   );
+
+  const [ sortBy, setSortBy ] = useState<SortOption>("recently-sold");
 
   const hasActiveFilters = useMemo(() => {
     return (
@@ -63,8 +64,10 @@ export function FiltersProvider({ children, defaultOverrides }: FiltersProviderP
       setFilters,
       clearFilters,
       hasActiveFilters,
+      sortBy,
+      setSortBy,
     }),
-    [filters, clearFilters, hasActiveFilters]
+    [filters, clearFilters, hasActiveFilters, sortBy]
   );
 
   return (

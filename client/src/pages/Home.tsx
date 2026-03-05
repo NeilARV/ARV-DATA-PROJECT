@@ -27,7 +27,6 @@ import {
   MAP_ZOOM_LOGO,
   MAP_ZOOM_PROPERTY,
 } from "@/constants/map.constants";
-import type { SortOption } from "@/types/options";
 import type { Property, MapPin } from "@/types/property";
 import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchPropertyById } from "@/api/properties.api";
@@ -36,7 +35,7 @@ import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 
 function HomeContent() {
-  const { filters, setFilters } = useFilters();
+  const { filters, setFilters, sortBy, setSortBy } = useFilters();
   const { view, setView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
   const { company, setCompany, companies, loadCompanies } = useCompanies();
@@ -44,7 +43,6 @@ function HomeContent() {
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
-  const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
 
   const {
     properties,
@@ -56,9 +54,7 @@ function HomeContent() {
     propertiesResponse,
     stablePropertyCount,
     stableCompanyPropertyCount,
-  } = useProperties({
-    sortBy,
-  });
+  } = useProperties();
 
   // Load companies when directory is open (with county filter)
   useEffect(() => {
@@ -84,7 +80,6 @@ function HomeContent() {
       forMapPins: true,
       page: 1,
       limit: "10",
-      sortBy,
     });
     return `/api/properties/map${queryString}`;
   }, [filters.county, filters.statusFilters, company?.id]);
@@ -397,8 +392,6 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   totalFilteredProperties={totalFilteredProperties}
-                  sortBy={sortBy}
-                  onSortChange={setSortBy}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
@@ -418,8 +411,6 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   totalFilteredProperties={totalFilteredProperties}
-                  sortBy={sortBy}
-                  onSortChange={setSortBy}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}

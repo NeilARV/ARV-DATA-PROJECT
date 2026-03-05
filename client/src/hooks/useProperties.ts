@@ -14,10 +14,6 @@ export type PropertiesResponse = {
     hasMore: boolean;
 };
 
-export type UsePropertiesOptions = {
-    sortBy: SortOption;
-};
-
 export type UsePropertiesResult = {
     /** Accumulated list of properties (for grid/table/wholesale views) */
     properties: Property[];
@@ -40,10 +36,11 @@ const propertiesListEnabled = (view: string) => view === "grid" || view === "tab
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({ sortBy }: UsePropertiesOptions): UsePropertiesResult {
+export function useProperties(): UsePropertiesResult {
+    
     const { company } = useCompanies();
     const { view } = useView();
-    const { filters } = useFilters();
+    const { filters, sortBy } = useFilters();
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
@@ -66,7 +63,6 @@ export function useProperties({ sortBy }: UsePropertiesOptions): UsePropertiesRe
         buildPropertyQueryParams(filters, {
             page: propertiesPage,
             limit: view === "table" ? "20" : "10",
-            sortBy,
             hasDateSold,
         }), 
         [filters, company?.id, company, propertiesPage, sortBy, view, hasDateSold]

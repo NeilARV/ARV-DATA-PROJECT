@@ -8,8 +8,6 @@ export type WholesaleLeaderboardEntry = {
 export type GridViewProps = {
   properties: Property[];
   totalFilteredProperties: number;
-  sortBy: SortOption;
-  onSortChange: (sortBy: SortOption) => void;
   gridColsClass: string;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;

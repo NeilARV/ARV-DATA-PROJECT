@@ -3,6 +3,7 @@ import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import { getEffectiveStatusFilters } from "@/lib/propertyFilters";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useFilters } from "@/hooks/useFilters";
 
 export type BuildPropertyQueryParamsOptions = {
   /** When true, only county and status filters are included (for map pins endpoint). */
@@ -11,7 +12,6 @@ export type BuildPropertyQueryParamsOptions = {
   hasDateSold?: boolean;
   page: number;
   limit: string;
-  sortBy: SortOption;
 };
 
 /**
@@ -29,10 +29,10 @@ export function buildPropertyQueryParams(
     hasDateSold = false,
     page,
     limit,
-    sortBy,
   } = options;
 
   const { company } = useCompanies();
+  const { sortBy } = useFilters();
 
   const params = new URLSearchParams();
 

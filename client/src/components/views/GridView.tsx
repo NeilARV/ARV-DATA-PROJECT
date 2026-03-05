@@ -17,8 +17,6 @@ import { useCompanies } from "@/hooks/useCompanies";
 export default function GridView({
   properties,
   totalFilteredProperties,
-  sortBy,
-  onSortChange,
   gridColsClass,
   propertiesHasMore,
   isLoadingMoreProperties,
@@ -29,7 +27,7 @@ export default function GridView({
   onWholesaleLeaderboardCompanyClick,
 }: GridViewProps) {
 
-  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+  const { filters, setFilters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { fetchProperty } = useProperty();
   const { company, setCompany } = useCompanies();
 
@@ -109,7 +107,7 @@ export default function GridView({
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm text-muted-foreground">Sort by:</span>
-          <Select value={sortBy} onValueChange={(value) => onSortChange(value as SortOption)}>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[180px]" data-testid="select-sort">
               <SelectValue />
             </SelectTrigger>
