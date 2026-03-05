@@ -31,7 +31,7 @@ import {
   BUYERS_FEED_STATUS_FILTERS,
   WHOLESALE_VIEW_STATUS_FILTERS,
 } from "@/constants/propertyStatus.constants";
-import type { SortOption, View } from "@/types/options";
+import type { SortOption } from "@/types/options";
 import type { Property, MapPin } from "@/types/property";
 import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
@@ -323,19 +323,6 @@ function HomeContent() {
     setSortBy("recently-sold");
   };
 
-  // When switching to Buyer Feed, auto-select wholesale and in-renovation status
-  const handleBuyersFeedClick = () => {
-    setSelectedProperty(null);
-    setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
-    setView("buyers-feed");
-  };
-
-  const handleWholesaleClick = () => {
-    setSelectedProperty(null);
-    setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
-    setView("wholesale");
-  };
-
   // Handle property selection by ID (for search suggestions)
   const handlePropertySelectById = async (propertyId: string) => {
     const property = await fetchPropertyById(propertyId);
@@ -395,9 +382,8 @@ function HomeContent() {
         onLoginClick={headerDialogHandlers.onLoginClick}
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
-        onBuyersFeedClick={handleBuyersFeedClick}
-        onWholesaleClick={handleWholesaleClick}
         onLogoClick={handleLogoClick}
+        setSelectedProperty={setSelectedProperty}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -568,3 +554,5 @@ export default function Home() {
     </ViewProvider>
   );
 }
+
+// 728

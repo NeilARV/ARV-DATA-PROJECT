@@ -25,6 +25,9 @@ import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 import type { HeaderProps, PropertySuggestion } from "@/types/general";
 import { useView } from "@/hooks/useView";
+import { useFilters } from "@/hooks/useFilters";
+import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
+import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 
 export default function Header({
   onSearch,
@@ -32,12 +35,12 @@ export default function Header({
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
-  onBuyersFeedClick,
-  onWholesaleClick,
   onLogoClick,
   county,
+  setSelectedProperty,
 }: HeaderProps) {
 
+  const { setFilters } = useFilters();
   const { view, setView } = useView();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -188,6 +191,18 @@ export default function Header({
       });
     }
   };
+
+  const onBuyersFeedClick = async () => {
+    setSelectedProperty(null);
+    setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
+    setView("buyers-feed");
+  }
+
+  const onWholesaleClick = async () => {
+    setSelectedProperty(null);
+    setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
+    setView("wholesale");
+  }
 
   return (
     <header

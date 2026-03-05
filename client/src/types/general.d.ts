@@ -17,10 +17,9 @@ export type HeaderProps = {
   onLoginClick?: () => void;
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
-  onBuyersFeedClick?: () => void;
-  onWholesaleClick?: () => void;
   onLogoClick?: () => void;
   county?: string; // County filter for suggestions
+  setSelectedProperty: (property: Property) => void;
 }
 
 export type PropertySuggestion = {
