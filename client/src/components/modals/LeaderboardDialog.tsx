@@ -11,7 +11,8 @@ import { getCityForZipCode } from "@/lib/zipCodes";
 import type { LeaderboardDialogProps, LeaderboardData } from "@/types/modals";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
-
+import { useView } from "@/hooks/useView";
+import { getDefaultFilters } from "@/lib/propertyFilters";
 
 export default function LeaderboardDialog({ 
   open, 
@@ -19,8 +20,9 @@ export default function LeaderboardDialog({
   onZipCodeClick,
 }: LeaderboardDialogProps) {
 
-  const { filters } = useFilters()
-  const { handleCompanyClick } = useCompanies();
+  const { filters, setFilters } = useFilters()
+  const { setCompany, handleCompanyClick } = useCompanies();
+  const { setSidebarView } = useView();
 
   // Fetch leaderboard data from dedicated endpoint (filtered by county)
   const { data: leaderboardData, isLoading, error } = useQuery<LeaderboardData>({
@@ -52,6 +54,20 @@ export default function LeaderboardDialog({
   const handleZipCodeClick = (zipCode: string) => {
     if (onZipCodeClick) {
       onZipCodeClick(zipCode);
+
+      // Clear company filter and set zip code filter. Preserve current county so the
+      // zip (which belongs to the leaderboard's county) matches the map's data.
+      setCompany(null);
+      setFilters(
+        getDefaultFilters({
+          zipCode,
+          county: filters.county ?? "San Diego",
+          statusFilters: ["in-renovation", "on-market", "sold"],
+        })
+      );
+      // Open/keep FilterSidebar open when selecting a zip (like company click opens directory)
+      setSidebarView("filters");
+
       onOpenChange(false);
     }
   };

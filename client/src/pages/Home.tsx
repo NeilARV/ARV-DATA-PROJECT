@@ -24,7 +24,6 @@ import { useProperties } from "@/hooks/useProperties";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import { MAP_ZOOM_DEFAULT, MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY } from "@/constants/map.constants";
 import type { Property, MapPin } from "@/types/property";
-import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
@@ -175,19 +174,7 @@ function HomeContent() {
     )
   );
 
-  const handleLeaderboardZipCodeClick = (zipCode: string) => {
-    // Clear company filter and set zip code filter. Preserve current county so the
-    // zip (which belongs to the leaderboard's county) matches the map's data.
-    setCompany(null);
-    setFilters(
-      getDefaultFilters({
-        zipCode,
-        county: filters.county ?? "San Diego",
-        statusFilters: ["in-renovation", "on-market", "sold"],
-      })
-    );
-    // Open/keep FilterSidebar open when selecting a zip (like company click opens directory)
-    setSidebarView("filters");
+  const handleLeaderboardZipCodeClick = () => {
     setMapCenter(undefined);
     setMapZoom(MAP_ZOOM_DEFAULT);
   };
