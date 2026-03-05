@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCityForZipCode } from "@/lib/zipCodes";
 import type { LeaderboardDialogProps, LeaderboardData } from "@/types/modals";
+import { useFilters } from "@/hooks/useFilters";
 
 
 export default function LeaderboardDialog({ 
@@ -16,13 +17,15 @@ export default function LeaderboardDialog({
   onOpenChange,
   onCompanyClick,
   onZipCodeClick,
-  county = "San Diego",
 }: LeaderboardDialogProps) {
+
+  const { filters } = useFilters()
+
   // Fetch leaderboard data from dedicated endpoint (filtered by county)
   const { data: leaderboardData, isLoading, error } = useQuery<LeaderboardData>({
-    queryKey: ["/api/companies/leaderboard", county],
+    queryKey: ["/api/companies/leaderboard", filters.county],
     queryFn: async () => {
-      const url = `/api/companies/leaderboard${county ? `?county=${encodeURIComponent(county)}` : ''}`;
+      const url = `/api/companies/leaderboard${filters.county ? `?county=${encodeURIComponent(filters.county)}` : ''}`;
       const res = await fetch(url, {
         credentials: "include",
       });
@@ -65,7 +68,7 @@ export default function LeaderboardDialog({
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground">
-          View the top flipping companies and zip codes{county ? ` in ${county} County` : ''}
+          View the top flipping companies and zip codes{filters.county ? ` in ${filters.county} County` : ''}
         </p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">

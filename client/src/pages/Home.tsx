@@ -619,7 +619,6 @@ function HomeContent() {
         {...leaderboardDialogProps}
         onCompanyClick={handleLeaderboardCompanyClick}
         onZipCodeClick={handleLeaderboardZipCodeClick}
-        county={filters.county}
       />
 
     </div>
