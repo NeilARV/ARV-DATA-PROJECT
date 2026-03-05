@@ -38,10 +38,9 @@ function HomeContent() {
   const { filters, setFilters } = useFilters();
   const { view, setView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
-  const { company, setCompany } = useCompanies();
+  const { company, setCompany, companyId, setCompanyId } = useCompanies();
 
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
@@ -61,7 +60,6 @@ function HomeContent() {
     filters,
     view,
     sortBy,
-    selectedCompanyId,
     selectedCompanyPropertyCount,
     hasDateSold: view === "buyers-feed",
   });
@@ -83,10 +81,9 @@ function HomeContent() {
       page: 1,
       limit: "10",
       sortBy,
-      selectedCompanyId,
     });
     return `/api/properties/map${queryString}`;
-  }, [filters.county, filters.statusFilters, selectedCompanyId]);
+  }, [filters.county, filters.statusFilters, companyId]);
 
 
   // Fetch map pins (minimal data) for map view
@@ -166,11 +163,9 @@ function HomeContent() {
           pin,
           filters,
           zipCodeList,
-          selectedCompanyId,
-          company
         )
       ),
-    [mapPins, filters, company, selectedCompanyId, zipCodeList]
+    [mapPins, filters, company, companyId, zipCodeList]
   );
 
   useMapCenterFromFilters({
@@ -189,8 +184,6 @@ function HomeContent() {
       property,
       filters,
       zipCodeList,
-      selectedCompanyId,
-      company
     )
   );
 
@@ -223,7 +216,7 @@ function HomeContent() {
   // Helper function to clear company selection
   const clearCompanySelection = () => {
     setCompany(null);
-    setSelectedCompanyId(null);
+    setCompanyId(null);
     setSelectedCompanyPropertyCount(0);
   };
 
@@ -234,7 +227,7 @@ function HomeContent() {
       
       // Selecting a company: set the company first, then let the effect handle centering
       setCompany(companyName);
-      setSelectedCompanyId(companyId || null);
+      setCompanyId(companyId || null);
       setProperty(null); // Close property panel when selecting a different company
       // Don't clear center/zoom here - let the company selection effect handle it
       // This prevents race conditions with the location filter effect
@@ -255,7 +248,7 @@ function HomeContent() {
     
     // Preserve all existing filters when selecting a company from leaderboard
     setCompany(companyName);
-    setSelectedCompanyId(companyId || null);
+    setCompanyId(companyId || null);
     setSidebarView("directory"); // Keep directory open to show selected company
     setProperty(null); // Close property panel when selecting a different company
     // Don't clear center/zoom here - let the company selection effect handle it
@@ -270,7 +263,7 @@ function HomeContent() {
     
     // Open the directory and select the company
     setCompany(companyName);
-    setSelectedCompanyId(companyId || null);
+    setCompanyId(companyId || null);
     setSidebarView("directory");
     // Only close property panel if not clicking from within the panel itself
     if (!keepPanelOpen) {
@@ -372,7 +365,6 @@ function HomeContent() {
             onClose={() => setSidebarView("none")}
             onSwitchToFilters={() => setSidebarView("filters")}
             onCompanySelect={handleCompanySelect}
-            selectedCompanyId={selectedCompanyId}
           />
         )}
 
@@ -417,7 +409,6 @@ function HomeContent() {
                     zoom={mapZoom}
                     selectedProperty={property}
                     isLoading={isLoadingMapPins}
-                    selectedCompanyId={selectedCompanyId}
                     onDeselectCompany={clearCompanySelection}
                     statusFilters={filters.statusFilters}
                   />

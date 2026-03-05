@@ -12,7 +12,6 @@ export type BuildPropertyQueryParamsOptions = {
   page: number;
   limit: string;
   sortBy: SortOption;
-  selectedCompanyId?: string | null;
 };
 
 /**
@@ -31,10 +30,9 @@ export function buildPropertyQueryParams(
     page,
     limit,
     sortBy,
-    selectedCompanyId = null,
   } = options;
 
-  const { company } = useCompanies();
+  const { company, companyId } = useCompanies();
 
   const params = new URLSearchParams();
 
@@ -46,7 +44,7 @@ export function buildPropertyQueryParams(
   // Status filters (effective list includes wholesale when in-renovation selected and no company)
   const effectiveStatuses = getEffectiveStatusFilters(
     filters,
-    selectedCompanyId ?? null
+    companyId ?? null
   );
   effectiveStatuses.forEach((status) => params.append("status", status));
 
@@ -81,8 +79,8 @@ export function buildPropertyQueryParams(
     );
   }
 
-  if (selectedCompanyId) {
-    params.append("companyId", selectedCompanyId);
+  if (companyId) {
+    params.append("companyId", companyId);
   } else if (company) {
     params.append("company", company);
   }

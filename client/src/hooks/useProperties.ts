@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, type RefObject, createContext, useContext } from "react";
+import { useState, useMemo, useRef, useEffect, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
@@ -6,20 +6,6 @@ import { useCompanies } from "./useCompanies";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import type { Property } from "@/types/property";
-
-type ViewPropertiesValue = {
-    properties: Property[];
-    propertiesHasMore: boolean;
-    isLoadingMoreProperties: boolean;
-    loadMorePropertiesRef: RefObject<HTMLDivElement | null>;
-    isLoading: boolean;
-    isFetching: boolean;
-    propertiesResponse: PropertiesResponse | undefined;
-    stablePropertyCount: number;
-    stableCompanyPropertyCount: number;
-}
-
-const PropertiesContext = createContext<ViewPropertiesValue | null>(null)
 
 export type PropertiesResponse = {
     properties: Property[];
@@ -31,7 +17,6 @@ export type UsePropertiesOptions = {
     filters: PropertyFilters;
     view: string;
     sortBy: SortOption;
-    selectedCompanyId: string | null;
     /** Count for selected company (from directory); used for stable display count. */
     selectedCompanyPropertyCount?: number;
     hasDateSold?: boolean;
@@ -59,8 +44,8 @@ const propertiesListEnabled = (view: string) => view === "grid" || view === "tab
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({filters, view, sortBy, selectedCompanyId, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
-    const { company } = useCompanies();
+export function useProperties({filters, view, sortBy, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
+    const { company, companyId } = useCompanies();
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
@@ -75,17 +60,16 @@ export function useProperties({filters, view, sortBy, selectedCompanyId, selecte
         setAllProperties([]);
         setPropertiesHasMore(true);
         setIsLoadingMoreProperties(false);
-    }, [filters, sortBy, selectedCompanyId, company, view]);
+    }, [filters, sortBy, companyId, company, view]);
 
     const propertiesQueryParam = useMemo(() =>
         buildPropertyQueryParams(filters, {
             page: propertiesPage,
             limit: view === "table" ? "20" : "10",
             sortBy,
-            selectedCompanyId,
             hasDateSold,
         }), 
-        [filters, selectedCompanyId, company, propertiesPage, sortBy, view, hasDateSold]
+        [filters, companyId, company, propertiesPage, sortBy, view, hasDateSold]
     );
 
     const propertiesQueryUrl = useMemo(() => `/api/properties${propertiesQueryParam}`, [propertiesQueryParam]);

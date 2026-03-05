@@ -3,6 +3,9 @@ import { createContext, ReactNode, useContext, useState } from "react";
 type CompaniesContextValue = {
     company: string | null;
     setCompany: (company: string | null) => void;
+
+    companyId: string | null;
+    setCompanyId: (company: string | null) => void;
 }
 
 const CompaniesContext = createContext<CompaniesContextValue | null>(null);
@@ -14,10 +17,13 @@ type CompanyProviderProps = {
 export function CompaniesProvider({children}: CompanyProviderProps) {
 
     const [ company, setCompany ] = useState<string | null>(null)
+    const [ companyId, setCompanyId ] = useState<string | null>(null)
 
     const value = {
         company,
-        setCompany
+        setCompany,
+        companyId,
+        setCompanyId
     }
 
     return (

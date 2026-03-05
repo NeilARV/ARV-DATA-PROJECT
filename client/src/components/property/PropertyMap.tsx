@@ -181,14 +181,13 @@ export default function PropertyMap({
   zoom = MAP_ZOOM_LOGO,
   selectedProperty,
   isLoading = false,
-  selectedCompanyId,
   onDeselectCompany,
   statusFilters = []
 }: PropertyMap) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
-  const { company } = useCompanies();
+  const { company, companyId } = useCompanies();
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -249,7 +248,7 @@ export default function PropertyMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForPin(pin, isSelected, selectedCompanyId, statusFilters)}
+                icon={getIconForPin(pin, isSelected, companyId, statusFilters)}
                 eventHandlers={{
                   click: () => fetchProperty?.(pin.id),
                 }}

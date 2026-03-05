@@ -1,5 +1,6 @@
 import { MAX_PRICE } from "@/constants/filters.constants";
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
+import { useCompanies } from "@/hooks/useCompanies";
 import type { PropertyFilters } from "@/types/filters";
 import type { MapPin, Property } from "@/types/property";
 
@@ -234,17 +235,18 @@ export function matchesFiltersForPin(
   pin: MapPin,
   filters: PropertyFilters,
   zipCodeList: ZipCodeListEntry[],
-  selectedCompanyId: string | null,
-  selectedCompany: string | null
 ): boolean {
-  if (!matchesCompanyForPin(pin, selectedCompanyId, selectedCompany))
+
+  const { company, companyId } = useCompanies();
+
+  if (!matchesCompanyForPin(pin, companyId, company))
     return false;
   if (!matchesPrice(pin, filters)) return false;
   if (!matchesBedrooms(pin, filters)) return false;
   if (!matchesBathrooms(pin, filters)) return false;
   if (!matchesPropertyType(pin, filters)) return false;
   if (!matchesLocation(pin.zipcode, filters, zipCodeList)) return false;
-  if (!matchesStatusWithWholesale(pin, filters, selectedCompanyId))
+  if (!matchesStatusWithWholesale(pin, filters, companyId))
     return false;
   return true;
 }
@@ -253,17 +255,18 @@ export function matchesFiltersForProperty(
   property: Property,
   filters: PropertyFilters,
   zipCodeList: ZipCodeListEntry[],
-  selectedCompanyId: string | null,
-  selectedCompany: string | null
 ): boolean {
-  if (!matchesCompanyForProperty(property, selectedCompanyId, selectedCompany))
+
+  const { company, companyId } = useCompanies();
+
+  if (!matchesCompanyForProperty(property, companyId, company))
     return false;
   if (!matchesPrice(property, filters)) return false;
   if (!matchesBedrooms(property, filters)) return false;
   if (!matchesBathrooms(property, filters)) return false;
   if (!matchesPropertyType(property, filters)) return false;
   if (!matchesLocation(property.zipCode, filters, zipCodeList)) return false;
-  if (!matchesStatusWithWholesale(property, filters, selectedCompanyId))
+  if (!matchesStatusWithWholesale(property, filters, companyId))
     return false;
   return true;
 }

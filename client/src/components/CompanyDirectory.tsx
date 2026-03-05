@@ -42,7 +42,7 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect, selectedCompanyId: selectedCompanyIdProp }: CompanyDirectoryProps) {
+export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompanySelect }: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
@@ -53,7 +53,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
-  const { company } = useCompanies();
+  const { company, companyId } = useCompanies();
 
   // Keep expanded state in sync with parent's company so it persists across view switches
   useEffect(() => {
@@ -165,7 +165,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
 
   // Resolve the expanded company ID: from list when company is in filtered list, else from parent prop (e.g. PropertyDetailPanel, modal, card)
   const expandedCompanyId = expandedCompany
-    ? (filteredCompanies.find((c) => c.companyName === expandedCompany)?.id ?? selectedCompanyIdProp ?? null)
+    ? (filteredCompanies.find((c) => c.companyName === expandedCompany)?.id ?? companyId ?? null)
     : null;
 
   // Fetch company details by ID when expanded (dropdown, auto-scroll from property panel, modal, card, etc.)
