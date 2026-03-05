@@ -18,12 +18,12 @@ import {
 import { getCountyCenter, getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { cityMatchesFilter } from "@/lib/propertyFilters";
 import { useCompanies } from "./useCompanies";
+import { useFilters } from "./useFilters";
 
 type SetMapCenter = (center: [number, number] | undefined) => void;
 type SetMapZoom = (zoom: number) => void;
 
 export interface UseMapCenterFromFiltersOptions {
-  filters: PropertyFilters;
   filteredMapPins: MapPin[];
   setMapCenter: SetMapCenter;
   setMapZoom: SetMapZoom;
@@ -38,7 +38,6 @@ export interface UseMapCenterFromFiltersOptions {
  * company properties and set zoom from spread.
  */
 export function useMapCenterFromFilters({
-  filters,
   filteredMapPins,
   setMapCenter,
   setMapZoom,
@@ -46,6 +45,7 @@ export function useMapCenterFromFilters({
 }: UseMapCenterFromFiltersOptions): void {
 
   const { company } = useCompanies();
+  const { filters } = useFilters();
 
   // Effect 1: Map center from filters (zip / city / county)
   useEffect(() => {

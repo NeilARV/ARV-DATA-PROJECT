@@ -159,7 +159,6 @@ function HomeContent() {
       mapPins.filter((pin) =>
         matchesFiltersForPin(
           pin,
-          filters,
           zipCodeList,
         )
       ),
@@ -167,7 +166,6 @@ function HomeContent() {
   );
 
   useMapCenterFromFilters({
-    filters,
     filteredMapPins,
     setMapCenter,
     setMapZoom,
@@ -180,7 +178,6 @@ function HomeContent() {
   const filteredProperties = propertiesToFilter.filter((property) =>
     matchesFiltersForProperty(
       property,
-      filters,
       zipCodeList,
     )
   );
