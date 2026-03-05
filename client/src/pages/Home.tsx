@@ -115,13 +115,6 @@ function HomeContent() {
       : (propertiesTotal ?? stablePropertyCount);
   }, [view, propertiesResponse, isLoading, stablePropertyCount]);
 
-  // Use stable company property count to avoid flashing "0"
-  const displayCompanyPropertyCount = useMemo(() => {
-    if (!selectedCompany) return 0;
-    // If we're fetching and don't have a value yet, use the stable one
-    return selectedCompanyPropertyCount > 0 ? selectedCompanyPropertyCount : stableCompanyPropertyCount;
-  }, [selectedCompany, selectedCompanyPropertyCount, stableCompanyPropertyCount]);
-
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
   const zipCodesWithCounts = useMemo(() => {
