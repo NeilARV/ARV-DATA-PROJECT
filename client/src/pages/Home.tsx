@@ -57,8 +57,6 @@ function HomeContent() {
     stablePropertyCount,
     stableCompanyPropertyCount,
   } = useProperties({
-    filters,
-    view,
     sortBy,
     selectedCompanyPropertyCount,
     hasDateSold: view === "buyers-feed",

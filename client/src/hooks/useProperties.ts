@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useCompanies } from "./useCompanies";
+import { useFilters } from "./useFilters";
+import { useView } from "./useView";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import type { Property } from "@/types/property";
@@ -14,8 +16,6 @@ export type PropertiesResponse = {
 };
 
 export type UsePropertiesOptions = {
-    filters: PropertyFilters;
-    view: string;
     sortBy: SortOption;
     /** Count for selected company (from directory); used for stable display count. */
     selectedCompanyPropertyCount?: number;
@@ -44,8 +44,10 @@ const propertiesListEnabled = (view: string) => view === "grid" || view === "tab
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({filters, view, sortBy, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
+export function useProperties({sortBy, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
     const { company, companyId } = useCompanies();
+    const { view } = useView();
+    const { filters } = useFilters();
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
