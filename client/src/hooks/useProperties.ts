@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
-import { useAccumulatePaginatedList } from "@/hooks/useAccumulatePaginatedList";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
@@ -38,7 +37,7 @@ const propertiesListEnabled = (viewMode: string) => viewMode === "grid" || viewM
 
 /**
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
- * Handles query params, useQuery, useAccumulatePaginatedList, and useInfiniteScroll.
+ * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
 export function useProperties({filters, viewMode, sortBy, selectedCompanyId, selectedCompany, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
     const [propertiesPage, setPropertiesPage] = useState(1);
@@ -81,14 +80,21 @@ export function useProperties({filters, viewMode, sortBy, selectedCompanyId, sel
         enabled: viewMode !== "map",
     });
 
-    useAccumulatePaginatedList({
-        response: propertiesResponse,
-        page: propertiesPage,
-        enabled: propertiesListEnabled(viewMode),
-        setList: setAllProperties,
-        setHasMore: setPropertiesHasMore,
-        setLoading: setIsLoadingMoreProperties,
-    });
+    // Accumulate paginated results: page 1 replaces list, page > 1 appends and dedupes by id.
+    useEffect(() => {
+        if (!propertiesResponse || !propertiesListEnabled(viewMode)) return;
+        if (propertiesPage === 1) {
+            setAllProperties(propertiesResponse.properties);
+        } else {
+            setAllProperties((prev) => {
+                const existingIds = new Set(prev.map((p) => p.id));
+                const newItems = propertiesResponse.properties.filter((p) => !existingIds.has(p.id));
+                return [...prev, ...newItems];
+            });
+        }
+        setPropertiesHasMore(propertiesResponse.hasMore);
+        setIsLoadingMoreProperties(false);
+    }, [propertiesResponse, propertiesPage, viewMode]);
 
     useInfiniteScroll({
         ref: loadMorePropertiesRef,
