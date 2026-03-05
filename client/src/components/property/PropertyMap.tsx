@@ -187,7 +187,7 @@ export default function PropertyMap({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
-  const { company, companyId } = useCompanies();
+  const { company } = useCompanies();
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -248,7 +248,7 @@ export default function PropertyMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForPin(pin, isSelected, companyId, statusFilters)}
+                icon={getIconForPin(pin, isSelected, company?.id ?? null, statusFilters)}
                 eventHandlers={{
                   click: () => fetchProperty?.(pin.id),
                 }}

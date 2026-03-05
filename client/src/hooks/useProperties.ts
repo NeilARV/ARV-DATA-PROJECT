@@ -17,8 +17,6 @@ export type PropertiesResponse = {
 
 export type UsePropertiesOptions = {
     sortBy: SortOption;
-    /** Count for selected company (from directory); used for stable display count. */
-    selectedCompanyPropertyCount?: number;
     hasDateSold?: boolean;
 };
 
@@ -44,8 +42,8 @@ const propertiesListEnabled = (view: string) => view === "grid" || view === "tab
  * Fetches and accumulates paginated properties for grid/table/wholesale views.
  * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
  */
-export function useProperties({sortBy, selectedCompanyPropertyCount = 0, hasDateSold = false}: UsePropertiesOptions): UsePropertiesResult {
-    const { company, companyId } = useCompanies();
+export function useProperties({ sortBy, hasDateSold = false }: UsePropertiesOptions): UsePropertiesResult {
+    const { company } = useCompanies();
     const { view } = useView();
     const { filters } = useFilters();
     const [propertiesPage, setPropertiesPage] = useState(1);
@@ -62,7 +60,7 @@ export function useProperties({sortBy, selectedCompanyPropertyCount = 0, hasDate
         setAllProperties([]);
         setPropertiesHasMore(true);
         setIsLoadingMoreProperties(false);
-    }, [filters, sortBy, companyId, company, view]);
+    }, [filters, sortBy, company?.id, company, view]);
 
     const propertiesQueryParam = useMemo(() =>
         buildPropertyQueryParams(filters, {
@@ -71,7 +69,7 @@ export function useProperties({sortBy, selectedCompanyPropertyCount = 0, hasDate
             sortBy,
             hasDateSold,
         }), 
-        [filters, companyId, company, propertiesPage, sortBy, view, hasDateSold]
+        [filters, company?.id, company, propertiesPage, sortBy, view, hasDateSold]
     );
 
     const propertiesQueryUrl = useMemo(() => `/api/properties${propertiesQueryParam}`, [propertiesQueryParam]);
@@ -126,12 +124,12 @@ export function useProperties({sortBy, selectedCompanyPropertyCount = 0, hasDate
     }, [view, propertiesResponse?.total, isLoading]);
 
     useEffect(() => {
-        if (selectedCompanyPropertyCount > 0) {
-            setStableCompanyPropertyCount(selectedCompanyPropertyCount);
+        if (company && company.propertyCount > 0) {
+            setStableCompanyPropertyCount(company.propertyCount);
         } else if (!company) {
             setStableCompanyPropertyCount(0);
         }
-    }, [selectedCompanyPropertyCount, company]);
+    }, [company]);
 
     return {
         properties: allProperties,

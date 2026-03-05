@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar from "@/components/FilterSidebar";
@@ -29,6 +29,7 @@ import {
 } from "@/constants/map.constants";
 import type { SortOption } from "@/types/options";
 import type { Property, MapPin } from "@/types/property";
+import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
@@ -38,10 +39,9 @@ function HomeContent() {
   const { filters, setFilters } = useFilters();
   const { view, setView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
-  const { company, setCompany, companyId, setCompanyId } = useCompanies();
+  const { company, setCompany, companies, loadCompanies } = useCompanies();
 
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
-  const [selectedCompanyPropertyCount, setSelectedCompanyPropertyCount] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
   const [sortBy, setSortBy] = useState<SortOption>("recently-sold");
@@ -58,9 +58,15 @@ function HomeContent() {
     stableCompanyPropertyCount,
   } = useProperties({
     sortBy,
-    selectedCompanyPropertyCount,
     hasDateSold: view === "buyers-feed",
   });
+
+  // Load companies when directory is open (with county filter)
+  useEffect(() => {
+    if (sidebarView === "directory") {
+      loadCompanies(filters.county);
+    }
+  }, [sidebarView, filters.county, loadCompanies]);
 
   const {
     signupDialogProps,
@@ -81,7 +87,7 @@ function HomeContent() {
       sortBy,
     });
     return `/api/properties/map${queryString}`;
-  }, [filters.county, filters.statusFilters, companyId]);
+  }, [filters.county, filters.statusFilters, company?.id]);
 
 
   // Fetch map pins (minimal data) for map view
@@ -162,7 +168,7 @@ function HomeContent() {
           zipCodeList,
         )
       ),
-    [mapPins, filters, company, companyId, zipCodeList]
+    [mapPins, filters, company, zipCodeList]
   );
 
   useMapCenterFromFilters({
@@ -183,90 +189,60 @@ function HomeContent() {
   );
 
 
-  // Helper function to fetch company property count
-  const fetchCompanyPropertyCount = async (companyName: string) => {
-    try {
-      const companies = await fetchCompanyContacts()
-
-      if (companies) {
-        const company = companies.find((c: any) => 
-          c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
-        );
-        if (company) {
-          setSelectedCompanyPropertyCount(company.propertyCount || 0);
-        } else {
-          setSelectedCompanyPropertyCount(0);
-        }
-      } else {
-        setSelectedCompanyPropertyCount(0);
-      }
-    } catch (error) {
-      console.error("Error fetching company property count:", error);
-      setSelectedCompanyPropertyCount(0);
-    }
-  };
-
   // Helper function to clear company selection
   const clearCompanySelection = () => {
     setCompany(null);
-    setCompanyId(null);
-    setSelectedCompanyPropertyCount(0);
   };
 
-  const handleCompanySelect = async (companyName: string | null, companyId?: string | null) => {
-    if (companyName) {
-      // Mark that we're starting a company selection to prevent location filter from interfering
+  const handleCompanySelect = (selected: CompanyContactWithCounts | null) => {
+    if (selected) {
       companySelectionInProgressRef.current = true;
-      
-      // Selecting a company: set the company first, then let the effect handle centering
-      setCompany(companyName);
-      setCompanyId(companyId || null);
-      setProperty(null); // Close property panel when selecting a different company
-      // Don't clear center/zoom here - let the company selection effect handle it
-      // This prevents race conditions with the location filter effect
-      
-      // Fetch the company's total property count from the API
-      await fetchCompanyPropertyCount(companyName);
+      setCompany(selected);
+      setProperty(null);
     } else {
-      // Deselecting/clearing the company filter: preserve all existing filters and map position
       companySelectionInProgressRef.current = false;
       clearCompanySelection();
-      // Do NOT change map center/zoom when deselecting a company
     }
   };
 
-  const handleLeaderboardCompanyClick = async (companyName: string, companyId?: string) => {
-    // Mark that we're starting a company selection
+  const handleLeaderboardCompanyClick = (companyName: string, companyId?: string) => {
     companySelectionInProgressRef.current = true;
-    
-    // Preserve all existing filters when selecting a company from leaderboard
-    setCompany(companyName);
-    setCompanyId(companyId || null);
-    setSidebarView("directory"); // Keep directory open to show selected company
-    setProperty(null); // Close property panel when selecting a different company
-    // Don't clear center/zoom here - let the company selection effect handle it
-    
-    // Fetch the company's total property count
-    await fetchCompanyPropertyCount(companyName);
+    const found = companies.find(
+      (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
+    );
+    setCompany(
+      found ??
+        ({
+          id: companyId ?? "",
+          companyName,
+          propertyCount: 0,
+          propertiesSoldCount: 0,
+          propertiesSoldCountAllTime: 0,
+        } as CompanyContactWithCounts)
+    );
+    setSidebarView("directory");
+    setProperty(null);
   };
 
-  const handleCompanyNameClick = async (companyName: string, companyId?: string, keepPanelOpen?: boolean) => {
-    // Mark that we're starting a company selection
+  const handleCompanyNameClick = (companyName: string, companyId?: string, keepPanelOpen?: boolean) => {
     companySelectionInProgressRef.current = true;
-    
-    // Open the directory and select the company
-    setCompany(companyName);
-    setCompanyId(companyId || null);
+    const found = companies.find(
+      (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
+    );
+    setCompany(
+      found ??
+        ({
+          id: companyId ?? "",
+          companyName,
+          propertyCount: 0,
+          propertiesSoldCount: 0,
+          propertiesSoldCountAllTime: 0,
+        } as CompanyContactWithCounts)
+    );
     setSidebarView("directory");
-    // Only close property panel if not clicking from within the panel itself
     if (!keepPanelOpen) {
       setProperty(null);
     }
-    // Don't clear center/zoom here - let the company selection effect handle it
-    
-    // Fetch the company's total property count
-    await fetchCompanyPropertyCount(companyName);
-    // The CompanyDirectory component will auto-scroll to the selected company
   };
 
 

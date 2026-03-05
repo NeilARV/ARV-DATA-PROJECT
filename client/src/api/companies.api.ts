@@ -1,11 +1,14 @@
-const fetchCompanyContacts = async () => {
-    const response = await fetch(`/api/companies/contacts`, {
-        credentials: "include",
-    });
+import type { CompanyContactWithCounts } from "@/types/companies";
 
-    if (response.ok) {
-        return response.json();
-    }
+export async function fetchCompanyContacts(county?: string): Promise<CompanyContactWithCounts[] | null> {
+  const query = county ? `?county=${encodeURIComponent(county)}` : "";
+  const response = await fetch(`/api/companies/contacts${query}`, {
+    credentials: "include",
+  });
 
-    return null;
+  if (response.ok) {
+    return response.json();
+  }
+
+  return null;
 }

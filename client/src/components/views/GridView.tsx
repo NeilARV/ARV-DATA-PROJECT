@@ -132,10 +132,10 @@ export default function GridView({
         </div>
         </div>
         {/* Row 2: filter links on their own line so they don't affect row 1 layout */}
-        {(company || hasActiveFilters) && (
+        {(company?.companyName || hasActiveFilters) && (
           <p className="text-muted-foreground mt-1.5">
             <span className="flex items-center gap-2 flex-wrap">
-              {company && (
+              {company?.companyName && (
                 <button
                   onClick={onClearCompanyFilter}
                   className="text-primary hover:underline text-sm"
@@ -144,7 +144,7 @@ export default function GridView({
                   Deselect Company
                 </button>
               )}
-              {company && hasActiveFilters && (
+              {company?.companyName && hasActiveFilters && (
                 <span className="text-muted-foreground">•</span>
               )}
               {hasActiveFilters && (

@@ -238,17 +238,17 @@ export function matchesFiltersForPin(
   zipCodeList: ZipCodeListEntry[],
 ): boolean {
 
-  const { company, companyId } = useCompanies();
+  const { company } = useCompanies();
   const { filters } = useFilters();
 
-  if (!matchesCompanyForPin(pin, companyId, company))
+  if (!matchesCompanyForPin(pin, company?.id ?? null, company?.companyName ?? null))
     return false;
   if (!matchesPrice(pin, filters)) return false;
   if (!matchesBedrooms(pin, filters)) return false;
   if (!matchesBathrooms(pin, filters)) return false;
   if (!matchesPropertyType(pin, filters)) return false;
   if (!matchesLocation(pin.zipcode, filters, zipCodeList)) return false;
-  if (!matchesStatusWithWholesale(pin, filters, companyId))
+  if (!matchesStatusWithWholesale(pin, filters, company?.id ?? null))
     return false;
   return true;
 }
@@ -258,17 +258,17 @@ export function matchesFiltersForProperty(
   zipCodeList: ZipCodeListEntry[],
 ): boolean {
 
-  const { company, companyId } = useCompanies();
+  const { company } = useCompanies();
   const { filters } = useFilters();
 
-  if (!matchesCompanyForProperty(property, companyId, company))
+  if (!matchesCompanyForProperty(property, company?.id ?? null, company?.companyName ?? null))
     return false;
   if (!matchesPrice(property, filters)) return false;
   if (!matchesBedrooms(property, filters)) return false;
   if (!matchesBathrooms(property, filters)) return false;
   if (!matchesPropertyType(property, filters)) return false;
   if (!matchesLocation(property.zipCode, filters, zipCodeList)) return false;
-  if (!matchesStatusWithWholesale(property, filters, companyId))
+  if (!matchesStatusWithWholesale(property, filters, company?.id ?? null))
     return false;
   return true;
 }

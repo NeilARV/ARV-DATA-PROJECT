@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { queryClient } from "@/lib/queryClient";
 import UpdateDialog from "@/components/modals/UpdateDialog";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
@@ -46,19 +45,13 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   const { filters, setFilters } = useFilters();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
-  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
-  const { company, companyId } = useCompanies();
-
-  // Keep expanded state in sync with parent's company so it persists across view switches
-  useEffect(() => {
-    setExpandedCompany(company ?? null);
-  }, [company]);
+  const { company, setCompany, companies, isLoadingCompanies: isLoading, loadCompanies } = useCompanies();
 
   // Sync local status filter UI when context filters change
   useEffect(() => {
@@ -73,8 +66,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
   // When deselected: revert to feed-specific status (wholesale feed → wholesale only; buyers feed → in-renovation + wholesale; map/grid/table → in-renovation only).
   useEffect(() => {
     const hadSelection = previousExpandedCompanyRef.current != null;
-    const hasSelection = expandedCompany != null;
-    previousExpandedCompanyRef.current = expandedCompany;
+    const hasSelection = company != null;
+    previousExpandedCompanyRef.current = company?.companyName ?? null;
 
     if (hasSelection) {
       setStatusFilters(new Set(ALL_STATUS_FILTERS));
@@ -89,38 +82,23 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
       setStatusFilters(new Set(statuses));
       setFilters({ ...filters, statusFilters: statuses });
     }
-  }, [expandedCompany, view]);
+  }, [company, view]);
 
-  // Scroll the selected/expanded company into view when it changes
+  // Scroll the selected company into view when it changes
   useEffect(() => {
-    if (expandedCompany) {
-      const el = itemRefs.current[expandedCompany];
+    const companyName = company?.companyName;
+    if (companyName) {
+      const el = itemRefs.current[companyName];
       if (el) {
-        // Slight timeout to ensure element is rendered and layout is settled
         setTimeout(() => {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 0);
       }
     }
-  }, [expandedCompany]);
+  }, [company?.id]);
   const { toast } = useToast();
 
-  // Fetch companies with property counts (calculated server-side from ALL properties)
-  const countyQueryParam = filters.county ? `?county=${encodeURIComponent(filters.county)}` : "";
-  const { data: companies = [], isLoading } = useQuery<CompanyContactWithCounts[]>({
-    queryKey: [`/api/companies/contacts${countyQueryParam}`],
-    queryFn: async () => {
-      const res = await fetch(`/api/companies/contacts${countyQueryParam}`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch companies: ${res.status}`);
-      }
-      return res.json();
-    },
-  });
-
-  // Companies already have counts from the API, so we can use them directly
+  // Companies from hook (loaded by Home when directory is open, with county filter)
   const companiesWithCounts = companies;
 
   const filteredCompanies = useMemo(() => {
@@ -163,10 +141,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     return filtered;
   }, [companiesWithCounts, searchQuery, sortBy]);
 
-  // Resolve the expanded company ID: from list when company is in filtered list, else from parent prop (e.g. PropertyDetailPanel, modal, card)
-  const expandedCompanyId = expandedCompany
-    ? (filteredCompanies.find((c) => c.companyName === expandedCompany)?.id ?? companyId ?? null)
-    : null;
+  const expandedCompanyId = company?.id ?? null;
 
   // Fetch company details by ID when expanded (dropdown, auto-scroll from property panel, modal, card, etc.)
   const { data: expandedCompanyDetail } = useQuery<CompanyContactDetail>({
@@ -190,15 +165,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
     return rankings;
   }, [companiesWithCounts]);
 
-  const handleCompanyClick = (company: CompanyContactWithCounts) => {
-    // Toggle expanded state and notify parent with the new state (null when collapsing)
-    setExpandedCompany(prev => {
-      const next = prev === company.companyName ? null : company.companyName;
-      if (onCompanySelect) {
-        onCompanySelect(next, next ? company.id : null);
-      }
-      return next;
-    });
+  const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
+    const next = company?.id === clickedCompany.id ? null : clickedCompany;
+    setCompany(next);
+    onCompanySelect?.(next);
   };
 
   return (
@@ -288,17 +258,17 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
             {searchQuery ? "No companies found" : "No companies in directory"}
           </div>
         ) : (
-          filteredCompanies.map((company, index) => {
-            const isExpanded = expandedCompany === company.companyName;
-            const profile = companyProfiles[company.companyName];
-            const ranking = companyRankings[company.companyName] || 0;
+          filteredCompanies.map((listCompany, index) => {
+            const isExpanded = company?.id === listCompany.id;
+            const profile = companyProfiles[listCompany.companyName];
+            const ranking = companyRankings[listCompany.companyName] || 0;
             
             return (
-              <div key={company.id} ref={(el) => (itemRefs.current[company.companyName] = el)}>
+              <div key={listCompany.id} ref={(el) => (itemRefs.current[listCompany.companyName] = el)}>
                 <Card
                   className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isExpanded ? 'ring-2 ring-primary' : ''}`}
-                  onClick={() => handleCompanyClick(company)}
-                  data-testid={`card-company-${company.id}`}
+                  onClick={() => handleCompanyClick(listCompany)}
+                  data-testid={`card-company-${listCompany.id}`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
@@ -311,24 +281,24 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                         <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
-                            {company.companyName}
+                            {listCompany.companyName}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && company.propertyCount > 0 && (
+                        {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && listCompany.propertyCount > 0 && (
                           <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
-                            {company.propertyCount} {company.propertyCount === 1 ? 'property' : 'properties'}
+                            {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
                           </div>
                         )}
-                        {sortBy === "most-sold-properties" && (company.propertiesSoldCount ?? 0) > 0 && (
+                        {sortBy === "most-sold-properties" && (listCompany.propertiesSoldCount ?? 0) > 0 && (
                           <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
-                            {company.propertiesSoldCount} sold
+                            {listCompany.propertiesSoldCount} sold
                           </div>
                         )}
-                        {sortBy === "most-sold-properties-all-time" && (company.propertiesSoldCountAllTime ?? 0) > 0 && (
+                        {sortBy === "most-sold-properties-all-time" && (listCompany.propertiesSoldCountAllTime ?? 0) > 0 && (
                           <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
-                            {company.propertiesSoldCountAllTime} sold
+                            {listCompany.propertiesSoldCountAllTime} sold
                           </div>
                         )}
                         {isExpanded ? (
@@ -340,10 +310,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                     </div>
                     
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {company.contactName && (
+                      {listCompany.contactName && (
                         <User className="w-3.5 h-3.5 flex-shrink-0" />
                       )}
-                      <span className="truncate" data-testid="text-contact-name">{company.contactName}</span>
+                      <span className="truncate" data-testid="text-contact-name">{listCompany.contactName}</span>
                     </div>
                   </div>
                 </Card>
@@ -353,7 +323,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                   <div 
                     className="mt-1 mb-2 ml-4 p-3 bg-muted/50 rounded-md border border-border space-y-3"
                     onClick={(e) => e.stopPropagation()}
-                    data-testid={`profile-${company.id}`}
+                    data-testid={`profile-${listCompany.id}`}
                   >
                     <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Investor Profile
@@ -363,7 +333,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                     <div className="flex items-center gap-2">
                       <Home className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        <span className="font-semibold text-foreground">{company.propertyCount}</span>
+                        <span className="font-semibold text-foreground">{listCompany.propertyCount}</span>
                         <span className="text-muted-foreground"> Properties Owned</span>
                       </span>
                     </div>
@@ -396,27 +366,27 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                       <span className="text-sm">
                         <span className="text-muted-foreground">Principal: </span>
                         <span className="font-medium text-foreground">
-                          {profile?.principal || company.contactName || "Not Available"}
+                          {profile?.principal || listCompany.contactName || "Not Available"}
                         </span>
                       </span>
                     </div>
                     
                     {/* Company Email */}
-                    {company.contactEmail && (
+                    {listCompany.contactEmail && (
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-primary" />
                         <span className="text-sm text-foreground">
-                          {company.contactEmail}
+                          {listCompany.contactEmail}
                         </span>
                       </div>
                     )}
                     
                     {/* Company Phone */}
-                    {company.phoneNumber && (
+                    {listCompany.phoneNumber && (
                       <div className="flex items-center gap-2">
                         <Phone className="w-4 h-4 text-primary" />
                         <span className="text-sm text-foreground">
-                          {company.phoneNumber}
+                          {listCompany.phoneNumber}
                         </span>
                       </div>
                     )}
@@ -475,7 +445,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                             <div className="h-20 w-full">
                               <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
-                                  data={expandedCompanyDetail.acquisition90DayByMonth.map((m) => ({
+                                  data={expandedCompanyDetail.acquisition90DayByMonth.map((m: { key: string; count: number }) => ({
                                     month: m.key,
                                     count: m.count,
                                   }))}
@@ -525,7 +495,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                           className="w-full"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditDialogCompanyId(company.id);
+                            setEditDialogCompanyId(listCompany.id);
                             setUpdateDialogOpen(true);
                           }}
                           data-testid="button-edit-company"
@@ -539,8 +509,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                           className="w-full"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigator.clipboard.writeText(company.companyName).then(() => {
-                              setCopiedCompanyId(company.id);
+                            navigator.clipboard.writeText(listCompany.companyName).then(() => {
+                              setCopiedCompanyId(listCompany.id);
                               toast({
                                 title: "Copied",
                                 description: "Company name copied to clipboard",
@@ -559,7 +529,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
                           }}
                           data-testid="button-copy-company-name"
                         >
-                          {copiedCompanyId === company.id ? (
+                          {copiedCompanyId === listCompany.id ? (
                             <>
                               <Check className="w-4 h-4 mr-2" />
                               Copied
@@ -590,8 +560,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters, onCompany
         }}
         companyId={editDialogCompanyId}
         onSuccess={() => {
-          // Optionally refresh the companies list
-          queryClient.invalidateQueries({ queryKey: ["/api/companies/contacts"] });
+          loadCompanies(filters.county);
         }}
       />
 

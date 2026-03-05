@@ -18,5 +18,6 @@ export type CompanyContactDetail = Company & {
 export type CompanyDirectoryProps = {
   onClose?: () => void;
   onSwitchToFilters?: () => void;
-  onCompanySelect?: (companyName: string | null, companyId?: string | null) => void;
-}
+  /** Called when user selects or deselects a company (pass full company or null). */
+  onCompanySelect?: (company: CompanyContactWithCounts | null) => void;
+};

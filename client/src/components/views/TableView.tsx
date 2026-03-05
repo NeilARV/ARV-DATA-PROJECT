@@ -16,6 +16,7 @@ export default function TableView({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { company } = useCompanies();
+  const selectedCompanyName = company?.companyName ?? null;
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -26,16 +27,16 @@ export default function TableView({
         <div>
           <h2 className="text-2xl font-semibold mb-1">
             {`${totalFilteredProperties} Properties`}
-            {company && (
+            {selectedCompanyName && (
               <span className="text-base font-normal text-muted-foreground ml-2">
-                owned by {company}
+                owned by {selectedCompanyName}
               </span>
             )}
           </h2>
-          {(company || hasActiveFilters) && (
+          {(selectedCompanyName || hasActiveFilters) && (
             <p className="text-muted-foreground">
               <span className="flex items-center gap-2 flex-wrap">
-                {company && (
+                {selectedCompanyName && (
                   <button
                     onClick={onClearCompanyFilter}
                     className="text-primary hover:underline text-sm"
@@ -44,7 +45,7 @@ export default function TableView({
                     Deselect Company
                   </button>
                 )}
-                {company && hasActiveFilters && (
+                {selectedCompanyName && hasActiveFilters && (
                   <span className="text-muted-foreground">•</span>
                 )}
                 {hasActiveFilters && (
