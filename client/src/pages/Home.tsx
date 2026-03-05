@@ -541,7 +541,7 @@ function HomeContent() {
 export default function Home() {
   return (
     <ViewProvider>
-      <FiltersProvider>+
+      <FiltersProvider>
         <HomeContent />
       </FiltersProvider>
     </ViewProvider>
