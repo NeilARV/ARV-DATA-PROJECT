@@ -122,7 +122,6 @@ export type PropertyMap = {
   onPropertyClick?: (mapPin: MapPin) => void;
   center?: [number, number];
   zoom?: number;
-  hasActiveFilters?: boolean;
   onClearFilters?: () => void;
   selectedProperty?: Property | null;
   isLoading?: boolean;

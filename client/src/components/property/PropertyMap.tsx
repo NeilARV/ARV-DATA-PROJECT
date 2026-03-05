@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { MAP_ZOOM_LOGO } from '@/constants/map.constants';
 import type { MapPin, PropertyMap } from '@/types/property';
+import { useFilters } from '@/hooks/useFilters';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -25,7 +26,7 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
-const purpleIcon = createColoredIcon('#9333EA'); // wholesale properties
+const purpleIcon = createColoredIcon('#9333EA');
 
 // Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
@@ -177,7 +178,6 @@ export default function PropertyMap({
   onPropertyClick, 
   center = [32.7157, -117.1611], 
   zoom = MAP_ZOOM_LOGO,
-  hasActiveFilters = false,
   onClearFilters,
   selectedProperty,
   isLoading = false,
@@ -186,6 +186,9 @@ export default function PropertyMap({
   onDeselectCompany,
   statusFilters = []
 }: PropertyMap) {
+
+  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
     p.latitude != null && p.longitude != null && 

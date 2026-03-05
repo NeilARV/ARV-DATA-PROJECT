@@ -122,7 +122,7 @@ function HomeContent() {
 
   // Reset filters to initial state (does not clear company selection; preserves county and state)
   const handleClearAllFilters = () => {
-    clearFilters({ county: filters.county ?? "San Diego" });
+    clearFilters({ county: filters.county});
   };
 
   // Calculate zip codes with property counts
@@ -514,7 +514,6 @@ function HomeContent() {
                     onPropertyClick={handleMapPinClick}
                     center={mapCenter}
                     zoom={mapZoom}
-                    hasActiveFilters={hasActiveFilters}
                     onClearFilters={handleClearAllFilters}
                     selectedProperty={selectedProperty}
                     isLoading={isLoadingMapPins}
