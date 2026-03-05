@@ -8,7 +8,6 @@ import GridView from "@/components/views/GridView";
 import TableView from "@/components/views/TableView";
 import PropertyDetailPanel from "@/components/property/PropertyDetailPanel";
 import PropertyDetailModal from "@/components/property/PropertyDetailModal";
-import UploadDialog from "@/components/modals/UploadDialog";
 import SignupDialog from "@/components/modals/SignupDialog";
 import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
@@ -40,7 +39,6 @@ import type { Property, MapPin } from "@/types/property";
 export default function Home() {
   const [viewMode, setViewMode] = useState<View>("map");
   const [sidebarView, setSidebarView] = useState<"filters" | "directory" | "none">("directory");
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [filters, setFilters] = useState<PropertyFilters>(getDefaultFilters());
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
@@ -657,12 +655,6 @@ export default function Home() {
           onCompanyNameClick={handleCompanyNameClick}
         />
       )}
-
-      <UploadDialog
-        open={showUploadDialog}
-        onClose={() => setShowUploadDialog(false)}
-        onSuccess={handleUploadSuccess}
-      />
 
       <SignupDialog
         open={showSignupDialog}
