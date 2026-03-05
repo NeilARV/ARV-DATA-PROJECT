@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar from "@/components/FilterSidebar";
@@ -17,7 +17,7 @@ import { queryClient } from "@/lib/queryClient";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
-import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
+import { useDialogs } from "@/hooks/useDialogs";
 import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
 import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
 import { useProperties } from "@/hooks/useProperties";
@@ -68,21 +68,13 @@ export default function Home() {
     hasDateSold: viewMode === "buyers-feed",
   });
 
-  const [showSignupDialog, setShowSignupDialog] = useState(false);
-  const [showLoginDialog, setShowLoginDialog] = useState(false);
-  const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
-  const [isDialogForced, setIsDialogForced] = useState(false);
-  
-  const { isAuthenticated } = useAuth();
-  const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
+  const {
+    signupDialogProps,
+    loginDialogProps,
+    leaderboardDialogProps,
+    headerDialogHandlers,
+  } = useDialogs();
   const companySelectionInProgressRef = useRef(false);
-
-  useEffect(() => {
-    if (shouldShowSignup && !isAuthenticated) {
-      setShowSignupDialog(true);
-      setIsDialogForced(isForced);
-    }
-  }, [shouldShowSignup, isAuthenticated, isForced]);
 
   useGeolocationMapCenter(setMapCenter, setMapZoom);
 
@@ -477,19 +469,9 @@ export default function Home() {
         onViewModeChange={handleViewModeChange}
         onPropertySelect={handlePropertySelectById}
         county={filters.county}
-        onLoginClick={() => {
-          // Header button click: user-initiated, so only force if already in forced state
-          // If not forced yet, allow dismissable dialog
-          setShowLoginDialog(true);
-          setShowSignupDialog(false);
-        }}
-        onSignupClick={() => {
-          // Header button click: user-initiated, so only force if already in forced state
-          // If not forced yet (before 1 minute), allow dismissable dialog
-          setShowSignupDialog(true);
-          setShowLoginDialog(false);
-        }}
-        onLeaderboardClick={() => setShowLeaderboardDialog(true)}
+        onLoginClick={headerDialogHandlers.onLoginClick}
+        onSignupClick={headerDialogHandlers.onSignupClick}
+        onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
         onBuyersFeedClick={handleBuyersFeedClick}
         onWholesaleClick={handleWholesaleClick}
         onLogoClick={handleLogoClick}
@@ -656,51 +638,12 @@ export default function Home() {
         />
       )}
 
-      <SignupDialog
-        open={showSignupDialog}
-        forced={isDialogForced}
-        onClose={() => {
-          // Only allow closing if not forced
-          if (!isDialogForced) {
-            setShowSignupDialog(false);
-            dismissPrompt();
-          }
-        }}
-        onSuccess={() => {
-          setShowSignupDialog(false);
-          setIsDialogForced(false);
-          dismissPrompt();
-        }}
-        onSwitchToLogin={() => {
-          // When switching, maintain forced state
-          setShowSignupDialog(false);
-          setShowLoginDialog(true);
-        }}
-      />
+      <SignupDialog {...signupDialogProps} />
 
-      <LoginDialog
-        open={showLoginDialog}
-        forced={isDialogForced}
-        onClose={() => {
-          // Only allow closing if not forced
-          if (!isDialogForced) {
-            setShowLoginDialog(false);
-          }
-        }}
-        onSuccess={() => {
-          setShowLoginDialog(false);
-          setIsDialogForced(false);
-        }}
-        onSwitchToSignup={() => {
-          // When switching, maintain forced state
-          setShowLoginDialog(false);
-          setShowSignupDialog(true);
-        }}
-      />
+      <LoginDialog {...loginDialogProps} />
 
       <LeaderboardDialog
-        open={showLeaderboardDialog}
-        onOpenChange={setShowLeaderboardDialog}
+        {...leaderboardDialogProps}
         onCompanyClick={handleLeaderboardCompanyClick}
         onZipCodeClick={handleLeaderboardZipCodeClick}
         county={filters.county}
