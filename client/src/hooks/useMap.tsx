@@ -1,4 +1,5 @@
 import { createContext, useState, useMemo, useEffect, useRef, ReactNode, useContext } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { MapPin } from "@/types/property";
 import { COUNTIES } from "@/constants/filters.constants";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
@@ -17,9 +18,11 @@ import {
   countyNameToKey,
   getDefaultMapCenter,
 } from "@/lib/county";
-import { cityMatchesFilter } from "@/lib/propertyFilters";
+import { cityMatchesFilter, matchesFiltersForPin } from "@/lib/propertyFilters";
+import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { useCompanies } from "./useCompanies";
 import { useFilters } from "./useFilters";
+import { useView } from "./useView";
 
 export type MapContextValue = {
   mapCenter: [number, number] | undefined;
@@ -58,31 +61,91 @@ export function MapProvider({ children }: MapProviderProps) {
 }
 
 export type UseGeoMapOptions = {
-  /** When provided, syncs map center/zoom from filters and company selection (geolocation, zip/city/county, company pins). */
+  /** When true, fetches map pins (when view === "map"), computes filteredMapPins, runs sync effects, and returns mapPins, filteredMapPins, isLoadingMapPins. */
+  fetchMapPins?: boolean;
+};
+
+export type UseGeoMapResult = MapContextValue & {
+  mapPins?: MapPin[];
   filteredMapPins?: MapPin[];
+  isLoadingMapPins?: boolean;
 };
 
 /**
- * Returns map center and zoom state. When called with `{ filteredMapPins }`, also runs:
- * - Geolocation once on mount (user location or default county)
- * - Filter-based center/zoom when zip, city, or county filter changes
- * - Company-based center/zoom when a company is selected
+ * Returns map center and zoom state. When called with `{ fetchMapPins: true }`, also:
+ * - Fetches map pins from the API (when view === "map")
+ * - Computes filteredMapPins from filters/company
+ * - Runs geolocation once, filter-based and company-based center/zoom sync
+ * - Returns mapPins, filteredMapPins, isLoadingMapPins
  */
-export function useGeoMap(options?: UseGeoMapOptions): MapContextValue {
+export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
   const ctx = useContext(MapContext);
   if (!ctx) {
     throw new Error("useGeoMap must be used within a MapProvider");
   }
 
   const { setMapCenter, setMapZoom } = ctx;
-  const filteredMapPins = options?.filteredMapPins ?? [];
   const { company, companySelectionInProgressRef } = useCompanies();
   const { filters } = useFilters();
+  const { view } = useView();
   const geolocationAttemptedRef = useRef(false);
+
+  const fetchMapPins = options?.fetchMapPins === true;
+
+  // Map pins URL and fetch (only when fetchMapPins and view === "map")
+  const mapPinsQueryUrl = useMemo(() => {
+    if (!fetchMapPins) return "";
+    const queryString = buildPropertyQueryParams(filters, {
+      forMapPins: true,
+      page: 1,
+      limit: "10",
+    });
+    return `/api/properties/map${queryString}`;
+  }, [fetchMapPins, filters.county, filters.statusFilters, company?.id]);
+
+  const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
+    queryKey: [mapPinsQueryUrl],
+    queryFn: async () => {
+      const res = await fetch(mapPinsQueryUrl, { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to fetch map pins: ${res.status}`);
+      return res.json();
+    },
+    enabled: fetchMapPins && view === "map" && !!mapPinsQueryUrl,
+  });
+
+  // Zip code list for filtering pins (same logic as Home)
+  const zipCodeList = useMemo(() => {
+    if (!fetchMapPins) return [];
+    const countyName = filters.county ?? "San Diego";
+    const state = getStateFromCounty(countyName);
+    const countyKey = countyNameToKey(countyName);
+    let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
+    if (state === "CA") {
+      msaZipCodes =
+        countyName === "Los Angeles" || countyName === "Orange"
+          ? LOS_ANGELES_MSA_ZIP_CODES
+          : SAN_DIEGO_MSA_ZIP_CODES;
+    } else if (state === "CO") {
+      msaZipCodes = DENVER_MSA_ZIP_CODES;
+    } else {
+      msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+    }
+    const countyZipCodes = msaZipCodes[countyKey] ?? [];
+    return Array.isArray(countyZipCodes) ? countyZipCodes : [];
+  }, [fetchMapPins, filters.county]);
+
+  const filteredMapPins = useMemo(() => {
+    if (!fetchMapPins) return [];
+    return mapPins.filter((pin) =>
+      matchesFiltersForPin(pin, zipCodeList)
+    );
+  }, [fetchMapPins, mapPins, filters, company, zipCodeList]);
+
+  const syncActive = fetchMapPins;
 
   // Geolocation: once on mount when sync is active
   useEffect(() => {
-    if (options?.filteredMapPins === undefined) return;
+    if (!syncActive) return;
     if (geolocationAttemptedRef.current) return;
     geolocationAttemptedRef.current = true;
 
@@ -139,7 +202,7 @@ export function useGeoMap(options?: UseGeoMapOptions): MapContextValue {
 
   // Filter-based center/zoom: when zip, city, county, or company (clear) change. Skip when company selected or selection in progress.
   useEffect(() => {
-    if (options?.filteredMapPins === undefined) return;
+    if (!syncActive) return;
 
     const applyLocationFromFilters = async () => {
       if (company || companySelectionInProgressRef.current) return;
@@ -236,7 +299,7 @@ export function useGeoMap(options?: UseGeoMapOptions): MapContextValue {
 
   // Company-based center/zoom: when company is selected and we have pins
   useEffect(() => {
-    if (options?.filteredMapPins === undefined) return;
+    if (!syncActive) return;
 
     if (!company) {
       companySelectionInProgressRef.current = false;
@@ -293,5 +356,13 @@ export function useGeoMap(options?: UseGeoMapOptions): MapContextValue {
     companySelectionInProgressRef.current = false;
   }, [company, filteredMapPins]);
 
+  if (fetchMapPins) {
+    return {
+      ...ctx,
+      mapPins,
+      filteredMapPins,
+      isLoadingMapPins,
+    };
+  }
   return ctx;
 }

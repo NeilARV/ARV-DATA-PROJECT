@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterSidebar from "@/components/FilterSidebar";
 import CompanyDirectory from "@/components/CompanyDirectory";
@@ -13,9 +12,8 @@ import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
-import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
-import { matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
+import { matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
@@ -33,6 +31,13 @@ function HomeContent() {
   const { view, sidebarView, setSidebarView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
   const { company, loadCompanies } = useCompanies();
+  const {
+    setMapCenter,
+    setMapZoom,
+    mapPins = [],
+    filteredMapPins = [],
+    isLoadingMapPins = false,
+  } = useGeoMap({ fetchMapPins: true });
   const {
     properties,
     propertiesHasMore,
@@ -54,32 +59,6 @@ function HomeContent() {
     leaderboardDialogProps,
     headerDialogHandlers,
   } = useDialogs();
-
-  // Build the API URL for map pins (minimal data for map view)
-  const mapPinsQueryUrl = useMemo(() => {
-    const queryString = buildPropertyQueryParams(filters, {
-      forMapPins: true,
-      page: 1,
-      limit: "10",
-    });
-    return `/api/properties/map${queryString}`;
-  }, [filters.county, filters.statusFilters, company?.id]);
-
-
-  // Fetch map pins (minimal data) for map view
-  const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
-    queryKey: [mapPinsQueryUrl],
-    queryFn: async () => {
-      const res = await fetch(mapPinsQueryUrl, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch map pins: ${res.status}`);
-      }
-      return res.json();
-    },
-    enabled: view === "map", // Only fetch when in map view
-  });
 
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
@@ -126,20 +105,6 @@ function HomeContent() {
     // Return the array or empty array if county not found
     return Array.isArray(countyZipCodes) ? countyZipCodes : [];
   }, [filters.county]);
-
-  // Filter map pins for map view (using minimal data)
-  const filteredMapPins = useMemo(
-    () =>
-      mapPins.filter((pin) =>
-        matchesFiltersForPin(
-          pin,
-          zipCodeList,
-        )
-      ),
-    [mapPins, filters, company, zipCodeList]
-  );
-
-  const { setMapCenter, setMapZoom } = useGeoMap({ filteredMapPins });
 
   const propertiesToFilter = properties;
 
