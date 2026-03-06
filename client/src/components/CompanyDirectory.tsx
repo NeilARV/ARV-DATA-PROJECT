@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
 import { useView } from "@/hooks/useView";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -42,18 +43,72 @@ const companyProfiles: Record<string, {
   // Add more company profiles here as needed
 };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export default function CompanyDirectory({ onClose, onSwitchToFilters }: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<DirectorySortOption>("most-properties");
+  const [searchInput, setSearchInput] = useState("");
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
-  const { company, setCompany, companies, isLoadingCompanies: isLoading, loadCompanies, companySelectionInProgressRef } = useCompanies();
+  const {
+    company,
+    setCompany,
+    companies,
+    total,
+    hasMore,
+    isLoadingCompanies: isLoading,
+    isLoadingMoreCompanies: isLoadingMore,
+    directorySort: sortBy,
+    directorySearch,
+    setDirectorySort,
+    setDirectorySearch,
+    loadCompanies,
+    loadMoreCompanies,
+    companySelectionInProgressRef,
+    ensuredCompany,
+  } = useCompanies();
   const { setProperty } = useProperty();
+  const scrollSentinelRef = useRef<HTMLDivElement>(null);
+  const listScrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Sync local search input with context (for controlled input) and debounce server search
+  useEffect(() => {
+    setSearchInput(directorySearch);
+  }, [directorySearch]);
+
+  const debouncedSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(value);
+      if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+      debouncedSearchRef.current = setTimeout(() => {
+        loadCompanies({ search: value });
+        debouncedSearchRef.current = null;
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    [loadCompanies]
+  );
+
+  const handleSortChange = useCallback(
+    (sort: DirectorySortOption) => {
+      loadCompanies({ sort });
+    },
+    [loadCompanies]
+  );
+
+  useInfiniteScroll({
+    ref: scrollSentinelRef,
+    hasMore,
+    loading: isLoadingMore,
+    onLoadMore: loadMoreCompanies,
+    enabled: !isLoading,
+    useScrollableRoot: true,
+    deps: [companies.length],
+  });
 
   // Sync local status filter UI when context filters change
   useEffect(() => {
@@ -86,62 +141,30 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
     }
   }, [company, view]);
 
-  // Scroll the selected company into view when it changes
+  // Scroll the selected company into view when it changes. When it's the ensured company (just loaded from panel/modal/wholesale), scroll list to top so it's visible.
   useEffect(() => {
     const companyName = company?.companyName;
-    if (companyName) {
+    if (!companyName) return;
+    const isEnsured = ensuredCompany != null && company.id === ensuredCompany.id;
+    setTimeout(() => {
+      if (isEnsured && listScrollContainerRef.current) {
+        listScrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      }
       const el = itemRefs.current[companyName];
       if (el) {
-        setTimeout(() => {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-        }, 0);
+        el.scrollIntoView({ behavior: "smooth", block: isEnsured ? "start" : "center" });
       }
-    }
-  }, [company?.id]);
+    }, 0);
+  }, [company?.id, company?.companyName, ensuredCompany?.id]);
   const { toast } = useToast();
 
-  // Companies from hook (loaded by Home when directory is open, with county filter)
-  const companiesWithCounts = companies;
-
-  const filteredCompanies = useMemo(() => {
-    let filtered = companiesWithCounts.filter(company => {
-      // Search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesSearch = (
-          company.companyName.toLowerCase().includes(query) ||
-          company?.contactName?.toLowerCase().includes(query) ||
-          (company.contactEmail && company.contactEmail.toLowerCase().includes(query))
-        );
-        if (!matchesSearch) return false;
-      }
-      
-      return true;
-    });
-
-    // Apply sorting
-    filtered = [...filtered].sort((a, b) => {
-      switch (sortBy) {
-        case "alphabetical":
-          return a.companyName.localeCompare(b.companyName);
-        case "most-properties":
-          return b.propertyCount - a.propertyCount;
-        case "fewest-properties":
-          return a.propertyCount - b.propertyCount;
-        case "most-sold-properties":
-          return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
-        case "most-sold-properties-all-time":
-          return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
-        case "new-buyers":
-          // Sort by property count (fallback since we don't have recentMonthPurchases)
-          return b.propertyCount - a.propertyCount;
-        default:
-          return 0;
-      }
-    });
-
-    return filtered;
-  }, [companiesWithCounts, searchQuery, sortBy]);
+  // Display list: ensured company (from panel/modal selection) when not already in paginated list, then companies
+  const displayList = useMemo(() => {
+    if (ensuredCompany && !companies.some((c) => c.id === ensuredCompany.id)) {
+      return [ensuredCompany, ...companies];
+    }
+    return companies;
+  }, [ensuredCompany, companies]);
 
   const expandedCompanyId = company?.id ?? null;
 
@@ -157,15 +180,11 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
     enabled: !!expandedCompanyId,
   });
 
-  // Calculate rankings based on property count (sorted by most properties)
-  const companyRankings = useMemo(() => {
-    const sorted = [...companiesWithCounts].sort((a, b) => b.propertyCount - a.propertyCount);
-    const rankings: Record<string, number> = {};
-    sorted.forEach((company, index) => {
-      rankings[company.companyName] = index + 1;
-    });
-    return rankings;
-  }, [companiesWithCounts]);
+  // Rank in list (backend returns sorted; position = rank for this view)
+  const getRank = useCallback((index: number, listCompany: CompanyContactWithCounts) => {
+    if (ensuredCompany && listCompany.id === ensuredCompany.id) return undefined;
+    return index + 1;
+  }, [ensuredCompany]);
 
   const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
     const next = company?.id === clickedCompany.id ? null : clickedCompany;
@@ -176,6 +195,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
     } else {
       companySelectionInProgressRef.current = false;
       setCompany(null);
+      // If directory was opened via wholesaler/panel/modal click, we may have skipped the initial load; load now so list isn't empty
+      if (companies.length === 0) {
+        loadCompanies();
+      }
     }
   };
 
@@ -213,22 +236,25 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
           <Input
             type="text"
             placeholder="Search companies or contacts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9"
             data-testid="input-directory-search"
           />
-          {searchQuery && (
-            <X 
+          {searchInput && (
+            <X
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors"
-              onClick={() => setSearchQuery("")}
+              onClick={() => {
+                setSearchInput("");
+                loadCompanies({ search: "" }); // explicitly load all so context directorySearch and list update
+              }}
             />
           )}
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
-          <Select value={sortBy} onValueChange={(value) => setSortBy(value as DirectorySortOption)}>
+          <Select value={sortBy} onValueChange={(value) => handleSortChange(value as DirectorySortOption)}>
             <SelectTrigger className="h-8 text-sm" data-testid="select-directory-sort">
               <SelectValue />
             </SelectTrigger>
@@ -256,20 +282,20 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={listScrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoading ? (
           <div className="text-center text-muted-foreground py-8">
             Loading companies...
           </div>
-        ) : filteredCompanies.length === 0 ? (
+        ) : displayList.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
-            {searchQuery ? "No companies found" : "No companies in directory"}
+            {directorySearch ? "No companies found" : "No companies in directory"}
           </div>
         ) : (
-          filteredCompanies.map((listCompany, index) => {
+          displayList.map((listCompany, index) => {
             const isExpanded = company?.id === listCompany.id;
             const profile = companyProfiles[listCompany.companyName];
-            const ranking = companyRankings[listCompany.companyName] || 0;
+            const ranking = getRank(index, listCompany);
             
             return (
               <div key={listCompany.id} ref={(el) => (itemRefs.current[listCompany.companyName] = el)}>
@@ -281,9 +307,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2 flex-1 min-w-0">
-                        {(sortBy === "most-properties" || sortBy === "most-sold-properties" || sortBy === "most-sold-properties-all-time") && index < 25 && (
-                          <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${index + 1}`}>
-                            {index + 1}.
+                        {(sortBy === "most-properties" || sortBy === "most-sold-properties" || sortBy === "most-sold-properties-all-time") && ranking != null && (
+                          <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${ranking}`}>
+                            {ranking}.
                           </span>
                         )}
                         <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -364,7 +390,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                       <Trophy className="w-4 h-4 text-primary" />
                       <span className="text-sm">
                         <span className="text-muted-foreground">Market Ranking: </span>
-                        <span className="font-bold text-primary">#{ranking}</span>
+                        <span className="font-bold text-primary">{ranking != null ? `#${ranking}` : "—"}</span>
                       </span>
                     </div>
                     
@@ -557,6 +583,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
             );
           })
         )}
+        {hasMore && <div ref={scrollSentinelRef} className="h-4 flex-shrink-0" aria-hidden />}
+        {isLoadingMore && (
+          <div className="text-center text-muted-foreground py-4 text-sm">Loading more...</div>
+        )}
       </div>
 
       {/* Update Company Dialog */}
@@ -574,7 +604,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
 
       <div className="p-4 border-t border-border">
         <div className="text-xs text-muted-foreground text-center">
-          {filteredCompanies.length} {filteredCompanies.length === 1 ? 'company' : 'companies'}
+          {total} {total === 1 ? "company" : "companies"}
         </div>
       </div>
     </div>

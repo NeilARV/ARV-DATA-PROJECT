@@ -24,16 +24,17 @@ import { PropertyProvider } from "@/hooks/useProperty";
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
-  const { loadCompanies } = useCompanies();
+  const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
   const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
 
-  // Load companies when directory is open (with county filter)
+  // Load companies when directory is open (with county filter). Skip when user just clicked a company
+  // (e.g. wholesaler in grid, or company in property panel/modal) so that company can be shown via ensuredCompany.
   useEffect(() => {
-    if (sidebarView === "directory") {
+    if (sidebarView === "directory" && !companySelectionInProgressRef.current) {
       loadCompanies();
     }
-  }, [sidebarView, filters.county, loadCompanies]);
+  }, [sidebarView, filters.county, loadCompanies, companySelectionInProgressRef]);
 
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
