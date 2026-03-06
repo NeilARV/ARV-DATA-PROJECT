@@ -29,6 +29,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useProperty } from "@/hooks/useProperty";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export default function Header({
   onSearch,
@@ -36,13 +37,14 @@ export default function Header({
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
-  onLogoClick,
+  handleLogoClick,
   county,
 }: HeaderProps) {
 
-  const { setFilters } = useFilters();
-  const { view, setView } = useView();
+  const { setFilters, setSortBy } = useFilters();
+  const { view, setView, setSidebarView } = useView();
   const { setProperty } = useProperty();
+  const { setCompany } = useCompanies();
 
   const [searchQuery, setSearchQuery] = useState("");
   // Initialize isDark synchronously to avoid wrong logo on first render
@@ -208,6 +210,18 @@ export default function Header({
   const onTableViewClick = async () => {
     setProperty(null);
     setView("table")
+  }
+
+  const onLogoClick = async () => {
+    setView("map")
+    setSidebarView("directory")
+    setCompany(null)
+    setProperty(null)
+    setSortBy("recently-sold")
+
+    if (handleLogoClick) {
+      handleLogoClick()
+    }
   }
 
   return (

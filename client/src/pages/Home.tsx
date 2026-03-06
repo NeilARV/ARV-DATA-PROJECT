@@ -180,14 +180,8 @@ function HomeContent() {
   };
 
   const handleLogoClick = () => {
-    // Reset everything to default state (like first visit)
-    setView("map");
-    setSidebarView("directory");
-    setCompany(null);
-    setProperty(null);
     setMapCenter(undefined);
     setMapZoom(MAP_ZOOM_LOGO);
-    setSortBy("recently-sold");
   };
 
   // Handle property selection by ID (for search suggestions)
@@ -233,7 +227,7 @@ function HomeContent() {
         onLoginClick={headerDialogHandlers.onLoginClick}
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
-        onLogoClick={handleLogoClick}
+        handleLogoClick={handleLogoClick}
       />
 
       <div className="flex-1 flex overflow-hidden">
