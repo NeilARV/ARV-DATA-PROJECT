@@ -15,21 +15,19 @@ import { Filter, Building2 } from "lucide-react";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
-import { useProperties } from "@/hooks/useProperties";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import type { Property, MapPin } from "@/types/property";
 import { ViewProvider, useView } from "@/hooks/useView";
-import { PropertyProvider, useProperty } from "@/hooks/useProperty";
+import { PropertiesProvider, useProperties } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
 
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
-  const { property, setProperty } = useProperty();
+  const { property, properties, setProperty } = useProperties();
   const { loadCompanies } = useCompanies();
   const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
-  const { properties } = useProperties();
 
   // Load companies when directory is open (with county filter)
   useEffect(() => {
@@ -233,11 +231,11 @@ export default function Home() {
     <ViewProvider>
       <MapProvider>
         <FiltersProvider>
-          <PropertyProvider>
-            <CompaniesProvider>
+          <CompaniesProvider>
+            <PropertiesProvider>
               <HomeContent />
-            </CompaniesProvider>
-          </PropertyProvider>
+            </PropertiesProvider>
+          </CompaniesProvider>
         </FiltersProvider>
       </MapProvider>
     </ViewProvider>

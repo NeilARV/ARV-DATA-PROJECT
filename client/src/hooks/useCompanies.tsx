@@ -3,7 +3,6 @@ import type { CompanyContactWithCounts } from "@/types/companies";
 import { fetchCompanyContacts } from "@/api/companies.api";
 import { useFilters } from "./useFilters";
 import { useView } from "./useView";
-import { useProperty } from "./useProperty";
 
 export type CompaniesContextValue = {
   company: CompanyContactWithCounts | null;
@@ -25,7 +24,6 @@ type CompanyProviderProps = {
 export function CompaniesProvider({ children }: CompanyProviderProps) {
   const { filters } = useFilters();
   const { setSidebarView } = useView();
-  const { setProperty } = useProperty();
   const [company, setCompany] = useState<CompanyContactWithCounts | null>(null);
   const [companies, setCompaniesState] = useState<CompanyContactWithCounts[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
@@ -41,7 +39,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     }
   }, [filters.county]);
 
-  const handleCompanyClick = (companyName: string, companyId: string | null, keepPanelOpen?: boolean) => {
+  const handleCompanyClick = (companyName: string, companyId: string | null, _keepPanelOpen?: boolean) => {
     companySelectionInProgressRef.current = true;
     const found = companies.find(
       (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
@@ -57,9 +55,8 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         } as CompanyContactWithCounts)
     );
     setSidebarView("directory");
-    if (!keepPanelOpen) {
-      setProperty(null);
-    }
+    // Callers that want to clear the property detail panel call setProperty(null) themselves
+    // (CompaniesProvider cannot use useProperties because it must wrap PropertiesProvider in the tree)
   }
 
   const value: CompaniesContextValue = {

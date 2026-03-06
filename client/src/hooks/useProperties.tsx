@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect, type RefObject } from "react";
+import { useState, useEffect, createContext, useRef, useContext, ReactNode, useMemo, type RefObject  } from "react";
+import { fetchPropertyById } from "@/api/properties.api";
 import { useQuery } from "@tanstack/react-query";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
@@ -18,30 +19,31 @@ export type PropertiesResponse = {
     hasMore: boolean;
 };
 
-export type UsePropertiesResult = {
-    /** Accumulated list of properties (for grid/table/wholesale views) */
+type PropertiesContextValue = {
+    property: Property | null,
+    setProperty: (property: Property | null) => void;
+    fetchProperty: (propertyId: string) => void;
     properties: Property[];
     propertiesHasMore: boolean;
     isLoadingMoreProperties: boolean;
     loadMorePropertiesRef: RefObject<HTMLDivElement | null>;
     isLoading: boolean;
     isFetching: boolean;
-    /** Raw API response (for total count, etc.) */
     propertiesResponse: PropertiesResponse | undefined;
     totalProperties: number;
-    /** Stable total count (avoids flashing 0 during loading) */
     stablePropertyCount: number;
-    /** Stable company count (avoids flashing 0 when refetching) */
     stableCompanyPropertyCount: number;
-};
+}
+
+const PropertiesContext = createContext<PropertiesContextValue | null>(null)
+
+type PropertiesProviderProps = {
+    children: ReactNode,
+}
 
 const propertiesListEnabled = (view: string) => view === "grid" || view === "table" || view === "wholesale" || view === "buyers-feed";
 
-/**
- * Fetches and accumulates paginated properties for grid/table/wholesale views.
- * Handles query params, useQuery, accumulation (page 1 replace, page > 1 append/dedupe), and useInfiniteScroll.
- */
-export function useProperties(): UsePropertiesResult {
+export function PropertiesProvider({children}: PropertiesProviderProps) {
     
     const { company } = useCompanies();
     const { view } = useView();
@@ -52,9 +54,14 @@ export function useProperties(): UsePropertiesResult {
     const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
     const [stablePropertyCount, setStablePropertyCount] = useState(0);
     const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState(0);
+    const [ property, setProperty ] = useState<Property | null>(null)
     const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
-
     const hasDateSold = view === 'buyers-feed';
+
+    const fetchProperty = async (propertyId: string) => {
+        const prop = await fetchPropertyById(propertyId)
+        setProperty(prop)
+    }
 
     // Reset pagination when filters, sort, or company change so we fetch page 1 of the new result set.
     useEffect(() => {
@@ -91,9 +98,9 @@ export function useProperties(): UsePropertiesResult {
         if (view === "map") return 0;
         const propertiesTotal = propertiesResponse?.total;
         return isLoading && propertiesTotal === undefined
-          ? stablePropertyCount
-          : (propertiesTotal ?? stablePropertyCount);
-      }, [view, propertiesResponse, isLoading, stablePropertyCount]);
+            ? stablePropertyCount
+            : (propertiesTotal ?? stablePropertyCount);
+        }, [view, propertiesResponse, isLoading, stablePropertyCount]);
 
     // Accumulate paginated results: page 1 replaces list, page > 1 appends and dedupes by id.
     useEffect(() => {
@@ -139,9 +146,9 @@ export function useProperties(): UsePropertiesResult {
             setStableCompanyPropertyCount(0);
         }
     }, [company]);
-
-
-      // Get the appropriate zip code list based on state and county filter
+    
+    
+        // Get the appropriate zip code list based on state and county filter
     const zipCodeList = useMemo(() => {
         const countyName = filters.county ?? 'San Diego';
         const state = getStateFromCounty(countyName);
@@ -172,15 +179,18 @@ export function useProperties(): UsePropertiesResult {
         return Array.isArray(countyZipCodes) ? countyZipCodes : [];
     }, [filters.county]);
 
-      // Filter full properties for grid/table views
-      const filteredProperties = allProperties.filter((property) =>
+        // Filter full properties for grid/table views
+        const filteredProperties = allProperties.filter((property) =>
         matchesFiltersForProperty(
-          property,
-          zipCodeList,
+            property,
+            zipCodeList,
         )
-      );
+    );
 
-    return {
+    const value = {
+        property,
+        setProperty,
+        fetchProperty,
         properties: filteredProperties,
         propertiesHasMore,
         isLoadingMoreProperties,
@@ -190,6 +200,21 @@ export function useProperties(): UsePropertiesResult {
         propertiesResponse,
         totalProperties,
         stablePropertyCount,
-        stableCompanyPropertyCount,
-    };
+        stableCompanyPropertyCount
+    }
+
+    return (
+        <PropertiesContext.Provider value={value}>{children}</PropertiesContext.Provider>
+    )
+}
+
+export function useProperties(): PropertiesContextValue {
+
+    const ctx = useContext(PropertiesContext)
+    
+    if (!ctx) {
+        throw new Error(`Trouble getting property`)
+    }
+    
+    return ctx
 }

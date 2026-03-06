@@ -26,7 +26,7 @@ import {
 } from "@/constants/propertyStatus.constants";
 import { useView } from "@/hooks/useView";
 import { useCompanies } from "@/hooks/useCompanies";
-import { useProperty } from "@/hooks/useProperty";
+import { useProperties } from "@/hooks/useProperties";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -53,7 +53,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
   const { company, setCompany, companies, isLoadingCompanies: isLoading, loadCompanies, companySelectionInProgressRef } = useCompanies();
-  const { setProperty } = useProperty();
+  const { setProperty } = useProperties();
 
   // Sync local status filter UI when context filters change
   useEffect(() => {

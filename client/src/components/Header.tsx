@@ -28,7 +28,7 @@ import { useView } from "@/hooks/useView";
 import { useFilters } from "@/hooks/useFilters";
 import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
-import { useProperty } from "@/hooks/useProperty";
+import { useProperties } from "@/hooks/useProperties";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useGeoMap } from "@/hooks/useMap";
 import { fetchPropertyById } from "@/api/properties.api";
@@ -44,7 +44,7 @@ export default function Header({
 
   const { setFilters, setSortBy } = useFilters();
   const { view, setView, setSidebarView } = useView();
-  const { setProperty } = useProperty();
+  const { setProperty } = useProperties();
   const { setCompany } = useCompanies();
   const { setMapCenter, setMapZoom } = useGeoMap();
 

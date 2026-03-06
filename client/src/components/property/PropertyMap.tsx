@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { MapPin, PropertyMap } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
-import { useProperty } from '@/hooks/useProperty';
+import { useProperties } from '@/hooks/useProperties';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGeoMap } from '@/hooks/useMap';
 
@@ -184,7 +184,7 @@ export default function PropertyMap({
 }: PropertyMap) {
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
-  const { fetchProperty } = useProperty();
+  const { fetchProperty } = useProperties();
   const { company, setCompany } = useCompanies();
   const { mapCenter, mapZoom } = useGeoMap();
 

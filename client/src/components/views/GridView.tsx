@@ -11,9 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { SortOption } from "@/types/options";
 import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
-import { useProperty } from "@/hooks/useProperty";
-import { useCompanies } from "@/hooks/useCompanies";
 import { useProperties } from "@/hooks/useProperties";
+import { useCompanies } from "@/hooks/useCompanies";
 
 export default function GridView({
   properties,
@@ -23,9 +22,8 @@ export default function GridView({
 }: GridViewProps) {
 
   const { clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
-  const { fetchProperty } = useProperty();
+  const { fetchProperty, setProperty, totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
   const { company, setCompany, handleCompanyClick } = useCompanies();
-  const { totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -80,7 +78,10 @@ export default function GridView({
                     <button
                       key={entry.companyId}
                       type="button"
-                      onClick={() => handleCompanyClick?.(entry.companyName, entry.companyId)}
+                      onClick={() => {
+                        setProperty(null);
+                        handleCompanyClick?.(entry.companyName, entry.companyId);
+                      }}
                       className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
                     >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>

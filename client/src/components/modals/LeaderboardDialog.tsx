@@ -11,6 +11,7 @@ import { getCityForZipCode } from "@/lib/zipCodes";
 import type { LeaderboardDialogProps, LeaderboardData } from "@/types/modals";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperties } from "@/hooks/useProperties";
 import { useView } from "@/hooks/useView";
 import { getDefaultFilters } from "@/lib/propertyFilters";
 import { useGeoMap } from "@/hooks/useMap";
@@ -23,6 +24,7 @@ export default function LeaderboardDialog({
 
   const { filters, setFilters } = useFilters()
   const { setCompany, handleCompanyClick } = useCompanies();
+  const { setProperty } = useProperties();
   const { setSidebarView } = useView();
   const { setMapZoom, setMapCenter} = useGeoMap();
 
@@ -49,6 +51,7 @@ export default function LeaderboardDialog({
   const topZipCodes = leaderboardData?.zipCodes ?? [];
 
   const onCompanyClick = (companyName: string) => {
+    setProperty(null);
     handleCompanyClick(companyName, null);
     onOpenChange(false);
   };
