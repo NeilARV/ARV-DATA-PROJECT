@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useContext, useState, useCallback, useRef } from "react";
 import type { CompanyContactWithCounts } from "@/types/companies";
 import type { DirectorySortOption } from "@/types/options";
-import { fetchCompanyContactsPage } from "@/api/companies.api";
+import { fetchCompanyContactsPage, fetchCompanyById } from "@/api/companies.api";
 import { useFilters } from "./useFilters";
 import { useView } from "./useView";
 
@@ -50,8 +50,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const [directorySearch, setDirectorySearchState] = useState("");
   const [ensuredCompany, setEnsuredCompany] = useState<CompanyContactWithCounts | null>(null);
   const companySelectionInProgressRef = useRef(false);
-  const lastLoadedCountyRef = useRef<string | null>(null);
-  const lastParamsRef = useRef<{ county: string; sort: string; search: string }>({ county: "", sort: "", search: "" });
+  const loadCompaniesAbortRef = useRef<AbortController | null>(null);
 
   const loadCompanies = useCallback(
     async (overrides?: { sort?: DirectorySortOption; search?: string }) => {
@@ -62,19 +61,14 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
       if (!overrides && directorySearch.trim() !== "") {
         return;
       }
-      const paramsKey = `${county}|${sort}|${search}`;
-      const lastKey = `${lastParamsRef.current.county}|${lastParamsRef.current.sort}|${lastParamsRef.current.search}`;
-      if (paramsKey === lastKey && companies.length > 0 && !overrides) {
-        return;
-      }
+      loadCompaniesAbortRef.current?.abort();
+      const controller = new AbortController();
+      loadCompaniesAbortRef.current = controller;
+
       if (overrides?.sort !== undefined) setDirectorySortState(overrides.sort);
       if (overrides?.search !== undefined) setDirectorySearchState(overrides.search);
       setEnsuredCompany(null);
-      lastLoadedCountyRef.current = county;
-      lastParamsRef.current = { county, sort, search };
       setPage(1);
-      setCompaniesState([]);
-      setTotal(0);
       setIsLoadingCompanies(true);
       try {
         const data = await fetchCompanyContactsPage({
@@ -83,16 +77,23 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
           limit: DEFAULT_PAGE_SIZE,
           sort,
           search,
+          signal: controller.signal,
         });
+        if (controller.signal.aborted) return;
         if (data) {
           setCompaniesState(data.companies);
           setTotal(data.total);
         }
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        throw err;
       } finally {
-        setIsLoadingCompanies(false);
+        if (!controller.signal.aborted) {
+          setIsLoadingCompanies(false);
+        }
       }
     },
-    [filters.county, directorySort, directorySearch, companies.length]
+    [filters.county, directorySort, directorySearch]
   );
 
   const loadMoreCompanies = useCallback(async () => {
@@ -128,52 +129,57 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const handleCompanyClick = useCallback(
     async (companyName: string, companyId: string | null, _keepPanelOpen?: boolean) => {
       companySelectionInProgressRef.current = true;
-      const found = companies.find(
-        (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
-      );
-      if (found) {
-        setEnsuredCompany(null);
-        setCompany(found);
-      } else if (companyId) {
-        const stub: CompanyContactWithCounts = {
-          id: companyId,
-          companyName,
-          propertyCount: 0,
-          propertiesSoldCount: 0,
-          propertiesSoldCountAllTime: 0,
-        } as CompanyContactWithCounts;
-        setCompany(stub);
-        setSidebarView("directory");
-        try {
-          const res = await fetch(`/api/companies/${companyId}`, { credentials: "include" });
-          if (res.ok) {
-            const detail = await res.json();
-            const withCounts: CompanyContactWithCounts = {
-              ...detail,
-              companyName: detail.companyName ?? companyName,
-              propertyCount: detail.propertyCount ?? 0,
-              propertiesSoldCount: detail.propertiesSoldCount ?? 0,
-              propertiesSoldCountAllTime: detail.propertiesSoldCountAllTime ?? 0,
-            };
-            setCompany(withCounts);
-            setEnsuredCompany(withCounts);
+      try {
+        const found = companies.find(
+          (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
+        );
+        if (found) {
+          setEnsuredCompany(null);
+          setCompany(found);
+        } else if (companyId) {
+          const stub: CompanyContactWithCounts = {
+            id: companyId,
+            companyName,
+            propertyCount: 0,
+            propertiesSoldCount: 0,
+            propertiesSoldCountAllTime: 0,
+          } as CompanyContactWithCounts;
+          setCompany(stub);
+          setSidebarView("directory");
+          try {
+            const detail = await fetchCompanyById(companyId);
+            if (detail) {
+              const withCounts: CompanyContactWithCounts = {
+                ...detail,
+                companyName: detail.companyName ?? companyName,
+                propertyCount: detail.propertyCount ?? 0,
+                propertiesSoldCount: detail.propertiesSoldCount ?? 0,
+                propertiesSoldCountAllTime: detail.propertiesSoldCountAllTime ?? 0,
+              };
+              setCompany(withCounts);
+              setEnsuredCompany(withCounts);
+            } else {
+              setEnsuredCompany(stub);
+            }
+          } catch {
+            setEnsuredCompany(stub);
           }
-        } catch {
-          setEnsuredCompany(stub);
+        } else {
+          setCompany({
+            id: "",
+            companyName,
+            propertyCount: 0,
+            propertiesSoldCount: 0,
+            propertiesSoldCountAllTime: 0,
+          } as CompanyContactWithCounts);
+          setEnsuredCompany(null);
         }
-      } else {
-        setCompany({
-          id: "",
-          companyName,
-          propertyCount: 0,
-          propertiesSoldCount: 0,
-          propertiesSoldCountAllTime: 0,
-        } as CompanyContactWithCounts);
-        setEnsuredCompany(null);
+        setSidebarView("directory");
+      } finally {
+        companySelectionInProgressRef.current = false;
       }
-      setSidebarView("directory");
     },
-    [companies, setSidebarView]
+    [companies, setCompany, setSidebarView]
   );
 
   const hasMore = total > companies.length;
