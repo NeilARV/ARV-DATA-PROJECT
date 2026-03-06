@@ -13,10 +13,10 @@ import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
 import { useProperty } from "@/hooks/useProperty";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperties } from "@/hooks/useProperties";
 
 export default function GridView({
   properties,
-  totalFilteredProperties,
   gridColsClass,
   propertiesHasMore,
   isLoadingMoreProperties,
@@ -29,6 +29,7 @@ export default function GridView({
   const { filters, setFilters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { fetchProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
+  const { totalProperties } = useProperties();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -53,7 +54,7 @@ export default function GridView({
         <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">
           <div className="min-w-0 flex-shrink-0">
             <h2 className="text-2xl font-semibold leading-tight">
-              {`${totalFilteredProperties} Properties`}
+              {`${totalProperties} Properties`}
             </h2>
           </div>
         {showWholesaleLeaderboard && (

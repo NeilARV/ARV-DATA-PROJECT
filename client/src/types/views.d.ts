@@ -7,7 +7,6 @@ export type WholesaleLeaderboardEntry = {
 
 export type GridViewProps = {
   properties: Property[];
-  totalFilteredProperties: number;
   gridColsClass: string;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
@@ -23,7 +22,6 @@ export type GridViewProps = {
 
 export type TableViewProps = {
   properties: Property[];
-  totalFilteredProperties: number;
   propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
   isLoading?: boolean;

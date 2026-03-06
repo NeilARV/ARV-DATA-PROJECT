@@ -39,8 +39,6 @@ function HomeContent() {
     isLoadingMoreProperties,
     loadMorePropertiesRef,
     isLoading,
-    propertiesResponse,
-    stablePropertyCount,
   } = useProperties();
 
   // Load companies when directory is open (with county filter)
@@ -82,14 +80,6 @@ function HomeContent() {
     },
     enabled: view === "map", // Only fetch when in map view
   });
-
-  const totalFilteredProperties = useMemo(() => {
-    if (view === "map") return 0;
-    const propertiesTotal = propertiesResponse?.total;
-    return isLoading && propertiesTotal === undefined
-      ? stablePropertyCount
-      : (propertiesTotal ?? stablePropertyCount);
-  }, [view, propertiesResponse, isLoading, stablePropertyCount]);
 
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
@@ -278,7 +268,6 @@ function HomeContent() {
             ) : view === "table" ? (
               <TableView
                 properties={sortedProperties}
-                totalFilteredProperties={totalFilteredProperties}
                 propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
                 isLoading={isLoading}
@@ -294,7 +283,6 @@ function HomeContent() {
                 )}
                 <GridView
                   properties={sortedProperties}
-                  totalFilteredProperties={totalFilteredProperties}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
@@ -312,7 +300,6 @@ function HomeContent() {
                 )}
                 <GridView
                   properties={sortedProperties}
-                  totalFilteredProperties={totalFilteredProperties}
                   gridColsClass={gridColsClass}
                   propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}

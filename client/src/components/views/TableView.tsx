@@ -3,10 +3,10 @@ import { Loader2 } from "lucide-react";
 import type { TableViewProps } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperties } from "@/hooks/useProperties";
 
 export default function TableView({
   properties,
-  totalFilteredProperties,
   propertiesHasMore,
   isLoadingMoreProperties,
   isLoading = false,
@@ -15,6 +15,8 @@ export default function TableView({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { company, setCompany } = useCompanies();
+  const { totalProperties } = useProperties();
+
   const selectedCompanyName = company?.companyName ?? null;
 
   // Show loader when initially loading and no properties yet
@@ -25,7 +27,7 @@ export default function TableView({
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold mb-1">
-            {`${totalFilteredProperties} Properties`}
+            {`${totalProperties} Properties`}
             {selectedCompanyName && (
               <span className="text-base font-normal text-muted-foreground ml-2">
                 owned by {selectedCompanyName}

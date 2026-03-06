@@ -24,6 +24,7 @@ export type UsePropertiesResult = {
     isFetching: boolean;
     /** Raw API response (for total count, etc.) */
     propertiesResponse: PropertiesResponse | undefined;
+    totalProperties: number;
     /** Stable total count (avoids flashing 0 during loading) */
     stablePropertyCount: number;
     /** Stable company count (avoids flashing 0 when refetching) */
@@ -82,6 +83,14 @@ export function useProperties(): UsePropertiesResult {
         enabled: view !== "map",
     });
 
+    const totalProperties = useMemo(() => {
+        if (view === "map") return 0;
+        const propertiesTotal = propertiesResponse?.total;
+        return isLoading && propertiesTotal === undefined
+          ? stablePropertyCount
+          : (propertiesTotal ?? stablePropertyCount);
+      }, [view, propertiesResponse, isLoading, stablePropertyCount]);
+
     // Accumulate paginated results: page 1 replaces list, page > 1 appends and dedupes by id.
     useEffect(() => {
         if (!propertiesResponse || !propertiesListEnabled(view)) return;
@@ -135,6 +144,7 @@ export function useProperties(): UsePropertiesResult {
         isLoading,
         isFetching,
         propertiesResponse,
+        totalProperties,
         stablePropertyCount,
         stableCompanyPropertyCount,
     };
