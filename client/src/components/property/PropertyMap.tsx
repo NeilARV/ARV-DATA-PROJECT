@@ -176,15 +176,12 @@ function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [num
   return null;
 }
 
-export default function PropertyMap({ 
-  mapPins, 
-  isLoading = false,
-}: PropertyMap) {
+export default function PropertyMap() {
 
   const { filters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty, property } = useProperty();
   const { company, setCompany } = useCompanies();
-  const { mapCenter, mapZoom } = useGeoMap();
+  const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false, mapCenter, mapZoom } = useGeoMap({ fetchMapPins: true });
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -234,7 +231,7 @@ export default function PropertyMap({
         />
         <MapResizeHandler />
         <MapBounds mapPins={validPins} center={mapCenter} zoom={mapZoom}/>
-        {isLoading ? (
+        {isLoadingMapPins ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>
           </div>

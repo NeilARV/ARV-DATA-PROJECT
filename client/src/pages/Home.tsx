@@ -16,7 +16,7 @@ import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import type { MapPin } from "@/types/property";
 import { ViewProvider, useView } from "@/hooks/useView";
-import { PropertiesProvider, useProperties } from "@/hooks/useProperties";
+import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
 import { PropertyProvider } from "@/hooks/useProperty";
@@ -25,7 +25,7 @@ function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
   const { loadCompanies } = useCompanies();
-  const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
+  const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
   const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
 
   // Load companies when directory is open (with county filter)
@@ -34,8 +34,6 @@ function HomeContent() {
       loadCompanies();
     }
   }, [sidebarView, filters.county, loadCompanies]);
-
- 
 
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
@@ -106,10 +104,7 @@ function HomeContent() {
               <>
                 <PropertyDetailPanel/>
                 <div className="flex-1">
-                  <PropertyMap
-                    mapPins={filteredMapPins}
-                    isLoading={isLoadingMapPins}
-                  />
+                  <PropertyMap/>
                 </div>
               </>
             ) : view === "table" ? (
@@ -137,9 +132,7 @@ function HomeContent() {
       )}
 
       <SignupDialog {...signupDialogProps} />
-
       <LoginDialog {...loginDialogProps} />
-
       <LeaderboardDialog {...leaderboardDialogProps}/>
 
     </div>

@@ -27,7 +27,6 @@ export interface FilterSidebarProps {
 export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
   const { filters, setFilters } = useFilters();
   const [priceRange, setPriceRange] = useState<[number, number]>([filters.minPrice ?? 0, filters.maxPrice ?? MAX_PRICE]);
-
   const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters.bedrooms ?? "Any");
   const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters.bathrooms ?? "Any");
   const [selectedTypes, setSelectedTypes] = useState<string[]>(filters.propertyTypes ?? []);
