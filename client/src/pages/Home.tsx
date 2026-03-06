@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo, useEffect } from "react";
 import Header from "@/components/Header";
 import FilterSidebar from "@/components/FilterSidebar";
 import CompanyDirectory from "@/components/CompanyDirectory";
@@ -18,9 +18,7 @@ import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
-import { MAP_ZOOM_DEFAULT, MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY } from "@/constants/map.constants";
 import type { Property, MapPin } from "@/types/property";
-import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
@@ -29,11 +27,9 @@ import { MapProvider, useGeoMap } from "@/hooks/useMap";
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
-  const { property, setProperty, fetchProperty } = useProperty();
-  const { company, loadCompanies } = useCompanies();
+  const { property, setProperty } = useProperty();
+  const { loadCompanies } = useCompanies();
   const {
-    setMapCenter,
-    setMapZoom,
     mapPins = [],
     filteredMapPins = [],
     isLoadingMapPins = false,
