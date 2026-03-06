@@ -13,6 +13,7 @@ CREATE TABLE sessions (
     sess TEXT NOT NULL,
     expire INTEGER NOT NULL
 );
+CREATE INDEX idx_sessions_expire ON sessions(expire);
 
 -- Email whitelist table
 CREATE TABLE email_whitelist (
@@ -109,6 +110,7 @@ CREATE TABLE companies (
 
 CREATE UNIQUE INDEX company_contacts_company_name_unique ON companies(company_name);
 CREATE INDEX idx_companies_name ON companies(company_name);
+CREATE INDEX idx_companies_created_at ON companies(created_at);
 
 COMMENT ON TABLE companies IS 'Corporate property flippers and investment companies';
 
@@ -119,6 +121,7 @@ CREATE TABLE company_msas (
     updated_at TIMESTAMP DEFAULT now(),
     PRIMARY KEY (company_id, msa_id)
 );
+CREATE INDEX idx_company_msas_msa_id ON company_msas(msa_id);
 
 COMMENT ON TABLE company_msas IS 'Junction table linking companies to MSAs - tracks which areas a company has properties in or is active in';
 
@@ -179,6 +182,7 @@ CREATE INDEX idx_properties_status ON properties(status);
 CREATE INDEX idx_properties_msa ON properties(msa);
 CREATE INDEX idx_properties_county ON properties(county);
 CREATE INDEX idx_properties_sfr_id ON properties(sfr_property_id);
+CREATE INDEX idx_properties_status_county ON properties(status, county);
 
 COMMENT ON TABLE properties IS 'Main property table - current state of properties being tracked';
 COMMENT ON COLUMN properties.id IS 'Internal UUID primary key';
@@ -218,6 +222,7 @@ CREATE INDEX idx_addresses_location ON addresses(latitude, longitude);
 CREATE INDEX idx_addresses_zip ON addresses(zip_code);
 CREATE INDEX idx_addresses_city ON addresses(city);
 CREATE INDEX idx_addresses_state ON addresses(state);
+CREATE INDEX idx_addresses_county ON addresses(county);
 
 COMMENT ON TABLE addresses IS 'Physical address and location details for properties';
 
@@ -405,6 +410,7 @@ CREATE TABLE last_sales (
 CREATE INDEX idx_last_sales_property_id ON last_sales(property_id);
 CREATE INDEX idx_last_sales_date ON last_sales(sale_date);
 CREATE INDEX idx_last_sales_mtg_type ON last_sales(mtg_type);
+CREATE INDEX idx_last_sales_property_recording ON last_sales(property_id, recording_date);
 
 COMMENT ON TABLE last_sales IS 'Most recent sale transaction details';
 COMMENT ON COLUMN last_sales.mtg_type IS 'Mortgage type - Construction/Building Loan indicates active flip, New Conventional indicates sale to homeowner';
@@ -487,6 +493,9 @@ CREATE INDEX idx_transactions_buyer ON property_transactions(buyer_id);
 CREATE INDEX idx_transactions_seller ON property_transactions(seller_id);
 CREATE INDEX idx_transactions_type ON property_transactions(transaction_type);
 CREATE INDEX idx_transactions_date ON property_transactions(recording_date);
+CREATE INDEX idx_transactions_seller_recording ON property_transactions(seller_id, recording_date);
+CREATE INDEX idx_transactions_buyer_recording ON property_transactions(buyer_id, recording_date);
+CREATE INDEX idx_transactions_property_type ON property_transactions(property_id, transaction_type);
 
 COMMENT ON TABLE property_transactions IS 'Complete history of property acquisitions and sales by companies - enables flip tracking';
 COMMENT ON COLUMN property_transactions.transaction_type IS 'acquisition = company bought property, sale = company sold property';
