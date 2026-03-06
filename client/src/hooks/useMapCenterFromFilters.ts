@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import type { PropertyFilters } from "@/types/filters";
 import type { MapPin } from "@/types/property";
 import {
   SAN_DIEGO_MSA_ZIP_CODES,

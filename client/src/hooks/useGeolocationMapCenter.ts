@@ -15,7 +15,7 @@ export function useGeolocationMapCenter(
   setMapZoom: SetMapZoom
 ): void {
   const attemptedRef = useRef(false);
-
+  
   useEffect(() => {
     if (attemptedRef.current) return;
     attemptedRef.current = true;

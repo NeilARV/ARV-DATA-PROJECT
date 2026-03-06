@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
-import { getDefaultFilters, matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
+import { matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
@@ -30,10 +30,10 @@ import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 
 function HomeContent() {
-  const { filters, setFilters, setSortBy } = useFilters();
-  const { view, setView, sidebarView, setSidebarView } = useView();
+  const { filters } = useFilters();
+  const { view, sidebarView, setSidebarView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
-  const { company, setCompany, loadCompanies } = useCompanies();
+  const { company, loadCompanies } = useCompanies();
 
   const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
