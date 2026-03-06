@@ -48,8 +48,13 @@ export function buildPropertyQueryParams(
   );
   effectiveStatuses.forEach((status) => params.append("status", status));
 
-  // Map pins: only county + status
+  // Map pins: county + status + company (so server can filter pins when a company is selected)
   if (forMapPins) {
+    if (company?.id) {
+      params.append("companyId", company.id);
+    } else if (company?.companyName) {
+      params.append("company", company.companyName);
+    }
     const queryString = params.toString();
     return queryString ? `?${queryString}` : "";
   }

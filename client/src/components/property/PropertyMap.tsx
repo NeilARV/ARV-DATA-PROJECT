@@ -183,8 +183,8 @@ export default function PropertyMap() {
   const { company, setCompany } = useCompanies();
   const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false, mapCenter, mapZoom } = useGeoMap({ fetchMapPins: true });
 
-  // Filter map pins with valid coordinates for rendering on map
-  const validPins = mapPins.filter(p => 
+  // Use filteredMapPins (respects company + filters), then filter to valid coordinates for rendering
+  const validPins = filteredMapPins.filter(p => 
     p.latitude != null && p.longitude != null && 
     !isNaN(p.latitude) && !isNaN(p.longitude)
   );
