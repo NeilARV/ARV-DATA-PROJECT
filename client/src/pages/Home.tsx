@@ -12,10 +12,8 @@ import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
-import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
-import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import type { Property, MapPin } from "@/types/property";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertiesProvider, useProperties } from "@/hooks/useProperties";
@@ -28,6 +26,7 @@ function HomeContent() {
   const { property, properties, setProperty } = useProperties();
   const { loadCompanies } = useCompanies();
   const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
+  const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
 
   // Load companies when directory is open (with county filter)
   useEffect(() => {
@@ -36,12 +35,7 @@ function HomeContent() {
     }
   }, [sidebarView, filters.county, loadCompanies]);
 
-  const {
-    signupDialogProps,
-    loginDialogProps,
-    leaderboardDialogProps,
-    headerDialogHandlers,
-  } = useDialogs();
+ 
 
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
@@ -57,37 +51,6 @@ function HomeContent() {
       count
     }));
   }, [properties, mapPins, view]);
-
-  // Get the appropriate zip code list based on state and county filter
-  const zipCodeList = useMemo(() => {
-    const countyName = filters.county ?? 'San Diego';
-    const state = getStateFromCounty(countyName);
-    const countyKey = countyNameToKey(countyName);
-
-    // Get the appropriate MSA zip codes object based on state
-    let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
-    if (state === 'CA') {
-      // Check if it's Los Angeles MSA (Los Angeles or Orange county)
-      if (countyName === 'Los Angeles' || countyName === 'Orange') {
-        msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
-      } else {
-        // San Diego MSA (San Diego county)
-        msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-      }
-    } else if (state === 'CO') {
-      // Denver MSA
-      msaZipCodes = DENVER_MSA_ZIP_CODES;
-    } else {
-      // Default to San Diego MSA
-      msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-    }
-
-    // Get the zip codes for the specific county
-    const countyZipCodes = msaZipCodes[countyKey];
-    
-    // Return the array or empty array if county not found
-    return Array.isArray(countyZipCodes) ? countyZipCodes : [];
-  }, [filters.county]);
 
   // Calculate grid columns based on sidebar and property detail panel visibility
   const gridColsClass = useMemo(() => {
