@@ -7,7 +7,6 @@ import { useProperties } from "@/hooks/useProperties";
 
 export default function TableView({
   properties,
-  propertiesHasMore,
   isLoadingMoreProperties,
   isLoading = false,
   loadMoreRef,
@@ -15,7 +14,7 @@ export default function TableView({
 
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { company, setCompany } = useCompanies();
-  const { totalProperties } = useProperties();
+  const { totalProperties, propertiesHasMore } = useProperties();
 
   const selectedCompanyName = company?.companyName ?? null;
 

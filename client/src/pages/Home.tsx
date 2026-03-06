@@ -203,7 +203,6 @@ function HomeContent() {
             ) : view === "table" ? (
               <TableView
                 properties={sortedProperties}
-                propertiesHasMore={propertiesHasMore}
                 isLoadingMoreProperties={isLoadingMoreProperties}
                 isLoading={isLoading}
                 loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
@@ -219,7 +218,6 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   gridColsClass={gridColsClass}
-                  propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
                   isLoading={isLoading}
                   loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
@@ -236,7 +234,6 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   gridColsClass={gridColsClass}
-                  propertiesHasMore={propertiesHasMore}
                   isLoadingMoreProperties={isLoadingMoreProperties}
                   isLoading={isLoading}
                   loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}

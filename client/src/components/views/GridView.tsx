@@ -18,7 +18,6 @@ import { useProperties } from "@/hooks/useProperties";
 export default function GridView({
   properties,
   gridColsClass,
-  propertiesHasMore,
   isLoadingMoreProperties,
   isLoading = false,
   loadMoreRef,
@@ -29,7 +28,7 @@ export default function GridView({
   const { filters, setFilters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { fetchProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
-  const { totalProperties } = useProperties();
+  const { totalProperties, propertiesHasMore } = useProperties();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;

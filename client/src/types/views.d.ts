@@ -8,7 +8,6 @@ export type WholesaleLeaderboardEntry = {
 export type GridViewProps = {
   properties: Property[];
   gridColsClass: string;
-  propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
   isLoading?: boolean;
   loadMoreRef: React.RefObject<HTMLDivElement>;
@@ -22,7 +21,6 @@ export type GridViewProps = {
 
 export type TableViewProps = {
   properties: Property[];
-  propertiesHasMore: boolean;
   isLoadingMoreProperties: boolean;
   isLoading?: boolean;
   loadMoreRef: React.RefObject<HTMLDivElement>;
