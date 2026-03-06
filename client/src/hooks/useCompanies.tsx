@@ -39,7 +39,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     try {
       const data = await fetchCompanyContacts(county);
       setCompaniesState(data ?? []);
-      lastLoadedCountyRef.current = county;
+      lastLoadedCountyRef.current = county ?? null;
     } finally {
       setIsLoadingCompanies(false);
     }
