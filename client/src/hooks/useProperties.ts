@@ -5,8 +5,12 @@ import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { useCompanies } from "./useCompanies";
 import { useFilters } from "./useFilters";
 import { useView } from "./useView";
-import type { SortOption } from "@/types/options";
 import type { Property } from "@/types/property";
+
+// Needed for zip code list
+import { getStateFromCounty, countyNameToKey } from "@/lib/county";
+import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
+import { matchesFiltersForProperty } from "@/lib/propertyFilters";
 
 export type PropertiesResponse = {
     properties: Property[];
@@ -136,8 +140,48 @@ export function useProperties(): UsePropertiesResult {
         }
     }, [company]);
 
+
+      // Get the appropriate zip code list based on state and county filter
+    const zipCodeList = useMemo(() => {
+        const countyName = filters.county ?? 'San Diego';
+        const state = getStateFromCounty(countyName);
+        const countyKey = countyNameToKey(countyName);
+    
+        // Get the appropriate MSA zip codes object based on state
+        let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
+        if (state === 'CA') {
+        // Check if it's Los Angeles MSA (Los Angeles or Orange county)
+        if (countyName === 'Los Angeles' || countyName === 'Orange') {
+            msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
+        } else {
+            // San Diego MSA (San Diego county)
+            msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+        }
+        } else if (state === 'CO') {
+            // Denver MSA
+            msaZipCodes = DENVER_MSA_ZIP_CODES;
+        } else {
+            // Default to San Diego MSA
+            msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+        }
+    
+        // Get the zip codes for the specific county
+        const countyZipCodes = msaZipCodes[countyKey];
+        
+        // Return the array or empty array if county not found
+        return Array.isArray(countyZipCodes) ? countyZipCodes : [];
+    }, [filters.county]);
+
+      // Filter full properties for grid/table views
+      const filteredProperties = allProperties.filter((property) =>
+        matchesFiltersForProperty(
+          property,
+          zipCodeList,
+        )
+      );
+
     return {
-        properties: allProperties,
+        properties: filteredProperties,
         propertiesHasMore,
         isLoadingMoreProperties,
         loadMorePropertiesRef,

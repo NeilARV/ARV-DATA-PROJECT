@@ -96,20 +96,6 @@ function HomeContent() {
     return Array.isArray(countyZipCodes) ? countyZipCodes : [];
   }, [filters.county]);
 
-  const propertiesToFilter = properties;
-
-  // Filter full properties for grid/table views
-  const filteredProperties = propertiesToFilter.filter((property) =>
-    matchesFiltersForProperty(
-      property,
-      zipCodeList,
-    )
-  );
-
-  // Properties are now sorted server-side, so we can use them directly
-  // The API returns properties in the correct sorted order based on the sortBy parameter
-  const sortedProperties = filteredProperties;
-
   // Calculate grid columns based on sidebar and property detail panel visibility
   const gridColsClass = useMemo(() => {
     const hasSidebar = sidebarView !== "none";
@@ -195,7 +181,7 @@ function HomeContent() {
                 </div>
               </>
             ) : view === "table" ? (
-              <TableView properties={sortedProperties}/>
+              <TableView properties={properties}/>
             ) : view === "buyers-feed" ? (
               <>
                 {property && (
@@ -205,7 +191,7 @@ function HomeContent() {
                   />
                 )}
                 <GridView
-                  properties={sortedProperties}
+                  properties={properties}
                   gridColsClass={gridColsClass}
                 />
               </>
@@ -218,7 +204,7 @@ function HomeContent() {
                   />
                 )}
                 <GridView
-                  properties={sortedProperties}
+                  properties={properties}
                   gridColsClass={gridColsClass}
                   showWholesaleLeaderboard={view === "wholesale"}
                   county={filters.county}
