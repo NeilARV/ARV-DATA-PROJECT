@@ -28,12 +28,18 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const [companies, setCompaniesState] = useState<CompanyContactWithCounts[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const companySelectionInProgressRef = useRef(false);
+  const lastLoadedCountyRef = useRef<string | null>(null);
 
   const loadCompanies = useCallback(async () => {
+    const county = filters.county;
+    if (lastLoadedCountyRef.current === county) {
+      return;
+    }
     setIsLoadingCompanies(true);
     try {
-      const data = await fetchCompanyContacts(filters.county);
+      const data = await fetchCompanyContacts(county);
       setCompaniesState(data ?? []);
+      lastLoadedCountyRef.current = county;
     } finally {
       setIsLoadingCompanies(false);
     }
