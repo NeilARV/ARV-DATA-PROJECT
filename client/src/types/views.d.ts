@@ -1,3 +1,5 @@
+import { SidebarView } from "./options";
+
 export type WholesaleLeaderboardEntry = {
   rank: number;
   companyId: string;
@@ -7,13 +9,8 @@ export type WholesaleLeaderboardEntry = {
 
 export type GridViewProps = {
   properties: Property[];
-  gridColsClass: string;
-  /** When true (wholesale feed), show top 3 wholesalers leaderboard in the header */
   showWholesaleLeaderboard?: boolean;
-  /** County filter for wholesale leaderboard (e.g. "San Diego") */
-  county?: string;
-  /** Called when user clicks a company in the wholesale leaderboard */
-  onWholesaleLeaderboardCompanyClick?: (companyName: string, companyId?: string) => void;
+  sideBarView?: SidebarView
 }
 
 export type TableViewProps = {

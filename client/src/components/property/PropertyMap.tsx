@@ -178,13 +178,11 @@ function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [num
 
 export default function PropertyMap({ 
   mapPins, 
-  selectedProperty,
   isLoading = false,
-  statusFilters = []
 }: PropertyMap) {
 
-  const { clearFilters, hasActiveFilters } = useFilters();
-  const { fetchProperty } = useProperty();
+  const { filters, clearFilters, hasActiveFilters } = useFilters();
+  const { fetchProperty, property } = useProperty();
   const { company, setCompany } = useCompanies();
   const { mapCenter, mapZoom } = useGeoMap();
 
@@ -242,12 +240,12 @@ export default function PropertyMap({
           </div>
         ) : (
           validPins.map((pin) => {
-            const isSelected = selectedProperty?.id === pin.id;
+            const isSelected = property?.id === pin.id;
             return (
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForPin(pin, isSelected, company?.id ?? null, statusFilters)}
+                icon={getIconForPin(pin, isSelected, company?.id ?? null, filters.statusFilters)}
                 eventHandlers={{
                   click: () => fetchProperty?.(pin.id),
                 }}

@@ -19,13 +19,12 @@ import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertiesProvider, useProperties } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
-import { PropertyProvider, useProperty } from "@/hooks/useProperty";
+import { PropertyProvider } from "@/hooks/useProperty";
 
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
   const { properties } = useProperties();
-  const { property, setProperty } = useProperty();
   const { loadCompanies } = useCompanies();
   const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
   const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
@@ -53,23 +52,6 @@ function HomeContent() {
       count
     }));
   }, [properties, mapPins, view]);
-
-  // Calculate grid columns based on sidebar and property detail panel visibility
-  const gridColsClass = useMemo(() => {
-    const hasSidebar = sidebarView !== "none";
-    const hasPropertyPanel = property !== null;
-    
-    // Both sidebar and panel open - use 2 columns max
-    if (hasSidebar && hasPropertyPanel) {
-      return "grid-cols-1 md:grid-cols-2";
-    }
-    // Only sidebar OR panel open - use 2-3 columns
-    if (hasSidebar || hasPropertyPanel) {
-      return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
-    }
-    // Neither open - full 3 columns
-    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
-  }, [sidebarView, property]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -127,9 +109,7 @@ function HomeContent() {
                 <div className="flex-1">
                   <PropertyMap
                     mapPins={filteredMapPins}
-                    selectedProperty={property}
                     isLoading={isLoadingMapPins}
-                    statusFilters={filters.statusFilters}
                   />
                 </div>
               </>
@@ -138,16 +118,15 @@ function HomeContent() {
             ) : view === "buyers-feed" ? (
               <>
                 <PropertyDetailPanel/>
-                <GridView properties={properties} gridColsClass={gridColsClass}/>
+                <GridView properties={properties} sideBarView={sidebarView}/>
               </>
             ) : (
               <>
                 <PropertyDetailPanel/>
                 <GridView
                   properties={properties}
-                  gridColsClass={gridColsClass}
                   showWholesaleLeaderboard={view === "wholesale"}
-                  county={filters.county}
+                  sideBarView={sidebarView}
                 />
               </>
             )}

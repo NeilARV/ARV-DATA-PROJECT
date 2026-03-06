@@ -14,17 +14,17 @@ import { useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
+import { useMemo } from "react";
 
 export default function GridView({
   properties,
-  gridColsClass,
   showWholesaleLeaderboard = false,
-  county = "San Diego",
+  sideBarView
 }: GridViewProps) {
 
-  const { clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
+  const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
-  const { fetchProperty, setProperty } = useProperty();
+  const { property, fetchProperty, setProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
 
   // Show loader when initially loading and no properties yet
@@ -33,15 +33,33 @@ export default function GridView({
   const { data: wholesaleLeaderboard = [], isLoading: isLoadingLeaderboard } = useQuery<
     WholesaleLeaderboardEntry[]
   >({
-    queryKey: ["/api/companies/wholesale-leaderboard", county],
+    queryKey: ["/api/companies/wholesale-leaderboard", filters.county],
     queryFn: async () => {
-      const url = `/api/companies/wholesale-leaderboard${county ? `?county=${encodeURIComponent(county)}` : ""}`;
+      const url = `/api/companies/wholesale-leaderboard${filters.county ? `?county=${encodeURIComponent(filters.county)}` : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch wholesale leaderboard");
       return res.json();
     },
     enabled: showWholesaleLeaderboard,
   });
+
+
+    // Calculate grid columns based on sidebar and property detail panel visibility
+    const gridColsClass = useMemo(() => {
+      const hasSidebar = sideBarView !== "none";
+      const hasPropertyPanel = property !== null;
+      
+      // Both sidebar and panel open - use 2 columns max
+      if (hasSidebar && hasPropertyPanel) {
+        return "grid-cols-1 md:grid-cols-2";
+      }
+      // Only sidebar OR panel open - use 2-3 columns
+      if (hasSidebar || hasPropertyPanel) {
+        return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
+      }
+      // Neither open - full 3 columns
+      return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+    }, [sideBarView, property]);
 
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">

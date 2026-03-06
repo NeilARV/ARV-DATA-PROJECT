@@ -109,8 +109,5 @@ export type StatusTag = {
 export type PropertyMap = {
   mapPins: MapPin[];
   onPropertyClick?: (mapPin: MapPin) => void;
-  selectedProperty?: Property | null;
   isLoading?: boolean;
-  onDeselectCompany?: () => void;
-  statusFilters?: string[];
 }
