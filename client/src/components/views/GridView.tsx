@@ -18,17 +18,14 @@ import { useProperties } from "@/hooks/useProperties";
 export default function GridView({
   properties,
   gridColsClass,
-  isLoadingMoreProperties,
-  isLoading = false,
-  loadMoreRef,
   showWholesaleLeaderboard = false,
   county = "San Diego",
 }: GridViewProps) {
 
-  const { filters, setFilters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
+  const { clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { fetchProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
-  const { totalProperties, propertiesHasMore } = useProperties();
+  const { totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -176,7 +173,7 @@ export default function GridView({
           </div>
           {/* Infinite scroll trigger */}
           {propertiesHasMore && (
-            <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-4">
+            <div ref={loadMorePropertiesRef as React.RefObject<HTMLDivElement>} className="h-20 flex items-center justify-center mt-4">
               {isLoadingMoreProperties && (
                 <div className="text-muted-foreground">Loading more properties...</div>
               )}

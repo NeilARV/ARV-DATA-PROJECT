@@ -7,14 +7,11 @@ import { useProperties } from "@/hooks/useProperties";
 
 export default function TableView({
   properties,
-  isLoadingMoreProperties,
-  isLoading = false,
-  loadMoreRef,
 }: TableViewProps) {
 
-  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
+  const { clearFilters, hasActiveFilters } = useFilters();
   const { company, setCompany } = useCompanies();
-  const { totalProperties, propertiesHasMore } = useProperties();
+  const { totalProperties, propertiesHasMore , isLoading, isLoadingMoreProperties, loadMorePropertiesRef} = useProperties();
 
   const selectedCompanyName = company?.companyName ?? null;
 
@@ -76,7 +73,7 @@ export default function TableView({
           />
           {/* Infinite scroll trigger */}
           {propertiesHasMore && (
-            <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+            <div ref={loadMorePropertiesRef as React.RefObject<HTMLDivElement>} className="h-20 flex items-center justify-center">
               {isLoadingMoreProperties && (
                 <div className="text-muted-foreground">Loading more properties...</div>
               )}

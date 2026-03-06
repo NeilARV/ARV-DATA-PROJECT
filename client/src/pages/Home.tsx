@@ -34,13 +34,7 @@ function HomeContent() {
     filteredMapPins = [],
     isLoadingMapPins = false,
   } = useGeoMap({ fetchMapPins: true });
-  const {
-    properties,
-    propertiesHasMore,
-    isLoadingMoreProperties,
-    loadMorePropertiesRef,
-    isLoading,
-  } = useProperties();
+  const { properties } = useProperties();
 
   // Load companies when directory is open (with county filter)
   useEffect(() => {
@@ -201,12 +195,7 @@ function HomeContent() {
                 </div>
               </>
             ) : view === "table" ? (
-              <TableView
-                properties={sortedProperties}
-                isLoadingMoreProperties={isLoadingMoreProperties}
-                isLoading={isLoading}
-                loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
-              />
+              <TableView properties={sortedProperties}/>
             ) : view === "buyers-feed" ? (
               <>
                 {property && (
@@ -218,9 +207,6 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   gridColsClass={gridColsClass}
-                  isLoadingMoreProperties={isLoadingMoreProperties}
-                  isLoading={isLoading}
-                  loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
                 />
               </>
             ) : (
@@ -234,9 +220,6 @@ function HomeContent() {
                 <GridView
                   properties={sortedProperties}
                   gridColsClass={gridColsClass}
-                  isLoadingMoreProperties={isLoadingMoreProperties}
-                  isLoading={isLoading}
-                  loadMoreRef={loadMorePropertiesRef as React.RefObject<HTMLDivElement>}
                   showWholesaleLeaderboard={view === "wholesale"}
                   county={filters.county}
                 />

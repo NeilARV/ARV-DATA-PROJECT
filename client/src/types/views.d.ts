@@ -8,9 +8,6 @@ export type WholesaleLeaderboardEntry = {
 export type GridViewProps = {
   properties: Property[];
   gridColsClass: string;
-  isLoadingMoreProperties: boolean;
-  isLoading?: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
   /** When true (wholesale feed), show top 3 wholesalers leaderboard in the header */
   showWholesaleLeaderboard?: boolean;
   /** County filter for wholesale leaderboard (e.g. "San Diego") */
@@ -21,7 +18,4 @@ export type GridViewProps = {
 
 export type TableViewProps = {
   properties: Property[];
-  isLoadingMoreProperties: boolean;
-  isLoading?: boolean;
-  loadMoreRef: React.RefObject<HTMLDivElement>;
 }
