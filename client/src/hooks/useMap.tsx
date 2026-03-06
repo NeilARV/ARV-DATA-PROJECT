@@ -31,6 +31,8 @@ export type MapContextValue = {
   >;
   mapZoom: number | undefined;
   setMapZoom: React.Dispatch<React.SetStateAction<number | undefined>>;
+  /** Shared ref so geolocation runs only once per app, not once per useGeoMap instance (e.g. when PropertyMap mounts). */
+  geolocationAttemptedRef: React.MutableRefObject<boolean>;
 };
 
 const MapContext = createContext<MapContextValue | null>(null);
@@ -44,6 +46,7 @@ export function MapProvider({ children }: MapProviderProps) {
     [number, number] | undefined
   >(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
+  const geolocationAttemptedRef = useRef(false);
 
   const value = useMemo<MapContextValue>(
     () => ({
@@ -51,6 +54,7 @@ export function MapProvider({ children }: MapProviderProps) {
       setMapCenter,
       mapZoom,
       setMapZoom,
+      geolocationAttemptedRef,
     }),
     [mapCenter, mapZoom]
   );
@@ -84,11 +88,10 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     throw new Error("useGeoMap must be used within a MapProvider");
   }
 
-  const { setMapCenter, setMapZoom } = ctx;
+  const { setMapCenter, setMapZoom, geolocationAttemptedRef } = ctx;
   const { company, companySelectionInProgressRef } = useCompanies();
   const { filters } = useFilters();
   const { view } = useView();
-  const geolocationAttemptedRef = useRef(false);
 
   const fetchMapPins = options?.fetchMapPins === true;
 

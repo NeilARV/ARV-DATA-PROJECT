@@ -31,7 +31,8 @@ import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.consta
 import { useCompanies } from "@/hooks/useCompanies";
 import { useGeoMap } from "@/hooks/useMap";
 import { fetchPropertyById } from "@/api/properties.api";
-import { MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY } from "@/constants/map.constants";
+import { MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY, MAP_ZOOM_COUNTY } from "@/constants/map.constants";
+import { getCountyCenter, getDefaultMapCenter } from "@/lib/county";
 import { useProperty } from "@/hooks/useProperty";
 
 export default function Header({
@@ -42,7 +43,7 @@ export default function Header({
   county,
 }: HeaderProps) {
 
-  const { setFilters, setSortBy } = useFilters();
+  const { filters, setFilters, setSortBy } = useFilters();
   const { view, setView, setSidebarView } = useView();
   const { setProperty } = useProperty();
   const { setCompany } = useCompanies();
@@ -354,7 +355,14 @@ export default function Header({
             <Button
               variant={view === "map" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setView("map")}
+              onClick={() => {
+                setView("map");
+                // Center map on currently selected county so switching from grid respects filter
+                const county = filters?.county ?? "San Diego";
+                const center = getCountyCenter(county) ?? getDefaultMapCenter();
+                setMapCenter(center);
+                setMapZoom(MAP_ZOOM_COUNTY);
+              }}
               className="rounded-r-none border-r"
               data-testid="button-view-map"
             >
