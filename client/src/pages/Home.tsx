@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
-import type { Property, MapPin } from "@/types/property";
+import type { MapPin } from "@/types/property";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertiesProvider, useProperties } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
@@ -24,7 +24,6 @@ import { PropertyProvider } from "@/hooks/useProperty";
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
-  const { properties } = useProperties();
   const { loadCompanies } = useCompanies();
   const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
   const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
@@ -41,17 +40,17 @@ function HomeContent() {
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
   const zipCodesWithCounts = useMemo(() => {
-    const dataSource = view === "map" ? mapPins : properties;
+    const dataSource = mapPins
     const counts: Record<string, number> = {};
     dataSource.forEach(p => {
-      const zipCode = view === "map" ? (p as MapPin).zipcode : (p as Property).zipCode;
+      const zipCode = (p as MapPin).zipcode
       counts[zipCode] = (counts[zipCode] || 0) + 1;
     });
     return Object.entries(counts).map(([zipCode, count]) => ({
       zipCode,
       count
     }));
-  }, [properties, mapPins, view]);
+  }, [mapPins, view]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -114,17 +113,16 @@ function HomeContent() {
                 </div>
               </>
             ) : view === "table" ? (
-              <TableView properties={properties}/>
+              <TableView/>
             ) : view === "buyers-feed" ? (
               <>
                 <PropertyDetailPanel/>
-                <GridView properties={properties} sideBarView={sidebarView}/>
+                <GridView sideBarView={sidebarView}/>
               </>
             ) : (
               <>
                 <PropertyDetailPanel/>
                 <GridView
-                  properties={properties}
                   showWholesaleLeaderboard={view === "wholesale"}
                   sideBarView={sidebarView}
                 />

@@ -17,13 +17,12 @@ import { useProperty } from "@/hooks/useProperty";
 import { useMemo } from "react";
 
 export default function GridView({
-  properties,
   showWholesaleLeaderboard = false,
   sideBarView
 }: GridViewProps) {
 
   const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
-  const { totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
+  const { properties, totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
   const { property, fetchProperty, setProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
 

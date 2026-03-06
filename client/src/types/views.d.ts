@@ -8,11 +8,6 @@ export type WholesaleLeaderboardEntry = {
 }
 
 export type GridViewProps = {
-  properties: Property[];
   showWholesaleLeaderboard?: boolean;
   sideBarView?: SidebarView
-}
-
-export type TableViewProps = {
-  properties: Property[];
 }

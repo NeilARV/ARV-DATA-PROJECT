@@ -1,17 +1,14 @@
 import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
-import type { TableViewProps } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperties } from "@/hooks/useProperties";
 
-export default function TableView({
-  properties,
-}: TableViewProps) {
+export default function TableView() {
 
   const { clearFilters, hasActiveFilters } = useFilters();
   const { company, setCompany } = useCompanies();
-  const { totalProperties, propertiesHasMore , isLoading, isLoadingMoreProperties, loadMorePropertiesRef} = useProperties();
+  const { properties, totalProperties, propertiesHasMore , isLoading, isLoadingMoreProperties, loadMorePropertiesRef} = useProperties();
 
   const selectedCompanyName = company?.companyName ?? null;
 
