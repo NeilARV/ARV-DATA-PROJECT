@@ -51,6 +51,8 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const [ensuredCompany, setEnsuredCompany] = useState<CompanyContactWithCounts | null>(null);
   const companySelectionInProgressRef = useRef(false);
   const loadCompaniesAbortRef = useRef<AbortController | null>(null);
+  /** Only reload when county/sort/search actually change; skip when just re-opening directory with same params */
+  const lastLoadedParamsRef = useRef<{ county: string; sort: string; search: string } | null>(null);
 
   const loadCompanies = useCallback(
     async (overrides?: { sort?: DirectorySortOption; search?: string }) => {
@@ -59,6 +61,16 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
       const county = filters.county ?? "";
       // Never run a "load all" (no overrides) when user has active search – prevents search results being overwritten by a stale effect
       if (!overrides && directorySearch.trim() !== "") {
+        return;
+      }
+      // Skip reload when just switching back to directory with same params (first load or county/sort/search change still trigger load)
+      if (
+        !overrides &&
+        lastLoadedParamsRef.current &&
+        lastLoadedParamsRef.current.county === county &&
+        lastLoadedParamsRef.current.sort === sort &&
+        lastLoadedParamsRef.current.search === search
+      ) {
         return;
       }
       loadCompaniesAbortRef.current?.abort();
@@ -83,6 +95,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         if (data) {
           setCompaniesState(data.companies);
           setTotal(data.total);
+          lastLoadedParamsRef.current = { county, sort, search };
         }
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
