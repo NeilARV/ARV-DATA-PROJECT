@@ -13,11 +13,9 @@ export type UploadDialogProps = {
 
 export type HeaderProps = {
   onSearch?: (query: string) => void;
-  onPropertySelect?: (propertyId: string) => void;
   onLoginClick?: () => void;
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
-  handleLogoClick?: () => void;
   county?: string; // County filter for suggestions
 }
 

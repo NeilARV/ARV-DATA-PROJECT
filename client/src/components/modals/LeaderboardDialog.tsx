@@ -13,16 +13,18 @@ import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useView } from "@/hooks/useView";
 import { getDefaultFilters } from "@/lib/propertyFilters";
+import { useGeoMap } from "@/hooks/useMap";
+import { MAP_ZOOM_DEFAULT } from "@/constants/map.constants";
 
 export default function LeaderboardDialog({ 
   open, 
   onOpenChange,
-  onZipCodeClick,
 }: LeaderboardDialogProps) {
 
   const { filters, setFilters } = useFilters()
   const { setCompany, handleCompanyClick } = useCompanies();
   const { setSidebarView } = useView();
+  const { setMapZoom, setMapCenter} = useGeoMap();
 
   // Fetch leaderboard data from dedicated endpoint (filtered by county)
   const { data: leaderboardData, isLoading, error } = useQuery<LeaderboardData>({
@@ -52,12 +54,11 @@ export default function LeaderboardDialog({
   };
 
   const handleZipCodeClick = (zipCode: string) => {
-    if (onZipCodeClick) {
-      onZipCodeClick(zipCode);
-
-      // Clear company filter and set zip code filter. Preserve current county so the
-      // zip (which belongs to the leaderboard's county) matches the map's data.
+      
+    setMapCenter(undefined);
+      setMapZoom(MAP_ZOOM_DEFAULT);
       setCompany(null);
+      
       setFilters(
         getDefaultFilters({
           zipCode,
@@ -65,11 +66,9 @@ export default function LeaderboardDialog({
           statusFilters: ["in-renovation", "on-market", "sold"],
         })
       );
-      // Open/keep FilterSidebar open when selecting a zip (like company click opens directory)
-      setSidebarView("filters");
 
+      setSidebarView("filters");
       onOpenChange(false);
-    }
   };
 
   return (

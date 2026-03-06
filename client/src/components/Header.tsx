@@ -30,14 +30,15 @@ import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useProperty } from "@/hooks/useProperty";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useGeoMap } from "@/hooks/useMap";
+import { fetchPropertyById } from "@/api/properties.api";
+import { MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY } from "@/constants/map.constants";
 
 export default function Header({
   onSearch,
-  onPropertySelect,
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
-  handleLogoClick,
   county,
 }: HeaderProps) {
 
@@ -45,6 +46,7 @@ export default function Header({
   const { view, setView, setSidebarView } = useView();
   const { setProperty } = useProperty();
   const { setCompany } = useCompanies();
+  const { setMapCenter, setMapZoom } = useGeoMap();
 
   const [searchQuery, setSearchQuery] = useState("");
   // Initialize isDark synchronously to avoid wrong logo on first render
@@ -218,11 +220,23 @@ export default function Header({
     setCompany(null)
     setProperty(null)
     setSortBy("recently-sold")
-
-    if (handleLogoClick) {
-      handleLogoClick()
-    }
+    setMapCenter(undefined);
+    setMapZoom(MAP_ZOOM_LOGO);
   }
+
+  // Handle property selection by ID (for search suggestions)
+  const onPropertySelect = async (propertyId: string) => {
+    const property = await fetchPropertyById(propertyId);
+    if (property) {
+      setProperty(property);
+      
+      // If on map view, center on the property if it has coordinates
+      if (view === "map" && property.latitude && property.longitude) {
+        setMapCenter([property.latitude, property.longitude]);
+        setMapZoom(MAP_ZOOM_PROPERTY);
+      }
+    }
+  };
 
   return (
     <header

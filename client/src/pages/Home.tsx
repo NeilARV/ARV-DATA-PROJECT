@@ -116,30 +116,6 @@ function HomeContent() {
     )
   );
 
-  const handleLeaderboardZipCodeClick = () => {
-    setMapCenter(undefined);
-    setMapZoom(MAP_ZOOM_DEFAULT);
-  };
-
-  const handleLogoClick = () => {
-    setMapCenter(undefined);
-    setMapZoom(MAP_ZOOM_LOGO);
-  };
-
-  // Handle property selection by ID (for search suggestions)
-  const handlePropertySelectById = async (propertyId: string) => {
-    const property = await fetchPropertyById(propertyId);
-    if (property) {
-      setProperty(property);
-      
-      // If on map view, center on the property if it has coordinates
-      if (view === "map" && property.latitude && property.longitude) {
-        setMapCenter([property.latitude, property.longitude]);
-        setMapZoom(MAP_ZOOM_PROPERTY);
-      }
-    }
-  };
-
   // Properties are now sorted server-side, so we can use them directly
   // The API returns properties in the correct sorted order based on the sortBy parameter
   const sortedProperties = filteredProperties;
@@ -164,12 +140,10 @@ function HomeContent() {
   return (
     <div className="h-screen flex flex-col">
       <Header
-        onPropertySelect={handlePropertySelectById}
         county={filters.county}
         onLoginClick={headerDialogHandlers.onLoginClick}
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
-        handleLogoClick={handleLogoClick}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -291,10 +265,7 @@ function HomeContent() {
 
       <LoginDialog {...loginDialogProps} />
 
-      <LeaderboardDialog
-        {...leaderboardDialogProps}
-        onZipCodeClick={handleLeaderboardZipCodeClick}
-      />
+      <LeaderboardDialog {...leaderboardDialogProps}/>
 
     </div>
   );

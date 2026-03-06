@@ -14,7 +14,6 @@ export type LeaderboardDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCompanyClick?: (companyName: string) => void;
-  onZipCodeClick?: (zipCode: string) => void;
 }
 
 export type LeaderboardData = {
