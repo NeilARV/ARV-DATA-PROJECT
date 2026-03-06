@@ -118,8 +118,6 @@ export type StatusTag = {
 export type PropertyMap = {
   mapPins: MapPin[];
   onPropertyClick?: (mapPin: MapPin) => void;
-  center?: [number, number];
-  zoom?: number;
   selectedProperty?: Property | null;
   isLoading?: boolean;
   onDeselectCompany?: () => void;

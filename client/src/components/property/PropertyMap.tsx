@@ -4,12 +4,11 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import { MAP_ZOOM_LOGO } from '@/constants/map.constants';
 import type { MapPin, PropertyMap } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
 import { useProperty } from '@/hooks/useProperty';
 import { useCompanies } from '@/hooks/useCompanies';
-import { CompanyContactWithCounts } from '@/types/companies';
+import { useGeoMap } from '@/hooks/useMap';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -179,8 +178,6 @@ function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [num
 
 export default function PropertyMap({ 
   mapPins, 
-  center = [32.7157, -117.1611], 
-  zoom = MAP_ZOOM_LOGO,
   selectedProperty,
   isLoading = false,
   statusFilters = []
@@ -189,6 +186,7 @@ export default function PropertyMap({
   const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
   const { fetchProperty } = useProperty();
   const { company, setCompany } = useCompanies();
+  const { mapCenter, mapZoom } = useGeoMap();
 
   // Filter map pins with valid coordinates for rendering on map
   const validPins = mapPins.filter(p => 
@@ -227,8 +225,8 @@ export default function PropertyMap({
         </div>
       ) : null}
       <MapContainer
-        center={center}
-        zoom={zoom}
+        center={mapCenter}
+        zoom={mapZoom}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
@@ -237,7 +235,7 @@ export default function PropertyMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapResizeHandler />
-        <MapBounds mapPins={validPins} center={center} zoom={zoom}/>
+        <MapBounds mapPins={validPins} center={mapCenter} zoom={mapZoom}/>
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>

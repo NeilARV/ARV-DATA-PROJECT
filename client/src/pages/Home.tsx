@@ -18,8 +18,6 @@ import { getStateFromCounty, countyNameToKey } from "@/lib/county";
 import { matchesFiltersForPin, matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
-import { useGeolocationMapCenter } from "@/hooks/useGeolocationMapCenter";
-import { useMapCenterFromFilters } from "@/hooks/useMapCenterFromFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import { MAP_ZOOM_DEFAULT, MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY } from "@/constants/map.constants";
@@ -28,26 +26,21 @@ import { fetchPropertyById } from "@/api/properties.api";
 import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
+import { MapProvider, useGeoMap } from "@/hooks/useMap";
 
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
   const { property, setProperty, fetchProperty } = useProperty();
   const { company, loadCompanies } = useCompanies();
-
-  const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined);
-  const [mapZoom, setMapZoom] = useState<number | undefined>(12);
-
   const {
     properties,
     propertiesHasMore,
     isLoadingMoreProperties,
     loadMorePropertiesRef,
     isLoading,
-    isFetching,
     propertiesResponse,
     stablePropertyCount,
-    stableCompanyPropertyCount,
   } = useProperties();
 
   // Load companies when directory is open (with county filter)
@@ -63,8 +56,6 @@ function HomeContent() {
     leaderboardDialogProps,
     headerDialogHandlers,
   } = useDialogs();
-
-  useGeolocationMapCenter(setMapCenter, setMapZoom);
 
   // Build the API URL for map pins (minimal data for map view)
   const mapPinsQueryUrl = useMemo(() => {
@@ -158,11 +149,7 @@ function HomeContent() {
     [mapPins, filters, company, zipCodeList]
   );
 
-  useMapCenterFromFilters({
-    filteredMapPins,
-    setMapCenter,
-    setMapZoom,
-  });
+  const { setMapCenter, setMapZoom } = useGeoMap({ filteredMapPins });
 
   const propertiesToFilter = properties;
 
@@ -282,8 +269,6 @@ function HomeContent() {
                 <div className="flex-1">
                   <PropertyMap
                     mapPins={filteredMapPins}
-                    center={mapCenter}
-                    zoom={mapZoom}
                     selectedProperty={property}
                     isLoading={isLoadingMapPins}
                     statusFilters={filters.statusFilters}
@@ -366,13 +351,15 @@ function HomeContent() {
 export default function Home() {
   return (
     <ViewProvider>
-      <FiltersProvider>
-        <PropertyProvider>
-          <CompaniesProvider>
-            <HomeContent />
-          </CompaniesProvider>
-        </PropertyProvider>
-      </FiltersProvider>
+      <MapProvider>
+        <FiltersProvider>
+          <PropertyProvider>
+            <CompaniesProvider>
+              <HomeContent />
+            </CompaniesProvider>
+          </PropertyProvider>
+        </FiltersProvider>
+      </MapProvider>
     </ViewProvider>
   );
 }
