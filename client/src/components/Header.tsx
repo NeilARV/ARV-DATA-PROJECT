@@ -24,20 +24,31 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
 import type { HeaderProps, PropertySuggestion } from "@/types/general";
+import { useView } from "@/hooks/useView";
+import { useFilters } from "@/hooks/useFilters";
+import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
+import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useGeoMap } from "@/hooks/useMap";
+import { fetchPropertyById } from "@/api/properties.api";
+import { MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY, MAP_ZOOM_COUNTY } from "@/constants/map.constants";
+import { getCountyCenter, getDefaultMapCenter } from "@/lib/county";
+import { useProperty } from "@/hooks/useProperty";
 
 export default function Header({
-  viewMode,
-  onViewModeChange,
   onSearch,
-  onPropertySelect,
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
-  onBuyersFeedClick,
-  onWholesaleClick,
-  onLogoClick,
   county,
 }: HeaderProps) {
+
+  const { filters, setFilters, setSortBy } = useFilters();
+  const { view, setView, setSidebarView } = useView();
+  const { setProperty } = useProperty();
+  const { setCompany } = useCompanies();
+  const { setMapCenter, setMapZoom } = useGeoMap();
+
   const [searchQuery, setSearchQuery] = useState("");
   // Initialize isDark synchronously to avoid wrong logo on first render
   const [isDark, setIsDark] = useState(() => {
@@ -187,6 +198,47 @@ export default function Header({
     }
   };
 
+  const onBuyersFeedClick = async () => {
+    setProperty(null);
+    setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
+    setView("buyers-feed");
+  }
+
+  const onWholesaleClick = async () => {
+    setProperty(null);
+    setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
+    setView("wholesale");
+  }
+
+  const onTableViewClick = async () => {
+    setProperty(null);
+    setView("table")
+  }
+
+  const onLogoClick = async () => {
+    setView("map")
+    setSidebarView("directory")
+    setCompany(null)
+    setProperty(null)
+    setSortBy("recently-sold")
+    setMapCenter(undefined);
+    setMapZoom(MAP_ZOOM_LOGO);
+  }
+
+  // Handle property selection by ID (for search suggestions)
+  const onPropertySelect = async (propertyId: string) => {
+    const property = await fetchPropertyById(propertyId);
+    if (property) {
+      setProperty(property);
+      
+      // If on map view, center on the property if it has coordinates
+      if (view === "map" && property.latitude && property.longitude) {
+        setMapCenter([property.latitude, property.longitude]);
+        setMapZoom(MAP_ZOOM_PROPERTY);
+      }
+    }
+  };
+
   return (
     <header
       className="h-16 border-b border-border bg-background flex items-center justify-between px-4 gap-4"
@@ -270,7 +322,7 @@ export default function Header({
 
             
           <Button
-            variant={viewMode === "buyers-feed" ? "default" : "outline"}
+            variant={view === "buyers-feed" ? "default" : "outline"}
             size="sm"
             onClick={onBuyersFeedClick}
             data-testid="button-buyers-feed"
@@ -280,7 +332,7 @@ export default function Header({
           </Button>
 
           <Button
-            variant={viewMode === "wholesale" ? "default" : "outline"}
+            variant={view === "wholesale" ? "default" : "outline"}
             size="sm"
             onClick={onWholesaleClick}
             data-testid="button-wholesale"
@@ -301,9 +353,16 @@ export default function Header({
 
           <div className="flex items-center border border-border rounded-md">
             <Button
-              variant={viewMode === "map" ? "default" : "ghost"}
+              variant={view === "map" ? "default" : "ghost"}
               size="sm"
-              onClick={() => onViewModeChange("map")}
+              onClick={() => {
+                setView("map");
+                // Center map on currently selected county so switching from grid respects filter
+                const county = filters?.county ?? "San Diego";
+                const center = getCountyCenter(county) ?? getDefaultMapCenter();
+                setMapCenter(center);
+                setMapZoom(MAP_ZOOM_COUNTY);
+              }}
               className="rounded-r-none border-r"
               data-testid="button-view-map"
             >
@@ -311,9 +370,9 @@ export default function Header({
               <span className="hidden sm:inline">Map</span>
             </Button>
             <Button
-              variant={viewMode === "grid" ? "default" : "ghost"}
+              variant={view === "grid" ? "default" : "ghost"}
               size="sm"
-              onClick={() => onViewModeChange("grid")}
+              onClick={() => setView("grid")}
               className="rounded-none border-r"
               data-testid="button-view-grid"
             >
@@ -321,9 +380,9 @@ export default function Header({
               <span className="hidden sm:inline">Grid</span>
             </Button>
             <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
+              variant={view === "table" ? "default" : "ghost"}
               size="sm"
-              onClick={() => onViewModeChange("table")}
+              onClick={onTableViewClick}
               className="rounded-l-none"
               data-testid="button-view-table"
             >

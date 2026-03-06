@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bed, Bath, Maximize2, MapPin, Calendar, Building2, User, Mail, Phone } from "lucide-react";
+import { Bed, Bath, Maximize2, Calendar, Building2, User, Mail, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
@@ -21,22 +21,20 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
-import type { PropertyDetailModalProps } from "@/types/property";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useProperty } from "@/hooks/useProperty";
 
-export default function PropertyDetailModal({
-  property,
-  open,
-  onClose,
-  onCompanyNameClick,
-}: PropertyDetailModalProps) {
+export default function PropertyDetailModal() {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const { property, setProperty } = useProperty();
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
+  const { handleCompanyClick } = useCompanies();
 
   useEffect(() => {
     if (property) {
@@ -119,7 +117,7 @@ export default function PropertyDetailModal({
         description: "Property has been deleted",
       });
       setShowDeleteDialog(false);
-      onClose();
+      setProperty(null)
     },
     onError: (error: any) => {
       toast({
@@ -144,7 +142,7 @@ export default function PropertyDetailModal({
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
-  const dateLabel = [PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION].includes((property.status || "").toLowerCase().trim())
+  const dateLabel = ([PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION] as readonly string[]).includes((property.status || "").toLowerCase().trim())
     ? "Date Purchased"
     : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);
@@ -153,7 +151,7 @@ export default function PropertyDetailModal({
   const daysOwned = calculateDaysOwned(property.dateSold);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={!!property} onOpenChange={() => setProperty(null)}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="modal-property-detail">
         <div className="space-y-4">
           <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted relative">
@@ -247,15 +245,15 @@ export default function PropertyDetailModal({
                   <div className="text-xs text-muted-foreground">Buyer</div>
                   <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 overflow-hidden w-full">
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
-                    {onCompanyNameClick && property.buyerId ? (
+                    {property.buyerId ? (
                       <button
                         onClick={() => {
-                          onCompanyNameClick(
+                          handleCompanyClick(
                             property.buyerCompanyName || property.companyName || property.propertyOwner || "",
-                            property.buyerId || undefined,
+                            property.buyerId || null,
                             true
                           );
-                          onClose();
+                          setProperty(null)
                         }}
                         className="truncate text-primary hover:underline text-left min-w-0"
                         data-testid="text-buyer-company-name"
@@ -305,15 +303,15 @@ export default function PropertyDetailModal({
                   <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
                   <div className="flex items-center justify-end gap-1.5 font-semibold text-sm text-foreground mt-0.5 min-w-0 w-full overflow-hidden">
                     <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
-                      {onCompanyNameClick && property.sellerId ? (
+                      {property.sellerId ? (
                         <button
                           onClick={() => {
-                            onCompanyNameClick(
+                            handleCompanyClick(
                               property.sellerCompanyName || property.sellerName || "",
-                              property.sellerId || undefined,
+                              property.sellerId || null,
                               true
                             );
-                            onClose();
+                            setProperty(null)
                           }}
                           className="truncate text-primary hover:underline text-right min-w-0"
                           data-testid="text-seller-company-name"

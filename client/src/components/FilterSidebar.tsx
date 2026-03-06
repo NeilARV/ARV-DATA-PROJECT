@@ -12,19 +12,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { countyNameToKey } from "@/lib/county";
 import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, MAX_PRICE, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
-import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import type { ZipCodeWithCount, CityWithCount, FilterSidebar } from "@/types/filters";
+import { DEFAULT_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
+import { useFilters } from "@/hooks/useFilters";
+import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 import type { ZipCodeSortOption } from "@/types/options";
+import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 
-export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCounts = [], onSwitchToDirectory, filters }: FilterSidebar) {
-  const [priceRange, setPriceRange] = useState<[number, number]>([filters?.minPrice ?? 0, filters?.maxPrice ?? MAX_PRICE]);
+export interface FilterSidebarProps {
+  onClose?: () => void;
+  zipCodesWithCounts?: ZipCodeWithCount[];
+  onSwitchToDirectory?: () => void;
+}
 
-  const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters?.bedrooms ?? 'Any');
-  const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters?.bathrooms ?? 'Any');
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(filters?.propertyTypes ?? []);
-  const [zipCode, setZipCode] = useState<string>(filters?.zipCode ?? '');
-  const [selectedState, setSelectedState] = useState<string>('CA'); // Default to CA
-  const [county, setCounty] = useState<string>(filters?.county ?? 'San Diego');
+export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
+  const { filters, setFilters } = useFilters();
+  const [priceRange, setPriceRange] = useState<[number, number]>([filters.minPrice ?? 0, filters.maxPrice ?? MAX_PRICE]);
+  const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters.bedrooms ?? "Any");
+  const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters.bathrooms ?? "Any");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(filters.propertyTypes ?? []);
+  const [zipCode, setZipCode] = useState<string>(filters.zipCode ?? "");
+  const [selectedState, setSelectedState] = useState<string>("CA"); // Default to CA
+  const [county, setCounty] = useState<string>(filters.county ?? "San Diego");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCountySuggestions, setShowCountySuggestions] = useState(false);
   const [stateDropdownOpen, setStateDropdownOpen] = useState(false);
@@ -32,15 +40,14 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
   const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
   const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters?.statusFilters ?? DEFAULT_STATUS_FILTERS));
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const countyInputRef = useRef<HTMLInputElement>(null);
   const countySuggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Sync local UI state when parent-controlled filters change (for persistence across view switches)
+  // Sync local UI state when context filters change (for persistence across view switches)
   useEffect(() => {
-    if (!filters) return;
     setPriceRange([filters.minPrice ?? 0, Math.min(filters.maxPrice ?? MAX_PRICE, MAX_PRICE)]);
     setSelectedBedrooms(filters.bedrooms ?? 'Any');
     setSelectedBathrooms(filters.bathrooms ?? 'Any');
@@ -74,15 +81,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
         next.add(status);
       }
       // Immediately apply filter when status changes
-      onFilterChange?.({
+      setFilters({
+        ...filters,
         minPrice: priceRange[0],
         maxPrice: priceRange[1],
         bedrooms: selectedBedrooms,
         bathrooms: selectedBathrooms,
         propertyTypes: selectedTypes,
-        zipCode: filters?.zipCode ?? zipCode,
-        city: filters?.city,
-        county: filters?.county ?? 'San Diego',
+        zipCode: filters.zipCode ?? zipCode,
+        city: filters.city,
+        county: filters.county ?? "San Diego",
         statusFilters: Array.from(next),
       });
       return next;
@@ -102,7 +110,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
   // Select the appropriate zip code list based on state and county filter
   const zipCodeList = useMemo(() => {
-    const countyName = filters?.county ?? 'San Diego';
+    const countyName = filters.county ?? "San Diego";
     const state = selectedState;
     const countyKey = countyNameToKey(countyName);
 
@@ -133,7 +141,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     
     // Return the array or empty array if county not found
     return Array.isArray(countyZipCodes) ? countyZipCodes : [];
-  }, [filters?.county, selectedState]);
+  }, [filters.county, selectedState]);
 
   const sortedZipCodes = useMemo(() => {
     const enrichedZips = zipCodesWithCounts.map(z => ({
@@ -189,40 +197,41 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const handleApply = () => {
-    onFilterChange?.({
+    setFilters({
+      ...filters,
       minPrice: priceRange[0],
       maxPrice: priceRange[1],
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
-      zipCode: filters?.zipCode ?? zipCode,
-      city: filters?.city,
-      county: filters?.county ?? 'San Diego',
+      zipCode: filters.zipCode ?? zipCode,
+      city: filters.city,
+      county: filters.county ?? "San Diego",
       statusFilters: Array.from(statusFilters),
     });
-    console.log('Filters applied:', { priceRange, selectedBedrooms, selectedBathrooms, selectedTypes, zipCode, city: filters?.city, county: filters?.county, statusFilters: Array.from(statusFilters) });
   };
 
   const handleClearFilters = () => {
     // Preserve current county and state when clearing all other filters
-    const countyToKeep = filters?.county ?? 'San Diego';
-    const stateToKeep = COUNTIES.find(c => c.county === countyToKeep)?.state ?? 'CA';
+    const countyToKeep = filters.county ?? "San Diego";
+    const stateToKeep = COUNTIES.find((c) => c.county === countyToKeep)?.state ?? "CA";
 
     setPriceRange([0, MAX_PRICE]);
-    setSelectedBedrooms('Any');
-    setSelectedBathrooms('Any');
+    setSelectedBedrooms("Any");
+    setSelectedBathrooms("Any");
     setSelectedTypes([]);
-    setZipCode('');
+    setZipCode("");
     setSelectedState(stateToKeep);
     setCounty(`${countyToKeep} County`);
     setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
-    onFilterChange?.({
+    setFilters({
+      ...filters,
       minPrice: 0,
       maxPrice: MAX_PRICE,
-      bedrooms: 'Any',
-      bathrooms: 'Any',
+      bedrooms: "Any",
+      bathrooms: "Any",
       propertyTypes: [],
-      zipCode: '',
+      zipCode: "",
       city: undefined,
       county: countyToKeep,
       statusFilters: DEFAULT_STATUS_FILTERS,
@@ -230,18 +239,18 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
   };
 
   const togglePropertyType = (type: string) => {
-    setSelectedTypes(prev => {
-      const next = prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type];
-      // Immediately apply when property type changes
-      onFilterChange?.({
+    setSelectedTypes((prev) => {
+      const next = prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type];
+      setFilters({
+        ...filters,
         minPrice: priceRange[0],
         maxPrice: priceRange[1],
         bedrooms: selectedBedrooms,
         bathrooms: selectedBathrooms,
         propertyTypes: next,
-        zipCode: filters?.zipCode ?? zipCode,
-        city: filters?.city,
-        county: filters?.county ?? 'San Diego',
+        zipCode: filters.zipCode ?? zipCode,
+        city: filters.city,
+        county: filters.county ?? "San Diego",
         statusFilters: Array.from(statusFilters),
       });
       return next;
@@ -275,16 +284,17 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       setFilteredCities(citiesWithCounts.slice(0, 10));
       setShowSuggestions(false);
 
-      // If the user cleared the input, notify parent to clear both zip and city filters
-      onFilterChange?.({
+      // If the user cleared the input, clear both zip and city filters
+      setFilters({
+        ...filters,
         minPrice: priceRange[0],
         maxPrice: priceRange[1],
         bedrooms: selectedBedrooms,
         bathrooms: selectedBathrooms,
         propertyTypes: selectedTypes,
-        zipCode: '',
+        zipCode: "",
         city: undefined,
-        county: filters?.county ?? 'San Diego',
+        county: filters.county ?? "San Diego",
         statusFilters: Array.from(statusFilters),
       });
     }
@@ -295,7 +305,8 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setShowSuggestions(false);
     
     // Immediately apply the zip code filter (clear city when zip code is selected)
-    onFilterChange?.({
+    setFilters({
+      ...filters,
       minPrice: priceRange[0],
       maxPrice: priceRange[1],
       bedrooms: selectedBedrooms,
@@ -303,7 +314,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
       propertyTypes: selectedTypes,
       zipCode: zipCodeData.zipCode,
       city: undefined,
-      county: filters?.county ?? 'San Diego',
+      county: filters.county ?? "San Diego",
       statusFilters: Array.from(statusFilters),
     });
   };
@@ -313,15 +324,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setShowSuggestions(false);
     
     // Immediately apply the city filter (clear zip code when city is selected)
-    onFilterChange?.({
+    setFilters({
+      ...filters,
       minPrice: priceRange[0],
       maxPrice: priceRange[1],
       bedrooms: selectedBedrooms,
       bathrooms: selectedBathrooms,
       propertyTypes: selectedTypes,
-      zipCode: '',
+      zipCode: "",
       city: cityData.city,
-      county: filters?.county ?? 'San Diego', // Preserve county filter
+      county: filters.county ?? "San Diego",
       statusFilters: Array.from(statusFilters),
     });
   };
@@ -349,7 +361,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     const countiesInNewState = COUNTIES.filter(c => c.state === newState);
 
     // Check if current county exists in the new state
-    const currentCountyName = filters?.county ?? 'San Diego';
+    const currentCountyName = filters.county ?? "San Diego";
     const countyExistsInNewState = countiesInNewState.some(
       c => c.county === currentCountyName || c.county === currentCountyName.replace(' County', '')
     );
@@ -361,19 +373,20 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
 
       // Clear all filters when switching to a new state/county so all properties in that area appear
       setPriceRange([0, MAX_PRICE]);
-      setSelectedBedrooms('Any');
-      setSelectedBathrooms('Any');
+      setSelectedBedrooms("Any");
+      setSelectedBathrooms("Any");
       setSelectedTypes([]);
-      setZipCode('');
+      setZipCode("");
       setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
 
-      onFilterChange?.({
+      setFilters({
+        ...filters,
         minPrice: 0,
         maxPrice: MAX_PRICE,
-        bedrooms: 'Any',
-        bathrooms: 'Any',
+        bedrooms: "Any",
+        bathrooms: "Any",
         propertyTypes: [],
-        zipCode: '',
+        zipCode: "",
         city: undefined,
         county: firstCounty.county,
         statusFilters: DEFAULT_STATUS_FILTERS,
@@ -383,7 +396,7 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setShowCountySuggestions(false);
   };
 
-  const selectCounty = (countyObj: typeof COUNTIES[0]) => {
+  const selectCounty = (countyObj: (typeof COUNTIES)[0]) => {
     setCounty(`${countyObj.county} County`);
     setShowCountySuggestions(false);
 
@@ -395,13 +408,14 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
     setZipCode('');
     setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
 
-    onFilterChange?.({
+    setFilters({
+      ...filters,
       minPrice: 0,
       maxPrice: MAX_PRICE,
-      bedrooms: 'Any',
-      bathrooms: 'Any',
+      bedrooms: "Any",
+      bathrooms: "Any",
       propertyTypes: [],
-      zipCode: '',
+      zipCode: "",
       city: undefined,
       county: countyObj.county,
       statusFilters: DEFAULT_STATUS_FILTERS,
@@ -707,16 +721,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
             value={priceRange}
             onValueChange={(newRange) => {
               setPriceRange(newRange as [number, number]);
-              // Immediately apply when slider changes
-              onFilterChange?.({
+              setFilters({
+                ...filters,
                 minPrice: newRange[0],
                 maxPrice: newRange[1],
                 bedrooms: selectedBedrooms,
                 bathrooms: selectedBathrooms,
                 propertyTypes: selectedTypes,
-                zipCode: filters?.zipCode ?? zipCode,
-                city: filters?.city,
-                county: filters?.county ?? 'San Diego',
+                zipCode: filters.zipCode ?? zipCode,
+                city: filters.city,
+                county: filters.county ?? "San Diego",
                 statusFilters: Array.from(statusFilters),
               });
             }}
@@ -738,16 +752,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 size="sm"
                 onClick={() => {
                   setSelectedBedrooms(option);
-                  // Immediately apply when bedrooms filter changes
-                  onFilterChange?.({
+                  setFilters({
+                    ...filters,
                     minPrice: priceRange[0],
                     maxPrice: priceRange[1],
                     bedrooms: option,
                     bathrooms: selectedBathrooms,
                     propertyTypes: selectedTypes,
-                    zipCode: filters?.zipCode ?? zipCode,
-                    city: filters?.city,
-                    county: filters?.county ?? 'San Diego',
+                    zipCode: filters.zipCode ?? zipCode,
+                    city: filters.city,
+                    county: filters.county ?? "San Diego",
                     statusFilters: Array.from(statusFilters),
                   });
                 }}
@@ -769,16 +783,16 @@ export default function FilterSidebar({ onClose, onFilterChange, zipCodesWithCou
                 size="sm"
                 onClick={() => {
                   setSelectedBathrooms(option);
-                  // Immediately apply when bathrooms filter changes
-                  onFilterChange?.({
+                  setFilters({
+                    ...filters,
                     minPrice: priceRange[0],
                     maxPrice: priceRange[1],
                     bedrooms: selectedBedrooms,
                     bathrooms: option,
                     propertyTypes: selectedTypes,
-                    zipCode: filters?.zipCode ?? zipCode,
-                    city: filters?.city,
-                    county: filters?.county ?? 'San Diego',
+                    zipCode: filters.zipCode ?? zipCode,
+                    city: filters.city,
+                    county: filters.county ?? "San Diego",
                     statusFilters: Array.from(statusFilters),
                   });
                 }}

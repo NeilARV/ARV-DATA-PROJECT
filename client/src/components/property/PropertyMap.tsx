@@ -4,8 +4,11 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import { MAP_ZOOM_LOGO } from '@/constants/map.constants';
 import type { MapPin, PropertyMap } from '@/types/property';
+import { useFilters } from '@/hooks/useFilters';
+import { useCompanies } from '@/hooks/useCompanies';
+import { useGeoMap } from '@/hooks/useMap';
+import { useProperty } from '@/hooks/useProperty';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -25,7 +28,7 @@ const createColoredIcon = (color: string) => {
 const blueIcon = createColoredIcon('#69C9E1');
 const greenIcon = createColoredIcon('#22C55E');
 const charcoalIcon = createColoredIcon('#FF0000');
-const purpleIcon = createColoredIcon('#9333EA'); // wholesale properties
+const purpleIcon = createColoredIcon('#9333EA');
 
 // Selected marker icons (with orange color to stand out)
 const selectedBlueIcon = createColoredIcon('#FFA500');
@@ -110,8 +113,9 @@ function MapResizeHandler() {
   return null;
 }
 
-function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin[], center?: [number, number], zoom?: number, selectedCompany?: string | null }) {
+function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [number, number], zoom?: number }) {
   const map = useMap();
+  const { company } = useCompanies();
   const previousPropertyIdsRef = useRef<string>('');
   const previousCenterRef = useRef<[number, number] | undefined>(undefined);
   const previousSelectedCompanyRef = useRef<string | null | undefined>(undefined);
@@ -125,8 +129,8 @@ function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin
     previousPropertyIdsRef.current = currentPropertyIds;
     
     // Check if selected company changed (triggers refit even if same properties)
-    const companyChanged = selectedCompany !== previousSelectedCompanyRef.current;
-    previousSelectedCompanyRef.current = selectedCompany;
+    const companyChanged = company?.companyName !== previousSelectedCompanyRef.current;
+    previousSelectedCompanyRef.current = company?.companyName;
     
     // Check if center changed
     const centerChanged = center !== undefined && (
@@ -167,40 +171,33 @@ function MapBounds({ mapPins, center, zoom, selectedCompany }: { mapPins: MapPin
       // No properties at all, use default view
       map.setView(center, zoom);
     }
-  }, [mapPins, center, zoom, map, selectedCompany]);
+  }, [mapPins, center, zoom, map, company]);
 
   return null;
 }
 
-export default function PropertyMap({ 
-  mapPins, 
-  onPropertyClick, 
-  center = [32.7157, -117.1611], 
-  zoom = MAP_ZOOM_LOGO,
-  hasActiveFilters = false,
-  onClearFilters,
-  selectedProperty,
-  isLoading = false,
-  selectedCompany,
-  selectedCompanyId,
-  onDeselectCompany,
-  statusFilters = []
-}: PropertyMap) {
-  // Filter map pins with valid coordinates for rendering on map
-  const validPins = mapPins.filter(p => 
+export default function PropertyMap() {
+
+  const { filters, clearFilters, hasActiveFilters } = useFilters();
+  const { fetchProperty, property } = useProperty();
+  const { company, setCompany } = useCompanies();
+  const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false, mapCenter, mapZoom } = useGeoMap({ fetchMapPins: true });
+
+  // Use filteredMapPins (respects company + filters), then filter to valid coordinates for rendering
+  const validPins = filteredMapPins.filter(p => 
     p.latitude != null && p.longitude != null && 
     !isNaN(p.latitude) && !isNaN(p.longitude)
   );
 
   return (
     <div className="w-full h-full relative" data-testid="map-container">
-      {(hasActiveFilters && onClearFilters) || (selectedCompany && onDeselectCompany) ? (
+      {(hasActiveFilters) || (company) ? (
         <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
-          {selectedCompany && onDeselectCompany && (
+          {company && (
             <Button
               variant="default"
               size="sm"
-              onClick={onDeselectCompany}
+              onClick={() => setCompany(null)}
               className="shadow-lg h-8 px-2 text-xs"
               data-testid="button-deselect-company-map"
             >
@@ -208,11 +205,11 @@ export default function PropertyMap({
               Deselect Company
             </Button>
           )}
-          {hasActiveFilters && onClearFilters && (
+          {hasActiveFilters && (
             <Button
               variant="default"
               size="sm"
-              onClick={onClearFilters}
+              onClick={() => clearFilters()}
               className="shadow-lg h-8 px-2 text-xs"
               data-testid="button-clear-filters-map"
             >
@@ -223,8 +220,8 @@ export default function PropertyMap({
         </div>
       ) : null}
       <MapContainer
-        center={center}
-        zoom={zoom}
+        center={mapCenter}
+        zoom={mapZoom}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
@@ -233,21 +230,21 @@ export default function PropertyMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapResizeHandler />
-        <MapBounds mapPins={validPins} center={center} zoom={zoom} selectedCompany={selectedCompany} />
-        {isLoading ? (
+        <MapBounds mapPins={validPins} center={mapCenter} zoom={mapZoom}/>
+        {isLoadingMapPins ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
             <div className="text-muted-foreground">Loading map pins...</div>
           </div>
         ) : (
           validPins.map((pin) => {
-            const isSelected = selectedProperty?.id === pin.id;
+            const isSelected = property?.id === pin.id;
             return (
               <Marker
                 key={pin.id}
                 position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForPin(pin, isSelected, selectedCompanyId, statusFilters)}
+                icon={getIconForPin(pin, isSelected, company?.id ?? null, filters.statusFilters)}
                 eventHandlers={{
-                  click: () => onPropertyClick?.(pin),
+                  click: () => fetchProperty?.(pin.id),
                 }}
               />
             );

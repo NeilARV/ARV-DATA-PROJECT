@@ -1,21 +1,17 @@
 import PropertyTable from "@/components/property/PropertyTable";
 import { Loader2 } from "lucide-react";
-import type { TableViewProps } from "@/types/views";
+import { useFilters } from "@/hooks/useFilters";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useProperties } from "@/hooks/useProperties";
 
-export default function TableView({
-  properties,
-  selectedCompany,
-  totalCompanyProperties,
-  totalFilteredProperties,
-  hasActiveFilters,
-  onPropertyClick,
-  onClearCompanyFilter,
-  onClearFilters,
-  propertiesHasMore,
-  isLoadingMoreProperties,
-  isLoading = false,
-  loadMoreRef,
-}: TableViewProps) {
+export default function TableView() {
+
+  const { clearFilters, hasActiveFilters } = useFilters();
+  const { company, setCompany } = useCompanies();
+  const { properties, totalProperties, propertiesHasMore , isLoading, isLoadingMoreProperties, loadMorePropertiesRef} = useProperties();
+
+  const selectedCompanyName = company?.companyName ?? null;
+
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 
@@ -24,31 +20,31 @@ export default function TableView({
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold mb-1">
-            {`${totalFilteredProperties} Properties`}
-            {selectedCompany && (
+            {`${totalProperties} Properties`}
+            {selectedCompanyName && (
               <span className="text-base font-normal text-muted-foreground ml-2">
-                owned by {selectedCompany}
+                owned by {selectedCompanyName}
               </span>
             )}
           </h2>
-          {(selectedCompany || hasActiveFilters) && (
+          {(selectedCompanyName || hasActiveFilters) && (
             <p className="text-muted-foreground">
               <span className="flex items-center gap-2 flex-wrap">
-                {selectedCompany && (
+                {selectedCompanyName && (
                   <button
-                    onClick={onClearCompanyFilter}
+                    onClick={() => setCompany(null)}
                     className="text-primary hover:underline text-sm"
                     data-testid="button-clear-company-filter"
                   >
                     Deselect Company
                   </button>
                 )}
-                {selectedCompany && hasActiveFilters && (
+                {selectedCompanyName && hasActiveFilters && (
                   <span className="text-muted-foreground">•</span>
                 )}
                 {hasActiveFilters && (
                   <button
-                    onClick={onClearFilters}
+                    onClick={() => clearFilters()}
                     className="text-primary hover:underline text-sm"
                     data-testid="button-clear-filters-table"
                   >
@@ -71,11 +67,10 @@ export default function TableView({
         <div>
           <PropertyTable
             properties={properties}
-            onPropertyClick={onPropertyClick}
           />
           {/* Infinite scroll trigger */}
           {propertiesHasMore && (
-            <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+            <div ref={loadMorePropertiesRef as React.RefObject<HTMLDivElement>} className="h-20 flex items-center justify-center">
               {isLoadingMoreProperties && (
                 <div className="text-muted-foreground">Loading more properties...</div>
               )}

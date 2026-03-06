@@ -2,6 +2,8 @@ import { MAX_PRICE } from "@/constants/filters.constants";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import { getEffectiveStatusFilters } from "@/lib/propertyFilters";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useFilters } from "@/hooks/useFilters";
 
 export type BuildPropertyQueryParamsOptions = {
   /** When true, only county and status filters are included (for map pins endpoint). */
@@ -10,9 +12,6 @@ export type BuildPropertyQueryParamsOptions = {
   hasDateSold?: boolean;
   page: number;
   limit: string;
-  sortBy: SortOption;
-  selectedCompanyId?: string | null;
-  selectedCompany?: string | null;
 };
 
 /**
@@ -30,10 +29,10 @@ export function buildPropertyQueryParams(
     hasDateSold = false,
     page,
     limit,
-    sortBy,
-    selectedCompanyId = null,
-    selectedCompany = null,
   } = options;
+
+  const { company } = useCompanies();
+  const { sortBy } = useFilters();
 
   const params = new URLSearchParams();
 
@@ -45,12 +44,17 @@ export function buildPropertyQueryParams(
   // Status filters (effective list includes wholesale when in-renovation selected and no company)
   const effectiveStatuses = getEffectiveStatusFilters(
     filters,
-    selectedCompanyId ?? null
+    company?.id ?? null
   );
   effectiveStatuses.forEach((status) => params.append("status", status));
 
-  // Map pins: only county + status
+  // Map pins: county + status + company (so server can filter pins when a company is selected)
   if (forMapPins) {
+    if (company?.id) {
+      params.append("companyId", company.id);
+    } else if (company?.companyName) {
+      params.append("company", company.companyName);
+    }
     const queryString = params.toString();
     return queryString ? `?${queryString}` : "";
   }
@@ -80,10 +84,10 @@ export function buildPropertyQueryParams(
     );
   }
 
-  if (selectedCompanyId) {
-    params.append("companyId", selectedCompanyId);
-  } else if (selectedCompany) {
-    params.append("company", selectedCompany);
+  if (company?.id) {
+    params.append("companyId", company.id);
+  } else if (company?.companyName) {
+    params.append("company", company.companyName);
   }
 
   if (hasDateSold) {

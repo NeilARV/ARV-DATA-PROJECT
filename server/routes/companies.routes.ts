@@ -4,7 +4,7 @@ import { companies } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
 import { updateCompanySchema } from "@database/updates/companies.update";
 import { requireRole } from "server/middleware/requireRole";
-import { sql, eq, or, and, gte, lte, inArray } from "drizzle-orm";
+import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const router = Router();
@@ -43,89 +43,154 @@ router.get("/contacts/suggestions", async (req, res) => {
     }
 });
 
-// Get all companies with property counts
+const CONTACTS_PAGE_SIZE = 50;
+const CONTACTS_SORT_OPTIONS = [
+    "alphabetical",
+    "most-properties",
+    "fewest-properties",
+    "most-sold-properties",
+    "most-sold-properties-all-time",
+    "new-buyers",
+] as const;
+type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
+
+// Get all companies with property counts (paginated, sortable, searchable)
 router.get("/contacts", async (req, res) => {
     try {
-        const { county } = req.query;
+        const { county, page = "1", limit = String(CONTACTS_PAGE_SIZE), sort = "most-properties", search } = req.query;
+        const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || CONTACTS_PAGE_SIZE));
+        const sortOption = (CONTACTS_SORT_OPTIONS as readonly string[]).includes(String(sort))
+            ? (sort as ContactsSortOption)
+            : "most-properties";
+        const searchTerm = typeof search === "string" ? search.trim() : "";
 
-        // Get all companies (filtered by county if provided)
-        let contactsQuery = db.select().from(companies);
-        
+        // Get all companies (filtered by county if provided, and by search if provided)
+        const conditions: ReturnType<typeof sql>[] = [];
         if (county) {
             const normalizedCounty = county.toString().trim().toLowerCase();
-            contactsQuery = contactsQuery.where(
-                sql`LOWER(${companies.counties}::text) LIKE ${'%"' + normalizedCounty + '"%'}`
-            ) as any;
+            conditions.push(sql`LOWER(${companies.counties}::text) LIKE ${'%"' + normalizedCounty + '"%'}`);
         }
-        
-        const contacts = await contactsQuery.orderBy(companies.companyName);
-
-        // Get all properties (filtered by county if provided) - use buyer_id/seller_id for counting
-        // Need to check both properties.county and addresses.county for county filtering
-        let propertiesQuery = db
-            .select({
-                buyerId: properties.buyerId,
-                sellerId: properties.sellerId,
-                county: sql<string>`COALESCE(${properties.county}, ${addresses.county}, '')`,
-            })
-            .from(properties)
-            .leftJoin(addresses, eq(properties.id, addresses.propertyId));
-        
-        if (county) {
-            const normalizedCounty = county.toString().trim().toLowerCase();
-            propertiesQuery = propertiesQuery.where(
+        if (searchTerm.length >= 2) {
+            const searchPattern = `%${searchTerm.toLowerCase()}%`;
+            conditions.push(
                 or(
-                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                    sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchPattern}`,
+                    sql`LOWER(TRIM(COALESCE(${companies.contactName}, ''))) LIKE ${searchPattern}`,
+                    sql`LOWER(TRIM(COALESCE(${companies.contactEmail}, ''))) LIKE ${searchPattern}`
                 ) as any
-            ) as any;
+            );
         }
-        
-        const allProperties = await propertiesQuery;
-
-        // YTD: Jan 1 of current year through today
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+        const normalizedCountyForProps = county ? (county as string).toString().trim().toLowerCase() : null;
         const now = new Date();
         const ytdStartStr = `${now.getFullYear()}-01-01`;
         const todayStr = now.toISOString().slice(0, 10);
 
-        // Sold count per company YTD (property_transactions where company is seller, recording_date in current year)
-        const soldCountRows = await db
-            .select({
-                sellerId: propertyTransactions.sellerId,
-                count: sql<number>`count(*)::int`,
-            })
+        const canPaginateInDb = sortOption === "alphabetical" || sortOption === "new-buyers";
+        type CompanyRow = typeof companies.$inferSelect;
+        let contacts: CompanyRow[];
+        let total: number;
+
+        if (canPaginateInDb) {
+            // Fast path: get total count and only the current page of contacts from DB, then fetch counts only for those IDs
+            const baseContactsQuery = whereClause
+                ? db.select().from(companies).where(whereClause as any)
+                : db.select().from(companies);
+            const offset = (pageNum - 1) * limitNum;
+            const countQuery = whereClause
+                ? db.select({ count: sql<number>`count(*)::int` }).from(companies).where(whereClause as any)
+                : db.select({ count: sql<number>`count(*)::int` }).from(companies);
+            const contactsPageQuery =
+                sortOption === "alphabetical"
+                    ? baseContactsQuery.orderBy(companies.companyName).limit(limitNum).offset(offset)
+                    : baseContactsQuery.orderBy(desc(companies.createdAt)).limit(limitNum).offset(offset);
+
+            const [totalResult, contactsPage] = await Promise.all([
+                countQuery,
+                contactsPageQuery,
+            ]);
+            total = Number((totalResult as { count: number }[])[0]?.count ?? 0);
+            contacts = contactsPage as CompanyRow[];
+        } else {
+            const contactsQuery = whereClause
+                ? db.select().from(companies).where(whereClause as any)
+                : db.select().from(companies);
+            contacts = (await contactsQuery.orderBy(companies.companyName)) as CompanyRow[];
+            total = contacts.length;
+        }
+
+        const contactIds = contacts.map((c) => c.id).filter(Boolean) as string[];
+
+        // Run all count queries in parallel (optionally restricted to contactIds for fast path)
+        const propertyCountWhereParts: ReturnType<typeof sql>[] = [];
+        if (normalizedCountyForProps) {
+            propertyCountWhereParts.push(
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+                ) as any
+            );
+        }
+        if (canPaginateInDb && contactIds.length > 0) {
+            propertyCountWhereParts.push(inArray(properties.buyerId, contactIds) as any);
+        }
+        const propertyCountWhere = propertyCountWhereParts.length > 0 ? and(...propertyCountWhereParts) : undefined;
+        let propertyCountQuery = db
+            .select({ buyerId: properties.buyerId, count: sql<number>`count(*)::int` })
+            .from(properties)
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId));
+        if (propertyCountWhere) {
+            propertyCountQuery = propertyCountQuery.where(propertyCountWhere as any) as typeof propertyCountQuery;
+        }
+        propertyCountQuery = propertyCountQuery.groupBy(properties.buyerId) as typeof propertyCountQuery;
+
+        const ytdWhere =
+            canPaginateInDb && contactIds.length > 0
+                ? and(
+                      gte(propertyTransactions.recordingDate, ytdStartStr),
+                      lte(propertyTransactions.recordingDate, todayStr),
+                      inArray(propertyTransactions.sellerId, contactIds)
+                  )
+                : and(
+                      gte(propertyTransactions.recordingDate, ytdStartStr),
+                      lte(propertyTransactions.recordingDate, todayStr)
+                  );
+        const soldYtdQuery = db
+            .select({ sellerId: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
             .from(propertyTransactions)
-            .where(
-                and(
-                    gte(propertyTransactions.recordingDate, ytdStartStr),
-                    lte(propertyTransactions.recordingDate, todayStr)
-                )
-            )
+            .where(ytdWhere)
             .groupBy(propertyTransactions.sellerId);
+
+        let soldAllTimeQuery = db
+            .select({ sellerId: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
+            .from(propertyTransactions);
+        if (canPaginateInDb && contactIds.length > 0) {
+            soldAllTimeQuery = soldAllTimeQuery.where(inArray(propertyTransactions.sellerId, contactIds)) as typeof soldAllTimeQuery;
+        }
+        soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
+
+        const [propertyCountRows, soldCountRows, soldCountAllTimeRows] = await Promise.all([
+            propertyCountQuery,
+            soldYtdQuery,
+            soldAllTimeQuery,
+        ]);
+
+        const propertyCountByBuyerId = new Map<string, number>();
+        propertyCountRows.forEach((row: { buyerId: string | null; count: number }) => {
+            if (row.buyerId) propertyCountByBuyerId.set(row.buyerId, row.count);
+        });
         const soldCountByCompanyId = new Map<string, number>();
-        soldCountRows.forEach((row) => {
+        soldCountRows.forEach((row: { sellerId: string | null; count: number }) => {
             if (row.sellerId) soldCountByCompanyId.set(row.sellerId, row.count);
         });
-
-        // All-time sold count per company (property_transactions where company is seller, no date filter)
-        const soldCountAllTimeRows = await db
-            .select({
-                sellerId: propertyTransactions.sellerId,
-                count: sql<number>`count(*)::int`,
-            })
-            .from(propertyTransactions)
-            .groupBy(propertyTransactions.sellerId);
         const soldCountAllTimeByCompanyId = new Map<string, number>();
-        soldCountAllTimeRows.forEach((row) => {
+        soldCountAllTimeRows.forEach((row: { sellerId: string | null; count: number }) => {
             if (row.sellerId) soldCountAllTimeByCompanyId.set(row.sellerId, row.count);
         });
 
-        // Calculate property count and sold counts for each company
-        const contactsWithCounts = contacts.map(contact => {
-            const companyProperties = allProperties.filter(p => {
-                return p.buyerId === contact.id
-            });
-            const propertyCount = companyProperties.length;
+        const contactsWithCounts = contacts.map((contact) => {
+            const propertyCount = propertyCountByBuyerId.get(contact.id) ?? 0;
             const propertiesSoldCount = soldCountByCompanyId.get(contact.id) ?? 0;
             const propertiesSoldCountAllTime = soldCountAllTimeByCompanyId.get(contact.id) ?? 0;
             return {
@@ -136,9 +201,35 @@ router.get("/contacts", async (req, res) => {
             };
         });
 
-        console.log(`Companies (county: ${county || 'all'}):`, contactsWithCounts.length);
-        res.json(contactsWithCounts);
-        
+        let companiesPage: typeof contactsWithCounts;
+        if (canPaginateInDb) {
+            companiesPage = contactsWithCounts;
+        } else {
+            contactsWithCounts.sort((a, b) => {
+                switch (sortOption) {
+                    case "most-properties":
+                        return b.propertyCount - a.propertyCount;
+                    case "fewest-properties":
+                        return a.propertyCount - b.propertyCount;
+                    case "most-sold-properties":
+                        return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
+                    case "most-sold-properties-all-time":
+                        return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
+                    default:
+                        return 0;
+                }
+            });
+            const offset = (pageNum - 1) * limitNum;
+            companiesPage = contactsWithCounts.slice(offset, offset + limitNum);
+        }
+
+        console.log(`Companies (county: ${county || "all"}, page: ${pageNum}, sort: ${sortOption}):`, companiesPage.length, "/", total);
+        res.json({
+            companies: companiesPage,
+            total,
+            page: pageNum,
+            limit: limitNum,
+        });
     } catch (error) {
         console.error("Error fetching companies:", error);
         res.status(500).json({ message: "Error fetching companies" });
@@ -355,6 +446,13 @@ router.get("/:id", async (req, res) => {
 
         const propertiesSoldCountAllTime = sellerCountAllTimeResult?.count ?? 0;
 
+        // Count properties where this company is the buyer (for directory card)
+        const [propertyCountResult] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(properties)
+            .where(eq(properties.buyerId, id));
+        const propertyCount = propertyCountResult?.count ?? 0;
+
         // 90-day acquisition: all property_transactions where this company is buyer_id in the last 90 days
         const ninetyDaysAgo = new Date(now);
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -397,6 +495,7 @@ router.get("/:id", async (req, res) => {
 
         res.json({
             ...result,
+            propertyCount,
             propertiesSoldCount,
             propertiesSoldCountAllTime,
             acquisition90DayTotal,

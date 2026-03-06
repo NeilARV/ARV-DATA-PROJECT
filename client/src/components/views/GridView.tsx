@@ -10,42 +10,55 @@ import { Loader2, Trophy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { SortOption } from "@/types/options";
 import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
+import { useFilters } from "@/hooks/useFilters";
+import { useProperties } from "@/hooks/useProperties";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useProperty } from "@/hooks/useProperty";
+import { useMemo } from "react";
 
 export default function GridView({
-  properties,
-  selectedCompany,
-  totalCompanyProperties,
-  totalFilteredProperties,
-  hasActiveFilters,
-  sortBy,
-  onSortChange,
-  onPropertyClick,
-  onClearCompanyFilter,
-  onClearFilters,
-  gridColsClass,
-  propertiesHasMore,
-  isLoadingMoreProperties,
-  isLoading = false,
-  loadMoreRef,
   showWholesaleLeaderboard = false,
-  county = "San Diego",
-  onWholesaleLeaderboardCompanyClick,
+  sideBarView
 }: GridViewProps) {
+
+  const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
+  const { properties, totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
+  const { property, fetchProperty, setProperty } = useProperty();
+  const { company, setCompany, handleCompanyClick } = useCompanies();
+
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
 
   const { data: wholesaleLeaderboard = [], isLoading: isLoadingLeaderboard } = useQuery<
     WholesaleLeaderboardEntry[]
   >({
-    queryKey: ["/api/companies/wholesale-leaderboard", county],
+    queryKey: ["/api/companies/wholesale-leaderboard", filters.county],
     queryFn: async () => {
-      const url = `/api/companies/wholesale-leaderboard${county ? `?county=${encodeURIComponent(county)}` : ""}`;
+      const url = `/api/companies/wholesale-leaderboard${filters.county ? `?county=${encodeURIComponent(filters.county)}` : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch wholesale leaderboard");
       return res.json();
     },
     enabled: showWholesaleLeaderboard,
   });
+
+
+    // Calculate grid columns based on sidebar and property detail panel visibility
+    const gridColsClass = useMemo(() => {
+      const hasSidebar = sideBarView !== "none";
+      const hasPropertyPanel = property !== null;
+      
+      // Both sidebar and panel open - use 2 columns max
+      if (hasSidebar && hasPropertyPanel) {
+        return "grid-cols-1 md:grid-cols-2";
+      }
+      // Only sidebar OR panel open - use 2-3 columns
+      if (hasSidebar || hasPropertyPanel) {
+        return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
+      }
+      // Neither open - full 3 columns
+      return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+    }, [sideBarView, property]);
 
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">
@@ -54,7 +67,7 @@ export default function GridView({
         <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">
           <div className="min-w-0 flex-shrink-0">
             <h2 className="text-2xl font-semibold leading-tight">
-              {`${totalFilteredProperties} Properties`}
+              {`${totalProperties} Properties`}
             </h2>
           </div>
         {showWholesaleLeaderboard && (
@@ -84,7 +97,10 @@ export default function GridView({
                     <button
                       key={entry.companyId}
                       type="button"
-                      onClick={() => onWholesaleLeaderboardCompanyClick?.(entry.companyName, entry.companyId)}
+                      onClick={() => {
+                        setProperty(null);
+                        handleCompanyClick?.(entry.companyName, entry.companyId);
+                      }}
                       className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
                     >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
@@ -107,7 +123,7 @@ export default function GridView({
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm text-muted-foreground">Sort by:</span>
-          <Select value={sortBy} onValueChange={(value) => onSortChange(value as SortOption)}>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[180px]" data-testid="select-sort">
               <SelectValue />
             </SelectTrigger>
@@ -129,24 +145,24 @@ export default function GridView({
         </div>
         </div>
         {/* Row 2: filter links on their own line so they don't affect row 1 layout */}
-        {(selectedCompany || hasActiveFilters) && (
+        {(company?.companyName || hasActiveFilters) && (
           <p className="text-muted-foreground mt-1.5">
             <span className="flex items-center gap-2 flex-wrap">
-              {selectedCompany && (
+              {company?.companyName && (
                 <button
-                  onClick={onClearCompanyFilter}
+                  onClick={() => setCompany(null)}
                   className="text-primary hover:underline text-sm"
                   data-testid="button-clear-company-filter"
                 >
                   Deselect Company
                 </button>
               )}
-              {selectedCompany && hasActiveFilters && (
+              {company?.companyName && hasActiveFilters && (
                 <span className="text-muted-foreground">•</span>
               )}
               {hasActiveFilters && (
                 <button
-                  onClick={onClearFilters}
+                  onClick={() => clearFilters()}
                   className="text-primary hover:underline text-sm"
                   data-testid="button-clear-filters-grid"
                 >
@@ -171,13 +187,13 @@ export default function GridView({
               <PropertyCard
                 key={property.id}
                 property={property}
-                onClick={() => onPropertyClick(property)}
+                onClick={() => fetchProperty(property.id)}
               />
             ))}
           </div>
           {/* Infinite scroll trigger */}
           {propertiesHasMore && (
-            <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-4">
+            <div ref={loadMorePropertiesRef as React.RefObject<HTMLDivElement>} className="h-20 flex items-center justify-center mt-4">
               {isLoadingMoreProperties && (
                 <div className="text-muted-foreground">Loading more properties...</div>
               )}

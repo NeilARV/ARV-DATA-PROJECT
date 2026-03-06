@@ -21,13 +21,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { isNegative } from "@/utils/isNegative";
-import type { PropertyDetailPanelProps } from "@/types/property";
+import { useCompanies } from "@/hooks/useCompanies";
+import { useProperty } from "@/hooks/useProperty";
 
-export default function PropertyDetailPanel({
-  property,
-  onClose,
-  onCompanyNameClick,
-}: PropertyDetailPanelProps) {
+export default function PropertyDetailPanel() {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -36,6 +33,8 @@ export default function PropertyDetailPanel({
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
+  const { handleCompanyClick } = useCompanies();
+  const { property, setProperty } = useProperty();
 
   useEffect(() => {
     if (property) {
@@ -118,7 +117,7 @@ export default function PropertyDetailPanel({
         description: "Property has been deleted",
       });
       setShowDeleteDialog(false);
-      onClose();
+      setProperty(null)
     },
     onError: (error: any) => {
       toast({
@@ -143,7 +142,7 @@ export default function PropertyDetailPanel({
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
-  const dateLabel = [PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION].includes((property.status || "").toLowerCase().trim())
+  const dateLabel = ([PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION] as readonly string[]).includes((property.status || "").toLowerCase().trim())
     ? "Date Purchased"
     : "Date Sold";
   const formattedDateSold = formatDate(property.dateSold);
@@ -152,10 +151,10 @@ export default function PropertyDetailPanel({
   const daysOwned = calculateDaysOwned(property.dateSold);
 
   return (
-    <div className="w-96 flex-shrink-0 h-full bg-background border-r border-border overflow-y-auto" data-testid="panel-property-detail">
+    <div className={`${property ? 'visible' : 'invisible'} w-96 flex-shrink-0 h-full bg-background border-r border-border overflow-y-auto`} data-testid="panel-property-detail">
       <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Property Details</h2>
-        <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-panel">
+        <Button size="icon" variant="ghost" onClick={() => setProperty(null)} data-testid="button-close-panel">
           <X className="w-4 h-4" />
         </Button>
       </div>
@@ -252,12 +251,12 @@ export default function PropertyDetailPanel({
                 <div className="text-xs text-muted-foreground">Buyer</div>
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mt-0.5 min-w-0 overflow-hidden w-full">
                   <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
-                  {onCompanyNameClick && property.buyerId ? (
+                  {property.buyerId ? (
                     <button
                       onClick={() =>
-                        onCompanyNameClick(
+                        handleCompanyClick(
                           property.buyerCompanyName || property.companyName || property.propertyOwner || "",
-                          property.buyerId || undefined,
+                          property.buyerId || null,
                           true
                         )
                       }
@@ -309,12 +308,12 @@ export default function PropertyDetailPanel({
                 <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
                 <div className="flex items-center justify-end gap-1.5 font-semibold text-xs text-foreground mt-0.5 min-w-0 w-full overflow-hidden">
                   <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
-                    {onCompanyNameClick && property.sellerId ? (
+                    {property.sellerId ? (
                       <button
                         onClick={() =>
-                          onCompanyNameClick(
+                          handleCompanyClick(
                             property.sellerCompanyName || property.sellerName || "",
-                            property.sellerId || undefined,
+                            property.sellerId || null,
                             true
                           )
                         }
