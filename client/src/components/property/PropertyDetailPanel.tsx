@@ -21,13 +21,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { isNegative } from "@/utils/isNegative";
-import type { PropertyDetailPanelProps } from "@/types/property";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperties } from "@/hooks/useProperties";
 
-export default function PropertyDetailPanel({
-  property,
-  onClose,
-}: PropertyDetailPanelProps) {
+export default function PropertyDetailPanel() {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -37,6 +34,7 @@ export default function PropertyDetailPanel({
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
+  const { setProperty, property } = useProperties();
 
   useEffect(() => {
     if (property) {
@@ -119,7 +117,7 @@ export default function PropertyDetailPanel({
         description: "Property has been deleted",
       });
       setShowDeleteDialog(false);
-      onClose();
+      setProperty(null)
     },
     onError: (error: any) => {
       toast({
@@ -156,7 +154,7 @@ export default function PropertyDetailPanel({
     <div className="w-96 flex-shrink-0 h-full bg-background border-r border-border overflow-y-auto" data-testid="panel-property-detail">
       <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Property Details</h2>
-        <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-panel">
+        <Button size="icon" variant="ghost" onClick={() => setProperty(null)} data-testid="button-close-panel">
           <X className="w-4 h-4" />
         </Button>
       </div>

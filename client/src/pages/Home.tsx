@@ -122,10 +122,7 @@ function HomeContent() {
             {view === "map" ? (
               <>
                 {property && (
-                  <PropertyDetailPanel
-                    property={property}
-                    onClose={() => setProperty(null)}
-                  />
+                  <PropertyDetailPanel/>
                 )}
                 <div className="flex-1">
                   <PropertyMap
@@ -141,23 +138,14 @@ function HomeContent() {
             ) : view === "buyers-feed" ? (
               <>
                 {property && (
-                  <PropertyDetailPanel
-                    property={property}
-                    onClose={() => setProperty(null)}
-                  />
+                  <PropertyDetailPanel/>
                 )}
-                <GridView
-                  properties={properties}
-                  gridColsClass={gridColsClass}
-                />
+                <GridView properties={properties} gridColsClass={gridColsClass}/>
               </>
             ) : (
               <>
                 {property && (
-                  <PropertyDetailPanel
-                    property={property}
-                    onClose={() => setProperty(null)}
-                  />
+                  <PropertyDetailPanel/>
                 )}
                 <GridView
                   properties={properties}

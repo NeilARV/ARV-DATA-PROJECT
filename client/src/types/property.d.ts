@@ -102,10 +102,6 @@ export type PropertyDetailModalProps = PropertyDetails & {
   onClose: () => void;
 }
 
-export type PropertyDetailPanelProps = PropertyDetails & {
-  onClose: () => void;
-}
-
 export type PropertyTableProps = {
   properties: Property[];
 }
