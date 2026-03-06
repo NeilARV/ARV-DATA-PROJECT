@@ -121,9 +121,7 @@ function HomeContent() {
           <div className="flex-1 overflow-hidden flex">
             {view === "map" ? (
               <>
-                {property && (
-                  <PropertyDetailPanel/>
-                )}
+                <PropertyDetailPanel/>
                 <div className="flex-1">
                   <PropertyMap
                     mapPins={filteredMapPins}
@@ -137,16 +135,12 @@ function HomeContent() {
               <TableView properties={properties}/>
             ) : view === "buyers-feed" ? (
               <>
-                {property && (
-                  <PropertyDetailPanel/>
-                )}
+                <PropertyDetailPanel/>
                 <GridView properties={properties} gridColsClass={gridColsClass}/>
               </>
             ) : (
               <>
-                {property && (
-                  <PropertyDetailPanel/>
-                )}
+                <PropertyDetailPanel/>
                 <GridView
                   properties={properties}
                   gridColsClass={gridColsClass}
