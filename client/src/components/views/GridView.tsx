@@ -13,6 +13,7 @@ import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperty } from "@/hooks/useProperty";
 
 export default function GridView({
   properties,
@@ -22,7 +23,8 @@ export default function GridView({
 }: GridViewProps) {
 
   const { clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
-  const { fetchProperty, setProperty, totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
+  const { totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
+  const { fetchProperty, setProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
 
   // Show loader when initially loading and no properties yet

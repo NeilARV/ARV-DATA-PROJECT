@@ -97,11 +97,6 @@ export type PropertyCardProps = {
   onClick?: () => void;
 }
 
-export type PropertyDetailModalProps = PropertyDetails & {
-  open: boolean;
-  onClose: () => void;
-}
-
 export type PropertyTableProps = {
   properties: Property[];
 }

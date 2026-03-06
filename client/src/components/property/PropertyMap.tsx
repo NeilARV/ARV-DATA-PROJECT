@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { MapPin, PropertyMap } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
-import { useProperties } from '@/hooks/useProperties';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGeoMap } from '@/hooks/useMap';
+import { useProperty } from '@/hooks/useProperty';
 
 const createColoredIcon = (color: string) => {
   const svgIcon = `
@@ -183,8 +183,8 @@ export default function PropertyMap({
   statusFilters = []
 }: PropertyMap) {
 
-  const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
-  const { fetchProperty } = useProperties();
+  const { clearFilters, hasActiveFilters } = useFilters();
+  const { fetchProperty } = useProperty();
   const { company, setCompany } = useCompanies();
   const { mapCenter, mapZoom } = useGeoMap();
 

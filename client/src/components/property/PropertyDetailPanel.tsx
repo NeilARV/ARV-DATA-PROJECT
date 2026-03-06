@@ -22,7 +22,7 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { isNegative } from "@/utils/isNegative";
 import { useCompanies } from "@/hooks/useCompanies";
-import { useProperties } from "@/hooks/useProperties";
+import { useProperty } from "@/hooks/useProperty";
 
 export default function PropertyDetailPanel() {
   const [imageUrl, setImageUrl] = useState('');
@@ -34,7 +34,7 @@ export default function PropertyDetailPanel() {
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
-  const { setProperty, property } = useProperties();
+  const { property, setProperty } = useProperty();
 
   useEffect(() => {
     if (property) {

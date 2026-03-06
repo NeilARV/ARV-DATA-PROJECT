@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bed, Bath, Maximize2, MapPin, Calendar, Building2, User, Mail, Phone } from "lucide-react";
+import { Bed, Bath, Maximize2, Calendar, Building2, User, Mail, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
@@ -21,20 +21,17 @@ import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
-import type { PropertyDetailModalProps } from "@/types/property";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useProperty } from "@/hooks/useProperty";
 
-export default function PropertyDetailModal({
-  property,
-  open,
-  onClose,
-}: PropertyDetailModalProps) {
+export default function PropertyDetailModal() {
   const [imageUrl, setImageUrl] = useState('');
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const { property, setProperty } = useProperty();
   const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
@@ -120,7 +117,7 @@ export default function PropertyDetailModal({
         description: "Property has been deleted",
       });
       setShowDeleteDialog(false);
-      onClose();
+      setProperty(null)
     },
     onError: (error: any) => {
       toast({
@@ -154,7 +151,7 @@ export default function PropertyDetailModal({
   const daysOwned = calculateDaysOwned(property.dateSold);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={!!property} onOpenChange={() => setProperty(null)}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="modal-property-detail">
         <div className="space-y-4">
           <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted relative">
@@ -256,7 +253,7 @@ export default function PropertyDetailModal({
                             property.buyerId || null,
                             true
                           );
-                          onClose();
+                          setProperty(null)
                         }}
                         className="truncate text-primary hover:underline text-left min-w-0"
                         data-testid="text-buyer-company-name"
@@ -314,7 +311,7 @@ export default function PropertyDetailModal({
                               property.sellerId || null,
                               true
                             );
-                            onClose();
+                            setProperty(null)
                           }}
                           className="truncate text-primary hover:underline text-right min-w-0"
                           data-testid="text-seller-company-name"

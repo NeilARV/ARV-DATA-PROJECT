@@ -19,11 +19,13 @@ import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertiesProvider, useProperties } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
+import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
-  const { property, properties, setProperty } = useProperties();
+  const { properties } = useProperties();
+  const { property, setProperty } = useProperty();
   const { loadCompanies } = useCompanies();
   const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
   const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
@@ -154,11 +156,7 @@ function HomeContent() {
       </div>
 
       {view === "table" && (
-        <PropertyDetailModal
-          property={property}
-          open={!!property}
-          onClose={() => setProperty(null)}
-        />
+        <PropertyDetailModal/>
       )}
 
       <SignupDialog {...signupDialogProps} />
@@ -178,7 +176,9 @@ export default function Home() {
         <FiltersProvider>
           <CompaniesProvider>
             <PropertiesProvider>
-              <HomeContent />
+              <PropertyProvider>
+                <HomeContent />
+              </PropertyProvider>
             </PropertiesProvider>
           </CompaniesProvider>
         </FiltersProvider>

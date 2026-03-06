@@ -1,5 +1,4 @@
 import { useState, useEffect, createContext, useRef, useContext, ReactNode, useMemo, type RefObject  } from "react";
-import { fetchPropertyById } from "@/api/properties.api";
 import { useQuery } from "@tanstack/react-query";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
@@ -20,9 +19,6 @@ export type PropertiesResponse = {
 };
 
 type PropertiesContextValue = {
-    property: Property | null,
-    setProperty: (property: Property | null) => void;
-    fetchProperty: (propertyId: string) => void;
     properties: Property[];
     propertiesHasMore: boolean;
     isLoadingMoreProperties: boolean;
@@ -54,14 +50,8 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
     const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
     const [stablePropertyCount, setStablePropertyCount] = useState(0);
     const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState(0);
-    const [ property, setProperty ] = useState<Property | null>(null)
     const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
     const hasDateSold = view === 'buyers-feed';
-
-    const fetchProperty = async (propertyId: string) => {
-        const prop = await fetchPropertyById(propertyId)
-        setProperty(prop)
-    }
 
     // Reset pagination when filters, sort, or company change so we fetch page 1 of the new result set.
     useEffect(() => {
@@ -188,9 +178,6 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
     );
 
     const value = {
-        property,
-        setProperty,
-        fetchProperty,
         properties: filteredProperties,
         propertiesHasMore,
         isLoadingMoreProperties,

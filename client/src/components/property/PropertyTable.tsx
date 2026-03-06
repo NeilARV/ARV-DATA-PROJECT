@@ -13,7 +13,7 @@ import { useState } from "react";
 import { formatAddress } from "@shared/utils/formatAddress";
 import type { PropertyTableProps } from "@/types/property";
 import type { SortColumn, SortDirection } from "@/types/options";
-import { useProperties } from "@/hooks/useProperties";
+import { useProperty } from "@/hooks/useProperty";
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {
@@ -44,7 +44,7 @@ const getStreetName = (address?: string | null) => {
 
 export default function PropertyTable({ properties }: PropertyTableProps) {
 
-  const { fetchProperty } = useProperties();
+  const { fetchProperty } = useProperty();
 
   const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
