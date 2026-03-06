@@ -13,7 +13,6 @@ import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { getStateFromCounty, countyNameToKey } from "@/lib/county";
-import { matchesFiltersForProperty } from "@/lib/propertyFilters";
 import { useDialogs } from "@/hooks/useDialogs";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
@@ -29,11 +28,7 @@ function HomeContent() {
   const { view, sidebarView, setSidebarView } = useView();
   const { property, setProperty } = useProperty();
   const { loadCompanies } = useCompanies();
-  const {
-    mapPins = [],
-    filteredMapPins = [],
-    isLoadingMapPins = false,
-  } = useGeoMap({ fetchMapPins: true });
+  const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false } = useGeoMap({ fetchMapPins: true });
   const { properties } = useProperties();
 
   // Load companies when directory is open (with county filter)
