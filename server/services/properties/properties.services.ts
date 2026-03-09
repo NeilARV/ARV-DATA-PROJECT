@@ -72,20 +72,22 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
 
     // Status filter (and optional name-based company filter when no company ID).
-    // When company is selected we skip status filter so the list shows all owned properties and matches the directory count.
+    // When company is selected we still apply status so the UI can show "X of Y Properties" (filtered count of total owned).
     const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
-    if (statusesToUse.length > 0 && !hasCompanyFilter) {
+    if (statusesToUse.length > 0) {
         const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
-        const ownerFilter = company || propertyOwner;
-        if (ownerFilter) {
-            const searchTerm = trimCompanyName(ownerFilter.toString());
-            if (searchTerm) {
-                conditions.push(
-                    or(
-                        eq(buyerCompanies.companyName, searchTerm),
-                        eq(sellerCompanies.companyName, searchTerm)
-                    ) as any
-                );
+        if (!hasCompanyFilter) {
+            const ownerFilter = company || propertyOwner;
+            if (ownerFilter) {
+                const searchTerm = trimCompanyName(ownerFilter.toString());
+                if (searchTerm) {
+                    conditions.push(
+                        or(
+                            eq(buyerCompanies.companyName, searchTerm),
+                            eq(sellerCompanies.companyName, searchTerm)
+                        ) as any
+                    );
+                }
             }
         }
         if (normalizedStatuses.length === 1) {

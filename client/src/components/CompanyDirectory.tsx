@@ -120,17 +120,18 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const previousExpandedCompanyRef = useRef<string | null>(null);
 
-  // When a company is selected: always turn on all status filters.
-  // When deselected: revert to feed-specific status (wholesale feed → wholesale only; buyers feed → in-renovation + wholesale; map/grid/table → in-renovation only).
+  // When a company is newly selected: turn on all status filters. When deselected: revert to feed-specific status.
+  // Only set status on transition (no selection → selection or selection → no selection) so the user can narrow
+  // status (e.g. only in-renovation) and see "2 of 3 Properties" without this effect overwriting their choice.
   useEffect(() => {
     const hadSelection = previousExpandedCompanyRef.current != null;
     const hasSelection = company != null;
     previousExpandedCompanyRef.current = company?.companyName ?? null;
 
-    if (hasSelection) {
+    if (hasSelection && !hadSelection) {
       setStatusFilters(new Set(ALL_STATUS_FILTERS));
       setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS });
-    } else if (hadSelection) {
+    } else if (hadSelection && !hasSelection) {
       const statuses =
         view === "wholesale"
           ? WHOLESALE_VIEW_STATUS_FILTERS
