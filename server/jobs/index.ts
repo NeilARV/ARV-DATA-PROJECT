@@ -20,15 +20,15 @@ export function startScheduledJobs() {
     //     timezone: "America/Los_Angeles"
     // })
 
-    // Start Miami-Fort Lauderdale-West Palm Beach, FL property data sync every night at 11:00 PM
-    cron.schedule("0 23 * * *", syncMiamiData, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Start Miami-Fort Lauderdale-West Palm Beach, FL property data sync every night at 11:00 PM
+    // cron.schedule("23 16 * * *", syncMiamiData, {
+    //     timezone: "America/Los_Angeles"
+    // })
 
-    // Start Port St. Lucie, FL property data sync every night at 0:00 AM
-    cron.schedule("0 0 * * *", syncPortStLucieData, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Start Port St. Lucie, FL property data sync every night at 0:00 AM
+    // cron.schedule("0 0 * * *", syncPortStLucieData, {
+    //     timezone: "America/Los_Angeles"
+    // })
 
     // Start Denver-Aurora-Centennial, CO property data sync every night at 1:00 AM
     cron.schedule("0 1 * * *", syncDenverData, {
