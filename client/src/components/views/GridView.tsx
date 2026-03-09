@@ -22,12 +22,17 @@ export default function GridView({
 }: GridViewProps) {
 
   const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
-  const { properties, totalProperties, propertiesHasMore, isLoading, isLoadingMoreProperties, loadMorePropertiesRef } = useProperties();
+  const { properties, totalProperties, propertiesHasMore, isLoading, isFetching, isLoadingMoreProperties, loadMorePropertiesRef, stablePropertyCount } = useProperties();
   const { property, fetchProperty, setProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
+
+  // Avoid "25 of 1" flash: when company selected and refetching, use actual list length for "shown" count
+  const displayShownCount = company && (isLoading || isFetching) ? properties.length : totalProperties;
+  // Avoid stutter when deselecting: when no company and refetching, keep previous total
+  const displayTotal = !company && (isLoading || isFetching) && stablePropertyCount > 0 ? stablePropertyCount : totalProperties;
 
   const { data: wholesaleLeaderboard = [], isLoading: isLoadingLeaderboard } = useQuery<
     WholesaleLeaderboardEntry[]
@@ -68,8 +73,8 @@ export default function GridView({
           <div className="min-w-0 flex-shrink-0">
             <h2 className="text-2xl font-semibold leading-tight">
               {company
-                ? `${totalProperties} of ${company.propertyCount ?? totalProperties} Properties`
-                : `${totalProperties} Properties`}
+                ? `${displayShownCount} of ${company.propertyCount ?? displayShownCount} Properties`
+                : `${displayTotal} Properties`}
             </h2>
           </div>
         {showWholesaleLeaderboard && (

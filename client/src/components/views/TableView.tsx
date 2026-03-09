@@ -8,12 +8,17 @@ export default function TableView() {
 
   const { clearFilters, hasActiveFilters } = useFilters();
   const { company, setCompany } = useCompanies();
-  const { properties, totalProperties, propertiesHasMore , isLoading, isLoadingMoreProperties, loadMorePropertiesRef} = useProperties();
+  const { properties, totalProperties, propertiesHasMore, isLoading, isFetching, isLoadingMoreProperties, loadMorePropertiesRef, stablePropertyCount } = useProperties();
 
   const selectedCompanyName = company?.companyName ?? null;
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
+
+  // Avoid "25 of 1" flash: when company selected and refetching, use actual list length for "shown" count
+  const displayShownCount = company && (isLoading || isFetching) ? properties.length : totalProperties;
+  // Avoid stutter when deselecting: when no company and refetching, keep previous total
+  const displayTotal = !company && (isLoading || isFetching) && stablePropertyCount > 0 ? stablePropertyCount : totalProperties;
 
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col">
@@ -21,8 +26,8 @@ export default function TableView() {
         <div>
           <h2 className="text-2xl font-semibold mb-1">
             {company
-              ? `${totalProperties} of ${company.propertyCount ?? totalProperties} Properties`
-              : `${totalProperties} Properties`}
+              ? `${displayShownCount} of ${company.propertyCount ?? displayShownCount} Properties`
+              : `${displayTotal} Properties`}
             {selectedCompanyName && (
               <span className="text-base font-normal text-muted-foreground ml-2">
                 owned by {selectedCompanyName}
