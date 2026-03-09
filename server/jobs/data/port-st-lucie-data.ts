@@ -29,7 +29,7 @@ export async function syncPortStLucieData() {
             throw new Error(`[${CITY_CODE} SYNC] Cannot get last sale date for MSA: ${PORT_ST_LUCIE_MSA}; sync aborted.`);
         }
 
-        /** Sale date of the last property we successfully processed; persisted only at end of run. */
+        /** Sale date of the last property we successfully processed; persisted after each successful day. */
         let lastSuccessfulSaleDate: string | null = null;
 
         const aggregated = {
@@ -109,6 +109,8 @@ export async function syncPortStLucieData() {
 
             if (raw.lastSaleDate) {
                 lastSuccessfulSaleDate = raw.lastSaleDate;
+                const storedDate = addDaysToYMD(lastSuccessfulSaleDate, -1);
+                await updateLastSaleDate(PORT_ST_LUCIE_MSA, CITY_CODE, storedDate);
             }
 
             aggregated.totalRecords += raw.records.length;
@@ -116,11 +118,6 @@ export async function syncPortStLucieData() {
             aggregated.propertiesInserted += insertPropertiesResult.propertiesInserted ?? 0;
 
             lastSaleDate = saleDateMax;
-        }
-
-        if (lastSuccessfulSaleDate !== null) {
-            const storedDate = addDaysToYMD(lastSuccessfulSaleDate, -1);
-            await updateLastSaleDate(PORT_ST_LUCIE_MSA, CITY_CODE, storedDate);
         }
 
         console.log(
