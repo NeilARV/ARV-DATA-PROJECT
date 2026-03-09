@@ -14,6 +14,7 @@ import { formatAddress } from "@shared/utils/formatAddress";
 import type { PropertyTableProps } from "@/types/property";
 import type { SortColumn, SortDirection } from "@/types/options";
 import { useProperty } from "@/hooks/useProperty";
+import { formatCompanyName } from "@/utils/formatCompanyName";
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {
@@ -195,7 +196,7 @@ export default function PropertyTable({ properties }: PropertyTableProps) {
               </TableCell>
               <TableCell>{property.propertyType}</TableCell>
               <TableCell>
-                {property.companyName || property.propertyOwner || (
+                {formatCompanyName(property.companyName) || (
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>

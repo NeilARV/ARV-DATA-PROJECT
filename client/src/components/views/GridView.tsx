@@ -67,7 +67,9 @@ export default function GridView({
         <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">
           <div className="min-w-0 flex-shrink-0">
             <h2 className="text-2xl font-semibold leading-tight">
-              {`${totalProperties} Properties`}
+              {company
+                ? `${totalProperties} of ${company.propertyCount ?? totalProperties} Properties`
+                : `${totalProperties} Properties`}
             </h2>
           </div>
         {showWholesaleLeaderboard && (

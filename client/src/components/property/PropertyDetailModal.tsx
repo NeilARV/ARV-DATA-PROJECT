@@ -23,6 +23,7 @@ import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
+import { formatCompanyName } from "@/utils/formatCompanyName";
 
 export default function PropertyDetailModal() {
   const [imageUrl, setImageUrl] = useState('');
@@ -258,11 +259,11 @@ export default function PropertyDetailModal() {
                         className="truncate text-primary hover:underline text-left min-w-0"
                         data-testid="text-buyer-company-name"
                       >
-                        {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                        {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
                       </button>
                     ) : (
                       <p className="truncate text-primary text-left min-w-0 m-0" data-testid="text-buyer-company-name">
-                        {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                        {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
                       </p>
                     )}
                   </div>
@@ -316,11 +317,11 @@ export default function PropertyDetailModal() {
                           className="truncate text-primary hover:underline text-right min-w-0"
                           data-testid="text-seller-company-name"
                         >
-                          {property.sellerCompanyName || property.sellerName || "—"}
+                          {formatCompanyName(property.sellerCompanyName || property.sellerName || "—")}
                         </button>
                       ) : (
                         <p className="truncate text-primary text-right min-w-0 m-0" data-testid="text-seller-company-name">
-                          {property.sellerCompanyName || property.sellerName || "—"}
+                          {formatCompanyName(property.sellerCompanyName || property.sellerName || "—")}
                         </p>
                       )}
                     </span>

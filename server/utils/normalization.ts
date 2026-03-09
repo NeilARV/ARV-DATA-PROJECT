@@ -68,55 +68,51 @@ export function normalizeSubdivision(subdivision: string | null | undefined): st
     return normalizeToTitleCase(trimmed);
 }
 
-// Normalizes a company name for comparison by removing punctuation and standardizing format.
-// This helps match variations like:
-export function normalizeCompanyNameForComparison(name: string | null | undefined): string | null {
-  if (!name || typeof name !== 'string') return null;
-  
-  return name
-    .trim()
-    // Remove common punctuation: commas, periods, semicolons, colons
-    .replace(/[,.;:]/g, '')
-    // Normalize multiple spaces to single space
-    .replace(/\s+/g, ' ')
-    // Convert to lowercase for case-insensitive comparison
-    .toLowerCase();
+// KEEP NORMALIZE COMPANY FOR NOW
+
+export function normalizeCompanyNameForStorage(name: string | null | undefined): string | null {
+    if (!name || typeof name !== 'string') return null;
+    
+    // First normalize to title case
+    const titleCase = name
+      .trim()
+      .split(/\s+/)
+      .map(word => {
+        if (word.length === 0) return word;
+        
+        // Remove trailing punctuation from word before processing
+        const cleanWord = word.replace(/[,.;]+$/, '');
+        
+        // Handle common business suffixes - keep them in specific formats
+        const upperWord = cleanWord.toUpperCase();
+        if (upperWord === 'LLC') return 'LLC';
+        if (upperWord === 'LLP') return 'LLP';
+        if (upperWord === 'PLLC') return 'PLLC';
+        if (upperWord === 'LC') return 'LC';
+        if (upperWord === 'PC' || upperWord === 'P.C.') return 'PC';
+        if (upperWord === 'LP') return 'LP';
+        if (upperWord === 'GP') return 'GP';
+        if (upperWord === 'INC' || upperWord === 'INCORPORATED') return 'Inc';
+        if (upperWord === 'CORP' || upperWord === 'CORPORATION') return 'Corp';
+        
+        // Capitalize first letter, lowercase the rest
+        return cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();
+      })
+      .join(' ');
+    
+    // Remove trailing punctuation (periods, commas) but keep the structure
+    return titleCase.replace(/[,.;]+$/, '').trim();
 }
 
-// Normalizes a company name for storage, ensuring consistent formatting.
-// This applies title case and standardizes punctuation.
-export function normalizeCompanyNameForStorage(name: string | null | undefined): string | null {
-  if (!name || typeof name !== 'string') return null;
-  
-  // First normalize to title case
-  const titleCase = name
-    .trim()
-    .split(/\s+/)
-    .map(word => {
-      if (word.length === 0) return word;
-      
-      // Remove trailing punctuation from word before processing
-      const cleanWord = word.replace(/[,.;]+$/, '');
-      
-      // Handle common business suffixes - keep them in specific formats
-      const upperWord = cleanWord.toUpperCase();
-      if (upperWord === 'LLC') return 'LLC';
-      if (upperWord === 'LLP') return 'LLP';
-      if (upperWord === 'PLLC') return 'PLLC';
-      if (upperWord === 'LC') return 'LC';
-      if (upperWord === 'PC' || upperWord === 'P.C.') return 'PC';
-      if (upperWord === 'LP') return 'LP';
-      if (upperWord === 'GP') return 'GP';
-      if (upperWord === 'INC' || upperWord === 'INCORPORATED') return 'Inc';
-      if (upperWord === 'CORP' || upperWord === 'CORPORATION') return 'Corp';
-      
-      // Capitalize first letter, lowercase the rest
-      return cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();
-    })
-    .join(' ');
-  
-  // Remove trailing punctuation (periods, commas) but keep the structure
-  return titleCase.replace(/[,.;]+$/, '').trim();
+/**
+ * Company names are stored exactly as SFR Analytics returns them.
+ * This helper only trims whitespace so we can do direct string comparison
+ * without any normalization (no case change, no punctuation removal).
+ */
+export function trimCompanyName(name: string | null | undefined): string | null {
+  if (!name || typeof name !== "string") return null;
+  const trimmed = name.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 // Normalizes property types based on specific rules

@@ -40,9 +40,12 @@ export async function fetchCompanyContactsPage(
 
 export async function fetchCompanyById(
   companyId: string,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; county?: string }
 ): Promise<CompanyContactWithCounts | null> {
-  const response = await fetch(`/api/companies/${companyId}`, {
+  const params = new URLSearchParams();
+  if (options?.county?.trim()) params.set("county", options.county.trim());
+  const query = params.toString() ? `?${params.toString()}` : "";
+  const response = await fetch(`/api/companies/${companyId}${query}`, {
     credentials: "include",
     signal: options?.signal,
   });

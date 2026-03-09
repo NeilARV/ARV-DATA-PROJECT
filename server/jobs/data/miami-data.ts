@@ -12,26 +12,21 @@ import { getTransactions } from "./processes/get-transactions";
 import { cleanTransactions } from "./processes/clean-transactions";
 import { addDaysToYMD } from "server/utils/normalization";
 
-const LOS_ANGELES_MSA = "Los Angeles-Long Beach-Anaheim, CA";
-const CITY_CODE = "LA";
+const MIAMI_MSA = "Miami-Fort Lauderdale-West Palm Beach, FL";
+const CITY_CODE = "MIA";
 
-// Excluded addresses - addresses to skip (case-insensitive matching)
-const EXCLUDED_ADDRESSES = [
-    "11011 Huston St",
-];
-
-export async function syncLosAngelesData() {
-    console.log(`[${CITY_CODE} SYNC] Syncing Denver Data for MSA: ${LOS_ANGELES_MSA}`);
+export async function syncMiamiData() {
+    console.log(`[${CITY_CODE} SYNC] Syncing Data for MSA: ${MIAMI_MSA}`);
 
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
     const today = new Date().toISOString().split("T")[0];
 
     try {
-        let lastSaleDate: string | null = await fetchLastSaleDate(LOS_ANGELES_MSA);
+        let lastSaleDate: string | null = await fetchLastSaleDate(MIAMI_MSA);
         
         if (lastSaleDate == null) {
-            throw new Error(`[${CITY_CODE} SYNC] Cannot get last sale date for MSA: ${LOS_ANGELES_MSA}; sync aborted.`);
+            throw new Error(`[${CITY_CODE} SYNC] Cannot get last sale date for MSA: ${MIAMI_MSA}; sync aborted.`);
         }
 
         /** Sale date of the last property we successfully processed; persisted after each successful day. */
@@ -52,14 +47,14 @@ export async function syncLosAngelesData() {
             const saleDateMax = addDaysToYMD(lastSaleDate, 1);
 
             const raw = await fetchMarket({
-                msa: LOS_ANGELES_MSA,
-        cityCode: CITY_CODE,
-        API_KEY,
-        API_URL,
-        saleDateMin: lastSaleDate,
-        saleDateMax,
-        excludedAddresses: EXCLUDED_ADDRESSES,
-    });
+                msa: MIAMI_MSA,
+                cityCode: CITY_CODE,
+                API_KEY,
+                API_URL,
+                saleDateMin: lastSaleDate,
+                saleDateMax,
+                excludedAddresses: [],
+            });
 
             if (raw.records.length === 0) {
                 console.log(
@@ -93,7 +88,7 @@ export async function syncLosAngelesData() {
 
             const insertResult = await insertCompanies({
                 companyNames: transactionCompanies.companyNames,
-                msa: LOS_ANGELES_MSA,
+                msa: MIAMI_MSA,
                 cityCode: CITY_CODE,
                 companyCounties: transactionCompanies.companyCounties,
             });
@@ -108,14 +103,14 @@ export async function syncLosAngelesData() {
 
             const insertPropertiesResult = await insertProperties({
                 properties: propertiesToInsert,
-                msa: LOS_ANGELES_MSA,
+                msa: MIAMI_MSA,
                 cityCode: CITY_CODE,
             });
 
             if (raw.lastSaleDate) {
                 lastSuccessfulSaleDate = raw.lastSaleDate;
                 const storedDate = addDaysToYMD(lastSuccessfulSaleDate, -1);
-                await updateLastSaleDate(LOS_ANGELES_MSA, CITY_CODE, storedDate);
+                await updateLastSaleDate(MIAMI_MSA, CITY_CODE, storedDate);
             }
 
             aggregated.totalRecords += raw.records.length;
@@ -126,14 +121,14 @@ export async function syncLosAngelesData() {
         }
 
         console.log(
-            `[${CITY_CODE} SYNC] Complete Syncing Denver Data for MSA: ${LOS_ANGELES_MSA} ` +
+            `[${CITY_CODE} SYNC] Complete Syncing Data for MSA: ${MIAMI_MSA} ` +
                 `(records: ${aggregated.totalRecords}, companies: ${aggregated.companiesInserted}, properties: ${aggregated.propertiesInserted})`
         );
 
         return aggregated;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[${CITY_CODE} SYNC] Fatal error syncing ${LOS_ANGELES_MSA}:`, errorMessage);
+        console.error(`[${CITY_CODE} SYNC] Fatal error syncing ${MIAMI_MSA}:`, errorMessage);
         throw error;
     }
 }

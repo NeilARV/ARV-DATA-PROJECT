@@ -160,7 +160,9 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
           setCompany(stub);
           setSidebarView("directory");
           try {
-            const detail = await fetchCompanyById(companyId);
+            const detail = await fetchCompanyById(companyId, {
+              county: filters.county ?? undefined,
+            });
             if (detail) {
               const withCounts: CompanyContactWithCounts = {
                 ...detail,
@@ -192,7 +194,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         companySelectionInProgressRef.current = false;
       }
     },
-    [companies, setCompany, setSidebarView]
+    [companies, setCompany, setSidebarView, filters.county]
   );
 
   const hasMore = total > companies.length;

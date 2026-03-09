@@ -11,9 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { countyNameToKey } from "@/lib/county";
-import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, MAX_PRICE, SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES } from "@/constants/filters.constants";
+import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, MAX_PRICE, SAN_DIEGO_MSA_ZIP_CODES, 
+  LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES,
+  MIAMI_MSA_ZIP_CODES, PORT_ST_LUCIE_MSA_ZIP_CODES 
+} from "@/constants/filters.constants";
 import { DEFAULT_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useFilters } from "@/hooks/useFilters";
+import { useCompanies } from "@/hooks/useCompanies";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 import type { ZipCodeSortOption } from "@/types/options";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
@@ -26,6 +30,7 @@ export interface FilterSidebarProps {
 
 export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
   const { filters, setFilters } = useFilters();
+  const { setCompany } = useCompanies();
   const [priceRange, setPriceRange] = useState<[number, number]>([filters.minPrice ?? 0, filters.maxPrice ?? MAX_PRICE]);
   const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters.bedrooms ?? "Any");
   const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters.bathrooms ?? "Any");
@@ -116,23 +121,23 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
 
     // Get the appropriate MSA zip codes object based on state
     let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
-    if (state === 'CA') {
-      // Check if it's Los Angeles MSA (Los Angeles or Orange county)
-      if (countyName === 'Los Angeles' || countyName === 'Orange') {
+    if (state === "CA") {
+      if (countyName === "Los Angeles" || countyName === "Orange") {
         msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
-      } 
-      if (countyName === 'San Francisco' || countyName === 'Alameda' || countyName === 'Contra Costa' || countyName === 'Marin' || countyName === 'San Mateo') {
+      } else if (countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo") {
         msaZipCodes = SAN_FRANCISCO_MSA_ZIP_CODES;
-      }
-      else {
-        // San Diego MSA (San Diego county)
+      } else {
         msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
       }
-    } else if (state === 'CO') {
-      // Denver MSA
+    } else if (state === "CO") {
       msaZipCodes = DENVER_MSA_ZIP_CODES;
+    } else if (state === "FL") {
+      if (countyName === "St. Lucie" || countyName === "Martin") {
+        msaZipCodes = PORT_ST_LUCIE_MSA_ZIP_CODES;
+      } else {
+        msaZipCodes = MIAMI_MSA_ZIP_CODES;
+      }
     } else {
-      // Default to San Diego MSA
       msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
     }
 
@@ -366,30 +371,17 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
       c => c.county === currentCountyName || c.county === currentCountyName.replace(' County', '')
     );
 
-    // If current county doesn't exist in new state, set to first county in new state and clear all filters
+    // If current county doesn't exist in new state, set to first county in new state; keep other filters (status, bedrooms, etc.)
     if (!countyExistsInNewState && countiesInNewState.length > 0) {
       const firstCounty = countiesInNewState[0];
       setCounty(`${firstCounty.county} County`);
-
-      // Clear all filters when switching to a new state/county so all properties in that area appear
-      setPriceRange([0, MAX_PRICE]);
-      setSelectedBedrooms("Any");
-      setSelectedBathrooms("Any");
-      setSelectedTypes([]);
-      setZipCode("");
-      setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
+      setCompany(null);
 
       setFilters({
         ...filters,
-        minPrice: 0,
-        maxPrice: MAX_PRICE,
-        bedrooms: "Any",
-        bathrooms: "Any",
-        propertyTypes: [],
+        county: firstCounty.county,
         zipCode: "",
         city: undefined,
-        county: firstCounty.county,
-        statusFilters: DEFAULT_STATUS_FILTERS,
       });
     }
 
@@ -398,27 +390,15 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
 
   const selectCounty = (countyObj: (typeof COUNTIES)[0]) => {
     setCounty(`${countyObj.county} County`);
+    setSelectedState(countyObj.state);
     setShowCountySuggestions(false);
-
-    // Clear all filters when selecting a new county so all properties in that area appear
-    setPriceRange([0, MAX_PRICE]);
-    setSelectedBedrooms('Any');
-    setSelectedBathrooms('Any');
-    setSelectedTypes([]);
-    setZipCode('');
-    setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
+    setCompany(null);
 
     setFilters({
       ...filters,
-      minPrice: 0,
-      maxPrice: MAX_PRICE,
-      bedrooms: "Any",
-      bathrooms: "Any",
-      propertyTypes: [],
+      county: countyObj.county,
       zipCode: "",
       city: undefined,
-      county: countyObj.county,
-      statusFilters: DEFAULT_STATUS_FILTERS,
     });
   };
 

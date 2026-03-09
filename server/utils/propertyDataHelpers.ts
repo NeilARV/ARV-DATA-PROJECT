@@ -24,7 +24,7 @@ import {
     normalizeAddress,
     normalizeToTitleCase,
     normalizeSubdivision,
-    normalizeCompanyNameForStorage,
+    trimCompanyName,
     normalizeDateToYMD,
 } from "./normalization";
 
@@ -419,7 +419,7 @@ export function transformLastSaleData(
         documentType: lastSale?.document_type ?? null,
         mtgAmount: lastSale?.mtg_amount ? String(lastSale.mtg_amount) : null,
         mtgType: lastSale?.mtg_type ?? null,
-        lender: lastSale?.lender ? normalizeCompanyNameForStorage(lastSale.lender) : null,
+        lender: lastSale?.lender ? trimCompanyName(lastSale.lender) : null,
         mtgInterestRate: lastSale?.mtg_interest_rate != null ? String(lastSale.mtg_interest_rate) : null,
         mtgTermMonths: lastSale?.mtg_term_months != null ? String(lastSale.mtg_term_months) : null,
     };
@@ -439,19 +439,19 @@ export function transformCurrentSaleData(
     if (!currentSale && !useBuyersMarket) return null;
 
     const buyer1 = useBuyersMarket && buyersMarket!.buyerName != null
-        ? normalizeCompanyNameForStorage(buyersMarket!.buyerName)
-        : (currentSale ? normalizeCompanyNameForStorage(currentSale.buyer_1 || currentSale.buyer1) : null);
+        ? trimCompanyName(buyersMarket!.buyerName)
+        : (currentSale ? trimCompanyName(currentSale.buyer_1 || currentSale.buyer1) : null);
     const seller1 = useBuyersMarket && buyersMarket!.sellerName != null
-        ? normalizeCompanyNameForStorage(buyersMarket!.sellerName)
-        : (currentSale ? normalizeCompanyNameForStorage(currentSale.seller_1 || currentSale.seller1) : null);
+        ? trimCompanyName(buyersMarket!.sellerName)
+        : (currentSale ? trimCompanyName(currentSale.seller_1 || currentSale.seller1) : null);
 
     return {
         propertyId,
         docNum: currentSale?.doc_num ?? null,
         buyer1: buyer1 ?? null,
-        buyer2: currentSale ? normalizeCompanyNameForStorage(currentSale.buyer_2 || currentSale.buyer2) : null,
+        buyer2: currentSale ? trimCompanyName(currentSale.buyer_2 || currentSale.buyer2) : null,
         seller1: seller1 ?? null,
-        seller2: currentSale ? normalizeCompanyNameForStorage(currentSale.seller_2 || currentSale.seller2) : null,
+        seller2: currentSale ? trimCompanyName(currentSale.seller_2 || currentSale.seller2) : null,
     };
 }
 

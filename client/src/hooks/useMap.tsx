@@ -2,7 +2,7 @@ import { createContext, useState, useMemo, useEffect, useRef, ReactNode, useCont
 import { useQuery } from "@tanstack/react-query";
 import type { MapPin } from "@/types/property";
 import { COUNTIES } from "@/constants/filters.constants";
-import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES } from "@/constants/filters.constants";
+import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, MIAMI_MSA_ZIP_CODES, PORT_ST_LUCIE_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import {
   MAP_ZOOM_DEFAULT,
   MAP_ZOOM_COUNTY,
@@ -127,9 +127,16 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
       msaZipCodes =
         countyName === "Los Angeles" || countyName === "Orange"
           ? LOS_ANGELES_MSA_ZIP_CODES
-          : SAN_DIEGO_MSA_ZIP_CODES;
+          : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
+            ? SAN_FRANCISCO_MSA_ZIP_CODES
+            : SAN_DIEGO_MSA_ZIP_CODES;
     } else if (state === "CO") {
       msaZipCodes = DENVER_MSA_ZIP_CODES;
+    } else if (state === "FL") {
+      msaZipCodes =
+        countyName === "St. Lucie" || countyName === "Martin"
+          ? PORT_ST_LUCIE_MSA_ZIP_CODES
+          : MIAMI_MSA_ZIP_CODES;
     } else {
       msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
     }
@@ -239,9 +246,16 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
           msaZipCodes =
             countyName === "Los Angeles" || countyName === "Orange"
               ? LOS_ANGELES_MSA_ZIP_CODES
-              : SAN_DIEGO_MSA_ZIP_CODES;
+              : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
+                ? SAN_FRANCISCO_MSA_ZIP_CODES
+                : SAN_DIEGO_MSA_ZIP_CODES;
         } else if (state === "CO") {
           msaZipCodes = DENVER_MSA_ZIP_CODES;
+        } else if (state === "FL") {
+          msaZipCodes =
+            countyName === "St. Lucie" || countyName === "Martin"
+              ? PORT_ST_LUCIE_MSA_ZIP_CODES
+              : MIAMI_MSA_ZIP_CODES;
         } else {
           msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
         }

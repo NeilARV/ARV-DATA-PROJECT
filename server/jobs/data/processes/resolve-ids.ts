@@ -1,9 +1,6 @@
 import { db } from "server/storage";
 import { companies } from "@database/schemas/companies.schema";
-import {
-  normalizeCompanyNameForStorage,
-  normalizeCompanyNameForComparison,
-} from "server/utils/normalization";
+import { trimCompanyName } from "server/utils/normalization";
 import type { MergedProperty } from "./batch-lookup";
 
 export interface ResolvePropertyIdsParams {
@@ -40,26 +37,23 @@ function getTxString(tx: Record<string, unknown>, ...keys: string[]): string {
 /**
  * Resolves buyer_1 and seller_1 from each property to company IDs by looking up
  * in the companies table. Also resolves buyer_id/seller_id on each transaction
- * (BUYER_BORROWER1_NAME, SELLER1_NAME) using the same logic. Uses normalized
- * name matching. buyer_id and seller_id are null when not in companies table.
+ * (BUYER_BORROWER1_NAME, SELLER1_NAME) using the same logic. Company names are
+ * stored as SFR returns them; we match by trimmed name (direct comparison).
  */
 export async function resolvePropertyIds(params: ResolvePropertyIdsParams): Promise<PropertyWithIds[]> {
     const { properties, cityCode } = params;
 
     const existingCompanies = await db.select().from(companies);
-    const companyByCompareKey = new Map<string, (typeof existingCompanies)[0]>();
+    const companyByName = new Map<string, (typeof existingCompanies)[0]>();
     for (const company of existingCompanies) {
-        const key = normalizeCompanyNameForComparison(company.companyName);
-        if (key) companyByCompareKey.set(key, company);
+        const key = trimCompanyName(company.companyName);
+        if (key) companyByName.set(key, company);
     }
 
     const resolveCompanyId = (name: string): string | null => {
-        if (!name) return null;
-        const storageName = normalizeCompanyNameForStorage(name);
-        const compareKey = storageName
-            ? normalizeCompanyNameForComparison(storageName)
-            : null;
-        const company = compareKey ? companyByCompareKey.get(compareKey) : null;
+        const key = trimCompanyName(name);
+        if (!key) return null;
+        const company = companyByName.get(key);
         return company ? company.id : null;
     };
 
