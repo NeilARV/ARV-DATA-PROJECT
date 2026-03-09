@@ -2,8 +2,7 @@ import {
   normalizeAddressForLookup,
   normalizeDateToYMD,
   normalizeCountyName,
-  normalizeCompanyNameForStorage,
-  normalizeCompanyNameForComparison,
+  trimCompanyName,
 } from "server/utils/normalization";
 import { isFlippingCompany } from "server/utils/dataSyncHelpers";
 import type { BuyersMarketRecord } from "./fetch-market";
@@ -12,7 +11,7 @@ import type { PropertyWithTransactions, TransactionRecord } from "./get-transact
 
 export interface CleanTransactionsResult {
   companyNames: string[];
-  /** Map of company compareKey -> counties they own properties in (for company county array updates). */
+  /** Map of company name (as stored, trimmed SFR) -> counties they own properties in (for company county array updates). */
   companyCounties: Record<string, string[]>;
 }
 
@@ -176,7 +175,7 @@ export function cleanTransactions(
   }
 
   const companyNamesSet = new Set<string>();
-  /** compareKey -> Set of counties (same key insert-companies uses for lookups). */
+  /** company name (trimmed SFR) -> Set of counties (same key insert-companies uses for lookups). */
   const companyToCountiesMap = new Map<string, Set<string>>();
 
   for (const property of properties) {
@@ -187,24 +186,22 @@ export function cleanTransactions(
       const sellerName = getString(tx, "SELLER1_NAME", "seller1_name");
 
       if (isFlippingCompany(buyerName, null)) {
-        companyNamesSet.add(buyerName);
-        if (county) {
-          const storageName = normalizeCompanyNameForStorage(buyerName);
-          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
-          if (compareKey) {
-            if (!companyToCountiesMap.has(compareKey)) companyToCountiesMap.set(compareKey, new Set());
-            companyToCountiesMap.get(compareKey)!.add(county);
+        const name = trimCompanyName(buyerName);
+        if (name) {
+          companyNamesSet.add(name);
+          if (county) {
+            if (!companyToCountiesMap.has(name)) companyToCountiesMap.set(name, new Set());
+            companyToCountiesMap.get(name)!.add(county);
           }
         }
       }
       if (isFlippingCompany(sellerName, null)) {
-        companyNamesSet.add(sellerName);
-        if (county) {
-          const storageName = normalizeCompanyNameForStorage(sellerName);
-          const compareKey = storageName ? normalizeCompanyNameForComparison(storageName) : null;
-          if (compareKey) {
-            if (!companyToCountiesMap.has(compareKey)) companyToCountiesMap.set(compareKey, new Set());
-            companyToCountiesMap.get(compareKey)!.add(county);
+        const name = trimCompanyName(sellerName);
+        if (name) {
+          companyNamesSet.add(name);
+          if (county) {
+            if (!companyToCountiesMap.has(name)) companyToCountiesMap.set(name, new Set());
+            companyToCountiesMap.get(name)!.add(county);
           }
         }
       }

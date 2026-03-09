@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
-import { normalizeCompanyNameForComparison } from "server/utils/normalization";
+import { trimCompanyName } from "server/utils/normalization";
 import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
 import { eq, sql, or, and, inArray, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -109,13 +109,13 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // No company: simple OR of statuses; also handle name-based company filter
             const ownerFilter = company || propertyOwner;
             if (ownerFilter) {
-                const normalizedSearchTerm = normalizeCompanyNameForComparison(ownerFilter.toString());
-                if (normalizedSearchTerm) {
+                const searchTerm = trimCompanyName(ownerFilter.toString());
+                if (searchTerm) {
                     conditions.push(
-                        sql`(
-                            LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${buyerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
-                            OR LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(${sellerCompanies.companyName}), '[,.\\;:]', '', 'g'), '\\s+', ' ', 'g')) = ${normalizedSearchTerm}
-                        )`
+                        or(
+                            eq(buyerCompanies.companyName, searchTerm),
+                            eq(sellerCompanies.companyName, searchTerm)
+                        ) as any
                     );
                 }
             }

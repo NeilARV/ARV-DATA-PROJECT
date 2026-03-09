@@ -2,10 +2,7 @@ import { db } from "server/storage";
 import { companies, companyMsas } from "@database/schemas/companies.schema";
 import { msas } from "@database/schemas/msas.schema";
 import { eq, inArray } from "drizzle-orm";
-import {
-    normalizeCompanyNameForStorage,
-    normalizeCompanyNameForComparison,
-} from "server/utils/normalization";
+import { trimCompanyName } from "server/utils/normalization";
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 
 const BATCH_SIZE = 100;
@@ -14,7 +11,7 @@ export interface InsertCompaniesParams {
     companyNames: string[];
     msa: string;
     cityCode: string;
-    /** Map of company compareKey -> counties (from clean-transactions); used to set/update company county array. */
+    /** Map of company name (as stored, trimmed SFR) -> counties (from clean-transactions); used to set/update company county array. */
     companyCounties?: Record<string, string[]>;
 }
 
@@ -56,24 +53,22 @@ export async function insertCompanies(
 
     const msaId = await getOrCreateMsaId(msa);
 
-    // Dedupe: unique (storageName, compareKey) per raw name
+    // Dedupe: unique by trimmed SFR name (store and compare with same value)
     const seenKeys = new Set<string>();
-    const toProcess: { storageName: string; compareKey: string }[] = [];
+    const toProcess: string[] = [];
     for (const rawName of companyNames) {
-        const storageName = normalizeCompanyNameForStorage(rawName);
-        if (!storageName) continue;
-        const compareKey = normalizeCompanyNameForComparison(storageName);
-        if (!compareKey || seenKeys.has(compareKey)) continue;
-        seenKeys.add(compareKey);
-        toProcess.push({ storageName, compareKey });
+        const name = trimCompanyName(rawName);
+        if (!name || seenKeys.has(name)) continue;
+        seenKeys.add(name);
+        toProcess.push(name);
     }
 
     // Load existing companies and company_msas for this MSA
     const existingCompanies = await db.select().from(companies);
-    const companyByCompareKey = new Map<string, (typeof existingCompanies)[0]>();
+    const companyByName = new Map<string, (typeof existingCompanies)[0]>();
     for (const company of existingCompanies) {
-        const key = normalizeCompanyNameForComparison(company.companyName);
-        if (key) companyByCompareKey.set(key, company);
+        const key = trimCompanyName(company.companyName);
+        if (key) companyByName.set(key, company);
     }
 
     const existingCompanyMsas = await db
@@ -87,20 +82,20 @@ export async function insertCompanies(
 
     // Partition: need only MSA link vs need company + MSA; track existing companies that need county updates
     const needMsaOnly: { companyId: string }[] = [];
-    const needCompanyAndMsa: { storageName: string; compareKey: string }[] = [];
+    const needCompanyAndMsa: string[] = [];
     const needCountyUpdate: { company: (typeof existingCompanies)[0]; counties: string[] }[] = [];
-    for (const { storageName, compareKey } of toProcess) {
-        const existing = companyByCompareKey.get(compareKey);
+    for (const name of toProcess) {
+        const existing = companyByName.get(name);
         if (existing) {
             if (!companyIdsWithThisMsa.has(existing.id)) {
                 needMsaOnly.push({ companyId: existing.id });
             }
-            const counties = companyCounties[compareKey];
+            const counties = companyCounties[name];
             if (counties?.length) {
                 needCountyUpdate.push({ company: existing, counties });
             }
         } else {
-            needCompanyAndMsa.push({ storageName, compareKey });
+            needCompanyAndMsa.push(name);
         }
     }
 
@@ -138,12 +133,12 @@ export async function insertCompanies(
     // Batch insert new companies, then collect (companyId, msaId) for company_msas
     for (let i = 0; i < needCompanyAndMsa.length; i += BATCH_SIZE) {
         const chunk = needCompanyAndMsa.slice(i, i + BATCH_SIZE);
-        const companyValues = chunk.map(({ storageName, compareKey }) => ({
-            companyName: storageName,
+        const companyValues = chunk.map((name) => ({
+            companyName: name,
             contactName: null,
             contactEmail: null,
             phoneNumber: null,
-            counties: (companyCounties[compareKey] ?? []) as string[],
+            counties: (companyCounties[name] ?? []) as string[],
             updatedAt: new Date(),
         }));
 
@@ -156,8 +151,8 @@ export async function insertCompanies(
 
             companiesInserted += inserted.length;
             for (const row of inserted) {
-                const key = normalizeCompanyNameForComparison(row.companyName);
-                if (key) companyByCompareKey.set(key, row as (typeof existingCompanies)[0]);
+                const key = trimCompanyName(row.companyName);
+                if (key) companyByName.set(key, row as (typeof existingCompanies)[0]);
                 if (!companyIdsWithThisMsa.has(row.id)) {
                     companyMsasToAdd.push({ companyId: row.id, msaId });
                     companyIdsWithThisMsa.add(row.id);
@@ -166,18 +161,16 @@ export async function insertCompanies(
 
             // Names that conflicted (already in DB): fetch ids and add to company_msas
             const insertedNames = new Set(inserted.map((r) => r.companyName));
-            const conflictNames = chunk
-                .map((r) => r.storageName)
-                .filter((name) => !insertedNames.has(name));
+            const conflictNames = chunk.filter((name) => !insertedNames.has(name));
             if (conflictNames.length > 0) {
                 const fetched = await db
                     .select({ id: companies.id, companyName: companies.companyName })
                     .from(companies)
                     .where(inArray(companies.companyName, conflictNames));
                 for (const row of fetched) {
-                    const key = normalizeCompanyNameForComparison(row.companyName);
-                    if (key && !companyByCompareKey.has(key)) {
-                        companyByCompareKey.set(key, row as (typeof existingCompanies)[0]);
+                    const key = trimCompanyName(row.companyName);
+                    if (key && !companyByName.has(key)) {
+                        companyByName.set(key, row as (typeof existingCompanies)[0]);
                     }
                     if (!companyIdsWithThisMsa.has(row.id)) {
                         companyMsasToAdd.push({ companyId: row.id, msaId });

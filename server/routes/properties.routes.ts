@@ -9,7 +9,7 @@ import {
     lastSales,
     propertyTransactions,
 } from "@database/schemas/properties.schema";
-import { normalizeCountyName, normalizeCompanyNameForComparison, normalizeCompanyNameForStorage, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
+import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { eq, sql, or, and, desc } from "drizzle-orm";
@@ -102,26 +102,20 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
         // Get buyer name from current_sale for company lookup
         const buyerName = propertyData.current_sale?.buyer_1 || propertyData.currentSale?.buyer1 || null;
         
-        // Load all companies into memory for lookup
+        // Load all companies into memory for lookup (company names stored as SFR returns them)
         const allCompanies = await db.select().from(companies);
         const contactsMap = new Map<string, typeof allCompanies[0]>();
         for (const company of allCompanies) {
-            const normalizedKey = normalizeCompanyNameForComparison(company.companyName);
-            if (normalizedKey) {
-                contactsMap.set(normalizedKey, company);
-            }
+            const key = trimCompanyName(company.companyName);
+            if (key) contactsMap.set(key, company);
         }
 
-        // Helper function to upsert company (similar to data.routes.ts)
+        // Helper function to upsert company (store name exactly as SFR returns it, trimmed)
         const upsertCompany = async (companyName: string, county: string | null): Promise<string | null> => {
-            const normalizedCompanyNameForStorage = normalizeCompanyNameForStorage(companyName);
-            if (!normalizedCompanyNameForStorage) {
-                return null;
-            }
-            
-            const normalizedCompanyNameForCompare = normalizeCompanyNameForComparison(normalizedCompanyNameForStorage);
-            const existingCompany = normalizedCompanyNameForCompare ? contactsMap.get(normalizedCompanyNameForCompare) : null;
-            
+            const name = trimCompanyName(companyName);
+            if (!name) return null;
+
+            const existingCompany = contactsMap.get(name);
             if (existingCompany) {
                 // Update company's counties array if we have a new county
                 if (county) {
@@ -138,24 +132,16 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
                                 }
                             }
                         }
-                        
                         const countyLower = county.toLowerCase();
                         const countyExists = countiesArray.some(c => c.toLowerCase() === countyLower);
-                        
                         if (!countyExists) {
                             countiesArray.push(county);
                             await db
                                 .update(companies)
-                                .set({
-                                    counties: countiesArray,
-                                    updatedAt: new Date(),
-                                })
+                                .set({ counties: countiesArray, updatedAt: new Date() })
                                 .where(eq(companies.id, existingCompany.id));
-                            
                             existingCompany.counties = countiesArray;
-                            if (normalizedCompanyNameForCompare) {
-                                contactsMap.set(normalizedCompanyNameForCompare, existingCompany);
-                            }
+                            contactsMap.set(name, existingCompany);
                         }
                     } catch (updateError: any) {
                         console.error(`Error updating counties for company ${existingCompany.companyName}:`, updateError);
@@ -163,14 +149,13 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
                 }
                 return existingCompany.id;
             }
-            
-            // Create new company
+
             try {
                 const countiesArray = county ? [county] : [];
                 const [newCompany] = await db
                     .insert(companies)
                     .values({
-                        companyName: normalizedCompanyNameForStorage,
+                        companyName: name,
                         contactName: null,
                         contactEmail: propertyData.owner?.contact_email || null,
                         phoneNumber: propertyData.owner?.phone || null,
@@ -178,32 +163,24 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
                         updatedAt: new Date(),
                     })
                     .returning();
-                
-                if (normalizedCompanyNameForCompare) {
-                    contactsMap.set(normalizedCompanyNameForCompare, newCompany);
-                }
-                
-                return newCompany.id;
+                if (newCompany) contactsMap.set(name, newCompany);
+                return newCompany?.id ?? null;
             } catch (companyError: any) {
                 if (!companyError?.message?.includes("duplicate") && !companyError?.code?.includes("23505")) {
                     console.error(`Error creating company:`, companyError);
                     return null;
-                } else {
-                    // Fetch existing company if duplicate
-                    try {
-                        const [duplicateCompany] = await db
-                            .select()
-                            .from(companies)
-                            .where(eq(companies.companyName, normalizedCompanyNameForStorage))
-                            .limit(1);
-                        if (duplicateCompany) {
-                            if (normalizedCompanyNameForCompare) {
-                                contactsMap.set(normalizedCompanyNameForCompare, duplicateCompany);
-                            }
-                            return duplicateCompany.id;
-                        }
-                    } catch {}
                 }
+                try {
+                    const [duplicateCompany] = await db
+                        .select()
+                        .from(companies)
+                        .where(eq(companies.companyName, name))
+                        .limit(1);
+                    if (duplicateCompany) {
+                        contactsMap.set(name, duplicateCompany);
+                        return duplicateCompany.id;
+                    }
+                } catch {}
                 return null;
             }
         };
@@ -232,10 +209,10 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
             if (!lastSale?.date) return;
             const normalizedDate = normalizeDateToYMD(lastSale.date);
             if (!normalizedDate) return;
-            const normalizedBuyerName = normalizeCompanyNameForStorage(buyerNameVal);
+            const normalizedBuyerName = trimCompanyName(buyerNameVal);
             let sellerNameVal: string | null = null;
             const cs = data?.current_sale || data?.currentSale;
-            if (cs) sellerNameVal = normalizeCompanyNameForStorage(cs.seller_1 || cs.seller1) || null;
+            if (cs) sellerNameVal = trimCompanyName(cs.seller_1 || cs.seller1) || null;
             const [existing] = await db
                 .select({ propertyId: propertyTransactions.propertyId })
                 .from(propertyTransactions)
