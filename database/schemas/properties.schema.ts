@@ -111,7 +111,7 @@ export const parcels = pgTable("parcels", {
   countyLandUseCode: varchar("county_land_use_code", { length: 20 }),
   lotNumber: varchar("lot_number", { length: 50 }),
   subdivision: varchar("subdivision", { length: 200 }),
-  sectionTownshipRange: varchar("section_township_range", { length: 100 }),
+  sectionTownshipRange: text("section_township_range"),
   legalDescription: text("legal_description"),
   stateLandUseCode: varchar("state_land_use_code", { length: 20 }),
   buildingCount: integer("building_count"),
@@ -121,9 +121,9 @@ export const parcels = pgTable("parcels", {
 export const schoolDistricts = pgTable("school_districts", {
   schoolDistrictsId: serial("school_districts_id").primaryKey(),
   propertyId: uuid("property_id").unique().notNull().references(() => properties.id, { onDelete: "cascade" }),
-  schoolTaxDistrict1: varchar("school_tax_district_1", { length: 100 }),
-  schoolTaxDistrict2: varchar("school_tax_district_2", { length: 100 }),
-  schoolTaxDistrict3: varchar("school_tax_district_3", { length: 100 }),
+  schoolTaxDistrict1: text("school_tax_district_1"),
+  schoolTaxDistrict2: text("school_tax_district_2"),
+  schoolTaxDistrict3: text("school_tax_district_3"),
   schoolDistrictName: varchar("school_district_name", { length: 200 }),
 });
 
@@ -188,7 +188,7 @@ export const preForeclosures = pgTable("pre_foreclosures", {
   flag: boolean("flag"),
   ind: varchar("ind", { length: 50 }),
   reason: text("reason"),
-  docType: varchar("doc_type", { length: 100 }),
+  docType: text("doc_type"),
   recordingDate: date("recording_date"),
 });
 
@@ -199,9 +199,9 @@ export const lastSales = pgTable("last_sales", {
   saleDate: date("sale_date"),
   recordingDate: date("recording_date"),
   price: decimal("price", { precision: 15, scale: 2 }),
-  documentType: varchar("document_type", { length: 100 }),
+  documentType: text("document_type"),
   mtgAmount: decimal("mtg_amount", { precision: 15, scale: 2 }),
-  mtgType: varchar("mtg_type", { length: 100 }),
+  mtgType: text("mtg_type"),
   lender: varchar("lender", { length: 200 }),
   mtgInterestRate: varchar("mtg_interest_rate", { length: 20 }),
   mtgTermMonths: varchar("mtg_term_months", { length: 10 }),

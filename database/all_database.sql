@@ -279,7 +279,7 @@ CREATE TABLE parcels (
     county_land_use_code VARCHAR(20),
     lot_number VARCHAR(50),
     subdivision VARCHAR(200),
-    section_township_range VARCHAR(100),
+    section_township_range TEXT,
     legal_description TEXT,
     state_land_use_code VARCHAR(20),
     building_count INTEGER
@@ -294,9 +294,9 @@ COMMENT ON TABLE parcels IS 'Parcel and land information';
 CREATE TABLE school_districts (
     school_districts_id SERIAL PRIMARY KEY,
     property_id UUID UNIQUE NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    school_tax_district_1 VARCHAR(100),
-    school_tax_district_2 VARCHAR(100),
-    school_tax_district_3 VARCHAR(100),
+    school_tax_district_1 TEXT,
+    school_tax_district_2 TEXT,
+    school_tax_district_3 TEXT,
     school_district_name VARCHAR(200)
 );
 
@@ -383,7 +383,7 @@ CREATE TABLE pre_foreclosures (
     flag BOOLEAN,
     ind VARCHAR(50),
     reason TEXT,
-    doc_type VARCHAR(100),
+    doc_type TEXT,
     recording_date DATE
 );
 
@@ -399,9 +399,9 @@ CREATE TABLE last_sales (
     sale_date DATE,
     recording_date DATE,
     price DECIMAL(15, 2),
-    document_type VARCHAR(100),
+    document_type TEXT,
     mtg_amount DECIMAL(15, 2),
-    mtg_type VARCHAR(100),
+    mtg_type TEXT,
     lender VARCHAR(200),
     mtg_interest_rate VARCHAR(20),
     mtg_term_months VARCHAR(10)
