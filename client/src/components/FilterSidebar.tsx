@@ -369,30 +369,16 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
       c => c.county === currentCountyName || c.county === currentCountyName.replace(' County', '')
     );
 
-    // If current county doesn't exist in new state, set to first county in new state and clear all filters
+    // If current county doesn't exist in new state, set to first county in new state; keep other filters (status, bedrooms, etc.)
     if (!countyExistsInNewState && countiesInNewState.length > 0) {
       const firstCounty = countiesInNewState[0];
       setCounty(`${firstCounty.county} County`);
 
-      // Clear all filters when switching to a new state/county so all properties in that area appear
-      setPriceRange([0, MAX_PRICE]);
-      setSelectedBedrooms("Any");
-      setSelectedBathrooms("Any");
-      setSelectedTypes([]);
-      setZipCode("");
-      setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
-
       setFilters({
         ...filters,
-        minPrice: 0,
-        maxPrice: MAX_PRICE,
-        bedrooms: "Any",
-        bathrooms: "Any",
-        propertyTypes: [],
+        county: firstCounty.county,
         zipCode: "",
         city: undefined,
-        county: firstCounty.county,
-        statusFilters: DEFAULT_STATUS_FILTERS,
       });
     }
 
@@ -401,27 +387,14 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
 
   const selectCounty = (countyObj: (typeof COUNTIES)[0]) => {
     setCounty(`${countyObj.county} County`);
+    setSelectedState(countyObj.state);
     setShowCountySuggestions(false);
-
-    // Clear all filters when selecting a new county so all properties in that area appear
-    setPriceRange([0, MAX_PRICE]);
-    setSelectedBedrooms('Any');
-    setSelectedBathrooms('Any');
-    setSelectedTypes([]);
-    setZipCode('');
-    setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
 
     setFilters({
       ...filters,
-      minPrice: 0,
-      maxPrice: MAX_PRICE,
-      bedrooms: "Any",
-      bathrooms: "Any",
-      propertyTypes: [],
+      county: countyObj.county,
       zipCode: "",
       city: undefined,
-      county: countyObj.county,
-      statusFilters: DEFAULT_STATUS_FILTERS,
     });
   };
 

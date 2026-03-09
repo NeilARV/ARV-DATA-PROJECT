@@ -26,7 +26,7 @@ export function startScheduledJobs() {
     })
 
     // Start Port St. Lucie, FL property data sync every night at 0:00 AM
-    cron.schedule("38 * * * *", syncPortStLucieData, {
+    cron.schedule("0 0 * * *", syncPortStLucieData, {
         timezone: "America/Los_Angeles"
     })
 
@@ -41,7 +41,7 @@ export function startScheduledJobs() {
     })
 
     // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 3:00 AM
-    cron.schedule("0 3 * * *", syncLosAngelesData, {
+    cron.schedule("38 * * * *", syncLosAngelesData, {
         timezone: "America/Los_Angeles"
     })
 
