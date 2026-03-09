@@ -41,7 +41,7 @@ export function startScheduledJobs() {
     })
 
     // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 3:00 AM
-    cron.schedule("38 * * * *", syncLosAngelesData, {
+    cron.schedule("0 3 * * *", syncLosAngelesData, {
         timezone: "America/Los_Angeles"
     })
 

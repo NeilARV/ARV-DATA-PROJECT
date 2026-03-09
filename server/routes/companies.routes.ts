@@ -404,6 +404,8 @@ router.get("/leaderboard", async (req, res) => {
 router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
+        const countyParam = req.query.county?.toString()?.trim();
+        const normalizedCounty = countyParam ? countyParam.toLowerCase() : null;
 
         const contact = await db
             .select()
@@ -446,12 +448,30 @@ router.get("/:id", async (req, res) => {
 
         const propertiesSoldCountAllTime = sellerCountAllTimeResult?.count ?? 0;
 
-        // Count properties where this company is the buyer (for directory card)
-        const [propertyCountResult] = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(properties)
-            .where(eq(properties.buyerId, id));
-        const propertyCount = propertyCountResult?.count ?? 0;
+        // Count properties where this company is the buyer (owned). Optional county scope to match directory list.
+        let propertyCount: number;
+        if (normalizedCounty) {
+            const [propertyCountResult] = await db
+                .select({ count: sql<number>`count(*)::int` })
+                .from(properties)
+                .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+                .where(
+                    and(
+                        eq(properties.buyerId, id),
+                        or(
+                            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                        ) as any
+                    )
+                );
+            propertyCount = propertyCountResult?.count ?? 0;
+        } else {
+            const [propertyCountResult] = await db
+                .select({ count: sql<number>`count(*)::int` })
+                .from(properties)
+                .where(eq(properties.buyerId, id));
+            propertyCount = propertyCountResult?.count ?? 0;
+        }
 
         // 90-day acquisition: all property_transactions where this company is buyer_id in the last 90 days
         const ninetyDaysAgo = new Date(now);
