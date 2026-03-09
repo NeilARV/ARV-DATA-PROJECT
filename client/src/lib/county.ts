@@ -20,10 +20,15 @@ export function getStateFromCounty(countyName: string): string {
 }
 
 /**
- * Converts county name to object key format (e.g. "San Diego" -> "san_diego").
+ * Converts county name to object key format (e.g. "San Diego" -> "san_diego",
+ * "Miami-Dade" -> "miami_dade", "St. Lucie" -> "st_lucie").
  */
 export function countyNameToKey(countyName: string): string {
-  return countyName.toLowerCase().replace(/\s+/g, "_");
+  return countyName
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
 }
 
 /**

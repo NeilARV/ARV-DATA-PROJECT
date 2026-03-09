@@ -28,6 +28,7 @@ import { useView } from "@/hooks/useView";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { formatCompanyName } from "@/utils/formatCompanyName";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -315,7 +316,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                         <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
-                            {listCompany.companyName}
+                            {formatCompanyName(listCompany.companyName)}
                           </div>
                         </div>
                       </div>

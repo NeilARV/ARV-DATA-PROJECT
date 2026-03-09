@@ -8,6 +8,7 @@ import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
 import { PropertyCardProps } from "@/types/property";
+import { formatCompanyName } from "@/utils/formatCompanyName";
 
 export default function PropertyCard({ property, onClick }: PropertyCardProps) {
   const [imageUrl, setImageUrl] = useState(property.imageUrl || "");
@@ -161,7 +162,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                   >
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                     <span className="truncate text-primary min-w-0">
-                      {property.buyerCompanyName || property.companyName || property.propertyOwner || "—"}
+                      {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
                     </span>
                   </div>
                   {(property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0) && (
@@ -222,7 +223,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                   >
                     <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
                       <span className="truncate text-primary min-w-0 text-right" title={property.sellerCompanyName || property.sellerName || "—"}>
-                        {property.sellerCompanyName || property.sellerName || "—"}
+                        {formatCompanyName(property.sellerCompanyName || property.sellerName || "—")}
                       </span>
                     </span>
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
