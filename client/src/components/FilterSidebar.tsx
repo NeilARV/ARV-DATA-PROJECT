@@ -17,6 +17,7 @@ import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, MAX_PRICE, SAN_DIEGO
 } from "@/constants/filters.constants";
 import { DEFAULT_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useFilters } from "@/hooks/useFilters";
+import { useCompanies } from "@/hooks/useCompanies";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 import type { ZipCodeSortOption } from "@/types/options";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
@@ -29,6 +30,7 @@ export interface FilterSidebarProps {
 
 export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwitchToDirectory }: FilterSidebarProps) {
   const { filters, setFilters } = useFilters();
+  const { setCompany } = useCompanies();
   const [priceRange, setPriceRange] = useState<[number, number]>([filters.minPrice ?? 0, filters.maxPrice ?? MAX_PRICE]);
   const [selectedBedrooms, setSelectedBedrooms] = useState<string>(filters.bedrooms ?? "Any");
   const [selectedBathrooms, setSelectedBathrooms] = useState<string>(filters.bathrooms ?? "Any");
@@ -373,6 +375,7 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
     if (!countyExistsInNewState && countiesInNewState.length > 0) {
       const firstCounty = countiesInNewState[0];
       setCounty(`${firstCounty.county} County`);
+      setCompany(null);
 
       setFilters({
         ...filters,
@@ -389,6 +392,7 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
     setCounty(`${countyObj.county} County`);
     setSelectedState(countyObj.state);
     setShowCountySuggestions(false);
+    setCompany(null);
 
     setFilters({
       ...filters,
