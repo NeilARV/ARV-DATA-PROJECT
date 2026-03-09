@@ -1186,7 +1186,7 @@ export const COUNTIES = [
     { county: "San Mateo", state: "CA", center: [37.4400, -122.3600] },
 
     // Miami-Fort Lauderdale-West Palm Beach, FL MSA
-    { county: "Miami-Dade", state: "FL", center: [25.4181, -80.4896] },
+    { county: "Miami-Dade", state: "FL", center: [25.7617, -80.1918] },
     { county: "Broward", state: "FL", center: [26.1769, -80.2621] },
     { county: "Palm Beach", state: "FL", center: [26.5790, -80.2709] },
 
