@@ -371,7 +371,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
 
     
     for (const recipient of recipients) {
-      const normalizedEmail = recipient.email.trim().toLowerCase();
 
       let fromAddress = getDefaultFromEmail();
       const rmEmail =

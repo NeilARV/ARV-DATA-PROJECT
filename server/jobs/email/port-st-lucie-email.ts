@@ -1,7 +1,7 @@
 import { sendEmailUpdatesForMsa } from "server/jobs/email/processes/emailUpdates";
 
 const MSA = "Port St. Lucie, FL";
-const CITY = "Miami";
+const CITY = "Port St. Lucie";
 const STATE = "FL";
 
 export async function sendPortStLucieEmail() {
