@@ -1,5 +1,4 @@
 import { normalizeAddressForLookup, normalizeDateToYMD } from "server/utils/normalization";
-import { MOCK_BATCH_LOOKUP_DATA } from "server/constants/mocks";
 import type { BuyersMarketRecord } from "./fetch-market";
 import { fetchWithRetry } from "server/utils/fetchWithRetry";
 import { delay } from "server/utils/delay";
@@ -9,11 +8,47 @@ const RATE_LIMIT_DELAY_MS = 1000;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 5000;
 
+/** Get first non-empty string from record using any of the given keys (camelCase or snake_case). */
+function getString(record: BuyersMarketRecord, ...keys: string[]): string {
+    for (const k of keys) {
+        const v = record[k];
+        if (v != null && typeof v === "string" && v.trim()) return v.trim();
+    }
+    return "";
+}
+
+/** Get address parts from nested object (e.g. record.address or record.property). */
+function getAddressPartsFromObj(obj: unknown): { address: string; city: string; state: string; zipCode: string } {
+    if (!obj || typeof obj !== "object") return { address: "", city: "", state: "", zipCode: "" };
+    const r = obj as Record<string, unknown>;
+    const address = getString(r, "address", "street_address", "formatted_street_address", "streetAddress", "formattedStreetAddress");
+    const city = getString(r, "city");
+    const state = getString(r, "state");
+    const zipCode = getString(r, "zipCode", "zip_code");
+    return { address, city, state, zipCode };
+}
+
+/**
+ * Build full address string from a buyers/market record.
+ * Handles camelCase, snake_case, and nested address/property objects so we tolerate API response shape changes.
+ */
 function formatAddressForBatch(record: BuyersMarketRecord): string {
-    const address = (record.address as string) || "";
-    const city = (record.city as string) || "";
-    const state = (record.state as string) || "";
-    const zipCode = (record.zipCode as string) || "";
+    // Flat keys (camelCase then snake_case)
+    let address = getString(record, "address", "street_address", "formatted_street_address");
+    let city = getString(record, "city");
+    let state = getString(record, "state");
+    let zipCode = getString(record, "zipCode", "zip_code");
+
+    // If missing, try nested record.address or record.property
+    if (!address || !city || !state) {
+        const fromAddr = getAddressPartsFromObj(record.address);
+        const fromProp = getAddressPartsFromObj(record.property);
+        if (!address) address = fromAddr.address || fromProp.address;
+        if (!city) city = fromAddr.city || fromProp.city;
+        if (!state) state = fromAddr.state || fromProp.state;
+        if (!zipCode) zipCode = fromAddr.zipCode || fromProp.zipCode;
+    }
+
     if (!address || !city || !state) return "";
     return zipCode
         ? `${address}, ${city}, ${state} ${zipCode}`
@@ -71,6 +106,19 @@ export async function batchLookup(
     const addresses = Array.from(recordsByAddress.keys());
     if (addresses.length === 0) {
         console.log(`[${cityCode} SYNC] No addresses to batch lookup`);
+        if (records.length > 0) {
+            const sample = records[0] as Record<string, unknown>;
+            const keys = Object.keys(sample).sort().join(", ");
+            const withCamelAddress = records.filter(
+                (r) =>
+                    r.address && typeof r.address === "string" && (r.address as string).trim() &&
+                    r.city && typeof r.city === "string" && (r.city as string).trim() &&
+                    r.state && typeof r.state === "string" && (r.state as string).trim()
+            ).length;
+            console.log(
+                `[${cityCode} SYNC] Records with address/city/state (camelCase): ${withCamelAddress}/${records.length}. Sample keys: ${keys}`
+            );
+        }
         return [];
     }
 

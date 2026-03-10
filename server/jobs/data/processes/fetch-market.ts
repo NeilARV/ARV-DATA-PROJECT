@@ -71,7 +71,10 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
             RETRY_DELAY_MS,
             { label: `${cityCode} SYNC buyers/market page ${pageNum}` }
         );
-        const buyersMarketData = (await response.json()) as BuyersMarketRecord[];
+        const raw = (await response.json()) as BuyersMarketRecord[] | { data?: BuyersMarketRecord[]; results?: BuyersMarketRecord[] };
+        const buyersMarketData = Array.isArray(raw)
+            ? raw
+            : (raw?.data ?? raw?.results ?? null) as BuyersMarketRecord[] | null;
 
         if (!buyersMarketData || !Array.isArray(buyersMarketData)) {
             console.log(
@@ -92,9 +95,10 @@ export async function fetchMarket(params: IFetchMarket): Promise<FetchMarketResu
         allRecords.push(...buyersMarketData);
 
         const lastRecord = buyersMarketData[buyersMarketData.length - 1];
-        const pageLastSaleDate = lastRecord
-            ? normalizeDateToYMD(lastRecord.saleDate as string)
-            : null;
+        const saleDateVal = lastRecord
+            ? (lastRecord.saleDate ?? lastRecord.sale_date) as string | undefined
+            : undefined;
+        const pageLastSaleDate = saleDateVal ? normalizeDateToYMD(saleDateVal) : null;
         if (pageLastSaleDate && (!boundaryDate || pageLastSaleDate > boundaryDate)) {
             boundaryDate = pageLastSaleDate;
         }

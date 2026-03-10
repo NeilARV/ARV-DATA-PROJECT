@@ -25,11 +25,12 @@ export function cleanMarket(fetchResult: FetchMarketResult, cityCode: string): C
     const kept: BuyersMarketRecord[] = [];
 
     for (const record of records) {
-        const buyerName = (record.buyerName as string) || "";
-        const sellerName = (record.sellerName as string) || "";
-        const buyerOwnershipCode = (record.buyerOwnershipCode as string) || null;
+        const buyerName = String(record.buyerName ?? record.buyer_name ?? "").trim() || "";
+        const sellerName = String(record.sellerName ?? record.seller_name ?? "").trim() || "";
+        const buyerOwnershipCode = (record.buyerOwnershipCode ?? record.buyer_ownership_code) as string | null | undefined;
+        const buyerOwnershipStr = buyerOwnershipCode != null && typeof buyerOwnershipCode === "string" ? buyerOwnershipCode : null;
 
-        const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipCode);
+        const isBuyerCorporate = isFlippingCompany(buyerName, buyerOwnershipStr);
         const isSellerCorporate = isFlippingCompany(sellerName, null);
 
         if (isBuyerCorporate || isSellerCorporate) {
