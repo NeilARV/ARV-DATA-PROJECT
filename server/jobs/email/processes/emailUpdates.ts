@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { users, userRelationshipManagers } from "@database/schemas/users.schema";
+import { users, userRelationshipManagers, emailWhitelist } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
@@ -128,8 +128,59 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return true;
     });
 
-    if (uniqueUsers.length === 0) {
-      console.log(`[EMAIL ${msaName}]: No users with this MSA selected and notifications on`);
+    // User subscriptions take priority over whitelist: only use email_whitelist for addresses that are NOT in the users table at all.
+    // (If someone is both a user and on whitelist, we only send based on their user MSA subscriptions, never whitelist.)
+    // Exclude in SQL so we don't rely on in-memory normalization; any email that exists in users is skipped for whitelist.
+    const whitelistRows = await db
+      .select({
+        email: emailWhitelist.email,
+        relationshipManagerId: emailWhitelist.relationshipManagerId,
+      })
+      .from(emailWhitelist)
+      .innerJoin(msas, eq(emailWhitelist.msa, msas.id))
+      .where(
+        and(
+          eq(msas.name, msaName),
+          sql`NOT EXISTS (
+            SELECT 1 FROM users
+            WHERE LOWER(TRIM(users.email)) = LOWER(TRIM(${emailWhitelist.email}))
+          )`
+        )
+      );
+
+    const whitelistOnly = whitelistRows;
+
+    // Unified recipient list: users first, then whitelist-only (no double-send)
+    type Recipient = {
+      email: string;
+      firstName: string;
+      source: "user";
+      userId: string;
+      relationshipManagerId?: string | null;
+    } | {
+      email: string;
+      firstName: string;
+      source: "whitelist";
+      relationshipManagerId: string | null;
+    };
+    const recipients: Recipient[] = [
+      ...uniqueUsers.map((u) => ({
+        email: u.email,
+        firstName: u.firstName ?? "there",
+        source: "user" as const,
+        userId: u.id,
+        relationshipManagerId: undefined as string | null | undefined,
+      })),
+      ...whitelistOnly.map((w) => ({
+        email: w.email ?? "",
+        firstName: "there",
+        source: "whitelist" as const,
+        relationshipManagerId: w.relationshipManagerId ?? null,
+      })),
+    ];
+
+    if (recipients.length === 0) {
+      console.log(`[EMAIL ${msaName}]: No users or whitelist recipients for this MSA`);
       return;
     }
 
@@ -153,6 +204,21 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         }
       }
       console.log(`[EMAIL ${msaName}]: Found ${relationshipManagerEmailByRecipientId.size} recipient(s) with a relationship manager`);
+    }
+
+    // For whitelist-only recipients, RM is stored on email_whitelist.relationship_manager_id; look up RM email by that user id.
+    const whitelistRmIds = Array.from(
+      new Set(whitelistOnly.map((w) => w.relationshipManagerId).filter((id): id is string => Boolean(id)))
+    );
+    const relationshipManagerEmailByRmId = new Map<string, string>();
+    if (whitelistRmIds.length > 0) {
+      const rmUserRows = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(inArray(users.id, whitelistRmIds));
+      for (const row of rmUserRows) {
+        if (row.email) relationshipManagerEmailByRmId.set(row.id, row.email);
+      }
     }
 
     // Postmark sender list: valid From = email in SenderSignatures with Confirmed === true. Fetch all pages.
@@ -303,9 +369,17 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     let sentCount = 0;
     const failedRecipients: string[] = [];
 
-    for (const user of uniqueUsers) {
+    
+    for (const recipient of recipients) {
+      const normalizedEmail = recipient.email.trim().toLowerCase();
+
       let fromAddress = getDefaultFromEmail();
-      const rmEmail = relationshipManagerEmailByRecipientId.get(user.id);
+      const rmEmail =
+        recipient.source === "user"
+          ? relationshipManagerEmailByRecipientId.get(recipient.userId)
+          : recipient.relationshipManagerId
+            ? relationshipManagerEmailByRmId.get(recipient.relationshipManagerId)
+            : undefined;
       if (rmEmail) {
         const signature = findSignatureByEmail(confirmedSenders, rmEmail);
         if (signature && signature.Confirmed === true) {
@@ -315,10 +389,10 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
 
       const emailTemplate = {
         From: fromAddress,
-        To: user.email,
+        To: recipient.email,
         TemplateAlias: `${process.env.POSTMARK_TEMPLATE_ALIAS}`,
         TemplateModel: {
-          name: user.firstName,
+          name: recipient.firstName,
           city: city,
           state: state,
           property_count: propertiesForTemplate.length,
@@ -332,11 +406,11 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       try {
         await sendEmailWithTemplate(emailTemplate);
         sentCount++;
-        console.log(`[EMAIL ${msaName}]: Sent to ${user.email}`);
+        console.log(`[EMAIL ${msaName}]: Sent to ${recipient.email} (${recipient.source})`);
       } catch (err) {
-        failedRecipients.push(user.email);
+        failedRecipients.push(recipient.email);
         console.error(
-          `[EMAIL ${msaName}]: Failed to send to ${user.email} (inactive/bounce/suppression) -`,
+          `[EMAIL ${msaName}]: Failed to send to ${recipient.email} (inactive/bounce/suppression) -`,
           err instanceof Error ? err.message : err
         );
       }
@@ -373,7 +447,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       }
     }
 
-    console.log(`[EMAIL ${msaName}]: Sent ${sentCount}/${uniqueUsers.length} email(s)${sentCount > 0 ? ", updated sync state" : ""}`);
+    console.log(`[EMAIL ${msaName}]: Sent ${sentCount}/${recipients.length} email(s)${sentCount > 0 ? ", updated sync state" : ""}`);
   } catch (error) {
     console.error(`[EMAIL ${msaName}]: Error -`, error);
     throw error;
