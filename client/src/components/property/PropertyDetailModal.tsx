@@ -372,7 +372,7 @@ export default function PropertyDetailModal() {
             </div>
             {showSpread && (
               <div className="mt-3 flex justify-center items-center gap-2">
-                <span className={`text-sm font-medium ${statusNorm === PROPERTY_STATUS.WHOLESALE ? "text-spread-positive" : "text-muted-foreground"}`}>
+                <span className="text-sm font-medium text-muted-foreground">
                   {spreadLabel}:
                 </span>
                 <span
