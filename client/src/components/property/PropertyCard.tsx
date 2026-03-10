@@ -14,6 +14,16 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
   const [imageUrl, setImageUrl] = useState(property.imageUrl || "");
   const [isLoading, setIsLoading] = useState(true);
 
+  const statusNorm = (property.status || "").toLowerCase().trim();
+  const hasBothPurchasePrices =
+    (property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0) &&
+    (property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0);
+  const showSpread =
+    (statusNorm === PROPERTY_STATUS.WHOLESALE || statusNorm === PROPERTY_STATUS.SOLD) &&
+    property.spread != null &&
+    hasBothPurchasePrices;
+  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale" : "Profit";
+
   useEffect(() => {
     // If no custom image URL, fetch Street View image
     if (!property.imageUrl) {
@@ -165,9 +175,9 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                       {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
                     </span>
                   </div>
-                  {(property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0) && (
+                  {hasBothPurchasePrices && (
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice).toLocaleString()}</span>
+                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
                       {property.buyerPurchaseDate && (() => {
                         try {
                           const d = parseISO(property.buyerPurchaseDate);
@@ -228,9 +238,9 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                     </span>
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                   </div>
-                  {(property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0) && (
+                  {hasBothPurchasePrices && (
                     <div className="text-xs font-medium text-foreground mt-1 space-y-0.5">
-                      <span>${Number(property.sellerPurchasePrice).toLocaleString()}</span>
+                      <span>${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
                       {property.sellerPurchaseDate && (() => {
                         try {
                           const d = parseISO(property.sellerPurchaseDate);
@@ -279,13 +289,16 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                 </div>
               </div>
         </div>
-        {property.spread != null && (
-          <div className="mt-3 flex justify-center items-center gap-1">
+        {showSpread && (
+          <div className="mt-3 flex justify-center items-center gap-2">
+            <span className={`text-sm font-medium ${statusNorm === PROPERTY_STATUS.WHOLESALE ? "text-spread-positive" : "text-muted-foreground"}`}>
+              {spreadLabel}:
+            </span>
             <span
-              className={`text-sm font-semibold ${isNegative(property.spread) ? "text-spread-negative" : "text-spread-positive"}`}
+              className={`text-sm font-semibold ${isNegative(property.spread!) ? "text-spread-negative" : "text-spread-positive"}`}
               data-testid={`text-spread-${property.id}`}
             >
-              {isNegative(property.spread) ? "-" : "+"}${Number(Math.abs(property.spread)).toLocaleString()}
+              {isNegative(property.spread!) ? "-" : "+"}${Number(Math.abs(property.spread!)).toLocaleString()}
             </span>
           </div>
         )}

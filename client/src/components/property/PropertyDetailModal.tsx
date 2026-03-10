@@ -141,6 +141,16 @@ export default function PropertyDetailModal() {
 
   if (!property) return null;
 
+  const statusNorm = (property.status || "").toLowerCase().trim();
+  const hasBothPurchasePrices =
+    (property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0) &&
+    (property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0);
+  const showSpread =
+    (statusNorm === PROPERTY_STATUS.WHOLESALE || statusNorm === PROPERTY_STATUS.SOLD) &&
+    property.spread != null &&
+    hasBothPurchasePrices;
+  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale" : "Profit";
+
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
   const dateLabel = ([PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION] as readonly string[]).includes((property.status || "").toLowerCase().trim())
@@ -267,9 +277,9 @@ export default function PropertyDetailModal() {
                       </p>
                     )}
                   </div>
-                  {property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0 && (
+                  {hasBothPurchasePrices && (
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice).toLocaleString()}</span>
+                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
                       {property.buyerPurchaseDate && formattedBuyerPurchaseDate && (
                         <div className="text-muted-foreground">{formattedBuyerPurchaseDate}</div>
                       )}
@@ -327,9 +337,9 @@ export default function PropertyDetailModal() {
                     </span>
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                   </div>
-                  {property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0 && (
+                  {hasBothPurchasePrices && (
                     <div className="text-xs font-medium text-foreground mt-1 space-y-0.5">
-                      <span>${Number(property.sellerPurchasePrice).toLocaleString()}</span>
+                      <span>${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
                       {property.sellerPurchaseDate && formattedSellerPurchaseDate && (
                         <div className="text-muted-foreground">{formattedSellerPurchaseDate}</div>
                       )}
@@ -360,13 +370,16 @@ export default function PropertyDetailModal() {
                 </div>
               </div>
             </div>
-            {property.spread != null && (
-              <div className="mt-3 flex justify-center items-center gap-1">
+            {showSpread && (
+              <div className="mt-3 flex justify-center items-center gap-2">
+                <span className={`text-sm font-medium ${statusNorm === PROPERTY_STATUS.WHOLESALE ? "text-spread-positive" : "text-muted-foreground"}`}>
+                  {spreadLabel}:
+                </span>
                 <span
-                  className={`text-sm font-semibold ${isNegative(property.spread) ? "text-spread-negative" : "text-spread-positive"}`}
+                  className={`text-sm font-semibold ${isNegative(property.spread!) ? "text-spread-negative" : "text-spread-positive"}`}
                   data-testid={`text-spread-${property.id}-modal`}
                 >
-                  {isNegative(property.spread) ? "-" : ""}${Number(Math.abs(property.spread)).toLocaleString()}
+                  {isNegative(property.spread!) ? "-" : ""}${Number(Math.abs(property.spread!)).toLocaleString()}
                 </span>
               </div>
             )}
