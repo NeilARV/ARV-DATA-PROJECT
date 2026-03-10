@@ -58,7 +58,8 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     async (overrides?: { sort?: DirectorySortOption; search?: string }) => {
       const sort = overrides?.sort ?? directorySort;
       const search = overrides?.search ?? directorySearch;
-      const county = filters.county ?? "";
+      // Always filter by county so directory shows only companies in the selected county (default San Diego)
+      const county = (filters.county && filters.county.trim()) ? filters.county.trim() : "San Diego";
       // Never run a "load all" (no overrides) when user has active search – prevents search results being overwritten by a stale effect
       if (!overrides && directorySearch.trim() !== "") {
         return;
@@ -110,7 +111,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   );
 
   const loadMoreCompanies = useCallback(async () => {
-    const county = filters.county ?? "";
+    const county = (filters.county && filters.county.trim()) ? filters.county.trim() : "San Diego";
     const nextPage = page + 1;
     if (total > 0 && (nextPage - 1) * DEFAULT_PAGE_SIZE >= total) return;
     setIsLoadingMoreCompanies(true);

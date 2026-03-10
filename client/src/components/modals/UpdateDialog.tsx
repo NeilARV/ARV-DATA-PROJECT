@@ -29,6 +29,7 @@ export default function UpdateDialog({
   open,
   onClose,
   companyId,
+  initialData,
   onSuccess,
 }: UpdateDialogProps) {
   const { toast } = useToast();
@@ -45,48 +46,54 @@ export default function UpdateDialog({
     },
   });
 
-  // Fetch company data when dialog opens and companyId is provided
+  // When dialog opens: use initialData if provided (from directory), otherwise fetch company by id
   useEffect(() => {
-    if (open && companyId) {
-      setIsFetching(true);
-      fetch(`/api/companies/${companyId}`, {
-        credentials: "include",
-      })
-        .then((res) => {
-          if (!res.ok) {
-            throw new Error("Failed to fetch company contact");
-          }
-          return res.json();
-        })
-        .then((data: Company) => {
-          // Format phone number if it exists and isn't already formatted
-          const phoneNumber = data.phoneNumber 
-            ? (data.phoneNumber.includes('(') ? data.phoneNumber : formatPhoneNumber(data.phoneNumber))
-            : "";
-          
-          form.reset({
-            companyName: data.companyName || "",
-            contactName: data.contactName || "",
-            contactEmail: data.contactEmail || "",
-            phoneNumber: phoneNumber,
-          });
-        })
-        .catch((error) => {
-          console.error("Error fetching company contact:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load company contact information",
-            variant: "destructive",
-          });
-        })
-        .finally(() => {
-          setIsFetching(false);
-        });
-    } else if (!open) {
-      // Reset form when dialog closes
+    if (!open) {
       form.reset();
+      return;
     }
-  }, [open, companyId, form, toast]);
+    if (!companyId) return;
+
+    if (initialData) {
+      const phoneNumber = initialData.phoneNumber
+        ? (initialData.phoneNumber.includes("(") ? initialData.phoneNumber : formatPhoneNumber(initialData.phoneNumber))
+        : "";
+      form.reset({
+        companyName: initialData.companyName ?? "",
+        contactName: initialData.contactName ?? "",
+        contactEmail: initialData.contactEmail ?? "",
+        phoneNumber,
+      });
+      return;
+    }
+
+    setIsFetching(true);
+    fetch(`/api/companies/${companyId}`, { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch company contact");
+        return res.json();
+      })
+      .then((data: Company) => {
+        const phoneNumber = data.phoneNumber
+          ? (data.phoneNumber.includes("(") ? data.phoneNumber : formatPhoneNumber(data.phoneNumber))
+          : "";
+        form.reset({
+          companyName: data.companyName ?? "",
+          contactName: data.contactName ?? "",
+          contactEmail: data.contactEmail ?? "",
+          phoneNumber,
+        });
+      })
+      .catch((error) => {
+        console.error("Error fetching company contact:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load company contact information",
+          variant: "destructive",
+        });
+      })
+      .finally(() => setIsFetching(false));
+  }, [open, companyId, initialData, form, toast]);
 
   const handleSubmit = async (data: UpdateCompany) => {
     if (!companyId) {

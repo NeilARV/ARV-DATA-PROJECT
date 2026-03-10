@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useFilters } from "@/hooks/useFilters";
 import type { CompanyContactWithCounts, CompanyContactDetail, CompanyDirectoryProps } from "@/types/companies";
+import type { UpdateDialogInitialData } from "@/types/general";
 import type { DirectorySortOption } from "@/types/options";
 import {
   ALL_STATUS_FILTERS,
@@ -52,6 +53,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
+  const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
   const { view } = useView();
@@ -532,6 +534,12 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditDialogCompanyId(listCompany.id);
+                            setEditDialogInitialData({
+                              companyName: listCompany.companyName,
+                              contactName: listCompany.contactName ?? undefined,
+                              contactEmail: listCompany.contactEmail ?? undefined,
+                              phoneNumber: listCompany.phoneNumber ?? undefined,
+                            });
                             setUpdateDialogOpen(true);
                           }}
                           data-testid="button-edit-company"
@@ -597,8 +605,10 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
         onClose={() => {
           setUpdateDialogOpen(false);
           setEditDialogCompanyId(null);
+          setEditDialogInitialData(null);
         }}
         companyId={editDialogCompanyId}
+        initialData={editDialogInitialData}
         onSuccess={() => {
           loadCompanies();
         }}
