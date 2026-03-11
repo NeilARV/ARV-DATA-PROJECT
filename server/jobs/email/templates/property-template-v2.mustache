@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>New Properties Available</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <!-- Email Container -->
+          <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:40px 0; border-radius:6px; overflow:hidden;">
+            
+            <!-- Header -->
+            <tr>
+              <td style="background-color:#69C9E1; padding:24px; text-align:center;">
+                <h1 style="margin:0; color:#ffffff; font-size:24px;">
+                  New Flip Transactions in {{city}}, {{state}}
+                </h1>
+              </td>
+            </tr>
+
+            <!-- Intro -->
+            <tr>
+              <td style="padding:24px; color:#333333;">
+                <p style="margin-top:0; font-size:16px; line-height:1.5;">
+                  Hi {{name}},
+                </p>
+                <p style="font-size:16px; line-height:1.5;">
+                  {{property_count}} new transactions just appeared in <strong>{{city}}, {{state}}</strong>.
+                  Here's a quick look:
+                </p>
+              </td>
+            </tr>
+
+            <!-- Property List -->
+            <tr>
+              <td style="padding:0 24px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+
+            {{#each properties}}
+            <tr>
+              <td style="border:1px solid #e6e6e6; border-radius:4px; overflow:hidden;">
+                
+                <!-- Property Image with Status Tags -->
+                <!--[if gte mso 9]>
+                <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:552px;height:350px;" src="{{image_url}}" />
+                <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:552px;height:350px;">
+                <v:fill opacity="0%" color="#000000" />
+                <v:textbox inset="0,0,0,0">
+                <![endif]-->
+                <table width="100%" cellpadding="0" cellspacing="0" style="background-image:url('{{image_url}}'); background-size:cover; background-position:center center;" role="presentation">
+                  <tr>
+                    <td height="350" valign="top" style="padding:12px 12px 0 0;">
+                      <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                        <tr>
+                          <td align="right">
+                            {{#each status_tags}}
+                            <span style="
+                              display:inline-block;
+                              background-color:{{bg}};
+                              color:{{text}};
+                              font-family:Arial, Helvetica, sans-serif;
+                              font-size:12px;
+                              font-weight:600;
+                              padding:6px 10px;
+                              border-radius:4px;
+                              margin-left:6px;
+                              white-space:nowrap;
+                            ">
+                              {{label}}
+                            </span>
+                            {{/each}}
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                <!--[if gte mso 9]>
+                </v:textbox>
+                </v:rect>
+                <![endif]-->
+            
+                <!-- Property Details -->
+                <div style="padding:16px; font-family:Arial, Helvetica, sans-serif;">
+                
+                  <!-- Row 1: Price + Date Sold -->
+                  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                    <tr>
+                      <td valign="top">
+                        <p style="margin:0; font-size:12px; color:#999;">Purchase Price</p>
+                        <p style="margin:4px 0 0; font-size:22px; font-weight:bold; color:#222;">
+                          ${{price}}
+                        </p>
+                      </td>
+                      <td valign="top" align="right">
+                        <p style="margin:0; font-size:12px; color:#999;">Date Sold</p>
+                        <p style="margin:4px 0 0; font-size:18px; font-weight:bold; color:#222;">
+                          {{date_sold}}
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                
+                  <!-- Address -->
+                  <p style="margin:14px 0 0; font-size:16px; font-weight:600; color:#222;">
+                    {{address}}
+                  </p>
+                
+                  <p style="margin:4px 0 0; font-size:14px; color:#777;">
+                    {{city}}, {{state}} {{zipcode}}
+                  </p>
+                
+                  <!-- Beds / Baths / Sqft -->
+                  <table cellpadding="0" cellspacing="0" role="presentation" style="margin-top:14px;">
+                    <tr>
+                      <td style="padding-right:18px; font-size:14px; color:#333;">
+                        🛏 <span style="font-weight:500;">{{bedrooms}} bd</span>
+                      </td>
+                      <td style="padding-right:18px; font-size:14px; color:#333;">
+                        🛁 <span style="font-weight:500;">{{bathrooms}} ba</span>
+                      </td>
+                      <td style="font-size:14px; color:#333;">
+                        📐 <span style="font-weight:500;">{{sqft}} sqft</span>
+                      </td>
+                    </tr>
+                  </table>
+                
+                  <!-- Property Type -->
+                  <p style="margin:10px 0 0; font-size:13px; color:#999;">
+                    {{property_type}}
+                  </p>
+                
+                <!-- Buyer & Seller: one section per field (no nesting) so {{.}} works -->
+                <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:16px; border-top:1px solid #eeeeee;">
+                  <tr>
+                    <td valign="top" style="padding-top:12px; padding-right:24px; width:50%;">
+                      {{#buyer_company_name}}
+                      <div style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+                        Buyer
+                      </div>
+                      <div style="font-size:14px; font-weight:600; color:#1f2937; margin-top:2px;">
+                        {{.}}
+                      </div>
+                      {{/buyer_company_name}}
+                      {{#buyer_contact_name}}
+                      <div style="font-size:13px; color:#555; margin-top:2px;">
+                        {{.}}
+                      </div>
+                      {{/buyer_contact_name}}
+                      {{#buyer_email}}
+                      <div style="font-size:13px; color:#555; margin-top:2px;">
+                        <a href="mailto:{{.}}" style="color:#69C9E1; text-decoration:none;">{{.}}</a>
+                      </div>
+                      {{/buyer_email}}
+                      {{#buyer_phone}}
+                      <div style="font-size:13px; color:#555; margin-top:2px;">
+                        <a href="tel:{{.}}" style="color:#555; text-decoration:none;">{{.}}</a>
+                      </div>
+                      {{/buyer_phone}}
+                    </td>
+                    <td valign="top" style="padding-top:12px; width:50%;">
+                      {{#seller_company_name}}
+                      <div style="font-size:11px; color:#999; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+                        Seller
+                      </div>
+                      <div style="font-size:14px; font-weight:600; color:#1f2937; margin-top:2px;">
+                        {{.}}
+                      </div>
+                      {{/seller_company_name}}
+                      {{#seller_contact_name}}
+                      <div style="font-size:13px; color:#555; margin-top:2px;">
+                        {{.}}
+                      </div>
+                      {{/seller_contact_name}}
+                      {{#seller_email}}
+                      <div style="font-size:13px; color:#555; margin-top:2px;">
+                        <a href="mailto:{{.}}" style="color:#69C9E1; text-decoration:none;">{{.}}</a>
+                      </div>
+                      {{/seller_email}}
+                      {{#seller_phone}}
+                      <div style="font-size:13px; color:#555; margin-top:2px;">
+                        <a href="tel:{{.}}" style="color:#555; text-decoration:none;">{{.}}</a>
+                      </div>
+                      {{/seller_phone}}
+                    </td>
+                  </tr>
+                </table>
+
+                
+                </div>
+
+            
+              </td>
+            </tr>
+            
+            <tr><td height="16"></td></tr>
+            {{/each}}
+
+                </table>
+              </td>
+            </tr>
+
+            <!-- CTA -->
+            <tr>
+              <td align="center" style="padding:24px;">
+                <a href="{{cta_url}}" style="background-color:#69C9E1; color:#ffffff; text-decoration:none; padding:14px 24px; border-radius:4px; font-weight:bold; display:inline-block;">
+                  View All Transactions
+                </a>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:16px; text-align:center; color:#999; font-size:12px;">
+                You're receiving this email because you subscribed to property alerts.<br />
+                © {{year}} {{company_name}}
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -260,7 +260,13 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         baths: structures.baths,
         livingAreaSqft: structures.livingAreaSqft,
         buyerCompanyName: buyerCompanies.companyName,
+        buyerContactName: buyerCompanies.contactName,
+        buyerContactEmail: buyerCompanies.contactEmail,
+        buyerPhone: buyerCompanies.phoneNumber,
         sellerCompanyName: sellerCompanies.companyName,
+        sellerContactName: sellerCompanies.contactName,
+        sellerContactEmail: sellerCompanies.contactEmail,
+        sellerPhone: sellerCompanies.phoneNumber,
       })
       .from(properties)
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -305,8 +311,14 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       property_type: string;
       image_url: string;
       status_tags: { label: string; bg: string; text: string }[];
-      buyer_name: string | null;
-      seller_name: string | null;
+      buyer_company_name: string | null;
+      buyer_contact_name: string | null;
+      buyer_email: string | null;
+      buyer_phone: string | null;
+      seller_company_name: string | null;
+      seller_contact_name: string | null;
+      seller_email: string | null;
+      seller_phone: string | null;
     }> = [];
     let firstPropertyIdSent: string | null = null;
 
@@ -331,11 +343,15 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const bedrooms = p.bedsCount != null ? String(p.bedsCount) : "—";
       const bathrooms = p.baths != null ? String(p.baths) : "—";
       const sqft = p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—";
-      // Coerce to string or null so Postmark/Mustachio receives a plain value (section context works correctly)
-      const rawBuyer = p.buyerCompanyName;
-      const rawSeller = p.sellerCompanyName;
-      const buyer_name = rawBuyer != null && String(rawBuyer).trim() !== "" ? String(rawBuyer).trim() : null;
-      const seller_name = rawSeller != null && String(rawSeller).trim() !== "" ? String(rawSeller).trim() : null;
+      // All four fields per side: company name, contact name, email, phone — pass through so template shows any that exist
+      const buyer_company_name = (p.buyerCompanyName ?? "").trim() || null;
+      const buyer_contact_name = (p.buyerContactName ?? "").trim() || null;
+      const buyer_email = (p.buyerContactEmail ?? "").trim() || null;
+      const buyer_phone = (p.buyerPhone ?? "").trim() || null;
+      const seller_company_name = (p.sellerCompanyName ?? "").trim() || null;
+      const seller_contact_name = (p.sellerContactName ?? "").trim() || null;
+      const seller_email = (p.sellerContactEmail ?? "").trim() || null;
+      const seller_phone = (p.sellerPhone ?? "").trim() || null;
 
       propertiesForTemplate.push({
         address,
@@ -350,8 +366,14 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         property_type: (p.propertyType ?? "").trim() || "—",
         image_url,
         status_tags: statusTags,
-        buyer_name,
-        seller_name,
+        buyer_company_name,
+        buyer_contact_name,
+        buyer_email,
+        buyer_phone,
+        seller_company_name,
+        seller_contact_name,
+        seller_email,
+        seller_phone,
       });
     }
 
