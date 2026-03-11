@@ -149,7 +149,7 @@ export default function PropertyDetailModal() {
     (statusNorm === PROPERTY_STATUS.WHOLESALE || statusNorm === PROPERTY_STATUS.SOLD) &&
     property.spread != null &&
     hasBothPurchasePrices;
-  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale" : "Profit";
+  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale Fee" : "Gross Profit";
 
   const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
   const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";

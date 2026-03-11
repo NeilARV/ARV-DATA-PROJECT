@@ -22,7 +22,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
     (statusNorm === PROPERTY_STATUS.WHOLESALE || statusNorm === PROPERTY_STATUS.SOLD) &&
     property.spread != null &&
     hasBothPurchasePrices;
-  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale" : "Profit";
+  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale Fee" : "Gross Profit";
 
   useEffect(() => {
     // If no custom image URL, fetch Street View image
