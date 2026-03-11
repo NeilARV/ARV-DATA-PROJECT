@@ -16,6 +16,9 @@ import {
   sendEmailWithTemplate,
   getDefaultFromEmail,
 } from "server/services/postmark/email.services";
+import { formatAddress } from "@shared/utils/formatAddress";
+import { formatCompanyName } from "@shared/utils/formatCompanyName";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 
 const buyerCompanies = alias(companies, "buyer_companies");
 const sellerCompanies = alias(companies, "seller_companies");
@@ -325,10 +328,10 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     for (const p of candidateProperties) {
       if (propertiesForTemplate.length >= PROPERTY_COUNT_TARGET) break;
 
-      const address = p.address ?? "Unknown";
-      const city = p.city ?? "Unknown";
+      const rawAddress = p.address ?? "Unknown";
+      const rawCity = p.city ?? "Unknown";
       const state = p.state ?? "N/A";
-      const image_url = await getStreetViewUrlIfAvailable(p.propertyId, address, city, state);
+      const image_url = await getStreetViewUrlIfAvailable(p.propertyId, rawAddress, rawCity, state);
       if (image_url === null) continue;
 
       if (propertiesForTemplate.length === 0) {
@@ -343,15 +346,16 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const bedrooms = p.bedsCount != null ? String(p.bedsCount) : "—";
       const bathrooms = p.baths != null ? String(p.baths) : "—";
       const sqft = p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—";
-      // All four fields per side: company name, contact name, email, phone — pass through so template shows any that exist
-      const buyer_company_name = (p.buyerCompanyName ?? "").trim() || null;
+      const address = formatAddress(p.address) ?? rawAddress;
+      const city = formatAddress(p.city) ?? rawCity;
+      const buyer_company_name = formatCompanyName(p.buyerCompanyName);
       const buyer_contact_name = (p.buyerContactName ?? "").trim() || null;
       const buyer_email = (p.buyerContactEmail ?? "").trim() || null;
-      const buyer_phone = (p.buyerPhone ?? "").trim() || null;
-      const seller_company_name = (p.sellerCompanyName ?? "").trim() || null;
+      const buyer_phone = formatPhoneNumber((p.buyerPhone ?? "").trim() || undefined);
+      const seller_company_name = formatCompanyName(p.sellerCompanyName);
       const seller_contact_name = (p.sellerContactName ?? "").trim() || null;
       const seller_email = (p.sellerContactEmail ?? "").trim() || null;
-      const seller_phone = (p.sellerPhone ?? "").trim() || null;
+      const seller_phone = formatPhoneNumber((p.sellerPhone ?? "").trim() || undefined);
 
       propertiesForTemplate.push({
         address,
