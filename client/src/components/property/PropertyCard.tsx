@@ -175,17 +175,6 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                       {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
                     </span>
                   </div>
-                  {hasBothPurchasePrices && (
-                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
-                      {property.buyerPurchaseDate && (() => {
-                        try {
-                          const d = parseISO(property.buyerPurchaseDate);
-                          return isValid(d) ? <div className="text-muted-foreground">{format(d, "MMM d, yyyy")}</div> : null;
-                        } catch { return null; }
-                      })()}
-                    </div>
-                  )}
                   {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
                     <div className="text-sm text-muted-foreground mt-1.5 space-y-1 min-w-0 overflow-hidden w-full">
                       {property.buyerContactName && (
@@ -194,7 +183,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                           data-testid={`text-buyer-contact-${property.id}`}
                         >
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate">{property.buyerContactName}</span>
+                          <span className="truncate text-foreground">{property.buyerContactName}</span>
                         </div>
                       )}
                       {property.buyerContactEmail && (
@@ -221,6 +210,17 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                       )}
                     </div>
                   )}
+                  {hasBothPurchasePrices && (
+                    <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
+                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
+                      {property.buyerPurchaseDate && (() => {
+                        try {
+                          const d = parseISO(property.buyerPurchaseDate);
+                          return isValid(d) ? <div className="text-muted-foreground">{format(d, "MMM d, yyyy")}</div> : null;
+                        } catch { return null; }
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
             {/* Seller: right column, aligned right; ellipsis at end when truncated */}
@@ -238,17 +238,6 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                     </span>
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                   </div>
-                  {hasBothPurchasePrices && (
-                    <div className="text-xs font-medium text-foreground mt-1 space-y-0.5">
-                      <span>${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
-                      {property.sellerPurchaseDate && (() => {
-                        try {
-                          const d = parseISO(property.sellerPurchaseDate);
-                          return isValid(d) ? <div className="text-muted-foreground text-xs">{format(d, "MMM d, yyyy")}</div> : null;
-                        } catch { return null; }
-                      })()}
-                    </div>
-                  )}
                   {(property.sellerContactName ||
                     property.sellerContactEmail ||
                     property.sellerContactPhone) && (
@@ -258,7 +247,7 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                           className="flex items-center gap-1.5 min-w-0 overflow-hidden justify-end w-full"
                           data-testid={`text-seller-contact-${property.id}`}
                         >
-                          <span className="truncate min-w-0">{property.sellerContactName}</span>
+                          <span className="truncate min-w-0 text-foreground">{property.sellerContactName}</span>
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
                         </div>
                       )}
@@ -284,6 +273,17 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                         </a>
                       )}
+                    </div>
+                  )}
+                  {hasBothPurchasePrices && (
+                    <div className="text-xs font-medium text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
+                      <span className="text-foreground">${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
+                      {property.sellerPurchaseDate && (() => {
+                        try {
+                          const d = parseISO(property.sellerPurchaseDate);
+                          return isValid(d) ? <div className="text-muted-foreground text-xs">{format(d, "MMM d, yyyy")}</div> : null;
+                        } catch { return null; }
+                      })()}
                     </div>
                   )}
                 </div>

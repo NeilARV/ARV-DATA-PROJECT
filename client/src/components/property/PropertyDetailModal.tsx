@@ -277,20 +277,12 @@ export default function PropertyDetailModal() {
                       </p>
                     )}
                   </div>
-                  {hasBothPurchasePrices && (
-                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
-                      {property.buyerPurchaseDate && formattedBuyerPurchaseDate && (
-                        <div className="text-muted-foreground">{formattedBuyerPurchaseDate}</div>
-                      )}
-                    </div>
-                  )}
                   {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
                     <div className="text-sm text-muted-foreground mt-1.5 space-y-1 min-w-0 overflow-hidden w-full">
                       {property.buyerContactName && (
                         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden" data-testid="text-buyer-contact">
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate">{property.buyerContactName}</span>
+                          <span className="truncate text-foreground">{property.buyerContactName}</span>
                         </div>
                       )}
                       {property.buyerContactEmail && (
@@ -304,6 +296,14 @@ export default function PropertyDetailModal() {
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                           <span className="truncate">{property.buyerContactPhone}</span>
                         </a>
+                      )}
+                    </div>
+                  )}
+                  {hasBothPurchasePrices && (
+                    <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
+                      <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
+                      {property.buyerPurchaseDate && formattedBuyerPurchaseDate && (
+                        <div className="text-muted-foreground">{formattedBuyerPurchaseDate}</div>
                       )}
                     </div>
                   )}
@@ -337,19 +337,11 @@ export default function PropertyDetailModal() {
                     </span>
                     <Building2 className="w-4 h-4 flex-shrink-0 text-primary" />
                   </div>
-                  {hasBothPurchasePrices && (
-                    <div className="text-xs font-medium text-foreground mt-1 space-y-0.5">
-                      <span>${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
-                      {property.sellerPurchaseDate && formattedSellerPurchaseDate && (
-                        <div className="text-muted-foreground">{formattedSellerPurchaseDate}</div>
-                      )}
-                    </div>
-                  )}
                   {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (
                     <div className="text-sm text-muted-foreground mt-1.5 space-y-1 flex flex-col items-end min-w-0 overflow-hidden w-full">
                       {property.sellerContactName && (
                         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden justify-end w-full" data-testid="text-seller-contact">
-                          <span className="truncate min-w-0">{property.sellerContactName}</span>
+                          <span className="truncate min-w-0 text-foreground">{property.sellerContactName}</span>
                           <User className="w-3.5 h-3.5 flex-shrink-0" />
                         </div>
                       )}
@@ -364,6 +356,14 @@ export default function PropertyDetailModal() {
                           <span className="truncate min-w-0">{property.sellerContactPhone}</span>
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                         </a>
+                      )}
+                    </div>
+                  )}
+                  {hasBothPurchasePrices && (
+                    <div className="text-xs font-medium text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
+                      <span className="text-foreground">${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
+                      {property.sellerPurchaseDate && formattedSellerPurchaseDate && (
+                        <div className="text-muted-foreground">{formattedSellerPurchaseDate}</div>
                       )}
                     </div>
                   )}
