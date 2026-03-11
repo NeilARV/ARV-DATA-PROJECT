@@ -32,5 +32,9 @@ Express + Vite full-stack app for ARV (After Repair Value) / real estate finance
 - `DATABASE_URL` is required for Drizzle and the Neon session store
 - Scheduled jobs (node-cron) run data sync and email by MSA; timezone is `America/Los_Angeles`
 
+## Security Rules
+- NEVER read, display, print, or access any `.env` file or any file containing secrets/credentials
+- If a task requires environment variables, ask the user to provide only the variable NAME, not the value
+
 ## Verification
 Before completing any task, run: `npm run check`
