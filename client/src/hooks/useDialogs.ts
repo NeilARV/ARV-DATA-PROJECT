@@ -23,11 +23,17 @@ export interface UseDialogsResult {
     open: boolean;
     onOpenChange: (open: boolean) => void;
   };
-  /** Handlers for Header: onLoginClick, onSignupClick, onLeaderboardClick */
+  /** Props for <InfoModal /> showing relationship manager info */
+  rmDialogProps: {
+    open: boolean;
+    onClose: () => void;
+  };
+  /** Handlers for Header: onLoginClick, onSignupClick, onLeaderboardClick, onRMClick */
   headerDialogHandlers: {
     onLoginClick: () => void;
     onSignupClick: () => void;
     onLeaderboardClick: () => void;
+    onRMClick: () => void;
   };
 }
 
@@ -39,6 +45,7 @@ export function useDialogs(): UseDialogsResult {
   const [showSignupDialog, setShowSignupDialog] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
+  const [showRMDialog, setShowRMDialog] = useState(false);
   const [isDialogForced, setIsDialogForced] = useState(false);
 
   const { isAuthenticated } = useAuth();
@@ -92,6 +99,10 @@ export function useDialogs(): UseDialogsResult {
       open: showLeaderboardDialog,
       onOpenChange: setShowLeaderboardDialog,
     },
+    rmDialogProps: {
+      open: showRMDialog,
+      onClose: () => setShowRMDialog(false),
+    },
     headerDialogHandlers: {
       onLoginClick: () => {
         setShowLoginDialog(true);
@@ -102,6 +113,7 @@ export function useDialogs(): UseDialogsResult {
         setShowLoginDialog(false);
       },
       onLeaderboardClick: () => setShowLeaderboardDialog(true),
+      onRMClick: () => setShowRMDialog(true),
     },
   };
 }

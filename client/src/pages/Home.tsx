@@ -10,9 +10,11 @@ import PropertyDetailModal from "@/components/property/PropertyDetailModal";
 import SignupDialog from "@/components/modals/SignupDialog";
 import LoginDialog from "@/components/modals/LoginDialog";
 import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
+import InfoModal from "@/components/modals/InfoModal";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { useDialogs } from "@/hooks/useDialogs";
+import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import type { MapPin } from "@/types/property";
 import { ViewProvider, useView } from "@/hooks/useView";
@@ -26,7 +28,8 @@ function HomeContent() {
   const { view, sidebarView, setSidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
-  const { signupDialogProps, loginDialogProps, leaderboardDialogProps, headerDialogHandlers } = useDialogs();
+  const { signupDialogProps, loginDialogProps, leaderboardDialogProps, rmDialogProps, headerDialogHandlers } = useDialogs();
+  const { user } = useAuth();
 
   // Load companies when directory is open (with county filter). Skip when user just clicked a company
   // (e.g. wholesaler in grid, or company in property panel/modal) so that company can be shown via ensuredCompany.
@@ -58,6 +61,7 @@ function HomeContent() {
         onLoginClick={headerDialogHandlers.onLoginClick}
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
+        onRMClick={headerDialogHandlers.onRMClick}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -135,6 +139,9 @@ function HomeContent() {
       <SignupDialog {...signupDialogProps} />
       <LoginDialog {...loginDialogProps} />
       <LeaderboardDialog {...leaderboardDialogProps}/>
+      {user?.relationshipManager && (
+        <InfoModal {...rmDialogProps} relationshipManager={user.relationshipManager} />
+      )}
 
     </div>
   );

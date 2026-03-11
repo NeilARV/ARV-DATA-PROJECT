@@ -15,6 +15,7 @@ import {
   Menu,
   User,
   DollarSign,
+  HelpCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -40,6 +41,7 @@ export default function Header({
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
+  onRMClick,
   county,
 }: HeaderProps) {
 
@@ -390,6 +392,23 @@ export default function Header({
               <span className="hidden sm:inline">Table</span>
             </Button>
           </div>
+
+          {user?.relationshipManager && onRMClick && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRMClick}
+              className="flex items-center gap-2"
+              data-testid="button-rm"
+            >
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <User className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <span className="hidden sm:inline text-sm">
+                {user.relationshipManager.firstName} {user.relationshipManager.lastName}
+              </span>
+            </Button>
+          )}
         </div>
       </div>
 
