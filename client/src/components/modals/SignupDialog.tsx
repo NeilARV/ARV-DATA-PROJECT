@@ -92,9 +92,20 @@ export default function SignupDialog({ open, forced = false, onClose, onSuccess,
       
       // Show appropriate toast based on status code
       if (statusCode === 403) {
+        let rmLine = "";
+        try {
+          const match = error.message.match(/^(\d+):\s*(.+)$/);
+          if (match) {
+            const parsed = JSON.parse(match[2]);
+            if (parsed.relationshipManager) {
+              const { firstName, lastName, email } = parsed.relationshipManager;
+              rmLine = ` Email ${firstName} ${lastName} at ${email} to request access.`;
+            }
+          }
+        } catch { /* ignore */ }
         toast({
           title: "Access Denied",
-          description: errorMessage,
+          description: `${errorMessage}${rmLine}`,
           variant: "destructive",
         });
       } else if (statusCode === 409) {

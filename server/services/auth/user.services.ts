@@ -1,4 +1,4 @@
-import { users, userRelationshipManagers } from "@database/schemas/users.schema";
+import { users, userRelationshipManagers, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
 import { eq, sql, inArray, and } from "drizzle-orm";
@@ -140,6 +140,30 @@ export async function getUserById(userId: string) {
         .limit(1);
 
     return user
+}
+
+/**
+ * Returns a randomly selected relationship manager from all users with the relationship-manager role.
+ * Used to display a contact suggestion when signup fails due to email not being whitelisted.
+ */
+export async function getRandomRelationshipManager(): Promise<{
+    firstName: string;
+    lastName: string;
+    email: string;
+} | null> {
+    const rows = await db
+        .select({
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+        })
+        .from(users)
+        .innerJoin(userRoles, eq(userRoles.userId, users.id))
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(eq(roles.name, "relationship-manager"));
+
+    if (rows.length === 0) return null;
+    return rows[Math.floor(Math.random() * rows.length)];
 }
 
 /**

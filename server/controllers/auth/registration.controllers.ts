@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { insertUserSchema } from "@database/inserts";
 import { RegistrationServices, UserServices } from "server/services/auth";
 
+
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         
@@ -20,7 +21,11 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         const whitelistEntry = await RegistrationServices.isEmailWhiteListed(email);
 
         if (whitelistEntry.length === 0) {
-            res.status(403).json({ message: "You are not authorized to sign up for this service." });
+            const rm = await UserServices.getRandomRelationshipManager();
+            res.status(403).json({
+                message: "Your email is not on the approved list.",
+                relationshipManager: rm ?? null,
+            });
             return;
         }
 
