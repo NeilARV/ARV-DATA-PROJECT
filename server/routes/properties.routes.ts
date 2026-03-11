@@ -510,6 +510,7 @@ router.get("/:id", async (req, res) => {
                 recordingDate: propertyTransactions.recordingDate,
                 saleDate: propertyTransactions.saleDate,
                 id: propertyTransactions.propertyTransactionsId,
+                firstMtgLenderName: propertyTransactions.firstMtgLenderName,
             })
             .from(propertyTransactions)
             .where(
@@ -557,6 +558,8 @@ router.get("/:id", async (req, res) => {
             buyerPurchasePrice != null && sellerPurchasePrice != null
                 ? buyerPurchasePrice - sellerPurchasePrice
                 : null;
+        const isFinancedByARV =
+            latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
 
         // Map result to match the Property type expected by frontend
         // Parse decimal types and provide defaults
@@ -604,6 +607,7 @@ router.get("/:id", async (req, res) => {
             sellerPurchasePrice,
             sellerPurchaseDate,
             spread,
+            isFinancedByARV,
             // Legacy aliases for backward compatibility (buyer as primary, seller as fallback)
             companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
             companyName: result.buyerCompanyName || result.sellerCompanyName || buyerDisplayName || sellerDisplayName || null,

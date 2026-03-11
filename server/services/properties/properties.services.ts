@@ -371,6 +371,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             recordingDate: propertyTransactions.recordingDate,
             saleDate: propertyTransactions.saleDate,
             id: propertyTransactions.propertyTransactionsId,
+            firstMtgLenderName: propertyTransactions.firstMtgLenderName,
         })
         .from(propertyTransactions)
         .where(
@@ -445,6 +446,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             buyerPurchasePrice != null && sellerPurchasePrice != null
                 ? buyerPurchasePrice - sellerPurchasePrice
                 : null;
+        const isFinancedByARV =
+            latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
 
         return {
             id: prop.id,
@@ -488,6 +491,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             sellerPurchasePrice,
             sellerPurchaseDate,
             spread,
+            isFinancedByARV,
             sellerName: sellerDisplayName,
             // Legacy aliases for backward compatibility
             propertyOwner: prop.companyName || buyerDisplayName || sellerDisplayName || null,

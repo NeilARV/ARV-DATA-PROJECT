@@ -46,6 +46,8 @@ export type Property = {
   companyContactPhone: string | null;
   propertyOwner: string | null;
   propertyOwnerId: string | null;
+  // ARV Finance lender flag
+  isFinancedByARV: boolean;
   // Optional fields
   description: string | null;
   imageUrl: string | null;

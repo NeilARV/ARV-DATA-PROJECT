@@ -182,6 +182,13 @@ export default function PropertyDetailModal() {
                 No image available
               </div>
             )}
+            {property.isFinancedByARV && (
+              <div className="absolute top-2 left-2">
+                <div className="rounded bg-white shadow-sm px-1.5 py-0.5 flex items-center justify-center">
+                  <img src="/arv-data-logo-dark-800-by-500.png" alt="ARV Financed" className="h-5 w-auto object-contain" />
+                </div>
+              </div>
+            )}
             <div className="absolute top-2 right-2 flex gap-2 items-end">
               <StatusTag status={property.status} section={"modal"}/>
             </div>
