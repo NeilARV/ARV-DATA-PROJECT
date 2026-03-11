@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail } from "lucide-react";
+import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail, Star } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { format, parseISO, isValid } from "date-fns";
@@ -86,9 +86,10 @@ export default function PropertyCard({ property, onClick }: PropertyCardProps) {
         )}
         {property.isFinancedByARV && (
           <div className="absolute top-2 left-2">
-            <div className="rounded bg-white shadow-sm px-1.5 py-0.5 flex items-center justify-center">
-              <img src="/arv-data-logo-dark-800-by-500.png" alt="ARV Financed" className="h-5 w-auto object-contain" />
-            </div>
+            <span className="inline-flex items-center gap-1 text-[15px] font-semibold px-3 py-0.5 rounded shadow-sm bg-white text-black">
+              <Star className="w-3.5 h-3.5 fill-black" />
+              <p>ARV Client</p>
+            </span>
           </div>
         )}
         <div className="absolute top-2 right-2 flex gap-2 items-end">

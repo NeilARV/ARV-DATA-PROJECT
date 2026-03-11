@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Bed, Bath, Maximize2, Calendar, Building2, User, Mail, Phone } from "lucide-react";
+import { Bed, Bath, Maximize2, Calendar, Building2, User, Mail, Phone, Star } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
@@ -184,9 +184,10 @@ export default function PropertyDetailModal() {
             )}
             {property.isFinancedByARV && (
               <div className="absolute top-2 left-2">
-                <div className="rounded bg-white shadow-sm px-1.5 py-0.5 flex items-center justify-center">
-                  <img src="/arv-data-logo-dark-800-by-500.png" alt="ARV Financed" className="h-5 w-auto object-contain" />
-                </div>
+                <span className="inline-flex items-center gap-1 text-[15px] font-semibold px-3 py-0.5 rounded shadow-sm bg-white text-black">
+                  <Star className="w-3.5 h-3.5 fill-black" />
+                  ARV Client
+                </span>
               </div>
             )}
             <div className="absolute top-2 right-2 flex gap-2 items-end">
