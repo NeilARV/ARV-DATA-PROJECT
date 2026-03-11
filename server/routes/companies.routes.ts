@@ -170,10 +170,27 @@ router.get("/contacts", async (req, res) => {
         }
         soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
 
-        const [propertyCountRows, soldCountRows, soldCountAllTimeRows] = await Promise.all([
+        const arvFinancedQuery =
+            contactIds.length > 0
+                ? db
+                      .select({ buyerId: propertyTransactions.buyerId, sellerId: propertyTransactions.sellerId })
+                      .from(propertyTransactions)
+                      .where(
+                          and(
+                              sql`UPPER(TRIM(${propertyTransactions.firstMtgLenderName})) = 'ARV FINANCE INC'`,
+                              or(
+                                  inArray(propertyTransactions.buyerId, contactIds),
+                                  inArray(propertyTransactions.sellerId, contactIds)
+                              )
+                          )
+                      )
+                : Promise.resolve([] as { buyerId: string | null; sellerId: string | null }[]);
+
+        const [propertyCountRows, soldCountRows, soldCountAllTimeRows, arvFinancedRows] = await Promise.all([
             propertyCountQuery,
             soldYtdQuery,
             soldAllTimeQuery,
+            arvFinancedQuery,
         ]);
 
         const propertyCountByBuyerId = new Map<string, number>();
@@ -189,15 +206,23 @@ router.get("/contacts", async (req, res) => {
             if (row.sellerId) soldCountAllTimeByCompanyId.set(row.sellerId, row.count);
         });
 
+        const arvFinancedCompanyIds = new Set<string>();
+        (arvFinancedRows as { buyerId: string | null; sellerId: string | null }[]).forEach((row) => {
+            if (row.buyerId) arvFinancedCompanyIds.add(row.buyerId);
+            if (row.sellerId) arvFinancedCompanyIds.add(row.sellerId);
+        });
+
         const contactsWithCounts = contacts.map((contact) => {
             const propertyCount = propertyCountByBuyerId.get(contact.id) ?? 0;
             const propertiesSoldCount = soldCountByCompanyId.get(contact.id) ?? 0;
             const propertiesSoldCountAllTime = soldCountAllTimeByCompanyId.get(contact.id) ?? 0;
+            const isFinancedByARV = arvFinancedCompanyIds.has(contact.id);
             return {
                 ...contact,
                 propertyCount,
                 propertiesSoldCount,
                 propertiesSoldCountAllTime,
+                isFinancedByARV,
             };
         });
 

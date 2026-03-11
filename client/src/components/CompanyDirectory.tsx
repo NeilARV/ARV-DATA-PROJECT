@@ -323,22 +323,29 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && listCompany.propertyCount > 0 && (
-                          <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
-                            {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
-                          </div>
-                        )}
-                        {sortBy === "most-sold-properties" && (listCompany.propertiesSoldCount ?? 0) > 0 && (
-                          <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
-                            {listCompany.propertiesSoldCount} sold
-                          </div>
-                        )}
-                        {sortBy === "most-sold-properties-all-time" && (listCompany.propertiesSoldCountAllTime ?? 0) > 0 && (
-                          <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
-                            {listCompany.propertiesSoldCountAllTime} sold
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end gap-1">
+                          {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && listCompany.propertyCount > 0 && (
+                            <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
+                              {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
+                            </div>
+                          )}
+                          {sortBy === "most-sold-properties" && (listCompany.propertiesSoldCount ?? 0) > 0 && (
+                            <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
+                              {listCompany.propertiesSoldCount} sold
+                            </div>
+                          )}
+                          {sortBy === "most-sold-properties-all-time" && (listCompany.propertiesSoldCountAllTime ?? 0) > 0 && (
+                            <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
+                              {listCompany.propertiesSoldCountAllTime} sold
+                            </div>
+                          )}
+                          {listCompany.isFinancedByARV && (
+                            <div className="text-xs font-medium text-black bg-white px-2 py-0.5 rounded-full whitespace-nowrap">
+                              ARV Partner
+                            </div>
+                          )}
+                        </div>
                         {isExpanded ? (
                           <ChevronUp className="w-4 h-4 text-muted-foreground" />
                         ) : (
