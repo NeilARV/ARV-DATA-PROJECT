@@ -1,37 +1,36 @@
 # Project: ARV Finance Data App
-[One-liner: e.g., "Next.js 14 e-commerce app with Stripe, Prisma ORM, and PostgreSQL"]
+Express + Vite full-stack app for ARV (After Repair Value) / real estate finance data: property listings, market sync by MSA (Denver, Miami, San Diego, LA, SF, Port St. Lucie), resale verification, admin auth, and scheduled email updates.
 
 ## Architecture
-- `/app` — Next.js App Router pages and layouts
-- `/components/ui` — Reusable UI components
-- `/lib` — Utilities and shared logic
-- `/prisma` — Database schema and migrations
-- `/app/api` — API routes
+- `/client` — React SPA (Vite): pages, components, hooks, `lib`, UI (Radix + Tailwind)
+- `/server` — Express API: routes (auth, admin, properties, companies, geocoding, users), controllers, services, jobs (cron data sync, email, cache cleanup)
+- `/database` — Drizzle schemas, inserts, updates, types
+- `/shared` — Shared utilities (formatting, etc.)
 
 ## Tech Stack
-- TypeScript (strict mode, no `any`)
-- React 18 + Next.js App Router
-- Tailwind CSS for styling
-- Prisma ORM + PostgreSQL
+- TypeScript (strict mode, ES modules)
+- React 18 + Vite, Wouter (routing), TanStack Query
+- Express, express-session, Passport (local), Neon serverless PostgreSQL session store
+- Drizzle ORM + PostgreSQL (Neon)
+- Tailwind CSS, Radix UI, Recharts, Leaflet, react-hook-form + Zod
 
 ## Commands
-- `npm run dev` — Start dev server (port 3000)
-- `npm run build` — Production build
-- `npm run test` — Run Jest tests
-- `npm run test:e2e` — Playwright end-to-end tests
-- `npm run lint` — ESLint check
-- `npm run db:migrate` — Run Prisma migrations (requires DATABASE_URL)
+- `npm run dev` — Start dev server (Express + Vite HMR)
+- `npm run build` — Vite client build + esbuild server bundle to `dist/`
+- `npm run start` — Run production server (`node dist/index.js`)
+- `npm run check` — TypeScript type-check (`tsc`)
+- `npm run db:push` — Push Drizzle schema (requires `DATABASE_URL`)
 
 ## Code Style
-- Named exports only, no default exports
-- ES modules throughout
-- Co-locate tests with source files (*.test.ts)
+- TypeScript strict; avoid `any`
+- ES modules throughout; path aliases: `@/*` (client), `@shared/*`, `@database/*`
+- Default exports for pages and route modules; named exports for UI components and utilities
 
 ## Important Notes
-- NEVER read or commit .env files
-- Stripe webhook handler in /app/api/webhooks/stripe MUST validate signatures
-- Auth flow is documented in @docs/authentication.md
-- Product images are stored in Cloudinary, not locally
+- NEVER read or commit `.env` files
+- `SESSION_SECRET` is required (server exits if unset) for secure admin authentication
+- `DATABASE_URL` is required for Drizzle and the Neon session store
+- Scheduled jobs (node-cron) run data sync and email by MSA; timezone is `America/Los_Angeles`
 
 ## Verification
-Before completing any task, run: `npm run lint && npm run test`
+Before completing any task, run: `npm run check`
