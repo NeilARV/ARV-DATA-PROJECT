@@ -1,477 +1,61 @@
 import { Button } from "@/components/ui/button";
-import { formatAddress } from "@shared/utils/formatAddress";
-import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { Bed, Bath, Maximize2, X, Calendar, Building2, User, Mail, Phone, Star } from "lucide-react";
-import { useState, useEffect } from "react";
-import { getStreetViewUrl } from "@/lib/streetView";
-import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
+import { X } from "lucide-react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
-import { StatusTag } from "./StatusTag";
-import { isNegative } from "@/utils/isNegative";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
-import { formatCompanyName } from "@/utils/formatCompanyName";
+import { useDeleteProperty } from "@/hooks/properties/useDeleteProperty";
+import { PropertyContent } from "./PropertyContent";
 
 export default function PropertyDetailPanel() {
-  const [imageUrl, setImageUrl] = useState('');
-  const [showContactDialog, setShowContactDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [requestName, setRequestName] = useState('');
-  const [requestEmail, setRequestEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
   const { isAdminOrOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
   const { property, setProperty } = useProperty();
-
-  useEffect(() => {
-    if (property) {
-
-      setIsLoading(true);
-
-      if (property.imageUrl) {
-        setImageUrl(property.imageUrl);
-        setIsLoading(false);
-      } else {
-        getStreetViewUrl(property.address, property.city, property.state, "400x300", property.id)
-          .then(url => {
-            if (url) {
-              // Test if the image loads, if not, set to empty to show "No image available"
-              const img = new Image();
-              img.onload = () => {
-                setImageUrl(url);
-                setIsLoading(false);
-              };
-              img.onerror = () => {
-                // Image failed to load (likely 404 from metadata check)
-                setImageUrl("");
-                setIsLoading(false);
-              };
-              img.src = url;
-            } else {
-              // No URL returned
-              setImageUrl("");
-              setIsLoading(false);
-            }
-          })
-          .catch(() => {
-            // If URL generation fails or fetch fails, show "No image available" text
-            setImageUrl("");
-            setIsLoading(false);
-          });
-      }
-    }
-  }, [property]);
-
-  const handleSubmitRequest = () => {
-    if (!requestName.trim() || !requestEmail.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please provide both your name and email.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Create mailto link
-    const contactNames = [property?.buyerContactName, property?.sellerContactName].filter(Boolean).join(', ') || 'Property';
-    const companyNames = [property?.buyerCompanyName, property?.sellerCompanyName].filter(Boolean).join(', ');
-    const subject = `Contact Request for ${contactNames}`;
-    const body = `Name: ${requestName}\nEmail: ${requestEmail}\n\nRequesting contact information for:\nProperty: ${property?.address}\n${companyNames ? `Companies: ${companyNames}\n` : ''}${contactNames !== 'Property' ? `Contacts: ${contactNames}` : ''}`;
-    const mailtoLink = `mailto:neil@arvfinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    
-    window.location.href = mailtoLink;
-    
-    toast({
-      title: "Request Sent",
-      description: "Your contact request has been sent to neil@arvfinance.com",
-    });
-
-    // Reset and close
-    setShowContactDialog(false);
-    setRequestName('');
-    setRequestEmail('');
-  };
-
-  const deletePropertyMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/properties/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/properties/map"] });
-      toast({
-        title: "Success",
-        description: "Property has been deleted",
-      });
-      setShowDeleteDialog(false);
-      setProperty(null)
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete property",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleDeleteClick = () => {
-    setShowDeleteDialog(true);
-  };
-
-  const handleConfirmDelete = () => {
-    if (property?.id) {
-      deletePropertyMutation.mutate(property.id);
-    }
-  };
+  const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
 
   if (!property) return null;
 
-  const statusNorm = (property.status || "").toLowerCase().trim();
-  const hasBothPurchasePrices =
-    (property.buyerPurchasePrice != null && property.buyerPurchasePrice > 0) &&
-    (property.sellerPurchasePrice != null && property.sellerPurchasePrice > 0);
-  const showSpread =
-    (statusNorm === PROPERTY_STATUS.WHOLESALE || statusNorm === PROPERTY_STATUS.SOLD) &&
-    property.spread != null &&
-    hasBothPurchasePrices;
-  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale Fee" : "Gross Profit";
-
-  const pricePerSqft = property.squareFeet > 0 ? Math.round(property.price / property.squareFeet) : 0;
-  const priceLabel = (property.status || "").toLowerCase().trim() === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
-  const dateLabel = ([PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION] as readonly string[]).includes((property.status || "").toLowerCase().trim())
-    ? "Date Purchased"
-    : "Date Sold";
-  const formattedDateSold = formatDate(property.dateSold);
-  const formattedBuyerPurchaseDate = formatDate(property.buyerPurchaseDate);
-  const formattedSellerPurchaseDate = formatDate(property.sellerPurchaseDate);
-  const daysOwned = calculateDaysOwned(property.dateSold);
-
   return (
-    <div className={`${property ? 'visible' : 'invisible'} w-96 flex-shrink-0 h-full bg-background border-r border-border overflow-y-auto`} data-testid="panel-property-detail">
+    <div
+      className={`${property ? "visible" : "invisible"} w-96 flex-shrink-0 h-full bg-background border-r border-border overflow-y-auto`}
+      data-testid="panel-property-detail"
+    >
       <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Property Details</h2>
-        <Button size="icon" variant="ghost" onClick={() => setProperty(null)} data-testid="button-close-panel">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => setProperty(null)}
+          data-testid="button-close-panel"
+        >
           <X className="w-4 h-4" />
         </Button>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted relative">
-          {isLoading ? (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-              Loading...
-            </div>
-          ) : imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={property.address}
-              className="w-full h-full object-cover"
-              data-testid="img-property-panel"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-              No image available
-            </div>
-          )}
-          {property.isFinancedByARV && (
-            <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[12px] font-semibold px-3 py-0.5 rounded shadow-sm bg-white text-black">
-              <Star className="w-3 h-3 fill-black" />
-              ARV Client
-            </span>
-          )}
-          <div className="absolute top-2 right-2 flex gap-2 items-end">
-            <StatusTag status={property.status} section={"panel"}/>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-start justify-between mb-1">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {priceLabel}
-              </p>
-              <div className="text-2xl font-bold" data-testid="text-panel-price">
-                ${property.price.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="flex items-start gap-6 text-xs">
-              <div className="flex flex-col items-end" data-testid="text-date-sold-panel">
-                <span className="text-xs text-muted-foreground mb-1">{dateLabel}</span>
-                <div className="flex items-center gap-1 font-semibold text-foreground">
-                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>
-                    {formattedDateSold ? (
-                      formattedDateSold
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-base font-medium">{formatAddress(property.address)}</div>
-            <div className="text-sm text-muted-foreground">
-              {formatAddress(property.city)}, {property.state} {property.zipCode}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 text-sm">
-            <div className="flex items-center gap-1">
-              <Bed className="w-4 h-4 text-muted-foreground" />
-              <span data-testid="text-panel-beds">{property.bedrooms} bd</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Bath className="w-4 h-4 text-muted-foreground" />
-              <span data-testid="text-panel-baths">{property.bathrooms} ba</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Maximize2 className="w-4 h-4 text-muted-foreground" />
-              <span data-testid="text-panel-sqft">{property.squareFeet.toLocaleString()} sqft</span>
-            </div>
-          </div>
-
-          <div className="text-xs text-muted-foreground mt-2">
-            {property.propertyType}
-          </div>
-          {(property.squareFeet > 0 || daysOwned !== null) && (
-            <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-panel-meta">
-              {[
-                property.squareFeet > 0 && `$${pricePerSqft}/sqft`,
-                daysOwned !== null && `${daysOwned} days owned`,
-              ].filter(Boolean).join(" · ")}
-            </p>
-          )}
-
-          {/* Buyer (left) / Seller (right) - same layout as PropertyCard; clickable only when id exists */}
-          <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-3 items-stretch">
-            <div className="min-w-0 flex flex-col items-start text-left overflow-hidden">
-              <div className="min-w-0 flex-1 w-full overflow-hidden">
-                <div className="text-xs text-muted-foreground">Buyer</div>
-                <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground mt-0.5 min-w-0 overflow-hidden w-full">
-                  <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
-                  {property.buyerId ? (
-                    <button
-                      onClick={() =>
-                        handleCompanyClick(
-                          property.buyerCompanyName || property.companyName || property.propertyOwner || "",
-                          property.buyerId || null,
-                          true
-                        )
-                      }
-                      className="hover:underline text-left truncate text-primary min-w-0"
-                      data-testid="text-buyer-company-name"
-                    >
-                      {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
-                    </button>
-                  ) : (
-                    <p className="truncate text-primary text-left min-w-0 m-0 text-xs font-semibold" data-testid="text-buyer-company-name">
-                      {formatCompanyName(property.buyerCompanyName || property.companyName || property.propertyOwner || "—")}
-                    </p>
-                  )}
-                </div>
-                {(property.buyerContactName || property.buyerContactEmail || property.buyerContactPhone) && (
-                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5 min-w-0 overflow-hidden w-full">
-                    {property.buyerContactName && (
-                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden" data-testid="text-buyer-contact">
-                        <User className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="truncate text-foreground">{property.buyerContactName}</span>
-                      </div>
-                    )}
-                    {property.buyerContactEmail && (
-                      <a href={`mailto:${property.buyerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline min-w-0 overflow-hidden">
-                        <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="truncate">{property.buyerContactEmail}</span>
-                      </a>
-                    )}
-                    {property.buyerContactPhone && (
-                      <a href={`tel:${property.buyerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 min-w-0 overflow-hidden text-muted-foreground hover:underline">
-                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="truncate">{property.buyerContactPhone}</span>
-                      </a>
-                    )}
-                  </div>
-                )}
-                {hasBothPurchasePrices && (
-                  <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
-                    <span className="font-medium text-foreground">${Number(property.buyerPurchasePrice!).toLocaleString()}</span>
-                    {property.buyerPurchaseDate && formattedBuyerPurchaseDate && (
-                      <div className="text-muted-foreground">{formattedBuyerPurchaseDate}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="min-w-0 flex flex-col items-end text-right overflow-hidden">
-              <div className="min-w-0 flex-1 w-full flex flex-col items-end overflow-hidden">
-                <div className="text-xs text-muted-foreground w-full text-right">Seller</div>
-                <div className="flex items-center justify-end gap-1.5 font-semibold text-xs text-foreground mt-0.5 min-w-0 w-full overflow-hidden">
-                  <span className="min-w-0 flex-1 overflow-hidden flex justify-end">
-                    {property.sellerId ? (
-                      <button
-                        onClick={() =>
-                          handleCompanyClick(
-                            property.sellerCompanyName || property.sellerName || "",
-                            property.sellerId || null,
-                            true
-                          )
-                        }
-                        className="hover:underline text-right truncate text-primary min-w-0"
-                        data-testid="text-seller-company-name"
-                      >
-                        {formatCompanyName(property.sellerCompanyName || property.sellerName || "—")}
-                      </button>
-                    ) : (
-                      <p className="truncate text-primary text-right min-w-0 m-0 text-xs font-semibold" data-testid="text-seller-company-name">
-                        {formatCompanyName(property.sellerCompanyName || property.sellerName || "—")}
-                      </p>
-                    )}
-                  </span>
-                  <Building2 className="w-3.5 h-3.5 flex-shrink-0 text-primary" />
-                </div>
-                {(property.sellerContactName || property.sellerContactEmail || property.sellerContactPhone) && (
-                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5 flex flex-col items-end min-w-0 overflow-hidden w-full">
-                    {property.sellerContactName && (
-                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden justify-end w-full" data-testid="text-seller-contact">
-                        <span className="truncate min-w-0 text-foreground">{property.sellerContactName}</span>
-                        <User className="w-3.5 h-3.5 flex-shrink-0" />
-                      </div>
-                    )}
-                    {property.sellerContactEmail && (
-                      <a href={`mailto:${property.sellerContactEmail}`} className="flex items-center gap-1.5 text-muted-foreground hover:underline min-w-0 overflow-hidden justify-end w-full">
-                        <span className="truncate min-w-0">{property.sellerContactEmail}</span>
-                        <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                      </a>
-                    )}
-                    {property.sellerContactPhone && (
-                      <a href={`tel:${property.sellerContactPhone.replace(/\D/g, "")}`} className="flex items-center gap-1.5 min-w-0 overflow-hidden text-muted-foreground hover:underline justify-end w-full">
-                        <span className="truncate min-w-0">{property.sellerContactPhone}</span>
-                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                      </a>
-                    )}
-                  </div>
-                )}
-                {hasBothPurchasePrices && (
-                  <div className="text-xs font-medium text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
-                    <span className="text-foreground">${Number(property.sellerPurchasePrice!).toLocaleString()}</span>
-                    {property.sellerPurchaseDate && formattedSellerPurchaseDate && (
-                      <div className="text-muted-foreground">{formattedSellerPurchaseDate}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          {showSpread && (
-            <div className="mt-3 flex justify-center items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                {spreadLabel}:
-              </span>
-              <span
-                className={`text-sm font-semibold ${isNegative(property.spread!) ? "text-spread-negative" : "text-spread-positive"}`}
-                data-testid={`text-spread-${property.id}-panel`}
-              >
-                {isNegative(property.spread!) ? "-" : ""}${Number(Math.abs(property.spread!)).toLocaleString()}
-              </span>
-            </div>
-          )}
-
-          {isAdminOrOwner && (
-            <div className="pt-4">
-              <Button
-                variant="destructive"
-                onClick={handleDeleteClick}
-                disabled={deletePropertyMutation.isPending}
-                className="w-full"
-                data-testid="button-delete-property"
-              >
-                Delete Property
-              </Button>
-            </div>
-          )}
-        </div>
-        </div>
-
-      {/* Contact Request Dialog */}
-      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
-        <DialogContent className="max-w-md" data-testid="dialog-contact-request">
-          <DialogHeader>
-            <DialogTitle>Where do we send this info?</DialogTitle>
-            <DialogDescription>
-              Please provide your contact information so we can send you the details.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="request-name-panel">Name</Label>
-              <Input
-                id="request-name-panel"
-                placeholder="Your name"
-                value={requestName}
-                onChange={(e) => setRequestName(e.target.value)}
-                data-testid="input-request-name"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="request-email-panel">Email</Label>
-              <Input
-                id="request-email-panel"
-                type="email"
-                placeholder="your@email.com"
-                value={requestEmail}
-                onChange={(e) => setRequestEmail(e.target.value)}
-                data-testid="input-request-email"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowContactDialog(false)}
-              className="flex-1"
-              data-testid="button-cancel-request"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmitRequest}
-              className="flex-1"
-              data-testid="button-submit-request"
-            >
-              Submit
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <div className="p-4">
+        <PropertyContent
+          variant="panel"
+          property={property}
+          isAdminOrOwner={isAdminOrOwner}
+          onDeleteClick={() => setShowDeleteDialog(true)}
+          deleteIsPending={deletePropertyMutation.isPending}
+          onCompanyClick={(name, id, isBuyer) =>
+            handleCompanyClick(name, id, isBuyer)
+          }
+        />
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
-        onConfirm={handleConfirmDelete}
+        onConfirm={() => {
+          if (property.id) deletePropertyMutation.mutate(property.id);
+        }}
         title="Delete Property"
-        description={`Are you sure you want to delete ${property!.address}, ${property!.city}, ${property!.state}?`}
+        description={`Are you sure you want to delete ${property.address}, ${property.city}, ${property.state}?`}
         confirmText="Yes"
         cancelText="No"
         variant="destructive"
