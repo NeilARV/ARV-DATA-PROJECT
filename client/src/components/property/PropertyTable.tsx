@@ -7,7 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
+import { formatDate, calculateDaysOwned } from "@/utils/date";
 import { ArrowUpDown } from "lucide-react";
 import { useState } from "react";
 import { formatAddress } from "@shared/utils/formatAddress";
