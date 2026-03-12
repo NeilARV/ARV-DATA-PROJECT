@@ -66,9 +66,15 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
     const hasCompanyFilter = companyIdTrimmed !== '';
 
-    // When company is selected: show only properties they own (buyer only). Directory count is buyer-only, so list must match.
+    // When company is selected: match properties where company is buyer OR seller.
+    // Sold properties have the company as sellerId (new owner is buyerId), so OR is needed to show them.
     if (hasCompanyFilter) {
-        conditions.push(eq(properties.buyerId, companyIdTrimmed));
+        conditions.push(
+            or(
+                eq(properties.buyerId, companyIdTrimmed),
+                eq(properties.sellerId, companyIdTrimmed)
+            ) as any
+        );
     }
 
     // Status filter (and optional name-based company filter when no company ID).

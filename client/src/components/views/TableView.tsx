@@ -26,7 +26,7 @@ export default function TableView() {
         <div>
           <h2 className="text-2xl font-semibold mb-1">
             {company
-              ? `${displayShownCount} of ${company.propertyCount ?? displayShownCount} Properties`
+              ? `${displayShownCount} Properties`
               : `${displayTotal} Properties`}
             {selectedCompanyName && (
               <span className="text-base font-normal text-muted-foreground ml-2">

@@ -73,7 +73,7 @@ export default function GridView({
           <div className="min-w-0 flex-shrink-0">
             <h2 className="text-2xl font-semibold leading-tight">
               {company
-                ? `${displayShownCount} of ${company.propertyCount ?? displayShownCount} Properties`
+                ? `${displayShownCount} Properties`
                 : `${displayTotal} Properties`}
             </h2>
           </div>
