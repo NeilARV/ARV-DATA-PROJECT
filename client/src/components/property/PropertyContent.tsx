@@ -437,7 +437,9 @@ export function PropertyContent({
 
   // ── Body content ───────────────────────────────────────────────────────────
   const bodyContent = (
-    <div className={isCard ? "p-4" : "space-y-3"}>
+    <div className={isCard ? "p-4 flex flex-col flex-1" : "space-y-3"}>
+      {/* Main content — flex-1 so spread is pushed to bottom on cards */}
+      <div className={isCard ? "flex-1" : ""}>
       {/* Price + Date */}
       <div className="flex items-start justify-between mb-1">
         <div>
@@ -503,6 +505,7 @@ export function PropertyContent({
         {buyerColumn}
         {sellerColumn}
       </div>
+      </div>{/* end flex-1 main content */}
 
       {/* Spread */}
       {showSpread && (
@@ -540,10 +543,10 @@ export function PropertyContent({
   // ── Outer layout ───────────────────────────────────────────────────────────
   if (isCard) {
     return (
-      <>
+      <div className="flex flex-col h-full">
         {imageSection}
         {bodyContent}
-      </>
+      </div>
     );
   }
 
