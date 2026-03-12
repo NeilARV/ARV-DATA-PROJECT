@@ -6,7 +6,7 @@ import { getStreetViewUrl } from "@/lib/streetView";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { isNegative } from "@/utils/isNegative";
-import { formatCompanyName } from "@/utils/formatCompanyName";
+import { formatCompanyName } from "@shared/utils/formatCompanyName";
 import { formatDate, calculateDaysOwned } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/types/options";

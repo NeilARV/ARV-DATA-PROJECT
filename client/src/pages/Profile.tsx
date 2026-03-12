@@ -16,7 +16,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2, User, Edit, Save, X } from "lucide-react";
 import { format } from "date-fns";
-import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { MSA } from "@/constants/filters.constants";
 
 export default function Profile() {

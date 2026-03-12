@@ -21,7 +21,7 @@ import { Company, UpdateCompany } from "@database/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { updateCompanySchema } from "@database/updates/companies.update";
 import { UpdateDialogProps } from "@/types/general";
 

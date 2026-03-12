@@ -15,7 +15,6 @@ import {
   Menu,
   User,
   DollarSign,
-  HelpCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";

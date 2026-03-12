@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { insertUserBySignUpSchema } from "@database/inserts";
 import { SignupFormData } from "@database/types";
 import type { SignupDialogProps } from "@/types/users";

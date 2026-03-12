@@ -29,7 +29,7 @@ import { useView } from "@/hooks/useView";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import { formatCompanyName } from "@/utils/formatCompanyName";
+import { formatCompanyName } from "@shared/utils/formatCompanyName";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {

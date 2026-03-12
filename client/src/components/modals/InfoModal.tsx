@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone } from "lucide-react";
-import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { RelationshipManager } from "@/hooks/use-auth";
 
 interface InfoModalProps {

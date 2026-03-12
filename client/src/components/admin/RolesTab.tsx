@@ -28,7 +28,7 @@ import { Loader2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
-import { formatPhoneNumber } from "@/utils/formatPhoneNumber";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { AdminUser, RoleOption, RolesTabProps } from "@/types/admin";
 
 function parseRoleApiError(error: unknown): string {

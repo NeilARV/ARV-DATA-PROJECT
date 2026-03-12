@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import type { PropertyRow } from "@/types/property";
 import {
   Card,
   CardContent,
