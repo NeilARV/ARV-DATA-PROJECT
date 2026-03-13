@@ -3,13 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { X, Building2, ArrowUpDown, ChevronDown, Search, MapPin, Home } from "lucide-react";
+import { X, Building2, ArrowUpDown, ChevronDown, Search, MapPin, Home, CalendarIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { countyNameToKey } from "@/lib/county";
 import { PROPERTY_TYPES, BEDROOM_OPTIONS, BATHROOM_OPTIONS, MAX_PRICE, SAN_DIEGO_MSA_ZIP_CODES, 
   LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, COUNTIES,
@@ -21,6 +23,41 @@ import { useCompanies } from "@/hooks/useCompanies";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 import type { ZipCodeSortOption } from "@/types/options";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
+
+// Convert YYYY-MM-DD → MM/DD/YYYY for display
+function isoToDisplay(iso: string | undefined): string {
+  if (!iso || iso.length !== 10) return '';
+  const [y, m, d] = iso.split('-');
+  return `${m}/${d}/${y}`;
+}
+
+// Convert MM/DD/YYYY → YYYY-MM-DD; returns undefined if incomplete/invalid
+function displayToIso(display: string): string | undefined {
+  if (display.length !== 10) return undefined;
+  const parts = display.split('/');
+  if (parts.length !== 3) return undefined;
+  const [m, d, y] = parts;
+  if (!m || !d || !y || y.length !== 4) return undefined;
+  const date = new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T00:00:00`);
+  if (isNaN(date.getTime())) return undefined;
+  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+// Convert JS Date → YYYY-MM-DD
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Parse display string to JS Date for calendar
+function parseDisplayDate(display: string): Date | undefined {
+  const iso = displayToIso(display);
+  if (!iso) return undefined;
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d.getTime()) ? undefined : d;
+}
 
 export interface FilterSidebarProps {
   onClose?: () => void;
@@ -46,6 +83,10 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
   const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
   const [zipCodeSort, setZipCodeSort] = useState<ZipCodeSortOption>("most-properties");
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
+  const [dateMinDisplay, setDateMinDisplay] = useState<string>(isoToDisplay(filters.dateMin));
+  const [dateMaxDisplay, setDateMaxDisplay] = useState<string>(isoToDisplay(filters.dateMax));
+  const [dateMinOpen, setDateMinOpen] = useState(false);
+  const [dateMaxOpen, setDateMaxOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const countyInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +114,46 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
     }
     
     setStatusFilters(new Set(filters.statusFilters ?? []));
+    setDateMinDisplay(isoToDisplay(filters.dateMin));
+    setDateMaxDisplay(isoToDisplay(filters.dateMax));
   }, [filters]);
+
+  const applyDateFilter = (dateMin: string | undefined, dateMax: string | undefined) => {
+    setFilters({
+      ...filters,
+      minPrice: priceRange[0],
+      maxPrice: priceRange[1],
+      bedrooms: selectedBedrooms,
+      bathrooms: selectedBathrooms,
+      propertyTypes: selectedTypes,
+      zipCode: filters.zipCode ?? zipCode,
+      city: filters.city,
+      county: filters.county ?? "San Diego",
+      statusFilters: Array.from(statusFilters),
+      dateMin,
+      dateMax,
+    });
+  };
+
+  const handleDateMinChange = (value: string) => {
+    setDateMinDisplay(value);
+    if (value.length === 10) {
+      const iso = displayToIso(value);
+      if (iso) applyDateFilter(iso, filters.dateMax);
+    } else if (value === '') {
+      applyDateFilter(undefined, filters.dateMax);
+    }
+  };
+
+  const handleDateMaxChange = (value: string) => {
+    setDateMaxDisplay(value);
+    if (value.length === 10) {
+      const iso = displayToIso(value);
+      if (iso) applyDateFilter(filters.dateMin, iso);
+    } else if (value === '') {
+      applyDateFilter(filters.dateMin, undefined);
+    }
+  };
 
   const toggleStatusFilter = (status: string) => {
     setStatusFilters(prev => {
@@ -213,6 +293,8 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
       city: filters.city,
       county: filters.county ?? "San Diego",
       statusFilters: Array.from(statusFilters),
+      dateMin: displayToIso(dateMinDisplay),
+      dateMax: displayToIso(dateMaxDisplay),
     });
   };
 
@@ -220,6 +302,14 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
     // Preserve current county and state when clearing all other filters
     const countyToKeep = filters.county ?? "San Diego";
     const stateToKeep = COUNTIES.find((c) => c.county === countyToKeep)?.state ?? "CA";
+
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const defaultDateMax = toISODate(today);
+    const defaultDateMin = toISODate(thirtyDaysAgo);
+    setDateMinDisplay(isoToDisplay(defaultDateMin));
+    setDateMaxDisplay(isoToDisplay(defaultDateMax));
 
     setPriceRange([0, MAX_PRICE]);
     setSelectedBedrooms("Any");
@@ -240,6 +330,8 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
       city: undefined,
       county: countyToKeep,
       statusFilters: DEFAULT_STATUS_FILTERS,
+      dateMin: defaultDateMin,
+      dateMax: defaultDateMax,
     });
   };
 
@@ -690,6 +782,92 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
               ))}
             </div>
           )}
+        </div>
+
+        {/* Date Range */}
+        <div>
+          <Label className="text-sm font-medium mb-2 block">Date Range</Label>
+          <div className="flex items-center gap-2">
+            <Popover open={dateMinOpen} onOpenChange={setDateMinOpen}>
+              <div className="relative flex-1">
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute left-0 top-0 bottom-0 flex items-center pl-3 z-10"
+                    tabIndex={-1}
+                    onClick={() => setDateMinOpen(true)}
+                  >
+                    <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <Input
+                  type="text"
+                  placeholder="MM/DD/YYYY"
+                  value={dateMinDisplay}
+                  onChange={(e) => handleDateMinChange(e.target.value)}
+                  className="pl-9 text-sm"
+                  maxLength={10}
+                  data-testid="input-date-min"
+                />
+              </div>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={parseDisplayDate(dateMinDisplay)}
+                  onSelect={(date) => {
+                    if (date) {
+                      const iso = toISODate(date);
+                      setDateMinDisplay(isoToDisplay(iso));
+                      setDateMinOpen(false);
+                      applyDateFilter(iso, filters.dateMax);
+                    }
+                  }}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">to</span>
+            <Popover open={dateMaxOpen} onOpenChange={setDateMaxOpen}>
+              <div className="relative flex-1">
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute left-0 top-0 bottom-0 flex items-center pl-3 z-10"
+                    tabIndex={-1}
+                    onClick={() => setDateMaxOpen(true)}
+                  >
+                    <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <Input
+                  type="text"
+                  placeholder="MM/DD/YYYY"
+                  value={dateMaxDisplay}
+                  onChange={(e) => handleDateMaxChange(e.target.value)}
+                  className="pl-9 text-sm"
+                  maxLength={10}
+                  data-testid="input-date-max"
+                />
+              </div>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={parseDisplayDate(dateMaxDisplay)}
+                  onSelect={(date) => {
+                    if (date) {
+                      const iso = toISODate(date);
+                      setDateMaxDisplay(isoToDisplay(iso));
+                      setDateMaxOpen(false);
+                      applyDateFilter(filters.dateMin, iso);
+                    }
+                  }}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
         <div>
