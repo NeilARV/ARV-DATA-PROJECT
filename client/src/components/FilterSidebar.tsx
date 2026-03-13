@@ -789,38 +789,30 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
           <Label className="text-sm font-medium mb-2 block">Date Range</Label>
           <div className="flex items-center gap-2">
             <Popover open={dateMinOpen} onOpenChange={setDateMinOpen}>
-              <div className="relative flex-1">
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="absolute left-0 top-0 bottom-0 flex items-center pl-3 z-10"
-                    tabIndex={-1}
-                    onClick={() => setDateMinOpen(true)}
-                  >
-                    <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </PopoverTrigger>
-                <Input
-                  type="text"
-                  placeholder="MM/DD/YYYY"
-                  value={dateMinDisplay}
-                  onChange={(e) => handleDateMinChange(e.target.value)}
-                  className="pl-9 text-sm"
-                  maxLength={10}
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex-1 flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                   data-testid="input-date-min"
-                />
-              </div>
+                >
+                  <CalendarIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className={dateMinDisplay ? "text-foreground" : "text-muted-foreground"}>
+                    {dateMinDisplay || "MM/DD/YYYY"}
+                  </span>
+                </button>
+              </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={parseDisplayDate(dateMinDisplay)}
+                  defaultMonth={parseDisplayDate(dateMinDisplay)}
                   onSelect={(date) => {
                     if (date) {
                       const iso = toISODate(date);
                       setDateMinDisplay(isoToDisplay(iso));
-                      setDateMinOpen(false);
                       applyDateFilter(iso, filters.dateMax);
                     }
+                    setDateMinOpen(false);
                   }}
                   disabled={(date) => date > new Date()}
                   initialFocus
@@ -829,38 +821,30 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
             </Popover>
             <span className="text-xs text-muted-foreground whitespace-nowrap">to</span>
             <Popover open={dateMaxOpen} onOpenChange={setDateMaxOpen}>
-              <div className="relative flex-1">
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="absolute left-0 top-0 bottom-0 flex items-center pl-3 z-10"
-                    tabIndex={-1}
-                    onClick={() => setDateMaxOpen(true)}
-                  >
-                    <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </PopoverTrigger>
-                <Input
-                  type="text"
-                  placeholder="MM/DD/YYYY"
-                  value={dateMaxDisplay}
-                  onChange={(e) => handleDateMaxChange(e.target.value)}
-                  className="pl-9 text-sm"
-                  maxLength={10}
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex-1 flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                   data-testid="input-date-max"
-                />
-              </div>
+                >
+                  <CalendarIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className={dateMaxDisplay ? "text-foreground" : "text-muted-foreground"}>
+                    {dateMaxDisplay || "MM/DD/YYYY"}
+                  </span>
+                </button>
+              </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar
                   mode="single"
                   selected={parseDisplayDate(dateMaxDisplay)}
+                  defaultMonth={parseDisplayDate(dateMaxDisplay)}
                   onSelect={(date) => {
                     if (date) {
                       const iso = toISODate(date);
                       setDateMaxDisplay(isoToDisplay(iso));
-                      setDateMaxOpen(false);
                       applyDateFilter(filters.dateMin, iso);
                     }
+                    setDateMaxOpen(false);
                   }}
                   disabled={(date) => date > new Date()}
                   initialFocus
