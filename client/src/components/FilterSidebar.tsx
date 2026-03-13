@@ -305,7 +305,7 @@ export default function FilterSidebar({ onClose, zipCodesWithCounts = [], onSwit
 
     const today = new Date();
     const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
     const defaultDateMax = toISODate(today);
     const defaultDateMin = toISODate(thirtyDaysAgo);
     setDateMinDisplay(isoToDisplay(defaultDateMin));

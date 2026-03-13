@@ -30,7 +30,7 @@ export function getDefaultFilters(
 ): PropertyFilters {
   const today = new Date();
   const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
   const defaults: PropertyFilters = {
     ...DEFAULT_FILTERS,
     dateMax: today.toISOString().split('T')[0],
