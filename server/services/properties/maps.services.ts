@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
-import { eq, sql, and, or } from "drizzle-orm";
+import { eq, sql, and, or, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const buyerCompanies = alias(companies, "buyer_companies");
@@ -31,7 +31,7 @@ export interface MapPropertyData {
  * @param county - Optional county filter
  * @returns Array of property data formatted for map display
  */
-export async function getMapProperties(county?: string, statusFilter?: string | string[]): Promise<MapPropertyData[]> {
+export async function getMapProperties(county?: string, statusFilter?: string | string[], dateMin?: string, dateMax?: string): Promise<MapPropertyData[]> {
     const conditions = [];
 
     // Apply status filter if provided, otherwise show all statuses
@@ -63,6 +63,13 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
                 sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
             )
         );
+    }
+
+    if (dateMin) {
+        conditions.push(gte(lastSales.recordingDate, dateMin as string));
+    }
+    if (dateMax) {
+        conditions.push(lte(lastSales.recordingDate, dateMax as string));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

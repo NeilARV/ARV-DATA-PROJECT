@@ -1,11 +1,47 @@
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
+import { DayPicker, useNavigation, type CaptionProps } from "react-day-picker"
+import { format } from "date-fns"
 
 import { cn } from "@/utils/merge"
 import { buttonVariants } from "@/components/ui/button"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
+
+function CalendarCaption({ displayMonth }: CaptionProps) {
+  const { goToMonth, nextMonth, previousMonth } = useNavigation();
+  return (
+    <div className="flex items-center justify-center gap-1 pt-1">
+      <button
+        type="button"
+        onClick={() => previousMonth && goToMonth(previousMonth)}
+        disabled={!previousMonth}
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 flex-shrink-0"
+        )}
+        aria-label="Go to previous month"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="text-sm font-medium w-32 text-center select-none">
+        {format(displayMonth, "MMMM yyyy")}
+      </span>
+      <button
+        type="button"
+        onClick={() => nextMonth && goToMonth(nextMonth)}
+        disabled={!nextMonth}
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 flex-shrink-0"
+        )}
+        aria-label="Go to next month"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function Calendar({
   className,
@@ -52,12 +88,7 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
-        ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
-        ),
+        Caption: CalendarCaption,
       }}
       {...props}
     />

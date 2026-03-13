@@ -3,7 +3,7 @@ import { properties, addresses, structures, lastSales, propertyTransactions } fr
 import { companies } from "@database/schemas/companies.schema";
 import { trimCompanyName } from "server/utils/normalization";
 import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
-import { eq, sql, or, and, inArray, desc } from "drizzle-orm";
+import { eq, sql, or, and, inArray, desc, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 const buyerCompanies = alias(companies, "buyer_companies");
@@ -23,6 +23,8 @@ export interface GetPropertiesFilters {
     propertyOwner?: string;
     companyId?: string; // Company ID filter - matches buyer_id OR seller_id
     hasDateSold?: string;
+    dateMin?: string; // YYYY-MM-DD
+    dateMax?: string; // YYYY-MM-DD
     page?: string;
     limit?: string;
     sortBy?: string;
@@ -51,6 +53,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         propertyOwner, 
         companyId,
         hasDateSold,
+        dateMin,
+        dateMax,
         page,
         limit,
         sortBy
@@ -208,6 +212,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         )
     }
 
+    // Date range filter - from lastSales table
+    if (dateMin) {
+        conditions.push(gte(lastSales.recordingDate, dateMin as string));
+    }
+    if (dateMax) {
+        conditions.push(lte(lastSales.recordingDate, dateMax as string));
+    }
+
     // Build where clause
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
@@ -224,8 +236,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         countQuery = countQuery.leftJoin(structures, eq(properties.id, structures.propertyId)) as any;
     }
     
-    // Join lastSales if price or hasDateSold filter is used
-    if (minPrice || maxPrice || hasDateSold) {
+    // Join lastSales if price, hasDateSold, or date range filter is used
+    if (minPrice || maxPrice || hasDateSold || dateMin || dateMax) {
         countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId)) as any;
     }
     
