@@ -8,7 +8,7 @@ export const insertMarketScanQueueSchema = createInsertSchema(marketScanQueue, {
   processedAt: z.never(),
   msaId: z.number().int().positive(),
   status: z.enum(["pending", "processing", "processed", "failed"]).optional(),
-  scanWindow: z.enum(["0-7d", "7-14d", "14-30d", "30-60d"]).optional(),
+  scanWindow: z.enum(["0-22d", "20-46d", "44-76d", "74-91d"]).optional(),
   saleValue: z.coerce.string().optional(),
   rawData: z.record(z.unknown()),
 });
