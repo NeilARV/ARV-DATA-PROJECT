@@ -8,9 +8,41 @@ import { sendLosAngelesEmail } from "./email/los-angeles-email"
 import { sendSanDiegoEmail } from "./email/san-diego-email"
 import { sendSanFranciscoEmail } from "./email/san-francisco-email"
 import { sendPortStLucieEmail } from "./email/port-st-lucie-email"
+import { scanWindowA } from "./data_v2/scan-window-a"
+import { scanWindowB } from "./data_v2/scan-window-b"
+import { scanWindowC } from "./data_v2/scan-window-c"
+import { scanWindowD } from "./data_v2/scan-window-d"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
+
+    // =========================================================================
+    // DATA PIPELINE V2 — MARKET SCAN QUEUE
+    // =========================================================================
+
+    // Scanner A (0-22d): daily at 2:30 AM — primary ingestion window
+    cron.schedule("57 * * * *", scanWindowA, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // // Scanner B (20-46d): Mon/Wed/Fri at 3:30 AM — catches late backfills in 20-46d range
+    // cron.schedule("30 3 * * 1,3,5", scanWindowB, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner C (44-76d): Sundays at 4:30 AM — weekly sweep of 44-76d range
+    // cron.schedule("30 4 * * 0", scanWindowC, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner D (74-91d): 1st and 15th at 5:30 AM — bi-weekly tail window
+    // cron.schedule("30 5 1,15 * *", scanWindowD, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // =========================================================================
+    // LEGACY PIPELINE / OTHER JOBS
+    // =========================================================================
 
     // Clean Streetview Cache Every Night at 1:00 AM
     cron.schedule("15 0 * * *", CleanCache, {
