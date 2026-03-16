@@ -71,6 +71,7 @@ export type MapPin = {
   bathrooms: number;
   price: number;
   status: string | null;
+  statuses?: string[] | null;
   propertyOwner: string | null;
   companyId: string | null;
   buyerId?: string | null;
