@@ -10,7 +10,7 @@ import { getTransactions } from "../data/processes/get-transactions";
 import { cleanTransactions } from "../data/processes/clean-transactions";
 import { insertCompanies } from "../data/processes/insert-companies";
 import { resolvePropertyIds } from "../data/processes/resolve-ids";
-import { resolveStatus } from "../data/processes/resolve-status";
+import { resolveStatuses } from "./processes/resolve-status";
 import { cleanBeforeInsert } from "../data/processes/clean-before-insert";
 import { insertProperties } from "../data/processes/insert-properties";
 
@@ -181,7 +181,7 @@ export async function runConsumer(): Promise<void> {
 
                 // ── Step 6: Determine property status ─────────────────────────
                 // on-market | in-renovation | sold | wholesale
-                const propertiesWithStatus = resolveStatus(propertiesWithIds, msa.name);
+                const propertiesWithStatus = resolveStatuses(propertiesWithIds, msa.name);
 
                 // ── Step 7: Last-mile normalization (county, property_type) ────
                 const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);

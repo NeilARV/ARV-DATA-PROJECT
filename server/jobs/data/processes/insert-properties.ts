@@ -203,12 +203,19 @@ export async function insertProperties(
     if (!existing) propertiesInserted += 1;
     else propertiesUpdated += 1;
 
-    // Sync property_statuses: remove old entries, insert current status
-    const statusName = ((item.property as Record<string, unknown>).status as string ?? "in-renovation").toLowerCase().trim();
-    const statusId = statusMap.get(statusName);
+    // Sync property_statuses: remove old entries, insert all current statuses.
+    // v2 items carry a top-level `statuses: string[]`; v1 items carry `property.status`.
+    const itemAny = item as unknown as Record<string, unknown>;
+    const itemStatuses: string[] =
+        Array.isArray(itemAny.statuses)
+            ? (itemAny.statuses as string[])
+            : [((item.property as Record<string, unknown>).status as string | undefined) ?? "in-renovation"];
     await db.delete(propertyStatuses).where(eq(propertyStatuses.propertyId, propertyId));
-    if (statusId != null) {
-      await db.insert(propertyStatuses).values({ propertyId, statusId }).onConflictDoNothing();
+    for (const s of itemStatuses) {
+        const statusId = statusMap.get(s.toLowerCase().trim());
+        if (statusId != null) {
+            await db.insert(propertyStatuses).values({ propertyId, statusId }).onConflictDoNothing();
+        }
     }
 
     const addressRow = mapAddressRow(propertyId, item);
