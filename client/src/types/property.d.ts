@@ -16,6 +16,7 @@ export type Property = {
   // Property info
   propertyType: string;
   status: string;
+  statuses?: string[];
   msa: string | null;
   // Sale info
   price: number;
@@ -104,7 +105,8 @@ export type PropertyTableProps = {
 }
 
 export type StatusTag = {
-  status: string;
+  status?: string;
+  statuses?: string[];
   section: Section;
 }
 

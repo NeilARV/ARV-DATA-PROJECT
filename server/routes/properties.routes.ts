@@ -2,13 +2,14 @@ import { Router } from "express";
 import { db } from "server/storage";
 import { requireRole } from "server/middleware/requireRole";
 import { companies } from "@database/schemas/companies.schema";
-import { 
-    properties, 
-    addresses, 
-    structures, 
+import {
+    properties,
+    addresses,
+    structures,
     lastSales,
     propertyTransactions,
 } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
@@ -271,7 +272,6 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
                     ownerType: propertyData.owner_type || null,
                     purchaseMethod: propertyData.purchase_method || null,
                     listingStatus: listingStatus,
-                    status: status,
                     monthsOwned: propertyData.months_owned || null,
                     msa: propertyData.msa || null,
                     county: normalizedCounty,
@@ -301,7 +301,6 @@ router.post("/", requireRole(["admin", "owner"]), async (req, res) => {
                     ownerType: propertyData.owner_type || null,
                     purchaseMethod: propertyData.purchase_method || null,
                     listingStatus: listingStatus,
-                    status: status,
                     monthsOwned: propertyData.months_owned || null,
                     msa: propertyData.msa || null,
                     county: normalizedCounty,
@@ -453,7 +452,6 @@ router.get("/:id", async (req, res) => {
                 ownerType: properties.ownerType,
                 purchaseMethod: properties.purchaseMethod,
                 listingStatus: properties.listingStatus,
-                status: properties.status,
                 monthsOwned: properties.monthsOwned,
                 msa: properties.msa,
                 county: properties.county,
@@ -524,6 +522,14 @@ router.get("/:id", async (req, res) => {
                 desc(propertyTransactions.propertyTransactionsId)
             );
 
+        // Fetch statuses for this property from property_statuses
+        const propertyStatusRows = await db
+            .select({ statusName: statuses.name })
+            .from(propertyStatuses)
+            .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+            .where(eq(propertyStatuses.propertyId, id));
+        const propertyStatusNames = propertyStatusRows.map((r) => r.statusName);
+
         const orderedTxs = orderArmsLengthTransactions(armsLengthTxs);
         const latest = orderedTxs[0] ?? null;
         const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
@@ -584,7 +590,8 @@ router.get("/:id", async (req, res) => {
             yearBuilt: result.yearBuilt ? Number(result.yearBuilt) : null,
             // Property fields
             propertyType: result.propertyType || '',
-            status: result.status || 'in-renovation',
+            statuses: propertyStatusNames.length > 0 ? propertyStatusNames : ['in-renovation'],
+            status: propertyStatusNames[0] ?? 'in-renovation',
             // Price and date
             price: price,
             dateSold: result.dateSold ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold ? (result.dateSold as Date).toISOString().split('T')[0] : (typeof result.dateSold === 'string' ? result.dateSold.split('T')[0] : String(result.dateSold))) : null,

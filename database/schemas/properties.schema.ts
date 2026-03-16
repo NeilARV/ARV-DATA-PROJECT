@@ -35,7 +35,6 @@ export const properties = pgTable("properties", {
   ownerType: varchar("owner_type", { length: 50 }),
   purchaseMethod: varchar("purchase_method", { length: 50 }),
   listingStatus: varchar("listing_status", { length: 50 }),
-  status: varchar("status", { length: 50 }).default("in-renovation"),
   monthsOwned: integer("months_owned"),
   msa: varchar("msa", { length: 200 }),
   county: varchar("county", { length: 200 }),

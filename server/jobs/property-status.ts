@@ -1,6 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses } from "@database/schemas/properties.schema";
-import { eq, sql, and, isNotNull, ne } from "drizzle-orm";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
+import { eq, sql, and, isNotNull } from "drizzle-orm";
 
 /**
  * Property Status Update Job
@@ -62,7 +63,7 @@ export async function UpdatePropertyStatus() {
                     isNotNull(addresses.formattedStreetAddress),
                     isNotNull(addresses.city),
                     isNotNull(addresses.state),
-                    ne(properties.status, "sold") // Exclude sold properties
+                    sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`
                 )
             );
 
@@ -92,7 +93,7 @@ export async function UpdatePropertyStatus() {
                 isNotNull(addresses.formattedStreetAddress),
                 isNotNull(addresses.city),
                 isNotNull(addresses.state),
-                ne(properties.status, "sold") // Exclude sold properties
+                sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`,
             ];
 
             // Add cursor condition if we have one (fetch properties with ID greater than cursor)
@@ -105,7 +106,7 @@ export async function UpdatePropertyStatus() {
                 .select({
                     propertyId: properties.id,
                     sfrPropertyId: properties.sfrPropertyId,
-                    currentStatus: properties.status,
+                    currentStatus: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY ps.created_at DESC LIMIT 1)`,
                     currentListingStatus: properties.listingStatus,
                     address: addresses.formattedStreetAddress,
                     city: addresses.city,
@@ -191,6 +192,7 @@ export async function UpdatePropertyStatus() {
                         newListingStatus: string;
                         oldStatus: string | null;
                         oldListingStatus: string | null;
+                        statusChanged: boolean;
                     }> = [];
 
                     for (let j = 0; j < batchResponseData.length && j < batch.length; j++) {
@@ -263,6 +265,7 @@ export async function UpdatePropertyStatus() {
                                 newListingStatus,
                                 oldStatus: property.currentStatus,
                                 oldListingStatus: property.currentListingStatus,
+                                statusChanged,
                             });
                         }
                     }
@@ -273,17 +276,30 @@ export async function UpdatePropertyStatus() {
 
                         try {
                             const valuesStrings = updatesToProcess.map(update => {
-                                const escapedStatus = update.newStatus.replace(/'/g, "''");
                                 const escapedListingStatus = update.newListingStatus.replace(/'/g, "''");
-                                return `('${update.propertyId}'::uuid, '${escapedStatus}', '${escapedListingStatus}')`;
+                                return `('${update.propertyId}'::uuid, '${escapedListingStatus}')`;
                             });
                             const valuesClause = valuesStrings.join(', ');
                             await db.execute(sql.raw(`
                                 UPDATE properties
-                                SET status = updates.status, listing_status = updates.listing_status, updated_at = now()
-                                FROM (VALUES ${valuesClause}) AS updates(id, status, listing_status)
+                                SET listing_status = updates.listing_status, updated_at = now()
+                                FROM (VALUES ${valuesClause}) AS updates(id, listing_status)
                                 WHERE properties.id = updates.id
                             `));
+
+                            // Update property_statuses for status changes (skip 'b2b' — not a valid status)
+                            const statusRows = await db.select({ id: statuses.id, name: statuses.name }).from(statuses);
+                            const statusIdMap = new Map(statusRows.map(s => [s.name, s.id]));
+                            for (const update of updatesToProcess) {
+                                if (update.statusChanged) {
+                                    const statusId = statusIdMap.get(update.newStatus);
+                                    if (statusId != null) {
+                                        await db.delete(propertyStatuses).where(eq(propertyStatuses.propertyId, update.propertyId));
+                                        await db.insert(propertyStatuses).values({ propertyId: update.propertyId, statusId }).onConflictDoNothing();
+                                    }
+                                }
+                            }
+
                             totalUpdated += updatesToProcess.length;
                             console.log(`[UPDATE PROPERTY STATUS] Batch ${batchNum}: Successfully updated ${updatesToProcess.length} properties`);
                         } catch (batchUpdateError: any) {
@@ -292,7 +308,6 @@ export async function UpdatePropertyStatus() {
                             for (const update of updatesToProcess) {
                                 try {
                                     await db.update(properties).set({
-                                        status: update.newStatus,
                                         listingStatus: update.newListingStatus,
                                         updatedAt: sql`now()`,
                                     }).where(eq(properties.id, update.propertyId));

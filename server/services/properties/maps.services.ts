@@ -1,5 +1,6 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { eq, sql, and, or, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -39,18 +40,14 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
             const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
-            if (normalizedStatuses.length === 1) {
-                conditions.push(
-                    sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
-                );
-            } else {
-                // Use OR for multiple status values
-                conditions.push(
-                    or(...normalizedStatuses.map(s => 
-                        sql`LOWER(TRIM(${properties.status})) = ${s}`
-                    )) as any
-                );
-            }
+            conditions.push(
+                sql`EXISTS (
+                    SELECT 1 FROM property_statuses ps
+                    JOIN statuses s ON s.id = ps.status_id
+                    WHERE ps.property_id = ${properties.id}
+                    AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}])
+                )`
+            );
         }
     }
 
@@ -91,7 +88,7 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
             bedrooms: structures.bedsCount,
             bathrooms: structures.baths,
             price: lastSales.price,
-            status: properties.status,
+            status: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY ps.created_at DESC LIMIT 1)`,
             // Company name and ID from buyer or seller (for client-side filtering)
             companyName: sql<string | null>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
             buyerId: properties.buyerId,

@@ -14,6 +14,7 @@ import {
   lastSales,
   currentSales,
 } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { eq } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
 import type { PropertyWithStatus } from "./resolve-status";
@@ -75,7 +76,6 @@ function mapPropertyRow(
     ownerType: getString(p, "owner_type") ?? null,
     purchaseMethod: getString(p, "purchase_method") ?? null,
     listingStatus: getString(p, "listing_status") ?? null,
-    status: (p.status as string) ?? "in-renovation",
     monthsOwned: typeof p.months_owned === "number" ? p.months_owned : null,
     msa: getString(p, "msa") ?? msa,
     county: getString(p, "county") ?? null,
@@ -164,6 +164,10 @@ export async function insertProperties(
   let propertiesUpdated = 0;
   let transactionsInserted = 0;
 
+  // Cache status name → id from DB once per batch
+  const statusRows = await db.select({ id: statuses.id, name: statuses.name }).from(statuses);
+  const statusMap = new Map(statusRows.map((s) => [s.name, s.id]));
+
   for (const item of items) {
     const p = item.property as Record<string, unknown>;
     const sfrId = Number(p.property_id ?? 0);
@@ -187,7 +191,6 @@ export async function insertProperties(
           buyerId: propertyValues.buyerId,
           sellerId: propertyValues.sellerId,
           listingStatus: propertyValues.listingStatus,
-          status: propertyValues.status,
           monthsOwned: propertyValues.monthsOwned,
           updatedAt: propertyValues.updatedAt,
         },
@@ -199,6 +202,14 @@ export async function insertProperties(
     const propertyId = upserted.id;
     if (!existing) propertiesInserted += 1;
     else propertiesUpdated += 1;
+
+    // Sync property_statuses: remove old entries, insert current status
+    const statusName = ((item.property as Record<string, unknown>).status as string ?? "in-renovation").toLowerCase().trim();
+    const statusId = statusMap.get(statusName);
+    await db.delete(propertyStatuses).where(eq(propertyStatuses.propertyId, propertyId));
+    if (statusId != null) {
+      await db.insert(propertyStatuses).values({ propertyId, statusId }).onConflictDoNothing();
+    }
 
     const addressRow = mapAddressRow(propertyId, item);
     if (addressRow) {

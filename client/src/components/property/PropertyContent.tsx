@@ -251,7 +251,7 @@ export function PropertyContent({
         </div>
       )}
       <div className="absolute top-2 right-2 flex gap-2 items-end">
-        <StatusTag status={property.status} section={variant} />
+        <StatusTag status={property.status} statuses={property.statuses} section={variant} />
       </div>
     </div>
   );

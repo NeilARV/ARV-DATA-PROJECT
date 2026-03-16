@@ -1,5 +1,6 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { trimCompanyName } from "server/utils/normalization";
 import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
@@ -100,17 +101,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 }
             }
         }
-        if (normalizedStatuses.length === 1) {
-            conditions.push(
-                sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
-            );
-        } else {
-            conditions.push(
-                or(...normalizedStatuses.map(s =>
-                    sql`LOWER(TRIM(${properties.status})) = ${s}`
-                )) as any
-            );
-        }
+        conditions.push(
+            sql`EXISTS (
+                SELECT 1 FROM property_statuses ps
+                JOIN statuses s ON s.id = ps.status_id
+                WHERE ps.property_id = ${properties.id}
+                AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}])
+            )`
+        );
     }
 
     // Property Type filter (can be single value or array)
@@ -320,13 +318,24 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         };
     }
 
+    // Fetch statuses for this page of properties
+    const propertyStatusRows = await db
+        .select({ propertyId: propertyStatuses.propertyId, statusName: statuses.name })
+        .from(propertyStatuses)
+        .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+        .where(inArray(propertyStatuses.propertyId, idsForPage));
+    const statusesByPropertyId = new Map<string, string[]>();
+    for (const row of propertyStatusRows) {
+        if (!statusesByPropertyId.has(row.propertyId)) statusesByPropertyId.set(row.propertyId, []);
+        statusesByPropertyId.get(row.propertyId)!.push(row.statusName);
+    }
+
     // Step 2: Fetch full rows for this page of IDs and preserve order
     let query = db
         .select({
             // Properties table fields
             id: properties.id,
             propertyType: properties.propertyType,
-            status: properties.status,
             buyerId: properties.buyerId,
             sellerId: properties.sellerId,
             msa: properties.msa,
@@ -483,7 +492,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             squareFeet: prop.squareFeet ? Number(prop.squareFeet) : 0,
             // Property fields
             propertyType: prop.propertyType || '',
-            status: prop.status || 'in-renovation',
+            statuses: statusesByPropertyId.get(prop.id) ?? ['in-renovation'],
+            status: statusesByPropertyId.get(prop.id)?.[0] ?? 'in-renovation',
             // Price and date
             price: price,
             dateSold: dateSoldStr,

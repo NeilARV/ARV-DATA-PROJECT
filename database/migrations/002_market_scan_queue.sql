@@ -57,3 +57,46 @@ CREATE INDEX idx_msq_sfr_property_id ON market_scan_queue(sfr_property_id);
 CREATE INDEX idx_msq_msa_id ON market_scan_queue(msa_id);
 CREATE INDEX idx_msq_msa_status ON market_scan_queue(msa_id, status);
 CREATE INDEX idx_msq_enqueued_at ON market_scan_queue(enqueued_at);
+
+-- ============================================================================
+-- STATUSES
+-- Lookup table for property status names. Seeded with the four known statuses.
+-- ============================================================================
+
+CREATE TABLE statuses (
+    id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+INSERT INTO statuses (name) VALUES
+    ('in-renovation'),
+    ('on-market'),
+    ('sold'),
+    ('wholesale');
+
+-- ============================================================================
+-- PROPERTY_STATUSES
+-- Junction table: a property can have multiple statuses simultaneously.
+-- Properties.status (VARCHAR) is kept for backward compatibility during
+-- the transition period — do not drop it until all reads are migrated.
+-- ============================================================================
+
+CREATE TABLE property_statuses (
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    status_id   INTEGER NOT NULL REFERENCES statuses(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (property_id, status_id)
+);
+
+CREATE INDEX idx_property_statuses_property_id ON property_statuses(property_id);
+CREATE INDEX idx_property_statuses_status_id   ON property_statuses(status_id);
+
+-- Backfill from properties.status (skip nulls / empty strings / unknown names)
+INSERT INTO property_statuses (property_id, status_id)
+SELECT p.id, s.id
+FROM   properties p
+JOIN   statuses s ON s.name = LOWER(TRIM(p.status))
+WHERE  p.status IS NOT NULL AND p.status != ''
+ON CONFLICT DO NOTHING;
