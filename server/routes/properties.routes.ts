@@ -11,7 +11,7 @@ import {
 } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
-import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
+import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { eq, sql, or, and, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -496,8 +496,8 @@ router.get("/:id", async (req, res) => {
             return res.status(404).json({ message: "Property not found" });
         }
 
-        // Arms Length transactions for this property (same logic as GET /api/properties)
-        const armsLengthTxs = await db
+        // All transactions for this property (for spread, display names, ARV Finance check)
+        const allTxs = await db
             .select({
                 propertyId: propertyTransactions.propertyId,
                 buyerId: propertyTransactions.buyerId,
@@ -507,16 +507,12 @@ router.get("/:id", async (req, res) => {
                 salePrice: propertyTransactions.salePrice,
                 recordingDate: propertyTransactions.recordingDate,
                 saleDate: propertyTransactions.saleDate,
+                transactionType: propertyTransactions.transactionType,
                 id: propertyTransactions.propertyTransactionsId,
                 firstMtgLenderName: propertyTransactions.firstMtgLenderName,
             })
             .from(propertyTransactions)
-            .where(
-                and(
-                    eq(propertyTransactions.propertyId, id),
-                    sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
-                )
-            )
+            .where(eq(propertyTransactions.propertyId, id))
             .orderBy(
                 desc(propertyTransactions.recordingDate),
                 desc(propertyTransactions.propertyTransactionsId)
@@ -530,40 +526,11 @@ router.get("/:id", async (req, res) => {
             .where(eq(propertyStatuses.propertyId, id));
         const propertyStatusNames = propertyStatusRows.map((r) => r.statusName);
 
-        const orderedTxs = orderArmsLengthTransactions(armsLengthTxs);
-        const latest = orderedTxs[0] ?? null;
+        const sortedTxs = sortTransactionsDesc(allTxs);
+        const { buyerPurchasePrice, buyerPurchaseDate, sellerPurchasePrice, sellerPurchaseDate, spread, latestArmsLengthTx } = calculateSpread(sortedTxs);
+        const latest = latestArmsLengthTx;
         const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
         const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
-
-        let buyerPurchasePrice: number | null = null;
-        let sellerPurchasePrice: number | null = null;
-        let buyerPurchaseDate: string | null = null;
-        let sellerPurchaseDate: string | null = null;
-        if (latest?.salePrice != null) {
-            buyerPurchasePrice = Number(latest.salePrice);
-        }
-        if (latest?.recordingDate) {
-            buyerPurchaseDate = typeof latest.recordingDate === 'string' ? latest.recordingDate : (latest.recordingDate as Date).toISOString().split('T')[0];
-        }
-        const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
-        if (latest) {
-            for (let i = 1; i < orderedTxs.length; i++) {
-                const tx = orderedTxs[i];
-                const matchById = latest.sellerId && tx.buyerId && latest.sellerId === tx.buyerId;
-                const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
-                if (matchById || matchByName) {
-                    if (tx.salePrice != null) sellerPurchasePrice = Number(tx.salePrice);
-                    if (tx.recordingDate) {
-                        sellerPurchaseDate = typeof tx.recordingDate === 'string' ? tx.recordingDate : (tx.recordingDate as Date).toISOString().split('T')[0];
-                    }
-                    break;
-                }
-            }
-        }
-        const spread =
-            buyerPurchasePrice != null && sellerPurchasePrice != null
-                ? buyerPurchasePrice - sellerPurchasePrice
-                : null;
         const isFinancedByARV =
             latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
 

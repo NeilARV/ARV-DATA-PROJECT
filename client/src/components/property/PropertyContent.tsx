@@ -330,7 +330,7 @@ export function PropertyContent({
             )}
           </div>
         )}
-        {hasBothPurchasePrices && (
+        {showSpread && (
           <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
             <span className="font-medium text-foreground">
               ${Number(property.buyerPurchasePrice!).toLocaleString()}
@@ -421,7 +421,7 @@ export function PropertyContent({
             )}
           </div>
         )}
-        {hasBothPurchasePrices && (
+        {showSpread && (
           <div className="text-xs font-medium text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
             <span className="text-foreground">
               ${Number(property.sellerPurchasePrice!).toLocaleString()}
