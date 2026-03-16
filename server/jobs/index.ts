@@ -12,6 +12,7 @@ import { scanWindowA } from "./data_v2/scan-window-a"
 import { scanWindowB } from "./data_v2/scan-window-b"
 import { scanWindowC } from "./data_v2/scan-window-c"
 import { scanWindowD } from "./data_v2/scan-window-d"
+import { runConsumer } from "./data_v2/consumer"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
@@ -21,7 +22,12 @@ export function startScheduledJobs() {
     // =========================================================================
 
     // Scanner A (0-22d): daily at 2:30 AM — primary ingestion window
-    cron.schedule("57 * * * *", scanWindowA, {
+    cron.schedule("30 2 * * *", scanWindowA, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // Consumer: daily at 6:00 AM — processes all pending market_scan_queue rows
+    cron.schedule("41 * * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 
