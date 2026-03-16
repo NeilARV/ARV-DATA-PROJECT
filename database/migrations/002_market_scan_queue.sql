@@ -100,3 +100,6 @@ FROM   properties p
 JOIN   statuses s ON s.name = LOWER(TRIM(p.status))
 WHERE  p.status IS NOT NULL AND p.status != ''
 ON CONFLICT DO NOTHING;
+
+ALTER TABLE properties
+DROP COLUMN IF EXISTS status;
