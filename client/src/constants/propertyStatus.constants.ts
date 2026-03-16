@@ -29,10 +29,9 @@ export const BUYERS_FEED_STATUS_FILTERS: Status[] = [
 /** Status filter for wholesale-only view. */
 export const WHOLESALE_VIEW_STATUS_FILTERS: Status[] = [PROPERTY_STATUS.WHOLESALE];
 
-/** All status filters (e.g. when a company is selected in directory). */
+/** Status filters when a company is selected in directory (excludes sold). */
 export const ALL_STATUS_FILTERS: Status[] = [
   PROPERTY_STATUS.IN_RENOVATION,
   PROPERTY_STATUS.WHOLESALE,
   PROPERTY_STATUS.ON_MARKET,
-  PROPERTY_STATUS.SOLD,
 ];

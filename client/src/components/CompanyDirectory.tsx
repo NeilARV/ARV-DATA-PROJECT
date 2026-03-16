@@ -77,6 +77,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   const { setProperty } = useProperty();
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
   const listScrollContainerRef = useRef<HTMLDivElement>(null);
+  const filterResetHandledRef = useRef(false);
 
   // Sync local search input with context (for controlled input) and debounce server search
   useEffect(() => {
@@ -122,17 +123,23 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const previousExpandedCompanyRef = useRef<string | null>(null);
 
-  // When a company is newly selected: turn on all status filters. When deselected: revert to feed-specific status.
-  // Only set status on transition (no selection → selection or selection → no selection) so the user can narrow
-  // status (e.g. only in-renovation) and see "2 of 3 Properties" without this effect overwriting their choice.
+  // When a company is newly selected (from external sources like panel/modal): turn on all status filters and expand date range to all-time.
+  // When deselected externally: revert to feed-specific status and restore default 60-day date window.
+  // Note: click-initiated changes are handled directly in handleCompanyClick (batched) and skip this effect via filterResetHandledRef.
   useEffect(() => {
     const hadSelection = previousExpandedCompanyRef.current != null;
     const hasSelection = company != null;
     previousExpandedCompanyRef.current = company?.companyName ?? null;
 
+    if (filterResetHandledRef.current) {
+      filterResetHandledRef.current = false;
+      return;
+    }
+
     if (hasSelection && !hadSelection) {
+      const today = new Date().toISOString().split('T')[0];
       setStatusFilters(new Set(ALL_STATUS_FILTERS));
-      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS });
+      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateMin: "2025-07-07", dateMax: today });
     } else if (hadSelection && !hasSelection) {
       const statuses =
         view === "wholesale"
@@ -140,8 +147,16 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
           : view === "buyers-feed"
             ? BUYERS_FEED_STATUS_FILTERS
             : DEFAULT_STATUS_FILTERS;
+      const today = new Date();
+      const sixtyDaysAgo = new Date(today);
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       setStatusFilters(new Set(statuses));
-      setFilters({ ...filters, statusFilters: statuses });
+      setFilters({
+        ...filters,
+        statusFilters: statuses,
+        dateMin: sixtyDaysAgo.toISOString().split('T')[0],
+        dateMax: today.toISOString().split('T')[0],
+      });
     }
   }, [company, view]);
 
@@ -197,7 +212,26 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
       setCompany(next);
       setProperty(null);
     } else {
+      // Batch setCompany + setFilters in the same event handler so React processes them in a single render,
+      // eliminating the two-render cycle (company=null render, then filter-change render) that caused visual lag.
+      const statuses =
+        view === "wholesale"
+          ? WHOLESALE_VIEW_STATUS_FILTERS
+          : view === "buyers-feed"
+            ? BUYERS_FEED_STATUS_FILTERS
+            : DEFAULT_STATUS_FILTERS;
+      const today = new Date();
+      const sixtyDaysAgo = new Date(today);
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      filterResetHandledRef.current = true;
       companySelectionInProgressRef.current = false;
+      setStatusFilters(new Set(statuses));
+      setFilters({
+        ...filters,
+        statusFilters: statuses,
+        dateMin: sixtyDaysAgo.toISOString().split('T')[0],
+        dateMax: today.toISOString().split('T')[0],
+      });
       setCompany(null);
       // If directory was opened via wholesaler/panel/modal click, we may have skipped the initial load; load now so list isn't empty
       if (companies.length === 0) {
