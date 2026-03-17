@@ -43,7 +43,7 @@ CREATE TABLE market_scan_queue (
 
     -- Pipeline tracking
     status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
-    scan_window VARCHAR(10),                         -- 0-22d | 20-46d | 44-76d | 74-91d
+    scan_window VARCHAR(10),                         -- 0-15d | 15-30d | 30-60d | 60-90d | 90-180d
     error_message TEXT,
     enqueued_at TIMESTAMP NOT NULL DEFAULT now(),
     processed_at TIMESTAMP
