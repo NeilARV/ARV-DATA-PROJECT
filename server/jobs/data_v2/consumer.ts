@@ -13,7 +13,6 @@ import { cleanBeforeInsert } from "./processes/clean-before-insert";
 import { insertProperties } from "./processes/insert-properties";
 
 import type { BuyersMarketRecord } from "./processes/get-market";
-import type { CleanMarketResult } from "./processes/clean-market";
 import type { MarketScanQueue } from "@database/types/sync";
 
 /**
@@ -124,9 +123,6 @@ export async function runConsumer(): Promise<void> {
                 // Convert queue rows → BuyersMarketRecord for downstream functions
                 const marketRecords = rows.map(queueRowToMarketRecord);
 
-                // CleanMarketResult shape: cleanTransactions only reads .records
-                const cleanedForTransactions = { records: marketRecords } as unknown as CleanMarketResult;
-
                 // ── Step 1: Batch property lookup (/properties/batch) ─────────
                 console.log(`${msaLabel} Batch ${batchNum}: fetching property details for ${rows.length} addresses`);
                 const mergedProperties = await batchLookup({
@@ -159,7 +155,6 @@ export async function runConsumer(): Promise<void> {
                 // ── Step 3: Clean transactions → company names/counties ────────
                 const transactionCompanies = cleanTransactions(
                     propertiesWithTransactions,
-                    cleanedForTransactions,
                     msa.name
                 );
 
@@ -181,7 +176,7 @@ export async function runConsumer(): Promise<void> {
                 // on-market | in-renovation | sold | wholesale
                 const propertiesWithStatus = resolveStatuses(propertiesWithIds, msa.name);
 
-                // ── Step 7: Last-mile normalization (county, property_type) ────
+                // ── Step 7: Final normalization (county, property_type) ────
                 const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
 
                 // ── Step 8: Upsert properties + all child tables + transactions ─
