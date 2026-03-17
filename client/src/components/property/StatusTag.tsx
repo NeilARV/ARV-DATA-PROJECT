@@ -9,16 +9,23 @@ const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: strin
   Wholesale: { label: "Wholesale", bg: "#9333EA", text: "#fff" },
 };
 
-function getStatusTags(status: string): { label: string; bg: string; text: string }[] {
-  const s = (status || "").toLowerCase().trim();
-  if (s === PROPERTY_STATUS.IN_RENOVATION) return [STATUS_TAG_STYLES.Renovating];
-  if (s === PROPERTY_STATUS.SOLD) return [STATUS_TAG_STYLES.Sold];
-  if (s === PROPERTY_STATUS.ON_MARKET) return [STATUS_TAG_STYLES["On Market"]];
-  if (s === PROPERTY_STATUS.WHOLESALE) return [STATUS_TAG_STYLES.Wholesale, STATUS_TAG_STYLES.Renovating];
-  return [STATUS_TAG_STYLES.Renovating];
+function statusToTag(s: string): { label: string; bg: string; text: string } | null {
+  const normalized = (s || "").toLowerCase().trim();
+  if (normalized === PROPERTY_STATUS.IN_RENOVATION) return STATUS_TAG_STYLES.Renovating;
+  if (normalized === PROPERTY_STATUS.SOLD) return STATUS_TAG_STYLES.Sold;
+  if (normalized === PROPERTY_STATUS.ON_MARKET) return STATUS_TAG_STYLES["On Market"];
+  if (normalized === PROPERTY_STATUS.WHOLESALE) return STATUS_TAG_STYLES.Wholesale;
+  return null;
 }
 
-export function StatusTag({status, section}: StatusTag) {
+function getStatusTags(statuses?: string[], status?: string): { label: string; bg: string; text: string }[] {
+  const list = statuses && statuses.length > 0 ? statuses : status ? [status] : [];
+  if (list.length === 0) return [STATUS_TAG_STYLES.Renovating];
+  const tags = list.map(statusToTag).filter((t): t is NonNullable<typeof t> => t !== null);
+  return tags.length > 0 ? tags : [STATUS_TAG_STYLES.Renovating];
+}
+
+export function StatusTag({status, statuses, section}: StatusTag) {
 
     const sectionClass = (section: Section) => {
         switch(section) {
@@ -31,7 +38,7 @@ export function StatusTag({status, section}: StatusTag) {
 
     return (
         <>
-            {getStatusTags(status).map((tag) => (
+            {getStatusTags(statuses, status).map((tag) => (
                 <span
                     key={tag.label}
                     className={`${sectionClass(section)} font-semibold px-3 py-0.5 rounded shadow-sm`}

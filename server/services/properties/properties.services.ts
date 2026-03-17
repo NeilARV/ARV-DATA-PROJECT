@@ -1,8 +1,9 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { trimCompanyName } from "server/utils/normalization";
-import { orderArmsLengthTransactions } from "server/utils/orderArmsLengthTransactions";
+import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { eq, sql, or, and, inArray, desc, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
@@ -100,17 +101,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 }
             }
         }
-        if (normalizedStatuses.length === 1) {
-            conditions.push(
-                sql`LOWER(TRIM(${properties.status})) = ${normalizedStatuses[0]}`
-            );
-        } else {
-            conditions.push(
-                or(...normalizedStatuses.map(s =>
-                    sql`LOWER(TRIM(${properties.status})) = ${s}`
-                )) as any
-            );
-        }
+        conditions.push(
+            sql`EXISTS (
+                SELECT 1 FROM property_statuses ps
+                JOIN statuses s ON s.id = ps.status_id
+                WHERE ps.property_id = ${properties.id}
+                AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}])
+            )`
+        );
     }
 
     // Property Type filter (can be single value or array)
@@ -320,13 +318,24 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         };
     }
 
+    // Fetch statuses for this page of properties
+    const propertyStatusRows = await db
+        .select({ propertyId: propertyStatuses.propertyId, statusName: statuses.name })
+        .from(propertyStatuses)
+        .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+        .where(inArray(propertyStatuses.propertyId, idsForPage));
+    const statusesByPropertyId = new Map<string, string[]>();
+    for (const row of propertyStatusRows) {
+        if (!statusesByPropertyId.has(row.propertyId)) statusesByPropertyId.set(row.propertyId, []);
+        statusesByPropertyId.get(row.propertyId)!.push(row.statusName);
+    }
+
     // Step 2: Fetch full rows for this page of IDs and preserve order
     let query = db
         .select({
             // Properties table fields
             id: properties.id,
             propertyType: properties.propertyType,
-            status: properties.status,
             buyerId: properties.buyerId,
             sellerId: properties.sellerId,
             msa: properties.msa,
@@ -377,8 +386,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const results = (await query.execute()).sort((a: any, b: any) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
     const rawPropertiesList = results;
 
-    // Fetch Arms Length transactions for this page (for fallback buyer/seller names and spread)
-    const armsLengthTxs = await db
+    // Fetch ALL transactions for this page (for spread, fallback names and ARV Finance check)
+    const allTxs = await db
         .select({
             propertyId: propertyTransactions.propertyId,
             buyerId: propertyTransactions.buyerId,
@@ -388,26 +397,22 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             salePrice: propertyTransactions.salePrice,
             recordingDate: propertyTransactions.recordingDate,
             saleDate: propertyTransactions.saleDate,
+            transactionType: propertyTransactions.transactionType,
             id: propertyTransactions.propertyTransactionsId,
             firstMtgLenderName: propertyTransactions.firstMtgLenderName,
         })
         .from(propertyTransactions)
-        .where(
-            and(
-                inArray(propertyTransactions.propertyId, idsForPage),
-                sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
-            )
-        )
+        .where(inArray(propertyTransactions.propertyId, idsForPage))
         .orderBy(
             propertyTransactions.propertyId,
             desc(propertyTransactions.recordingDate),
             desc(propertyTransactions.propertyTransactionsId)
         );
 
-    // Group by property; then reorder so same-day flips: "chain end" (buyer not seller that day) is first
-    type TxRow = (typeof armsLengthTxs)[number];
+    // Group by property; sort all transactions using recording_date → chain detection → sale_date
+    type TxRow = (typeof allTxs)[number];
     const transactionsByPropertyId = new Map<string, TxRow[]>();
-    for (const row of armsLengthTxs) {
+    for (const row of allTxs) {
         const pid = row.propertyId;
         if (!transactionsByPropertyId.has(pid)) {
             transactionsByPropertyId.set(pid, []);
@@ -415,11 +420,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         transactionsByPropertyId.get(pid)!.push(row);
     }
     transactionsByPropertyId.forEach((list, pid) => {
-        transactionsByPropertyId.set(pid, orderArmsLengthTransactions(list));
+        transactionsByPropertyId.set(pid, sortTransactionsDesc(list));
     });
-
-    // Helper: normalize name for comparison (trim + lower)
-    const nameKey = (s: string | null | undefined) => (s != null ? String(s).trim().toLowerCase() : "");
 
     // Map results to flat Property structure expected by frontend
     const propertiesList = rawPropertiesList.map((prop: any) => {
@@ -429,41 +431,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const baths = prop.bathrooms ? Number(prop.bathrooms) : 0;
         const dateSoldStr = prop.dateSold ? (prop.dateSold instanceof Date ? prop.dateSold.toISOString().split('T')[0] : prop.dateSold) : null;
 
-        const txs = transactionsByPropertyId.get(prop.id) ?? []; // already reordered by orderArmsLengthTransactions
-        const latest = txs[0] ?? null;
+        const txs = transactionsByPropertyId.get(prop.id) ?? [];
+        const { buyerPurchasePrice, buyerPurchaseDate, sellerPurchasePrice, sellerPurchaseDate, spread, latestArmsLengthTx } = calculateSpread(txs);
+        const latest = latestArmsLengthTx;
 
         // Fallback buyer/seller names from most recent Arms Length transaction when company is null
         const buyerDisplayName = prop.buyerCompanyName || (latest?.buyerName ?? null);
         const sellerDisplayName = prop.sellerCompanyName || (latest?.sellerName ?? null);
 
-        let buyerPurchasePrice: number | null = null;
-        let sellerPurchasePrice: number | null = null;
-        let buyerPurchaseDate: string | null = null;
-        let sellerPurchaseDate: string | null = null;
-        if (latest?.salePrice != null) {
-            buyerPurchasePrice = Number(latest.salePrice);
-        }
-        if (latest?.recordingDate) {
-            buyerPurchaseDate = typeof latest.recordingDate === 'string' ? latest.recordingDate : (latest.recordingDate as Date).toISOString().split('T')[0];
-        }
-        if (latest) {
-            for (let i = 1; i < txs.length; i++) {
-                const tx = txs[i];
-                const matchById = latest.sellerId && tx.buyerId && latest.sellerId === tx.buyerId;
-                const matchByName = latest.sellerName && tx.buyerName && nameKey(tx.buyerName) === nameKey(latest.sellerName);
-                if (matchById || matchByName) {
-                    if (tx.salePrice != null) sellerPurchasePrice = Number(tx.salePrice);
-                    if (tx.recordingDate) {
-                        sellerPurchaseDate = typeof tx.recordingDate === 'string' ? tx.recordingDate : (tx.recordingDate as Date).toISOString().split('T')[0];
-                    }
-                    break;
-                }
-            }
-        }
-        const spread =
-            buyerPurchasePrice != null && sellerPurchasePrice != null
-                ? buyerPurchasePrice - sellerPurchasePrice
-                : null;
         const isFinancedByARV =
             latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
 
@@ -483,7 +458,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             squareFeet: prop.squareFeet ? Number(prop.squareFeet) : 0,
             // Property fields
             propertyType: prop.propertyType || '',
-            status: prop.status || 'in-renovation',
+            statuses: statusesByPropertyId.get(prop.id) ?? ['in-renovation'],
+            status: statusesByPropertyId.get(prop.id)?.[0] ?? 'in-renovation',
             // Price and date
             price: price,
             dateSold: dateSoldStr,

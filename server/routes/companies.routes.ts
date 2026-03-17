@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "server/storage";
 import { companies } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { updateCompanySchema } from "@database/updates/companies.update";
 import { requireRole } from "server/middleware/requireRole";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
@@ -278,13 +279,23 @@ router.get("/wholesale-leaderboard", async (req, res) => {
             .where(
                 normalizedCounty
                     ? and(
-                          eq(properties.status, "wholesale"),
+                          sql`EXISTS (
+                              SELECT 1 FROM property_statuses ps
+                              JOIN statuses s ON s.id = ps.status_id
+                              WHERE ps.property_id = ${properties.id}
+                              AND s.name = 'wholesale'
+                          )`,
                           or(
                               sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
                               sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
                           )
                       )
-                    : eq(properties.status, "wholesale")
+                    : sql`EXISTS (
+                          SELECT 1 FROM property_statuses ps
+                          JOIN statuses s ON s.id = ps.status_id
+                          WHERE ps.property_id = ${properties.id}
+                          AND s.name = 'wholesale'
+                      )`
             )
             .groupBy(properties.sellerId)
             .orderBy(sql`count(*) desc`)

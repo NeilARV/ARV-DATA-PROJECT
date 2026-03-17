@@ -257,7 +257,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         saleDate: lastSales.saleDate,
         recordingDate: lastSales.recordingDate,
         propertyId: properties.id,
-        status: properties.status,
+        status: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY ps.created_at DESC LIMIT 1)`,
         propertyType: properties.propertyType,
         bedsCount: structures.bedsCount,
         baths: structures.baths,
@@ -280,7 +280,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .where(
         and(
           eq(properties.msa, msaName),
-          sql`LOWER(COALESCE(${properties.status}, '')) != 'sold'`
+          sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`
         )
       )
       .orderBy(

@@ -16,6 +16,7 @@ export type Property = {
   // Property info
   propertyType: string;
   status: string;
+  statuses?: string[];
   msa: string | null;
   // Sale info
   price: number;
@@ -70,6 +71,7 @@ export type MapPin = {
   bathrooms: number;
   price: number;
   status: string | null;
+  statuses?: string[] | null;
   propertyOwner: string | null;
   companyId: string | null;
   buyerId?: string | null;
@@ -104,7 +106,8 @@ export type PropertyTableProps = {
 }
 
 export type StatusTag = {
-  status: string;
+  status?: string;
+  statuses?: string[];
   section: Section;
 }
 

@@ -43,24 +43,15 @@ export function getDefaultFilters(
 
 /**
  * Returns the status list to use for filtering (API params and client-side).
- * When in-renovation is selected and no company is selected, wholesale is included
- * so both in-renovation and wholesale properties are requested/shown.
+ * Wholesale properties always carry both "wholesale" and "in-renovation" in
+ * property_statuses, so the backend EXISTS query handles both correctly without
+ * any auto-expansion needed here.
  */
 export function getEffectiveStatusFilters(
   filters: PropertyFilters,
-  selectedCompanyId: string | null
+  _selectedCompanyId: string | null
 ): string[] {
-  if (!filters.statusFilters || filters.statusFilters.length === 0)
-    return [];
-  const normalized = filters.statusFilters.map((f) => f.toLowerCase().trim());
-  if (
-    !selectedCompanyId &&
-    normalized.includes(PROPERTY_STATUS.IN_RENOVATION) &&
-    !normalized.includes(PROPERTY_STATUS.WHOLESALE)
-  ) {
-    return [...filters.statusFilters, PROPERTY_STATUS.WHOLESALE];
-  }
-  return filters.statusFilters;
+  return filters.statusFilters ?? [];
 }
 
 // ---- Shared filter dimension helpers ----
@@ -149,6 +140,7 @@ export function matchesLocation(
 export function matchesStatusWithWholesale(
   item: {
     status: string | null;
+    statuses?: string[] | null;
     buyerId?: string | null;
     sellerId?: string | null;
   },
@@ -158,14 +150,18 @@ export function matchesStatusWithWholesale(
   const effective = getEffectiveStatusFilters(filters, selectedCompanyId);
   if (effective.length === 0) return true;
 
-  const propertyStatus = (item.status || PROPERTY_STATUS.IN_RENOVATION).toLowerCase().trim();
+  // Use statuses[] array when available (multi-status), fall back to single status string
+  const itemStatuses =
+    item.statuses && item.statuses.length > 0
+      ? item.statuses.map((s) => s.toLowerCase().trim())
+      : [(item.status || PROPERTY_STATUS.IN_RENOVATION).toLowerCase().trim()];
   const normalizedEffective = effective.map((s) => s.toLowerCase().trim());
 
-  if (!normalizedEffective.includes(propertyStatus)) return false;
+  if (!itemStatuses.some((s) => normalizedEffective.includes(s))) return false;
 
   // Exception: wholesale property where company is seller - only show if wholesale is explicitly in filters
   if (
-    propertyStatus === PROPERTY_STATUS.WHOLESALE &&
+    itemStatuses.includes(PROPERTY_STATUS.WHOLESALE) &&
     selectedCompanyId &&
     item.sellerId === selectedCompanyId
   ) {

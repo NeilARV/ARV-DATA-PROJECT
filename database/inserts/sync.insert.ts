@@ -1,11 +1,14 @@
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { sfrSyncState } from "../schemas";
+import { marketScanQueue } from "../schemas";
 
-export const insertSyncStateSchema = createInsertSchema(sfrSyncState, {
+export const insertMarketScanQueueSchema = createInsertSchema(marketScanQueue, {
   id: z.never(),
-  createdAt: z.never(),
-  lastSyncAt: z.never(),
-  totalRecordsSynced: z.number().int().optional(),
-  lastSaleDate: z.coerce.date().optional(),
+  enqueuedAt: z.never(),
+  processedAt: z.never(),
+  msaId: z.number().int().positive(),
+  status: z.enum(["pending", "processing", "complete", "failed"]).optional(),
+  scanWindow: z.enum(["0-22d", "20-46d", "44-76d", "74-91d"]).optional(),
+  saleValue: z.coerce.string().optional(),
+  rawData: z.record(z.unknown()),
 });

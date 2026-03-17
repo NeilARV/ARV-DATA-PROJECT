@@ -251,7 +251,7 @@ export function PropertyContent({
         </div>
       )}
       <div className="absolute top-2 right-2 flex gap-2 items-end">
-        <StatusTag status={property.status} section={variant} />
+        <StatusTag status={property.status} statuses={property.statuses} section={variant} />
       </div>
     </div>
   );
@@ -330,7 +330,7 @@ export function PropertyContent({
             )}
           </div>
         )}
-        {hasBothPurchasePrices && (
+        {showSpread && (
           <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
             <span className="font-medium text-foreground">
               ${Number(property.buyerPurchasePrice!).toLocaleString()}
@@ -421,7 +421,7 @@ export function PropertyContent({
             )}
           </div>
         )}
-        {hasBothPurchasePrices && (
+        {showSpread && (
           <div className="text-xs font-medium text-muted-foreground mt-2 pt-2 border-t border-border space-y-0.5 w-fit">
             <span className="text-foreground">
               ${Number(property.sellerPurchasePrice!).toLocaleString()}
