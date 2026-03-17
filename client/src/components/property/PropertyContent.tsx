@@ -141,21 +141,24 @@ export function PropertyContent({
   const isDetail = !isCard;
 
   const statusNorm = (property.status || "").toLowerCase().trim();
+  const statusList = (property.statuses ?? [property.status ?? ""]).map((s) =>
+    s.toLowerCase().trim()
+  );
+  const isWholesale = statusList.includes(PROPERTY_STATUS.WHOLESALE);
+  const isSold = statusList.includes(PROPERTY_STATUS.SOLD);
   const hasBothPurchasePrices =
     property.buyerPurchasePrice != null &&
     property.buyerPurchasePrice > 0 &&
     property.sellerPurchasePrice != null &&
     property.sellerPurchasePrice > 0;
   const showSpread =
-    (statusNorm === PROPERTY_STATUS.WHOLESALE || statusNorm === PROPERTY_STATUS.SOLD) &&
+    (isWholesale || isSold) &&
     property.spread != null &&
     hasBothPurchasePrices;
-  const spreadLabel = statusNorm === PROPERTY_STATUS.WHOLESALE ? "Wholesale Fee" : "Gross Profit";
+  const spreadLabel = isWholesale ? "Wholesale Fee" : "Gross Profit";
 
-  const priceLabel = statusNorm === PROPERTY_STATUS.SOLD ? "Sold Price" : "Purchase Price";
-  const dateLabel = (
-    [PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION] as readonly string[]
-  ).includes(statusNorm)
+  const priceLabel = isSold ? "Sold Price" : "Purchase Price";
+  const dateLabel = (isWholesale || statusNorm === PROPERTY_STATUS.IN_RENOVATION)
     ? "Date Purchased"
     : "Date Sold";
 
