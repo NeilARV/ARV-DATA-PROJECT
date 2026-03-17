@@ -108,9 +108,9 @@ ALTER COLUMN hoa TYPE VARCHAR(50);
 ALTER TABLE structures
 ALTER COLUMN quality TYPE VARCHAR(50);
 
-ALTER TABLE properties
-DROP COLUMN IF EXISTS status;
-
 -- Drop legacy sync state table (cursor-based approach is replaced)
 DROP TABLE IF EXISTS sfr_sync_state;
+
+ALTER TABLE properties
+DROP COLUMN IF EXISTS status;
 
