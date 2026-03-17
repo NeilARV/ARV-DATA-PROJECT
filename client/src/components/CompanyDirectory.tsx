@@ -72,6 +72,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
     loadCompanies,
     loadMoreCompanies,
     companySelectionInProgressRef,
+    companyFiltersExpandedRef,
     ensuredCompany,
   } = useCompanies();
   const { setProperty } = useProperty();
@@ -136,11 +137,15 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
       return;
     }
 
-    if (hasSelection && !hadSelection) {
-      const today = new Date().toISOString().split('T')[0];
-      setStatusFilters(new Set(ALL_STATUS_FILTERS));
-      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateMin: "2025-07-07", dateMax: today });
-    } else if (hadSelection && !hasSelection) {
+    if (hasSelection) {
+      // Expand filters when a new company is selected. Skip if same company (e.g. sidebar tab remount).
+      if (companyFiltersExpandedRef.current !== (company?.id ?? null)) {
+        companyFiltersExpandedRef.current = company?.id ?? null;
+        const today = new Date().toISOString().split('T')[0];
+        setStatusFilters(new Set(ALL_STATUS_FILTERS));
+        setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateMin: "2025-07-07", dateMax: today });
+      }
+    } else if (!hasSelection && hadSelection) {
       const statuses =
         view === "wholesale"
           ? WHOLESALE_VIEW_STATUS_FILTERS

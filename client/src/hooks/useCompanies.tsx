@@ -22,6 +22,8 @@ export type CompaniesContextValue = {
   loadCompanies: (overrides?: { sort?: DirectorySortOption; search?: string }) => Promise<void>;
   loadMoreCompanies: () => Promise<void>;
   companySelectionInProgressRef: React.MutableRefObject<boolean>;
+  /** Tracks the ID of the company for which filters were last expanded. Persists across sidebar tab switches (remounts). Used to expand filters on new company selection but skip on navigation remounts. */
+  companyFiltersExpandedRef: React.MutableRefObject<string | null>;
   handleCompanyClick: (companyName: string, companyId: string | null, keepPanelOpen?: boolean) => void;
   /** When user selects a company from panel/modal that isn't in the loaded list, we fetch and show it here so scroll-into-view works */
   ensuredCompany: CompanyContactWithCounts | null;
@@ -39,7 +41,10 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const [company, setCompanyState] = useState<CompanyContactWithCounts | null>(null);
   const setCompany = useCallback((value: CompanyContactWithCounts | null) => {
     setCompanyState(value);
-    if (value == null) setEnsuredCompany(null);
+    if (value == null) {
+      setEnsuredCompany(null);
+      companyFiltersExpandedRef.current = null;
+    }
   }, []);
   const [companies, setCompaniesState] = useState<CompanyContactWithCounts[]>([]);
   const [total, setTotal] = useState(0);
@@ -50,6 +55,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const [directorySearch, setDirectorySearchState] = useState("");
   const [ensuredCompany, setEnsuredCompany] = useState<CompanyContactWithCounts | null>(null);
   const companySelectionInProgressRef = useRef(false);
+  const companyFiltersExpandedRef = useRef<string | null>(null);
   const loadCompaniesAbortRef = useRef<AbortController | null>(null);
   /** Only reload when county/sort/search actually change; skip when just re-opening directory with same params */
   const lastLoadedParamsRef = useRef<{ county: string; sort: string; search: string } | null>(null);
@@ -215,6 +221,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     loadCompanies,
     loadMoreCompanies,
     companySelectionInProgressRef,
+    companyFiltersExpandedRef,
     handleCompanyClick,
     ensuredCompany,
   };
