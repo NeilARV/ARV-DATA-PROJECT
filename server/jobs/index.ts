@@ -1,6 +1,5 @@
 import cron from "node-cron"
 import { CleanCache } from "./clean-cache"
-import { syncSanDiegoData, syncLosAngelesData, syncDenverData, syncSanFranciscoData, syncMiamiData, syncPortStLucieData } from "./data"
 import { sendDenverEmail } from "./email/denver-email"
 import { sendMiamiEmail } from "./email/miami-email"
 import { sendLosAngelesEmail } from "./email/los-angeles-email"
@@ -75,7 +74,7 @@ export function startScheduledJobs() {
     
     
     // Consumer: daily at 6:00 AM — processes all pending market_scan_queue rows
-    cron.schedule("20 * * * *", runConsumer, {
+    cron.schedule("10 * * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 

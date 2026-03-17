@@ -152,13 +152,34 @@ export async function runConsumer(): Promise<void> {
                     cityCode: msa.name,
                 });
 
-                // ── Step 3: Clean transactions → company names/counties ────────
+                // ── Step 3: Filter out New Construction properties ────────────
+                const newConstructionSfrIds: number[] = [];
+                const nonNewConstruction = propertiesWithTransactions.filter(item => {
+                    const isNC = item.transactions.some(tx => {
+                        const r = tx as Record<string, unknown>;
+                        const type = String(r.TRANSACTION_TYPE ?? r.transaction_type ?? "").toLowerCase();
+                        return type === "new construction";
+                    });
+                    if (isNC) {
+                        const p = item.property as Record<string, unknown>;
+                        const sfrId = Number(p.property_id ?? 0);
+                        if (sfrId) newConstructionSfrIds.push(sfrId);
+                        return false;
+                    }
+                    return true;
+                });
+                if (newConstructionSfrIds.length > 0) {
+                    await markFailed(msa.id, newConstructionSfrIds, "Property is New Construction");
+                    console.log(`${msaLabel} Batch ${batchNum}: ${newConstructionSfrIds.length} new construction properties excluded`);
+                }
+
+                // ── Step 4: Clean transactions → company names/counties ────────
                 const transactionCompanies = cleanTransactions(
-                    propertiesWithTransactions,
+                    nonNewConstruction,
                     msa.name
                 );
 
-                // ── Step 4: Insert/update companies and MSA associations ───────
+                // ── Step 5: Insert/update companies and MSA associations ───────
                 await insertCompanies({
                     companyNames: transactionCompanies.companyNames,
                     msa: msa.name,
@@ -166,20 +187,36 @@ export async function runConsumer(): Promise<void> {
                     companyCounties: transactionCompanies.companyCounties,
                 });
 
-                // ── Step 5: Resolve buyer_id / seller_id from companies table ──
+                // ── Step 6: Resolve buyer_id / seller_id from companies table ──
                 const propertiesWithIds = await resolvePropertyIds({
-                    properties: propertiesWithTransactions,
+                    properties: nonNewConstruction,
                     cityCode: msa.name,
                 });
 
-                // ── Step 6: Determine property status ─────────────────────────
+                // ── Step 7: Determine property status ─────────────────────────
                 // on-market | in-renovation | sold | wholesale
                 const propertiesWithStatus = resolveStatuses(propertiesWithIds, msa.name);
 
-                // ── Step 7: Final normalization (county, property_type) ────
-                const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
+                // ── Step 8: Filter out properties where status could not be resolved
+                const unresolvedSfrIds: number[] = [];
+                const resolvedProperties = propertiesWithStatus.filter(item => {
+                    if (item.statuses.length === 0) {
+                        const p = item.property as Record<string, unknown>;
+                        const sfrId = Number(p.property_id ?? 0);
+                        if (sfrId) unresolvedSfrIds.push(sfrId);
+                        return false;
+                    }
+                    return true;
+                });
+                if (unresolvedSfrIds.length > 0) {
+                    await markFailed(msa.id, unresolvedSfrIds, "Couldn't Resolve Status");
+                    console.log(`${msaLabel} Batch ${batchNum}: ${unresolvedSfrIds.length} properties excluded — status unresolvable`);
+                }
 
-                // ── Step 8: Upsert properties + all child tables + transactions ─
+                // ── Step 9: Final normalization (county, property_type) ────
+                const propertiesToInsert = cleanBeforeInsert(resolvedProperties);
+
+                // ── Step 10: Upsert properties + all child tables + transactions ─
                 console.log(`${msaLabel} Batch ${batchNum}: inserting ${propertiesToInsert.length} properties`);
                 const insertResult = await insertProperties({
                     properties: propertiesToInsert,
@@ -187,8 +224,10 @@ export async function runConsumer(): Promise<void> {
                     cityCode: msa.name,
                 });
 
-                // ── Mark all queue rows complete ───────────────────────────────
-                await markComplete(msa.id, allPropertyIds);
+                // ── Mark complete only for properties that were not individually failed ──
+                const failedSfrIds = new Set<number>([...newConstructionSfrIds, ...unresolvedSfrIds]);
+                const idsToComplete = allPropertyIds.filter(id => !failedSfrIds.has(id));
+                await markComplete(msa.id, idsToComplete);
 
                 processedThisMsa += rows.length;
                 totals.propertiesProcessed += rows.length;

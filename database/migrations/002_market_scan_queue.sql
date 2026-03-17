@@ -24,7 +24,7 @@ CREATE TABLE market_scan_queue (
     address TEXT,
     city TEXT,
     state VARCHAR(2),
-    zip_code VARCHAR(20),
+    zip_code VARCHAR(10),
     msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
 
     -- Transaction fields (used by cleanTransactions to verify/inject buyer tx)
@@ -98,8 +98,19 @@ JOIN   statuses s ON s.name = LOWER(TRIM(p.status))
 WHERE  p.status IS NOT NULL AND p.status != ''
 ON CONFLICT DO NOTHING;
 
+-- Update Table Column Values
+ALTER TABLE properties
+ALTER COLUMN vacant TYPE VARCHAR(50);
+
+ALTER TABLE properties
+ALTER COLUMN hoa TYPE VARCHAR(50);
+
+ALTER TABLE structures
+ALTER COLUMN quality TYPE VARCHAR(50);
+
 ALTER TABLE properties
 DROP COLUMN IF EXISTS status;
 
 -- Drop legacy sync state table (cursor-based approach is replaced)
 DROP TABLE IF EXISTS sfr_sync_state;
+
