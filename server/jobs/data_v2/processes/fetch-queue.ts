@@ -21,9 +21,10 @@ export interface FetchQueueResult {
 export async function fetchQueue(msaId: number, msaName: string, limit: number): Promise<FetchQueueResult> {
     const label = `[CONSUMER][${msaName}]`;
 
-    // DISTINCT ON sfr_property_id: one row per property, most recent recording_date first.
-    // DISTINCT ON requires the column to appear first in ORDER BY.
-    const deduplicated = await db
+    // Inner query: DISTINCT ON sfr_property_id picks the most recent transaction per property.
+    // Outer query: re-sorts by recording_date DESC so the batch prioritizes the newest
+    // properties across all pending rows, then applies LIMIT.
+    const deduped = db
         .selectDistinctOn([marketScanQueue.sfrPropertyId])
         .from(marketScanQueue)
         .where(
@@ -37,6 +38,12 @@ export async function fetchQueue(msaId: number, msaName: string, limit: number):
             desc(marketScanQueue.recordingDate),
             desc(marketScanQueue.saleDate)
         )
+        .as("deduped");
+
+    const deduplicated = await db
+        .select()
+        .from(deduped)
+        .orderBy(desc(deduped.recordingDate), desc(deduped.saleDate))
         .limit(limit);
 
     if (deduplicated.length === 0) {
