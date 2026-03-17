@@ -246,6 +246,15 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     }
     console.log(`[EMAIL ${msaName}]: Postmark sender signatures loaded: ${confirmedSenders.length} (confirmed senders used for From)`);
 
+    const [syncState] = await db
+      .select()
+      .from(emailSyncState)
+      .where(eq(emailSyncState.msa, msaName))
+      .limit(1);
+
+    // Property IDs sent in the last email — excluded from the candidate pool so they don't re-appear
+    const sentIds: string[] = (syncState?.lastSentPropertyIds as string[] | null) ?? [];
+
     // Fetch a pool of recent properties (by recording date); we'll keep only those with Street View images
     const candidateProperties = await db
       .select({
@@ -280,12 +289,13 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .where(
         and(
           eq(properties.msa, msaName),
-          sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`
+          sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`,
         )
       )
       .orderBy(
         sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-        sql`CAST(${lastSales.recordingDate} AS DATE) DESC`
+        sql`CAST(${lastSales.recordingDate} AS DATE) DESC`,
+        properties.id,
       )
       .limit(CANDIDATE_POOL_SIZE);
 
@@ -293,12 +303,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       console.log(`[EMAIL ${msaName}]: No properties in database for this MSA, skipping send`);
       return;
     }
-
-    const [syncState] = await db
-      .select()
-      .from(emailSyncState)
-      .where(eq(emailSyncState.msa, msaName))
-      .limit(1);
 
     // Build list of up to PROPERTY_COUNT_TARGET properties that have Street View images (skip others)
     const propertiesForTemplate: Array<{
@@ -323,7 +327,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       seller_email: string | null;
       seller_phone: string | null;
     }> = [];
-    let firstPropertyIdSent: string | null = null;
+    const sentPropertyIds: string[] = [];
 
     for (const p of candidateProperties) {
       if (propertiesForTemplate.length >= PROPERTY_COUNT_TARGET) break;
@@ -333,10 +337,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const state = p.state ?? "N/A";
       const image_url = await getStreetViewUrlIfAvailable(p.propertyId, rawAddress, rawCity, state);
       if (image_url === null) continue;
-
-      if (propertiesForTemplate.length === 0) {
-        firstPropertyIdSent = p.propertyId;
-      }
 
       const statusTags = getStatusTags(p.status ?? null).map((tag) => ({
         label: tag.label,
@@ -379,6 +379,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         seller_email,
         seller_phone,
       });
+      sentPropertyIds.push(p.propertyId);
     }
 
     if (propertiesForTemplate.length === 0) {
@@ -386,9 +387,12 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return;
     }
 
-    // Skip send if the most recent property we would send was already sent last time
-    if (syncState?.lastPropertyId != null && firstPropertyIdSent != null && syncState.lastPropertyId === firstPropertyIdSent) {
-      console.log(`[EMAIL ${msaName}]: No new properties (last sent property id still first with image), skipping send`);
+    // Skip if any of the properties we're about to send were already in the last email.
+    // All 3 must be new before we send again.
+    const lastSentSet = new Set(sentIds);
+    const hasOverlap = sentPropertyIds.some((id) => lastSentSet.has(id));
+    if (hasOverlap) {
+      console.log(`[EMAIL ${msaName}]: No new properties since last send, skipping`);
       return;
     }
 
@@ -455,7 +459,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         await db
           .update(emailSyncState)
           .set({
-            lastPropertyId: firstPropertyIdSent,
+            lastSentPropertyIds: sentPropertyIds,
             lastEmailSent: today,
             lastEmailAt: now,
             updatedAt: now,
@@ -464,7 +468,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       } else {
         await db.insert(emailSyncState).values({
           msa: msaName,
-          lastPropertyId: firstPropertyIdSent,
+          lastSentPropertyIds: sentPropertyIds,
           lastEmailSent: today,
           lastEmailAt: now,
           updatedAt: now,

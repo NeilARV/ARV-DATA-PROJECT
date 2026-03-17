@@ -42,7 +42,7 @@ export const emailSyncState = pgTable("email_sync_state", {
   msa: varchar("msa", { length: 255 }).unique().notNull(),
   lastEmailSent: date("last_email_sent"),
   lastEmailAt: timestamp("last_email_at").defaultNow(),
-  lastPropertyId: uuid("last_property_id"),
+  lastSentPropertyIds: jsonb("last_sent_property_ids").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

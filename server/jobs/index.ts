@@ -45,10 +45,10 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
     
-    // Consumer: Every hour from 6am to 11pm — processes all pending market_scan_queue rows
-    cron.schedule("0 6-23 * * *", runConsumer, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Consumer: Every hour from 6am to 11pm — processes all pending market_scan_queue rows
+    // cron.schedule("0 6-23 * * *", runConsumer, {
+    //     timezone: "America/Los_Angeles"
+    // })
 
     // =========================================================================
     // Clean Cache
@@ -71,7 +71,7 @@ export function startScheduledJobs() {
     cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
 
     // PST
-    cron.schedule("0 9 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+    cron.schedule("12 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
     cron.schedule("5 9 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
     cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
 }
