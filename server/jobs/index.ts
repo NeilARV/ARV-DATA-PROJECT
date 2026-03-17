@@ -45,8 +45,8 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
     
-    // Consumer: daily at 5:00 AM — processes all pending market_scan_queue rows
-    cron.schedule("0 5 * * *", runConsumer, {
+    // Consumer: Every other hour — processes all pending market_scan_queue rows
+    cron.schedule("0 */2 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 
