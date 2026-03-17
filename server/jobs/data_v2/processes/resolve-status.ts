@@ -1,6 +1,6 @@
 import { normalizeDateToYMD } from "server/utils/normalization";
 import { isFlippingCompany } from "server/utils/dataSyncHelpers";
-import type { PropertyWithIds, TransactionWithIds } from "server/jobs/data/processes/resolve-ids";
+import type { PropertyWithIds, TransactionWithIds } from "./resolve-ids";
 
 export type PropertyStatus = "on-market" | "in-renovation" | "sold" | "wholesale";
 
@@ -13,6 +13,9 @@ export interface PropertyWithStatuses extends PropertyWithIds {
     statuses: PropertyStatus[];
     property: PropertyWithIds["property"] & { status: PropertyStatus };
 }
+
+/** Alias for clean-before-insert and insert-properties. */
+export type PropertyWithStatus = PropertyWithStatuses;
 
 const WHOLESALE_DAYS_THRESHOLD = 30;
 

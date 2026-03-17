@@ -3,19 +3,17 @@ import { msas } from "@database/schemas/msas.schema";
 import { fetchQueue } from "./processes/fetch-queue";
 import { markProcessing, markComplete, markFailed } from "./processes/mark-queue";
 
-// Reuse all process functions from the v1 pipeline — the logic is identical.
-// Only the data source (market_scan_queue instead of /buyers/market live API) changes.
-import { batchLookup } from "../data/processes/batch-lookup";
-import { getTransactions } from "../data/processes/get-transactions";
-import { cleanTransactions } from "../data/processes/clean-transactions";
-import { insertCompanies } from "../data/processes/insert-companies";
-import { resolvePropertyIds } from "../data/processes/resolve-ids";
+import { batchLookup } from "./processes/batch-lookup";
+import { getTransactions } from "./processes/get-transactions";
+import { cleanTransactions } from "./processes/clean-transactions";
+import { insertCompanies } from "./processes/insert-companies";
+import { resolvePropertyIds } from "./processes/resolve-ids";
 import { resolveStatuses } from "./processes/resolve-status";
-import { cleanBeforeInsert } from "../data/processes/clean-before-insert";
-import { insertProperties } from "../data/processes/insert-properties";
+import { cleanBeforeInsert } from "./processes/clean-before-insert";
+import { insertProperties } from "./processes/insert-properties";
 
-import type { BuyersMarketRecord } from "../data/processes/fetch-market";
-import type { CleanMarketResult } from "../data/processes/clean-market";
+import type { BuyersMarketRecord } from "./processes/get-market";
+import type { CleanMarketResult } from "./processes/clean-market";
 import type { MarketScanQueue } from "@database/types/sync";
 
 /**
