@@ -45,8 +45,8 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
     
-    // Consumer: Every other hour except between midnight and 6am — processes all pending market_scan_queue rows
-    cron.schedule("0 6-23/2 * * *", runConsumer, {
+    // Consumer: Every hour from 6am to 11pm — processes all pending market_scan_queue rows
+    cron.schedule("0 6-23 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 
