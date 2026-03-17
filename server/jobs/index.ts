@@ -1,7 +1,6 @@
 import cron from "node-cron"
 import { CleanCache } from "./clean-cache"
 import { syncSanDiegoData, syncLosAngelesData, syncDenverData, syncSanFranciscoData, syncMiamiData, syncPortStLucieData } from "./data"
-import { UpdatePropertyStatus } from "./property-status"
 import { sendDenverEmail } from "./email/denver-email"
 import { sendMiamiEmail } from "./email/miami-email"
 import { sendLosAngelesEmail } from "./email/los-angeles-email"
@@ -12,6 +11,7 @@ import { scanWindowA } from "./data_v2/scan-window-a"
 import { scanWindowB } from "./data_v2/scan-window-b"
 import { scanWindowC } from "./data_v2/scan-window-c"
 import { scanWindowD } from "./data_v2/scan-window-d"
+import { scanWindowE } from "./data_v2/scan-window-e"
 import { runConsumer } from "./data_v2/consumer"
 
 export function startScheduledJobs() {
@@ -21,33 +21,66 @@ export function startScheduledJobs() {
     // DATA PIPELINE V2 — MARKET SCAN QUEUE
     // =========================================================================
 
-    // Scanner A (0-22d): daily at 2:30 AM — primary ingestion window
-    cron.schedule("30 2 * * *", scanWindowA, {
+    // // Scanner A (0-15d): nightly at midnight — primary ingestion window
+    // cron.schedule("0 0 * * *", scanWindowA, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner B (15-30d): every 3rd night at 1:00 AM — catches late backfills in 15-30d range
+    // cron.schedule("0 1 */3 * *", scanWindowB, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner C (30-60d): Mondays at 2:00 AM — weekly sweep of 30-60d range
+    // cron.schedule("0 2 * * 1", scanWindowC, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner D (60-90d): On the 1st and 15th of every month
+    // cron.schedule("0 4 1,15 * *", scanWindowD, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
+    // cron.schedule("0 4 1 * *", scanWindowE, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    /// TESTS /// 
+
+    // // Scanner A (0-15d): nightly at midnight — primary ingestion window
+    // cron.schedule("10 * * * *", scanWindowA, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // Scanner B (15-30d): every 3rd night at 1:00 AM — catches late backfills in 15-30d range
+    cron.schedule("13 * * * *", scanWindowB, {
         timezone: "America/Los_Angeles"
     })
 
+    // // Scanner C (30-60d): Mondays at 2:00 AM — weekly sweep of 30-60d range
+    // cron.schedule("13 * * * *", scanWindowC, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner D (60-90d): On the 1st and 15th of every month
+    // cron.schedule("13 * * * *", scanWindowD, {
+    //     timezone: "America/Los_Angeles"
+    // })
+
+    // // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
+    // cron.schedule("13 * * * *", scanWindowE, {
+    //     timezone: "America/Los_Angeles"
+    // })
+    
+    
     // Consumer: daily at 6:00 AM — processes all pending market_scan_queue rows
     cron.schedule("0 6 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 
-    // // Scanner B (20-46d): Mon/Wed/Fri at 3:30 AM — catches late backfills in 20-46d range
-    // cron.schedule("30 3 * * 1,3,5", scanWindowB, {
-    //     timezone: "America/Los_Angeles"
-    // })
-
-    // // Scanner C (44-76d): Sundays at 4:30 AM — weekly sweep of 44-76d range
-    // cron.schedule("30 4 * * 0", scanWindowC, {
-    //     timezone: "America/Los_Angeles"
-    // })
-
-    // // Scanner D (74-91d): 1st and 15th at 5:30 AM — bi-weekly tail window
-    // cron.schedule("30 5 1,15 * *", scanWindowD, {
-    //     timezone: "America/Los_Angeles"
-    // })
-
     // =========================================================================
-    // LEGACY PIPELINE / OTHER JOBS
+    // Clean Cache
     // =========================================================================
 
     // Clean Streetview Cache Every Night at 1:00 AM
@@ -55,42 +88,10 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // // Check property market status every night at 12:30 AM
-    // cron.schedule("30 0 * * *", UpdatePropertyStatus, {
-    //     timezone: "America/Los_Angeles"
-    // })
+    // =========================================================================
+    // Email Jobs by MSA
+    // =========================================================================
 
-    // Start Miami-Fort Lauderdale-West Palm Beach, FL property data sync every night at 11:00 PM
-    cron.schedule("0 23 * * *", syncMiamiData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // Start Port St. Lucie, FL property data sync every night at 0:00 AM
-    cron.schedule("0 0 * * *", syncPortStLucieData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // Start Denver-Aurora-Centennial, CO property data sync every night at 1:00 AM
-    cron.schedule("0 1 * * *", syncDenverData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // Start San Diego-Chula Vista-Carlsbad, CA property data sync every night at 2:00 AM
-    cron.schedule("0 2 * * *", syncSanDiegoData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // Start Los Angeles-Long Beach-Anaheim, CA property data sync every night at 3:00 AM
-    cron.schedule("0 3 * * *", syncLosAngelesData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // Start San Francisco-Oakland-Fremont, CA property data sync every night at 4:00 AM
-    cron.schedule("0 4 * * *", syncSanFranciscoData, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // MSA-specific email updates: users who have that MSA selected get 3 most recent properties for that MSA
     // EST
     cron.schedule("0 6 * * *", sendMiamiEmail, { timezone: "America/Los_Angeles" })
     cron.schedule("5 6 * * *", sendPortStLucieEmail, { timezone: "America/Los_Angeles" })

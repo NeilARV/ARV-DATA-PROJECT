@@ -5,11 +5,11 @@ import { getMarket } from "./processes/get-market";
 import { cleanMarket } from "./processes/clean-market";
 import { insertQueue } from "./processes/insert-queue";
 
-const SCAN_WINDOW = "0-22d" as const;
-const DAYS_BACK = 22;
+const SCAN_WINDOW = "0-15d" as const;
+const DAYS_BACK = 15;
 
 /**
- * Scanner A — runs daily, covers the past 0-22 days.
+ * Scanner A — runs nightly at midnight, covers the past 0-15 days.
  *
  * This is the primary ingestion window. Most new SFR recordings land here
  * (SFR typically has no data for the past ~7 days, but we scan from today

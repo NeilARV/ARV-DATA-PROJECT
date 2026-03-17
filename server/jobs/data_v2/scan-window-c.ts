@@ -5,14 +5,14 @@ import { getMarket } from "./processes/get-market";
 import { cleanMarket } from "./processes/clean-market";
 import { insertQueue } from "./processes/insert-queue";
 
-const SCAN_WINDOW = "44-76d" as const;
-const DAYS_BACK_MIN = 44;
-const DAYS_BACK_MAX = 76;
+const SCAN_WINDOW = "30-60d" as const;
+const DAYS_BACK_MIN = 30;
+const DAYS_BACK_MAX = 60;
 
 /**
- * Scanner C — runs weekly (Sundays), covers 44-76 days ago.
+ * Scanner C — runs weekly (Mondays at 2:00 AM), covers 30-60 days ago.
  *
- * Overlaps with Scanner B on the 44-46 day range. Catches late-backfilled
+ * Overlaps with Scanner B on the 30 day boundary. Catches late-backfilled
  * records that SFR added after Scanners A and B already passed through
  * that date range. Weekly cadence is sufficient for this age of data.
  *

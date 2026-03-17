@@ -5,16 +5,16 @@ import { getMarket } from "./processes/get-market";
 import { cleanMarket } from "./processes/clean-market";
 import { insertQueue } from "./processes/insert-queue";
 
-const SCAN_WINDOW = "74-91d" as const;
-const DAYS_BACK_MIN = 74;
-const DAYS_BACK_MAX = 91;
+const SCAN_WINDOW = "60-90d" as const;
+const DAYS_BACK_MIN = 60;
+const DAYS_BACK_MAX = 90;
 
 /**
- * Scanner D — runs bi-weekly (1st and 15th of each month), covers 74-91 days ago.
+ * Scanner D — runs every other Sunday at 3:00 AM, covers 60-90 days ago.
  *
- * This is the tail window — the oldest data we scan. Overlaps with Scanner C
- * on the 74-76 day range. Bi-weekly cadence handles the rare case of SFR
- * backfilling records that are 2-3 months old. Beyond 91 days we stop scanning.
+ * Overlaps with Scanner C on the 60 day boundary. Catches late-backfilled
+ * records that SFR added after Scanner C already passed through that range.
+ * Every-other-Sunday cadence is sufficient for this age of data.
  *
  * Iterates every MSA in the database so adding a new MSA row is all that's
  * needed to start scanning it — no code changes required.

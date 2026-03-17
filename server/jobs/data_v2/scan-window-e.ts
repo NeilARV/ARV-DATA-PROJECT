@@ -5,21 +5,21 @@ import { getMarket } from "./processes/get-market";
 import { cleanMarket } from "./processes/clean-market";
 import { insertQueue } from "./processes/insert-queue";
 
-const SCAN_WINDOW = "15-30d" as const;
-const DAYS_BACK_MIN = 15;
-const DAYS_BACK_MAX = 30;
+const SCAN_WINDOW = "90-180d" as const;
+const DAYS_BACK_MIN = 90;
+const DAYS_BACK_MAX = 180;
 
 /**
- * Scanner B — runs every other night at 1:00 AM, covers 15-30 days ago.
+ * Scanner E — runs on the 1st of each month at 4:00 AM, covers 90-180 days ago.
  *
- * Overlaps with Scanner A on the 15 day boundary to catch any records that
- * landed after Scanner A last ran. Dedup is handled by the sfr_market_id
- * UNIQUE constraint — re-scanned records that already exist are silently skipped.
+ * This is the deep historical window. Overlaps with Scanner D on the 90 day boundary.
+ * Catches any SFR backfills older than 3 months. Monthly cadence is sufficient
+ * for data this old — recordings at this age rarely change.
  *
  * Iterates every MSA in the database so adding a new MSA row is all that's
  * needed to start scanning it — no code changes required.
  */
-export async function scanWindowB(): Promise<void> {
+export async function scanWindowE(): Promise<void> {
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
 

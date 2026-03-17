@@ -5,9 +5,6 @@
 -- by the v2 data pipeline.
 -- ============================================================================
 
--- Drop legacy sync state table (cursor-based approach is replaced)
-DROP TABLE IF EXISTS sfr_sync_state;
-
 -- ============================================================================
 -- MARKET SCAN QUEUE
 -- Staging table for the v2 data pipeline. Scanner jobs enqueue buyer market
@@ -103,3 +100,6 @@ ON CONFLICT DO NOTHING;
 
 ALTER TABLE properties
 DROP COLUMN IF EXISTS status;
+
+-- Drop legacy sync state table (cursor-based approach is replaced)
+DROP TABLE IF EXISTS sfr_sync_state;
