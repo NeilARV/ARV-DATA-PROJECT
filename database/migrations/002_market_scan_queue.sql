@@ -98,6 +98,14 @@ JOIN   statuses s ON s.name = LOWER(TRIM(p.status))
 WHERE  p.status IS NOT NULL AND p.status != ''
 ON CONFLICT DO NOTHING;
 
+-- Wholesale properties also carry in-renovation (they are actively held by a corp buyer)
+INSERT INTO property_statuses (property_id, status_id)
+SELECT p.id, s.id
+FROM   properties p
+JOIN   statuses s ON s.name = 'in-renovation'
+WHERE  LOWER(TRIM(p.status)) = 'wholesale'
+ON CONFLICT DO NOTHING;
+
 -- Update Table Column Values
 ALTER TABLE properties
 ALTER COLUMN vacant TYPE VARCHAR(50);
