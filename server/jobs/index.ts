@@ -53,10 +53,10 @@ export function startScheduledJobs() {
     //     timezone: "America/Los_Angeles"
     // })
 
-    // Scanner B (15-30d): every 3rd night at 1:00 AM — catches late backfills in 15-30d range
-    cron.schedule("13 * * * *", scanWindowB, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Scanner B (15-30d): every 3rd night at 1:00 AM — catches late backfills in 15-30d range
+    // cron.schedule("13 * * * *", scanWindowB, {
+    //     timezone: "America/Los_Angeles"
+    // })
 
     // // Scanner C (30-60d): Mondays at 2:00 AM — weekly sweep of 30-60d range
     // cron.schedule("13 * * * *", scanWindowC, {
@@ -75,7 +75,7 @@ export function startScheduledJobs() {
     
     
     // Consumer: daily at 6:00 AM — processes all pending market_scan_queue rows
-    cron.schedule("0 6 * * *", runConsumer, {
+    cron.schedule("20 * * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 

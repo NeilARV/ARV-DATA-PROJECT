@@ -24,7 +24,7 @@ CREATE TABLE market_scan_queue (
     address TEXT,
     city TEXT,
     state VARCHAR(2),
-    zip_code VARCHAR(10),
+    zip_code VARCHAR(20),
     msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
 
     -- Transaction fields (used by cleanTransactions to verify/inject buyer tx)
