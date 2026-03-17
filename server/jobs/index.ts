@@ -35,18 +35,18 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // Scanner D (60-90d): On the 1st and 15th of every month
+    // Scanner D (60-90d): At 4:00 AM On the 1st and 15th of every month
     cron.schedule("0 4 1,15 * *", scanWindowD, {
         timezone: "America/Los_Angeles"
     })
 
-    // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
-    cron.schedule("0 4 1 * *", scanWindowE, {
+    // Scanner E (90-180d): 1st of each month at 5:00 AM — one-time deep historical backfill
+    cron.schedule("0 5 1 * *", scanWindowE, {
         timezone: "America/Los_Angeles"
     })
     
-    // Consumer: Every other hour — processes all pending market_scan_queue rows
-    cron.schedule("0 */2 * * *", runConsumer, {
+    // Consumer: Every other hour except between midnight and 6am — processes all pending market_scan_queue rows
+    cron.schedule("0 6-23/2 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 
