@@ -282,7 +282,7 @@ export function PropertyContent({
               data-testid={tid.buyerCompanyName}
             >
               {formatCompanyName(
-                property.buyerCompanyName || property.companyName || property.propertyOwner || "—"
+                property.buyerCompanyName || "—"
               )}
             </button>
           ) : (
@@ -291,7 +291,7 @@ export function PropertyContent({
               data-testid={tid.buyerCompanyName}
             >
               {formatCompanyName(
-                property.buyerCompanyName || property.companyName || property.propertyOwner || "—"
+                property.buyerCompanyName || "—"
               )}
             </span>
           )}

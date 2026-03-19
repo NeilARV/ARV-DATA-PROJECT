@@ -206,8 +206,8 @@ export function resolveStatuses(
 
         // Write canonical buyer/seller from most recent tx back onto the property object
         if (mostRecentRaw) {
-            property.buyer_id = mostRecentRaw.buyer_id ?? property.buyer_id;
-            property.seller_id = mostRecentRaw.seller_id ?? property.seller_id;
+            property.buyer_id = mostRecentRaw.buyer_id ?? null;
+            property.seller_id = mostRecentRaw.seller_id ?? null;
             const buyerName = getString(mostRecentRaw, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
             const sellerName = getString(mostRecentRaw, "SELLER1_NAME", "seller1_name");
             const cs = (property.current_sale as Record<string, unknown>) ?? {};

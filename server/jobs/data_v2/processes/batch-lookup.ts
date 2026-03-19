@@ -209,7 +209,7 @@ export async function batchLookup(
                 property.current_sale = {
                     ...currentSale,
                     buyer_1: buyerName ?? currentSale.buyer_1,
-                    seller_1: sellerName ?? currentSale.seller_1,
+                    seller_1: sellerName,
                 };
             }
 

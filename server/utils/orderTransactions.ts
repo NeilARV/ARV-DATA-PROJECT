@@ -184,25 +184,40 @@ export function calculateSpread<T extends TxRow>(sortedTxs: T[]): SpreadResult<T
 
     if (sortedTxs.length === 0) return empty;
 
+    // Sort Arms Length transactions separately to find buyerTx reliably.
+    // Mixing Non-Arms Length txs into a single sort creates non-transitive comparisons
+    // when same-recording-date Arms Length and Non-Arms Length transactions are present
+    // (e.g. simultaneous-close wholesale + LLC transfer all on the same date).
+    // The pipeline's sortArmsLengthDesc uses the same filter-first approach.
+    const sortedAL = sortTransactionsDesc(sortedTxs.filter(isArmsLength));
+    const latestArmsLengthTx = sortedAL[0] ?? null;
+
     // Find most recent Arms Length tx with a real price (> 0)
-    const buyerTxIdx = sortedTxs.findIndex(
-        (tx) => isArmsLength(tx) && (parsePrice(tx.salePrice) ?? 0) > 0
-    );
+    const buyerTxIdx = sortedAL.findIndex((tx) => (parsePrice(tx.salePrice) ?? 0) > 0);
 
     // No priced Arms Length tx — still expose latestArmsLengthTx for name/ARV check
     if (buyerTxIdx === -1) {
-        const latestArmsLengthTx = sortedTxs.find(isArmsLength) ?? null;
         return { ...empty, latestArmsLengthTx };
     }
 
-    const buyerTx = sortedTxs[buyerTxIdx];
+    const buyerTx = sortedAL[buyerTxIdx];
     const buyerPurchasePrice = parsePrice(buyerTx.salePrice)!;
     const buyerPurchaseDate = toDateStr(buyerTx.recordingDate);
 
-    // Trace seller's acquisition price through the history before the buyer tx
+    // For traceAcquisition use ALL transaction types (including Non-Arms Length) so
+    // individual → LLC transfers can be followed to find the true acquisition price.
+    // Restrict to txs at or before buyerTx's recording date to avoid looking forward
+    // in time, and exclude buyerTx itself.
+    const buyerRecDate = toDateStr(buyerTx.recordingDate);
+    const olderTxs = sortedTxs.filter((tx) => {
+        if (tx === buyerTx) return false;
+        const d = toDateStr(tx.recordingDate);
+        return !d || !buyerRecDate || d <= buyerRecDate;
+    });
+
+    // Trace seller's acquisition price through the history
     const sellerName = nameKey(buyerTx.sellerName);
     const sellerId = (buyerTx.sellerId as string | null) ?? null;
-    const olderTxs = sortedTxs.slice(buyerTxIdx + 1);
     const sellerData = traceAcquisition(olderTxs, sellerName, sellerId, new Set());
 
     const sellerPurchasePrice = sellerData?.price ?? null;
@@ -215,6 +230,6 @@ export function calculateSpread<T extends TxRow>(sortedTxs: T[]): SpreadResult<T
         sellerPurchasePrice,
         sellerPurchaseDate,
         spread,
-        latestArmsLengthTx: buyerTx,
+        latestArmsLengthTx,
     };
 }
