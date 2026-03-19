@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, date, integer, timestamp, uuid, text, decimal, boolean, bigint, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, date, integer, timestamp, uuid, text, decimal, boolean, bigint, jsonb, unique } from "drizzle-orm/pg-core";
 import { msas } from "./msas.schema";
 
 export const sfrSyncState = pgTable("sfr_sync_state", {
@@ -35,7 +35,9 @@ export const marketScanQueue = pgTable("market_scan_queue", {
   errorMessage: text("error_message"),
   enqueuedAt: timestamp("enqueued_at").defaultNow().notNull(),
   processedAt: timestamp("processed_at"),
-});
+}, (t) => [
+  unique("uq_msq_msa_property").on(t.msaId, t.sfrPropertyId),
+]);
 
 export const emailSyncState = pgTable("email_sync_state", {
   id: serial("id").primaryKey(),
