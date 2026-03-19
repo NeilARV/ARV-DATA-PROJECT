@@ -125,20 +125,52 @@ CREATE INDEX idx_company_msas_msa_id ON company_msas(msa_id);
 
 COMMENT ON TABLE company_msas IS 'Junction table linking companies to MSAs - tracks which areas a company has properties in or is active in';
 
--- SFR sync state table
-CREATE TABLE sfr_sync_state (
-    id SERIAL PRIMARY KEY,
-    msa VARCHAR(255) UNIQUE NOT NULL,
-    last_sale_date DATE,
-    last_recording_date DATE,
-    total_records_synced INTEGER DEFAULT 0,
-    last_sync_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Market scan queue table
+CREATE TABLE market_scan_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- SFR identifiers
+    sfr_market_id INTEGER UNIQUE NOT NULL,
+    sfr_property_id BIGINT NOT NULL,
+
+    -- Location (used to build the batch lookup address)
+    address TEXT,
+    city TEXT,
+    state VARCHAR(2),
+    zip_code VARCHAR(10),
+    msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
+
+    -- Transaction fields (used by cleanTransactions to verify/inject buyer tx)
+    sale_date DATE NOT NULL,
+    recording_date DATE NOT NULL,
+    buyer_name TEXT,
+    seller_name TEXT,
+    sale_value DECIMAL(15, 2),
+    lender_name TEXT,
+    is_corporate BOOLEAN,
+    is_private_lender BOOLEAN,
+    property_type TEXT,
+
+    -- Full raw payload from /buyers/market
+    raw_data JSONB NOT NULL,
+
+    -- Pipeline tracking
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
+    scan_window VARCHAR(10),                         -- 0-15d | 15-30d | 30-60d | 60-90d | 90-180d
+    error_message TEXT,
+    enqueued_at TIMESTAMP NOT NULL DEFAULT now(),
+    processed_at TIMESTAMP
 );
 
-CREATE UNIQUE INDEX sfr_sync_state_msa_key ON sfr_sync_state(msa);
+ALTER TABLE market_scan_queue
+ADD CONSTRAINT uq_msq_msa_property UNIQUE (msa_id, sfr_property_id);
 
-COMMENT ON TABLE sfr_sync_state IS 'Tracks synchronization state for Single Family Residential properties by MSA';
+CREATE INDEX idx_msq_status ON market_scan_queue(status);
+CREATE INDEX idx_msq_sfr_property_id ON market_scan_queue(sfr_property_id);
+CREATE INDEX idx_msq_msa_id ON market_scan_queue(msa_id);
+CREATE INDEX idx_msq_msa_status ON market_scan_queue(msa_id, status);
+CREATE INDEX idx_msq_enqueued_at ON market_scan_queue(enqueued_at);
+
 
 -- Email sync state table
 CREATE TABLE email_sync_state (
@@ -146,7 +178,7 @@ CREATE TABLE email_sync_state (
     msa VARCHAR(255) UNIQUE NOT NULL,
     last_email_sent DATE,
     last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_property_id UUID,
+    last_sent_property_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -168,7 +200,6 @@ CREATE TABLE properties (
     owner_type VARCHAR(50),
     purchase_method VARCHAR(50),
     listing_status VARCHAR(50),
-    status VARCHAR(50) DEFAULT 'in-renovation',
     months_owned INTEGER,
     msa VARCHAR(200),
     county VARCHAR(200),
@@ -501,6 +532,33 @@ COMMENT ON TABLE property_transactions IS 'Complete history of property acquisit
 COMMENT ON COLUMN property_transactions.transaction_type IS 'acquisition = company bought property, sale = company sold property';
 COMMENT ON COLUMN property_transactions.buyer_name IS 'Name of buyer from current_sale data';
 COMMENT ON COLUMN property_transactions.seller_name IS 'Name of seller from current_sale data';
+
+-- Statuses table
+CREATE TABLE statuses (
+    id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+-- Insert existing statuses into the statuses table
+INSERT INTO statuses (name) VALUES
+    ('in-renovation'),
+    ('on-market'),
+    ('sold'),
+    ('wholesale');
+
+-- Property and status union table
+CREATE TABLE property_statuses (
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    status_id   INTEGER NOT NULL REFERENCES statuses(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (property_id, status_id)
+);
+
+CREATE INDEX idx_property_statuses_property_id ON property_statuses(property_id);
+CREATE INDEX idx_property_statuses_status_id   ON property_statuses(status_id);
+
 
 -- ============================================================================
 -- VIEWS FOR EASY QUERYING
