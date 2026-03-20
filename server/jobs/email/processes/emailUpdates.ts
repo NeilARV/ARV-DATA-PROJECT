@@ -38,13 +38,16 @@ const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: strin
   Wholesale: { label: "Wholesale", bg: "#9333EA", text: "#fff" },
 };
 
-function getStatusTags(status: string | null): { label: string; bg: string; text: string }[] {
-  const s = (status || "").toLowerCase().trim();
-  if (s === "in-renovation") return [STATUS_TAG_STYLES.Renovating];
-  if (s === "sold") return [STATUS_TAG_STYLES.Sold];
-  if (s === "on-market") return [STATUS_TAG_STYLES["On Market"]];
-  if (s === "wholesale") return [STATUS_TAG_STYLES.Wholesale, STATUS_TAG_STYLES.Renovating];
-  return [STATUS_TAG_STYLES.Renovating];
+function getStatusTags(statuses: string[]): { label: string; bg: string; text: string }[] {
+  const tags: { label: string; bg: string; text: string }[] = [];
+  for (const status of statuses) {
+    const s = (status || "").toLowerCase().trim();
+    if (s === "in-renovation") tags.push(STATUS_TAG_STYLES.Renovating);
+    else if (s === "sold") tags.push(STATUS_TAG_STYLES.Sold);
+    else if (s === "on-market") tags.push(STATUS_TAG_STYLES["On Market"]);
+    else if (s === "wholesale") tags.push(STATUS_TAG_STYLES.Wholesale);
+  }
+  return tags.length > 0 ? tags : [STATUS_TAG_STYLES.Renovating];
 }
 
 function formatPrice(price: string | null | undefined): string {
@@ -266,7 +269,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         saleDate: lastSales.saleDate,
         recordingDate: lastSales.recordingDate,
         propertyId: properties.id,
-        status: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY ps.created_at DESC LIMIT 1)`,
+        statuses: sql<string[]>`COALESCE((SELECT array_agg(s.name) FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id}), ARRAY[]::text[])`,
         propertyType: properties.propertyType,
         bedsCount: structures.bedsCount,
         baths: structures.baths,
@@ -338,7 +341,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const image_url = await getStreetViewUrlIfAvailable(p.propertyId, rawAddress, rawCity, state);
       if (image_url === null) continue;
 
-      const statusTags = getStatusTags(p.status ?? null).map((tag) => ({
+      const statusTags = getStatusTags(p.statuses ?? []).map((tag) => ({
         label: tag.label,
         bg: tag.bg,
         text: tag.text,
