@@ -56,6 +56,7 @@ export function startScheduledJobs() {
     // })
     
     // Consumer: Run at 30 minute mark every hour from 4:30am to 10:30pm — processes all pending market_scan_queue rows
+    // Can adjust time based on whether or not Scanner E is active
     cron.schedule("30 4-22 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
