@@ -17,16 +17,26 @@ export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
 
     // =========================================================================
+    // Clean Cache
+    // =========================================================================
+
+    // Clean Streetview Cache Every Night at 11:30 PM
+    cron.schedule("30 23 * * *", CleanCache, {
+        timezone: "America/Los_Angeles"
+    })
+
+
+    // =========================================================================
     // DATA PIPELINE V2 — MARKET SCAN QUEUE
     // =========================================================================
 
-    // Scanner A (0-15d): nightly at midnight — primary ingestion window
+    // Scanner A (0-15d): nightly at 12:00am (midnight) — primary ingestion window
     cron.schedule("0 0 * * *", scanWindowA, {
         timezone: "America/Los_Angeles"
     })
 
-    // Scanner B (15-30d): every at 1:00 AM — catches late backfills in 15-30d range
-    cron.schedule("0 1 * * *", scanWindowB, {
+    // Scanner B (15-30d): every other day at 1:00 AM — catches late backfills in 15-30d range
+    cron.schedule("0 1 */2 * *", scanWindowB, {
         timezone: "America/Los_Angeles"
     })
 
@@ -35,27 +45,18 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // Scanner D (60-90d): At 4:00 AM On the 1st and 15th of every month
-    cron.schedule("0 4 1,15 * *", scanWindowD, {
+    // Scanner D (60-90d): At 3:00 AM On the 1st and 15th of every month
+    cron.schedule("0 3 1,15 * *", scanWindowD, {
         timezone: "America/Los_Angeles"
     })
 
-    // Scanner E (90-180d): 1st of each month at 5:00 AM — one-time deep historical backfill
-    cron.schedule("0 5 1 * *", scanWindowE, {
-        timezone: "America/Los_Angeles"
-    })
+    // // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
+    // cron.schedule("0 4 1 * *", scanWindowE, {
+    //     timezone: "America/Los_Angeles"
+    // })
     
-    // Consumer: Every hour from 6am to 11pm — processes all pending market_scan_queue rows
-    cron.schedule("0 6-23 * * *", runConsumer, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // =========================================================================
-    // Clean Cache
-    // =========================================================================
-
-    // Clean Streetview Cache Every Night at 1:00 AM
-    cron.schedule("15 0 * * *", CleanCache, {
+    // Consumer: Every at 30 minute mark every hour from 5:30am to 10:30pm — processes all pending market_scan_queue rows
+    cron.schedule("30 4-22 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
 

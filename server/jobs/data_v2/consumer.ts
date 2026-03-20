@@ -21,7 +21,7 @@ import type { MarketScanQueue } from "@database/types/sync";
  * Each property makes 1 batch-lookup call (shared) + 1 /transactions call,
  * so 100 properties ≈ 1-2 minutes of API time per MSA.
  */
-const MAX_PROPERTIES_PER_MSA = 15;
+const MAX_PROPERTIES_PER_MSA = 10;
 
 /**
  * Converts a market_scan_queue row into the BuyersMarketRecord shape that the
