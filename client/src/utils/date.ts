@@ -17,8 +17,14 @@ export function parseDate(dateValue: string | null | undefined): Date | null {
     }
   }
 
-  // Try parsing as ISO date string or other standard formats
-  const isoDate = new Date(dateValue);
+  // Try parsing as ISO date string or other standard formats.
+  // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight by spec, which shifts
+  // the displayed date back 1 day for users in negative UTC offsets. Appending
+  // T00:00:00 forces local-time parsing so the date displays as-is.
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateValue)
+    ? dateValue + "T00:00:00"
+    : dateValue;
+  const isoDate = new Date(normalized);
   if (!isNaN(isoDate.getTime())) {
     return isoDate;
   }
