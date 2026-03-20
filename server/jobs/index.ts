@@ -55,7 +55,7 @@ export function startScheduledJobs() {
     //     timezone: "America/Los_Angeles"
     // })
     
-    // Consumer: Run at 30 minute mark every hour from 4:30am to 1:30pm — processes all pending market_scan_queue rows
+    // Consumer: Run at 30 minute mark every hour from 4:30am to 10:30pm — processes all pending market_scan_queue rows
     cron.schedule("30 4-22 * * *", runConsumer, {
         timezone: "America/Los_Angeles"
     })
