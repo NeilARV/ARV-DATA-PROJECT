@@ -24,26 +24,28 @@ router.get("/", async (req, res) => {
     try {
         const results = await db
             .select({
-                id:           deals.id,
-                createdAt:    deals.createdAt,
+                id:        deals.id,
+                createdAt: deals.createdAt,
                 // Property info
-                propertyId:   deals.propertyId,
-                address:      addresses.formattedStreetAddress,
-                city:         addresses.city,
-                state:        addresses.state,
-                zipCode:      addresses.zipCode,
+                propertyId: deals.propertyId,
+                address:    addresses.formattedStreetAddress,
+                city:       addresses.city,
+                state:      addresses.state,
+                zipCode:    addresses.zipCode,
                 // MSA info
-                msaId:        deals.msaId,
-                msaName:      msas.name,
+                msaId:   deals.msaId,
+                msaName: msas.name,
                 // Poster info
-                postedBy:     deals.postedBy,
-                postedByEmail: users.email,
+                userId:        deals.userId,
+                userEmail:     users.email,
+                userFirstName: users.firstName,
+                userLastName:  users.lastName,
             })
             .from(deals)
             .leftJoin(properties, eq(deals.propertyId, properties.id))
             .leftJoin(addresses, eq(deals.propertyId, addresses.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
-            .leftJoin(users, eq(deals.postedBy, users.id))
+            .leftJoin(users, eq(deals.userId, users.id))
             .orderBy(desc(deals.id));
 
         res.json(results);
@@ -56,12 +58,12 @@ router.get("/", async (req, res) => {
 // POST /api/deals — run full consumer pipeline for a single address, then post a deal
 router.post("/", async (req, res) => {
     try {
-        const { address, city, state, zipCode, postedBy } = req.body;
+        const { address, city, state, zipCode, userId } = req.body;
 
-        if (!address || !city || !state || !zipCode || !postedBy) {
+        if (!address || !city || !state || !zipCode || !userId) {
             return res.status(400).json({
                 message: "Missing required fields",
-                errors: [{ path: [], message: "address, city, state, zipCode, and postedBy are required" }],
+                errors: [{ path: [], message: "address, city, state, zipCode, and userId are required" }],
             });
         }
 
@@ -116,74 +118,88 @@ router.post("/", async (req, res) => {
             });
         }
 
-        // ── Step 2: Get transactions ──────────────────────────────────────────
-        console.log(`${label} Fetching transactions for property ${sfrPropertyId}`);
-        const propertiesWithTransactions = await getTransactions({
-            properties: mergedProperties,
-            API_KEY,
-            API_URL,
-            cityCode: "DEAL",
-        });
-
-        // ── Step 3: Skip new construction check (single property deal is intentional) ──
-
-        // ── Step 4: Clean transactions ────────────────────────────────────────
-        const transactionCompanies = cleanTransactions(propertiesWithTransactions, msaName);
-
-        // ── Step 5: Insert/update companies ──────────────────────────────────
-        await insertCompanies({
-            companyNames: transactionCompanies.companyNames,
-            msa: msaName,
-            cityCode: "DEAL",
-            companyCounties: transactionCompanies.companyCounties,
-        });
-
-        // ── Step 6: Resolve buyer_id / seller_id ─────────────────────────────
-        const propertiesWithIds = await resolvePropertyIds({
-            properties: propertiesWithTransactions,
-            cityCode: "DEAL",
-        });
-
-        // ── Step 7: Determine property status ─────────────────────────────────
-        const propertiesWithStatus = resolveStatuses(propertiesWithIds, msaName);
-
-        // ── Step 8: Final normalization ───────────────────────────────────────
-        const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
-
-        if (propertiesToInsert.length === 0) {
-            return res.status(422).json({ message: "Property could not be processed (status unresolvable)" });
-        }
-
-        // ── Step 9: Upsert property + child tables + transactions ─────────────
-        console.log(`${label} Inserting property ${sfrPropertyId}`);
-        await insertProperties({
-            properties: propertiesToInsert,
-            msa: msaName,
-            cityCode: "DEAL",
-        });
-
-        // ── Resolve internal property UUID ────────────────────────────────────
-        const [propertyRow] = await db
+        // ── Check if property already exists — skip full pipeline if so ────────
+        const [existingProperty] = await db
             .select({ id: properties.id })
             .from(properties)
             .where(eq(properties.sfrPropertyId, sfrPropertyId))
             .limit(1);
 
-        if (!propertyRow) {
-            return res.status(500).json({ message: "Property was processed but could not be found in database" });
+        let propertyId: string;
+
+        if (existingProperty) {
+            console.log(`${label} Property ${sfrPropertyId} already exists (id=${existingProperty.id}), skipping pipeline`);
+            propertyId = existingProperty.id;
+        } else {
+            // ── Step 2: Get transactions ──────────────────────────────────────
+            console.log(`${label} Fetching transactions for property ${sfrPropertyId}`);
+            const propertiesWithTransactions = await getTransactions({
+                properties: mergedProperties,
+                API_KEY,
+                API_URL,
+                cityCode: "DEAL",
+            });
+
+            // ── Step 3: Clean transactions ────────────────────────────────────
+            const transactionCompanies = cleanTransactions(propertiesWithTransactions, msaName);
+
+            // ── Step 4: Insert/update companies ──────────────────────────────
+            await insertCompanies({
+                companyNames: transactionCompanies.companyNames,
+                msa: msaName,
+                cityCode: "DEAL",
+                companyCounties: transactionCompanies.companyCounties,
+            });
+
+            // ── Step 5: Resolve buyer_id / seller_id ─────────────────────────
+            const propertiesWithIds = await resolvePropertyIds({
+                properties: propertiesWithTransactions,
+                cityCode: "DEAL",
+            });
+
+            // ── Step 6: Determine property status ─────────────────────────────
+            const propertiesWithStatus = resolveStatuses(propertiesWithIds, msaName);
+
+            // ── Step 7: Final normalization ───────────────────────────────────
+            const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
+
+            if (propertiesToInsert.length === 0) {
+                return res.status(422).json({ message: "Property could not be processed (status unresolvable)" });
+            }
+
+            // ── Step 8: Upsert property + child tables + transactions ─────────
+            console.log(`${label} Inserting property ${sfrPropertyId}`);
+            await insertProperties({
+                properties: propertiesToInsert,
+                msa: msaName,
+                cityCode: "DEAL",
+            });
+
+            // ── Resolve internal property UUID ────────────────────────────────
+            const [newPropertyRow] = await db
+                .select({ id: properties.id })
+                .from(properties)
+                .where(eq(properties.sfrPropertyId, sfrPropertyId))
+                .limit(1);
+
+            if (!newPropertyRow) {
+                return res.status(500).json({ message: "Property was processed but could not be found in database" });
+            }
+
+            propertyId = newPropertyRow.id;
         }
 
-        // ── Step 10: Insert the deal ──────────────────────────────────────────
+        // ── Step 9: Insert the deal ───────────────────────────────────────────
         const [deal] = await db
             .insert(deals)
             .values({
-                propertyId: propertyRow.id,
-                postedBy,
+                propertyId,
+                userId,
                 msaId: msaRow.id,
             })
             .returning();
 
-        console.log(`${label} Deal posted: id=${deal.id}, property=${propertyRow.id}, msa=${msaName}`);
+        console.log(`${label} Deal posted: id=${deal.id}, property=${propertyId}, msa=${msaName}`);
         res.status(201).json({ message: "Deal posted successfully", deal });
     } catch (error) {
         console.error("[POST /api/deals]", error);
