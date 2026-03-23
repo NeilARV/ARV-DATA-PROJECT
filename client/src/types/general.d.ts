@@ -26,6 +26,7 @@ export type HeaderProps = {
   onSignupClick?: () => void;
   onLeaderboardClick?: () => void;
   onRMClick?: () => void;
+  onDealsClick?: () => void;
   county?: string; // County filter for suggestions
 }
 

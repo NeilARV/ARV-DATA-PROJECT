@@ -15,6 +15,7 @@ import {
   Menu,
   User,
   DollarSign,
+  Handshake,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -41,6 +42,7 @@ export default function Header({
   onSignupClick,
   onLeaderboardClick,
   onRMClick,
+  onDealsClick,
   county,
 }: HeaderProps) {
 
@@ -391,6 +393,16 @@ export default function Header({
               <span className="hidden sm:inline">Table</span>
             </Button>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDealsClick}
+            data-testid="button-deals"
+          >
+            <Handshake className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Deals</span>
+          </Button>
 
           {user?.relationshipManager && onRMClick && (
             <Button

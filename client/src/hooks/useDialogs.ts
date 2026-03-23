@@ -11,7 +11,8 @@ export type DialogState =
   | { type: "signup"; forced: boolean }
   | { type: "leaderboard" }
   | { type: "info" }
-  | { type: "property" };
+  | { type: "property" }
+  | { type: "deals" };
 
 export interface UseDialogsResult {
   /** Current dialog state — null means no dialog is open */
@@ -28,6 +29,7 @@ export interface UseDialogsResult {
     onSignupClick: () => void;
     onLeaderboardClick: () => void;
     onRMClick: () => void;
+    onDealsClick: () => void;
   };
 }
 
@@ -71,6 +73,7 @@ export function useDialogs(): UseDialogsResult {
       onSignupClick: () => setDialog({ type: "signup", forced: false }),
       onLeaderboardClick: () => setDialog({ type: "leaderboard" }),
       onRMClick: () => setDialog({ type: "info" }),
+      onDealsClick: () => setDialog({ type: "deals" }),
     },
   };
 }

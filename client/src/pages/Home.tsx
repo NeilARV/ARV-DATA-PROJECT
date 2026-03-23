@@ -12,6 +12,7 @@ import LoginContent from "@/components/modals/Login";
 import SignupContent from "@/components/modals/Signup";
 import LeaderboardContent from "@/components/modals/Leaderboard";
 import InfoContent from "@/components/modals/Info";
+import DealsContent from "@/components/modals/Deals";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { useDialogs } from "@/hooks/useDialogs";
@@ -71,6 +72,7 @@ function HomeContent() {
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
         onRMClick={headerDialogHandlers.onRMClick}
+        onDealsClick={headerDialogHandlers.onDealsClick}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -153,6 +155,8 @@ function HomeContent() {
             ? "max-w-3xl max-h-[80vh] overflow-y-auto"
             : dialog?.type === "property"
             ? "max-w-2xl max-h-[90vh] overflow-y-auto"
+            : dialog?.type === "deals"
+            ? "max-w-lg"
             : dialog?.type === "info"
             ? "max-w-sm"
             : "sm:max-w-md"
@@ -172,6 +176,7 @@ function HomeContent() {
         )}
         {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
         {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
+        {dialog?.type === "deals" && <DealsContent onClose={closeDialog} />}
         {dialog?.type === "property" && (
           <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
         )}
