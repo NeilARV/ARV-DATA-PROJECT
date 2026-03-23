@@ -261,7 +261,7 @@ export default function Header({
           <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
         </button>
 
-        <form onSubmit={handleSearch} className="flex-1 max-w-md min-w-0">
+        <form onSubmit={handleSearch} className="flex-1 max-w-[428px] min-w-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
