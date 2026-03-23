@@ -14,8 +14,6 @@ CREATE TABLE deals (
     property_id     UUID          NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     posted_by       UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     msa_id          INTEGER       NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
-    asking_price    DECIMAL(15,2),
-    notes           TEXT,
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 

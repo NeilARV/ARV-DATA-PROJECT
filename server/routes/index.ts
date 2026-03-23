@@ -5,6 +5,7 @@ import propertyRoutes from "./properties.routes"
 import companyRoutes from "./companies.routes"
 import geocodingRoutes from "./geocoding.routes"
 import userRoutes from "./users.routes"
+import dealsRoutes from "./deals.routes"
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use("/users", userRoutes)
 router.use("/properties", propertyRoutes)
 router.use("/companies", companyRoutes)
 router.use("/geocoding", geocodingRoutes)
+router.use("/deals", dealsRoutes)
 
 export default router
