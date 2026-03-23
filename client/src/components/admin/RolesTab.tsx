@@ -27,7 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { AdminUser, RoleOption, RolesTabProps } from "@/types/admin";
 
@@ -285,25 +286,24 @@ export default function RolesTab({ isAdmin, isOwner = false, currentUserId = nul
           </div>
         )}
 
-        <ConfirmationDialog
-          open={roleConfirm?.open ?? false}
-          onClose={() => setRoleConfirm(null)}
-          onConfirm={handleRoleConfirm}
-          title={
-            roleConfirm?.action === "assign" ? "Assign role" : "Remove role"
-          }
-          description={
-            roleConfirm
-              ? roleConfirm.action === "assign"
-                ? `Assign the role "${roleConfirm.roleName}" to ${roleConfirm.userName}?`
-                : `Remove the role "${roleConfirm.roleName}" from ${roleConfirm.userName}?`
-              : ""
-          }
-          confirmText={roleConfirm?.action === "assign" ? "Assign" : "Remove"}
-          cancelText="Cancel"
-          variant={roleConfirm?.action === "remove" ? "destructive" : "default"}
-          isLoading={isRoleMutationPending}
-        />
+        <AppDialog open={roleConfirm?.open ?? false} onClose={() => setRoleConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setRoleConfirm(null)}
+            onConfirm={handleRoleConfirm}
+            title={roleConfirm?.action === "assign" ? "Assign role" : "Remove role"}
+            description={
+              roleConfirm
+                ? roleConfirm.action === "assign"
+                  ? `Assign the role "${roleConfirm.roleName}" to ${roleConfirm.userName}?`
+                  : `Remove the role "${roleConfirm.roleName}" from ${roleConfirm.userName}?`
+                : ""
+            }
+            confirmText={roleConfirm?.action === "assign" ? "Assign" : "Remove"}
+            cancelText="Cancel"
+            variant={roleConfirm?.action === "remove" ? "destructive" : "default"}
+            isLoading={isRoleMutationPending}
+          />
+        </AppDialog>
       </CardContent>
     </Card>
   );

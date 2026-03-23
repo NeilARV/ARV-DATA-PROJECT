@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import UploadDialog from "@/components/modals/UploadDialog";
+import AppDialog from "@/components/modals/Dialog";
+import UploadContent from "@/components/modals/Upload";
 // import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
 import EmailListTab from "@/components/admin/EmailListTab";
@@ -187,18 +188,25 @@ export default function Admin() {
         )}
       </Tabs>
 
-      <UploadDialog
+      <AppDialog
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ 
-            predicate: (query) => {
-              const key = query.queryKey[0];
-              return typeof key === 'string' && key.startsWith('/api/properties');
-            }
-          });
-        }}
-      />
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {uploadDialogOpen && (
+          <UploadContent
+            onClose={() => setUploadDialogOpen(false)}
+            onSuccess={() => {
+              queryClient.invalidateQueries({
+                predicate: (query) => {
+                  const key = query.queryKey[0];
+                  return typeof key === "string" && key.startsWith("/api/properties");
+                },
+              });
+            }}
+          />
+        )}
+      </AppDialog>
     </div>
   );
 }

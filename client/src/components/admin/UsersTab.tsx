@@ -27,7 +27,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Trash2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { AdminUser, RelationshipManager, UsersTabProps } from "@/types/admin";
 
@@ -327,43 +328,45 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
           </div>
         )}
 
-        <ConfirmationDialog
-          open={managerConfirm?.open ?? false}
-          onClose={() => setManagerConfirm(null)}
-          onConfirm={handleManagerConfirm}
-          title={
-            managerConfirm?.action === "assign"
-              ? "Assign relationship manager"
-              : "Remove relationship manager"
-          }
-          description={
-            managerConfirm
-              ? managerConfirm.action === "assign"
-                ? `Assign ${managerConfirm.managerName} as relationship manager for ${managerConfirm.userName}?`
-                : `Remove ${managerConfirm.managerName} as relationship manager from ${managerConfirm.userName}?`
-              : ""
-          }
-          confirmText={managerConfirm?.action === "assign" ? "Assign" : "Remove"}
-          cancelText="Cancel"
-          variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
-          isLoading={isManagerMutationPending}
-        />
+        <AppDialog open={managerConfirm?.open ?? false} onClose={() => setManagerConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setManagerConfirm(null)}
+            onConfirm={handleManagerConfirm}
+            title={
+              managerConfirm?.action === "assign"
+                ? "Assign relationship manager"
+                : "Remove relationship manager"
+            }
+            description={
+              managerConfirm
+                ? managerConfirm.action === "assign"
+                  ? `Assign ${managerConfirm.managerName} as relationship manager for ${managerConfirm.userName}?`
+                  : `Remove ${managerConfirm.managerName} as relationship manager from ${managerConfirm.userName}?`
+                : ""
+            }
+            confirmText={managerConfirm?.action === "assign" ? "Assign" : "Remove"}
+            cancelText="Cancel"
+            variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
+            isLoading={isManagerMutationPending}
+          />
+        </AppDialog>
 
-        <ConfirmationDialog
-          open={!!deleteUserConfirm}
-          onClose={() => setDeleteUserConfirm(null)}
-          onConfirm={handleDeleteUserConfirm}
-          title="Delete user"
-          description={
-            deleteUserConfirm
-              ? `Delete "${deleteUserConfirm.userName}"? This will permanently remove their account and cannot be undone.`
-              : ""
-          }
-          confirmText="Delete"
-          cancelText="Cancel"
-          variant="destructive"
-          isLoading={deleteUserMutation.isPending}
-        />
+        <AppDialog open={!!deleteUserConfirm} onClose={() => setDeleteUserConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setDeleteUserConfirm(null)}
+            onConfirm={handleDeleteUserConfirm}
+            title="Delete user"
+            description={
+              deleteUserConfirm
+                ? `Delete "${deleteUserConfirm.userName}"? This will permanently remove their account and cannot be undone.`
+                : ""
+            }
+            confirmText="Delete"
+            cancelText="Cancel"
+            variant="destructive"
+            isLoading={deleteUserMutation.isPending}
+          />
+        </AppDialog>
       </CardContent>
     </Card>
   );

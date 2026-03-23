@@ -1,34 +1,28 @@
 import { useState, useEffect } from "react";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 
+/**
+ * Discriminated union of every dialog the app can show.
+ * Add new variants here as the app grows.
+ */
+export type DialogState =
+  | null
+  | { type: "login"; forced: boolean }
+  | { type: "signup"; forced: boolean }
+  | { type: "leaderboard" }
+  | { type: "info" }
+  | { type: "property" };
+
 export interface UseDialogsResult {
-  /** Props to spread onto <SignupDialog /> */
-  signupDialogProps: {
-    open: boolean;
-    forced: boolean;
-    onClose: () => void;
-    onSuccess: () => void;
-    onSwitchToLogin: () => void;
-  };
-  /** Props to spread onto <LoginDialog /> */
-  loginDialogProps: {
-    open: boolean;
-    forced: boolean;
-    onClose: () => void;
-    onSuccess: () => void;
-    onSwitchToSignup: () => void;
-  };
-  /** Props for <LeaderboardDialog /> (open + onOpenChange only; pass county, onCompanyClick, onZipCodeClick from parent) */
-  leaderboardDialogProps: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-  };
-  /** Props for <InfoModal /> showing relationship manager info */
-  rmDialogProps: {
-    open: boolean;
-    onClose: () => void;
-  };
-  /** Handlers for Header: onLoginClick, onSignupClick, onLeaderboardClick, onRMClick */
+  /** Current dialog state — null means no dialog is open */
+  dialog: DialogState;
+  /** Open a dialog by passing a DialogState value */
+  openDialog: (d: NonNullable<DialogState>) => void;
+  /** Close the active dialog */
+  closeDialog: () => void;
+  /** Whether the active dialog is forced (cannot be dismissed by the user) */
+  isForced: boolean;
+  /** Handlers wired to Header buttons */
   headerDialogHandlers: {
     onLoginClick: () => void;
     onSignupClick: () => void;
@@ -38,82 +32,45 @@ export interface UseDialogsResult {
 }
 
 /**
- * Encapsulates signup, login, and leaderboard dialog state and behavior.
- * Integrates with useAuth and useSignupPrompt to auto-show signup when unauthenticated and prompt triggers.
+ * Tracks a single active dialog using a discriminated-union state.
+ * Only one dialog can be open at a time; switching types swaps the content.
  */
 export function useDialogs(): UseDialogsResult {
-  const [showSignupDialog, setShowSignupDialog] = useState(false);
-  const [showLoginDialog, setShowLoginDialog] = useState(false);
-  const [showLeaderboardDialog, setShowLeaderboardDialog] = useState(false);
-  const [showRMDialog, setShowRMDialog] = useState(false);
-  const [isDialogForced, setIsDialogForced] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(null);
 
   const { isAuthenticated } = useAuth();
-  const { shouldShowSignup, isForced, dismissPrompt } = useSignupPrompt();
+  const { shouldShowSignup, isForced: promptIsForced, dismissPrompt } = useSignupPrompt();
 
+  // Auto-show signup prompt when triggered
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
-      setShowSignupDialog(true);
-      setIsDialogForced(isForced);
+      setDialog({ type: "signup", forced: promptIsForced });
     }
-  }, [shouldShowSignup, isAuthenticated, isForced]);
+  }, [shouldShowSignup, isAuthenticated, promptIsForced]);
+
+  const closeDialog = () => {
+    // Dismiss the signup prompt whenever a signup dialog closes (manual or after success)
+    if (dialog?.type === "signup") {
+      dismissPrompt();
+    }
+    setDialog(null);
+  };
+
+  const openDialog = (d: NonNullable<DialogState>) => setDialog(d);
+
+  const isForced =
+    (dialog?.type === "login" || dialog?.type === "signup") && dialog.forced;
 
   return {
-    signupDialogProps: {
-      open: showSignupDialog,
-      forced: isDialogForced,
-      onClose: () => {
-        if (!isDialogForced) {
-          setShowSignupDialog(false);
-          dismissPrompt();
-        }
-      },
-      onSuccess: () => {
-        setShowSignupDialog(false);
-        setIsDialogForced(false);
-        dismissPrompt();
-      },
-      onSwitchToLogin: () => {
-        setShowSignupDialog(false);
-        setShowLoginDialog(true);
-      },
-    },
-    loginDialogProps: {
-      open: showLoginDialog,
-      forced: isDialogForced,
-      onClose: () => {
-        if (!isDialogForced) {
-          setShowLoginDialog(false);
-        }
-      },
-      onSuccess: () => {
-        setShowLoginDialog(false);
-        setIsDialogForced(false);
-      },
-      onSwitchToSignup: () => {
-        setShowLoginDialog(false);
-        setShowSignupDialog(true);
-      },
-    },
-    leaderboardDialogProps: {
-      open: showLeaderboardDialog,
-      onOpenChange: setShowLeaderboardDialog,
-    },
-    rmDialogProps: {
-      open: showRMDialog,
-      onClose: () => setShowRMDialog(false),
-    },
+    dialog,
+    openDialog,
+    closeDialog,
+    isForced,
     headerDialogHandlers: {
-      onLoginClick: () => {
-        setShowLoginDialog(true);
-        setShowSignupDialog(false);
-      },
-      onSignupClick: () => {
-        setShowSignupDialog(true);
-        setShowLoginDialog(false);
-      },
-      onLeaderboardClick: () => setShowLeaderboardDialog(true),
-      onRMClick: () => setShowRMDialog(true),
+      onLoginClick: () => setDialog({ type: "login", forced: false }),
+      onSignupClick: () => setDialog({ type: "signup", forced: false }),
+      onLeaderboardClick: () => setDialog({ type: "leaderboard" }),
+      onRMClick: () => setDialog({ type: "info" }),
     },
   };
 }

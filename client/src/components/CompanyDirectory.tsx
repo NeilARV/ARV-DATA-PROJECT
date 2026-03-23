@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import UpdateDialog from "@/components/modals/UpdateDialog";
+import AppDialog from "@/components/modals/Dialog";
+import UpdateContent from "@/components/modals/Update";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
 import {
@@ -646,19 +647,28 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
       </div>
 
       {/* Update Company Dialog */}
-      <UpdateDialog
+      <AppDialog
         open={updateDialogOpen}
         onClose={() => {
           setUpdateDialogOpen(false);
           setEditDialogCompanyId(null);
           setEditDialogInitialData(null);
         }}
-        companyId={editDialogCompanyId}
-        initialData={editDialogInitialData}
-        onSuccess={() => {
-          loadCompanies();
-        }}
-      />
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {updateDialogOpen && (
+          <UpdateContent
+            onClose={() => {
+              setUpdateDialogOpen(false);
+              setEditDialogCompanyId(null);
+              setEditDialogInitialData(null);
+            }}
+            companyId={editDialogCompanyId}
+            initialData={editDialogInitialData}
+            onSuccess={() => loadCompanies()}
+          />
+        )}
+      </AppDialog>
 
       <div className="p-4 border-t border-border">
         <div className="text-xs text-muted-foreground text-center">

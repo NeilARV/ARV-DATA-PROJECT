@@ -2,7 +2,8 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useDeleteProperty } from "@/hooks/properties/useDeleteProperty";
@@ -48,19 +49,20 @@ export default function PropertyDetailPanel() {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        onConfirm={() => {
-          if (property.id) deletePropertyMutation.mutate(property.id);
-        }}
-        title="Delete Property"
-        description={`Are you sure you want to delete ${property.address}, ${property.city}, ${property.state}?`}
-        confirmText="Yes"
-        cancelText="No"
-        variant="destructive"
-        isLoading={deletePropertyMutation.isPending}
-      />
+      <AppDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} className="max-w-md">
+        <ConfirmationContent
+          onClose={() => setShowDeleteDialog(false)}
+          onConfirm={() => {
+            if (property.id) deletePropertyMutation.mutate(property.id);
+          }}
+          title="Delete Property"
+          description={`Are you sure you want to delete ${property.address}, ${property.city}, ${property.state}?`}
+          confirmText="Yes"
+          cancelText="No"
+          variant="destructive"
+          isLoading={deletePropertyMutation.isPending}
+        />
+      </AppDialog>
     </div>
   );
 }
