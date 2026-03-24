@@ -324,64 +324,57 @@ export default function Header({
         <div className="flex items-center gap-3 flex-shrink-0">
 
             
-          <Button
-            variant={view === "buyers-feed" ? "default" : "outline"}
-            size="sm"
-            onClick={onBuyersFeedClick}
-            data-testid="button-buyers-feed"
-          >
-            <Users className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Buyers Feed</span>
-          </Button>
-
-          <Button
-            variant={view === "wholesale" ? "default" : "outline"}
-            size="sm"
-            onClick={onWholesaleClick}
-            data-testid="button-wholesale"
-          >
-            <DollarSign className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Wholesale</span>
-          </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLeaderboardClick}
-            data-testid="button-leaderboard"
-          >
-            <Trophy className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Leaderboard</span>
-          </Button>
-
           <div className="flex items-center border border-border rounded-md">
+            <Button
+              variant={view === "buyers-feed" ? "default" : "ghost"}
+              size="sm"
+              onClick={onBuyersFeedClick}
+              className="rounded-r-none"
+              data-testid="button-buyers-feed"
+            >
+              <Users className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Buyers Feed</span>
+            </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
+            <Button
+              variant={view === "wholesale" ? "default" : "ghost"}
+              size="sm"
+              onClick={onWholesaleClick}
+              className="rounded-none"
+              data-testid="button-wholesale"
+            >
+              <DollarSign className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Wholesale</span>
+            </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
             <Button
               variant={view === "map" ? "default" : "ghost"}
               size="sm"
               onClick={() => {
                 setView("map");
-                // Center map on currently selected county so switching from grid respects filter
                 const county = filters?.county ?? "San Diego";
                 const center = getCountyCenter(county) ?? getDefaultMapCenter();
                 setMapCenter(center);
                 setMapZoom(MAP_ZOOM_COUNTY);
               }}
-              className="rounded-r-none border-r"
+              className="rounded-none"
               data-testid="button-view-map"
             >
               <Map className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Map</span>
             </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
             <Button
               variant={view === "grid" ? "default" : "ghost"}
               size="sm"
               onClick={() => setView("grid")}
-              className="rounded-none border-r"
+              className="rounded-none"
               data-testid="button-view-grid"
             >
               <Grid3x3 className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Grid</span>
             </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
             <Button
               variant={view === "table" ? "default" : "ghost"}
               size="sm"
