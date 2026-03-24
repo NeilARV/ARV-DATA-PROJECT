@@ -12,7 +12,23 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Handshake, Plus, ArrowLeft, Loader2, Bed, Bath, Maximize2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Handshake, Plus, ArrowLeft, Loader2, Bed, Bath, Maximize2, MoreVertical, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { manualPropertyEntrySchema } from "@database/inserts/properties.insert";
@@ -51,7 +67,7 @@ interface Deal {
 type View = "feed" | "form";
 
 // ── Individual deal card with lazy street view image ──────────────────────────
-function DealCard({ deal }: { deal: Deal }) {
+function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
 
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
@@ -103,14 +119,38 @@ function DealCard({ deal }: { deal: Deal }) {
 
       {/* Right: property details */}
       <div className="flex-1 min-w-0 pl-4 py-2 flex flex-col gap-1.5">
-        {/* Address */}
-        <div>
-          <p className="font-medium text-sm leading-tight truncate">
-            {formatAddress(deal.address) ?? "Unknown address"}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
-          </p>
+        {/* Address + optional 3-dot menu */}
+        <div className="flex items-start justify-between gap-1 min-w-0">
+          <div className="min-w-0">
+            <p className="font-medium text-sm leading-tight truncate">
+              {formatAddress(deal.address) ?? "Unknown address"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
+            </p>
+          </div>
+          {onDelete && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[10001]">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                  onSelect={onDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Deal
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Structure */}
@@ -171,8 +211,9 @@ type Tab = "all" | "mine";
 export default function DealsContent({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<View>("feed");
   const [tab, setTab] = useState<Tab>("all");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isPro, isAdminOrOwner } = useAuth();
 
   const queryUrl = tab === "mine" && user?.id
     ? `/api/deals?userId=${user.id}`
@@ -210,8 +251,27 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
       setView("feed");
     },
     onError: (err: any) => {
-      const msg = err.message || "Failed to post deal";
+      const is403 = typeof err?.message === "string" && err.message.startsWith("403:");
+      const msg = is403
+        ? "You do not have the required role to add a deal. Please contact neil@arvfinance.com to request access."
+        : err.message || "Failed to post deal";
       toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  const deleteDeal = useMutation({
+    mutationFn: async (dealId: number) => {
+      const res = await apiRequest("DELETE", `/api/deals/${dealId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Deal Deleted", description: "The deal has been removed from the feed." });
+      queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
+      setDeleteConfirm(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete deal", variant: "destructive" });
+      setDeleteConfirm(null);
     },
   });
 
@@ -353,13 +413,31 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
         ) : deals.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
             <Handshake className="w-12 h-12 text-muted-foreground/40" />
-            <p className="text-lg font-medium text-muted-foreground">No deals yet</p>
-            <p className="text-sm text-muted-foreground/60">
-              Be the first to post a deal to the feed.
-            </p>
+            {tab === "mine" ? (
+              <>
+                <p className="text-lg font-medium text-muted-foreground">No deals posted yet</p>
+                <p className="text-sm text-muted-foreground/60">Your posted deals will appear here.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-medium text-muted-foreground">No deals yet</p>
+                <p className="text-sm text-muted-foreground/60">Be the first to post a deal to the feed.</p>
+              </>
+            )}
           </div>
         ) : (
-          deals.map((deal) => <DealCard key={deal.id} deal={deal} />)
+          deals.map((deal) => {
+            const canDelete = tab === "all"
+              ? isAdminOrOwner
+              : isAdminOrOwner || (isPro && user?.id === deal.userId);
+            return (
+              <DealCard
+                key={deal.id}
+                deal={deal}
+                onDelete={canDelete ? () => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" }) : undefined}
+              />
+            );
+          })
         )}
       </div>
 
@@ -368,6 +446,27 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
           Close
         </Button>
       </div>
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Deal</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove "{deleteConfirm?.address}" from the deal feed? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteDeal.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteDeal.isPending}
+              onClick={() => deleteConfirm && deleteDeal.mutate(deleteConfirm.dealId)}
+            >
+              {deleteDeal.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
