@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -165,16 +166,23 @@ function DealCard({ deal }: { deal: Deal }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+type Tab = "all" | "mine";
+
 export default function DealsContent({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<View>("feed");
+  const [tab, setTab] = useState<Tab>("all");
   const { toast } = useToast();
   const { user } = useAuth();
 
+  const queryUrl = tab === "mine" && user?.id
+    ? `/api/deals?userId=${user.id}`
+    : "/api/deals";
+
   const { data: deals = [], isLoading } = useQuery<Deal[]>({
-    queryKey: ["/api/deals"],
+    queryKey: ["/api/deals", tab === "mine" ? user?.id : null],
     staleTime: 0,
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/deals");
+      const res = await apiRequest("GET", queryUrl);
       return res.json();
     },
   });
@@ -328,6 +336,13 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
           </Button>
         </DialogTitle>
       </DialogHeader>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="all">All Deals</TabsTrigger>
+          <TabsTrigger value="mine">Your Deals</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <div className="mt-2 flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto pr-1">
         {isLoading ? (

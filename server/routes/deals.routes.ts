@@ -21,8 +21,11 @@ dotenv.config();
 const router = Router();
 
 // GET /api/deals — fetch all deals, newest first, with property address and poster info
+// Optional ?userId=<uuid> to return only deals posted by that user
 router.get("/", async (req, res) => {
     try {
+        const filterUserId = typeof req.query.userId === "string" ? req.query.userId : undefined;
+
         const results = await db
             .select({
                 id:        deals.id,
@@ -59,9 +62,10 @@ router.get("/", async (req, res) => {
             .leftJoin(lastSales, eq(deals.propertyId, lastSales.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
             .leftJoin(users, eq(deals.userId, users.id))
+            .where(filterUserId ? eq(deals.userId, filterUserId) : undefined)
             .orderBy(desc(deals.id));
 
-        console.log(`[GET /api/deals] ${results.length} deals returned`);
+        console.log(`[GET /api/deals] ${results.length} deals returned${filterUserId ? ` (userId=${filterUserId})` : ""}`);
 
         res.json(results);
     } catch (error) {
