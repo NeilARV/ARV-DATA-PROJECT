@@ -53,7 +53,6 @@ interface Deal {
   squareFeet: number | null;
   yearBuilt: number | null;
   price: string | null;
-  dateSold: string | null;
   msaId: number;
   msaName: string | null;
   userId: string;
@@ -169,15 +168,12 @@ function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
           </div>
         )}
 
-        {(price !== null || deal.dateSold) && (
+        {(price !== null) && (
           <div className="flex items-center gap-3 text-sm">
             {price !== null && price > 0 && (
               <span className="font-semibold text-foreground text-base">
                 ${price.toLocaleString()}
               </span>
-            )}
-            {deal.dateSold && (
-              <span className="text-muted-foreground">{formatDate(deal.dateSold)}</span>
             )}
             {deal.propertyType && (
               <span className="text-muted-foreground truncate">{deal.propertyType}</span>

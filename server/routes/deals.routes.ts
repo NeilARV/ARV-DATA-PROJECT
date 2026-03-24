@@ -69,7 +69,6 @@ router.get("/", async (req, res) => {
                 yearBuilt:  structures.yearBuilt,
                 // Last sale
                 price:    lastSales.price,
-                dateSold: lastSales.recordingDate,
                 // MSA info
                 msaId:   deals.msaId,
                 msaName: msas.name,
