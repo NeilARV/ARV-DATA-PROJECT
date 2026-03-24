@@ -76,8 +76,6 @@ router.get("/", async (req, res) => {
                 // Poster info
                 userId:        deals.userId,
                 userEmail:     users.email,
-                userFirstName: users.firstName,
-                userLastName:  users.lastName,
             })
             .from(deals)
             .leftJoin(properties, eq(deals.propertyId, properties.id))

@@ -58,8 +58,6 @@ interface Deal {
   msaName: string | null;
   userId: string;
   userEmail: string | null;
-  userFirstName: string | null;
-  userLastName: string | null;
 }
 
 type Tab = "all" | "mine";
@@ -92,7 +90,6 @@ function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
   const beds = deal.bedrooms ? Number(deal.bedrooms) : null;
   const baths = deal.bathrooms ? parseFloat(deal.bathrooms) : null;
   const sqft = deal.squareFeet ? Number(deal.squareFeet) : null;
-  const postedBy = `${deal.userFirstName} ${deal.userLastName}`;
   const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -189,8 +186,6 @@ function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
         )}
 
         <div className="inline-flex space-x-2 text-sm text-muted-foreground/70 leading-tight">
-          <span className="font-medium">{postedBy}</span>
-          <span>|</span>
           <span>{postedAt}</span>
         </div>
       </div>
