@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Handshake, Plus, ArrowLeft, Loader2, MapPin } from "lucide-react";
+import { Handshake, Plus, ArrowLeft, Loader2, Bed, Bath, Maximize2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { manualPropertyEntrySchema } from "@database/inserts/properties.insert";
@@ -19,6 +19,9 @@ import type { ManualPropertyEntry } from "@database/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { getStreetViewUrl } from "@/lib/streetView";
+import { formatAddress } from "@shared/utils/formatAddress";
+import { formatDate } from "@/utils/date";
 
 interface Deal {
   id: number;
@@ -28,6 +31,14 @@ interface Deal {
   city: string | null;
   state: string | null;
   zipCode: string | null;
+  propertyType: string | null;
+  listingStatus: string | null;
+  bedrooms: number | null;
+  bathrooms: string | null;
+  squareFeet: number | null;
+  yearBuilt: number | null;
+  price: string | null;
+  dateSold: string | null;
   msaId: number;
   msaName: string | null;
   userId: string;
@@ -38,6 +49,122 @@ interface Deal {
 
 type View = "feed" | "form";
 
+// ── Individual deal card with lazy street view image ──────────────────────────
+function DealCard({ deal }: { deal: Deal }) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageLoading, setImageLoading] = useState(true);
+
+  useEffect(() => {
+    if (!deal.address || !deal.city || !deal.state) {
+      setImageLoading(false);
+      return;
+    }
+    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.propertyId)
+      .then((url) => {
+        if (url) {
+          const img = new Image();
+          img.onload = () => { setImageUrl(url); setImageLoading(false); };
+          img.onerror = () => setImageLoading(false);
+          img.src = url;
+        } else {
+          setImageLoading(false);
+        }
+      })
+      .catch(() => setImageLoading(false));
+  }, [deal.address, deal.city, deal.state, deal.propertyId]);
+
+  const price = deal.price ? Number(deal.price) : null;
+  const beds = deal.bedrooms ? Number(deal.bedrooms) : null;
+  const baths = deal.bathrooms ? parseFloat(deal.bathrooms) : null;
+  const sqft = deal.squareFeet ? Number(deal.squareFeet) : null;
+  const postedBy = deal.userFirstName
+    ? `${deal.userFirstName} ${deal.userLastName ?? ""}`.trim()
+    : (deal.userEmail ?? "Unknown");
+  const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden flex gap-0">
+      {/* Left: street view thumbnail */}
+      <div className="w-24 shrink-0 bg-muted flex items-center justify-center self-stretch">
+        {imageLoading ? (
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />
+        ) : imageUrl ? (
+          <img src={imageUrl} alt={deal.address ?? ""} className="w-full h-full object-cover" />
+        ) : (
+          <Handshake className="w-6 h-6 text-muted-foreground/30" />
+        )}
+      </div>
+
+      {/* Right: property details */}
+      <div className="flex-1 min-w-0 p-3 flex flex-col gap-1.5">
+        {/* Address */}
+        <div>
+          <p className="font-medium text-sm leading-tight truncate">
+            {deal.address ? formatAddress(deal.address) : "Unknown address"}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {[deal.city, deal.state, deal.zipCode].filter(Boolean).join(", ")}
+          </p>
+        </div>
+
+        {/* Structure */}
+        {(beds !== null || baths !== null || sqft !== null) && (
+          <div className="flex items-center gap-3 text-xs text-foreground">
+            {beds !== null && (
+              <span className="flex items-center gap-1">
+                <Bed className="w-3.5 h-3.5 text-muted-foreground" />
+                {beds} bd
+              </span>
+            )}
+            {baths !== null && (
+              <span className="flex items-center gap-1">
+                <Bath className="w-3.5 h-3.5 text-muted-foreground" />
+                {baths} ba
+              </span>
+            )}
+            {sqft !== null && (
+              <span className="flex items-center gap-1">
+                <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+                {sqft.toLocaleString()} sqft
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Price + date */}
+        {(price !== null || deal.dateSold) && (
+          <div className="flex items-center gap-2 text-xs">
+            {price !== null && price > 0 && (
+              <span className="font-semibold text-foreground">
+                ${price.toLocaleString()}
+              </span>
+            )}
+            {deal.dateSold && (
+              <span className="text-muted-foreground">{formatDate(deal.dateSold)}</span>
+            )}
+            {deal.propertyType && (
+              <span className="text-muted-foreground truncate">{deal.propertyType}</span>
+            )}
+          </div>
+        )}
+
+        {/* MSA + poster + timestamp */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground/70 mt-0.5">
+          <span>{deal.msaName ?? `MSA ${deal.msaId}`}</span>
+          <span className="text-right">{postedBy} · {postedAt}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 export default function DealsContent({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<View>("feed");
   const { toast } = useToast();
@@ -79,7 +206,7 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
     },
   });
 
-  // ── Form view ──────────────────────────────────────────────────────────────
+  // ── Form view ────────────────────────────────────────────────────────────────
   if (view === "form") {
     return (
       <>
@@ -185,7 +312,7 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
     );
   }
 
-  // ── Feed view ──────────────────────────────────────────────────────────────
+  // ── Feed view ────────────────────────────────────────────────────────────────
   return (
     <>
       <DialogHeader>
@@ -216,45 +343,7 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
             </p>
           </div>
         ) : (
-          deals.map((deal) => (
-            <div
-              key={deal.id}
-              className="rounded-lg border border-border p-4 flex flex-col gap-1 bg-card"
-            >
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-sm leading-tight">
-                    {deal.address ?? "Unknown address"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {[deal.city, deal.state, deal.zipCode].filter(Boolean).join(", ")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-                <span>{deal.msaName ?? `MSA ${deal.msaId}`}</span>
-                <span>
-                  {new Date(deal.createdAt).toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              {(deal.userFirstName || deal.userEmail) && (
-                <p className="text-xs text-muted-foreground/70 mt-0.5">
-                  Posted by{" "}
-                  {deal.userFirstName
-                    ? `${deal.userFirstName} ${deal.userLastName ?? ""}`.trim()
-                    : deal.userEmail}
-                </p>
-              )}
-            </div>
-          ))
+          deals.map((deal) => <DealCard key={deal.id} deal={deal} />)
         )}
       </div>
     </>

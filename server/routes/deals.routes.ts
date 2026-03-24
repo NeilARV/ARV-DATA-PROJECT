@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
-import { properties, addresses } from "@database/schemas/properties.schema";
+import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
 import { users } from "@database/schemas/users.schema";
 import { msas } from "@database/schemas/msas.schema";
 import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
@@ -27,11 +27,21 @@ router.get("/", async (req, res) => {
                 id:        deals.id,
                 createdAt: deals.createdAt,
                 // Property info
-                propertyId: deals.propertyId,
-                address:    addresses.formattedStreetAddress,
-                city:       addresses.city,
-                state:      addresses.state,
-                zipCode:    addresses.zipCode,
+                propertyId:   deals.propertyId,
+                address:      addresses.formattedStreetAddress,
+                city:         addresses.city,
+                state:        addresses.state,
+                zipCode:      addresses.zipCode,
+                propertyType: properties.propertyType,
+                listingStatus: properties.listingStatus,
+                // Structure info
+                bedrooms:    structures.bedsCount,
+                bathrooms:   structures.baths,
+                squareFeet:  structures.livingAreaSqft,
+                yearBuilt:   structures.yearBuilt,
+                // Last sale
+                price:    lastSales.price,
+                dateSold: lastSales.recordingDate,
                 // MSA info
                 msaId:   deals.msaId,
                 msaName: msas.name,
@@ -44,6 +54,8 @@ router.get("/", async (req, res) => {
             .from(deals)
             .leftJoin(properties, eq(deals.propertyId, properties.id))
             .leftJoin(addresses, eq(deals.propertyId, addresses.propertyId))
+            .leftJoin(structures, eq(deals.propertyId, structures.propertyId))
+            .leftJoin(lastSales, eq(deals.propertyId, lastSales.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
             .leftJoin(users, eq(deals.userId, users.id))
             .orderBy(desc(deals.id));
