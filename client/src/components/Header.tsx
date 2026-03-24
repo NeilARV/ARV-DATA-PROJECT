@@ -1,6 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Map,
   Grid3x3,
   Table2,
@@ -16,6 +22,7 @@ import {
   User,
   DollarSign,
   Handshake,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -263,7 +270,7 @@ export default function Header({
           <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
         </button>
 
-        <form onSubmit={handleSearch} className="flex-1 max-w-[408px] min-w-0">
+        <form onSubmit={handleSearch} className="flex-1 max-w-[350px] min-w-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -364,28 +371,55 @@ export default function Header({
               <span className="hidden sm:inline">Map</span>
             </Button>
             <span className="w-px h-5 bg-border shrink-0" />
-            <Button
-              variant={view === "grid" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("grid")}
-              className="rounded-none"
-              data-testid="button-view-grid"
-            >
-              <Grid3x3 className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Grid</span>
-            </Button>
-            <span className="w-px h-5 bg-border shrink-0" />
-            <Button
-              variant={view === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={onTableViewClick}
-              className="rounded-l-none"
-              data-testid="button-view-table"
-            >
-              <Table2 className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Table</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={view === "grid" || view === "table" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none gap-1"
+                  data-testid="button-view-more"
+                >
+                  {view === "grid" ? (
+                    <Grid3x3 className="w-4 h-4 mr-1" />
+                  ) : view === "table" ? (
+                    <Table2 className="w-4 h-4 mr-1" />
+                  ) : null}
+                  <span className="hidden sm:inline">
+                    {view === "grid" ? "Grid" : view === "table" ? "Table" : "More"}
+                  </span>
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => setView("grid")}
+                  className="gap-2 cursor-pointer"
+                  data-testid="button-view-grid"
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                  Grid
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onTableViewClick}
+                  className="gap-2 cursor-pointer"
+                  data-testid="button-view-table"
+                >
+                  <Table2 className="w-4 h-4" />
+                  Table
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLeaderboardClick}
+            data-testid="button-leaderboard"
+          >
+            <Trophy className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Leaderboard</span>
+          </Button>
 
           <Button
             variant="outline"
