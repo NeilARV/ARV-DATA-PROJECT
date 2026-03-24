@@ -5,6 +5,7 @@ import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyMap from "@/components/property/PropertyMap";
 import GridView from "@/components/views/GridView";
 import TableView from "@/components/views/TableView";
+import DealView from "@/components/views/DealView";
 import PropertyDetailPanel from "@/components/property/PropertyDetailPanel";
 import PropertyModalContent from "@/components/property/PropertyModal";
 import AppDialog from "@/components/modals/Dialog";
@@ -12,7 +13,6 @@ import LoginContent from "@/components/modals/Login";
 import SignupContent from "@/components/modals/Signup";
 import LeaderboardContent from "@/components/modals/Leaderboard";
 import InfoContent from "@/components/modals/Info";
-import DealsContent from "@/components/modals/Deals";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { useDialogs } from "@/hooks/useDialogs";
@@ -115,7 +115,9 @@ function HomeContent() {
           )}
 
           <div className="flex-1 overflow-hidden flex">
-            {view === "map" ? (
+            {view === "deals" ? (
+              <DealView />
+            ) : view === "map" ? (
               <>
                 <PropertyDetailPanel/>
                 <div className="flex-1">
@@ -175,7 +177,6 @@ function HomeContent() {
         )}
         {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
         {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
-        {dialog?.type === "deals" && <DealsContent onClose={closeDialog} />}
         {dialog?.type === "property" && (
           <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
         )}

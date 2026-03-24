@@ -432,9 +432,9 @@ export default function Header({
           </Button>
 
           <Button
-            variant="outline"
+            variant={view === "deals" ? "default" : "outline"}
             size="sm"
-            onClick={onDealsClick}
+            onClick={() => setView("deals")}
             data-testid="button-deals"
           >
             <Handshake className="w-4 h-4 mr-1" />

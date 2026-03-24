@@ -25,6 +25,30 @@ const router = Router();
 router.get("/", async (req, res) => {
     try {
         const filterUserId = typeof req.query.userId === "string" ? req.query.userId : undefined;
+        const filterMsaName = typeof req.query.msaName === "string" ? req.query.msaName : undefined;
+
+        // Resolve msaId from name so we filter on deals.msaId (primary table column)
+        let filterMsaId: number | undefined;
+        if (filterMsaName) {
+            const [msaRow] = await db
+                .select({ id: msas.id })
+                .from(msas)
+                .where(eq(msas.name, filterMsaName))
+                .limit(1);
+            if (!msaRow) {
+                console.log(`[GET /api/deals] MSA not found: "${filterMsaName}" — returning empty`);
+                return res.json([]);
+            }
+            filterMsaId = msaRow.id;
+        }
+
+        const whereClause = filterUserId && filterMsaId !== undefined
+            ? and(eq(deals.userId, filterUserId), eq(deals.msaId, filterMsaId))
+            : filterUserId
+            ? eq(deals.userId, filterUserId)
+            : filterMsaId !== undefined
+            ? eq(deals.msaId, filterMsaId)
+            : undefined;
 
         const results = await db
             .select({
@@ -62,10 +86,10 @@ router.get("/", async (req, res) => {
             .leftJoin(lastSales, eq(deals.propertyId, lastSales.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
             .leftJoin(users, eq(deals.userId, users.id))
-            .where(filterUserId ? eq(deals.userId, filterUserId) : undefined)
+            .where(whereClause)
             .orderBy(desc(deals.id));
 
-        console.log(`[GET /api/deals] ${results.length} deals returned${filterUserId ? ` (userId=${filterUserId})` : ""}`);
+        console.log(`[GET /api/deals] ${results.length} deals returned${filterUserId ? ` (userId=${filterUserId})` : ""}${filterMsaName ? ` (msaName=${filterMsaName})` : ""}`);
 
         res.json(results);
     } catch (error) {

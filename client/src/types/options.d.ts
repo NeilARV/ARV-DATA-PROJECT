@@ -1,6 +1,6 @@
 export type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
 
-export type View = "map" | "grid" | "table" | "buyers-feed" | "wholesale"
+export type View = "map" | "grid" | "table" | "buyers-feed" | "wholesale" | "deals"
 
 export type SidebarView = "filters" | "directory" | "none";
 
