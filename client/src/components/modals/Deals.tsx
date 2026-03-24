@@ -345,6 +345,12 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
           deals.map((deal) => <DealCard key={deal.id} deal={deal} />)
         )}
       </div>
+
+      <div className="pt-3 border-t border-border">
+        <Button variant="outline" className="w-full" onClick={onClose}>
+          Close
+        </Button>
+      </div>
     </>
   );
 }
