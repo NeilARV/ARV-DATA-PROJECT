@@ -91,7 +91,7 @@ function DealCard({ deal }: { deal: Deal }) {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden flex gap-0">
       {/* Left: street view thumbnail */}
-      <div className="w-24 shrink-0 bg-muted flex items-center justify-center self-stretch">
+      <div className="w-36 shrink-0 bg-muted flex items-center justify-center self-stretch">
         {imageLoading ? (
           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />
         ) : imageUrl ? (
