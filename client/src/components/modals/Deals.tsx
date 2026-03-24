@@ -52,7 +52,6 @@ type View = "feed" | "form";
 // ── Individual deal card with lazy street view image ──────────────────────────
 function DealCard({ deal }: { deal: Deal }) {
 
-  console.log("FRONTEND DEAL: ", deal)
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
 
@@ -154,9 +153,11 @@ function DealCard({ deal }: { deal: Deal }) {
           </div>
         )}
 
-        {/* timestamp */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground/70 mt-0.5">
-          <span className="text-right">{postedBy} · {postedAt}</span>
+        {/* Posted by + timestamp */}
+        <div className="inline-flex space-x-2 text-xs text-muted-foreground/70 mt-0.5 leading-tight">
+          <span className="font-medium">{postedBy}</span>
+          <span>|</span>
+          <span className="block">{postedAt}</span>
         </div>
       </div>
     </div>
@@ -177,8 +178,6 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
       return res.json();
     },
   });
-
-  console.log("DEALS: ", deals)
 
   const form = useForm<ManualPropertyEntry>({
     resolver: zodResolver(manualPropertyEntrySchema),
@@ -330,7 +329,7 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
         </DialogTitle>
       </DialogHeader>
 
-      <div className="mt-2 flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
+      <div className="mt-2 flex-1 flex flex-col gap-3 overflow-y-auto pr-1 min-h-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />

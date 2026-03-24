@@ -62,10 +62,6 @@ router.get("/", async (req, res) => {
 
         console.log(`[GET /api/deals] ${results.length} deals returned`);
 
-        results.forEach((result) => {
-            console.log(`${JSON.stringify(result)}`)
-        })
-
         res.json(results);
     } catch (error) {
         console.error("[GET /api/deals]", error);

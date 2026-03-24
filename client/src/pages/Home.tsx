@@ -156,7 +156,7 @@ function HomeContent() {
             : dialog?.type === "property"
             ? "max-w-2xl max-h-[90vh] overflow-y-auto"
             : dialog?.type === "deals"
-            ? "max-w-lg [&>button]:hidden"
+            ? "max-w-lg max-h-[90vh] flex flex-col [&>button]:hidden"
             : dialog?.type === "info"
             ? "max-w-sm"
             : "sm:max-w-md"
