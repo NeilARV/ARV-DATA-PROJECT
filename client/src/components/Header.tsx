@@ -1,12 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Map,
   Grid3x3,
   Table2,
@@ -72,9 +66,11 @@ export default function Header({
   const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { toast } = useToast();
@@ -152,6 +148,18 @@ export default function Header({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    if (showMoreMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showMoreMenu]);
 
   const toggleTheme = () => {
     const newIsDark = !isDark;
@@ -371,44 +379,47 @@ export default function Header({
               <span className="hidden sm:inline">Map</span>
             </Button>
             <span className="w-px h-5 bg-border shrink-0" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant={view === "grid" || view === "table" ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-l-none gap-1"
-                  data-testid="button-view-more"
-                >
-                  {view === "grid" ? (
-                    <Grid3x3 className="w-4 h-4 mr-1" />
-                  ) : view === "table" ? (
-                    <Table2 className="w-4 h-4 mr-1" />
-                  ) : null}
-                  <span className="hidden sm:inline">
-                    {view === "grid" ? "Grid" : view === "table" ? "Table" : "More"}
-                  </span>
-                  <ChevronDown className="w-3 h-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => setView("grid")}
-                  className="gap-2 cursor-pointer"
-                  data-testid="button-view-grid"
-                >
-                  <Grid3x3 className="w-4 h-4" />
-                  Grid
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={onTableViewClick}
-                  className="gap-2 cursor-pointer"
-                  data-testid="button-view-table"
-                >
-                  <Table2 className="w-4 h-4" />
-                  Table
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="relative" ref={moreMenuRef}>
+              <Button
+                variant={view === "grid" || view === "table" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-l-none gap-1"
+                data-testid="button-view-more"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+              >
+                {view === "grid" ? (
+                  <Grid3x3 className="w-4 h-4 mr-1" />
+                ) : view === "table" ? (
+                  <Table2 className="w-4 h-4 mr-1" />
+                ) : null}
+                <span className="hidden sm:inline">
+                  {view === "grid" ? "Grid" : view === "table" ? "Table" : "More"}
+                </span>
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+              {showMoreMenu && (
+                <div className="absolute right-0 mt-2 w-36 bg-background border border-border rounded-md shadow-lg z-[502]">
+                  <div className="py-1">
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                      data-testid="button-view-grid"
+                      onClick={() => { setView("grid"); setShowMoreMenu(false); }}
+                    >
+                      <Grid3x3 className="w-4 h-4" />
+                      Grid
+                    </button>
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                      data-testid="button-view-table"
+                      onClick={() => { onTableViewClick(); setShowMoreMenu(false); }}
+                    >
+                      <Table2 className="w-4 h-4" />
+                      Table
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <Button
