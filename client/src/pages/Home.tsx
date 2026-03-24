@@ -71,7 +71,6 @@ function HomeContent() {
         onLoginClick={headerDialogHandlers.onLoginClick}
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
-        onRMClick={headerDialogHandlers.onRMClick}
         onDealsClick={headerDialogHandlers.onDealsClick}
       />
 

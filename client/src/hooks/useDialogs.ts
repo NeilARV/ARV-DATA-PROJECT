@@ -28,7 +28,6 @@ export interface UseDialogsResult {
     onLoginClick: () => void;
     onSignupClick: () => void;
     onLeaderboardClick: () => void;
-    onRMClick: () => void;
     onDealsClick: () => void;
   };
 }
@@ -72,7 +71,6 @@ export function useDialogs(): UseDialogsResult {
       onLoginClick: () => setDialog({ type: "login", forced: false }),
       onSignupClick: () => setDialog({ type: "signup", forced: false }),
       onLeaderboardClick: () => setDialog({ type: "leaderboard" }),
-      onRMClick: () => setDialog({ type: "info" }),
       onDealsClick: () => setDialog({ type: "deals" }),
     },
   };
