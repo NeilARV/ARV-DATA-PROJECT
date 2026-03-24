@@ -154,9 +154,8 @@ function DealCard({ deal }: { deal: Deal }) {
           </div>
         )}
 
-        {/* MSA + poster + timestamp */}
+        {/* timestamp */}
         <div className="flex items-center justify-between text-xs text-muted-foreground/70 mt-0.5">
-          <span>{deal.msaName ?? `MSA ${deal.msaId}`}</span>
           <span className="text-right">{postedBy} · {postedAt}</span>
         </div>
       </div>
