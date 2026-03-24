@@ -36,7 +36,6 @@ import { useFilters } from "@/hooks/useFilters";
 import { getMsaNameFromCounty } from "@/lib/county";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { formatAddress } from "@shared/utils/formatAddress";
-import { formatDate } from "@/utils/date";
 
 interface Deal {
   id: number;
@@ -240,7 +239,9 @@ export default function DealView() {
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col">
       {/* Header row */}
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold">Deal Feed</h2>
+        <h2 className="text-2xl font-semibold">
+          {tab === "mine" ? "Your Deal Feed" : `${msaName} Deal Feed`}
+        </h2>
         <div className="flex items-center gap-3">
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
             <TabsList>
