@@ -51,6 +51,8 @@ type View = "feed" | "form";
 
 // ── Individual deal card with lazy street view image ──────────────────────────
 function DealCard({ deal }: { deal: Deal }) {
+
+  console.log("FRONTEND DEAL: ", deal)
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
 
@@ -77,9 +79,7 @@ function DealCard({ deal }: { deal: Deal }) {
   const beds = deal.bedrooms ? Number(deal.bedrooms) : null;
   const baths = deal.bathrooms ? parseFloat(deal.bathrooms) : null;
   const sqft = deal.squareFeet ? Number(deal.squareFeet) : null;
-  const postedBy = deal.userFirstName
-    ? `${deal.userFirstName} ${deal.userLastName ?? ""}`.trim()
-    : (deal.userEmail ?? "Unknown");
+  const postedBy = `${deal.userFirstName} ${deal.userLastName}`
   const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -171,11 +171,14 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
 
   const { data: deals = [], isLoading } = useQuery<Deal[]>({
     queryKey: ["/api/deals"],
+    staleTime: 0,
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/deals");
       return res.json();
     },
   });
+
+  console.log("DEALS: ", deals)
 
   const form = useForm<ManualPropertyEntry>({
     resolver: zodResolver(manualPropertyEntrySchema),

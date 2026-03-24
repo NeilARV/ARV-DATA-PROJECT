@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
-import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
+import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
 import { users } from "@database/schemas/users.schema";
 import { msas } from "@database/schemas/msas.schema";
 import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
@@ -12,7 +12,7 @@ import { resolvePropertyIds } from "server/jobs/data_v2/processes/resolve-ids";
 import { resolveStatuses } from "server/jobs/data_v2/processes/resolve-status";
 import { cleanBeforeInsert } from "server/jobs/data_v2/processes/clean-before-insert";
 import { insertProperties } from "server/jobs/data_v2/processes/insert-properties";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, ilike } from "drizzle-orm";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -22,11 +22,8 @@ const router = Router();
 // GET /api/deals — fetch all deals, newest first, with property address and poster info
 router.get("/", async (req, res) => {
     try {
-        // DISTINCT ON (deals.id) ensures exactly one row per deal regardless of how many
-        // lastSales / structures / addresses rows the property has.
-        // ORDER BY deals.id DESC, lastSales.recordingDate DESC picks the latest sale per deal.
         const results = await db
-            .selectDistinctOn([deals.id], {
+            .select({
                 id:        deals.id,
                 createdAt: deals.createdAt,
                 // Property info
@@ -42,7 +39,7 @@ router.get("/", async (req, res) => {
                 bathrooms:  structures.baths,
                 squareFeet: structures.livingAreaSqft,
                 yearBuilt:  structures.yearBuilt,
-                // Last sale (most recent, chosen by ORDER BY)
+                // Last sale
                 price:    lastSales.price,
                 dateSold: lastSales.recordingDate,
                 // MSA info
@@ -61,9 +58,14 @@ router.get("/", async (req, res) => {
             .leftJoin(lastSales, eq(deals.propertyId, lastSales.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
             .leftJoin(users, eq(deals.userId, users.id))
-            .orderBy(desc(deals.id), desc(lastSales.recordingDate));
+            .orderBy(desc(deals.id));
 
         console.log(`[GET /api/deals] ${results.length} deals returned`);
+
+        results.forEach((result) => {
+            console.log(`${JSON.stringify(result)}`)
+        })
+
         res.json(results);
     } catch (error) {
         console.error("[GET /api/deals]", error);
@@ -207,6 +209,45 @@ router.post("/", async (req, res) => {
             }
 
             propertyId = newPropertyRow.id;
+        }
+
+        // ── Backfill lastSales from transactions if batch had no last_sale ─────
+        // SFR's /properties/batch sometimes omits last_sale for recently sold or
+        // individual-owner properties. When that happens insertProperties leaves
+        // lastSales empty, but the arms-length transaction is still in
+        // propertyTransactions. Use the most recent one to populate lastSales so
+        // the deal card can display the price and date.
+        const [existingLastSale] = await db
+            .select({ id: lastSales.lastSalesId })
+            .from(lastSales)
+            .where(eq(lastSales.propertyId, propertyId))
+            .limit(1);
+
+        if (!existingLastSale) {
+            const [recentTx] = await db
+                .select()
+                .from(propertyTransactions)
+                .where(
+                    and(
+                        eq(propertyTransactions.propertyId, propertyId),
+                        ilike(propertyTransactions.transactionType, "arms length")
+                    )
+                )
+                .orderBy(desc(propertyTransactions.recordingDate))
+                .limit(1);
+
+            if (recentTx) {
+                await db
+                    .insert(lastSales)
+                    .values({
+                        propertyId,
+                        saleDate: recentTx.saleDate,
+                        recordingDate: recentTx.recordingDate,
+                        price: recentTx.salePrice,
+                    })
+                    .onConflictDoNothing();
+                console.log(`${label} Backfilled lastSales from most recent arms-length transaction for property ${propertyId}`);
+            }
         }
 
         // ── Step 9: Insert the deal ───────────────────────────────────────────
