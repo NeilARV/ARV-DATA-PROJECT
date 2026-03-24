@@ -13,6 +13,7 @@ import { resolveStatuses } from "server/jobs/data_v2/processes/resolve-status";
 import { cleanBeforeInsert } from "server/jobs/data_v2/processes/clean-before-insert";
 import { insertProperties } from "server/jobs/data_v2/processes/insert-properties";
 import { eq, desc, and, ilike } from "drizzle-orm";
+import { requireRole } from "server/middleware/requireRole";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -70,7 +71,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/deals — run full consumer pipeline for a single address, then post a deal
-router.post("/", async (req, res) => {
+router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]), async (req, res) => {
     try {
         const { address, city, state, zipCode, userId } = req.body;
 
@@ -81,6 +82,7 @@ router.post("/", async (req, res) => {
                 errors: [{ path: [], message: "address, city, state, zipCode, and userId are required" }],
             });
         }
+        
         if (!UUID_REGEX.test(userId)) {
             return res.status(400).json({ message: "Invalid userId — must be a valid UUID" });
         }

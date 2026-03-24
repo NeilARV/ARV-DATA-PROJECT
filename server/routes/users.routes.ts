@@ -15,16 +15,17 @@ const router = Router();
 
 /** Role names that each caller role is allowed to assign or remove. Owner cannot be assigned/removed via API. */
 const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
-  owner: ["admin", "relationship-manager"],
-  admin: ["relationship-manager"],
+  owner: ["admin", "relationship-manager", "pro"],
+  admin: ["relationship-manager", "pro"],
 };
-const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager"] as const;
+const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager", "pro"] as const;
 
 /** Hierarchy: higher number = more privilege. Used to block altering users with equal or higher privilege. */
 const ROLE_HIERARCHY: Record<string, number> = {
-  owner: 3,
-  admin: 2,
-  "relationship-manager": 1,
+  owner: 4,
+  admin: 3,
+  "relationship-manager": 2,
+  pro: 1,
 };
 
 function getAllowedRolesForCaller(callerRoleRows: { roleName: string }[]): string[] {
@@ -289,6 +290,7 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
                 allowed: VALID_ROLE_NAMES.filter((r) => r !== "owner"),
             });
         }
+        
         if (roleName === "owner") {
             return res.status(403).json({ message: "Assigning owner role is not allowed via API" });
         }
