@@ -28,6 +28,7 @@ import {
   Maximize2,
   MoreVertical,
   Trash2,
+  Phone,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +62,17 @@ interface Deal {
 type Tab = "all" | "mine";
 
 // ── Individual deal card ───────────────────────────────────────────────────────
-function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
+function DealCard({
+  deal,
+  canDelete,
+  canRequestContact,
+  onDelete,
+}: {
+  deal: Deal;
+  canDelete: boolean;
+  canRequestContact: boolean;
+  onDelete: () => void;
+}) {
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
 
@@ -120,8 +131,7 @@ function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
               {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
             </p>
           </div>
-          {onDelete && (
-            <DropdownMenu>
+          <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
@@ -132,16 +142,26 @@ function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="z-[10001]">
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive gap-2 cursor-pointer"
-                  onSelect={onDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Deal
-                </DropdownMenuItem>
+                {canDelete && (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                    onSelect={onDelete}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Deal
+                  </DropdownMenuItem>
+                )}
+                {canRequestContact && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer"
+                    onSelect={() => console.log("Requesting Contact Info")}
+                  >
+                    <Phone className="h-4 w-4" />
+                    Request Contact Info
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
         </div>
 
         {(beds !== null || baths !== null || sqft !== null) && (
@@ -282,14 +302,16 @@ export default function DealView() {
       ) : (
         <div className="flex flex-col gap-4 max-w-3xl">
           {deals.map((deal) => {
-            const canDelete = tab === "all"
-              ? isAdminOrOwner
-              : isAdminOrOwner || (isPro && user?.id === deal.userId);
+            const isOwnerOfDeal = isPro && user?.id === deal.userId;
+            const canDelete = isAdminOrOwner || isOwnerOfDeal;
+            const canRequestContact = isAdminOrOwner || !isOwnerOfDeal;
             return (
               <DealCard
                 key={deal.id}
                 deal={deal}
-                onDelete={canDelete ? () => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" }) : undefined}
+                canDelete={canDelete}
+                canRequestContact={canRequestContact}
+                onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
               />
             );
           })}
