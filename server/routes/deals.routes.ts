@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
-import { users } from "@database/schemas/users.schema";
+import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas } from "@database/schemas/msas.schema";
 import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
 import { getTransactions } from "server/jobs/data_v2/processes/get-transactions";
@@ -12,7 +12,7 @@ import { resolvePropertyIds } from "server/jobs/data_v2/processes/resolve-ids";
 import { resolveStatuses } from "server/jobs/data_v2/processes/resolve-status";
 import { cleanBeforeInsert } from "server/jobs/data_v2/processes/clean-before-insert";
 import { insertProperties } from "server/jobs/data_v2/processes/insert-properties";
-import { eq, desc, and, ilike } from "drizzle-orm";
+import { eq, desc, and, ilike, inArray } from "drizzle-orm";
 import { requireRole } from "server/middleware/requireRole";
 import dotenv from "dotenv";
 
@@ -269,21 +269,45 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
     }
 });
 
-// DELETE /api/deals/:id — remove a deal by id
-router.delete("/:id", async (req, res) => {
+// DELETE /api/deals/:id — pro can delete their own deals; admin/owner can delete any deal
+router.delete("/:id", requireRole(["pro", "admin", "owner"]), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (isNaN(id)) {
             return res.status(400).json({ message: "Invalid deal id" });
         }
 
-        const deleted = await db.delete(deals).where(eq(deals.id, id)).returning();
+        // Fetch the deal first so we can check ownership
+        const [deal] = await db
+            .select({ id: deals.id, userId: deals.userId })
+            .from(deals)
+            .where(eq(deals.id, id))
+            .limit(1);
 
-        if (deleted.length === 0) {
+        if (!deal) {
             return res.status(404).json({ message: "Deal not found" });
         }
 
-        res.json({ message: "Deal deleted successfully", id: deleted[0].id });
+        // Check if the caller is admin or owner — if not, enforce ownership
+        const callerIsPrivileged = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, req.session.userId!),
+                    inArray(roles.name, ["admin", "owner"])
+                )
+            )
+            .limit(1);
+
+        if (callerIsPrivileged.length === 0 && deal.userId !== req.session.userId) {
+            return res.status(403).json({ message: "You can only delete your own deals" });
+        }
+
+        await db.delete(deals).where(eq(deals.id, id));
+
+        res.json({ message: "Deal deleted successfully", id: deal.id });
     } catch (error) {
         console.error("[DELETE /api/deals]", error);
         res.status(500).json({ message: "Error deleting deal" });
