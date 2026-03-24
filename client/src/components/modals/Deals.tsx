@@ -107,11 +107,11 @@ function DealCard({ deal, onDelete }: { deal: Deal; onDelete?: () => void }) {
   return (
     <div className="rounded-lg border border-border bg-card flex gap-0">
       {/* Left: street view thumbnail */}
-      <div className="w-36 shrink-0 bg-muted flex items-center justify-center self-stretch">
+      <div className="w-36 shrink-0 bg-muted flex items-center justify-center self-stretch relative rounded-tl-lg rounded-bl-lg overflow-hidden">
         {imageLoading ? (
           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />
         ) : imageUrl ? (
-          <img src={imageUrl} alt={deal.address ?? ""} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={deal.address ?? ""} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <Handshake className="w-6 h-6 text-muted-foreground/30" />
         )}
