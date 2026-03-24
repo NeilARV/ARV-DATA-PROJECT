@@ -39,7 +39,7 @@ export default function Admin() {
     isAuthenticated: isUserAuthenticated,
     isAdmin,
     isOwner,
-    adminRoles,
+    roles,
     isAdminStatusLoading,
   } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -48,7 +48,7 @@ export default function Admin() {
   const isVerifying = isLoadingUser || isAdminStatusLoading;
   const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
   /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
-  const canManageRoles = isOwner || (adminRoles ?? []).includes("admin");
+  const canManageRoles = isOwner || (roles ?? []).includes("admin");
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {

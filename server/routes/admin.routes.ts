@@ -26,12 +26,12 @@ router.get("/status", async (req, res) => {
             .where(
                 and(
                     eq(userRoles.userId, req.session.userId),
-                    inArray(roles.name, [...ADMIN_PANEL_ROLES])
+                    inArray(roles.name, [...ADMIN_PANEL_ROLES, "pro"])
                 )
             );
 
         const rolesList = allowedRows.map((r) => r.roleName);
-        const isAdmin = rolesList.length > 0;
+        const isAdmin = rolesList.some((r) => (ADMIN_PANEL_ROLES as readonly string[]).includes(r));
         res.json({ authenticated: true, isAdmin, roles: rolesList });
     } catch (error) {
         console.error("Error checking admin status:", error);
