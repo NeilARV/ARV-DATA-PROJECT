@@ -106,10 +106,10 @@ function DealCard({ deal }: { deal: Deal }) {
         {/* Address */}
         <div>
           <p className="font-medium text-sm leading-tight truncate">
-            {deal.address ? formatAddress(deal.address) : "Unknown address"}
+            {formatAddress(deal.address) ?? "Unknown address"}
           </p>
           <p className="text-xs text-muted-foreground truncate">
-            {[deal.city, deal.state, deal.zipCode].filter(Boolean).join(", ")}
+            {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
           </p>
         </div>
 
@@ -294,7 +294,7 @@ export default function DealsContent({ onClose }: { onClose: () => void }) {
               >
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1" disabled={postDeal.isPending}>
+              <Button type="submit" className="flex-1" disabled={postDeal.isPending || !user?.id}>
                 {postDeal.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

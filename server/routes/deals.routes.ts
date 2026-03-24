@@ -22,24 +22,27 @@ const router = Router();
 // GET /api/deals — fetch all deals, newest first, with property address and poster info
 router.get("/", async (req, res) => {
     try {
+        // DISTINCT ON (deals.id) ensures exactly one row per deal regardless of how many
+        // lastSales / structures / addresses rows the property has.
+        // ORDER BY deals.id DESC, lastSales.recordingDate DESC picks the latest sale per deal.
         const results = await db
-            .select({
+            .selectDistinctOn([deals.id], {
                 id:        deals.id,
                 createdAt: deals.createdAt,
                 // Property info
-                propertyId:   deals.propertyId,
-                address:      addresses.formattedStreetAddress,
-                city:         addresses.city,
-                state:        addresses.state,
-                zipCode:      addresses.zipCode,
-                propertyType: properties.propertyType,
+                propertyId:    deals.propertyId,
+                address:       addresses.formattedStreetAddress,
+                city:          addresses.city,
+                state:         addresses.state,
+                zipCode:       addresses.zipCode,
+                propertyType:  properties.propertyType,
                 listingStatus: properties.listingStatus,
                 // Structure info
-                bedrooms:    structures.bedsCount,
-                bathrooms:   structures.baths,
-                squareFeet:  structures.livingAreaSqft,
-                yearBuilt:   structures.yearBuilt,
-                // Last sale
+                bedrooms:   structures.bedsCount,
+                bathrooms:  structures.baths,
+                squareFeet: structures.livingAreaSqft,
+                yearBuilt:  structures.yearBuilt,
+                // Last sale (most recent, chosen by ORDER BY)
                 price:    lastSales.price,
                 dateSold: lastSales.recordingDate,
                 // MSA info
@@ -58,8 +61,9 @@ router.get("/", async (req, res) => {
             .leftJoin(lastSales, eq(deals.propertyId, lastSales.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
             .leftJoin(users, eq(deals.userId, users.id))
-            .orderBy(desc(deals.id));
+            .orderBy(desc(deals.id), desc(lastSales.recordingDate));
 
+        console.log(`[GET /api/deals] ${results.length} deals returned`);
         res.json(results);
     } catch (error) {
         console.error("[GET /api/deals]", error);
@@ -72,11 +76,15 @@ router.post("/", async (req, res) => {
     try {
         const { address, city, state, zipCode, userId } = req.body;
 
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!address || !city || !state || !zipCode || !userId) {
             return res.status(400).json({
                 message: "Missing required fields",
                 errors: [{ path: [], message: "address, city, state, zipCode, and userId are required" }],
             });
+        }
+        if (!UUID_REGEX.test(userId)) {
+            return res.status(400).json({ message: "Invalid userId — must be a valid UUID" });
         }
 
         const API_KEY = process.env.SFR_API_KEY;
