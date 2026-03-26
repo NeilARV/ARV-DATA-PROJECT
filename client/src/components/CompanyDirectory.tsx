@@ -321,6 +321,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
               <SelectItem value="new-buyers" data-testid="sort-new-buyers">
                 New Buyers
               </SelectItem>
+              <SelectItem value="buys-wholesale" data-testid="sort-buys-wholesale">
+                Buys Wholesale
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -351,7 +354,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2 flex-1 min-w-0">
-                        {(sortBy === "most-properties" || sortBy === "most-sold-properties" || sortBy === "most-sold-properties-all-time") && ranking != null && (
+                        {(sortBy === "most-properties" || sortBy === "most-sold-properties" || sortBy === "most-sold-properties-all-time" || sortBy === "buys-wholesale") && ranking != null && (
                           <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${ranking}`}>
                             {ranking}.
                           </span>
@@ -365,7 +368,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="flex flex-col items-end gap-1">
-                          {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && listCompany.propertyCount > 0 && (
+                          {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && sortBy !== "buys-wholesale" && listCompany.propertyCount > 0 && (
                             <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
                               {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
                             </div>
@@ -378,6 +381,11 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
                           {sortBy === "most-sold-properties-all-time" && (listCompany.propertiesSoldCountAllTime ?? 0) > 0 && (
                             <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
                               {listCompany.propertiesSoldCountAllTime} sold
+                            </div>
+                          )}
+                          {sortBy === "buys-wholesale" && (listCompany.wholesaleBuyCount ?? 0) > 0 && (
+                            <div className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-wholesale-buy-count">
+                              {listCompany.wholesaleBuyCount} wholesale
                             </div>
                           )}
                           {listCompany.isFinancedByARV && (

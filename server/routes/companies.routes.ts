@@ -52,6 +52,7 @@ const CONTACTS_SORT_OPTIONS = [
     "most-sold-properties",
     "most-sold-properties-all-time",
     "new-buyers",
+    "buys-wholesale",
 ] as const;
 type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
 
@@ -187,11 +188,27 @@ router.get("/contacts", async (req, res) => {
                       )
                 : Promise.resolve([] as { buyerId: string | null; sellerId: string | null }[]);
 
-        const [propertyCountRows, soldCountRows, soldCountAllTimeRows, arvFinancedRows] = await Promise.all([
+        // Count properties with "wholesale" status where buyer_id = company id
+        const wholesaleBuyWhereParts: ReturnType<typeof sql>[] = [
+            sql`${statuses.name} = 'wholesale'`,
+        ];
+        if (canPaginateInDb && contactIds.length > 0) {
+            wholesaleBuyWhereParts.push(inArray(properties.buyerId, contactIds) as any);
+        }
+        const wholesaleBuyQuery = db
+            .select({ buyerId: properties.buyerId, count: sql<number>`count(*)::int` })
+            .from(properties)
+            .innerJoin(propertyStatuses, eq(properties.id, propertyStatuses.propertyId))
+            .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+            .where(and(...wholesaleBuyWhereParts))
+            .groupBy(properties.buyerId);
+
+        const [propertyCountRows, soldCountRows, soldCountAllTimeRows, arvFinancedRows, wholesaleBuyRows] = await Promise.all([
             propertyCountQuery,
             soldYtdQuery,
             soldAllTimeQuery,
             arvFinancedQuery,
+            wholesaleBuyQuery,
         ]);
 
         const propertyCountByBuyerId = new Map<string, number>();
@@ -207,6 +224,11 @@ router.get("/contacts", async (req, res) => {
             if (row.sellerId) soldCountAllTimeByCompanyId.set(row.sellerId, row.count);
         });
 
+        const wholesaleBuyCountByBuyerId = new Map<string, number>();
+        wholesaleBuyRows.forEach((row: { buyerId: string | null; count: number }) => {
+            if (row.buyerId) wholesaleBuyCountByBuyerId.set(row.buyerId, row.count);
+        });
+
         const arvFinancedCompanyIds = new Set<string>();
         (arvFinancedRows as { buyerId: string | null; sellerId: string | null }[]).forEach((row) => {
             if (row.buyerId) arvFinancedCompanyIds.add(row.buyerId);
@@ -217,15 +239,25 @@ router.get("/contacts", async (req, res) => {
             const propertyCount = propertyCountByBuyerId.get(contact.id) ?? 0;
             const propertiesSoldCount = soldCountByCompanyId.get(contact.id) ?? 0;
             const propertiesSoldCountAllTime = soldCountAllTimeByCompanyId.get(contact.id) ?? 0;
+            const wholesaleBuyCount = wholesaleBuyCountByBuyerId.get(contact.id) ?? 0;
             const isFinancedByARV = arvFinancedCompanyIds.has(contact.id);
             return {
                 ...contact,
                 propertyCount,
                 propertiesSoldCount,
                 propertiesSoldCountAllTime,
+                wholesaleBuyCount,
                 isFinancedByARV,
             };
         });
+
+        // For buys-wholesale, filter out companies with no wholesale purchases
+        if (sortOption === "buys-wholesale") {
+            const filtered = contactsWithCounts.filter((c) => c.wholesaleBuyCount > 0);
+            contactsWithCounts.length = 0;
+            contactsWithCounts.push(...filtered);
+            total = contactsWithCounts.length;
+        }
 
         let companiesPage: typeof contactsWithCounts;
         if (canPaginateInDb) {
@@ -241,6 +273,8 @@ router.get("/contacts", async (req, res) => {
                         return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
                     case "most-sold-properties-all-time":
                         return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
+                    case "buys-wholesale":
+                        return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);
                     default:
                         return 0;
                 }

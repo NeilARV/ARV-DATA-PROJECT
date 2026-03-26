@@ -6,6 +6,7 @@ export type CompanyContactWithCounts = Company & {
   propertyCount: number;
   propertiesSoldCount: number;
   propertiesSoldCountAllTime: number;
+  wholesaleBuyCount: number;
   isFinancedByARV: boolean;
 };
 
