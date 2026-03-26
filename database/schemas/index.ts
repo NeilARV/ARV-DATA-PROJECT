@@ -5,3 +5,4 @@ export * from "./properties.schema";
 export * from "./sync.schema";
 export * from "./relations.schema";
 export * from "./statuses.schema";
+export * from "./deals.schema";

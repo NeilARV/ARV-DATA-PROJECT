@@ -57,6 +57,7 @@ interface Deal {
   price: string | null;
   msaId: number;
   msaName: string | null;
+  type: "wholesale" | "agent" | null;
   userId: string;
   userEmail: string | null;
 }
@@ -121,6 +122,18 @@ function DealCard({
           <img src={imageUrl} alt={deal.address ?? ""} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <Handshake className="w-8 h-8 text-muted-foreground/30" />
+        )}
+        {deal.type && (
+          <span
+            className="absolute top-2 left-2 text-[11px] font-semibold px-2 py-0.5 rounded shadow-sm"
+            style={
+              deal.type === "wholesale"
+                ? { backgroundColor: "#9333EA", color: "#fff" }
+                : { backgroundColor: "#F97316", color: "#fff" }
+            }
+          >
+            {deal.type === "wholesale" ? "Wholesale" : "Agent"}
+          </span>
         )}
       </div>
 

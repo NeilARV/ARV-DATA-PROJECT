@@ -9,11 +9,14 @@ VALUES ('pro');
 -- msa_id references the msas table directly so the feed can be filtered by MSA without joining properties.
 -- Multiple posts of the same property are allowed — no uniqueness constraint on property_id.
 -- Scheduled job prunes rows WHERE created_at < NOW() - INTERVAL '30 days'.
+CREATE TYPE deal_type AS ENUM ('wholesale', 'agent');
+
 CREATE TABLE deals (
     id              BIGSERIAL     PRIMARY KEY,
     property_id     UUID          NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     user_id         UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     msa_id          INTEGER       NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
+    type            deal_type,
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 

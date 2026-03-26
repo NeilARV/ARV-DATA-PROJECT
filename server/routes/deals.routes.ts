@@ -80,6 +80,8 @@ router.get("/", async (req, res) => {
                 // MSA info
                 msaId:   deals.msaId,
                 msaName: msas.name,
+                // Deal type
+                type:    deals.type,
                 // Poster info
                 userId:        deals.userId,
                 userEmail:     users.email,
@@ -106,7 +108,9 @@ router.get("/", async (req, res) => {
 // POST /api/deals — run full consumer pipeline for a single address, then post a deal
 router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]), async (req, res) => {
     try {
-        const { address, city, state, zipCode, userId } = req.body;
+        const { address, city, state, zipCode, userId, dealType } = req.body;
+        const validDealTypes = ["wholesale", "agent"];
+        const resolvedDealType = validDealTypes.includes(dealType) ? dealType : null;
 
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!address || !city || !state || !zipCode || !userId) {
@@ -288,6 +292,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                 propertyId,
                 userId,
                 msaId: msaRow.id,
+                type: resolvedDealType,
             })
             .returning();
 

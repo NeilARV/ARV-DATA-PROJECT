@@ -10,6 +10,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,7 +38,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
 
   const form = useForm<ManualPropertyEntry>({
     resolver: zodResolver(manualPropertyEntrySchema),
-    defaultValues: { address: "", city: "", state: "", zipCode: "" },
+    defaultValues: { address: "", city: "", state: "", zipCode: "", dealType: null },
   });
 
   const postDeal = useMutation({
@@ -42,6 +49,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         state: data.state,
         zipCode: data.zipCode,
         userId: user?.id,
+        dealType: data.dealType,
       });
       return res.json();
     },
@@ -129,6 +137,32 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                 <FormControl>
                   <Input {...field} placeholder="92126" maxLength={5} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="dealType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Deal Type</FormLabel>
+                <Select
+                  value={field.value ?? "none"}
+                  onValueChange={(v) => field.onChange(v === "none" ? null : v)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="z-[10000]">
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="agent">Agent Deal</SelectItem>
+                    <SelectItem value="wholesale">Wholesale Deal</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
