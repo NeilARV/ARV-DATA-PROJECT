@@ -333,8 +333,9 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                 });
 
                 const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS
+                const isEmailOn = false;
 
-                if (template) {
+                if (template && isEmailOn) {
                     const { sent, failed } = await sendTemplateToUsers({
                     recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
                     templateAlias: template,
