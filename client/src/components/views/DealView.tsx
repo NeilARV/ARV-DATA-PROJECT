@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddDeal from "@/components/modals/AddDeal";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,11 +69,13 @@ function DealCard({
   canDelete,
   canRequestContact,
   onDelete,
+  onRequestContact,
 }: {
   deal: Deal;
   canDelete: boolean;
   canRequestContact: boolean;
   onDelete: () => void;
+  onRequestContact: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
@@ -154,7 +158,7 @@ function DealCard({
                 {canRequestContact && (
                   <DropdownMenuItem
                     className="gap-2 cursor-pointer"
-                    onSelect={() => console.log("Requesting Contact Info")}
+                    onSelect={onRequestContact}
                   >
                     <Phone className="h-4 w-4" />
                     Request Contact Info
@@ -213,6 +217,7 @@ export default function DealView() {
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
+  const [contactConfirm, setContactConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const { toast } = useToast();
   const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
@@ -252,6 +257,21 @@ export default function DealView() {
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to delete deal", variant: "destructive" });
       setDeleteConfirm(null);
+    },
+  });
+
+  const requestContact = useMutation({
+    mutationFn: async (dealId: number) => {
+      const res = await apiRequest("POST", "/api/contact", { dealId });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Request Sent", description: "Your contact info request has been sent." });
+      setContactConfirm(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "You must be logged in to request contact info", variant: "destructive" });
+      setContactConfirm(null);
     },
   });
 
@@ -313,6 +333,14 @@ export default function DealView() {
                 canDelete={canDelete}
                 canRequestContact={canRequestContact}
                 onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
+                onRequestContact={() =>
+                  setContactConfirm({
+                    dealId: deal.id,
+                    address: [formatAddress(deal.address), formatAddress(deal.city), deal.state, deal.zipCode]
+                      .filter(Boolean)
+                      .join(", ") || "this property",
+                  })
+                }
               />
             );
           })}
@@ -339,6 +367,22 @@ export default function DealView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AppDialog open={!!contactConfirm} onClose={() => setContactConfirm(null)} className="max-w-md">
+        <ConfirmationContent
+          onClose={() => setContactConfirm(null)}
+          onConfirm={() => contactConfirm && requestContact.mutate(contactConfirm.dealId)}
+          title="Request Contact Info"
+          description={
+            contactConfirm
+              ? `Are you sure you want to request contact information for ${contactConfirm.address}?`
+              : ""
+          }
+          confirmText="Request"
+          cancelText="Cancel"
+          isLoading={requestContact.isPending}
+        />
+      </AppDialog>
 
       <AddDeal open={showAddDeal} onClose={() => setShowAddDeal(false)} />
     </div>
