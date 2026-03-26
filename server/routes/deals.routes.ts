@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
-import { users, userRoles, roles, userRelationshipManagers } from "@database/schemas/users.schema";
+import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
 import { getTransactions } from "server/jobs/data_v2/processes/get-transactions";
@@ -14,14 +14,7 @@ import { cleanBeforeInsert } from "server/jobs/data_v2/processes/clean-before-in
 import { insertProperties } from "server/jobs/data_v2/processes/insert-properties";
 import { eq, desc, and, ilike, inArray } from "drizzle-orm";
 import { requireRole } from "server/middleware/requireRole";
-import {
-  sendEmailWithTemplate,
-  getDefaultFromEmail,
-} from "server/services/postmark/email.services";
-import {
-  listSenderSignatures,
-  findSignatureByEmail,
-} from "server/services/postmark/senders.services";
+import { sendTemplateToUsers } from "server/services/postmark/email.services";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -314,7 +307,6 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                 const subscribedUsers = await db
                     .select({
                         id: users.id,
-                        firstName: users.firstName,
                         email: users.email,
                     })
                     .from(users)
@@ -339,63 +331,17 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                     return true;
                 });
 
-                // Get each recipient's relationship manager email (for the From address)
-                const recipientIds = uniqueUsers.map((u) => u.id);
-                const rmRows = await db
-                    .select({
-                        recipientUserId: userRelationshipManagers.userId,
-                        rmEmail: users.email,
-                    })
-                    .from(userRelationshipManagers)
-                    .innerJoin(users, eq(userRelationshipManagers.relationshipManagerId, users.id))
-                    .where(inArray(userRelationshipManagers.userId, recipientIds));
+                const { sent, failed } = await sendTemplateToUsers({
+                    recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+                    templateAlias: "new-deal-v1",
+                    templateModelForRecipient: () => ({
+                        cta_url: "https://data.arvfinance.com/",
+                        county: `${county} County`,
+                    }),
+                    logPrefix: label,
+                });
 
-                const rmEmailByUserId = new Map<string, string>();
-                for (const row of rmRows) {
-                    if (!rmEmailByUserId.has(row.recipientUserId) && row.rmEmail) {
-                        rmEmailByUserId.set(row.recipientUserId, row.rmEmail);
-                    }
-                }
-
-                // Load Postmark sender signatures to verify confirmed senders
-                let confirmedSenders: Awaited<ReturnType<typeof listSenderSignatures>>["SenderSignatures"] = [];
-                try {
-                    if (process.env.POSTMARK_ACCOUNT_TOKEN) {
-                        const res = await listSenderSignatures(50, 0);
-                        confirmedSenders = res.SenderSignatures ?? [];
-                    }
-                } catch (err) {
-                    console.warn(`${label} Failed to fetch Postmark senders:`, err instanceof Error ? err.message : err);
-                }
-
-                let sentCount = 0;
-                for (const recipient of uniqueUsers) {
-                    let fromAddress = getDefaultFromEmail();
-                    const rmEmail = rmEmailByUserId.get(recipient.id);
-                    if (rmEmail) {
-                        const signature = findSignatureByEmail(confirmedSenders, rmEmail);
-                        if (signature && signature.Confirmed === true) {
-                            fromAddress = signature.EmailAddress;
-                        }
-                    }
-
-                    try {
-                        await sendEmailWithTemplate({
-                            From: fromAddress,
-                            To: recipient.email,
-                            TemplateAlias: "new-deal-v1",
-                            TemplateModel: {
-                                cta_url: "https://data.arvfinance.com/",
-                                county: `${county} County`,
-                            },
-                        });
-                        sentCount++;
-                    } catch (err) {
-                        console.error(`${label} Failed to send new-deal email to ${recipient.email}:`, err instanceof Error ? err.message : err);
-                    }
-                }
-
-                console.log(`${label} New-deal emails sent: ${sentCount}/${uniqueUsers.length} for msa=${msaName}`);
+                console.log(`${label} New-deal emails sent: ${sent}/${uniqueUsers.length} for msa=${msaName}${failed.length > 0 ? ` (failed: ${failed.join(", ")})` : ""}`);
             } catch (err) {
                 console.error(`${label} Error sending new-deal notification emails:`, err);
             }

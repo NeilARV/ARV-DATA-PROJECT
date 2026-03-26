@@ -2,13 +2,15 @@ import { Router } from "express";
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
 import { addresses } from "@database/schemas/properties.schema";
-import { users, userRelationshipManagers } from "@database/schemas/users.schema";
+import { users } from "@database/schemas/users.schema";
 import { eq } from "drizzle-orm";
 import {
-  sendEmailWithTemplate,
-  getDefaultFromEmail,
+  sendTemplateToUser,
+  getRmEmailsByUserIds,
 } from "server/services/postmark/email.services";
 import { formatAddress } from "@shared/utils/formatAddress";
+
+const DEFAULT_CONTACT_RECIPIENT = "justin@arvfinance.com";
 
 const router = Router();
 
@@ -70,31 +72,15 @@ router.post("/", async (req, res) => {
       .filter(Boolean)
       .join(", ");
 
-    // Get the relationship manager of the deal poster
-    const [rmRow] = await db
-      .select({ rmId: userRelationshipManagers.relationshipManagerId })
-      .from(userRelationshipManagers)
-      .where(eq(userRelationshipManagers.userId, deal.userId))
-      .limit(1);
+    // Resolve the deal poster's RM email as the recipient
+    const rmMap = await getRmEmailsByUserIds([deal.userId]);
+    const rmEmail = rmMap.get(deal.userId) ?? DEFAULT_CONTACT_RECIPIENT;
 
-    let rmEmail = "justin@arvfinance.com";
-    if (rmRow) {
-      const [rmUser] = await db
-        .select({ email: users.email })
-        .from(users)
-        .where(eq(users.id, rmRow.rmId))
-        .limit(1);
-      if (rmUser?.email) {
-        rmEmail = rmUser.email;
-      }
-    }
-
-    // Send the email via Postmark
-    await sendEmailWithTemplate({
-      From: getDefaultFromEmail(),
-      To: rmEmail,
-      TemplateAlias: "request-contact-v1",
-      TemplateModel: {
+    // Send the email via Postmark (From is default, To is the RM)
+    await sendTemplateToUser({
+      toEmail: rmEmail,
+      templateAlias: "request-contact-v1",
+      templateModel: {
         firstName: requestingUser.firstName,
         lastName: requestingUser.lastName,
         address: fullAddress,
