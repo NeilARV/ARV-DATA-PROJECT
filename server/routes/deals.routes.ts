@@ -323,8 +323,9 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                     return;
                 }
 
-                // Dedupe by user id
+                // Dedupe by user id and exclude the deal poster
                 const seen = new Set<string>();
+                seen.add(userId); // skip the user who posted the deal
                 const uniqueUsers = subscribedUsers.filter((u) => {
                     if (seen.has(u.id)) return false;
                     seen.add(u.id);
