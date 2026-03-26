@@ -10,6 +10,6 @@ export const deals = pgTable("deals", {
   propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
   userId:     uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   msaId:      integer("msa_id").notNull().references(() => msas.id, { onDelete: "restrict" }),
-  type:       dealTypeEnum("type"),
+  type:       dealTypeEnum("type").notNull(),
   createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

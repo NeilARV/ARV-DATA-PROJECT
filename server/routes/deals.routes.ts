@@ -110,7 +110,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
     try {
         const { address, city, state, zipCode, userId, dealType } = req.body;
         const validDealTypes = ["wholesale", "agent"];
-        const resolvedDealType = validDealTypes.includes(dealType) ? dealType : null;
+        const resolvedDealType = validDealTypes.includes(dealType) ? dealType : "agent";
 
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!address || !city || !state || !zipCode || !userId) {

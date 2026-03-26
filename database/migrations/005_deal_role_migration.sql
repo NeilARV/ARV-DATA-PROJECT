@@ -16,7 +16,7 @@ CREATE TABLE deals (
     property_id     UUID          NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     user_id         UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     msa_id          INTEGER       NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
-    type            deal_type,
+    type            deal_type     NOT NULL,
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 

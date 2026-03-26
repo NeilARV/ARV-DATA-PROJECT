@@ -38,7 +38,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
 
   const form = useForm<ManualPropertyEntry>({
     resolver: zodResolver(manualPropertyEntrySchema),
-    defaultValues: { address: "", city: "", state: "", zipCode: "", dealType: null },
+    defaultValues: { address: "", city: "", state: "", zipCode: "", dealType: "agent" },
   });
 
   const postDeal = useMutation({
@@ -149,16 +149,15 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
               <FormItem>
                 <FormLabel>Deal Type</FormLabel>
                 <Select
-                  value={field.value ?? "none"}
-                  onValueChange={(v) => field.onChange(v === "none" ? null : v)}
+                  value={field.value}
+                  onValueChange={field.onChange}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="None" />
+                      <SelectValue />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent className="z-[10000]">
-                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="agent">Agent Deal</SelectItem>
                     <SelectItem value="wholesale">Wholesale Deal</SelectItem>
                   </SelectContent>
