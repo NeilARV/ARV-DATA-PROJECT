@@ -279,7 +279,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{formatPhoneNumber(user.phone ?? "")}</TableCell>
-                        <TableCell className="align-top">
+                        <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {user.relationshipManagers?.length
                               ? user.relationshipManagers.map((rm) => (
@@ -356,7 +356,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {user.roles?.includes("pro") ? (
                               <Badge
