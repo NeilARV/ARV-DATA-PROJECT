@@ -294,8 +294,8 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
     }
 });
 
-// DELETE /api/deals/:id — pro can delete their own deals; admin/owner can delete any deal
-router.delete("/:id", requireRole(["pro", "admin", "owner"]), async (req, res) => {
+// DELETE /api/deals/:id — pro can delete their own deals; admin/owner/relationship-manager can delete any deal
+router.delete("/:id", requireRole(["pro", "relationship-manager", "admin", "owner"]), async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (isNaN(id)) {
@@ -313,7 +313,7 @@ router.delete("/:id", requireRole(["pro", "admin", "owner"]), async (req, res) =
             return res.status(404).json({ message: "Deal not found" });
         }
 
-        // Check if the caller is admin or owner — if not, enforce ownership
+        // Check if the caller is admin, owner, or relationship-manager — if not, enforce ownership
         const callerIsPrivileged = await db
             .select({ roleName: roles.name })
             .from(userRoles)
@@ -321,7 +321,7 @@ router.delete("/:id", requireRole(["pro", "admin", "owner"]), async (req, res) =
             .where(
                 and(
                     eq(userRoles.userId, req.session.userId!),
-                    inArray(roles.name, ["admin", "owner"])
+                    inArray(roles.name, ["admin", "owner", "relationship-manager"])
                 )
             )
             .limit(1);

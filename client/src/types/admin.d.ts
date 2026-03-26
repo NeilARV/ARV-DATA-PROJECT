@@ -66,4 +66,5 @@ export type RelationshipManager = {
 export type UsersTabProps = {
   isAdmin: boolean;
   canDeleteUser?: boolean;
+  canManageProRole?: boolean;
 }

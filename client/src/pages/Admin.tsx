@@ -49,6 +49,8 @@ export default function Admin() {
   const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
   /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
   const canManageRoles = isOwner || (roles ?? []).includes("admin");
+  /** RMs can manage the "pro" role on users (add/remove) but not access the full Roles tab. */
+  const canManageProRole = canManageRoles || (roles ?? []).includes("relationship-manager");
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {
@@ -174,7 +176,7 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} />
+          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} canManageProRole={canManageProRole} />
         </TabsContent>
 
         <TabsContent value="email-list">

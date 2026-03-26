@@ -61,6 +61,8 @@ export function useAuth() {
     !isAdminStatusLoading &&
     (isOwner || roles.includes("admin"));
 
+  const isRelationshipManager = isAuthenticated && !isAdminStatusLoading && roles.includes("relationship-manager");
+
   return {
     user: data?.user ?? null,
     isLoading,
@@ -71,6 +73,8 @@ export function useAuth() {
     isAdminOrOwner,
     /** True when current user has owner role (for role-management permissions). */
     isOwner,
+    /** True when current user has the relationship-manager role. */
+    isRelationshipManager,
     /** True when current user has the pro role (can post and delete own deals). */
     isPro: isAuthenticated && !isAdminStatusLoading && roles.includes("pro"),
     /** All roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "pro"). */

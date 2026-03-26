@@ -214,7 +214,8 @@ export default function DealView() {
   const [tab, setTab] = useState<Tab>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const { toast } = useToast();
-  const { user, isPro, isAdminOrOwner } = useAuth();
+  const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
+  const canManageDeals = isAdminOrOwner || isRelationshipManager;
   const { filters } = useFilters();
 
   const msaName = getMsaNameFromCounty(filters.county ?? "San Diego") ?? "San Diego-Chula Vista-Carlsbad, CA";
@@ -303,8 +304,8 @@ export default function DealView() {
         <div className="flex flex-col gap-4 max-w-3xl">
           {deals.map((deal) => {
             const isOwnerOfDeal = isPro && user?.id === deal.userId;
-            const canDelete = isAdminOrOwner || isOwnerOfDeal;
-            const canRequestContact = isAdminOrOwner || !isOwnerOfDeal;
+            const canDelete = canManageDeals || isOwnerOfDeal;
+            const canRequestContact = canManageDeals || !isOwnerOfDeal;
             return (
               <DealCard
                 key={deal.id}

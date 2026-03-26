@@ -50,7 +50,7 @@ function parseRoleApiError(error: unknown): string {
   return message;
 }
 
-export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabProps) {
+export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProRole = false }: UsersTabProps) {
   const { toast } = useToast();
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
@@ -361,10 +361,10 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                             {user.roles?.includes("pro") ? (
                               <Badge
                                 variant="secondary"
-                                className={canDeleteUser ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
+                                className={canManageProRole ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
                               >
                                 pro
-                                {canDeleteUser && (
+                                {canManageProRole && (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -386,7 +386,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                                   </Button>
                                 )}
                               </Badge>
-                            ) : canDeleteUser ? (
+                            ) : canManageProRole ? (
                               <Select
                                 value=""
                                 onValueChange={(value) => {
