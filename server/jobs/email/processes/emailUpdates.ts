@@ -1,20 +1,16 @@
 import { db } from "server/storage";
-import { users, userRelationshipManagers, emailWhitelist } from "@database/schemas/users.schema";
+import { users, emailWhitelist } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { emailSyncState } from "@database/schemas/sync.schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";
 import {
-  listSenderSignatures,
-  findSignatureByEmail,
-  type PostmarkSenderSignature,
-} from "server/services/postmark/senders.services";
-import {
-  sendEmailWithTemplate,
-  getDefaultFromEmail,
+  sendTemplateToUsers,
+  getRmEmailsByUserIds,
+  getRmEmailsByRmIds,
 } from "server/services/postmark/email.services";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
@@ -192,62 +188,14 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
 
     const recipientUserIds = uniqueUsers.map((u) => u.id);
 
-    // Each recipient can have 0 or 1 relationship manager. RM is a user; we need the RM's email to use as From.
-    // user_relationship_managers: (user_id = recipient, relationship_manager_id = RM user id). Join users to get RM email.
-    const relationshipManagerEmailByRecipientId = new Map<string, string>();
-    if (recipientUserIds.length > 0) {
-      const rmRows = await db
-        .select({
-          recipientUserId: userRelationshipManagers.userId,
-          rmEmail: users.email,
-        })
-        .from(userRelationshipManagers)
-        .innerJoin(users, eq(userRelationshipManagers.relationshipManagerId, users.id))
-        .where(inArray(userRelationshipManagers.userId, recipientUserIds));
-      for (const row of rmRows) {
-        if (!relationshipManagerEmailByRecipientId.has(row.recipientUserId) && row.rmEmail) {
-          relationshipManagerEmailByRecipientId.set(row.recipientUserId, row.rmEmail);
-        }
-      }
-      console.log(`[EMAIL ${msaName}]: Found ${relationshipManagerEmailByRecipientId.size} recipient(s) with a relationship manager`);
-    }
+    // Resolve RM emails for user recipients and whitelist recipients
+    const rmEmailByUserId = await getRmEmailsByUserIds(recipientUserIds);
+    console.log(`[EMAIL ${msaName}]: Found ${rmEmailByUserId.size} recipient(s) with a relationship manager`);
 
-    // For whitelist-only recipients, RM is stored on email_whitelist.relationship_manager_id; look up RM email by that user id.
     const whitelistRmIds = Array.from(
       new Set(whitelistOnly.map((w) => w.relationshipManagerId).filter((id): id is string => Boolean(id)))
     );
-    const relationshipManagerEmailByRmId = new Map<string, string>();
-    if (whitelistRmIds.length > 0) {
-      const rmUserRows = await db
-        .select({ id: users.id, email: users.email })
-        .from(users)
-        .where(inArray(users.id, whitelistRmIds));
-      for (const row of rmUserRows) {
-        if (row.email) relationshipManagerEmailByRmId.set(row.id, row.email);
-      }
-    }
-
-    // Postmark sender list: valid From = email in SenderSignatures with Confirmed === true. Fetch all pages.
-    let confirmedSenders: PostmarkSenderSignature[] = [];
-    try {
-      if (process.env.POSTMARK_ACCOUNT_TOKEN) {
-        const pageSize = 50;
-        let offset = 0;
-        let totalCount = 0;
-        do {
-          const res = await listSenderSignatures(pageSize, offset);
-          const page = res.SenderSignatures ?? [];
-          confirmedSenders = confirmedSenders.concat(page);
-          totalCount = res.TotalCount ?? 0;
-          offset += pageSize;
-        } while (offset < totalCount);
-      } else {
-        console.warn(`[EMAIL ${msaName}]: POSTMARK_ACCOUNT_TOKEN not set; all emails will use default From`);
-      }
-    } catch (err) {
-      console.warn(`[EMAIL ${msaName}]: Failed to fetch Postmark senders, using default From:`, err instanceof Error ? err.message : err);
-    }
-    console.log(`[EMAIL ${msaName}]: Postmark sender signatures loaded: ${confirmedSenders.length} (confirmed senders used for From)`);
+    const rmEmailByRmId = await getRmEmailsByRmIds(whitelistRmIds);
 
     const [syncState] = await db
       .select()
@@ -399,54 +347,38 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return;
     }
 
-    let sentCount = 0;
-    const failedRecipients: string[] = [];
-
-    
-    for (const recipient of recipients) {
-
-      let fromAddress = getDefaultFromEmail();
+    // Build recipient list with pre-resolved RM emails for sendTemplateToUsers
+    const firstNameByEmail = new Map<string, string>();
+    const emailRecipients = recipients.map((recipient) => {
       const rmEmail =
         recipient.source === "user"
-          ? relationshipManagerEmailByRecipientId.get(recipient.userId)
+          ? rmEmailByUserId.get(recipient.userId)
           : recipient.relationshipManagerId
-            ? relationshipManagerEmailByRmId.get(recipient.relationshipManagerId)
+            ? rmEmailByRmId.get(recipient.relationshipManagerId)
             : undefined;
-      if (rmEmail) {
-        const signature = findSignatureByEmail(confirmedSenders, rmEmail);
-        if (signature && signature.Confirmed === true) {
-          fromAddress = signature.EmailAddress;
-        }
-      }
-
-      const emailTemplate = {
-        From: fromAddress,
-        To: recipient.email,
-        TemplateAlias: `${process.env.POSTMARK_TEMPLATE_ALIAS}`,
-        TemplateModel: {
-          name: recipient.firstName,
-          city: city,
-          state: state,
-          property_count: propertiesForTemplate.length,
-          cta_url: "https://data.arvfinance.com/",
-          year: "2026",
-          company_name: "ARV Finance Inc.",
-          properties: propertiesForTemplate,
-        },
+      firstNameByEmail.set(recipient.email, recipient.firstName);
+      return {
+        email: recipient.email,
+        userId: recipient.source === "user" ? recipient.userId : undefined,
+        rmEmail,
       };
+    });
 
-      try {
-        await sendEmailWithTemplate(emailTemplate);
-        sentCount++;
-        console.log(`[EMAIL ${msaName}]: Sent to ${recipient.email} (${recipient.source})`);
-      } catch (err) {
-        failedRecipients.push(recipient.email);
-        console.error(
-          `[EMAIL ${msaName}]: Failed to send to ${recipient.email} (inactive/bounce/suppression) -`,
-          err instanceof Error ? err.message : err
-        );
-      }
-    }
+    const { sent: sentCount, failed: failedRecipients } = await sendTemplateToUsers({
+      recipients: emailRecipients,
+      templateAlias: `${process.env.POSTMARK_TEMPLATE_ALIAS}`,
+      templateModelForRecipient: (r) => ({
+        name: firstNameByEmail.get(r.email) ?? "there",
+        city,
+        state,
+        property_count: propertiesForTemplate.length,
+        cta_url: "https://data.arvfinance.com/",
+        year: "2026",
+        company_name: "ARV Finance Inc.",
+        properties: propertiesForTemplate,
+      }),
+      logPrefix: `[EMAIL ${msaName}]`,
+    });
 
     if (failedRecipients.length > 0) {
       console.warn(

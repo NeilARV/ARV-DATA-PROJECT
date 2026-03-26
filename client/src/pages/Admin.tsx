@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import UploadDialog from "@/components/modals/UploadDialog";
+import AppDialog from "@/components/modals/Dialog";
+import UploadContent from "@/components/modals/Upload";
 // import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
 import EmailListTab from "@/components/admin/EmailListTab";
@@ -38,7 +39,7 @@ export default function Admin() {
     isAuthenticated: isUserAuthenticated,
     isAdmin,
     isOwner,
-    adminRoles,
+    roles,
     isAdminStatusLoading,
   } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -47,7 +48,9 @@ export default function Admin() {
   const isVerifying = isLoadingUser || isAdminStatusLoading;
   const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
   /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
-  const canManageRoles = isOwner || (adminRoles ?? []).includes("admin");
+  const canManageRoles = isOwner || (roles ?? []).includes("admin");
+  /** RMs can manage the "pro" role on users (add/remove) but not access the full Roles tab. */
+  const canManageProRole = canManageRoles || (roles ?? []).includes("relationship-manager");
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {
@@ -173,7 +176,7 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} />
+          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} canManageProRole={canManageProRole} />
         </TabsContent>
 
         <TabsContent value="email-list">
@@ -187,18 +190,25 @@ export default function Admin() {
         )}
       </Tabs>
 
-      <UploadDialog
+      <AppDialog
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ 
-            predicate: (query) => {
-              const key = query.queryKey[0];
-              return typeof key === 'string' && key.startsWith('/api/properties');
-            }
-          });
-        }}
-      />
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {uploadDialogOpen && (
+          <UploadContent
+            onClose={() => setUploadDialogOpen(false)}
+            onSuccess={() => {
+              queryClient.invalidateQueries({
+                predicate: (query) => {
+                  const key = query.queryKey[0];
+                  return typeof key === "string" && key.startsWith("/api/properties");
+                },
+              });
+            }}
+          />
+        )}
+      </AppDialog>
     </div>
   );
 }

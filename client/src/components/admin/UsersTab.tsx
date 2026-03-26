@@ -27,7 +27,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Trash2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { AdminUser, RelationshipManager, UsersTabProps } from "@/types/admin";
 
@@ -49,7 +50,7 @@ function parseRoleApiError(error: unknown): string {
   return message;
 }
 
-export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabProps) {
+export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProRole = false }: UsersTabProps) {
   const { toast } = useToast();
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
@@ -63,6 +64,13 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
   const [deleteUserConfirm, setDeleteUserConfirm] = useState<{
     userId: string;
     userName: string;
+  } | null>(null);
+  const [roleConfirm, setRoleConfirm] = useState<{
+    open: boolean;
+    userId: string;
+    userName: string;
+    roleName: string;
+    action: "assign" | "remove";
   } | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
@@ -150,6 +158,56 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
     },
   });
 
+  const assignRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/roles`, { roleName });
+      return res.json();
+    },
+    onSuccess: (_, { roleName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
+      toast({ title: "Role assigned", description: `Role "${roleName}" has been assigned.` });
+      setRoleConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
+      const encodedRole = encodeURIComponent(roleName);
+      const res = await apiRequest("DELETE", `/api/users/${userId}/roles/${encodedRole}`);
+      return res.json();
+    },
+    onSuccess: (_, { roleName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
+      toast({ title: "Role removed", description: `Role "${roleName}" has been removed.` });
+      setRoleConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description: parseRoleApiError(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRoleConfirm = () => {
+    if (!roleConfirm) return;
+    if (roleConfirm.action === "assign") {
+      assignRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
+    } else {
+      removeRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
+    }
+  };
+
+  const isRoleMutationPending = assignRoleMutation.isPending || removeRoleMutation.isPending;
+
   const handleManagerConfirm = () => {
     if (!managerConfirm) return;
     if (managerConfirm.action === "assign") {
@@ -204,6 +262,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Relationship Manager</TableHead>
+                      <TableHead className="w-[140px]">Role</TableHead>
                       {canDeleteUser && (
                         <TableHead className="w-[80px] text-right">Actions</TableHead>
                       )}
@@ -297,6 +356,68 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                             )}
                           </div>
                         </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {user.roles?.includes("pro") ? (
+                              <Badge
+                                variant="secondary"
+                                className={canManageProRole ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
+                              >
+                                pro
+                                {canManageProRole && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
+                                    aria-label="Remove pro role"
+                                    disabled={isRoleMutationPending}
+                                    onClick={() =>
+                                      setRoleConfirm({
+                                        open: true,
+                                        userId: user.id,
+                                        userName: `${user.firstName} ${user.lastName}`,
+                                        roleName: "pro",
+                                        action: "remove",
+                                      })
+                                    }
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </Badge>
+                            ) : canManageProRole ? (
+                              <Select
+                                value=""
+                                onValueChange={(value) => {
+                                  if (!value) return;
+                                  setRoleConfirm({
+                                    open: true,
+                                    userId: user.id,
+                                    userName: `${user.firstName} ${user.lastName}`,
+                                    roleName: "pro",
+                                    action: "assign",
+                                  });
+                                }}
+                                disabled={isRoleMutationPending}
+                              >
+                                <SelectTrigger
+                                  className="h-7 w-[120px] border-dashed"
+                                  data-testid={`select-add-role-${user.id}`}
+                                >
+                                  <SelectValue placeholder="Add role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pro" hideIndicator data-testid="option-role-pro">
+                                    pro
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </div>
+                        </TableCell>
                         {canDeleteUser && (
                           <TableCell className="text-right">
                             <Button
@@ -327,43 +448,64 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
           </div>
         )}
 
-        <ConfirmationDialog
-          open={managerConfirm?.open ?? false}
-          onClose={() => setManagerConfirm(null)}
-          onConfirm={handleManagerConfirm}
-          title={
-            managerConfirm?.action === "assign"
-              ? "Assign relationship manager"
-              : "Remove relationship manager"
-          }
-          description={
-            managerConfirm
-              ? managerConfirm.action === "assign"
-                ? `Assign ${managerConfirm.managerName} as relationship manager for ${managerConfirm.userName}?`
-                : `Remove ${managerConfirm.managerName} as relationship manager from ${managerConfirm.userName}?`
-              : ""
-          }
-          confirmText={managerConfirm?.action === "assign" ? "Assign" : "Remove"}
-          cancelText="Cancel"
-          variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
-          isLoading={isManagerMutationPending}
-        />
+        <AppDialog open={managerConfirm?.open ?? false} onClose={() => setManagerConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setManagerConfirm(null)}
+            onConfirm={handleManagerConfirm}
+            title={
+              managerConfirm?.action === "assign"
+                ? "Assign relationship manager"
+                : "Remove relationship manager"
+            }
+            description={
+              managerConfirm
+                ? managerConfirm.action === "assign"
+                  ? `Assign ${managerConfirm.managerName} as relationship manager for ${managerConfirm.userName}?`
+                  : `Remove ${managerConfirm.managerName} as relationship manager from ${managerConfirm.userName}?`
+                : ""
+            }
+            confirmText={managerConfirm?.action === "assign" ? "Assign" : "Remove"}
+            cancelText="Cancel"
+            variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
+            isLoading={isManagerMutationPending}
+          />
+        </AppDialog>
 
-        <ConfirmationDialog
-          open={!!deleteUserConfirm}
-          onClose={() => setDeleteUserConfirm(null)}
-          onConfirm={handleDeleteUserConfirm}
-          title="Delete user"
-          description={
-            deleteUserConfirm
-              ? `Delete "${deleteUserConfirm.userName}"? This will permanently remove their account and cannot be undone.`
-              : ""
-          }
-          confirmText="Delete"
-          cancelText="Cancel"
-          variant="destructive"
-          isLoading={deleteUserMutation.isPending}
-        />
+        <AppDialog open={roleConfirm?.open ?? false} onClose={() => setRoleConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setRoleConfirm(null)}
+            onConfirm={handleRoleConfirm}
+            title={roleConfirm?.action === "assign" ? "Assign role" : "Remove role"}
+            description={
+              roleConfirm
+                ? roleConfirm.action === "assign"
+                  ? `Assign the role "${roleConfirm.roleName}" to ${roleConfirm.userName}?`
+                  : `Remove the role "${roleConfirm.roleName}" from ${roleConfirm.userName}?`
+                : ""
+            }
+            confirmText={roleConfirm?.action === "assign" ? "Assign" : "Remove"}
+            cancelText="Cancel"
+            variant={roleConfirm?.action === "remove" ? "destructive" : "default"}
+            isLoading={isRoleMutationPending}
+          />
+        </AppDialog>
+
+        <AppDialog open={!!deleteUserConfirm} onClose={() => setDeleteUserConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setDeleteUserConfirm(null)}
+            onConfirm={handleDeleteUserConfirm}
+            title="Delete user"
+            description={
+              deleteUserConfirm
+                ? `Delete "${deleteUserConfirm.userName}"? This will permanently remove their account and cannot be undone.`
+                : ""
+            }
+            confirmText="Delete"
+            cancelText="Cancel"
+            variant="destructive"
+            isLoading={deleteUserMutation.isPending}
+          />
+        </AppDialog>
       </CardContent>
     </Card>
   );

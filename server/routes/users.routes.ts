@@ -15,22 +15,26 @@ const router = Router();
 
 /** Role names that each caller role is allowed to assign or remove. Owner cannot be assigned/removed via API. */
 const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
-  owner: ["admin", "relationship-manager"],
-  admin: ["relationship-manager"],
+  owner: ["admin", "relationship-manager", "pro"],
+  admin: ["relationship-manager", "pro"],
+  "relationship-manager": ["pro"],
 };
-const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager"] as const;
+const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager", "pro"] as const;
 
 /** Hierarchy: higher number = more privilege. Used to block altering users with equal or higher privilege. */
 const ROLE_HIERARCHY: Record<string, number> = {
-  owner: 3,
-  admin: 2,
-  "relationship-manager": 1,
+  owner: 4,
+  admin: 3,
+  "relationship-manager": 2,
+  pro: 1,
 };
 
 function getAllowedRolesForCaller(callerRoleRows: { roleName: string }[]): string[] {
   const names = callerRoleRows.map((r) => r.roleName);
-  const isOwner = names.includes("owner");
-  return isOwner ? ASSIGNABLE_BY_CALLER.owner : ASSIGNABLE_BY_CALLER.admin;
+  if (names.includes("owner")) return ASSIGNABLE_BY_CALLER.owner;
+  if (names.includes("admin")) return ASSIGNABLE_BY_CALLER.admin;
+  if (names.includes("relationship-manager")) return ASSIGNABLE_BY_CALLER["relationship-manager"];
+  return [];
 }
 
 function getCallerLevel(callerRoleRows: { roleName: string }[]): number {
@@ -277,8 +281,8 @@ router.get("/roles", requireRole(["admin", "owner"]), async (_req, res) => {
     }
 });
 
-// Admin/Owner: Assign a role to a user (owner can assign admin | relationship-manager; admin can assign relationship-manager only)
-router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) => {
+// Admin/Owner/RM: Assign a role to a user (owner can assign admin|rm|pro; admin can assign rm|pro; rm can assign pro)
+router.post("/:userId/roles", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const { userId } = req.params;
         const roleName = typeof req.body?.roleName === "string" ? req.body.roleName.trim().toLowerCase() : null;
@@ -289,6 +293,7 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
                 allowed: VALID_ROLE_NAMES.filter((r) => r !== "owner"),
             });
         }
+        
         if (roleName === "owner") {
             return res.status(403).json({ message: "Assigning owner role is not allowed via API" });
         }
@@ -300,7 +305,7 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
             .where(
                 and(
                     eq(userRoles.userId, req.session.userId!),
-                    inArray(roles.name, ["owner", "admin"])
+                    inArray(roles.name, ["owner", "admin", "relationship-manager"])
                 )
             );
         const allowedToAssign = getAllowedRolesForCaller(callerRoleRows);
@@ -388,8 +393,8 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), async (req, res) 
     }
 });
 
-// Admin/Owner: Remove a role from a user (owner can remove admin | relationship-manager; admin can remove relationship-manager only)
-router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), async (req, res) => {
+// Admin/Owner/RM: Remove a role from a user (owner can remove admin|rm|pro; admin can remove rm|pro; rm can remove pro)
+router.delete("/:userId/roles/:role", requireRole(["admin", "owner", "relationship-manager"]), async (req, res) => {
     try {
         const { userId, role: roleParam } = req.params;
         const roleName = roleParam?.trim().toLowerCase() ?? "";
@@ -416,7 +421,7 @@ router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), async (re
             .where(
                 and(
                     eq(userRoles.userId, req.session.userId!),
-                    inArray(roles.name, ["owner", "admin"])
+                    inArray(roles.name, ["owner", "admin", "relationship-manager"])
                 )
             );
         const allowedToRemove = getAllowedRolesForCaller(callerRoleRows);

@@ -31,7 +31,8 @@ import { Loader2, Mail, Plus, Trash2, X } from "lucide-react";
 import { MSA } from "@/constants/filters.constants";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import ConfirmationDialog from "@/components/modals/ConfirmationDialog";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 import type { WhitelistEntry, RelationshipManager, EmailListTabProps } from "@/types/admin";
 
 function parseApiError(error: unknown): string {
@@ -523,77 +524,81 @@ export default function EmailListTab({ isAdmin }: EmailListTabProps) {
           </div>
         )}
 
-        <ConfirmationDialog
-          open={!!deleteConfirm}
-          onClose={() => setDeleteConfirm(null)}
-          onConfirm={handleConfirmDelete}
-          title="Remove from whitelist"
-          description={
-            deleteConfirm
-              ? `Remove "${deleteConfirm.email}" from the whitelist? This email will no longer be able to register.`
-              : ""
-          }
-          confirmText="Remove"
-          cancelText="Cancel"
-          variant="destructive"
-          isLoading={deleteMutation.isPending}
-        />
+        <AppDialog open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setDeleteConfirm(null)}
+            onConfirm={handleConfirmDelete}
+            title="Remove from whitelist"
+            description={
+              deleteConfirm
+                ? `Remove "${deleteConfirm.email}" from the whitelist? This email will no longer be able to register.`
+                : ""
+            }
+            confirmText="Remove"
+            cancelText="Cancel"
+            variant="destructive"
+            isLoading={deleteMutation.isPending}
+          />
+        </AppDialog>
 
-        <ConfirmationDialog
-          open={!!removeRmConfirm}
-          onClose={() => setRemoveRmConfirm(null)}
-          onConfirm={handleConfirmRemoveRm}
-          title="Remove relationship manager"
-          description={
-            removeRmConfirm
-              ? `Remove ${removeRmConfirm.managerName} from "${removeRmConfirm.email}"? This whitelist entry will have no relationship manager.`
-              : ""
-          }
-          confirmText="Remove"
-          cancelText="Cancel"
-          variant="destructive"
-          isLoading={updateWhitelistMutation.isPending}
-        />
+        <AppDialog open={!!removeRmConfirm} onClose={() => setRemoveRmConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setRemoveRmConfirm(null)}
+            onConfirm={handleConfirmRemoveRm}
+            title="Remove relationship manager"
+            description={
+              removeRmConfirm
+                ? `Remove ${removeRmConfirm.managerName} from "${removeRmConfirm.email}"? This whitelist entry will have no relationship manager.`
+                : ""
+            }
+            confirmText="Remove"
+            cancelText="Cancel"
+            variant="destructive"
+            isLoading={updateWhitelistMutation.isPending}
+          />
+        </AppDialog>
 
-        <ConfirmationDialog
-          open={!!addRmConfirm}
-          onClose={() => setAddRmConfirm(null)}
-          onConfirm={handleConfirmAddRm}
-          title="Add relationship manager"
-          description={
-            addRmConfirm
-              ? `Add ${addRmConfirm.managerName} as relationship manager for "${addRmConfirm.email}"?`
-              : ""
-          }
-          confirmText="Add"
-          cancelText="Cancel"
-          variant="default"
-          isLoading={updateWhitelistMutation.isPending}
-        />
+        <AppDialog open={!!addRmConfirm} onClose={() => setAddRmConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setAddRmConfirm(null)}
+            onConfirm={handleConfirmAddRm}
+            title="Add relationship manager"
+            description={
+              addRmConfirm
+                ? `Add ${addRmConfirm.managerName} as relationship manager for "${addRmConfirm.email}"?`
+                : ""
+            }
+            confirmText="Add"
+            cancelText="Cancel"
+            variant="default"
+            isLoading={updateWhitelistMutation.isPending}
+          />
+        </AppDialog>
 
-        <ConfirmationDialog
-          open={!!editConfirm}
-          onClose={() => setEditConfirm(null)}
-          onConfirm={handleConfirmEdit}
-          title="Update whitelist entry"
-          description={
-            editConfirm
-              ? (() => {
-                  const rmId = editConfirm.relationshipManagerId;
-                  const rm =
-                    rmId === null
-                      ? null
-                      : relationshipManagers.find((r) => r.id === rmId);
-                  const rmLabel = rm ? `${rm.first_name} ${rm.last_name}` : "None";
-                  return `Update "${editConfirm.email}"? MSA subscription will be set to "${editConfirm.msaName}" and relationship manager to "${rmLabel}".`;
-                })()
-              : ""
-          }
-          confirmText="Update"
-          cancelText="Cancel"
-          variant="default"
-          isLoading={updateWhitelistMutation.isPending}
-        />
+        <AppDialog open={!!editConfirm} onClose={() => setEditConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setEditConfirm(null)}
+            onConfirm={handleConfirmEdit}
+            title="Update whitelist entry"
+            description={
+              editConfirm
+                ? (() => {
+                    const rmId = editConfirm.relationshipManagerId;
+                    const rm =
+                      rmId === null
+                        ? null
+                        : relationshipManagers.find((r) => r.id === rmId);
+                    const rmLabel = rm ? `${rm.first_name} ${rm.last_name}` : "None";
+                    return `Update "${editConfirm.email}"? MSA subscription will be set to "${editConfirm.msaName}" and relationship manager to "${rmLabel}".`;
+                  })()
+                : ""
+            }
+            confirmText="Update"
+            cancelText="Cancel"
+            variant="default"
+            isLoading={updateWhitelistMutation.isPending}
+          />
+        </AppDialog>
       </CardContent>
     </Card>
   );

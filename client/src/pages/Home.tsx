@@ -5,12 +5,14 @@ import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyMap from "@/components/property/PropertyMap";
 import GridView from "@/components/views/GridView";
 import TableView from "@/components/views/TableView";
+import DealView from "@/components/views/DealView";
 import PropertyDetailPanel from "@/components/property/PropertyDetailPanel";
-import PropertyDetailModal from "@/components/property/PropertyDetailModal";
-import SignupDialog from "@/components/modals/SignupDialog";
-import LoginDialog from "@/components/modals/LoginDialog";
-import LeaderboardDialog from "@/components/modals/LeaderboardDialog";
-import InfoModal from "@/components/modals/InfoModal";
+import PropertyModalContent from "@/components/property/PropertyModal";
+import AppDialog from "@/components/modals/Dialog";
+import LoginContent from "@/components/modals/Login";
+import SignupContent from "@/components/modals/Signup";
+import LeaderboardContent from "@/components/modals/Leaderboard";
+import InfoContent from "@/components/modals/Info";
 import { Button } from "@/components/ui/button";
 import { Filter, Building2 } from "lucide-react";
 import { useDialogs } from "@/hooks/useDialogs";
@@ -21,15 +23,23 @@ import { ViewProvider, useView } from "@/hooks/useView";
 import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
-import { PropertyProvider } from "@/hooks/useProperty";
+import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 
 function HomeContent() {
   const { filters } = useFilters();
   const { view, sidebarView, setSidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
-  const { signupDialogProps, loginDialogProps, leaderboardDialogProps, rmDialogProps, headerDialogHandlers } = useDialogs();
+  const { dialog, openDialog, closeDialog, isForced, headerDialogHandlers } = useDialogs();
   const { user } = useAuth();
+  const { property, setProperty } = useProperty();
+
+  // Open the property modal whenever a property is selected in table view
+  useEffect(() => {
+    if (property !== null && view === "table") {
+      openDialog({ type: "property" });
+    }
+  }, [property, view]);
 
   // Load companies when directory is open (with county filter). Skip when user just clicked a company
   // (e.g. wholesaler in grid, or company in property panel/modal) so that company can be shown via ensuredCompany.
@@ -61,7 +71,7 @@ function HomeContent() {
         onLoginClick={headerDialogHandlers.onLoginClick}
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
-        onRMClick={headerDialogHandlers.onRMClick}
+        onDealsClick={headerDialogHandlers.onDealsClick}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -105,7 +115,9 @@ function HomeContent() {
           )}
 
           <div className="flex-1 overflow-hidden flex">
-            {view === "map" ? (
+            {view === "deals" ? (
+              <DealView />
+            ) : view === "map" ? (
               <>
                 <PropertyDetailPanel/>
                 <div className="flex-1">
@@ -132,16 +144,43 @@ function HomeContent() {
         </div>
       </div>
 
-      {view === "table" && (
-        <PropertyDetailModal/>
-      )}
-
-      <SignupDialog {...signupDialogProps} />
-      <LoginDialog {...loginDialogProps} />
-      <LeaderboardDialog {...leaderboardDialogProps}/>
-      {user?.relationshipManager && (
-        <InfoModal {...rmDialogProps} relationshipManager={user.relationshipManager} />
-      )}
+      <AppDialog
+        open={dialog !== null}
+        onClose={() => {
+          if (dialog?.type === "property") setProperty(null);
+          closeDialog();
+        }}
+        forced={isForced}
+        className={
+          dialog?.type === "leaderboard"
+            ? "max-w-3xl max-h-[80vh] overflow-y-auto"
+            : dialog?.type === "property"
+            ? "max-w-2xl max-h-[90vh] overflow-y-auto"
+            : dialog?.type === "deals"
+            ? "max-w-lg max-h-[85vh] !flex flex-col [&>button]:hidden"
+            : dialog?.type === "info"
+            ? "max-w-sm"
+            : "sm:max-w-md"
+        }
+      >
+        {dialog?.type === "login" && (
+          <LoginContent
+            onSuccess={closeDialog}
+            onSwitchToSignup={() => openDialog({ type: "signup", forced: false })}
+          />
+        )}
+        {dialog?.type === "signup" && (
+          <SignupContent
+            onSuccess={closeDialog}
+            onSwitchToLogin={() => openDialog({ type: "login", forced: false })}
+          />
+        )}
+        {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
+        {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
+        {dialog?.type === "property" && (
+          <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
+        )}
+      </AppDialog>
 
     </div>
   );

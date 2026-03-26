@@ -15,6 +15,8 @@ import {
   Menu,
   User,
   DollarSign,
+  Handshake,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -40,7 +42,7 @@ export default function Header({
   onLoginClick,
   onSignupClick,
   onLeaderboardClick,
-  onRMClick,
+  onDealsClick,
   county,
 }: HeaderProps) {
 
@@ -63,9 +65,11 @@ export default function Header({
   const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { toast } = useToast();
@@ -143,6 +147,18 @@ export default function Header({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    if (showMoreMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showMoreMenu]);
 
   const toggleTheme = () => {
     const newIsDark = !isDark;
@@ -261,7 +277,7 @@ export default function Header({
           <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
         </button>
 
-        <form onSubmit={handleSearch} className="flex-1 max-w-md min-w-0">
+        <form onSubmit={handleSearch} className="flex-1 max-w-[350px] min-w-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -322,26 +338,89 @@ export default function Header({
         <div className="flex items-center gap-3 flex-shrink-0">
 
             
-          <Button
-            variant={view === "buyers-feed" ? "default" : "outline"}
-            size="sm"
-            onClick={onBuyersFeedClick}
-            data-testid="button-buyers-feed"
-          >
-            <Users className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Buyers Feed</span>
-          </Button>
+          <div className="flex items-center border border-border rounded-md">
+            <Button
+              variant={view === "buyers-feed" ? "default" : "ghost"}
+              size="sm"
+              onClick={onBuyersFeedClick}
+              className="rounded-r-none"
+              data-testid="button-buyers-feed"
+            >
+              <Users className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Buyers Feed</span>
+            </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
+            <Button
+              variant={view === "wholesale" ? "default" : "ghost"}
+              size="sm"
+              onClick={onWholesaleClick}
+              className="rounded-none"
+              data-testid="button-wholesale"
+            >
+              <DollarSign className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Wholesale</span>
+            </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
+            <Button
+              variant={view === "map" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => {
+                setView("map");
+                const county = filters?.county ?? "San Diego";
+                const center = getCountyCenter(county) ?? getDefaultMapCenter();
+                setMapCenter(center);
+                setMapZoom(MAP_ZOOM_COUNTY);
+              }}
+              className="rounded-none"
+              data-testid="button-view-map"
+            >
+              <Map className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Map</span>
+            </Button>
+            <span className="w-px h-5 bg-border shrink-0" />
+            <div className="relative" ref={moreMenuRef}>
+              <Button
+                variant={view === "grid" || view === "table" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-l-none gap-1"
+                data-testid="button-view-more"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+              >
+                {view === "grid" ? (
+                  <Grid3x3 className="w-4 h-4 mr-1" />
+                ) : view === "table" ? (
+                  <Table2 className="w-4 h-4 mr-1" />
+                ) : null}
+                <span className="hidden sm:inline">
+                  {view === "grid" ? "Grid" : view === "table" ? "Table" : "More"}
+                </span>
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+              {showMoreMenu && (
+                <div className="absolute right-0 mt-2 w-36 bg-background border border-border rounded-md shadow-lg z-[502]">
+                  <div className="py-1">
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                      data-testid="button-view-grid"
+                      onClick={() => { setView("grid"); setShowMoreMenu(false); }}
+                    >
+                      <Grid3x3 className="w-4 h-4" />
+                      Grid
+                    </button>
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                      data-testid="button-view-table"
+                      onClick={() => { onTableViewClick(); setShowMoreMenu(false); }}
+                    >
+                      <Table2 className="w-4 h-4" />
+                      Table
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
-          <Button
-            variant={view === "wholesale" ? "default" : "outline"}
-            size="sm"
-            onClick={onWholesaleClick}
-            data-testid="button-wholesale"
-          >
-            <DollarSign className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Wholesale</span>
-          </Button>
-          
           <Button
             variant="outline"
             size="sm"
@@ -352,62 +431,15 @@ export default function Header({
             <span className="hidden sm:inline">Leaderboard</span>
           </Button>
 
-          <div className="flex items-center border border-border rounded-md">
-            <Button
-              variant={view === "map" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => {
-                setView("map");
-                // Center map on currently selected county so switching from grid respects filter
-                const county = filters?.county ?? "San Diego";
-                const center = getCountyCenter(county) ?? getDefaultMapCenter();
-                setMapCenter(center);
-                setMapZoom(MAP_ZOOM_COUNTY);
-              }}
-              className="rounded-r-none border-r"
-              data-testid="button-view-map"
-            >
-              <Map className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Map</span>
-            </Button>
-            <Button
-              variant={view === "grid" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("grid")}
-              className="rounded-none border-r"
-              data-testid="button-view-grid"
-            >
-              <Grid3x3 className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Grid</span>
-            </Button>
-            <Button
-              variant={view === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={onTableViewClick}
-              className="rounded-l-none"
-              data-testid="button-view-table"
-            >
-              <Table2 className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Table</span>
-            </Button>
-          </div>
-
-          {user?.relationshipManager && onRMClick && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRMClick}
-              className="flex items-center gap-2"
-              data-testid="button-rm"
-            >
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <span className="hidden sm:inline text-sm">
-                {user.relationshipManager.firstName} {user.relationshipManager.lastName}
-              </span>
-            </Button>
-          )}
+          <Button
+            variant={view === "deals" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setView("deals")}
+            data-testid="button-deals"
+          >
+            <Handshake className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Deals</span>
+          </Button>
         </div>
       </div>
 

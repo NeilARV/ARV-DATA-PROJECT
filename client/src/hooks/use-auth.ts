@@ -53,13 +53,15 @@ export function useAuth() {
     },
   });
 
-  const adminRoles = adminStatus?.roles ?? [];
-  const isOwner = adminRoles.includes("owner");
+  const roles = adminStatus?.roles ?? [];
+  const isOwner = roles.includes("owner");
   /** True when user has owner or admin only (delete property, edit company, etc.). Not relationship-manager. */
   const isAdminOrOwner =
     isAuthenticated &&
     !isAdminStatusLoading &&
-    (isOwner || adminRoles.includes("admin"));
+    (isOwner || roles.includes("admin"));
+
+  const isRelationshipManager = isAuthenticated && !isAdminStatusLoading && roles.includes("relationship-manager");
 
   return {
     user: data?.user ?? null,
@@ -71,8 +73,12 @@ export function useAuth() {
     isAdminOrOwner,
     /** True when current user has owner role (for role-management permissions). */
     isOwner,
-    /** Current user's admin-level roles: ["owner"], ["admin"], or ["owner","admin"] */
-    adminRoles,
+    /** True when current user has the relationship-manager role. */
+    isRelationshipManager,
+    /** True when current user has the pro role (can post and delete own deals). */
+    isPro: isAuthenticated && !isAdminStatusLoading && roles.includes("pro"),
+    /** All roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "pro"). */
+    roles,
     isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
