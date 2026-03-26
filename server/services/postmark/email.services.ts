@@ -8,7 +8,7 @@ import {
   type PostmarkSenderSignature,
 } from "./senders.services";
 
-const DEFAULT_FROM_EMAIL = "neil@arvfinance.com";
+const FROM_EMAIL = process.env.DEFAULT_FROM_EMAIL || "neil@arvfinance.com"
 
 function getServerKey(): string {
   const key = process.env.POSTMARK_SERVER_API_KEY;
@@ -28,7 +28,7 @@ export function getPostmarkClient(): ServerClient {
 
 // Default From address when the recipient has no relationship manager or their RM is not a confirmed Postmark sender
 export function getDefaultFromEmail(): string {
-  return DEFAULT_FROM_EMAIL;
+  return FROM_EMAIL;
 }
 
 export interface SendEmailWithTemplateParams {
@@ -130,10 +130,10 @@ export function resolveFromAddress(
   confirmedSenders: PostmarkSenderSignature[],
   rmEmail: string | undefined
 ): string {
-  if (!rmEmail) return DEFAULT_FROM_EMAIL;
+  if (!rmEmail) return FROM_EMAIL;
   const signature = findSignatureByEmail(confirmedSenders, rmEmail);
   if (signature && signature.Confirmed) return signature.EmailAddress;
-  return DEFAULT_FROM_EMAIL;
+  return FROM_EMAIL;
 }
 
 // ── High-level send helpers ────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ import {
 } from "server/services/postmark/email.services";
 import { formatAddress } from "@shared/utils/formatAddress";
 
-const DEFAULT_CONTACT_RECIPIENT = "justin@arvfinance.com";
+const DEFAULT_CONTACT = process.env.DEFAULT_CONTACT_RECIPIENT || "justin@arvfinance.com"
 
 const router = Router();
 
@@ -74,12 +74,18 @@ router.post("/", async (req, res) => {
 
     // Resolve the deal poster's RM email as the recipient
     const rmMap = await getRmEmailsByUserIds([deal.userId]);
-    const rmEmail = rmMap.get(deal.userId) ?? DEFAULT_CONTACT_RECIPIENT;
+    const rmEmail = rmMap.get(deal.userId) ?? DEFAULT_CONTACT;
+
+    const template = process.env.POSTMARK_REQUEST_CONTACT_TEMPLATE_ALIAS;
+
+    if (!template) {
+      return res.status(500).json({ message: "Error sending contact request" });
+    }
 
     // Send the email via Postmark (From is default, To is the RM)
     await sendTemplateToUser({
       toEmail: rmEmail,
-      templateAlias: "request-contact-v1",
+      templateAlias: template,
       templateModel: {
         firstName: requestingUser.firstName,
         lastName: requestingUser.lastName,

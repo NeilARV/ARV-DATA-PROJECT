@@ -331,9 +331,12 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                     return true;
                 });
 
-                const { sent, failed } = await sendTemplateToUsers({
+                const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS
+
+                if (template) {
+                    const { sent, failed } = await sendTemplateToUsers({
                     recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
-                    templateAlias: "new-deal-v1",
+                    templateAlias: template,
                     templateModelForRecipient: () => ({
                         cta_url: "https://data.arvfinance.com/",
                         county: `${county} County`,
@@ -342,6 +345,8 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                 });
 
                 console.log(`${label} New-deal emails sent: ${sent}/${uniqueUsers.length} for msa=${msaName}${failed.length > 0 ? ` (failed: ${failed.join(", ")})` : ""}`);
+                }
+
             } catch (err) {
                 console.error(`${label} Error sending new-deal notification emails:`, err);
             }
