@@ -26,8 +26,6 @@ CREATE TABLE email_whitelist (
 
 CREATE UNIQUE INDEX email_whitelist_email_key ON email_whitelist(email);
 
-COMMENT ON TABLE email_whitelist IS 'Whitelist of approved email addresses for registration';
-
 -- MSA table
 CREATE TABLE msas (
     id SERIAL PRIMARY KEY,
@@ -42,11 +40,11 @@ CREATE TABLE roles (
     name TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
-)
+);
 
 -- Insert rows into roles table
 INSERT INTO roles (name)
-VALUES ('owner'), ('admin'), ('relationship-manager')
+VALUES ('owner'), ('admin'), ('relationship-manager'), ('pro');
 
 -- Users table
 CREATE TABLE users (
@@ -122,66 +120,6 @@ CREATE TABLE company_msas (
     PRIMARY KEY (company_id, msa_id)
 );
 CREATE INDEX idx_company_msas_msa_id ON company_msas(msa_id);
-
-COMMENT ON TABLE company_msas IS 'Junction table linking companies to MSAs - tracks which areas a company has properties in or is active in';
-
--- Market scan queue table
-CREATE TABLE market_scan_queue (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    -- SFR identifiers
-    sfr_market_id INTEGER UNIQUE NOT NULL,
-    sfr_property_id BIGINT NOT NULL,
-
-    -- Location (used to build the batch lookup address)
-    address TEXT,
-    city TEXT,
-    state VARCHAR(2),
-    zip_code VARCHAR(10),
-    msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
-
-    -- Transaction fields (used by cleanTransactions to verify/inject buyer tx)
-    sale_date DATE NOT NULL,
-    recording_date DATE NOT NULL,
-    buyer_name TEXT,
-    seller_name TEXT,
-    sale_value DECIMAL(15, 2),
-    lender_name TEXT,
-    is_corporate BOOLEAN,
-    is_private_lender BOOLEAN,
-    property_type TEXT,
-
-    -- Full raw payload from /buyers/market
-    raw_data JSONB NOT NULL,
-
-    -- Pipeline tracking
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
-    scan_window VARCHAR(10),                         -- 0-15d | 15-30d | 30-60d | 60-90d | 90-180d
-    error_message TEXT,
-    enqueued_at TIMESTAMP NOT NULL DEFAULT now(),
-    processed_at TIMESTAMP
-);
-
-ALTER TABLE market_scan_queue
-ADD CONSTRAINT uq_msq_msa_property UNIQUE (msa_id, sfr_property_id);
-
-CREATE INDEX idx_msq_status ON market_scan_queue(status);
-CREATE INDEX idx_msq_sfr_property_id ON market_scan_queue(sfr_property_id);
-CREATE INDEX idx_msq_msa_id ON market_scan_queue(msa_id);
-CREATE INDEX idx_msq_msa_status ON market_scan_queue(msa_id, status);
-CREATE INDEX idx_msq_enqueued_at ON market_scan_queue(enqueued_at);
-
-
--- Email sync state table
-CREATE TABLE email_sync_state (
-    id SERIAL PRIMARY KEY,
-    msa VARCHAR(255) UNIQUE NOT NULL,
-    last_email_sent DATE,
-    last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_sent_property_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
 -- ============================================================================
 -- PROPERTY DATA TABLES
@@ -558,6 +496,90 @@ CREATE TABLE property_statuses (
 
 CREATE INDEX idx_property_statuses_property_id ON property_statuses(property_id);
 CREATE INDEX idx_property_statuses_status_id   ON property_statuses(status_id);
+
+-- ============================================================================
+-- USER POSTS
+-- ============================================================================
+
+-- Deal tyles for type column in deals table
+CREATE TYPE deal_type AS ENUM ('wholesale', 'agent');
+
+-- Deal table --> property_id and user_id union
+CREATE TABLE deals (
+    id              BIGSERIAL     PRIMARY KEY,
+    property_id     UUID          NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    user_id         UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    msa_id          INTEGER       NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
+    type            deal_type     NOT NULL,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_deals_feed       ON deals(id DESC);
+CREATE INDEX idx_deals_created_at ON deals(created_at);
+CREATE INDEX idx_deals_user       ON deals(user_id);
+CREATE INDEX idx_deals_property   ON deals(property_id);
+CREATE INDEX idx_deals_msa        ON deals(msa_id);
+
+-- ============================================================================
+-- DATA TRACKING & EMAIL TABLES
+-- ============================================================================
+
+-- Market scan queue table
+CREATE TABLE market_scan_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- SFR identifiers
+    sfr_market_id INTEGER UNIQUE NOT NULL,
+    sfr_property_id BIGINT NOT NULL,
+
+    -- Location (used to build the batch lookup address)
+    address TEXT,
+    city TEXT,
+    state VARCHAR(2),
+    zip_code VARCHAR(10),
+    msa_id INTEGER NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
+
+    -- Transaction fields (used by cleanTransactions to verify/inject buyer tx)
+    sale_date DATE NOT NULL,
+    recording_date DATE NOT NULL,
+    buyer_name TEXT,
+    seller_name TEXT,
+    sale_value DECIMAL(15, 2),
+    lender_name TEXT,
+    is_corporate BOOLEAN,
+    is_private_lender BOOLEAN,
+    property_type TEXT,
+
+    -- Full raw payload from /buyers/market
+    raw_data JSONB NOT NULL,
+
+    -- Pipeline tracking
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending | processing | complete | failed
+    scan_window VARCHAR(10),                         -- 0-15d | 15-30d | 30-60d | 60-90d | 90-180d
+    error_message TEXT,
+    enqueued_at TIMESTAMP NOT NULL DEFAULT now(),
+    processed_at TIMESTAMP
+);
+
+ALTER TABLE market_scan_queue
+ADD CONSTRAINT uq_msq_msa_property UNIQUE (msa_id, sfr_property_id);
+
+CREATE INDEX idx_msq_status ON market_scan_queue(status);
+CREATE INDEX idx_msq_sfr_property_id ON market_scan_queue(sfr_property_id);
+CREATE INDEX idx_msq_msa_id ON market_scan_queue(msa_id);
+CREATE INDEX idx_msq_msa_status ON market_scan_queue(msa_id, status);
+CREATE INDEX idx_msq_enqueued_at ON market_scan_queue(enqueued_at);
+
+-- Email sync state table
+CREATE TABLE email_sync_state (
+    id SERIAL PRIMARY KEY,
+    msa VARCHAR(255) UNIQUE NOT NULL,
+    last_email_sent DATE,
+    last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_sent_property_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 
 -- ============================================================================
