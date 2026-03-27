@@ -17,9 +17,12 @@ import {
   DollarSign,
   Handshake,
   ChevronDown,
+  Mail,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import AppDialog from "@/components/modals/Dialog";
+import ContactContent from "@/components/modals/Contact";
 import darkLogoUrl from "@assets/arv-data-logo-dark.png";
 import lightLogoUrl from "@assets/arv-data-logo-light.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -66,6 +69,7 @@ export default function Header({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -463,6 +467,15 @@ export default function Header({
             >
               Sign up
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowContact(true)}
+              data-testid="button-contact-logged-out"
+            >
+              <Mail className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Contact Us</span>
+            </Button>
           </>
         ) : (
           <>
@@ -506,6 +519,17 @@ export default function Header({
                         <User className="w-4 h-4" />
                         Profile Settings
                       </button>
+                      <button
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        onClick={() => {
+                          setShowContact(true);
+                          setShowMenu(false);
+                        }}
+                        data-testid="menu-item-contact"
+                      >
+                        <Mail className="w-4 h-4" />
+                        Contact Us
+                      </button>
                       {isAdmin && (
                         <button
                           className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
@@ -538,6 +562,21 @@ export default function Header({
           </>
         )}
       </div>
+
+      <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
+        {showContact && (
+          <ContactContent
+            onClose={() => setShowContact(false)}
+            onSuccess={() => {
+              toast({ title: "Message Sent", description: "We will get back to you shortly." });
+            }}
+            defaultSubject="Contact ARV"
+            defaultFirstName={user?.firstName}
+            defaultLastName={user?.lastName}
+            defaultEmail={user?.email}
+          />
+        )}
+      </AppDialog>
     </header>
   );
 }
