@@ -1,103 +1,67 @@
 import { Router } from "express";
-import { db } from "server/storage";
-import { deals } from "@database/schemas/deals.schema";
-import { addresses } from "@database/schemas/properties.schema";
-import { users } from "@database/schemas/users.schema";
-import { eq } from "drizzle-orm";
+import { contactMessageSchema } from "@database/validation/contactMessages.validation";
 import {
-  sendTemplateToUser,
+  sendPlainEmail,
+  getDefaultFromEmail,
+  getConfirmedSenders,
   getRmEmailsByUserIds,
+  resolveFromAddress,
 } from "server/services/postmark/email.services";
-import { formatAddress } from "@shared/utils/formatAddress";
 
-const DEFAULT_CONTACT = process.env.DEFAULT_CONTACT_RECIPIENT || "justin@arvfinance.com"
+const DEFAULT_CONTACT = process.env.DEFAULT_CONTACT_RECIPIENT || "justin@arvfinance.com";
 
 const router = Router();
 
-// POST /api/contact — Request contact info for a deal. Sends an email to the deal poster's relationship manager.
+// POST /api/contact — Submit a contact message. Emails the user's RM (or default contact).
 router.post("/", async (req, res) => {
   try {
-    const { dealId } = req.body as { dealId?: number };
-    if (!dealId || typeof dealId !== "number") {
-      return res.status(400).json({ message: "dealId is required" });
+    const validation = contactMessageSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        message: "Invalid form data",
+        errors: validation.error.errors,
+      });
     }
 
-    // Get the requesting user's info from the session
-    const [requestingUser] = await db
-      .select({
-        firstName: users.firstName,
-        lastName: users.lastName,
-        email: users.email,
-      })
-      .from(users)
-      .where(eq(users.id, req.session.userId!))
-      .limit(1);
+    const { firstName, lastName, email, subject, message } = validation.data;
+    const userId: string | null = req.session.userId ?? null;
 
-    if (!requestingUser) {
-      return res.status(401).json({ message: "You must be logged in to request contact info" });
+    // Determine recipient: user's RM if logged in and has one, otherwise default
+    let recipientEmail = DEFAULT_CONTACT;
+    let fromAddress = getDefaultFromEmail();
+
+    if (userId) {
+      const rmMap = await getRmEmailsByUserIds([userId]);
+      const rmEmail = rmMap.get(userId);
+      if (rmEmail) {
+        recipientEmail = rmEmail;
+        const senders = await getConfirmedSenders();
+        fromAddress = resolveFromAddress(senders, rmEmail);
+      }
     }
 
-    // Get the deal, the deal poster's info, and the property address
-    const [deal] = await db
-      .select({
-        userId: deals.userId,
-        propertyId: deals.propertyId,
-      })
-      .from(deals)
-      .where(eq(deals.id, dealId))
-      .limit(1);
+    const htmlBody = `
+<p><strong>From:</strong> ${firstName} ${lastName} | ${email}</p>
+<p><strong>Subject:</strong> ${subject}</p>
+<hr />
+<p>${message.replace(/\n/g, "<br />")}</p>
+    `.trim();
 
-    if (!deal) {
-      return res.status(404).json({ message: "Deal not found" });
-    }
+    const textBody = `New Contact Message\n\nFrom: ${firstName} ${lastName} (${email})\nSubject: ${subject}\n\n${message}`;
 
-    // Get the property address
-    const [addr] = await db
-      .select({
-        address: addresses.formattedStreetAddress,
-        city: addresses.city,
-        state: addresses.state,
-        zipCode: addresses.zipCode,
-      })
-      .from(addresses)
-      .where(eq(addresses.propertyId, deal.propertyId))
-      .limit(1);
-
-    const fullAddress = [
-      formatAddress(addr?.address) ?? "Unknown",
-      formatAddress(addr?.city),
-      addr?.state,
-      addr?.zipCode,
-    ]
-      .filter(Boolean)
-      .join(", ");
-
-    // Resolve the deal poster's RM email as the recipient
-    const rmMap = await getRmEmailsByUserIds([deal.userId]);
-    const rmEmail = rmMap.get(deal.userId) ?? DEFAULT_CONTACT;
-
-    const template = process.env.POSTMARK_REQUEST_CONTACT_TEMPLATE_ALIAS;
-
-    if (!template) {
-      return res.status(500).json({ message: "Error sending contact request" });
-    }
-
-    // Send the email via Postmark (From is default, To is the RM)
-    await sendTemplateToUser({
-      toEmail: rmEmail,
-      templateAlias: template,
-      templateModel: {
-        firstName: requestingUser.firstName,
-        lastName: requestingUser.lastName,
-        address: fullAddress,
-        email: requestingUser.email,
-      },
+    await sendPlainEmail({
+      From: fromAddress,
+      To: recipientEmail,
+      Subject: `[Contact] ${subject} — ${firstName} ${lastName}`,
+      HtmlBody: htmlBody,
+      TextBody: textBody,
+      ReplyTo: email,
     });
 
-    return res.status(200).json({ message: "Contact request sent" });
+    return res.status(200).json({ message: "Contact message sent" });
   } catch (error) {
     console.error("[POST /api/contact] Error:", error);
-    res.status(500).json({ message: "Error sending contact request" });
+    res.status(500).json({ message: "Error sending contact message" });
   }
 });
 

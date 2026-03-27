@@ -46,6 +46,23 @@ export async function sendEmailWithTemplate(
   await client.sendEmailWithTemplate(payload);
 }
 
+export interface SendPlainEmailParams {
+  From: string;
+  To: string;
+  Subject: string;
+  HtmlBody: string;
+  TextBody?: string;
+  ReplyTo?: string;
+}
+
+// Sends a single plain email (no template) via Postmark
+export async function sendPlainEmail(
+  payload: SendPlainEmailParams
+): Promise<void> {
+  const client = getPostmarkClient();
+  await client.sendEmail(payload);
+}
+
 // ── Sender signature cache ─────────────────────────────────────────────────────
 // Cached for 5 minutes to avoid repeated Postmark API calls within a single job run.
 const SENDER_CACHE_TTL_MS = 5 * 60 * 1000;

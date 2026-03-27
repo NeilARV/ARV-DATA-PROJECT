@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddDeal from "@/components/modals/AddDeal";
 import AppDialog from "@/components/modals/Dialog";
-import ConfirmationContent from "@/components/modals/Confirmation";
+import ContactContent from "@/components/modals/Contact";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -228,7 +228,7 @@ export default function DealView() {
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
-  const [contactConfirm, setContactConfirm] = useState<{ dealId: number; address: string } | null>(null);
+  const [contactDeal, setContactDeal] = useState<Deal | null>(null);
   const { toast } = useToast();
   const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
@@ -271,20 +271,6 @@ export default function DealView() {
     },
   });
 
-  const requestContact = useMutation({
-    mutationFn: async (dealId: number) => {
-      const res = await apiRequest("POST", "/api/contact", { dealId });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Request Sent", description: "Your contact info request has been sent." });
-      setContactConfirm(null);
-    },
-    onError: () => {
-      toast({ title: "Error", description: "You must be logged in to request contact info", variant: "destructive" });
-      setContactConfirm(null);
-    },
-  });
 
   // ── Feed view ────────────────────────────────────────────────────────────────
   return (
@@ -344,14 +330,7 @@ export default function DealView() {
                 canDelete={canDelete}
                 canRequestContact={canRequestContact}
                 onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
-                onRequestContact={() =>
-                  setContactConfirm({
-                    dealId: deal.id,
-                    address: [formatAddress(deal.address), formatAddress(deal.city), deal.state, deal.zipCode]
-                      .filter(Boolean)
-                      .join(", ") || "this property",
-                  })
-                }
+                onRequestContact={() => setContactDeal(deal)}
               />
             );
           })}
@@ -379,20 +358,17 @@ export default function DealView() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AppDialog open={!!contactConfirm} onClose={() => setContactConfirm(null)} className="max-w-md">
-        <ConfirmationContent
-          onClose={() => setContactConfirm(null)}
-          onConfirm={() => contactConfirm && requestContact.mutate(contactConfirm.dealId)}
-          title="Request Contact Info"
-          description={
-            contactConfirm
-              ? `Are you sure you want to request contact information for ${contactConfirm.address}?`
-              : ""
-          }
-          confirmText="Request"
-          cancelText="Cancel"
-          isLoading={requestContact.isPending}
-        />
+      <AppDialog open={!!contactDeal} onClose={() => setContactDeal(null)} className="max-w-lg">
+        {contactDeal && (
+          <ContactContent
+            onClose={() => setContactDeal(null)}
+            defaultSubject="Request Contact Information"
+            defaultFirstName={user?.firstName}
+            defaultLastName={user?.lastName}
+            defaultEmail={user?.email}
+            defaultMessage={`I would like to request contact information for ${[formatAddress(contactDeal.address), formatAddress(contactDeal.city), contactDeal.state, contactDeal.zipCode].filter(Boolean).join(", ")} posted on ${new Date(contactDeal.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`}
+          />
+        )}
       </AppDialog>
 
       <AddDeal open={showAddDeal} onClose={() => setShowAddDeal(false)} />
