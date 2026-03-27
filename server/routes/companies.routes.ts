@@ -147,28 +147,50 @@ router.get("/contacts", async (req, res) => {
         }
         propertyCountQuery = propertyCountQuery.groupBy(properties.buyerId) as typeof propertyCountQuery;
 
-        const ytdWhere =
-            canPaginateInDb && contactIds.length > 0
-                ? and(
-                      gte(propertyTransactions.recordingDate, ytdStartStr),
-                      lte(propertyTransactions.recordingDate, todayStr),
-                      inArray(propertyTransactions.sellerId, contactIds)
-                  )
-                : and(
-                      gte(propertyTransactions.recordingDate, ytdStartStr),
-                      lte(propertyTransactions.recordingDate, todayStr)
-                  );
+        // YTD sold count: join property_transactions → properties → addresses to filter by county
+        const ytdWhereParts: ReturnType<typeof sql>[] = [
+            gte(propertyTransactions.recordingDate, ytdStartStr),
+            lte(propertyTransactions.recordingDate, todayStr),
+        ];
+        if (canPaginateInDb && contactIds.length > 0) {
+            ytdWhereParts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+        }
+        if (normalizedCountyForProps) {
+            ytdWhereParts.push(
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+                ) as any
+            );
+        }
         const soldYtdQuery = db
             .select({ sellerId: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
             .from(propertyTransactions)
-            .where(ytdWhere)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .where(and(...ytdWhereParts))
             .groupBy(propertyTransactions.sellerId);
 
+        // All-time sold count: same join for county filtering, no date restriction
+        const allTimeWhereParts: ReturnType<typeof sql>[] = [];
+        if (canPaginateInDb && contactIds.length > 0) {
+            allTimeWhereParts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+        }
+        if (normalizedCountyForProps) {
+            allTimeWhereParts.push(
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+                ) as any
+            );
+        }
         let soldAllTimeQuery = db
             .select({ sellerId: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
-            .from(propertyTransactions);
-        if (canPaginateInDb && contactIds.length > 0) {
-            soldAllTimeQuery = soldAllTimeQuery.where(inArray(propertyTransactions.sellerId, contactIds)) as typeof soldAllTimeQuery;
+            .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId));
+        if (allTimeWhereParts.length > 0) {
+            soldAllTimeQuery = soldAllTimeQuery.where(and(...allTimeWhereParts)) as typeof soldAllTimeQuery;
         }
         soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
 
@@ -251,9 +273,17 @@ router.get("/contacts", async (req, res) => {
             };
         });
 
-        // For buys-wholesale, filter out companies with no wholesale purchases
-        if (sortOption === "buys-wholesale") {
-            const filtered = contactsWithCounts.filter((c) => c.wholesaleBuyCount > 0);
+        // Filter out companies with zero counts for the active sort metric
+        const zeroCountFilter: Record<string, (c: typeof contactsWithCounts[0]) => boolean> = {
+            "most-properties": (c) => c.propertyCount > 0,
+            "fewest-properties": (c) => c.propertyCount > 0,
+            "most-sold-properties": (c) => c.propertiesSoldCount > 0,
+            "most-sold-properties-all-time": (c) => c.propertiesSoldCountAllTime > 0,
+            "buys-wholesale": (c) => c.wholesaleBuyCount > 0,
+        };
+        const filterFn = zeroCountFilter[sortOption];
+        if (filterFn) {
+            const filtered = contactsWithCounts.filter(filterFn);
             contactsWithCounts.length = 0;
             contactsWithCounts.push(...filtered);
             total = contactsWithCounts.length;

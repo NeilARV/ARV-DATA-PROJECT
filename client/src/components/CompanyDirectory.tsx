@@ -307,15 +307,15 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
               <SelectItem value="most-properties" data-testid="sort-most-properties">
                 Most Properties
               </SelectItem>
-              {/* <SelectItem value="fewest-properties" data-testid="sort-fewest-properties">
+              <SelectItem value="fewest-properties" data-testid="sort-fewest-properties">
                 Fewest Properties
-              </SelectItem> */}
-              {/* <SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
+              </SelectItem>
+              <SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
                 Most Sold Properties (YTD)
-              </SelectItem> */}
-              {/* <SelectItem value="most-sold-properties-all-time" data-testid="sort-most-sold-properties-all-time">
+              </SelectItem>
+              <SelectItem value="most-sold-properties-all-time" data-testid="sort-most-sold-properties-all-time">
                 Most Sold Properties (All-Time)
-              </SelectItem> */}
+              </SelectItem>
               {/* <SelectItem value="new-buyers" data-testid="sort-new-buyers">
                 New Buyers
               </SelectItem> */}
