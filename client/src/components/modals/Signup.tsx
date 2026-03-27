@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,9 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { insertUserBySignUpSchema } from "@database/inserts";
 import { SignupFormData } from "@database/types";
+import ContactContent from "@/components/modals/Contact";
 
 interface SignupContentProps {
   onSuccess: () => void;
@@ -30,6 +33,7 @@ interface SignupContentProps {
 
 export default function SignupContent({ onSuccess, onSwitchToLogin }: SignupContentProps) {
   const { toast } = useToast();
+  const [showContact, setShowContact] = useState(false);
 
   const form = useForm<SignupFormData>({
     resolver: zodResolver(insertUserBySignUpSchema),
@@ -80,18 +84,16 @@ export default function SignupContent({ onSuccess, onSwitchToLogin }: SignupCont
       }
 
       if (statusCode === 403) {
-        let rmLine = "";
-        try {
-          const match = error.message.match(/^(\d+):\s*(.+)$/);
-          if (match) {
-            const parsed = JSON.parse(match[2]);
-            if (parsed.relationshipManager) {
-              const { firstName, lastName, email } = parsed.relationshipManager;
-              rmLine = ` Email ${firstName} ${lastName} at ${email} to request access.`;
-            }
-          }
-        } catch { /* ignore */ }
-        toast({ title: "Access Denied", description: `${errorMessage}${rmLine}`, variant: "destructive" });
+        toast({
+          title: "Beta Access Required",
+          description: "This app is currently in beta. Contact us to request access.",
+          variant: "destructive",
+          action: (
+            <ToastAction altText="Contact us" onClick={() => setShowContact(true)}>
+              Contact Us
+            </ToastAction>
+          ),
+        });
       } else if (statusCode === 409) {
         toast({ title: "Account Already Exists", description: errorMessage, variant: "destructive" });
       } else if (statusCode === 400) {
@@ -101,6 +103,23 @@ export default function SignupContent({ onSuccess, onSwitchToLogin }: SignupCont
       }
     },
   });
+
+  // Swap dialog content: show Contact form in place of Signup form
+  if (showContact) {
+    return (
+      <ContactContent
+        onClose={() => setShowContact(false)}
+        onSuccess={() => {
+          toast({ title: "Request Received", description: "We will get back to you shortly." });
+        }}
+        defaultSubject="Request Access"
+        defaultFirstName={form.getValues("firstName")}
+        defaultLastName={form.getValues("lastName")}
+        defaultEmail={form.getValues("email")}
+        defaultMessage="I would like to request access to ARV DATA."
+      />
+    );
+  }
 
   return (
     <>

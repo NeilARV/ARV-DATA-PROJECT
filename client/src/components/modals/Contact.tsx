@@ -20,6 +20,8 @@ import { CONTACT_SUBJECTS, type ContactSubject } from "@database/validation/cont
 
 export interface ContactContentProps {
   onClose: () => void;
+  /** Called after the message is sent successfully. Use for toast notifications. */
+  onSuccess?: () => void;
   defaultSubject?: ContactSubject;
   defaultFirstName?: string;
   defaultLastName?: string;
@@ -29,6 +31,7 @@ export interface ContactContentProps {
 
 export default function ContactContent({
   onClose,
+  onSuccess,
   defaultSubject,
   defaultFirstName = "",
   defaultLastName = "",
@@ -42,7 +45,6 @@ export default function ContactContent({
   const [message, setMessage] = useState(defaultMessage);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const isValid =
     firstName.trim() !== "" &&
@@ -69,29 +71,14 @@ export default function ContactContent({
         throw new Error(data?.message || "Failed to send message");
       }
 
-      setSuccess(true);
+      onSuccess?.();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  if (success) {
-    return (
-      <>
-        <DialogHeader>
-          <DialogTitle>Message Sent</DialogTitle>
-          <DialogDescription>
-            Your message has been sent. We'll get back to you as soon as possible.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex justify-end pt-4">
-          <Button onClick={onClose}>Close</Button>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>

@@ -362,6 +362,9 @@ export default function DealView() {
         {contactDeal && (
           <ContactContent
             onClose={() => setContactDeal(null)}
+            onSuccess={() => {
+              toast({ title: "Request Received", description: "We will get back to you shortly." });
+            }}
             defaultSubject="Request Contact Information"
             defaultFirstName={user?.firstName}
             defaultLastName={user?.lastName}

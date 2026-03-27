@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,8 +25,10 @@ import { manualPropertyEntrySchema } from "@database/inserts/properties.insert";
 import type { ManualPropertyEntry } from "@database/types";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
+import ContactContent from "@/components/modals/Contact";
 
 interface AddDealProps {
   open: boolean;
@@ -35,6 +38,7 @@ interface AddDealProps {
 export default function AddDeal({ open, onClose }: AddDealProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [showContact, setShowContact] = useState(false);
 
   const form = useForm<ManualPropertyEntry>({
     resolver: zodResolver(manualPropertyEntrySchema),
@@ -61,10 +65,20 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
     },
     onError: (err: any) => {
       const is403 = typeof err?.message === "string" && err.message.startsWith("403:");
-      const msg = is403
-        ? "You do not have the required role to add a deal. Please contact neil@arvfinance.com to request access."
-        : err.message || "Failed to post deal";
-      toast({ title: "Error", description: msg, variant: "destructive" });
+      if (is403) {
+        toast({
+          title: "Upgrade Required",
+          description: "Upgrade your account to access this feature.",
+          variant: "destructive",
+          action: (
+            <ToastAction altText="Contact us" onClick={() => setShowContact(true)}>
+              Contact Us
+            </ToastAction>
+          ),
+        });
+      } else {
+        toast({ title: "Error", description: err.message || "Failed to post deal", variant: "destructive" });
+      }
     },
   });
 
@@ -75,6 +89,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
   };
 
   return (
+    <>
     <AppDialog open={open} onClose={handleClose} className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>Post a Deal</DialogTitle>
@@ -195,5 +210,22 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         </form>
       </Form>
     </AppDialog>
+
+      <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
+        {showContact && (
+          <ContactContent
+            onClose={() => setShowContact(false)}
+            onSuccess={() => {
+              toast({ title: "Request Received", description: "We will get back to you shortly." });
+            }}
+            defaultSubject="Upgrade Account"
+            defaultFirstName={user?.firstName}
+            defaultLastName={user?.lastName}
+            defaultEmail={user?.email}
+            defaultMessage="I would like to upgrade my account to access the deal feature."
+          />
+        )}
+      </AppDialog>
+    </>
   );
 }
