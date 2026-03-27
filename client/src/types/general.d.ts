@@ -28,6 +28,8 @@ export type HeaderProps = {
   onRMClick?: () => void;
   onDealsClick?: () => void;
   county?: string; // County filter for suggestions
+  /** When true, a forced auth dialog is active — Header should close its own modals */
+  forcedDialogActive?: boolean;
 }
 
 export type PropertySuggestion = {

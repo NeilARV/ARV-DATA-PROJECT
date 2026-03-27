@@ -47,6 +47,7 @@ export default function Header({
   onLeaderboardClick,
   onDealsClick,
   county,
+  forcedDialogActive,
 }: HeaderProps) {
 
   const { filters, setFilters, setSortBy } = useFilters();
@@ -70,6 +71,12 @@ export default function Header({
   const [showMenu, setShowMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showContact, setShowContact] = useState(false);
+
+  // Close contact dialog when a forced auth dialog activates
+  useEffect(() => {
+    if (forcedDialogActive) setShowContact(false);
+  }, [forcedDialogActive]);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);

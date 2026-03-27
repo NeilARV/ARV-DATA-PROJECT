@@ -23,6 +23,8 @@ export interface UseDialogsResult {
   closeDialog: () => void;
   /** Whether the active dialog is forced (cannot be dismissed by the user) */
   isForced: boolean;
+  /** True when a forced auth dialog just activated — use to close other modals */
+  forcedDialogActive: boolean;
   /** Handlers wired to Header buttons */
   headerDialogHandlers: {
     onLoginClick: () => void;
@@ -62,11 +64,17 @@ export function useDialogs(): UseDialogsResult {
   const isForced =
     (dialog?.type === "login" || dialog?.type === "signup") && dialog.forced;
 
+  const forcedDialogActive =
+    dialog != null &&
+    (dialog.type === "login" || dialog.type === "signup") &&
+    dialog.forced;
+
   return {
     dialog,
     openDialog,
     closeDialog,
     isForced,
+    forcedDialogActive,
     headerDialogHandlers: {
       onLoginClick: () => setDialog({ type: "login", forced: false }),
       onSignupClick: () => setDialog({ type: "signup", forced: false }),

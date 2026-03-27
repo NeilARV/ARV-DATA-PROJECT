@@ -30,7 +30,7 @@ function HomeContent() {
   const { view, sidebarView, setSidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
-  const { dialog, openDialog, closeDialog, isForced, headerDialogHandlers } = useDialogs();
+  const { dialog, openDialog, closeDialog, isForced, forcedDialogActive, headerDialogHandlers } = useDialogs();
   const { user } = useAuth();
   const { property, setProperty } = useProperty();
 
@@ -72,6 +72,7 @@ function HomeContent() {
         onSignupClick={headerDialogHandlers.onSignupClick}
         onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
         onDealsClick={headerDialogHandlers.onDealsClick}
+        forcedDialogActive={forcedDialogActive}
       />
 
       <div className="flex-1 flex overflow-hidden">
