@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { X, Search, MapPin, Home, CalendarIcon, ChevronDown, Building2, DollarSign } from "lucide-react";
+import { X, Search, MapPin, Home, CalendarIcon, ChevronDown, DollarSign, Menu } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -339,17 +339,16 @@ export default function FilterHeader({
           <>
             <Button
               variant={directoryOpen ? "default" : "outline"}
-              size="sm"
+              size="icon"
               onClick={onToggleDirectory}
-              className="h-9 text-xs flex-shrink-0"
+              className="h-9 w-9 flex-shrink-0"
               data-testid="button-toggle-directory"
             >
               {directoryOpen ? (
-                <X className="w-3.5 h-3.5 mr-1" />
+                <X className="w-4 h-4" />
               ) : (
-                <Building2 className="w-3.5 h-3.5 mr-1" />
+                <Menu className="w-4 h-4" />
               )}
-              Investors
             </Button>
             <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
           </>
