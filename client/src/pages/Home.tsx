@@ -1,6 +1,6 @@
 import { useMemo, useEffect } from "react";
 import Header from "@/components/Header";
-import FilterSidebar from "@/components/FilterSidebar";
+import FilterHeader from "@/components/FilterHeader";
 import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyMap from "@/components/property/PropertyMap";
 import GridView from "@/components/views/GridView";
@@ -13,8 +13,6 @@ import LoginContent from "@/components/modals/Login";
 import SignupContent from "@/components/modals/Signup";
 import LeaderboardContent from "@/components/modals/Leaderboard";
 import InfoContent from "@/components/modals/Info";
-import { Button } from "@/components/ui/button";
-import { Filter, Building2 } from "lucide-react";
 import { useDialogs } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
@@ -75,66 +73,41 @@ function HomeContent() {
         forcedDialogActive={forcedDialogActive}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        {sidebarView === "filters" && (
-          <FilterSidebar
-            onClose={() => setSidebarView("none")}
-            zipCodesWithCounts={zipCodesWithCounts}
-            onSwitchToDirectory={() => setSidebarView("directory")}
-          />
-        )}
-        
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {sidebarView === "directory" && (
           <CompanyDirectory
             onClose={() => setSidebarView("none")}
-            onSwitchToFilters={() => setSidebarView("filters")}
+            onSwitchToFilters={undefined}
           />
         )}
 
-        <div className="flex-1 flex flex-col">
-          {sidebarView === "none" && (
-            <div className="p-2 border-b border-border flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSidebarView("filters")}
-                data-testid="button-show-filters"
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Filters
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSidebarView("directory")}
-                data-testid="button-show-directory"
-              >
-                <Building2 className="w-4 h-4 mr-2" />
-                Investor Profiles
-              </Button>
-            </div>
-          )}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          <FilterHeader
+            zipCodesWithCounts={zipCodesWithCounts}
+            onToggleDirectory={() => setSidebarView(sidebarView === "directory" ? "none" : "directory")}
+            directoryOpen={sidebarView === "directory"}
+          />
 
-          <div className="flex-1 overflow-hidden flex">
+          <div className="flex-1 overflow-hidden flex min-h-0">
             {view === "deals" ? (
               <DealView />
             ) : view === "map" ? (
               <>
-                <PropertyDetailPanel/>
+                <PropertyDetailPanel />
                 <div className="flex-1">
-                  <PropertyMap/>
+                  <PropertyMap />
                 </div>
               </>
             ) : view === "table" ? (
-              <TableView/>
+              <TableView />
             ) : view === "buyers-feed" ? (
               <>
-                <PropertyDetailPanel/>
-                <GridView sideBarView={sidebarView}/>
+                <PropertyDetailPanel />
+                <GridView sideBarView={sidebarView} />
               </>
             ) : (
               <>
-                <PropertyDetailPanel/>
+                <PropertyDetailPanel />
                 <GridView
                   showWholesaleLeaderboard={view === "wholesale"}
                   sideBarView={sidebarView}
@@ -182,7 +155,6 @@ function HomeContent() {
           <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
         )}
       </AppDialog>
-
     </div>
   );
 }
