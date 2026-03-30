@@ -341,7 +341,7 @@ export default function FilterHeader({
               variant={directoryOpen ? "default" : "outline"}
               size="icon"
               onClick={onToggleDirectory}
-              className="h-9 w-9 flex-shrink-0"
+              className="h-8 w-8 flex-shrink-0"
               data-testid="button-toggle-directory"
             >
               {directoryOpen ? (
@@ -358,7 +358,7 @@ export default function FilterHeader({
         <div className="inline-flex rounded-md border border-border overflow-hidden flex-shrink-0">
           <button
             onClick={() => toggleStatusFilter(PROPERTY_STATUS.IN_RENOVATION)}
-            className={`px-3 h-9 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
+            className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
               statusFilters.has(PROPERTY_STATUS.IN_RENOVATION)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
@@ -374,7 +374,7 @@ export default function FilterHeader({
           </button>
           <button
             onClick={() => toggleStatusFilter(PROPERTY_STATUS.WHOLESALE)}
-            className={`px-3 h-9 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
+            className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
               statusFilters.has(PROPERTY_STATUS.WHOLESALE)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
@@ -390,7 +390,7 @@ export default function FilterHeader({
           </button>
           <button
             onClick={() => toggleStatusFilter(PROPERTY_STATUS.ON_MARKET)}
-            className={`px-3 h-9 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
+            className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
               statusFilters.has(PROPERTY_STATUS.ON_MARKET)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
@@ -406,7 +406,7 @@ export default function FilterHeader({
           </button>
           <button
             onClick={() => toggleStatusFilter(PROPERTY_STATUS.SOLD)}
-            className={`px-3 h-9 flex items-center text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 h-8 flex items-center text-xs font-medium transition-colors whitespace-nowrap ${
               statusFilters.has(PROPERTY_STATUS.SOLD)
                 ? "text-white"
                 : "bg-background text-muted-foreground hover:bg-muted"
@@ -427,7 +427,7 @@ export default function FilterHeader({
         {/* State */}
         <Select value={selectedState} onValueChange={handleStateChange}>
           <SelectTrigger
-            className="h-9 w-[60px] text-xs flex-shrink-0 px-2"
+            className="h-8 w-[68px] text-xs flex-shrink-0 px-2"
             data-testid="button-state-select"
           >
             <SelectValue />
@@ -456,7 +456,7 @@ export default function FilterHeader({
             <Button
               variant="outline"
               size="sm"
-              className="h-9 w-40 justify-between text-xs flex-shrink-0 px-2"
+              className="h-8 w-40 justify-between text-xs flex-shrink-0 px-2"
               data-testid="button-county-trigger"
             >
               <span className="truncate">{countySearch}</span>
@@ -470,7 +470,7 @@ export default function FilterHeader({
                 placeholder="Search counties..."
                 value={countySearch}
                 onChange={(e) => handleCountySearch(e.target.value)}
-                className="h-9 pl-7 text-xs"
+                className="h-8 pl-7 text-xs"
                 data-testid="input-county"
                 autoFocus
               />
@@ -508,7 +508,7 @@ export default function FilterHeader({
                     setZipOpen(true);
                   }
                 }}
-                className="h-9 pl-7 pr-6 text-xs w-40"
+                className="h-8 pl-7 pr-6 text-xs w-44"
                 data-testid="input-zipcode"
               />
               {zipInput && (
@@ -569,7 +569,7 @@ export default function FilterHeader({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
               data-testid="input-date-min"
             >
               <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
@@ -602,7 +602,7 @@ export default function FilterHeader({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
               data-testid="input-date-max"
             >
               <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
@@ -636,7 +636,7 @@ export default function FilterHeader({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className={`flex items-center gap-1.5 h-9 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
+              className={`flex items-center gap-1.5 h-8 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
                 hasPriceFilter
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-input bg-background hover:bg-accent"
@@ -649,7 +649,7 @@ export default function FilterHeader({
           </PopoverTrigger>
           <PopoverContent className="w-72 p-4 z-[10000]" align="start">
             <div className="space-y-3">
-              <div className="text-sm font-medium">Price Range</div>
+              <div className="text-xs font-medium">Price Range</div>
               <div className="text-xs text-muted-foreground">
                 {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
               </div>
@@ -674,7 +674,7 @@ export default function FilterHeader({
           onValueChange={(val) => setFilters((f) => ({ ...f, bedrooms: val }))}
         >
           <SelectTrigger
-            className="h-9 w-[120px] text-xs flex-shrink-0"
+            className="h-8 w-[130px] text-xs flex-shrink-0"
             data-testid="select-bedrooms"
           >
             <SelectValue />
@@ -694,7 +694,7 @@ export default function FilterHeader({
           onValueChange={(val) => setFilters((f) => ({ ...f, bathrooms: val }))}
         >
           <SelectTrigger
-            className="h-9 w-[120px] text-xs flex-shrink-0"
+            className="h-8 w-[130px] text-xs flex-shrink-0"
             data-testid="select-bathrooms"
           >
             <SelectValue />
@@ -713,7 +713,7 @@ export default function FilterHeader({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className={`flex items-center gap-1.5 h-9 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
+              className={`flex items-center gap-1.5 h-8 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
                 filters.propertyTypes.length > 0
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-input bg-background hover:bg-accent"
@@ -768,7 +768,7 @@ export default function FilterHeader({
               variant="ghost"
               size="sm"
               onClick={handleClearFilters}
-              className="h-9 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
+              className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
               data-testid="button-reset-filters"
             >
               <X className="w-3 h-3 mr-1" />
