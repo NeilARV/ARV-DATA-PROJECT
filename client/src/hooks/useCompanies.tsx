@@ -4,6 +4,7 @@ import type { DirectorySortOption } from "@/types/options";
 import { fetchCompanyContactsPage, fetchCompanyById } from "@/api/companies.api";
 import { useFilters } from "./useFilters";
 import { useView } from "./useView";
+import { ALL_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -36,7 +37,7 @@ type CompanyProviderProps = {
 };
 
 export function CompaniesProvider({ children }: CompanyProviderProps) {
-  const { filters } = useFilters();
+  const { filters, setFilters } = useFilters();
   const { setSidebarView } = useView();
   const [company, setCompanyState] = useState<CompanyContactWithCounts | null>(null);
   const setCompany = useCallback((value: CompanyContactWithCounts | null) => {
@@ -149,6 +150,12 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const handleCompanyClick = useCallback(
     async (companyName: string, companyId: string | null, _keepPanelOpen?: boolean) => {
       companySelectionInProgressRef.current = true;
+      // Expand filters to all statuses immediately so useProperties fetches with the correct
+      // filters in the same render batch as the company change (prevents race where properties
+      // are fetched with old filters before CompanyDirectory's useEffect can expand them).
+      const today = new Date().toISOString().split('T')[0];
+      companyFiltersExpandedRef.current = companyId ?? companyName;
+      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateMin: "2025-07-07", dateMax: today });
       try {
         const found = companies.find(
           (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
@@ -201,7 +208,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         companySelectionInProgressRef.current = false;
       }
     },
-    [companies, setCompany, setSidebarView, filters.county]
+    [companies, setCompany, setSidebarView, filters, setFilters]
   );
 
   const hasMore = total > companies.length;

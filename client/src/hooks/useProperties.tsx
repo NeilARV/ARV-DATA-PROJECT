@@ -53,21 +53,25 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
     const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
     const hasDateSold = view === 'buyers-feed';
 
-    // Reset pagination when filters, sort, or company change so we fetch page 1 of the new result set.
+    // Reset pagination when filters, sort, or company ID change so we fetch page 1 of the new result set.
+    // Intentionally uses company?.id (not company object) so that enriching a stub company (same id,
+    // different object reference) after fetchCompanyById does not reset allProperties and blank the grid.
     useEffect(() => {
         setPropertiesPage(1);
         setAllProperties([]);
         setPropertiesHasMore(true);
         setIsLoadingMoreProperties(false);
-    }, [filters, sortBy, company?.id, company, view]);
+    }, [filters, sortBy, company?.id, view]);
 
     const propertiesQueryParam = useMemo(() =>
         buildPropertyQueryParams(filters, {
             page: propertiesPage,
             limit: view === "table" ? "20" : "10",
             hasDateSold,
-        }), 
-        [filters, company?.id, company, propertiesPage, sortBy, view, hasDateSold]
+        }),
+        // Intentionally uses company?.id (not company object) — same reason as the reset effect above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [filters, company?.id, propertiesPage, sortBy, view, hasDateSold]
     );
 
     const propertiesQueryUrl = useMemo(() => `/api/properties${propertiesQueryParam}`, [propertiesQueryParam]);
