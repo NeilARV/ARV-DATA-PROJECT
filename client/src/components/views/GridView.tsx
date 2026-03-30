@@ -24,7 +24,7 @@ export default function GridView({
 
   const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { properties, totalProperties, propertiesHasMore, isLoading, isFetching, isLoadingMoreProperties, loadMorePropertiesRef, stablePropertyCount } = useProperties();
-  const { property, fetchProperty, setProperty } = useProperty();
+  const { fetchProperty, setProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
 
   // Show loader when initially loading and no properties yet
@@ -49,22 +49,13 @@ export default function GridView({
   });
 
 
-    // Calculate grid columns based on sidebar and property detail panel visibility
+    // Calculate grid columns based on sidebar visibility
     const gridColsClass = useMemo(() => {
       const hasSidebar = sideBarView !== "none";
-      const hasPropertyPanel = property !== null;
-      
-      // Both sidebar and panel open - use 2 columns max
-      if (hasSidebar && hasPropertyPanel) {
-        return "grid-cols-1 md:grid-cols-2";
-      }
-      // Only sidebar OR panel open - use 2-3 columns
-      if (hasSidebar || hasPropertyPanel) {
-        return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
-      }
-      // Neither open - full 3 columns
-      return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
-    }, [sideBarView, property]);
+      return hasSidebar
+        ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+        : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+    }, [sideBarView]);
 
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">

@@ -34,9 +34,9 @@ function HomeContent() {
   const { user } = useAuth();
   const { property, setProperty } = useProperty();
 
-  // Open the property modal whenever a property is selected in table view
+  // Open the property modal whenever a property is selected in table/grid views
   useEffect(() => {
-    if (property !== null && view === "table") {
+    if (property !== null && (view === "table" || view === "grid" || view === "buyers-feed" || view === "wholesale")) {
       openDialog({ type: "property" });
     }
   }, [property, view]);
@@ -128,18 +128,12 @@ function HomeContent() {
             ) : view === "table" ? (
               <TableView/>
             ) : view === "buyers-feed" ? (
-              <>
-                <PropertyDetailPanel/>
-                <GridView sideBarView={sidebarView}/>
-              </>
+              <GridView sideBarView={sidebarView}/>
             ) : (
-              <>
-                <PropertyDetailPanel/>
-                <GridView
-                  showWholesaleLeaderboard={view === "wholesale"}
-                  sideBarView={sidebarView}
-                />
-              </>
+              <GridView
+                showWholesaleLeaderboard={view === "wholesale"}
+                sideBarView={sidebarView}
+              />
             )}
           </div>
         </div>
