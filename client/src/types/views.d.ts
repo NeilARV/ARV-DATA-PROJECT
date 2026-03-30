@@ -5,6 +5,7 @@ export type WholesaleLeaderboardEntry = {
   companyId: string;
   companyName: string;
   wholesaleCount: number;
+  contactName: string | null;
 }
 
 export type GridViewProps = {
