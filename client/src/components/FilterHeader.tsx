@@ -331,20 +331,24 @@ export default function FilterHeader({
   return (
     <div className="border-b border-border bg-background flex-shrink-0" data-testid="filter-header">
 
-      {/* ── Row 1: Status · State · County · Zip/City · Dates ── */}
-      <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5">
+      {/* ── Single row ── */}
+      <div className="flex items-center gap-1.5 px-3 py-2">
 
-        {/* Directory toggle — hidden when directory is already open */}
-        {onToggleDirectory && !directoryOpen && (
+        {/* Directory toggle */}
+        {onToggleDirectory && (
           <>
             <Button
-              variant="outline"
+              variant={directoryOpen ? "default" : "outline"}
               size="sm"
               onClick={onToggleDirectory}
               className="h-9 text-xs flex-shrink-0"
               data-testid="button-toggle-directory"
             >
-              <Building2 className="w-3.5 h-3.5 mr-1" />
+              {directoryOpen ? (
+                <X className="w-3.5 h-3.5 mr-1" />
+              ) : (
+                <Building2 className="w-3.5 h-3.5 mr-1" />
+              )}
               Investors
             </Button>
             <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
@@ -626,10 +630,7 @@ export default function FilterHeader({
             />
           </PopoverContent>
         </Popover>
-      </div>
-
-      {/* ── Row 2: Price · Bedrooms · Bathrooms · Property Type · Clear ── */}
-      <div className="flex items-center gap-1.5 px-3 pt-1 pb-2">
+        <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
 
         {/* Price popover */}
         <Popover open={priceOpen} onOpenChange={setPriceOpen}>

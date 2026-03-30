@@ -73,6 +73,12 @@ function HomeContent() {
         forcedDialogActive={forcedDialogActive}
       />
 
+      <FilterHeader
+        zipCodesWithCounts={zipCodesWithCounts}
+        onToggleDirectory={() => setSidebarView(sidebarView === "directory" ? "none" : "directory")}
+        directoryOpen={sidebarView === "directory"}
+      />
+
       <div className="flex-1 flex overflow-hidden min-h-0">
         {sidebarView === "directory" && (
           <CompanyDirectory
@@ -81,40 +87,32 @@ function HomeContent() {
           />
         )}
 
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          <FilterHeader
-            zipCodesWithCounts={zipCodesWithCounts}
-            onToggleDirectory={() => setSidebarView(sidebarView === "directory" ? "none" : "directory")}
-            directoryOpen={sidebarView === "directory"}
-          />
-
-          <div className="flex-1 overflow-hidden flex min-h-0">
-            {view === "deals" ? (
-              <DealView />
-            ) : view === "map" ? (
-              <>
-                <PropertyDetailPanel />
-                <div className="flex-1">
-                  <PropertyMap />
-                </div>
-              </>
-            ) : view === "table" ? (
-              <TableView />
-            ) : view === "buyers-feed" ? (
-              <>
-                <PropertyDetailPanel />
-                <GridView sideBarView={sidebarView} />
-              </>
-            ) : (
-              <>
-                <PropertyDetailPanel />
-                <GridView
-                  showWholesaleLeaderboard={view === "wholesale"}
-                  sideBarView={sidebarView}
-                />
-              </>
-            )}
-          </div>
+        <div className="flex-1 overflow-hidden flex min-h-0">
+          {view === "deals" ? (
+            <DealView />
+          ) : view === "map" ? (
+            <>
+              <PropertyDetailPanel />
+              <div className="flex-1">
+                <PropertyMap />
+              </div>
+            </>
+          ) : view === "table" ? (
+            <TableView />
+          ) : view === "buyers-feed" ? (
+            <>
+              <PropertyDetailPanel />
+              <GridView sideBarView={sidebarView} />
+            </>
+          ) : (
+            <>
+              <PropertyDetailPanel />
+              <GridView
+                showWholesaleLeaderboard={view === "wholesale"}
+                sideBarView={sidebarView}
+              />
+            </>
+          )}
         </div>
       </div>
 

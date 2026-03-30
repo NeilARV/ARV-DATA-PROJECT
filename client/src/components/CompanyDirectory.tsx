@@ -247,16 +247,8 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   return (
     <div className="w-[375px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
       <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center">
-          <div className="flex-1" />
+        <div className="flex items-center justify-center">
           <h2 className="text-base font-semibold">Investor Profiles</h2>
-          <div className="flex-1 flex justify-end">
-            {onClose && (
-              <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-directory">
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
         </div>
       </div>
 
