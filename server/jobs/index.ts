@@ -29,31 +29,34 @@ export function startScheduledJobs() {
     // =========================================================================
     // DATA PIPELINE V2 — MARKET SCAN QUEUE
     // =========================================================================
+    if (process.env.NODE_ENV === "production") {
+        // Scanner A (0-15d): nightly at 12:00am (midnight) — primary ingestion window
+        cron.schedule("0 0 * * *", scanWindowA, {
+            timezone: "America/Los_Angeles"
+        })
 
-    // Scanner A (0-15d): nightly at 12:00am (midnight) — primary ingestion window
-    cron.schedule("0 0 * * *", scanWindowA, {
-        timezone: "America/Los_Angeles"
-    })
+        // Scanner B (15-30d): every other day at 1:00 AM — catches late backfills in 15-30d range
+        cron.schedule("0 1 */2 * *", scanWindowB, {
+            timezone: "America/Los_Angeles"
+        })
 
-    // Scanner B (15-30d): every other day at 1:00 AM — catches late backfills in 15-30d range
-    cron.schedule("0 1 */2 * *", scanWindowB, {
-        timezone: "America/Los_Angeles"
-    })
+        // Scanner C (30-60d): Mondays at 2:00 AM — weekly sweep of 30-60d range
+        cron.schedule("0 2 * * 1", scanWindowC, {
+            timezone: "America/Los_Angeles"
+        })
 
-    // Scanner C (30-60d): Mondays at 2:00 AM — weekly sweep of 30-60d range
-    cron.schedule("0 2 * * 1", scanWindowC, {
-        timezone: "America/Los_Angeles"
-    })
+        // Scanner D (60-90d): At 3:00 AM On the 1st and 15th of every month
+        cron.schedule("0 3 1,15 * *", scanWindowD, {
+            timezone: "America/Los_Angeles"
+        })
 
-    // Scanner D (60-90d): At 3:00 AM On the 1st and 15th of every month
-    cron.schedule("0 3 1,15 * *", scanWindowD, {
-        timezone: "America/Los_Angeles"
-    })
-
-    // // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
-    // cron.schedule("0 4 1 * *", scanWindowE, {
-    //     timezone: "America/Los_Angeles"
-    // })
+        // // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
+        // cron.schedule("0 4 1 * *", scanWindowE, {
+        //     timezone: "America/Los_Angeles"
+        // })
+    } else {
+        console.log(`[CRON] Scan windows skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
+    }
     
     // Consumer: Run at 30 minute mark every hour from 4:30am to 10:30pm — processes all pending market_scan_queue rows
     // Can adjust time based on whether or not Scanner E is active
@@ -62,22 +65,27 @@ export function startScheduledJobs() {
             timezone: "America/Los_Angeles"
         })
     } else {
-        console.log("[CRON] Consumer skipped — not running in production (NODE_ENV=" + process.env.NODE_ENV + ")")
+        console.log(`[CRON] Consumer skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
     }
 
+    
     // =========================================================================
     // Email Jobs by MSA
     // =========================================================================
 
-    // EST
-    cron.schedule("0 6 * * *", sendMiamiEmail, { timezone: "America/Los_Angeles" })
-    cron.schedule("5 6 * * *", sendPortStLucieEmail, { timezone: "America/Los_Angeles" })
-    
-    // CST
-    cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
+    if (process.env.NODE_ENV === "production") {
+        // EST
+        cron.schedule("0 6 * * *", sendMiamiEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("5 6 * * *", sendPortStLucieEmail, { timezone: "America/Los_Angeles" })
+        
+        // CST
+        cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
 
-    // PST
-    cron.schedule("0 9 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
-    cron.schedule("5 9 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
-    cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
+        // PST
+        cron.schedule("0 9 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("5 9 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
+    } else {
+        console.log(`[CRON] Email updates skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
+    }
 }
