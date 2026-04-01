@@ -326,7 +326,7 @@ export default function FilterHeader({
 
   return (
     <div className="border-b border-border bg-background flex-shrink-0" data-testid="filter-header">
-      <div className="flex flex-col xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2 flex-wrap">
+      <div className="flex xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2 xl:flex-wrap">
 
         {/* Status tags */}
         <div className="inline-flex rounded-md border border-border overflow-hidden">
