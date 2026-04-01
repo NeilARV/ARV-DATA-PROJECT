@@ -326,13 +326,10 @@ export default function FilterHeader({
 
   return (
     <div className="border-b border-border bg-background flex-shrink-0" data-testid="filter-header">
-      <div className="flex flex-col xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2">
-
-      {/* ── Section 1: Status · State · County · Zip/City · Dates · Clear ── */}
-      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-2">
+      <div className="flex flex-col xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2 flex-wrap">
 
         {/* Status tags */}
-        <div className="inline-flex rounded-md border border-border overflow-hidden flex-shrink-0">
+        <div className="inline-flex rounded-md border border-border overflow-hidden">
           <button
             onClick={() => toggleStatusFilter(PROPERTY_STATUS.IN_RENOVATION)}
             className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
@@ -542,91 +539,72 @@ export default function FilterHeader({
         <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
 
         {/* Date From */}
-        <Popover open={dateMinOpen} onOpenChange={setDateMinOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
-              data-testid="input-date-min"
-            >
-              <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className={dateMinDisplay ? "text-foreground" : "text-muted-foreground"}>
-                {dateMinDisplay || "From"}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 z-[10000]" align="start">
-            <Calendar
-              mode="single"
-              selected={parseDisplayDate(dateMinDisplay)}
-              defaultMonth={parseDisplayDate(dateMinDisplay)}
-              onSelect={(date) => {
-                if (date) {
-                  const iso = toISODate(date);
-                  setDateMinDisplay(isoToDisplay(iso));
-                  setFilters((f) => ({ ...f, dateMin: iso }));
-                }
-                setDateMinOpen(false);
-              }}
-              disabled={(date) => date > new Date()}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-        <span className="text-xs text-muted-foreground flex-shrink-0">→</span>
-        {/* Date To */}
-        <Popover open={dateMaxOpen} onOpenChange={setDateMaxOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
-              data-testid="input-date-max"
-            >
-              <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className={dateMaxDisplay ? "text-foreground" : "text-muted-foreground"}>
-                {dateMaxDisplay || "To"}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 z-[10000]" align="start">
-            <Calendar
-              mode="single"
-              selected={parseDisplayDate(dateMaxDisplay)}
-              defaultMonth={parseDisplayDate(dateMaxDisplay)}
-              onSelect={(date) => {
-                if (date) {
-                  const iso = toISODate(date);
-                  setDateMaxDisplay(isoToDisplay(iso));
-                  setFilters((f) => ({ ...f, dateMax: iso }));
-                }
-                setDateMaxOpen(false);
-              }}
-              disabled={(date) => date > new Date()}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        {/* Clear Filters */}
-        {hasActiveFilters && (
-          <>
-            <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearFilters}
-              className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
-              data-testid="button-reset-filters"
-            >
-              <X className="w-3 h-3 mr-1" />
-              Clear
-            </Button>
-          </>
-        )}
-      </div>{/* end Section 1 */}
-
-      {/* ── Section 2: Price · Beds · Baths · Property Type ── */}
-      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-2">
+        <div className="items-center flex space-x-2">
+          <Popover open={dateMinOpen} onOpenChange={setDateMinOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
+                data-testid="input-date-min"
+              >
+                <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className={dateMinDisplay ? "text-foreground" : "text-muted-foreground"}>
+                  {dateMinDisplay || "From"}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-[10000]" align="start">
+              <Calendar
+                mode="single"
+                selected={parseDisplayDate(dateMinDisplay)}
+                defaultMonth={parseDisplayDate(dateMinDisplay)}
+                onSelect={(date) => {
+                  if (date) {
+                    const iso = toISODate(date);
+                    setDateMinDisplay(isoToDisplay(iso));
+                    setFilters((f) => ({ ...f, dateMin: iso }));
+                  }
+                  setDateMinOpen(false);
+                }}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <span className="text-xs text-muted-foreground flex-shrink-0">→</span>
+          {/* Date To */}
+          <Popover open={dateMaxOpen} onOpenChange={setDateMaxOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
+                data-testid="input-date-max"
+              >
+                <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className={dateMaxDisplay ? "text-foreground" : "text-muted-foreground"}>
+                  {dateMaxDisplay || "To"}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-[10000]" align="start">
+              <Calendar
+                mode="single"
+                selected={parseDisplayDate(dateMaxDisplay)}
+                defaultMonth={parseDisplayDate(dateMaxDisplay)}
+                onSelect={(date) => {
+                  if (date) {
+                    const iso = toISODate(date);
+                    setDateMaxDisplay(isoToDisplay(iso));
+                    setFilters((f) => ({ ...f, dateMax: iso }));
+                  }
+                  setDateMaxOpen(false);
+                }}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
 
         {/* Divider — only shown when sections are side-by-side on xl+ */}
         <div className="hidden xl:block w-px h-5 bg-border flex-shrink-0 mx-0.5" />
@@ -760,7 +738,22 @@ export default function FilterHeader({
           </DropdownMenuContent>
         </DropdownMenu>
 
-      </div>{/* end Section 2 */}
+        {/* Clear Filters */}
+        {hasActiveFilters && (
+          <>
+            <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearFilters}
+              className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
+              data-testid="button-reset-filters"
+            >
+              <X className="w-3 h-3 mr-1" />
+              Clear
+            </Button>
+          </>
+        )}
 
       </div>{/* end flex container */}
     </div>
