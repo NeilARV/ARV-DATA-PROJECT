@@ -246,29 +246,9 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
 
   return (
     <div className="w-[375px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            {onSwitchToFilters && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onSwitchToFilters}
-                data-testid="button-tab-filters"
-              >
-                <Filter className="w-4 h-4 mr-1" />
-                Filters
-              </Button>
-            )}
-            <Button variant="default" size="sm" data-testid="button-tab-directory">
-              Investor Profiles
-            </Button>
-          </div>
-          {onClose && (
-            <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-close-directory">
-              <X className="w-4 h-4" />
-            </Button>
-          )}
+      <div className="px-4 py-3 border-b border-border">
+        <div className="flex items-center justify-center">
+          <h2 className="text-base font-semibold">Investor Profiles</h2>
         </div>
       </div>
 
