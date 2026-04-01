@@ -374,6 +374,7 @@ router.get("/wholesale-leaderboard", async (req, res) => {
             .select({
                 id: companies.id,
                 companyName: companies.companyName,
+                contactName: companies.contactName,
             })
             .from(companies)
             .where(inArray(companies.id, sellerIds));
@@ -388,6 +389,7 @@ router.get("/wholesale-leaderboard", async (req, res) => {
                     companyId: company.id,
                     companyName: company.companyName,
                     wholesaleCount: row.count,
+                    contactName: company.contactName ?? null,
                 };
             })
             .filter(Boolean);

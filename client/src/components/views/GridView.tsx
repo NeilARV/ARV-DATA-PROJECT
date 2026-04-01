@@ -15,6 +15,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useMemo } from "react";
+import { formatCompanyName } from "@shared/utils/formatCompanyName";
 
 export default function GridView({
   showWholesaleLeaderboard = false,
@@ -23,7 +24,7 @@ export default function GridView({
 
   const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { properties, totalProperties, propertiesHasMore, isLoading, isFetching, isLoadingMoreProperties, loadMorePropertiesRef, stablePropertyCount } = useProperties();
-  const { property, fetchProperty, setProperty } = useProperty();
+  const { fetchProperty, setProperty } = useProperty();
   const { company, setCompany, handleCompanyClick } = useCompanies();
 
   // Show loader when initially loading and no properties yet
@@ -48,22 +49,13 @@ export default function GridView({
   });
 
 
-    // Calculate grid columns based on sidebar and property detail panel visibility
+    // Calculate grid columns based on sidebar visibility
     const gridColsClass = useMemo(() => {
       const hasSidebar = sideBarView !== "none";
-      const hasPropertyPanel = property !== null;
-      
-      // Both sidebar and panel open - use 2 columns max
-      if (hasSidebar && hasPropertyPanel) {
-        return "grid-cols-1 md:grid-cols-2";
-      }
-      // Only sidebar OR panel open - use 2-3 columns
-      if (hasSidebar || hasPropertyPanel) {
-        return "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3";
-      }
-      // Neither open - full 3 columns
-      return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
-    }, [sideBarView, property]);
+      return hasSidebar
+        ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+        : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+    }, [sideBarView]);
 
   return (
     <div className="h-full overflow-y-auto p-6 flex-1 flex flex-col min-w-0">
@@ -108,13 +100,20 @@ export default function GridView({
                         setProperty(null);
                         handleCompanyClick?.(entry.companyName, entry.companyId);
                       }}
-                      className={`w-[160px] pl-2 pr-2 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
+                      className={`w-[150px] pl-1.5 pr-1.5 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
                     >
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
                         {entry.rank}
                       </span>
-                      <span className="font-medium text-sm truncate min-w-0 flex-1 text-foreground">
-                        {entry.companyName}
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="text-xs font-medium truncate block text-foreground leading-tight">
+                          {formatCompanyName(entry.companyName)}
+                        </span>
+                        {entry.contactName && (
+                          <span className="text-xs text-muted-foreground truncate block leading-tight">
+                            {entry.contactName}
+                          </span>
+                        )}
                       </span>
                       <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                         {entry.wholesaleCount}

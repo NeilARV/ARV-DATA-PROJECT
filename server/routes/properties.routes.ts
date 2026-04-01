@@ -13,7 +13,7 @@ import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
-import { eq, sql, or, and, desc } from "drizzle-orm";
+import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import dotenv from "dotenv";
 import { MapsController, StreetviewController, PropertiesController } from "server/controllers/properties";
@@ -531,6 +531,22 @@ router.get("/:id", async (req, res) => {
         const latest = latestArmsLengthTx;
         const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
         const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
+
+        // Fetch contact info from transaction-linked company when property has no buyerId/sellerId
+        const txBuyerCompanyId = !result.buyerId && latest?.buyerId ? latest.buyerId : null;
+        const txSellerCompanyId = !result.sellerId && latest?.sellerId ? latest.sellerId : null;
+        const txCompanyIds = [txBuyerCompanyId, txSellerCompanyId].filter(Boolean) as string[];
+        type TxCompany = { id: string; contactName: string | null; contactEmail: string | null; phoneNumber: string | null };
+        const txCompanyMap = new Map<string, TxCompany>();
+        if (txCompanyIds.length > 0) {
+            const rows = await db
+                .select({ id: companies.id, contactName: companies.contactName, contactEmail: companies.contactEmail, phoneNumber: companies.phoneNumber })
+                .from(companies)
+                .where(inArray(companies.id, txCompanyIds));
+            for (const row of rows) txCompanyMap.set(row.id, row);
+        }
+        const txBuyerCompany = txBuyerCompanyId ? txCompanyMap.get(txBuyerCompanyId) ?? null : null;
+        const txSellerCompany = txSellerCompanyId ? txCompanyMap.get(txSellerCompanyId) ?? null : null;
         const isFinancedByARV =
             latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
 
@@ -565,16 +581,16 @@ router.get("/:id", async (req, res) => {
             // Buyer company info (fallback name from transactions when no company)
             buyerId: result.buyerId ? String(result.buyerId) : null,
             buyerCompanyName: buyerDisplayName,
-            buyerContactName: result.buyerContactName || null,
-            buyerContactEmail: result.buyerContactEmail || null,
-            buyerContactPhone: result.buyerContactPhone || null,
+            buyerContactName: result.buyerContactName || txBuyerCompany?.contactName || null,
+            buyerContactEmail: result.buyerContactEmail || txBuyerCompany?.contactEmail || null,
+            buyerContactPhone: result.buyerContactPhone || txBuyerCompany?.phoneNumber || null,
             // Seller company info (fallback name from transactions when no company)
             sellerId: result.sellerId ? String(result.sellerId) : null,
             sellerCompanyName: sellerDisplayName,
             sellerName: sellerDisplayName,
-            sellerContactName: result.sellerContactName || null,
-            sellerContactEmail: result.sellerContactEmail || null,
-            sellerContactPhone: result.sellerContactPhone || null,
+            sellerContactName: result.sellerContactName || txSellerCompany?.contactName || null,
+            sellerContactEmail: result.sellerContactEmail || txSellerCompany?.contactEmail || null,
+            sellerContactPhone: result.sellerContactPhone || txSellerCompany?.phoneNumber || null,
             // Spread from Arms Length transactions; recording dates for those txs
             buyerPurchasePrice,
             buyerPurchaseDate,

@@ -423,6 +423,25 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         transactionsByPropertyId.set(pid, sortTransactionsDesc(list));
     });
 
+    // Pre-pass: collect transaction-derived company IDs for properties where the property's own
+    // buyerId/sellerId is null, so we can batch-fetch contact info as a fallback.
+    const txFallbackCompanyIds = new Set<string>();
+    for (const prop of rawPropertiesList as any[]) {
+        const txs = transactionsByPropertyId.get(prop.id) ?? [];
+        const { latestArmsLengthTx } = calculateSpread(txs);
+        if (!prop.buyerId && latestArmsLengthTx?.buyerId) txFallbackCompanyIds.add(latestArmsLengthTx.buyerId);
+        if (!prop.sellerId && latestArmsLengthTx?.sellerId) txFallbackCompanyIds.add(latestArmsLengthTx.sellerId);
+    }
+    type CompanyContact = { id: string; contactName: string | null; contactEmail: string | null; phoneNumber: string | null };
+    const txFallbackCompanyMap = new Map<string, CompanyContact>();
+    if (txFallbackCompanyIds.size > 0) {
+        const fallbackRows = await db
+            .select({ id: companies.id, contactName: companies.contactName, contactEmail: companies.contactEmail, phoneNumber: companies.phoneNumber })
+            .from(companies)
+            .where(inArray(companies.id, Array.from(txFallbackCompanyIds)));
+        for (const row of fallbackRows) txFallbackCompanyMap.set(row.id, row);
+    }
+
     // Map results to flat Property structure expected by frontend
     const propertiesList = rawPropertiesList.map((prop: any) => {
         const lat = prop.latitude ? Number(prop.latitude) : null;
@@ -441,6 +460,10 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
         const isFinancedByARV =
             latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
+
+        // Fallback contact info from transaction-linked company when property has no buyerId/sellerId
+        const txBuyerCompany = !prop.buyerId && latest?.buyerId ? txFallbackCompanyMap.get(latest.buyerId) ?? null : null;
+        const txSellerCompany = !prop.sellerId && latest?.sellerId ? txFallbackCompanyMap.get(latest.sellerId) ?? null : null;
 
         return {
             id: prop.id,
@@ -468,13 +491,13 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             buyerId: prop.buyerId ? String(prop.buyerId) : null,
             sellerId: prop.sellerId ? String(prop.sellerId) : null,
             buyerCompanyName: buyerDisplayName,
-            buyerContactName: prop.buyerContactName || null,
-            buyerContactEmail: prop.buyerContactEmail || null,
-            buyerContactPhone: prop.buyerContactPhone || null,
+            buyerContactName: prop.buyerContactName || txBuyerCompany?.contactName || null,
+            buyerContactEmail: prop.buyerContactEmail || txBuyerCompany?.contactEmail || null,
+            buyerContactPhone: prop.buyerContactPhone || txBuyerCompany?.phoneNumber || null,
             sellerCompanyName: sellerDisplayName,
-            sellerContactName: prop.sellerContactName || null,
-            sellerContactEmail: prop.sellerContactEmail || null,
-            sellerContactPhone: prop.sellerContactPhone || null,
+            sellerContactName: prop.sellerContactName || txSellerCompany?.contactName || null,
+            sellerContactEmail: prop.sellerContactEmail || txSellerCompany?.contactEmail || null,
+            sellerContactPhone: prop.sellerContactPhone || txSellerCompany?.phoneNumber || null,
             companyName: prop.companyName || buyerDisplayName || sellerDisplayName || null,
             companyContactName: prop.contactName || null,
             companyContactEmail: prop.contactEmail || null,

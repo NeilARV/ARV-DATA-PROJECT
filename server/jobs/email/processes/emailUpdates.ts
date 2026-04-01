@@ -241,6 +241,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         and(
           eq(properties.msa, msaName),
           sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`,
+          sql`(${properties.propertyType} IS NULL OR ${properties.propertyType} <> 'Vacant Land')`,
         )
       )
       .orderBy(
