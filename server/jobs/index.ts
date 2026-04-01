@@ -58,7 +58,8 @@ export function startScheduledJobs() {
         console.log(`[CRON] Scan windows skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
     }
     
-    // Consumer: Run at 30 minute mark every hour from 4:30am to 10:30pm — processes all pending market_scan_queue rows
+    // Consumer: Run at 30 minute mark every hour from 5am to 10pm — processes all pending market_scan_queue rows
+    // Earliest Run Time: 5am | Latest Run Time: 10:30pm
     // Can adjust time based on whether or not Scanner E is active
     if (process.env.NODE_ENV === "production") {
         cron.schedule("*/30 5-22 * * *", runConsumer, {
