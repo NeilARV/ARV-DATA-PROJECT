@@ -338,7 +338,7 @@ export default function FilterHeader({
         {onToggleDirectory && (
           <>
             <Button
-              variant={directoryOpen ? "default" : "outline"}
+              variant={directoryOpen ? "secondary" : "outline"}
               size="icon"
               onClick={onToggleDirectory}
               className="h-8 w-8 flex-shrink-0"
