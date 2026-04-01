@@ -326,7 +326,7 @@ export default function FilterHeader({
 
   return (
     <div className="border-b border-border bg-background flex-shrink-0" data-testid="filter-header">
-      <div className="flex xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2 xl:flex-wrap">
+      <div className="flex xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2 lg:flex-wrap">
 
         {/* Status tags */}
         <div className="inline-flex rounded-md border border-border overflow-hidden">
@@ -601,9 +601,6 @@ export default function FilterHeader({
             </PopoverContent>
           </Popover>
         </div>
-
-        {/* Divider — only shown when sections are side-by-side on xl+ */}
-        <div className="hidden xl:block w-px h-5 bg-border flex-shrink-0 mx-0.5" />
 
         {/* Price popover */}
         <Popover open={priceOpen} onOpenChange={setPriceOpen}>
