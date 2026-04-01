@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { X, Search, MapPin, Home, CalendarIcon, ChevronDown, DollarSign, Menu } from "lucide-react";
+import { X, Search, MapPin, Home, CalendarIcon, ChevronDown, DollarSign } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -77,14 +77,10 @@ function formatPrice(val: number): string {
 // ---- Props ----
 export interface FilterHeaderProps {
   zipCodesWithCounts?: ZipCodeWithCount[];
-  onToggleDirectory?: () => void;
-  directoryOpen?: boolean;
 }
 
 export default function FilterHeader({
   zipCodesWithCounts = [],
-  onToggleDirectory,
-  directoryOpen,
 }: FilterHeaderProps) {
   const { filters, setFilters, hasActiveFilters } = useFilters();
   const { setCompany } = useCompanies();
@@ -321,7 +317,7 @@ export default function FilterHeader({
 
   const propertyTypeLabel =
     filters.propertyTypes.length === 0
-      ? "Type"
+      ? "Property Type"
       : filters.propertyTypes.length === 1
       ? filters.propertyTypes[0]
       : `${filters.propertyTypes.length} Types`;
@@ -330,29 +326,10 @@ export default function FilterHeader({
 
   return (
     <div className="border-b border-border bg-background flex-shrink-0" data-testid="filter-header">
+      <div className="flex flex-col xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2">
 
-      {/* ── Single row ── */}
-      <div className="flex items-center gap-1.5 px-3 py-2">
-
-        {/* Directory toggle */}
-        {onToggleDirectory && (
-          <>
-            <Button
-              variant={directoryOpen ? "secondary" : "outline"}
-              size="icon"
-              onClick={onToggleDirectory}
-              className="h-8 w-8 flex-shrink-0"
-              data-testid="button-toggle-directory"
-            >
-              {directoryOpen ? (
-                <X className="w-4 h-4" />
-              ) : (
-                <Menu className="w-4 h-4" />
-              )}
-            </Button>
-            <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
-          </>
-        )}
+      {/* ── Section 1: Status · State · County · Zip/City · Dates · Clear ── */}
+      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-2">
 
         {/* Status tags */}
         <div className="inline-flex rounded-md border border-border overflow-hidden flex-shrink-0">
@@ -498,7 +475,7 @@ export default function FilterHeader({
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
               <Input
                 type="text"
-                placeholder="Zip or city..."
+                placeholder="Zip code or city"
                 value={zipInput}
                 onChange={(e) => handleZipInputChange(e.target.value)}
                 onFocus={() => {
@@ -508,7 +485,7 @@ export default function FilterHeader({
                     setZipOpen(true);
                   }
                 }}
-                className="h-8 pl-7 pr-6 text-xs w-44"
+                className="h-8 pl-7 pr-6 text-xs w-52"
                 data-testid="input-zipcode"
               />
               {zipInput && (
@@ -629,7 +606,30 @@ export default function FilterHeader({
             />
           </PopoverContent>
         </Popover>
-        <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
+
+        {/* Clear Filters */}
+        {hasActiveFilters && (
+          <>
+            <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearFilters}
+              className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
+              data-testid="button-reset-filters"
+            >
+              <X className="w-3 h-3 mr-1" />
+              Clear
+            </Button>
+          </>
+        )}
+      </div>{/* end Section 1 */}
+
+      {/* ── Section 2: Price · Beds · Baths · Property Type ── */}
+      <div className="flex items-center flex-wrap gap-x-1.5 gap-y-2">
+
+        {/* Divider — only shown when sections are side-by-side on xl+ */}
+        <div className="hidden xl:block w-px h-5 bg-border flex-shrink-0 mx-0.5" />
 
         {/* Price popover */}
         <Popover open={priceOpen} onOpenChange={setPriceOpen}>
@@ -760,23 +760,9 @@ export default function FilterHeader({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Clear Filters */}
-        {hasActiveFilters && (
-          <>
-            <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearFilters}
-              className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
-              data-testid="button-reset-filters"
-            >
-              <X className="w-3 h-3 mr-1" />
-              Clear
-            </Button>
-          </>
-        )}
-      </div>
+      </div>{/* end Section 2 */}
+
+      </div>{/* end flex container */}
     </div>
   );
 }

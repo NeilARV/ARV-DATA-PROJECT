@@ -25,7 +25,7 @@ import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 
 function HomeContent() {
   const { filters } = useFilters();
-  const { view, sidebarView, setSidebarView } = useView();
+  const { view, sidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
   const { dialog, openDialog, closeDialog, isForced, forcedDialogActive, headerDialogHandlers } = useDialogs();
@@ -39,13 +39,13 @@ function HomeContent() {
     }
   }, [property, view]);
 
-  // Load companies when directory is open (with county filter). Skip when user just clicked a company
+  // Load companies on mount and when county filter changes. Skip when user just clicked a company
   // (e.g. wholesaler in grid, or company in property panel/modal) so that company can be shown via ensuredCompany.
   useEffect(() => {
-    if (sidebarView === "directory" && !companySelectionInProgressRef.current) {
+    if (!companySelectionInProgressRef.current) {
       loadCompanies();
     }
-  }, [sidebarView, filters.county, loadCompanies, companySelectionInProgressRef]);
+  }, [filters.county, loadCompanies, companySelectionInProgressRef]);
 
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
@@ -73,21 +73,26 @@ function HomeContent() {
         forcedDialogActive={forcedDialogActive}
       />
 
-      <FilterHeader
-        zipCodesWithCounts={zipCodesWithCounts}
-        onToggleDirectory={() => setSidebarView(sidebarView === "directory" ? "none" : "directory")}
-        directoryOpen={sidebarView === "directory"}
-      />
+      {/* CSS grid: col 1 = sidebar (375px), col 2 = content (1fr).
+          Row 1 height is auto — FilterHeader and "Investor Profiles" title share
+          the same row so they always match height without hardcoded values. */}
+      <div className="flex-1 grid grid-cols-[375px_1fr] grid-rows-[auto_1fr] overflow-hidden min-h-0">
 
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {sidebarView === "directory" && (
-          <CompanyDirectory
-            onClose={() => setSidebarView("none")}
-            onSwitchToFilters={undefined}
-          />
-        )}
+        {/* [row 1, col 1] Sidebar title — height auto-tracks FilterHeader */}
+        <div className="flex items-center px-4 border-b border-r border-border bg-background">
+          <h2 className="text-base font-semibold">Investor Profiles</h2>
+        </div>
 
-        <div className="flex-1 overflow-hidden flex min-h-0">
+        {/* [row 1, col 2] FilterHeader */}
+        <FilterHeader zipCodesWithCounts={zipCodesWithCounts} />
+
+        {/* [row 2, col 1] Company Directory */}
+        <div className="border-r border-border overflow-hidden flex flex-col">
+          <CompanyDirectory />
+        </div>
+
+        {/* [row 2, col 2] Content views */}
+        <div className="overflow-hidden flex min-h-0">
           {view === "deals" ? (
             <DealView />
           ) : view === "map" ? (
@@ -114,7 +119,8 @@ function HomeContent() {
             </>
           )}
         </div>
-      </div>
+
+      </div>{/* end grid */}
 
       <AppDialog
         open={dialog !== null}

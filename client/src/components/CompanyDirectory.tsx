@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, Filter, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
+import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import UpdateContent from "@/components/modals/Update";
@@ -48,7 +48,7 @@ const companyProfiles: Record<string, {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-export default function CompanyDirectory({ onClose, onSwitchToFilters }: CompanyDirectoryProps) {
+export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
   const [searchInput, setSearchInput] = useState("");
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
@@ -245,12 +245,7 @@ export default function CompanyDirectory({ onClose, onSwitchToFilters }: Company
   };
 
   return (
-    <div className="w-[375px] flex-shrink-0 h-full bg-background border-r border-border flex flex-col" data-testid="sidebar-directory">
-      <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center justify-center">
-          <h2 className="text-base font-semibold">Investor Profiles</h2>
-        </div>
-      </div>
+    <div className="flex-1 min-h-0 bg-background flex flex-col overflow-hidden" data-testid="sidebar-directory">
 
       <div className="p-4 border-b border-border space-y-3">
         <div className="relative">

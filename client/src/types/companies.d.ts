@@ -17,7 +17,4 @@ export type CompanyContactDetail = Company & {
   acquisition90DayByMonth: Array<{ key: string; count: number }>;
 };
 
-export type CompanyDirectoryProps = {
-  onClose?: () => void;
-  onSwitchToFilters?: () => void;
-};
+export type CompanyDirectoryProps = Record<string, never>;
