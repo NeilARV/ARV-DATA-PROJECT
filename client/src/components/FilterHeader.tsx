@@ -396,8 +396,6 @@ export default function FilterHeader({
           </button>
         </div>
 
-        <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
-
         {/* State */}
         <Select value={selectedState} onValueChange={handleStateChange}>
           <SelectTrigger
@@ -535,8 +533,6 @@ export default function FilterHeader({
             </div>
           </PopoverContent>
         </Popover>
-
-        <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
 
         {/* Date From */}
         <div className="items-center flex space-x-2">
@@ -741,7 +737,6 @@ export default function FilterHeader({
         {/* Clear Filters */}
         {hasActiveFilters && (
           <>
-            <div className="w-px h-5 bg-border flex-shrink-0 mx-0.5" />
             <Button
               variant="ghost"
               size="sm"
