@@ -60,13 +60,13 @@ export function startScheduledJobs() {
     
     // Consumer: Run at 30 minute mark every hour from 4:30am to 10:30pm — processes all pending market_scan_queue rows
     // Can adjust time based on whether or not Scanner E is active
-    //if (process.env.NODE_ENV === "production") {
-        cron.schedule("40 * * * *", runConsumer, {
+    if (process.env.NODE_ENV === "production") {
+        cron.schedule("*/30 5-22 * * *", runConsumer, {
             timezone: "America/Los_Angeles"
         })
-   // } else {
-    //    console.log(`[CRON] Consumer skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
-    //}
+    } else {
+        console.log(`[CRON] Consumer skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
+    }
 
     
     // =========================================================================
