@@ -21,6 +21,7 @@ export interface MapPropertyData {
     bathrooms: number | null;
     price: number;
     status: string;
+    statuses: string[];
     propertyOwner: string | null;
     companyId: string | null; // Primary company for display (buyer or seller)
     buyerId: string | null;
@@ -88,7 +89,8 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
             bedrooms: structures.bedsCount,
             bathrooms: structures.baths,
             price: lastSales.price,
-            status: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY ps.created_at DESC LIMIT 1)`,
+            status: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY CASE s.name WHEN 'wholesale' THEN 0 WHEN 'on-market' THEN 1 WHEN 'in-renovation' THEN 2 WHEN 'sold' THEN 3 ELSE 4 END LIMIT 1)`,
+            statuses: sql<string[]>`COALESCE((SELECT array_agg(s.name) FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id}), ARRAY[]::text[])`,
             // Company name and ID from buyer or seller (for client-side filtering)
             companyName: sql<string | null>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
             buyerId: properties.buyerId,
@@ -142,6 +144,7 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
                 bathrooms: baths,
                 price: price,
                 status: prop.status || '',
+                statuses: Array.isArray(prop.statuses) ? prop.statuses : [],
                 propertyOwner: companyName || null,
                 companyId,
                 buyerId: bid,
