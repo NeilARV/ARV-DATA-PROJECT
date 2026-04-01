@@ -295,7 +295,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                 New Buyers
               </SelectItem> */}
               <SelectItem value="buys-wholesale" data-testid="sort-buys-wholesale">
-                Buys Wholesale
+                Buys from Wholesalers
               </SelectItem>
             </SelectContent>
           </Select>
