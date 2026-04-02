@@ -278,7 +278,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                             step={0.5}
                             placeholder="2"
                             value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value)
+                            onChange={(e) => field.onChange(e.target.value)}
                           />
                         </FormControl>
                         <FormMessage />
@@ -301,7 +301,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                           min={1}
                           placeholder="1500"
                           value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          onChange={(e) => field.onChange(e.target.value)}
                         />
                       </FormControl>
                       <FormMessage />
