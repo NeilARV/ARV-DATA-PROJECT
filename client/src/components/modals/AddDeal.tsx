@@ -76,7 +76,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         address:      data.address?.trim() || undefined,
         city:         data.city,
         state:        data.state,
-        zipCode:      data.zipCode || undefined,
+        zipCode:      data.zipCode,
         userId:       user?.id,
         dealType:     data.dealType,
         price:        data.price,
@@ -181,7 +181,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
               name="zipCode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Zip Code <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                  <FormLabel>Zip Code *</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="92126" maxLength={5} />
                   </FormControl>
@@ -204,7 +204,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                       min={1}
                       placeholder="350000"
                       value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                      onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -257,7 +257,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                             min={0}
                             placeholder="3"
                             value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            onChange={(e) => field.onChange(e.target.value)}
                           />
                         </FormControl>
                         <FormMessage />
@@ -278,7 +278,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                             step={0.5}
                             placeholder="2"
                             value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            onChange={(e) => field.onChange(e.target.value)
                           />
                         </FormControl>
                         <FormMessage />

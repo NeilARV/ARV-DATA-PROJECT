@@ -95,10 +95,10 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
 
         // ── Basic validation ──────────────────────────────────────────────────
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!city || !state || !userId || price == null) {
+        if (!city || !state || !zipCode || !userId || price == null) {
             return res.status(400).json({
                 message: "Missing required fields",
-                errors: [{ path: [], message: "city, state, userId, and price are required" }],
+                errors: [{ path: [], message: "city, state, zipCode, userId, and price are required" }],
             });
         }
         if (!UUID_REGEX.test(userId)) {
@@ -186,7 +186,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                 address:      hasAddress ? (address as string).trim() : null,
                 city:         (city as string).trim(),
                 state:        (state as string).toUpperCase().trim(),
-                zipCode:      zipCode ? String(zipCode).trim() : null,
+                zipCode:      String(zipCode).trim(),
                 price:        String(price),
                 beds:         resolvedBeds,
                 baths:        resolvedBaths != null ? String(resolvedBaths) : null,

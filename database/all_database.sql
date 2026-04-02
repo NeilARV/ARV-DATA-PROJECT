@@ -518,7 +518,7 @@ CREATE TABLE deals (
     address         TEXT,
     city            TEXT,
     state           VARCHAR(2),
-    zip_code        VARCHAR(10),
+    zip_code        VARCHAR(10)        NOT NULL,
     -- Property details stored directly (fetched from SFR when address provided)
     price           DECIMAL(15, 2),
     beds            INTEGER,

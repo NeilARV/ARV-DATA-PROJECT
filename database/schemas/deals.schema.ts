@@ -20,7 +20,7 @@ export const deals = pgTable("deals", {
   address:      text("address"),
   city:         text("city"),
   state:        varchar("state", { length: 2 }),
-  zipCode:      varchar("zip_code", { length: 10 }),
+  zipCode:      varchar("zip_code", { length: 10 }).notNull(),
 
   // Property details (fetched from SFR when address provided, else manually entered)
   price:        decimal("price", { precision: 15, scale: 2 }),

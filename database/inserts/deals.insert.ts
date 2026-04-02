@@ -5,7 +5,7 @@ export const dealFormSchema = z
     address:      z.string().optional(),
     city:         z.string().min(1, "City is required"),
     state:        z.string().length(2, "State must be 2 characters"),
-    zipCode:      z.string().optional(),
+    zipCode:      z.string().min(5, "Valid zip code is required").max(10),
     price:        z.coerce
                     .number({ invalid_type_error: "Price must be a number" })
                     .positive("Price must be greater than 0"),
