@@ -89,6 +89,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
             address, city, state, zipCode,
             userId, dealType, price,
             beds, baths, sqft, propertyType,
+            sendNotifications,
         } = req.body;
 
         const label = "[POST /api/deals]";
@@ -199,7 +200,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
         res.status(201).json({ message: "Deal posted successfully", deal });
 
         // ── Send new-deal notification emails in the background ────────────
-        // isEmailOn is intentionally false — infrastructure is wired but disabled
+        // shouldNotify is intentionally false — infrastructure is wired but disabled
         // until we're ready to enable notifications.
         ;(async () => {
             try {
@@ -227,9 +228,10 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                     });
 
                     const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
-                    const isEmailOn = false;
+                    //const shouldNotify = sendNotifications === true;
+                    const shouldNotify = false; // TEMP OVERRIDE - notifications are disabled until we're ready to enable them
 
-                    if (template && isEmailOn) {
+                    if (template && shouldNotify) {
                         // Get county for email template
                         let county = "Unknown";
                         if (deal.propertyId) {

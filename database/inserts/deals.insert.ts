@@ -13,7 +13,8 @@ export const dealFormSchema = z
     beds:         z.coerce.number().int().positive().optional(),
     baths:        z.coerce.number().positive().optional(),
     sqft:         z.coerce.number().int().positive().optional(),
-    propertyType: z.string().optional(),
+    propertyType:      z.string().optional(),
+    sendNotifications: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
     const hasAddress = typeof data.address === "string" && data.address.trim().length > 0;

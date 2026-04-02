@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { dealFormSchema } from "@database/inserts/deals.insert";
@@ -70,6 +71,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
       baths: undefined,
       sqft: undefined,
       propertyType: undefined,
+      sendNotifications: true,
     },
   });
 
@@ -90,7 +92,8 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         beds:         data.beds,
         baths:        data.baths,
         sqft:         data.sqft,
-        propertyType: data.propertyType,
+        propertyType:      data.propertyType,
+        sendNotifications: data.sendNotifications,
       });
       return res.json();
     },
@@ -348,6 +351,25 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                 Property details (beds, baths, sqft, type) will be fetched automatically from the address.
               </p>
             )}
+
+            {/* Send Notification Email */}
+            <FormField
+              control={form.control}
+              name="sendNotifications"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal cursor-pointer">
+                    Send notification email
+                  </FormLabel>
+                </FormItem>
+              )}
+            />
 
             <div className="flex gap-2 pt-2">
               <Button
