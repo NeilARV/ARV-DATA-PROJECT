@@ -514,6 +514,7 @@ CREATE TABLE deals (
     msa_id          INTEGER       REFERENCES msas(id) ON DELETE RESTRICT,
     type            deal_type     NOT NULL,
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     -- Address stored directly (full address optional; city + state always required)
     address         TEXT,
     city            TEXT,

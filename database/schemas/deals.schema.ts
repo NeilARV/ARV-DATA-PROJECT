@@ -15,6 +15,7 @@ export const deals = pgTable("deals", {
   msaId:        integer("msa_id").notNull().references(() => msas.id, { onDelete: "restrict" }),
   type:         dealTypeEnum("type").notNull(),
   createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   
   // Address fields (full address optional; city + state always set by app logic)
   address:      text("address"),
