@@ -1,18 +1,12 @@
 import { Router } from "express";
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
-import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
+import { properties } from "@database/schemas/properties.schema";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
-import { getTransactions } from "server/jobs/data_v2/processes/get-transactions";
-import { cleanTransactions } from "server/jobs/data_v2/processes/clean-transactions";
-import { insertCompanies } from "server/jobs/data_v2/processes/insert-companies";
-import { resolvePropertyIds } from "server/jobs/data_v2/processes/resolve-ids";
-import { resolveStatuses } from "server/jobs/data_v2/processes/resolve-status";
-import { cleanBeforeInsert } from "server/jobs/data_v2/processes/clean-before-insert";
-import { insertProperties } from "server/jobs/data_v2/processes/insert-properties";
-import { eq, desc, and, ilike, inArray } from "drizzle-orm";
+import { resolveMsaId } from "server/utils/resolveMsa";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireRole } from "server/middleware/requireRole";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
 import dotenv from "dotenv";
@@ -21,14 +15,14 @@ dotenv.config();
 
 const router = Router();
 
-// GET /api/deals — fetch all deals, newest first, with property address and poster info
+// GET /api/deals — fetch all deals newest first; fields are stored directly on deals
 // Optional ?userId=<uuid> to return only deals posted by that user
+// Optional ?msaName=<name> to filter by MSA (also includes deals with no msa_id)
 router.get("/", async (req, res) => {
     try {
         const filterUserId = typeof req.query.userId === "string" ? req.query.userId : undefined;
         const filterMsaName = typeof req.query.msaName === "string" ? req.query.msaName : undefined;
 
-        // Resolve msaId from name so we filter on deals.msaId (primary table column)
         let filterMsaId: number | undefined;
         if (filterMsaName) {
             const [msaRow] = await db
@@ -43,47 +37,35 @@ router.get("/", async (req, res) => {
             filterMsaId = msaRow.id;
         }
 
-        const whereClause = filterUserId && filterMsaId !== undefined
-            ? and(eq(deals.userId, filterUserId), eq(deals.msaId, filterMsaId))
+        const msaCondition = filterMsaId !== undefined ? eq(deals.msaId, filterMsaId) : undefined;
+
+        const whereClause = filterUserId && msaCondition
+            ? and(eq(deals.userId, filterUserId), msaCondition)
             : filterUserId
             ? eq(deals.userId, filterUserId)
-            : filterMsaId !== undefined
-            ? eq(deals.msaId, filterMsaId)
-            : undefined;
+            : msaCondition;
 
         const results = await db
             .select({
-                id:        deals.id,
-                createdAt: deals.createdAt,
-                // Property info
-                propertyId:    deals.propertyId,
-                address:       addresses.formattedStreetAddress,
-                city:          addresses.city,
-                state:         addresses.state,
-                zipCode:       addresses.zipCode,
-                propertyType:  properties.propertyType,
-                listingStatus: properties.listingStatus,
-                // Structure info
-                bedrooms:   structures.bedsCount,
-                bathrooms:  structures.baths,
-                squareFeet: structures.livingAreaSqft,
-                yearBuilt:  structures.yearBuilt,
-                // Last sale
-                price:    lastSales.price,
-                // MSA info
-                msaId:   deals.msaId,
-                msaName: msas.name,
-                // Deal type
-                type:    deals.type,
-                // Poster info
-                userId:        deals.userId,
-                userEmail:     users.email,
+                id:           deals.id,
+                createdAt:    deals.createdAt,
+                propertyId:   deals.propertyId,
+                address:      deals.address,
+                city:         deals.city,
+                state:        deals.state,
+                zipCode:      deals.zipCode,
+                price:        deals.price,
+                beds:         deals.beds,
+                baths:        deals.baths,
+                sqft:         deals.sqft,
+                propertyType: deals.propertyType,
+                msaId:        deals.msaId,
+                msaName:      msas.name,
+                type:         deals.type,
+                userId:       deals.userId,
+                userEmail:    users.email,
             })
             .from(deals)
-            .leftJoin(properties, eq(deals.propertyId, properties.id))
-            .leftJoin(addresses, eq(deals.propertyId, addresses.propertyId))
-            .leftJoin(structures, eq(deals.propertyId, structures.propertyId))
-            .leftJoin(lastSales, eq(deals.propertyId, lastSales.propertyId))
             .leftJoin(msas, eq(deals.msaId, msas.id))
             .leftJoin(users, eq(deals.userId, users.id))
             .where(whereClause)
@@ -98,261 +80,183 @@ router.get("/", async (req, res) => {
     }
 });
 
-// POST /api/deals — run full consumer pipeline for a single address, then post a deal
+// POST /api/deals — post a deal directly; no pipeline processing
+// When a full address is provided, SFR is queried for property details (beds/baths/sqft/propertyType).
+// When only city/state is provided, those details must be supplied manually.
 router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]), async (req, res) => {
     try {
-        const { address, city, state, zipCode, userId, dealType } = req.body;
-        const validDealTypes = ["wholesale", "agent"];
-        const resolvedDealType = validDealTypes.includes(dealType) ? dealType : "agent";
-
-        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!address || !city || !state || !zipCode || !userId) {
-            return res.status(400).json({
-                message: "Missing required fields",
-                errors: [{ path: [], message: "address, city, state, zipCode, and userId are required" }],
-            });
-        }
-        
-        if (!UUID_REGEX.test(userId)) {
-            return res.status(400).json({ message: "Invalid userId — must be a valid UUID" });
-        }
-
-        const API_KEY = process.env.SFR_API_KEY;
-        const API_URL = process.env.SFR_API_URL;
-
-        if (!API_KEY || !API_URL) {
-            return res.status(500).json({ message: "SFR API not configured" });
-        }
+        const {
+            address, city, state, zipCode,
+            userId, dealType, price,
+            beds, baths, sqft, propertyType,
+        } = req.body;
 
         const label = "[POST /api/deals]";
 
-        // Build a single-item BuyersMarketRecord for the pipeline
-        const record = { address, city, state, zipCode };
-
-        // ── Step 1: Batch lookup (single property via /properties/batch) ──────
-        console.log(`${label} Batch lookup: ${address}, ${city}, ${state} ${zipCode}`);
-        const mergedProperties = await batchLookup({
-            records: [record],
-            API_KEY,
-            API_URL,
-            cityCode: "DEAL",
-        });
-
-        if (mergedProperties.length === 0 || mergedProperties[0].error || !mergedProperties[0].property) {
-            return res.status(404).json({ message: "Property not found or could not be looked up" });
+        // ── Basic validation ──────────────────────────────────────────────────
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!city || !state || !userId || price == null) {
+            return res.status(400).json({
+                message: "Missing required fields",
+                errors: [{ path: [], message: "city, state, userId, and price are required" }],
+            });
+        }
+        if (!UUID_REGEX.test(userId)) {
+            return res.status(400).json({ message: "Invalid userId — must be a valid UUID" });
+        }
+        if (Number(price) <= 0) {
+            return res.status(400).json({ message: "Price must be greater than 0" });
         }
 
-        const merged = mergedProperties[0];
-        const propertyData = merged.property as Record<string, unknown>;
-        const sfrPropertyId = Number(propertyData.property_id ?? 0);
+        const hasAddress = typeof address === "string" && address.trim().length > 0;
 
-        if (!sfrPropertyId) {
-            return res.status(404).json({ message: "SFR property ID missing from API response" });
+        // ── If no street address, manual property details are required ────────
+        if (!hasAddress) {
+            const missing: string[] = [];
+            if (beds == null)        missing.push("beds");
+            if (baths == null)       missing.push("baths");
+            if (sqft == null)        missing.push("sqft");
+            if (!propertyType)       missing.push("propertyType");
+            if (missing.length > 0) {
+                return res.status(400).json({
+                    message: "beds, baths, sqft, and propertyType are required when no street address is provided",
+                    errors: missing.map((f) => ({ path: [f], message: "Required" })),
+                });
+            }
         }
 
-        // ── Derive MSA from property data ─────────────────────────────────────
-        const msaName = (propertyData.msa as string | undefined)?.trim() ?? null;
-        if (!msaName) {
-            return res.status(422).json({ message: "Could not determine MSA for this property" });
-        }
+        const validDealTypes = ["wholesale", "agent"];
+        const resolvedDealType = validDealTypes.includes(dealType) ? dealType : "agent";
 
-        const [msaRow] = await db
-            .select()
-            .from(msas)
-            .where(eq(msas.name, msaName))
-            .limit(1);
-
-        if (!msaRow) {
+        // ── Resolve MSA (always required) ────────────────────────────────────
+        const msaId = await resolveMsaId(city, state, zipCode);
+        if (!msaId) {
             return res.status(422).json({
-                message: `MSA "${msaName}" is not tracked in this system`,
+                message: `Could not determine MSA for ${city}, ${state}${zipCode ? ` ${zipCode}` : ""}. ` +
+                    `Ensure the location is within one of the tracked markets.`,
             });
         }
 
-        // ── Check if property already exists — skip full pipeline if so ────────
-        const [existingProperty] = await db
-            .select({ id: properties.id })
-            .from(properties)
-            .where(eq(properties.sfrPropertyId, sfrPropertyId))
-            .limit(1);
+        // ── Resolve property details from SFR when a full address is provided ─
+        let resolvedBeds:         number | null = beds != null ? Number(beds) : null;
+        let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
+        let resolvedSqft:         number | null = sqft != null ? Number(sqft) : null;
+        let resolvedPropertyType: string | null = propertyType ?? null;
 
-        let propertyId: string;
+        if (hasAddress) {
+            const API_KEY = process.env.SFR_API_KEY;
+            const API_URL = process.env.SFR_API_URL;
 
-        if (existingProperty) {
-            console.log(`${label} Property ${sfrPropertyId} already exists (id=${existingProperty.id}), skipping pipeline`);
-            propertyId = existingProperty.id;
-        } else {
-            // ── Step 2: Get transactions ──────────────────────────────────────
-            console.log(`${label} Fetching transactions for property ${sfrPropertyId}`);
-            const propertiesWithTransactions = await getTransactions({
-                properties: mergedProperties,
-                API_KEY,
-                API_URL,
-                cityCode: "DEAL",
-            });
+            if (!API_KEY || !API_URL) {
+                console.warn(`${label} SFR API not configured — skipping property detail lookup`);
+            } else {
+                try {
+                    console.log(`${label} Looking up property details: ${address}, ${city}, ${state} ${zipCode ?? ""}`);
+                    const mergedProperties = await batchLookup({
+                        records: [{ address, city, state, zipCode }],
+                        API_KEY,
+                        API_URL,
+                        cityCode: "DEAL",
+                    });
 
-            // ── Step 3: Clean transactions ────────────────────────────────────
-            const transactionCompanies = cleanTransactions(propertiesWithTransactions, msaName);
+                    if (mergedProperties.length > 0 && !mergedProperties[0].error && mergedProperties[0].property) {
+                        const p = mergedProperties[0].property as Record<string, unknown>;
+                        const struct = (p.structure as Record<string, unknown> | undefined) ?? {};
 
-            // ── Step 4: Insert/update companies ──────────────────────────────
-            await insertCompanies({
-                companyNames: transactionCompanies.companyNames,
-                msa: msaName,
-                cityCode: "DEAL",
-                companyCounties: transactionCompanies.companyCounties,
-            });
-
-            // ── Step 5: Resolve buyer_id / seller_id ─────────────────────────
-            const propertiesWithIds = await resolvePropertyIds({
-                properties: propertiesWithTransactions,
-                cityCode: "DEAL",
-            });
-
-            // ── Step 6: Determine property status ─────────────────────────────
-            const propertiesWithStatus = resolveStatuses(propertiesWithIds, msaName);
-
-            // ── Step 7: Final normalization ───────────────────────────────────
-            const propertiesToInsert = cleanBeforeInsert(propertiesWithStatus);
-
-            if (propertiesToInsert.length === 0) {
-                return res.status(422).json({ message: "Property could not be processed (status unresolvable)" });
-            }
-
-            // ── Step 8: Upsert property + child tables + transactions ─────────
-            console.log(`${label} Inserting property ${sfrPropertyId}`);
-            await insertProperties({
-                properties: propertiesToInsert,
-                msa: msaName,
-                cityCode: "DEAL",
-            });
-
-            // ── Resolve internal property UUID ────────────────────────────────
-            const [newPropertyRow] = await db
-                .select({ id: properties.id })
-                .from(properties)
-                .where(eq(properties.sfrPropertyId, sfrPropertyId))
-                .limit(1);
-
-            if (!newPropertyRow) {
-                return res.status(500).json({ message: "Property was processed but could not be found in database" });
-            }
-
-            propertyId = newPropertyRow.id;
-        }
-
-        // ── Backfill lastSales from transactions if batch had no last_sale ─────
-        // SFR's /properties/batch sometimes omits last_sale for recently sold or
-        // individual-owner properties. When that happens insertProperties leaves
-        // lastSales empty, but the arms-length transaction is still in
-        // propertyTransactions. Use the most recent one to populate lastSales so
-        // the deal card can display the price and date.
-        const [existingLastSale] = await db
-            .select({ id: lastSales.lastSalesId })
-            .from(lastSales)
-            .where(eq(lastSales.propertyId, propertyId))
-            .limit(1);
-
-        if (!existingLastSale) {
-            const [recentTx] = await db
-                .select()
-                .from(propertyTransactions)
-                .where(
-                    and(
-                        eq(propertyTransactions.propertyId, propertyId),
-                        ilike(propertyTransactions.transactionType, "arms length")
-                    )
-                )
-                .orderBy(desc(propertyTransactions.recordingDate))
-                .limit(1);
-
-            if (recentTx) {
-                await db
-                    .insert(lastSales)
-                    .values({
-                        propertyId,
-                        saleDate: recentTx.saleDate,
-                        recordingDate: recentTx.recordingDate,
-                        price: recentTx.salePrice,
-                    })
-                    .onConflictDoNothing();
-                console.log(`${label} Backfilled lastSales from most recent arms-length transaction for property ${propertyId}`);
+                        resolvedBeds         = Number(struct.beds_count ?? 0) || null;
+                        resolvedBaths        = Number(struct.baths ?? 0) || null;
+                        resolvedSqft         = Number(struct.living_area_sqft ?? 0) || null;
+                        resolvedPropertyType = (p.property_type as string | undefined) ?? null;
+                    } else {
+                        console.warn(`${label} SFR lookup returned no results — using manual values if provided`);
+                    }
+                } catch (lookupErr) {
+                    console.warn(`${label} SFR lookup failed — proceeding without property details:`, lookupErr);
+                }
             }
         }
 
-        // ── Step 9: Insert the deal ───────────────────────────────────────────
+        // ── Insert the deal ───────────────────────────────────────────────────
         const [deal] = await db
             .insert(deals)
             .values({
-                propertyId,
                 userId,
-                msaId: msaRow.id,
-                type: resolvedDealType,
+                msaId,
+                type:         resolvedDealType,
+                address:      hasAddress ? (address as string).trim() : null,
+                city:         (city as string).trim(),
+                state:        (state as string).toUpperCase().trim(),
+                zipCode:      zipCode ? String(zipCode).trim() : null,
+                price:        String(price),
+                beds:         resolvedBeds,
+                baths:        resolvedBaths != null ? String(resolvedBaths) : null,
+                sqft:         resolvedSqft,
+                propertyType: resolvedPropertyType,
             })
             .returning();
 
-        console.log(`${label} Deal posted: id=${deal.id}, property=${propertyId}, msa=${msaName}`);
+        console.log(`${label} Deal posted: id=${deal.id}, city=${city}, state=${state}, msaId=${msaId}`);
         res.status(201).json({ message: "Deal posted successfully", deal });
 
         // ── Send new-deal notification emails in the background ────────────
-        (async () => {
+        // isEmailOn is intentionally false — infrastructure is wired but disabled
+        // until we're ready to enable notifications.
+        ;(async () => {
             try {
-                // Get the property county from the properties table
-                const [propRow] = await db
-                    .select({ county: properties.county })
-                    .from(properties)
-                    .where(eq(properties.id, propertyId))
-                    .limit(1);
-                const county = propRow?.county?.trim() || "Unknown";
-
-                // Get all users subscribed to this MSA with notifications enabled
                 const subscribedUsers = await db
-                    .select({
-                        id: users.id,
-                        email: users.email,
-                    })
+                    .select({ id: users.id, email: users.email })
                     .from(users)
                     .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
                     .where(
                         and(
-                            eq(userMsaSubscriptions.msaId, msaRow.id),
+                            eq(userMsaSubscriptions.msaId, msaId),
                             eq(users.notifications, true),
                         )
                     );
 
-                if (subscribedUsers.length === 0) {
-                    console.log(`${label} No MSA subscribers to notify for msa=${msaName}`);
-                    return;
+                    if (subscribedUsers.length === 0) {
+                        console.log(`${label} No MSA subscribers to notify`);
+                        return;
+                    }
+
+                    const seen = new Set<string>([userId]);
+                    const uniqueUsers = subscribedUsers.filter((u) => {
+                        if (seen.has(u.id)) return false;
+                        seen.add(u.id);
+                        return true;
+                    });
+
+                    const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
+                    const isEmailOn = false;
+
+                    if (template && isEmailOn) {
+                        // Get county for email template
+                        let county = "Unknown";
+                        if (deal.propertyId) {
+                            const [propRow] = await db
+                                .select({ county: properties.county })
+                                .from(properties)
+                                .where(eq(properties.id, deal.propertyId))
+                                .limit(1);
+                            county = propRow?.county?.trim() || "Unknown";
+                        }
+
+                        const { sent, failed } = await sendTemplateToUsers({
+                            recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+                            templateAlias: template,
+                            templateModelForRecipient: () => ({
+                                cta_url: "https://data.arvfinance.com/",
+                                county: `${county} County`,
+                            }),
+                            logPrefix: label,
+                        });
+
+                        console.log(`${label} New-deal emails sent: ${sent}/${uniqueUsers.length}${failed.length > 0 ? ` (failed: ${failed.join(", ")})` : ""}`);
+                    }
+                } catch (err) {
+                    console.error(`${label} Error sending new-deal notification emails:`, err);
                 }
-
-                // Dedupe by user id and exclude the deal poster
-                const seen = new Set<string>();
-                seen.add(userId); // skip the user who posted the deal
-                const uniqueUsers = subscribedUsers.filter((u) => {
-                    if (seen.has(u.id)) return false;
-                    seen.add(u.id);
-                    return true;
-                });
-
-                const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS
-                const isEmailOn = false;
-
-                if (template && isEmailOn) {
-                    const { sent, failed } = await sendTemplateToUsers({
-                    recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
-                    templateAlias: template,
-                    templateModelForRecipient: () => ({
-                        cta_url: "https://data.arvfinance.com/",
-                        county: `${county} County`,
-                    }),
-                    logPrefix: label,
-                });
-
-                console.log(`${label} New-deal emails sent: ${sent}/${uniqueUsers.length} for msa=${msaName}${failed.length > 0 ? ` (failed: ${failed.join(", ")})` : ""}`);
-                }
-
-            } catch (err) {
-                console.error(`${label} Error sending new-deal notification emails:`, err);
-            }
-        })();
+            })();
     } catch (error) {
         console.error("[POST /api/deals]", error);
         res.status(500).json({
@@ -362,7 +266,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
     }
 });
 
-// DELETE /api/deals/:id — pro can delete their own deals; admin/owner/relationship-manager can delete any deal
+// DELETE /api/deals/:id — pro can delete their own deals; admin/owner/relationship-manager can delete any
 router.delete("/:id", requireRole(["pro", "relationship-manager", "admin", "owner"]), async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -370,7 +274,6 @@ router.delete("/:id", requireRole(["pro", "relationship-manager", "admin", "owne
             return res.status(400).json({ message: "Invalid deal id" });
         }
 
-        // Fetch the deal first so we can check ownership
         const [deal] = await db
             .select({ id: deals.id, userId: deals.userId })
             .from(deals)
@@ -381,7 +284,6 @@ router.delete("/:id", requireRole(["pro", "relationship-manager", "admin", "owne
             return res.status(404).json({ message: "Deal not found" });
         }
 
-        // Check if the caller is admin, owner, or relationship-manager — if not, enforce ownership
         const callerIsPrivileged = await db
             .select({ roleName: roles.name })
             .from(userRoles)

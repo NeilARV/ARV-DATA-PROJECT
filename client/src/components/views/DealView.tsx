@@ -43,17 +43,15 @@ import { formatAddress } from "@shared/utils/formatAddress";
 interface Deal {
   id: number;
   createdAt: string;
-  propertyId: string;
+  propertyId: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
   zipCode: string | null;
   propertyType: string | null;
-  listingStatus: string | null;
-  bedrooms: number | null;
-  bathrooms: string | null;
-  squareFeet: number | null;
-  yearBuilt: number | null;
+  beds: number | null;
+  baths: string | null;
+  sqft: number | null;
   price: string | null;
   msaId: number;
   msaName: string | null;
@@ -86,7 +84,7 @@ function DealCard({
       setImageLoading(false);
       return;
     }
-    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.propertyId)
+    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.propertyId ?? undefined)
       .then((url) => {
         if (url) {
           const img = new Image();
@@ -101,9 +99,9 @@ function DealCard({
   }, [deal.address, deal.city, deal.state, deal.propertyId]);
 
   const price = deal.price ? Number(deal.price) : null;
-  const beds = deal.bedrooms ? Number(deal.bedrooms) : null;
-  const baths = deal.bathrooms ? parseFloat(deal.bathrooms) : null;
-  const sqft = deal.squareFeet ? Number(deal.squareFeet) : null;
+  const beds = deal.beds ? Number(deal.beds) : null;
+  const baths = deal.baths ? parseFloat(deal.baths) : null;
+  const sqft = deal.sqft ? Number(deal.sqft) : null;
   const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
