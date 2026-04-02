@@ -55,7 +55,7 @@ interface Deal {
   price: string | null;
   msaId: number;
   msaName: string | null;
-  type: "wholesale" | "agent";
+  type: "wholesale" | "agent" | "sold";
   userId: string;
   userEmail: string | null;
 }
@@ -126,10 +126,12 @@ function DealCard({
           style={
             deal.type === "wholesale"
               ? { backgroundColor: "#9333EA", color: "#fff" }
+              : deal.type === "sold"
+              ? { backgroundColor: "#FF0000", color: "#fff" }
               : { backgroundColor: "#F97316", color: "#fff" }
           }
         >
-          {deal.type === "wholesale" ? "Wholesale" : "Agent"}
+          {deal.type === "wholesale" ? "Wholesale" : deal.type === "sold" ? "Sold" : "Agent"}
         </span>
       </div>
 

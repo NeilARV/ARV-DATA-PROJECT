@@ -1,10 +1,13 @@
 -- ============================================================================
--- Migration 007: Decouple deals from properties table
+-- Migration 007: Decouple deals from properties table + add "sold" deal type
 -- - Drop FK constraint on property_id (keep column, now nullable)
 -- - Make msa_id nullable
 -- - Add address/location columns directly to deals
 -- - Add price, beds, baths, sqft, property_type columns directly to deals
 -- ============================================================================
+
+-- Add "sold" value to the deal_type enum
+ALTER TYPE deal_type ADD VALUE IF NOT EXISTS 'sold';
 
 -- Drop the FK constraint and NOT NULL on property_id
 ALTER TABLE deals DROP CONSTRAINT deals_property_id_fkey;

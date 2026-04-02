@@ -32,13 +32,20 @@ import ContactContent from "@/components/modals/Contact";
 
 const PROPERTY_TYPES = [
   "Single Family",
-  "Condo",
   "Townhouse",
-  "Multi-Family",
-  "Land",
-  "Commercial",
+  "Condo",
+  "Duplex",
+  "Triplex",
+  "Fourplex",
+  "Vacant Land",
   "Other",
 ];
+
+const DEAL_TYPES = [
+  { value: "agent", label: "Agent Deal" },
+  { value: "wholesale", label: "Wholesale Deal" },
+  { value: "sold", label: "Sold Deal"}
+]
 
 interface AddDealProps {
   open: boolean;
@@ -226,8 +233,9 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent className="z-[10000]">
-                      <SelectItem value="agent">Agent Deal</SelectItem>
-                      <SelectItem value="wholesale">Wholesale Deal</SelectItem>
+                      {DEAL_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

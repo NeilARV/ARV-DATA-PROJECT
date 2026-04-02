@@ -125,7 +125,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
             }
         }
 
-        const validDealTypes = ["wholesale", "agent"];
+        const validDealTypes = ["wholesale", "agent", "sold"];
         const resolvedDealType = validDealTypes.includes(dealType) ? dealType : "agent";
 
         // ── Resolve MSA (always required) ────────────────────────────────────

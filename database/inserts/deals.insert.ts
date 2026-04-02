@@ -9,7 +9,7 @@ export const dealFormSchema = z
     price:        z.coerce
                     .number({ invalid_type_error: "Price must be a number" })
                     .positive("Price must be greater than 0"),
-    dealType:     z.enum(["wholesale", "agent"]).default("agent"),
+    dealType:     z.enum(["wholesale", "agent", "sold"]).default("agent"),
     beds:         z.coerce.number().int().positive().optional(),
     baths:        z.coerce.number().positive().optional(),
     sqft:         z.coerce.number().int().positive().optional(),

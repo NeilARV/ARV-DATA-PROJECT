@@ -2,7 +2,7 @@ import { pgTable, bigserial, uuid, integer, timestamp, pgEnum, text, varchar, de
 import { users } from "./users.schema";
 import { msas } from "./msas.schema";
 
-export const dealTypeEnum = pgEnum("deal_type", ["wholesale", "agent"]);
+export const dealTypeEnum = pgEnum("deal_type", ["wholesale", "agent", "sold"]);
 
 export const deals = pgTable("deals", {
   
