@@ -44,13 +44,3 @@ export const sentPropertyIds = pgTable("sent_property_ids", {
   propertyId: uuid("property_id").primaryKey().references(() => properties.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
-export const emailSyncState = pgTable("email_sync_state", {
-  id: serial("id").primaryKey(),
-  msa: varchar("msa", { length: 255 }).unique().notNull(),
-  lastEmailSent: date("last_email_sent"),
-  lastEmailAt: timestamp("last_email_at").defaultNow(),
-  lastSentPropertyIds: jsonb("last_sent_property_ids").$type<string[]>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});

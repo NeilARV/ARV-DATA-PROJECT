@@ -3,7 +3,7 @@ import { users, emailWhitelist } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
-import { emailSyncState, sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
+import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";
@@ -197,12 +197,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     );
     const rmEmailByRmId = await getRmEmailsByRmIds(whitelistRmIds);
 
-    const [syncState] = await db
-      .select()
-      .from(emailSyncState)
-      .where(eq(emailSyncState.msa, msaName))
-      .limit(1);
-
     // Fetch a pool of recent properties (by recording date).
     // Excludes: sold, vacant land, and any property already in sent_property_ids (previously sent or skipped).
     // We'll keep only those with Street View images up to PROPERTY_COUNT_TARGET.
@@ -389,29 +383,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       console.warn(
         `[EMAIL ${msaName}]: ${failedRecipients.length} recipient(s) skipped (inactive): ${failedRecipients.join(", ")}`
       );
-    }
-
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-
-    if (sentCount > 0) {
-      if (syncState) {
-        await db
-          .update(emailSyncState)
-          .set({
-            lastEmailSent: today,
-            lastEmailAt: now,
-            updatedAt: now,
-          })
-          .where(eq(emailSyncState.msa, msaName));
-      } else {
-        await db.insert(emailSyncState).values({
-          msa: msaName,
-          lastEmailSent: today,
-          lastEmailAt: now,
-          updatedAt: now,
-        });
-      }
     }
 
     console.log(`[EMAIL ${msaName}]: Sent ${sentCount}/${recipients.length} email(s)${sentCount > 0 ? ", updated sync state" : ""}`);

@@ -570,17 +570,6 @@ CREATE INDEX idx_msq_msa_id ON market_scan_queue(msa_id);
 CREATE INDEX idx_msq_msa_status ON market_scan_queue(msa_id, status);
 CREATE INDEX idx_msq_enqueued_at ON market_scan_queue(enqueued_at);
 
--- Email sync state table
-CREATE TABLE email_sync_state (
-    id SERIAL PRIMARY KEY,
-    msa VARCHAR(255) UNIQUE NOT NULL,
-    last_email_sent DATE,
-    last_email_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_sent_property_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Table tracking all property ids sent in email update
 CREATE TABLE sent_property_ids (
     property_id UUID PRIMARY KEY REFERENCES properties(id) ON DELETE CASCADE,
