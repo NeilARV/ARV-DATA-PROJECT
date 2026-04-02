@@ -39,6 +39,11 @@ export const marketScanQueue = pgTable("market_scan_queue", {
   unique("uq_msq_msa_property").on(t.msaId, t.sfrPropertyId),
 ]);
 
+export const sentPropertyIds = pgTable("sent_property_ids", {
+  propertyId: uuid("property_id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const emailSyncState = pgTable("email_sync_state", {
   id: serial("id").primaryKey(),
   msa: varchar("msa", { length: 255 }).unique().notNull(),
