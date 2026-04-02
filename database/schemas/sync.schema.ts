@@ -1,5 +1,6 @@
 import { pgTable, serial, varchar, date, integer, timestamp, uuid, text, decimal, boolean, bigint, jsonb, unique } from "drizzle-orm/pg-core";
 import { msas } from "./msas.schema";
+import { properties } from "./properties.schema";
 
 export const sfrSyncState = pgTable("sfr_sync_state", {
   id: serial("id").primaryKey(),
@@ -40,7 +41,7 @@ export const marketScanQueue = pgTable("market_scan_queue", {
 ]);
 
 export const sentPropertyIds = pgTable("sent_property_ids", {
-  propertyId: uuid("property_id").primaryKey(),
+  propertyId: uuid("property_id").primaryKey().references(() => properties.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

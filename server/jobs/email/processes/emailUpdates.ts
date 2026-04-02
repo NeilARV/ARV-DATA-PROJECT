@@ -3,7 +3,7 @@ import { users, emailWhitelist } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
-import { emailSyncState } from "@database/schemas/sync.schema";
+import { emailSyncState, sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";
@@ -203,10 +203,9 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .where(eq(emailSyncState.msa, msaName))
       .limit(1);
 
-    // Property IDs sent in the last email — excluded from the candidate pool so they don't re-appear
-    const sentIds: string[] = (syncState?.lastSentPropertyIds as string[] | null) ?? [];
-
-    // Fetch a pool of recent properties (by recording date); we'll keep only those with Street View images
+    // Fetch a pool of recent properties (by recording date).
+    // Excludes: sold, vacant land, and any property already in sent_property_ids (previously sent or skipped).
+    // We'll keep only those with Street View images up to PROPERTY_COUNT_TARGET.
     const candidateProperties = await db
       .select({
         address: addresses.formattedStreetAddress,
@@ -242,6 +241,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
           eq(properties.msa, msaName),
           sql`NOT EXISTS (SELECT 1 FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} AND s.name = 'sold')`,
           sql`(${properties.propertyType} IS NULL OR ${properties.propertyType} <> 'Vacant Land')`,
+          sql`NOT EXISTS (SELECT 1 FROM sent_property_ids WHERE property_id = ${properties.id})`,
         )
       )
       .orderBy(
@@ -252,11 +252,13 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .limit(CANDIDATE_POOL_SIZE);
 
     if (candidateProperties.length === 0) {
-      console.log(`[EMAIL ${msaName}]: No properties in database for this MSA, skipping send`);
+      console.log(`[EMAIL ${msaName}]: No new properties in database for this MSA, skipping send`);
       return;
     }
 
-    // Build list of up to PROPERTY_COUNT_TARGET properties that have Street View images (skip others)
+    // Build list of up to PROPERTY_COUNT_TARGET properties that have Street View images.
+    // Track all property IDs we evaluate so they are recorded in sent_property_ids regardless
+    // of outcome — preventing re-evaluation of no-image properties on future runs.
     const propertiesForTemplate: Array<{
       address: string;
       city: string;
@@ -279,10 +281,13 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       seller_email: string | null;
       seller_phone: string | null;
     }> = [];
-    const sentPropertyIds: string[] = [];
+    const processedPropertyIds: string[] = [];
 
     for (const p of candidateProperties) {
       if (propertiesForTemplate.length >= PROPERTY_COUNT_TARGET) break;
+
+      // Record this property as processed regardless of whether it passes Street View check
+      processedPropertyIds.push(p.propertyId);
 
       const rawAddress = p.address ?? "Unknown";
       const rawCity = p.city ?? "Unknown";
@@ -331,20 +336,19 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         seller_email,
         seller_phone,
       });
-      sentPropertyIds.push(p.propertyId);
+    }
+
+    // Persist all evaluated property IDs so they are excluded from future candidate pools.
+    // This covers both successfully queued properties and those skipped due to no Street View image.
+    if (processedPropertyIds.length > 0) {
+      await db
+        .insert(sentPropertyIdsTable)
+        .values(processedPropertyIds.map((id) => ({ propertyId: id })))
+        .onConflictDoNothing();
     }
 
     if (propertiesForTemplate.length === 0) {
       console.log(`[EMAIL ${msaName}]: No properties with Street View images found in pool of ${candidateProperties.length}, skipping send`);
-      return;
-    }
-
-    // Skip if any of the properties we're about to send were already in the last email.
-    // All 3 must be new before we send again.
-    const lastSentSet = new Set(sentIds);
-    const hasOverlap = sentPropertyIds.some((id) => lastSentSet.has(id));
-    if (hasOverlap) {
-      console.log(`[EMAIL ${msaName}]: No new properties since last send, skipping`);
       return;
     }
 
@@ -395,7 +399,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         await db
           .update(emailSyncState)
           .set({
-            lastSentPropertyIds: sentPropertyIds,
             lastEmailSent: today,
             lastEmailAt: now,
             updatedAt: now,
@@ -404,7 +407,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       } else {
         await db.insert(emailSyncState).values({
           msa: msaName,
-          lastSentPropertyIds: sentPropertyIds,
           lastEmailSent: today,
           lastEmailAt: now,
           updatedAt: now,
