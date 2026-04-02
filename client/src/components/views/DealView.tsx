@@ -146,18 +146,30 @@ function DealCard({
               {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
             </p>
           </div>
-          <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-[10001]">
-                {canDelete && (
+          <div className="flex items-center gap-1 shrink-0">
+            {canRequestContact && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-7"
+                onClick={onRequestContact}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                Request Contact
+              </Button>
+            )}
+            {canDelete && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="z-[10001]">
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive gap-2 cursor-pointer"
                     onSelect={onDelete}
@@ -165,18 +177,10 @@ function DealCard({
                     <Trash2 className="h-4 w-4" />
                     Delete Deal
                   </DropdownMenuItem>
-                )}
-                {canRequestContact && (
-                  <DropdownMenuItem
-                    className="gap-2 cursor-pointer"
-                    onSelect={onRequestContact}
-                  >
-                    <Phone className="h-4 w-4" />
-                    Request Contact Info
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         {(beds !== null || baths !== null || sqft !== null) && (
