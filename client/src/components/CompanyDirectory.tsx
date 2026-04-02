@@ -51,7 +51,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const { filters, setFilters } = useFilters();
   const [searchInput, setSearchInput] = useState("");
-  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
+  const [_statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
