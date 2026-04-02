@@ -266,6 +266,120 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
     }
 });
 
+// PATCH /api/deals/:id — only the user who created the deal may edit it (no role check)
+router.patch("/:id", async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) return res.status(400).json({ message: "Invalid deal id" });
+
+        const callerId = req.session?.userId;
+        if (!callerId) return res.status(401).json({ message: "Not authenticated" });
+
+        // Fetch existing deal and verify ownership
+        const [existing] = await db
+            .select({ id: deals.id, userId: deals.userId })
+            .from(deals)
+            .where(eq(deals.id, id))
+            .limit(1);
+
+        if (!existing) return res.status(404).json({ message: "Deal not found" });
+        if (existing.userId !== callerId) {
+            return res.status(403).json({ message: "You can only edit your own deals" });
+        }
+
+        const {
+            address, city, state, zipCode,
+            dealType, price,
+            beds, baths, sqft, propertyType,
+        } = req.body;
+
+        const validDealTypes = ["wholesale", "agent", "sold"] as const;
+
+        // Fetch current values so we can re-resolve MSA with merged location
+        const [current] = await db
+            .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode })
+            .from(deals)
+            .where(eq(deals.id, id))
+            .limit(1);
+
+        const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)  ?? "";
+        const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state) ?? "";
+        const mergedZip   = (zipCode !== undefined ? String(zipCode).trim()             : current.zipCode) ?? "";
+
+        const newMsaId = await resolveMsaId(mergedCity, mergedState, mergedZip);
+        if (!newMsaId) {
+            return res.status(422).json({
+                message: `Could not determine MSA for ${mergedCity}, ${mergedState} ${mergedZip}. ` +
+                    `Ensure the location is within one of the tracked markets.`,
+            });
+        }
+
+        // ── If a full address is being set, fetch property details from SFR ──
+        let resolvedBeds:         number | null = beds  != null ? Number(beds)  : null;
+        let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
+        let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
+        let resolvedPropertyType: string | null = propertyType ?? null;
+
+        const incomingAddress = address !== undefined ? String(address).trim() : null;
+        if (incomingAddress) {
+            const API_KEY = process.env.SFR_API_KEY;
+            const API_URL = process.env.SFR_API_URL;
+
+            if (!API_KEY || !API_URL) {
+                console.warn(`[PATCH /api/deals] SFR API not configured — skipping property detail lookup`);
+            } else {
+                try {
+                    console.log(`[PATCH /api/deals] Looking up property details: ${incomingAddress}, ${mergedCity}, ${mergedState} ${mergedZip}`);
+                    const mergedProperties = await batchLookup({
+                        records: [{ address: incomingAddress, city: mergedCity, state: mergedState, zipCode: mergedZip }],
+                        API_KEY,
+                        API_URL,
+                        cityCode: "DEAL",
+                    });
+
+                    if (mergedProperties.length > 0 && !mergedProperties[0].error && mergedProperties[0].property) {
+                        const p = mergedProperties[0].property as Record<string, unknown>;
+                        const struct = (p.structure as Record<string, unknown> | undefined) ?? {};
+
+                        resolvedBeds         = Number(struct.beds_count ?? 0) || null;
+                        resolvedBaths        = Number(struct.baths ?? 0) || null;
+                        resolvedSqft         = Number(struct.living_area_sqft ?? 0) || null;
+                        resolvedPropertyType = (p.property_type as string | undefined) ?? null;
+                    } else {
+                        console.warn(`[PATCH /api/deals] SFR lookup returned no results — keeping existing/manual values`);
+                    }
+                } catch (lookupErr) {
+                    console.warn(`[PATCH /api/deals] SFR lookup failed — keeping existing/manual values:`, lookupErr);
+                }
+            }
+        }
+
+        const [updated] = await db
+            .update(deals)
+            .set({
+                updatedAt:    new Date(),
+                msaId:        newMsaId,
+                address:      address      !== undefined ? (incomingAddress || null) : undefined,
+                city:         city         !== undefined ? mergedCity   : undefined,
+                state:        state        !== undefined ? mergedState  : undefined,
+                zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
+                price:        price        !== undefined ? String(price) : undefined,
+                type:         dealType     !== undefined && validDealTypes.includes(dealType) ? dealType : undefined,
+                beds:         incomingAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
+                baths:        incomingAddress ? (resolvedBaths  != null ? String(resolvedBaths)  : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
+                sqft:         incomingAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
+                propertyType: incomingAddress ? resolvedPropertyType : (propertyType !== undefined ? (propertyType ?? null) : undefined),
+            })
+            .where(eq(deals.id, id))
+            .returning();
+
+        res.json({ message: "Deal updated successfully", deal: updated });
+    } catch (error) {
+        console.error("[PATCH /api/deals]", error);
+        res.status(500).json({ message: "Error updating deal" });
+    }
+});
+
 // DELETE /api/deals/:id — pro can delete their own deals; admin/owner/relationship-manager can delete any
 router.delete("/:id", requireRole(["pro", "relationship-manager", "admin", "owner"]), async (req, res) => {
     try {

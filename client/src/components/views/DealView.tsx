@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddDeal from "@/components/modals/AddDeal";
+import UpdateDeal from "@/components/modals/UpdateDeal";
+import type { DealToEdit } from "@/components/modals/UpdateDeal";
 import AppDialog from "@/components/modals/Dialog";
 import ContactContent from "@/components/modals/Contact";
 import {
@@ -31,6 +33,7 @@ import {
   MoreVertical,
   Trash2,
   Phone,
+  Pencil,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -66,14 +69,18 @@ type Tab = "all" | "mine";
 function DealCard({
   deal,
   canDelete,
+  canEdit,
   canRequestContact,
   onDelete,
+  onEdit,
   onRequestContact,
 }: {
   deal: Deal;
   canDelete: boolean;
+  canEdit: boolean;
   canRequestContact: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onRequestContact: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState("");
@@ -158,7 +165,7 @@ function DealCard({
                 Request Contact
               </Button>
             )}
-            {canDelete && (
+            {(canEdit || canDelete) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -170,13 +177,24 @@ function DealCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="z-[10001]">
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive gap-2 cursor-pointer"
-                    onSelect={onDelete}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Deal
-                  </DropdownMenuItem>
+                  {canEdit && (
+                    <DropdownMenuItem
+                      className="gap-2 cursor-pointer"
+                      onSelect={onEdit}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit Deal
+                    </DropdownMenuItem>
+                  )}
+                  {canDelete && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                      onSelect={onDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Deal
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -233,6 +251,7 @@ export default function DealView() {
   const [tab, setTab] = useState<Tab>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const [contactDeal, setContactDeal] = useState<Deal | null>(null);
+  const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
   const { toast } = useToast();
   const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
@@ -326,14 +345,17 @@ export default function DealView() {
           {deals.map((deal) => {
             const isOwnerOfDeal = isPro && user?.id === deal.userId;
             const canDelete = canManageDeals || isOwnerOfDeal;
+            const canEdit = user?.id === deal.userId;
             const canRequestContact = canManageDeals || !isOwnerOfDeal;
             return (
               <DealCard
                 key={deal.id}
                 deal={deal}
                 canDelete={canDelete}
+                canEdit={canEdit}
                 canRequestContact={canRequestContact}
                 onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
+                onEdit={() => setEditDeal(deal)}
                 onRequestContact={() => setContactDeal(deal)}
               />
             );
@@ -379,6 +401,14 @@ export default function DealView() {
       </AppDialog>
 
       <AddDeal open={showAddDeal} onClose={() => setShowAddDeal(false)} />
+
+      {editDeal && (
+        <UpdateDeal
+          deal={editDeal}
+          open={!!editDeal}
+          onClose={() => setEditDeal(null)}
+        />
+      )}
     </div>
   );
 }
