@@ -17,7 +17,8 @@ ALTER TABLE deals ALTER COLUMN property_id DROP NOT NULL;
 ALTER TABLE deals ADD COLUMN address   TEXT;
 ALTER TABLE deals ADD COLUMN city      TEXT;
 ALTER TABLE deals ADD COLUMN state     VARCHAR(2);
-ALTER TABLE deals ADD COLUMN zip_code  VARCHAR(10) NOT NULL;
+ALTER TABLE deals ADD COLUMN zip_code  VARCHAR(10) NOT NULL DEFAULT '';
+ALTER TABLE deals ALTER COLUMN zip_code DROP DEFAULT;
 
 -- Add property detail fields directly to deals
 ALTER TABLE deals ADD COLUMN price         DECIMAL(15, 2);
@@ -26,6 +27,6 @@ ALTER TABLE deals ADD COLUMN baths         DECIMAL(3, 1);
 ALTER TABLE deals ADD COLUMN sqft          INTEGER;
 ALTER TABLE deals ADD COLUMN property_type VARCHAR(100);
 
-ALTER TABLE deals ADD COLUMN updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE deals ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 ALTER TYPE deal_type ADD VALUE IF NOT EXISTS 'sold';
