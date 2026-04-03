@@ -6,6 +6,7 @@ import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
 import { resolveMsaId } from "server/utils/resolveMsa";
+import { normalizePropertyType } from "server/utils/normalization";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireRole } from "server/middleware/requireRole";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
@@ -192,7 +193,7 @@ router.post("/", requireRole(["pro", "relationship-manager", "admin", "owner"]),
                 beds:         resolvedBeds,
                 baths:        resolvedBaths != null ? String(resolvedBaths) : null,
                 sqft:         resolvedSqft,
-                propertyType: resolvedPropertyType,
+                propertyType: normalizePropertyType(resolvedPropertyType),
             })
             .returning();
 
@@ -322,7 +323,7 @@ router.patch("/:id", async (req, res) => {
         let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
         let resolvedPropertyType: string | null = propertyType ?? null;
 
-        const incomingAddress = address !== undefined ? String(address).trim() : null;
+        const incomingAddress = (address !== undefined && address !== null) ? String(address).trim() : null;
         if (incomingAddress) {
             const API_KEY = process.env.SFR_API_KEY;
             const API_URL = process.env.SFR_API_URL;
@@ -370,7 +371,7 @@ router.patch("/:id", async (req, res) => {
                 beds:         incomingAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
                 baths:        incomingAddress ? (resolvedBaths  != null ? String(resolvedBaths)  : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
                 sqft:         incomingAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
-                propertyType: incomingAddress ? resolvedPropertyType : (propertyType !== undefined ? (propertyType ?? null) : undefined),
+                propertyType: incomingAddress ? normalizePropertyType(resolvedPropertyType) : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
             })
             .where(eq(deals.id, id))
             .returning();

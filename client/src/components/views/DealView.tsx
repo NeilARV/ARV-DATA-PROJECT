@@ -147,7 +147,7 @@ function DealCard({
         <div className="flex items-start justify-between gap-1 min-w-0">
           <div className="min-w-0">
             <p className="font-semibold text-base leading-tight truncate">
-              {formatAddress(deal.address) ?? "Unknown address"}
+              {formatAddress(deal.address) ?? "Undisclosed Address"}
             </p>
             <p className="text-sm text-muted-foreground truncate mt-0.5">
               {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
