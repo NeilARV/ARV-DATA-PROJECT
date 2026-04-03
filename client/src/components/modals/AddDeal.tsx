@@ -130,7 +130,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
 
   return (
     <>
-      <AppDialog open={open} onClose={handleClose} className="sm:max-w-md">
+      <AppDialog open={open} onClose={handleClose} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Post a Deal</DialogTitle>
         </DialogHeader>
@@ -140,87 +140,90 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
             onSubmit={form.handleSubmit((d) => postDeal.mutate(d))}
             className="space-y-4 mt-2"
           >
-            {/* Address (optional) */}
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Street Address <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="123 Main St" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Scrollable region: all fields except notification checkbox and buttons */}
+            <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5">
 
-            {/* City + State */}
-            <div className="grid grid-cols-2 gap-4">
+              {/* Address (optional) */}
               <FormField
                 control={form.control}
-                name="city"
+                name="address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City *</FormLabel>
+                    <FormLabel>Street Address <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="San Diego" />
+                      <Input {...field} placeholder="123 Main St" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* City + State */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="San Diego" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="CA" maxLength={2} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Zip Code */}
               <FormField
                 control={form.control}
-                name="state"
+                name="zipCode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>State *</FormLabel>
+                    <FormLabel>Zip Code *</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="CA" maxLength={2} />
+                      <Input {...field} placeholder="92126" maxLength={5} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+            />
+
+              {/* Price */}
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        min={1}
+                        placeholder="350000"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-
-            {/* Zip Code */}
-            <FormField
-              control={form.control}
-              name="zipCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Zip Code *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="92126" maxLength={5} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Price (always required) */}
-            <FormField
-              control={form.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Price *</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="number"
-                      min={1}
-                      placeholder="350000"
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {/* Deal Type */}
             <FormField
@@ -246,111 +249,110 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
               )}
             />
 
-            {/* Manual property details — shown only when no street address is provided */}
-            {!hasAddress && (
-              <>
-                <p className="text-xs text-muted-foreground -mb-1">
-                  Property details are required when no street address is entered.
+              {/* Manual property details — shown only when no street address is provided */}
+              {!hasAddress && (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Property details are required when no street address is entered.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="beds"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Beds *</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min={0}
+                              placeholder="3"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="baths"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Baths *</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              placeholder="2"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="sqft"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Square Feet *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={1}
+                            placeholder="1500"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="propertyType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Property Type *</FormLabel>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="z-[10000]">
+                            {PROPERTY_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              {hasAddress && (
+                <p className="text-xs text-muted-foreground">
+                  Property details (beds, baths, sqft, type) will be fetched automatically from the address.
                 </p>
+              )}
 
-                {/* Beds + Baths */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="beds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Beds *</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            min={0}
-                            placeholder="3"
-                            value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="baths"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Baths *</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            min={0}
-                            step={0.5}
-                            placeholder="2"
-                            value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Sqft */}
-                <FormField
-                  control={form.control}
-                  name="sqft"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Square Feet *</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="number"
-                          min={1}
-                          placeholder="1500"
-                          value={field.value ?? ""}
-                          onChange={(e) => field.onChange(e.target.value)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Property Type */}
-                <FormField
-                  control={form.control}
-                  name="propertyType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Property Type *</FormLabel>
-                      <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="z-[10000]">
-                          {PROPERTY_TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-
-            {hasAddress && (
-              <p className="text-xs text-muted-foreground">
-                Property details (beds, baths, sqft, type) will be fetched automatically from the address.
-              </p>
-            )}
+            </div>{/* end scrollable region */}
 
             {/* Send Notification Email */}
             <FormField
