@@ -54,6 +54,7 @@ export function startScheduledJobs() {
         // cron.schedule("0 4 1 * *", scanWindowE, {
         //     timezone: "America/Los_Angeles"
         // })
+
     } else {
         console.log(`[CRON] Scan windows skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
     }

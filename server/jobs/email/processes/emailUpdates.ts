@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { users, emailWhitelist } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
-import { properties, addresses, lastSales, structures } from "@database/schemas/properties.schema";
+import { properties, addresses, lastSales, structures, propertyTransactions } from "@database/schemas/properties.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -223,6 +223,11 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         sellerContactName: sellerCompanies.contactName,
         sellerContactEmail: sellerCompanies.contactEmail,
         sellerPhone: sellerCompanies.phoneNumber,
+        isARVFunded: sql<boolean>`EXISTS (
+          SELECT 1 FROM property_transactions pt
+          WHERE pt.property_id = ${properties.id}
+          AND UPPER(TRIM(pt.first_mtg_lender_name)) = 'ARV FINANCE INC'
+        )`,
       })
       .from(properties)
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -274,6 +279,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       seller_contact_name: string | null;
       seller_email: string | null;
       seller_phone: string | null;
+      is_arv_funded: boolean;
     }> = [];
     const processedPropertyIds: string[] = [];
 
@@ -329,6 +335,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         seller_contact_name,
         seller_email,
         seller_phone,
+        is_arv_funded: !!p.isARVFunded,
       });
     }
 
