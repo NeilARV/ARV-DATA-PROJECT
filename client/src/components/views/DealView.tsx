@@ -249,7 +249,7 @@ function DealCard({
 export default function DealView() {
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
+const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const [contactDeal, setContactDeal] = useState<Deal | null>(null);
   const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
   const { toast } = useToast();
@@ -294,6 +294,24 @@ export default function DealView() {
     },
   });
 
+  const newDeals = deals.filter((d) => d.type !== "sold");
+  const soldDeals = deals.filter((d) => d.type === "sold");
+
+  const renderCard = (deal: Deal) => {
+    const isOwnerOfDeal = isPro && user?.id === deal.userId;
+    return (
+      <DealCard
+        key={deal.id}
+        deal={deal}
+        canDelete={canManageDeals || isOwnerOfDeal}
+        canEdit={user?.id === deal.userId}
+        canRequestContact={canManageDeals || !isOwnerOfDeal}
+        onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
+        onEdit={() => setEditDeal(deal)}
+        onRequestContact={() => setContactDeal(deal)}
+      />
+    );
+  };
 
   // ── Feed view ────────────────────────────────────────────────────────────────
   return (
@@ -341,26 +359,39 @@ export default function DealView() {
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-4 max-w-3xl">
-          {deals.map((deal) => {
-            const isOwnerOfDeal = isPro && user?.id === deal.userId;
-            const canDelete = canManageDeals || isOwnerOfDeal;
-            const canEdit = user?.id === deal.userId;
-            const canRequestContact = canManageDeals || !isOwnerOfDeal;
-            return (
-              <DealCard
-                key={deal.id}
-                deal={deal}
-                canDelete={canDelete}
-                canEdit={canEdit}
-                canRequestContact={canRequestContact}
-                onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
-                onEdit={() => setEditDeal(deal)}
-                onRequestContact={() => setContactDeal(deal)}
-              />
-            );
-          })}
-        </div>
+        <>
+          {/* ── Two-column layout ──────────────────────────────────────────── */}
+          <div className="flex gap-0 flex-1 items-start">
+            {/* New Deals column */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0 pr-6">
+              <h3 className="text-base font-semibold text-foreground">New Deals</h3>
+              {newDeals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                  <Handshake className="w-10 h-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No new deals</p>
+                </div>
+              ) : (
+                newDeals.map(renderCard)
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px bg-border self-stretch shrink-0" />
+
+            {/* Sold Deals column */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0 pl-6">
+              <h3 className="text-base font-semibold text-foreground">Sold Deals</h3>
+              {soldDeals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                  <Handshake className="w-10 h-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No sold deals</p>
+                </div>
+              ) : (
+                soldDeals.map(renderCard)
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
