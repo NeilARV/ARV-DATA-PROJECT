@@ -141,7 +141,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
             className="space-y-4 mt-2"
           >
             {/* Scrollable region: all fields except notification checkbox and buttons */}
-            <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5">
+            <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
 
               {/* Address (optional) */}
               <FormField

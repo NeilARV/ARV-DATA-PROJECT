@@ -128,7 +128,7 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
           className="space-y-4 mt-2"
         >
           {/* Scrollable region: all fields except buttons */}
-          <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5">
+          <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
 
             {/* Street Address (optional) */}
             <FormField
