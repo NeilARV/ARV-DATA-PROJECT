@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddDeal from "@/components/modals/AddDeal";
+import UpdateDeal from "@/components/modals/UpdateDeal";
+import type { DealToEdit } from "@/components/modals/UpdateDeal";
 import AppDialog from "@/components/modals/Dialog";
 import ContactContent from "@/components/modals/Contact";
 import {
@@ -31,6 +33,7 @@ import {
   MoreVertical,
   Trash2,
   Phone,
+  Pencil,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -43,21 +46,19 @@ import { formatAddress } from "@shared/utils/formatAddress";
 interface Deal {
   id: number;
   createdAt: string;
-  propertyId: string;
+  propertyId: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
   zipCode: string | null;
   propertyType: string | null;
-  listingStatus: string | null;
-  bedrooms: number | null;
-  bathrooms: string | null;
-  squareFeet: number | null;
-  yearBuilt: number | null;
+  beds: number | null;
+  baths: string | null;
+  sqft: number | null;
   price: string | null;
   msaId: number;
   msaName: string | null;
-  type: "wholesale" | "agent";
+  type: "wholesale" | "agent" | "sold";
   userId: string;
   userEmail: string | null;
 }
@@ -68,14 +69,18 @@ type Tab = "all" | "mine";
 function DealCard({
   deal,
   canDelete,
+  canEdit,
   canRequestContact,
   onDelete,
+  onEdit,
   onRequestContact,
 }: {
   deal: Deal;
   canDelete: boolean;
+  canEdit: boolean;
   canRequestContact: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onRequestContact: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState("");
@@ -86,7 +91,7 @@ function DealCard({
       setImageLoading(false);
       return;
     }
-    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.propertyId)
+    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.propertyId ?? undefined)
       .then((url) => {
         if (url) {
           const img = new Image();
@@ -101,9 +106,9 @@ function DealCard({
   }, [deal.address, deal.city, deal.state, deal.propertyId]);
 
   const price = deal.price ? Number(deal.price) : null;
-  const beds = deal.bedrooms ? Number(deal.bedrooms) : null;
-  const baths = deal.bathrooms ? parseFloat(deal.bathrooms) : null;
-  const sqft = deal.squareFeet ? Number(deal.squareFeet) : null;
+  const beds = deal.beds ? Number(deal.beds) : null;
+  const baths = deal.baths ? parseFloat(deal.baths) : null;
+  const sqft = deal.sqft ? Number(deal.sqft) : null;
   const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -128,10 +133,12 @@ function DealCard({
           style={
             deal.type === "wholesale"
               ? { backgroundColor: "#9333EA", color: "#fff" }
+              : deal.type === "sold"
+              ? { backgroundColor: "#FF0000", color: "#fff" }
               : { backgroundColor: "#F97316", color: "#fff" }
           }
         >
-          {deal.type === "wholesale" ? "Wholesale" : "Agent"}
+          {deal.type === "wholesale" ? "Wholesale" : deal.type === "sold" ? "Sold" : "Agent"}
         </span>
       </div>
 
@@ -140,43 +147,58 @@ function DealCard({
         <div className="flex items-start justify-between gap-1 min-w-0">
           <div className="min-w-0">
             <p className="font-semibold text-base leading-tight truncate">
-              {formatAddress(deal.address) ?? "Unknown address"}
+              {formatAddress(deal.address) ?? "Undisclosed Address"}
             </p>
             <p className="text-sm text-muted-foreground truncate mt-0.5">
               {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
             </p>
           </div>
-          <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-[10001]">
-                {canDelete && (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive gap-2 cursor-pointer"
-                    onSelect={onDelete}
+          <div className="flex items-center gap-1 shrink-0">
+            {canRequestContact && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-7"
+                onClick={onRequestContact}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                Request Contact
+              </Button>
+            )}
+            {(canEdit || canDelete) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
                   >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Deal
-                  </DropdownMenuItem>
-                )}
-                {canRequestContact && (
-                  <DropdownMenuItem
-                    className="gap-2 cursor-pointer"
-                    onSelect={onRequestContact}
-                  >
-                    <Phone className="h-4 w-4" />
-                    Request Contact Info
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="z-[10001]">
+                  {canEdit && (
+                    <DropdownMenuItem
+                      className="gap-2 cursor-pointer"
+                      onSelect={onEdit}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit Deal
+                    </DropdownMenuItem>
+                  )}
+                  {canDelete && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                      onSelect={onDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Deal
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         {(beds !== null || baths !== null || sqft !== null) && (
@@ -227,8 +249,9 @@ function DealCard({
 export default function DealView() {
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
+const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const [contactDeal, setContactDeal] = useState<Deal | null>(null);
+  const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
   const { toast } = useToast();
   const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
@@ -271,6 +294,24 @@ export default function DealView() {
     },
   });
 
+  const newDeals = deals.filter((d) => d.type !== "sold");
+  const soldDeals = deals.filter((d) => d.type === "sold");
+
+  const renderCard = (deal: Deal) => {
+    const isOwnerOfDeal = isPro && user?.id === deal.userId;
+    return (
+      <DealCard
+        key={deal.id}
+        deal={deal}
+        canDelete={canManageDeals || isOwnerOfDeal}
+        canEdit={user?.id === deal.userId}
+        canRequestContact={canManageDeals || !isOwnerOfDeal}
+        onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
+        onEdit={() => setEditDeal(deal)}
+        onRequestContact={() => setContactDeal(deal)}
+      />
+    );
+  };
 
   // ── Feed view ────────────────────────────────────────────────────────────────
   return (
@@ -318,23 +359,39 @@ export default function DealView() {
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-4 max-w-3xl">
-          {deals.map((deal) => {
-            const isOwnerOfDeal = isPro && user?.id === deal.userId;
-            const canDelete = canManageDeals || isOwnerOfDeal;
-            const canRequestContact = canManageDeals || !isOwnerOfDeal;
-            return (
-              <DealCard
-                key={deal.id}
-                deal={deal}
-                canDelete={canDelete}
-                canRequestContact={canRequestContact}
-                onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
-                onRequestContact={() => setContactDeal(deal)}
-              />
-            );
-          })}
-        </div>
+        <>
+          {/* ── Two-column layout ──────────────────────────────────────────── */}
+          <div className="flex gap-0 flex-1 items-start">
+            {/* New Deals column */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0 pr-6">
+              <h3 className="text-base font-semibold text-foreground">New Deals</h3>
+              {newDeals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                  <Handshake className="w-10 h-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No new deals</p>
+                </div>
+              ) : (
+                newDeals.map(renderCard)
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px bg-border self-stretch shrink-0" />
+
+            {/* Sold Deals column */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0 pl-6">
+              <h3 className="text-base font-semibold text-foreground">Sold Deals</h3>
+              {soldDeals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                  <Handshake className="w-10 h-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No sold deals</p>
+                </div>
+              ) : (
+                soldDeals.map(renderCard)
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
@@ -375,6 +432,14 @@ export default function DealView() {
       </AppDialog>
 
       <AddDeal open={showAddDeal} onClose={() => setShowAddDeal(false)} />
+
+      {editDeal && (
+        <UpdateDeal
+          deal={editDeal}
+          open={!!editDeal}
+          onClose={() => setEditDeal(null)}
+        />
+      )}
     </div>
   );
 }

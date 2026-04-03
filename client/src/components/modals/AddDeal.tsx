@@ -19,16 +19,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { manualPropertyEntrySchema } from "@database/inserts/properties.insert";
-import type { ManualPropertyEntry } from "@database/types";
+import { dealFormSchema } from "@database/inserts/deals.insert";
+import type { DealFormValues } from "@database/inserts/deals.insert";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import ContactContent from "@/components/modals/Contact";
+
+const PROPERTY_TYPES = [
+  "Single Family",
+  "Townhouse",
+  "Condo",
+  "Duplex",
+  "Triplex",
+  "Fourplex",
+  "Vacant Land",
+  "Other",
+];
+
+const DEAL_TYPES = [
+  { value: "agent", label: "Agent Deal" },
+  { value: "wholesale", label: "Wholesale Deal" },
+  { value: "sold", label: "Sold Deal"}
+]
 
 interface AddDealProps {
   open: boolean;
@@ -40,20 +58,42 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
   const { user } = useAuth();
   const [showContact, setShowContact] = useState(false);
 
-  const form = useForm<ManualPropertyEntry>({
-    resolver: zodResolver(manualPropertyEntrySchema),
-    defaultValues: { address: "", city: "", state: "", zipCode: "", dealType: "agent" },
+  const form = useForm<DealFormValues>({
+    resolver: zodResolver(dealFormSchema),
+    defaultValues: {
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      price: undefined,
+      dealType: "agent",
+      beds: undefined,
+      baths: undefined,
+      sqft: undefined,
+      propertyType: undefined,
+      sendNotifications: true,
+    },
   });
 
+  // Watch address to determine whether to show manual property detail fields
+  const addressValue = useWatch({ control: form.control, name: "address" });
+  const hasAddress = typeof addressValue === "string" && addressValue.trim().length > 0;
+
   const postDeal = useMutation({
-    mutationFn: async (data: ManualPropertyEntry) => {
+    mutationFn: async (data: DealFormValues) => {
       const res = await apiRequest("POST", "/api/deals", {
-        address: data.address,
-        city: data.city,
-        state: data.state,
-        zipCode: data.zipCode,
-        userId: user?.id,
-        dealType: data.dealType,
+        address:      data.address?.trim() || undefined,
+        city:         data.city,
+        state:        data.state,
+        zipCode:      data.zipCode,
+        userId:       user?.id,
+        dealType:     data.dealType,
+        price:        data.price,
+        beds:         data.beds,
+        baths:        data.baths,
+        sqft:         data.sqft,
+        propertyType:      data.propertyType,
+        sendNotifications: data.sendNotifications,
       });
       return res.json();
     },
@@ -90,126 +130,277 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
 
   return (
     <>
-    <AppDialog open={open} onClose={handleClose} className="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle>Post a Deal</DialogTitle>
-      </DialogHeader>
+      <AppDialog open={open} onClose={handleClose} className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Post a Deal</DialogTitle>
+        </DialogHeader>
 
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit((d) => postDeal.mutate(d))}
-          className="space-y-4 mt-2"
-        >
-          <FormField
-            control={form.control}
-            name="address"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Address *</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="123 Main St" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit((d) => postDeal.mutate(d))}
+            className="space-y-4 mt-2"
+          >
+            {/* Scrollable region: all fields except notification checkbox and buttons */}
+            <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
 
-          <div className="grid grid-cols-2 gap-4">
+              {/* Address (optional) */}
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Street Address <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="123 Main St" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* City + State */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="San Diego" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="CA" maxLength={2} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Zip Code */}
+              <FormField
+                control={form.control}
+                name="zipCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Zip Code *</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="92126" maxLength={5} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+            />
+
+              {/* Price */}
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        min={1}
+                        placeholder="350000"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+            {/* Deal Type */}
             <FormField
               control={form.control}
-              name="city"
+              name="dealType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>City *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="San Diego" />
-                  </FormControl>
+                  <FormLabel>Deal Type</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="z-[10000]">
+                      {DEAL_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="state"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>State *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="CA" maxLength={2} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
 
-          <FormField
-            control={form.control}
-            name="zipCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Zip Code *</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="92126" maxLength={5} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="dealType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Deal Type</FormLabel>
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="z-[10000]">
-                    <SelectItem value="agent">Agent Deal</SelectItem>
-                    <SelectItem value="wholesale">Wholesale Deal</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="flex gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              onClick={handleClose}
-              disabled={postDeal.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1"
-              disabled={postDeal.isPending || !user?.id}
-            >
-              {postDeal.isPending ? (
+              {/* Manual property details — shown only when no street address is provided */}
+              {!hasAddress && (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Posting...
+                  <p className="text-xs text-muted-foreground">
+                    Property details are required when no street address is entered.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="beds"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Beds *</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min={0}
+                              placeholder="3"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="baths"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Baths *</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              placeholder="2"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="sqft"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Square Feet *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={1}
+                            placeholder="1500"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="propertyType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Property Type *</FormLabel>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="z-[10000]">
+                            {PROPERTY_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </>
-              ) : (
-                "Post Deal"
               )}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </AppDialog>
+
+              {hasAddress && (
+                <p className="text-xs text-muted-foreground">
+                  Property details (beds, baths, sqft, type) will be fetched automatically from the address.
+                </p>
+              )}
+
+            </div>{/* end scrollable region */}
+
+            {/* Send Notification Email */}
+            <FormField
+              control={form.control}
+              name="sendNotifications"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal cursor-pointer">
+                    Send notification email
+                  </FormLabel>
+                </FormItem>
+              )}
+            />
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={handleClose}
+                disabled={postDeal.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={postDeal.isPending || !user?.id}
+              >
+                {postDeal.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Posting...
+                  </>
+                ) : (
+                  "Post Deal"
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </AppDialog>
 
       <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
         {showContact && (

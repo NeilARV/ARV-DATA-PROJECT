@@ -1,0 +1,408 @@
+import { db } from "server/storage";
+import { deals } from "@database/schemas/deals.schema";
+import { properties } from "@database/schemas/properties.schema";
+import { users, userRoles, roles } from "@database/schemas/users.schema";
+import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
+import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
+import { resolveMsaId } from "server/utils/resolveMsa";
+import { normalizePropertyType } from "server/utils/normalization";
+import { sendTemplateToUsers } from "server/services/postmark/email.services";
+import { eq, desc, and, inArray } from "drizzle-orm";
+
+export class DealServiceError extends Error {
+    constructor(public statusCode: number, message: string) {
+        super(message);
+        this.name = "DealServiceError";
+    }
+}
+
+// ── Shared: resolve property details from SFR for a single address ─────────────
+async function resolvePropertyDetails(
+    address: string,
+    city: string,
+    state: string,
+    zipCode: string,
+    label: string,
+): Promise<{ beds: number | null; baths: number | null; sqft: number | null; propertyType: string | null }> {
+    const API_KEY = process.env.SFR_API_KEY;
+    const API_URL = process.env.SFR_API_URL;
+
+    if (!API_KEY || !API_URL) {
+        console.warn(`${label} SFR API not configured — skipping property detail lookup`);
+        return { beds: null, baths: null, sqft: null, propertyType: null };
+    }
+
+    try {
+        console.log(`${label} Looking up property details: ${address}, ${city}, ${state} ${zipCode}`);
+        const mergedProperties = await batchLookup({
+            records: [{ address, city, state, zipCode }],
+            API_KEY,
+            API_URL,
+            cityCode: "DEAL",
+        });
+
+        if (mergedProperties.length > 0 && !mergedProperties[0].error && mergedProperties[0].property) {
+            const p = mergedProperties[0].property as Record<string, unknown>;
+            const struct = (p.structure as Record<string, unknown> | undefined) ?? {};
+            return {
+                beds:         Number(struct.beds_count ?? 0) || null,
+                baths:        Number(struct.baths ?? 0) || null,
+                sqft:         Number(struct.living_area_sqft ?? 0) || null,
+                propertyType: (p.property_type as string | undefined) ?? null,
+            };
+        }
+
+        console.warn(`${label} SFR lookup returned no results`);
+    } catch (err) {
+        console.warn(`${label} SFR lookup failed:`, err);
+    }
+
+    return { beds: null, baths: null, sqft: null, propertyType: null };
+}
+
+// ── GET deals ──────────────────────────────────────────────────────────────────
+export interface GetDealsFilters {
+    userId?: string;
+    msaName?: string;
+}
+
+export async function getDeals(filters: GetDealsFilters) {
+    const { userId: filterUserId, msaName: filterMsaName } = filters;
+
+    let filterMsaId: number | undefined;
+    if (filterMsaName) {
+        const [msaRow] = await db
+            .select({ id: msas.id })
+            .from(msas)
+            .where(eq(msas.name, filterMsaName))
+            .limit(1);
+
+        if (!msaRow) {
+            console.log(`[dealsService.getDeals] MSA not found: "${filterMsaName}" — returning empty`);
+            return [];
+        }
+        filterMsaId = msaRow.id;
+    }
+
+    const msaCondition = filterMsaId !== undefined ? eq(deals.msaId, filterMsaId) : undefined;
+    const whereClause = filterUserId && msaCondition
+        ? and(eq(deals.userId, filterUserId), msaCondition)
+        : filterUserId
+        ? eq(deals.userId, filterUserId)
+        : msaCondition;
+
+    const results = await db
+        .select({
+            id:           deals.id,
+            createdAt:    deals.createdAt,
+            propertyId:   deals.propertyId,
+            address:      deals.address,
+            city:         deals.city,
+            state:        deals.state,
+            zipCode:      deals.zipCode,
+            price:        deals.price,
+            beds:         deals.beds,
+            baths:        deals.baths,
+            sqft:         deals.sqft,
+            propertyType: deals.propertyType,
+            msaId:        deals.msaId,
+            msaName:      msas.name,
+            type:         deals.type,
+            userId:       deals.userId,
+            userEmail:    users.email,
+        })
+        .from(deals)
+        .leftJoin(msas, eq(deals.msaId, msas.id))
+        .leftJoin(users, eq(deals.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(deals.id));
+
+    console.log(
+        `[dealsService.getDeals] ${results.length} deals returned` +
+        `${filterUserId ? ` (userId=${filterUserId})` : ""}` +
+        `${filterMsaName ? ` (msaName=${filterMsaName})` : ""}`
+    );
+
+    return results;
+}
+
+// ── POST deal ──────────────────────────────────────────────────────────────────
+export interface CreateDealInput {
+    address?: unknown;
+    city: string;
+    state: string;
+    zipCode: string;
+    userId: string;
+    dealType?: string;
+    price: number | string;
+    beds?: unknown;
+    baths?: unknown;
+    sqft?: unknown;
+    propertyType?: string;
+    sendNotifications?: boolean;
+}
+
+export async function createDeal(input: CreateDealInput) {
+    const label = "[dealsService.createDeal]";
+    const { address, city, state, zipCode, userId, dealType, price, beds, baths, sqft, propertyType } = input;
+
+    const hasAddress = typeof address === "string" && address.trim().length > 0;
+
+    // Business rule: manual property details required when no address
+    if (!hasAddress) {
+        const missing: string[] = [];
+        if (beds == null)    missing.push("beds");
+        if (baths == null)   missing.push("baths");
+        if (sqft == null)    missing.push("sqft");
+        if (!propertyType)   missing.push("propertyType");
+        if (missing.length > 0) {
+            throw new DealServiceError(
+                400,
+                `beds, baths, sqft, and propertyType are required when no street address is provided`,
+            );
+        }
+    }
+
+    const validDealTypes = ["wholesale", "agent", "sold"] as const;
+    const resolvedDealType = (validDealTypes as readonly string[]).includes(dealType ?? "")
+        ? (dealType as "wholesale" | "agent" | "sold")
+        : "agent" as const;
+
+    const msaId = await resolveMsaId(city, state, zipCode);
+    if (!msaId) {
+        throw new DealServiceError(
+            422,
+            `Could not determine MSA for ${city}, ${state}${zipCode ? ` ${zipCode}` : ""}. ` +
+            `Ensure the location is within one of the tracked markets.`,
+        );
+    }
+
+    let resolvedBeds:         number | null = beds  != null ? Number(beds)  : null;
+    let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
+    let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
+    let resolvedPropertyType: string | null = propertyType ?? null;
+
+    if (hasAddress) {
+        const sfr = await resolvePropertyDetails(
+            (address as string).trim(), city, state, zipCode, label
+        );
+        if (sfr.beds !== null || sfr.baths !== null) {
+            resolvedBeds         = sfr.beds;
+            resolvedBaths        = sfr.baths;
+            resolvedSqft         = sfr.sqft;
+            resolvedPropertyType = sfr.propertyType;
+        }
+    }
+
+    const [deal] = await db
+        .insert(deals)
+        .values({
+            userId,
+            msaId,
+            type:         resolvedDealType,
+            address:      hasAddress ? (address as string).trim() : null,
+            city:         city.trim(),
+            state:        state.toUpperCase().trim(),
+            zipCode:      String(zipCode).trim(),
+            price:        String(price),
+            beds:         resolvedBeds,
+            baths:        resolvedBaths != null ? String(resolvedBaths) : null,
+            sqft:         resolvedSqft,
+            propertyType: normalizePropertyType(resolvedPropertyType),
+        })
+        .returning();
+
+    console.log(`${label} Deal posted: id=${deal.id}, city=${city}, state=${state}, msaId=${msaId}`);
+
+    return { deal, msaId };
+}
+
+// ── POST deal — background notification (fire and forget) ──────────────────────
+export async function sendDealNotification(
+    deal: { id: number; propertyId: string | null },
+    msaId: number,
+    posterUserId: string,
+    sendNotifications: boolean,
+): Promise<void> {
+    const label = "[dealsService.sendDealNotification]";
+    try {
+        const subscribedUsers = await db
+            .select({ id: users.id, email: users.email })
+            .from(users)
+            .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
+            .where(and(
+                eq(userMsaSubscriptions.msaId, msaId),
+                eq(users.notifications, true),
+            ));
+
+        if (subscribedUsers.length === 0) {
+            console.log(`${label} No MSA subscribers to notify`);
+            return;
+        }
+
+        const seen = new Set<string>([posterUserId]);
+        const uniqueUsers = subscribedUsers.filter((u) => {
+            if (seen.has(u.id)) return false;
+            seen.add(u.id);
+            return true;
+        });
+
+        const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
+        // TEMP OVERRIDE — notifications disabled until ready to enable
+        const shouldNotify = false; // sendNotifications === true && !!template
+
+        if (template && shouldNotify) {
+            let county = "Unknown";
+            if (deal.propertyId) {
+                const [propRow] = await db
+                    .select({ county: properties.county })
+                    .from(properties)
+                    .where(eq(properties.id, deal.propertyId))
+                    .limit(1);
+                county = propRow?.county?.trim() || "Unknown";
+            }
+
+            const { sent, failed } = await sendTemplateToUsers({
+                recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+                templateAlias: template,
+                templateModelForRecipient: () => ({
+                    cta_url: "https://data.arvfinance.com/",
+                    county: `${county} County`,
+                }),
+                logPrefix: label,
+            });
+
+            console.log(
+                `${label} New-deal emails sent: ${sent}/${uniqueUsers.length}` +
+                `${failed.length > 0 ? ` (failed: ${failed.join(", ")})` : ""}`
+            );
+        }
+    } catch (err) {
+        console.error(`${label} Error sending new-deal notification emails:`, err);
+    }
+}
+
+// ── PATCH deal ─────────────────────────────────────────────────────────────────
+export interface UpdateDealInput {
+    address?: unknown;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    dealType?: string;
+    price?: number | string;
+    beds?: unknown;
+    baths?: unknown;
+    sqft?: unknown;
+    propertyType?: string;
+}
+
+export async function updateDeal(id: number, callerId: string, input: UpdateDealInput) {
+    const label = "[dealsService.updateDeal]";
+
+    const [existing] = await db
+        .select({ id: deals.id, userId: deals.userId })
+        .from(deals)
+        .where(eq(deals.id, id))
+        .limit(1);
+
+    if (!existing) throw new DealServiceError(404, "Deal not found");
+    if (existing.userId !== callerId) throw new DealServiceError(403, "You can only edit your own deals");
+
+    const [current] = await db
+        .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode })
+        .from(deals)
+        .where(eq(deals.id, id))
+        .limit(1);
+
+    const { address, city, state, zipCode, dealType, price, beds, baths, sqft, propertyType } = input;
+
+    const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
+    const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
+    const mergedZip   = (zipCode !== undefined ? String(zipCode).trim()             : current.zipCode) ?? "";
+
+    const newMsaId = await resolveMsaId(mergedCity, mergedState, mergedZip);
+    if (!newMsaId) {
+        throw new DealServiceError(
+            422,
+            `Could not determine MSA for ${mergedCity}, ${mergedState} ${mergedZip}. ` +
+            `Ensure the location is within one of the tracked markets.`,
+        );
+    }
+
+    const incomingAddress = (address !== undefined && address !== null)
+        ? String(address).trim()
+        : null;
+
+    let resolvedBeds:         number | null = beds  != null ? Number(beds)  : null;
+    let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
+    let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
+    let resolvedPropertyType: string | null = propertyType ?? null;
+
+    if (incomingAddress) {
+        const sfr = await resolvePropertyDetails(incomingAddress, mergedCity, mergedState, mergedZip, label);
+        if (sfr.beds !== null || sfr.baths !== null) {
+            resolvedBeds         = sfr.beds;
+            resolvedBaths        = sfr.baths;
+            resolvedSqft         = sfr.sqft;
+            resolvedPropertyType = sfr.propertyType;
+        }
+    }
+
+    const validDealTypes = ["wholesale", "agent", "sold"] as const;
+
+    const [updated] = await db
+        .update(deals)
+        .set({
+            updatedAt:    new Date(),
+            msaId:        newMsaId,
+            address:      address      !== undefined ? (incomingAddress || null) : undefined,
+            city:         city         !== undefined ? mergedCity   : undefined,
+            state:        state        !== undefined ? mergedState  : undefined,
+            zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
+            price:        price        !== undefined ? String(price) : undefined,
+            type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
+            beds:         incomingAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
+            baths:        incomingAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
+            sqft:         incomingAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
+            propertyType: incomingAddress
+                ? normalizePropertyType(resolvedPropertyType)
+                : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
+        })
+        .where(eq(deals.id, id))
+        .returning();
+
+    console.log(`${label} Deal updated: id=${id}`);
+    return updated;
+}
+
+// ── DELETE deal ────────────────────────────────────────────────────────────────
+export async function deleteDeal(id: number, callerId: string) {
+    const label = "[dealsService.deleteDeal]";
+
+    const [deal] = await db
+        .select({ id: deals.id, userId: deals.userId })
+        .from(deals)
+        .where(eq(deals.id, id))
+        .limit(1);
+
+    if (!deal) throw new DealServiceError(404, "Deal not found");
+
+    const callerIsPrivileged = await db
+        .select({ roleName: roles.name })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(and(
+            eq(userRoles.userId, callerId),
+            inArray(roles.name, ["admin", "owner", "relationship-manager"]),
+        ))
+        .limit(1);
+
+    if (callerIsPrivileged.length === 0 && deal.userId !== callerId) {
+        throw new DealServiceError(403, "You can only delete your own deals");
+    }
+
+    await db.delete(deals).where(eq(deals.id, id));
+
+    console.log(`${label} Deal deleted: id=${id}`);
+    return { id: deal.id };
+}

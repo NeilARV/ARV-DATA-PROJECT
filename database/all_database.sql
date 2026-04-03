@@ -501,17 +501,31 @@ CREATE INDEX idx_property_statuses_status_id   ON property_statuses(status_id);
 -- USER POSTS
 -- ============================================================================
 
--- Deal tyles for type column in deals table
-CREATE TYPE deal_type AS ENUM ('wholesale', 'agent');
+-- Deal types for type column in deals table
+CREATE TYPE deal_type AS ENUM ('wholesale', 'agent', 'sold');
 
--- Deal table --> property_id and user_id union
+-- Deal table — decoupled from properties; address/details stored directly
 CREATE TABLE deals (
     id              BIGSERIAL     PRIMARY KEY,
-    property_id     UUID          NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    -- property_id is nullable; populated when a matching property exists in the DB
+    property_id     UUID          REFERENCES properties(id) ON DELETE SET NULL,
     user_id         UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    msa_id          INTEGER       NOT NULL REFERENCES msas(id) ON DELETE RESTRICT,
+    -- msa_id is nullable; may not be determinable when only city/state is provided
+    msa_id          INTEGER       REFERENCES msas(id) ON DELETE RESTRICT,
     type            deal_type     NOT NULL,
-    created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    -- Address stored directly (full address optional; city + state always required)
+    address         TEXT,
+    city            TEXT,
+    state           VARCHAR(2),
+    zip_code        VARCHAR(10)        NOT NULL,
+    -- Property details stored directly (fetched from SFR when address provided)
+    price           DECIMAL(15, 2),
+    beds            INTEGER,
+    baths           DECIMAL(3, 1),
+    sqft            INTEGER,
+    property_type   VARCHAR(100)
 );
 
 CREATE INDEX idx_deals_feed       ON deals(id DESC);
