@@ -1,16 +1,16 @@
-import { pgTable, bigserial, uuid, integer, timestamp, pgEnum, text, varchar, decimal } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal } from "drizzle-orm/pg-core";
 import { users } from "./users.schema";
 import { msas } from "./msas.schema";
 
 export const dealTypeEnum = pgEnum("deal_type", ["wholesale", "agent", "sold"]);
 
 export const deals = pgTable("deals", {
-  
-  id:           bigserial("id", { mode: "number" }).primaryKey(),
-  
-  // Nullable — populated only when a matching property exists in the DB
-  propertyId:   uuid("property_id"),
-  userId:       uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+
+  id:              bigserial("id", { mode: "number" }).primaryKey(),
+
+  // Nullable — populated when SFR property lookup succeeds
+  sfrPropertyId:   bigint("sfr_property_id", { mode: "number" }),
+  userId:          uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   
   msaId:        integer("msa_id").notNull().references(() => msas.id, { onDelete: "restrict" }),
   type:         dealTypeEnum("type").notNull(),

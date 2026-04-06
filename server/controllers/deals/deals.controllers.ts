@@ -69,7 +69,7 @@ export async function createDealController(req: Request, res: Response): Promise
         res.status(201).json({ message: "Deal posted successfully", deal });
 
         // Fire-and-forget notification after response is sent
-        sendDealNotification(deal, msaId, userId, sendNotifications === true);
+        sendDealNotification(msaId, userId, sendNotifications === true);
     } catch (err) {
         handleServiceError(res, err, "Error posting deal");
     }

@@ -507,8 +507,8 @@ CREATE TYPE deal_type AS ENUM ('wholesale', 'agent', 'sold');
 -- Deal table — decoupled from properties; address/details stored directly
 CREATE TABLE deals (
     id              BIGSERIAL     PRIMARY KEY,
-    -- property_id is nullable; populated when a matching property exists in the DB
-    property_id     UUID          REFERENCES properties(id) ON DELETE SET NULL,
+    -- sfr_property_id is nullable; populated when SFR property lookup succeeds
+    sfr_property_id BIGINT,
     user_id         UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     -- msa_id is nullable; may not be determinable when only city/state is provided
     msa_id          INTEGER       REFERENCES msas(id) ON DELETE RESTRICT,
@@ -528,11 +528,11 @@ CREATE TABLE deals (
     property_type   VARCHAR(100)
 );
 
-CREATE INDEX idx_deals_feed       ON deals(id DESC);
-CREATE INDEX idx_deals_created_at ON deals(created_at);
-CREATE INDEX idx_deals_user       ON deals(user_id);
-CREATE INDEX idx_deals_property   ON deals(property_id);
-CREATE INDEX idx_deals_msa        ON deals(msa_id);
+CREATE INDEX idx_deals_feed           ON deals(id DESC);
+CREATE INDEX idx_deals_created_at     ON deals(created_at);
+CREATE INDEX idx_deals_user           ON deals(user_id);
+CREATE INDEX idx_deals_sfr_property_id ON deals(sfr_property_id);
+CREATE INDEX idx_deals_msa            ON deals(msa_id);
 
 -- ============================================================================
 -- DATA TRACKING & EMAIL TABLES

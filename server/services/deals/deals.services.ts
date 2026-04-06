@@ -1,6 +1,5 @@
 import { db } from "server/storage";
 import { deals } from "@database/schemas/deals.schema";
-import { properties } from "@database/schemas/properties.schema";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
@@ -22,13 +21,13 @@ async function resolvePropertyDetails(
     state: string,
     zipCode: string,
     label: string,
-): Promise<{ beds: number | null; baths: number | null; sqft: number | null; propertyType: string | null }> {
+): Promise<{ sfrPropertyId: number | null; beds: number | null; baths: number | null; sqft: number | null; propertyType: string | null }> {
     const API_KEY = process.env.SFR_API_KEY;
     const API_URL = process.env.SFR_API_URL;
 
     if (!API_KEY || !API_URL) {
         console.warn(`${label} SFR API not configured — skipping property detail lookup`);
-        return { beds: null, baths: null, sqft: null, propertyType: null };
+        return { sfrPropertyId: null, beds: null, baths: null, sqft: null, propertyType: null };
     }
 
     const fullAddress = zipCode
@@ -65,10 +64,11 @@ async function resolvePropertyDetails(
 
     const struct = (property.structure as Record<string, unknown> | undefined) ?? {};
     return {
-        beds:         Number(struct.beds_count  ?? 0) || null,
-        baths:        (Number(struct.baths ?? 0) + Number(struct.partial_baths_count ?? 0) * 0.5) || null,
-        sqft:         Number(struct.living_area_sqft ?? 0) || null,
-        propertyType: (property.property_type as string | undefined) ?? null,
+        sfrPropertyId: Number(property.property_id ?? 0) || null,
+        beds:          Number(struct.beds_count  ?? 0) || null,
+        baths:         (Number(struct.baths ?? 0) + Number(struct.partial_baths_count ?? 0) * 0.5) || null,
+        sqft:          Number(struct.living_area_sqft ?? 0) || null,
+        propertyType:  (property.property_type as string | undefined) ?? null,
     };
 }
 
@@ -105,10 +105,10 @@ export async function getDeals(filters: GetDealsFilters) {
 
     const results = await db
         .select({
-            id:           deals.id,
-            createdAt:    deals.createdAt,
-            propertyId:   deals.propertyId,
-            address:      deals.address,
+            id:             deals.id,
+            createdAt:      deals.createdAt,
+            sfrPropertyId:  deals.sfrPropertyId,
+            address:        deals.address,
             city:         deals.city,
             state:        deals.state,
             zipCode:      deals.zipCode,
@@ -189,20 +189,22 @@ export async function createDeal(input: CreateDealInput) {
         );
     }
 
-    let resolvedBeds:         number | null = beds  != null ? Number(beds)  : null;
-    let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
-    let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
-    let resolvedPropertyType: string | null = propertyType ?? null;
+    let resolvedSfrPropertyId: number | null = null;
+    let resolvedBeds:          number | null = beds  != null ? Number(beds)  : null;
+    let resolvedBaths:         number | null = baths != null ? Number(baths) : null;
+    let resolvedSqft:          number | null = sqft  != null ? Number(sqft)  : null;
+    let resolvedPropertyType:  string | null = propertyType ?? null;
 
     if (hasAddress) {
         const sfr = await resolvePropertyDetails(
             (address as string).trim(), city, state, zipCode, label
         );
         if (sfr.beds !== null || sfr.baths !== null) {
-            resolvedBeds         = sfr.beds;
-            resolvedBaths        = sfr.baths;
-            resolvedSqft         = sfr.sqft;
-            resolvedPropertyType = sfr.propertyType;
+            resolvedSfrPropertyId = sfr.sfrPropertyId;
+            resolvedBeds          = sfr.beds;
+            resolvedBaths         = sfr.baths;
+            resolvedSqft          = sfr.sqft;
+            resolvedPropertyType  = sfr.propertyType;
         }
     }
 
@@ -211,16 +213,17 @@ export async function createDeal(input: CreateDealInput) {
         .values({
             userId,
             msaId,
-            type:         resolvedDealType,
-            address:      hasAddress ? (address as string).trim() : null,
-            city:         city.trim(),
-            state:        state.toUpperCase().trim(),
-            zipCode:      String(zipCode).trim(),
-            price:        String(price),
-            beds:         resolvedBeds,
-            baths:        resolvedBaths != null ? String(resolvedBaths) : null,
-            sqft:         resolvedSqft,
-            propertyType: normalizePropertyType(resolvedPropertyType),
+            type:          resolvedDealType,
+            sfrPropertyId: resolvedSfrPropertyId,
+            address:       hasAddress ? (address as string).trim() : null,
+            city:          city.trim(),
+            state:         state.toUpperCase().trim(),
+            zipCode:       String(zipCode).trim(),
+            price:         String(price),
+            beds:          resolvedBeds,
+            baths:         resolvedBaths != null ? String(resolvedBaths) : null,
+            sqft:          resolvedSqft,
+            propertyType:  normalizePropertyType(resolvedPropertyType),
         })
         .returning();
 
@@ -231,7 +234,6 @@ export async function createDeal(input: CreateDealInput) {
 
 // ── POST deal — background notification (fire and forget) ──────────────────────
 export async function sendDealNotification(
-    deal: { id: number; propertyId: string | null },
     msaId: number,
     posterUserId: string,
     sendNotifications: boolean,
@@ -264,22 +266,11 @@ export async function sendDealNotification(
         const shouldNotify = false; // sendNotifications === true && !!template
 
         if (template && shouldNotify) {
-            let county = "Unknown";
-            if (deal.propertyId) {
-                const [propRow] = await db
-                    .select({ county: properties.county })
-                    .from(properties)
-                    .where(eq(properties.id, deal.propertyId))
-                    .limit(1);
-                county = propRow?.county?.trim() || "Unknown";
-            }
-
             const { sent, failed } = await sendTemplateToUsers({
                 recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
                 templateAlias: template,
                 templateModelForRecipient: () => ({
                     cta_url: "https://data.arvfinance.com/",
-                    county: `${county} County`,
                 }),
                 logPrefix: label,
             });
