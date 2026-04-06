@@ -410,6 +410,52 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     return updated;
 }
 
+// ── GET best buyers ────────────────────────────────────────────────────────────
+export interface BestBuyer {
+    name: string;
+    formattedName: string;
+    matchScore: number;
+    matchReasons: string[];
+    totalAcquisitions: number;
+    purchasesWithinQuarterMile: number;
+    purchasesWithinOneMile: number;
+    recentPurchasesCount: number;
+}
+
+export async function getBestBuyers(address: string): Promise<BestBuyer[]> {
+    const label = "[dealsService.getBestBuyers]";
+    const API_KEY = process.env.SFR_API_KEY;
+    const API_URL = process.env.SFR_API_URL;
+
+    if (!API_KEY || !API_URL) {
+        throw new DealServiceError(503, "Best buyers lookup is not available — SFR API not configured");
+    }
+
+    const params = new URLSearchParams({ address });
+    const response = await fetch(`${API_URL}/buyers/best-buyers?${params}`, {
+        method: "GET",
+        headers: {
+            "X-API-TOKEN": API_KEY,
+            "Accept": "application/json",
+            "User-Agent": "PostmanRuntime/7.41.0",
+        },
+    });
+
+    if (!response.ok) {
+        throw new DealServiceError(
+            502,
+            `Best buyers lookup failed (${response.status}) for "${address}"`,
+        );
+    }
+
+    const data = (await response.json()) as { buyers?: unknown[] };
+    const buyers = Array.isArray(data.buyers) ? (data.buyers as BestBuyer[]) : [];
+
+    console.log(`${label} ${buyers.length} buyers returned for "${address}"`);
+
+    return buyers.slice(0, 3);
+}
+
 // ── DELETE deal ────────────────────────────────────────────────────────────────
 export async function deleteDeal(id: number, callerId: string) {
     const label = "[dealsService.deleteDeal]";
