@@ -40,13 +40,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useFilters } from "@/hooks/useFilters";
 import { getMsaNameFromCounty } from "@/lib/county";
-import { getStreetViewUrl } from "@/lib/streetView";
 import { formatAddress } from "@shared/utils/formatAddress";
 
 interface Deal {
   id: number;
   createdAt: string;
   sfrPropertyId: number | null;
+  streetViewUrl: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -87,23 +87,15 @@ function DealCard({
   const [imageLoading, setImageLoading] = useState(true);
 
   useEffect(() => {
-    if (!deal.address || !deal.city || !deal.state) {
+    if (!deal.streetViewUrl) {
       setImageLoading(false);
       return;
     }
-    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.sfrPropertyId)
-      .then((url) => {
-        if (url) {
-          const img = new Image();
-          img.onload = () => { setImageUrl(url); setImageLoading(false); };
-          img.onerror = () => setImageLoading(false);
-          img.src = url;
-        } else {
-          setImageLoading(false);
-        }
-      })
-      .catch(() => setImageLoading(false));
-  }, [deal.address, deal.city, deal.state, deal.sfrPropertyId]);
+    const img = new Image();
+    img.onload = () => { setImageUrl(deal.streetViewUrl!); setImageLoading(false); };
+    img.onerror = () => setImageLoading(false);
+    img.src = deal.streetViewUrl;
+  }, [deal.streetViewUrl]);
 
   const price = deal.price ? Number(deal.price) : null;
   const beds = deal.beds ? Number(deal.beds) : null;

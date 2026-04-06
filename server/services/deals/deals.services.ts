@@ -6,12 +6,26 @@ import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
 import { eq, desc, and, inArray } from "drizzle-orm";
+import { getStreetviewImage } from "server/services/properties/streetview.services";
 
 export class DealServiceError extends Error {
     constructor(public statusCode: number, message: string) {
         super(message);
         this.name = "DealServiceError";
     }
+}
+
+// ── Shared: build a relative streetview URL for a deal ────────────────────────
+function buildDealStreetViewUrl(
+    address: string | null,
+    city: string | null,
+    state: string | null,
+    sfrPropertyId: number | null,
+): string | null {
+    if (!address || !city || !state) return null;
+    const params = new URLSearchParams({ address, city, state, size: "200x200" });
+    if (sfrPropertyId != null) params.set("sfrPropertyId", String(sfrPropertyId));
+    return `/api/properties/streetview?${params}`;
 }
 
 // ── Shared: resolve property details from SFR for a single address ─────────────
@@ -135,7 +149,25 @@ export async function getDeals(filters: GetDealsFilters) {
         `${filterMsaName ? ` (msaName=${filterMsaName})` : ""}`
     );
 
-    return results;
+    return Promise.all(
+        results.map(async (deal) => {
+            const url = buildDealStreetViewUrl(deal.address, deal.city, deal.state, deal.sfrPropertyId);
+            if (!url) return { ...deal, streetViewUrl: null };
+
+            try {
+                const result = await getStreetviewImage({
+                    address: deal.address!,
+                    city:    deal.city    ?? "",
+                    state:   deal.state   ?? "",
+                    size:    "200x200",
+                    sfrPropertyId: deal.sfrPropertyId ?? undefined,
+                });
+                return { ...deal, streetViewUrl: "imageData" in result ? url : null };
+            } catch {
+                return { ...deal, streetViewUrl: null };
+            }
+        })
+    );
 }
 
 // ── POST deal ──────────────────────────────────────────────────────────────────
