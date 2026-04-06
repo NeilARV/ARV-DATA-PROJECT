@@ -66,7 +66,7 @@ async function resolvePropertyDetails(
     const struct = (property.structure as Record<string, unknown> | undefined) ?? {};
     return {
         beds:         Number(struct.beds_count  ?? 0) || null,
-        baths:        Number(struct.baths        ?? 0) || null,
+        baths:        (Number(struct.baths ?? 0) + Number(struct.partial_baths_count ?? 0) * 0.5) || null,
         sqft:         Number(struct.living_area_sqft ?? 0) || null,
         propertyType: (property.property_type as string | undefined) ?? null,
     };

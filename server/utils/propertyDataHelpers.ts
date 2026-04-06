@@ -245,7 +245,9 @@ export function transformStructureData(propertyId: string, propertyData: SfrProp
         effectiveYearBuilt: struct.effective_year_built || null,
         bedsCount: struct.beds_count || null,
         roomsCount: struct.rooms_count || null,
-        baths: struct.baths ? String(struct.baths) : null,
+        baths: struct.baths != null
+            ? String(Number(struct.baths) + (struct.partial_baths_count ?? 0) * 0.5)
+            : null,
         basementType: struct.basement_type || null,
         condition: struct.condition || null,
         constructionType: struct.construction_type || null,
