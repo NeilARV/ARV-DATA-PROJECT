@@ -7,6 +7,7 @@ import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
+import { normalizeToTitleCase } from "server/utils/normalization";
 
 export class DealServiceError extends Error {
     constructor(public statusCode: number, message: string) {
@@ -453,7 +454,10 @@ export async function getBestBuyers(address: string): Promise<BestBuyer[]> {
 
     console.log(`${label} ${buyers.length} buyers returned for "${address}"`);
 
-    return buyers.slice(0, 3);
+    return buyers.slice(0, 3).map((b) => ({
+        ...b,
+        name: normalizeToTitleCase(b.name) ?? b.name,
+    }));
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import UpdateDeal from "@/components/modals/UpdateDeal";
 import type { DealToEdit } from "@/components/modals/UpdateDeal";
 import AppDialog from "@/components/modals/Dialog";
 import ContactContent from "@/components/modals/Contact";
+import BestBuyersContent from "@/components/modals/BestBuyers";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +35,7 @@ import {
   Trash2,
   Phone,
   Pencil,
+  Trophy,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -74,6 +76,7 @@ function DealCard({
   onDelete,
   onEdit,
   onRequestContact,
+  onTopBuyers,
 }: {
   deal: Deal;
   canDelete: boolean;
@@ -82,6 +85,7 @@ function DealCard({
   onDelete: () => void;
   onEdit: () => void;
   onRequestContact: () => void;
+  onTopBuyers: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
@@ -157,8 +161,7 @@ function DealCard({
                 Request Contact
               </Button>
             )}
-            {(canEdit || canDelete) && (
-              <DropdownMenu>
+            <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -169,6 +172,15 @@ function DealCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="z-[10001]">
+                  {deal.address && (
+                    <DropdownMenuItem
+                      className="gap-2 cursor-pointer"
+                      onSelect={onTopBuyers}
+                    >
+                      <Trophy className="h-4 w-4 text-amber-500" />
+                      Top Buyers
+                    </DropdownMenuItem>
+                  )}
                   {canEdit && (
                     <DropdownMenuItem
                       className="gap-2 cursor-pointer"
@@ -189,7 +201,6 @@ function DealCard({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
           </div>
         </div>
 
@@ -241,9 +252,10 @@ function DealCard({
 export default function DealView() {
   const [showAddDeal, setShowAddDeal] = useState(false);
   const [tab, setTab] = useState<Tab>("all");
-const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const [contactDeal, setContactDeal] = useState<Deal | null>(null);
   const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
+  const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
   const { toast } = useToast();
   const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
@@ -301,6 +313,7 @@ const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: st
         onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
         onEdit={() => setEditDeal(deal)}
         onRequestContact={() => setContactDeal(deal)}
+        onTopBuyers={() => setBestBuyersDeal(deal)}
       />
     );
   };
@@ -432,6 +445,17 @@ const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: st
           onClose={() => setEditDeal(null)}
         />
       )}
+
+      <AppDialog open={!!bestBuyersDeal} onClose={() => setBestBuyersDeal(null)} className="max-w-md">
+        {bestBuyersDeal && (
+          <BestBuyersContent
+            address={bestBuyersDeal.address}
+            city={bestBuyersDeal.city}
+            state={bestBuyersDeal.state}
+            zipCode={bestBuyersDeal.zipCode}
+          />
+        )}
+      </AppDialog>
     </div>
   );
 }
