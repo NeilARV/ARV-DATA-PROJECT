@@ -3,7 +3,6 @@ import { deals } from "@database/schemas/deals.schema";
 import { properties } from "@database/schemas/properties.schema";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
-import { batchLookup } from "server/jobs/data_v2/processes/batch-lookup";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
@@ -32,32 +31,45 @@ async function resolvePropertyDetails(
         return { beds: null, baths: null, sqft: null, propertyType: null };
     }
 
-    try {
-        console.log(`${label} Looking up property details: ${address}, ${city}, ${state} ${zipCode}`);
-        const mergedProperties = await batchLookup({
-            records: [{ address, city, state, zipCode }],
-            API_KEY,
-            API_URL,
-            cityCode: "DEAL",
-        });
+    const fullAddress = zipCode
+        ? `${address}, ${city}, ${state} ${zipCode}`
+        : `${address}, ${city}, ${state}`;
 
-        if (mergedProperties.length > 0 && !mergedProperties[0].error && mergedProperties[0].property) {
-            const p = mergedProperties[0].property as Record<string, unknown>;
-            const struct = (p.structure as Record<string, unknown> | undefined) ?? {};
-            return {
-                beds:         Number(struct.beds_count ?? 0) || null,
-                baths:        Number(struct.baths ?? 0) || null,
-                sqft:         Number(struct.living_area_sqft ?? 0) || null,
-                propertyType: (p.property_type as string | undefined) ?? null,
-            };
-        }
+    console.log(`${label} Looking up property details: ${fullAddress}`);
 
-        console.warn(`${label} SFR lookup returned no results`);
-    } catch (err) {
-        console.warn(`${label} SFR lookup failed:`, err);
+    const params = new URLSearchParams({ address: fullAddress });
+    const response = await fetch(`${API_URL}/properties/by-address?${params}`, {
+        method: "GET",
+        headers: {
+            "X-API-TOKEN": API_KEY,
+            "Accept": "application/json",
+            "User-Agent": "PostmanRuntime/7.41.0",
+        },
+    });
+
+    if (!response.ok) {
+        throw new DealServiceError(
+            502,
+            `Property lookup failed (${response.status}): unable to retrieve details for "${fullAddress}"`,
+        );
     }
 
-    return { beds: null, baths: null, sqft: null, propertyType: null };
+    const property = (await response.json()) as Record<string, unknown>;
+
+    if (!property || property.error) {
+        throw new DealServiceError(
+            404,
+            `No property found for "${fullAddress}". Please verify the address and try again.`,
+        );
+    }
+
+    const struct = (property.structure as Record<string, unknown> | undefined) ?? {};
+    return {
+        beds:         Number(struct.beds_count  ?? 0) || null,
+        baths:        Number(struct.baths        ?? 0) || null,
+        sqft:         Number(struct.living_area_sqft ?? 0) || null,
+        propertyType: (property.property_type as string | undefined) ?? null,
+    };
 }
 
 // ── GET deals ──────────────────────────────────────────────────────────────────
