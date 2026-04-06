@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone } from "lucide-react";
+import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import UpdateContent from "@/components/modals/Update";
@@ -57,7 +57,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
   const { isAdminOrOwner } = useAuth();
-  const { view } = useView();
+  const { view, setView } = useView();
   const {
     company,
     setCompany,
@@ -552,6 +552,22 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                       )}
                     </div>
                     
+                    {/* View Properties — visible to all users */}
+                    <div className="pt-3 border-t border-border">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setView("grid");
+                        }}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Properties
+                      </Button>
+                    </div>
+
                     {/* Admin Actions - Only visible to owner or admin */}
                     {isAdminOrOwner && (
                       <div className="pt-3 border-t border-border space-y-2">
