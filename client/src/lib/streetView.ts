@@ -5,7 +5,7 @@
  * @param city - City name
  * @param state - State abbreviation
  * @param size - Image size in format "widthxheight" (default: "600x400")
- * @param propertyId - Optional property ID for better cache linking
+ * @param sfrPropertyId - Optional SFR property ID for cache linking (works for both properties and deals)
  * @returns Street View image URL (proxied through backend)
  */
 export async function getStreetViewUrl(
@@ -13,7 +13,7 @@ export async function getStreetViewUrl(
   city: string,
   state: string,
   size: string = "600x400",
-  propertyId?: string
+  sfrPropertyId?: number | null
 ): Promise<string> {
   try {
     const params = new URLSearchParams({
@@ -22,12 +22,11 @@ export async function getStreetViewUrl(
       state,
       size
     });
-    
-    // Add propertyId if provided for better cache linking
-    if (propertyId) {
-      params.append('propertyId', propertyId);
+
+    if (sfrPropertyId != null) {
+      params.append('sfrPropertyId', String(sfrPropertyId));
     }
-    
+
     // Return the proxied URL directly - backend will serve the image
     return `/api/properties/streetview?${params}`;
   } catch (error) {

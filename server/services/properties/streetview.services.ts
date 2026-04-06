@@ -22,7 +22,7 @@ export interface StreetviewParams {
     city?: string;
     state?: string;
     size?: string;
-    propertyId?: string;
+    sfrPropertyId?: number;
 }
 
 /**
@@ -37,7 +37,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
         city = "",
         state = "",
         size = "600x400",
-        propertyId
+        sfrPropertyId
     } = params;
 
     const normalizedAddress = address.trim();
@@ -46,7 +46,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
     const normalizedSize = size.trim();
 
     // Check cache first - look for non-expired entry matching address+city+state+size
-    const cachedResult = await checkCache(normalizedAddress, normalizedCity, normalizedState, normalizedSize, propertyId);
+    const cachedResult = await checkCache(normalizedAddress, normalizedCity, normalizedState, normalizedSize, sfrPropertyId);
     
     if (cachedResult) {
         return cachedResult;
@@ -77,7 +77,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
             normalizedCity,
             normalizedState,
             normalizedSize,
-            propertyId,
+            sfrPropertyId,
             metadata.status
         );
 
@@ -111,7 +111,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
         normalizedCity,
         normalizedState,
         normalizedSize,
-        propertyId,
+        sfrPropertyId,
         imageResult.buffer,
         imageResult.contentType
     );
@@ -132,7 +132,7 @@ async function checkCache(
     city: string,
     state: string,
     size: string,
-    propertyId?: string
+    sfrPropertyId?: number
 ): Promise<StreetviewResult | null> {
     const cacheConditions = [
         sql`LOWER(TRIM(${streetviewCache.address})) = ${address.toLowerCase()}`,
@@ -142,8 +142,8 @@ async function checkCache(
         sql`${streetviewCache.expiresAt} > NOW()`
     ];
 
-    if (propertyId) {
-        cacheConditions.push(eq(streetviewCache.propertyId, propertyId));
+    if (sfrPropertyId != null) {
+        cacheConditions.push(eq(streetviewCache.sfrPropertyId, sfrPropertyId));
     }
 
     const cachedEntry = await db
@@ -240,15 +240,15 @@ async function cacheNegativeResult(
     city: string,
     state: string,
     size: string,
-    propertyId: string | undefined,
+    sfrPropertyId: number | undefined,
     status: string
 ): Promise<void> {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now so we keep checking if google added image
-    
+
     try {
         await db.insert(streetviewCache).values({
-            propertyId: propertyId || null,
+            sfrPropertyId: sfrPropertyId ?? null,
             address,
             city,
             state,
@@ -273,7 +273,7 @@ async function cacheImage(
     city: string,
     state: string,
     size: string,
-    propertyId: string | undefined,
+    sfrPropertyId: number | undefined,
     imageData: Buffer,
     contentType: string
 ): Promise<void> {
@@ -282,7 +282,7 @@ async function cacheImage(
 
     try {
         await db.insert(streetviewCache).values({
-            propertyId: propertyId || null,
+            sfrPropertyId: sfrPropertyId ?? null,
             address,
             city,
             state,

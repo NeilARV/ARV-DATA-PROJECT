@@ -109,7 +109,7 @@ export function PropertyContent({
       property.city,
       property.state,
       IMAGE_SIZES[variant],
-      property.id
+      property.sfrPropertyId
     )
       .then((url) => {
         if (url) {

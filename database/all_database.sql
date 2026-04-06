@@ -404,7 +404,7 @@ COMMENT ON TABLE current_sales IS 'Current/most recent sale buyer and seller inf
 -- Street View image cache table
 CREATE TABLE streetview_cache (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
+    sfr_property_id BIGINT,
     address TEXT NOT NULL,
     city TEXT NOT NULL,
     state TEXT NOT NULL,
@@ -416,9 +416,8 @@ CREATE TABLE streetview_cache (
     metadata_status TEXT
 );
 
-CREATE INDEX idx_streetview_cache_property_id ON streetview_cache(property_id);
+CREATE INDEX idx_streetview_cache_sfr_property_id ON streetview_cache(sfr_property_id);
 CREATE INDEX idx_streetview_cache_expires_at ON streetview_cache(expires_at);
-CREATE INDEX idx_streetview_cache_property_lookup ON streetview_cache(property_id, expires_at);
 CREATE INDEX idx_streetview_cache_address ON streetview_cache(lower(TRIM(BOTH FROM address)));
 CREATE INDEX idx_streetview_cache_city ON streetview_cache(lower(TRIM(BOTH FROM city)));
 CREATE INDEX idx_streetview_cache_state ON streetview_cache(lower(TRIM(BOTH FROM state)));

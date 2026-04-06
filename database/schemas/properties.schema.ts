@@ -220,7 +220,7 @@ export const currentSales = pgTable("current_sales", {
 // Streetview Cache
 export const streetviewCache = pgTable("streetview_cache", {
   id: uuid("id").defaultRandom().primaryKey(),
-  propertyId: uuid("property_id").references(() => properties.id, { onDelete: "cascade" }),
+  sfrPropertyId: bigint("sfr_property_id", { mode: "number" }),
   address: text("address").notNull(),
   city: text("city").notNull(),
   state: text("state").notNull(),

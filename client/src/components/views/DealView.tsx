@@ -46,7 +46,7 @@ import { formatAddress } from "@shared/utils/formatAddress";
 interface Deal {
   id: number;
   createdAt: string;
-  propertyId: string | null;
+  sfrPropertyId: number | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -91,7 +91,7 @@ function DealCard({
       setImageLoading(false);
       return;
     }
-    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.propertyId ?? undefined)
+    getStreetViewUrl(deal.address, deal.city, deal.state, "200x200", deal.sfrPropertyId)
       .then((url) => {
         if (url) {
           const img = new Image();
@@ -103,7 +103,7 @@ function DealCard({
         }
       })
       .catch(() => setImageLoading(false));
-  }, [deal.address, deal.city, deal.state, deal.propertyId]);
+  }, [deal.address, deal.city, deal.state, deal.sfrPropertyId]);
 
   const price = deal.price ? Number(deal.price) : null;
   const beds = deal.beds ? Number(deal.beds) : null;

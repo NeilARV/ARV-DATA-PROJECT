@@ -3,18 +3,20 @@ import { StreetviewServices } from "server/services/properties";
 
 export async function getStreetview(req: Request, res: Response, next: NextFunction) {
     try {
-        const { address, city, state, size = "600x400", propertyId } = req.query;
+        const { address, city, state, size = "600x400", sfrPropertyId } = req.query;
 
         if (!address) {
             return res.status(400).json({ message: "Address parameter is required" });
         }
+
+        const parsedSfrPropertyId = sfrPropertyId ? Number(sfrPropertyId) : undefined;
 
         const result = await StreetviewServices.getStreetviewImage({
             address: address.toString(),
             city: city?.toString(),
             state: state?.toString(),
             size: size.toString(),
-            propertyId: propertyId?.toString(),
+            sfrPropertyId: parsedSfrPropertyId && !isNaN(parsedSfrPropertyId) ? parsedSfrPropertyId : undefined,
         });
 
         // Check if result is an error

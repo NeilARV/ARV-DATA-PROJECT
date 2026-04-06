@@ -60,9 +60,9 @@ function formatDateSold(saleDate: Date | string | null | undefined): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function buildStreetviewUrl(propertyId: string, address: string, city: string, state: string): string {
+function buildStreetviewUrl(sfrPropertyId: number, address: string, city: string, state: string): string {
   const params = new URLSearchParams({
-    propertyId,
+    sfrPropertyId: String(sfrPropertyId),
     address,
     city,
     state,
@@ -76,7 +76,7 @@ function buildStreetviewUrl(propertyId: string, address: string, city: string, s
  * Used to skip properties without real images so we only send properties with Street View.
  */
 async function getStreetViewUrlIfAvailable(
-  propertyId: string,
+  sfrPropertyId: number,
   address: string,
   city: string,
   state: string
@@ -91,11 +91,11 @@ async function getStreetViewUrlIfAvailable(
       city: c,
       state: s,
       size: STREETVIEW_SIZE,
-      propertyId,
+      sfrPropertyId,
     });
 
     if ("imageData" in result) {
-      return buildStreetviewUrl(propertyId, addr, c, s);
+      return buildStreetviewUrl(sfrPropertyId, addr, c, s);
     }
   } catch (err) {
     console.warn(`[EMAIL] Street View lookup failed for ${addr}, ${c}, ${s}:`, err);
@@ -210,6 +210,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         saleDate: lastSales.saleDate,
         recordingDate: lastSales.recordingDate,
         propertyId: properties.id,
+        sfrPropertyId: properties.sfrPropertyId,
         statuses: sql<string[]>`COALESCE((SELECT array_agg(s.name) FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id}), ARRAY[]::text[])`,
         propertyType: properties.propertyType,
         bedsCount: structures.bedsCount,
@@ -292,7 +293,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       const rawAddress = p.address ?? "Unknown";
       const rawCity = p.city ?? "Unknown";
       const state = p.state ?? "N/A";
-      const image_url = await getStreetViewUrlIfAvailable(p.propertyId, rawAddress, rawCity, state);
+      const image_url = await getStreetViewUrlIfAvailable(p.sfrPropertyId, rawAddress, rawCity, state);
       if (image_url === null) continue;
 
       const statusTags = getStatusTags(p.statuses ?? []).map((tag) => ({

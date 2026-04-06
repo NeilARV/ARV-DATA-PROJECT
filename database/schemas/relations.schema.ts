@@ -14,7 +14,6 @@ import {
   preForeclosures,
   lastSales,
   currentSales,
-  streetviewCache,
   propertyTransactions,
 } from "./properties.schema";
 
@@ -65,7 +64,6 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
   taxRecords: many(taxRecords),
   valuations: many(valuations),
   transactions: many(propertyTransactions),
-  streetviewCache: many(streetviewCache),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
@@ -168,12 +166,6 @@ export const currentSalesRelations = relations(currentSales, ({ one }) => ({
   }),
 }));
 
-export const streetviewCacheRelations = relations(streetviewCache, ({ one }) => ({
-  property: one(properties, {
-    fields: [streetviewCache.propertyId],
-    references: [properties.id],
-  }),
-}));
 
 export const propertyTransactionsRelations = relations(propertyTransactions, ({ one }) => ({
   property: one(properties, {

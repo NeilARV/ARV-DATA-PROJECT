@@ -1,5 +1,6 @@
 export type Property = {
   id: string;
+  sfrPropertyId: number | null;
   // Address info
   address: string;
   city: string;
