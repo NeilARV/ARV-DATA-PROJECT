@@ -453,6 +453,7 @@ export default function DealView() {
             city={bestBuyersDeal.city}
             state={bestBuyersDeal.state}
             zipCode={bestBuyersDeal.zipCode}
+            onClose={() => setBestBuyersDeal(null)}
           />
         )}
       </AppDialog>

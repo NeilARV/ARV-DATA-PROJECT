@@ -6,6 +6,7 @@ import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
 import { eq, desc, and, inArray } from "drizzle-orm";
+import { companies, companyMsas } from "@database/schemas/companies.schema";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
 import { normalizeToTitleCase } from "server/utils/normalization";
 
@@ -421,9 +422,18 @@ export interface BestBuyer {
     purchasesWithinQuarterMile: number;
     purchasesWithinOneMile: number;
     recentPurchasesCount: number;
+    companyId: string | null;
+    contactName: string | null;
 }
 
-export async function getBestBuyers(address: string): Promise<BestBuyer[]> {
+export interface GetBestBuyersInput {
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+}
+
+export async function getBestBuyers({ address, city, state, zipCode }: GetBestBuyersInput): Promise<BestBuyer[]> {
     const label = "[dealsService.getBestBuyers]";
     const API_KEY = process.env.SFR_API_KEY;
     const API_URL = process.env.SFR_API_URL;
@@ -432,7 +442,9 @@ export async function getBestBuyers(address: string): Promise<BestBuyer[]> {
         throw new DealServiceError(503, "Best buyers lookup is not available — SFR API not configured");
     }
 
-    const params = new URLSearchParams({ address });
+    const fullAddress = [address, city, state, zipCode].filter(Boolean).join(", ");
+
+    const params = new URLSearchParams({ address: fullAddress });
     const response = await fetch(`${API_URL}/buyers/best-buyers?${params}`, {
         method: "GET",
         headers: {
@@ -445,19 +457,41 @@ export async function getBestBuyers(address: string): Promise<BestBuyer[]> {
     if (!response.ok) {
         throw new DealServiceError(
             502,
-            `Best buyers lookup failed (${response.status}) for "${address}"`,
+            `Best buyers lookup failed (${response.status}) for "${fullAddress}"`,
         );
     }
 
     const data = (await response.json()) as { buyers?: unknown[] };
-    const buyers = Array.isArray(data.buyers) ? (data.buyers as BestBuyer[]) : [];
+    type SfrBuyer = Omit<BestBuyer, "companyId" | "contactName">;
+    const rawBuyers = Array.isArray(data.buyers) ? (data.buyers as SfrBuyer[]) : [];
+    const topBuyers = rawBuyers.slice(0, 3);
 
-    console.log(`${label} ${buyers.length} buyers returned for "${address}"`);
+    console.log(`${label} ${rawBuyers.length} buyers returned for "${fullAddress}"`);
 
-    return buyers.slice(0, 3).map((b) => ({
-        ...b,
-        name: normalizeToTitleCase(b.name) ?? b.name,
-    }));
+    // Look up matching companies within the MSA (case-insensitive, using raw SFR names before normalization)
+    const companyLookup = new Map<string, { id: string; contactName: string | null }>();
+    const msaId = await resolveMsaId(city, state, zipCode);
+    if (msaId) {
+        const msaCompanies = await db
+            .select({ id: companies.id, companyName: companies.companyName, contactName: companies.contactName })
+            .from(companies)
+            .innerJoin(companyMsas, eq(companies.id, companyMsas.companyId))
+            .where(eq(companyMsas.msaId, msaId));
+
+        for (const c of msaCompanies) {
+            companyLookup.set(c.companyName.toLowerCase(), { id: c.id, contactName: c.contactName ?? null });
+        }
+    }
+
+    return topBuyers.map((b) => {
+        const match = companyLookup.get(b.name.toLowerCase());
+        return {
+            ...b,
+            name: normalizeToTitleCase(b.name) ?? b.name,
+            companyId: match?.id ?? null,
+            contactName: match?.contactName ?? null,
+        };
+    });
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────
