@@ -24,6 +24,7 @@ export const LEADERBOARD_ZIP_STATUS_FILTERS: Status[] = [
 export const BUYERS_FEED_STATUS_FILTERS: Status[] = [
   PROPERTY_STATUS.WHOLESALE,
   PROPERTY_STATUS.IN_RENOVATION,
+  PROPERTY_STATUS.ON_MARKET,
 ];
 
 /** Status filter for wholesale-only view. */
