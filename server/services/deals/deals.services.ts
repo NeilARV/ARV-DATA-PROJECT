@@ -322,7 +322,7 @@ export async function sendDealNotification(
 
         const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
         // TEMP OVERRIDE — notifications disabled until ready to enable
-        const shouldNotify = true; // sendNotifications === true && !!template
+        const shouldNotify = false; // sendNotifications === true && !!template
 
         if (template && shouldNotify) {
             // Look up MSA name for the county field
