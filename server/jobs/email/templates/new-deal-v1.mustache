@@ -91,19 +91,28 @@
                       <p style="margin:12px 0 0; font-size:13px; color:#333333;">{{.}}</p>
                       {{/specs_line}}
 
-                      <!-- Price -->
-                      {{#price}}
-                      <p style="margin:12px 0 0; font-size:20px; font-weight:700; color:#1a1a1a;">
-                        ${{.}}
-                      </p>
-                      {{/price}}
-
                       <!-- Property Type -->
                       {{#property_type}}
-                      <p style="margin:2px 0 0; font-size:13px; color:#999999;">
-                        {{.}}
-                      </p>
+                      <p style="margin:4px 0 0; font-size:13px; color:#999999;">{{.}}</p>
                       {{/property_type}}
+
+                      <!-- Price + Potential ARV (same row) -->
+                      <table cellpadding="0" cellspacing="0" style="margin-top:12px;">
+                        <tr valign="top">
+                          {{#price}}
+                          <td style="padding-right:20px;">
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Price</p>
+                            <p style="margin:2px 0 0; font-size:20px; font-weight:700; color:#1a1a1a;">${{.}}</p>
+                          </td>
+                          {{/price}}
+                          {{#potential_arv}}
+                          <td>
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Potential ARV</p>
+                            <p style="margin:2px 0 0; font-size:20px; font-weight:700; color:#2e7d32;">${{.}}</p>
+                          </td>
+                          {{/potential_arv}}
+                        </tr>
+                      </table>
 
                       <!-- Posted date -->
                       <p style="margin:12px 0 0; font-size:12px; color:#aaaaaa;">
@@ -115,6 +124,22 @@
                 </table>
               </td>
             </tr>
+
+            <!-- Notes -->
+            {{#notes}}
+            <tr>
+              <td style="padding:0 24px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fa; border-left:3px solid #69C9E1; border-radius:0 4px 4px 0;">
+                  <tr>
+                    <td style="padding:12px 16px;">
+                      <p style="margin:0 0 4px; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Notes</p>
+                      <p style="margin:0; font-size:14px; color:#333333; line-height:1.5;">{{.}}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            {{/notes}}
 
             <!-- CTA Button -->
             <tr>

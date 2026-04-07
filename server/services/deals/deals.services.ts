@@ -290,9 +290,11 @@ export interface DealNotificationData {
     baths: string | null;
     sqft: number | null;
     price: string | null;
+    potentialARV: string | null;
     propertyType: string | null;
     type: "wholesale" | "agent" | "sold";
     sfrPropertyId: number | null;
+    notes: string | null;
 }
 
 export async function sendDealNotification(
@@ -339,10 +341,11 @@ export async function sendDealNotification(
 
             const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
 
-            const beds  = deal.beds  != null ? deal.beds                         : null;
-            const baths = deal.baths != null ? parseFloat(deal.baths)            : null;
-            const sqft  = deal.sqft  != null ? deal.sqft.toLocaleString("en-US") : null;
-            const price = deal.price ? Number(deal.price).toLocaleString("en-US") : null;
+            const beds         = deal.beds         != null ? deal.beds                                  : null;
+            const baths        = deal.baths        != null ? parseFloat(deal.baths)                    : null;
+            const sqft         = deal.sqft         != null ? deal.sqft.toLocaleString("en-US")         : null;
+            const price        = deal.price        ? Number(deal.price).toLocaleString("en-US")        : null;
+            const potentialARV = deal.potentialARV ? Number(deal.potentialARV).toLocaleString("en-US") : null;
 
             const specsParts: string[] = [];
             if (beds  != null) specsParts.push(`${beds} bd`);
@@ -361,7 +364,7 @@ export async function sendDealNotification(
             // Resolve absolute street view URL (email clients cannot follow relative paths)
             let streetViewUrl: string | null = null;
             if (deal.address && deal.city && deal.state) {
-                const APP_BASE_URL = process.env.APP_URL || "https://data.potentialARVfinance.com";
+                const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
                 const params = new URLSearchParams({
                     address: deal.address,
                     city:    deal.city,
@@ -398,10 +401,12 @@ export async function sendDealNotification(
                     zipcode:          deal.zipCode ?? "",
                     specs_line:       specsLine,
                     price:            price,
+                    potential_arv:    potentialARV,
                     property_type:    deal.propertyType ?? null,
                     posted_at:        postedAt,
+                    notes:            deal.notes ?? null,
                     county:           county,
-                    cta_url:          "https://data.potentialARVfinance.com/",
+                    cta_url:          "https://data.arvfinance.com/",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
                 }),

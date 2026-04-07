@@ -14,7 +14,10 @@ export const dealFormSchema = z
     baths:        z.coerce.number().positive().optional(),
     sqft:         z.coerce.number().int().positive().optional(),
     propertyType:      z.string().optional(),
-    potentialARV:      z.coerce.number().positive("ARV must be greater than 0").optional(),
+    potentialARV:      z.preprocess(
+                         (v) => (v === "" || v == null ? undefined : v),
+                         z.coerce.number().positive("ARV must be greater than 0").optional()
+                       ),
     notes:             z.string().max(1000, "Notes must be 1000 characters or fewer").optional(),
     sendNotifications: z.boolean().default(true),
   })
