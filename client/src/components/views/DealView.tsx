@@ -251,30 +251,29 @@ function DealCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground/70">{postedAt}</span>
-          {deal.notes && (
-            <button
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setExpanded((v) => !v)}
-            >
-              {expanded ? (
-                <>View Less <ChevronUp className="w-3.5 h-3.5" /></>
-              ) : (
-                <>View More <ChevronDown className="w-3.5 h-3.5" /></>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-      </div>
+        <span className="text-sm text-muted-foreground/70">{postedAt}</span>
 
-      {expanded && deal.notes && (
-        <div className="border-t border-border px-5 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Notes</p>
-          <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
-        </div>
-      )}
+        {deal.notes && (
+          <button
+            className="flex items-center justify-center gap-1 w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? (
+              <>View Less <ChevronUp className="w-3.5 h-3.5" /></>
+            ) : (
+              <>View More <ChevronDown className="w-3.5 h-3.5" /></>
+            )}
+          </button>
+        )}
+
+        {expanded && deal.notes && (
+          <div className="border-t border-border pt-3 mt-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Notes</p>
+            <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
+          </div>
+        )}
+      </div>
+      </div>
     </div>
   );
 }
