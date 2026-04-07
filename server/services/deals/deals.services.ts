@@ -97,6 +97,13 @@ async function resolvePropertyDetails(
     };
 }
 
+// ── Address helpers ────────────────────────────────────────────────────────────
+// Returns true only when the address begins with a house/building number (e.g. "123 Main St").
+// A street-name-only value like "Main St" returns false and is treated as a partial address.
+function isFullStreetAddress(address: string): boolean {
+    return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
+}
+
 // ── GET deals ──────────────────────────────────────────────────────────────────
 export interface GetDealsFilters {
     userId?: string;
@@ -205,10 +212,12 @@ export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
     const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
 
-    const hasAddress = typeof address === "string" && address.trim().length > 0;
+    const addressStr     = typeof address === "string" ? address.trim() : "";
+    const hasAddress     = addressStr.length > 0;
+    const hasFullAddress = hasAddress && isFullStreetAddress(addressStr);
 
-    // Business rule: manual property details required when no address
-    if (!hasAddress) {
+    // Business rule: manual property details required when no full street address
+    if (!hasFullAddress) {
         const missing: string[] = [];
         if (beds == null)    missing.push("beds");
         if (baths == null)   missing.push("baths");
@@ -217,7 +226,7 @@ export async function createDeal(input: CreateDealInput) {
         if (missing.length > 0) {
             throw new DealServiceError(
                 400,
-                `beds, baths, sqft, and propertyType are required when no street address is provided`,
+                `beds, baths, sqft, and propertyType are required when a full street address (with house number) is not provided`,
             );
         }
     }
@@ -242,9 +251,9 @@ export async function createDeal(input: CreateDealInput) {
     let resolvedSqft:          number | null = sqft  != null ? Number(sqft)  : null;
     let resolvedPropertyType:  string | null = propertyType ?? null;
 
-    if (hasAddress) {
+    if (hasFullAddress) {
         const sfr = await resolvePropertyDetails(
-            (address as string).trim(), city, state, zipCode, label
+            addressStr, city, state, zipCode, label
         );
         if (sfr.beds !== null || sfr.baths !== null) {
             resolvedSfrPropertyId = sfr.sfrPropertyId;
@@ -474,17 +483,16 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         );
     }
 
-    const incomingAddress = (address !== undefined && address !== null)
-        ? String(address).trim()
-        : null;
+    const incomingAddress    = (address !== undefined && address !== null) ? String(address).trim() : null;
+    const incomingFullAddress = incomingAddress ? isFullStreetAddress(incomingAddress) : false;
 
     let resolvedBeds:         number | null = beds  != null ? Number(beds)  : null;
     let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
     let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
     let resolvedPropertyType: string | null = propertyType ?? null;
 
-    if (incomingAddress) {
-        const sfr = await resolvePropertyDetails(incomingAddress, mergedCity, mergedState, mergedZip, label);
+    if (incomingFullAddress) {
+        const sfr = await resolvePropertyDetails(incomingAddress!, mergedCity, mergedState, mergedZip, label);
         if (sfr.beds !== null || sfr.baths !== null) {
             resolvedBeds         = sfr.beds;
             resolvedBaths        = sfr.baths;
@@ -507,10 +515,10 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             price:        price        !== undefined ? String(price) : undefined,
             potentialARV:          potentialARV          !== undefined ? (potentialARV != null ? String(potentialARV) : null) : undefined,
             type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
-            beds:         incomingAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
-            baths:        incomingAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
-            sqft:         incomingAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
-            propertyType: incomingAddress
+            beds:         incomingFullAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
+            baths:        incomingFullAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
+            sqft:         incomingFullAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
+            propertyType: incomingFullAddress
                 ? normalizePropertyType(resolvedPropertyType)
                 : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
             notes:        notes !== undefined ? (notes ?? null) : undefined,

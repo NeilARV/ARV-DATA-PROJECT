@@ -80,7 +80,8 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
 
   // Watch address to determine whether to show manual property detail fields
   const addressValue = useWatch({ control: form.control, name: "address" });
-  const hasAddress = typeof addressValue === "string" && addressValue.trim().length > 0;
+  const hasFullAddress =
+    typeof addressValue === "string" && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
 
   const postDeal = useMutation({
     mutationFn: async (data: DealFormValues) => {
@@ -277,10 +278,10 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
             />
 
               {/* Manual property details — shown only when no street address is provided */}
-              {!hasAddress && (
+              {!hasFullAddress && (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    Property details are required when no street address is entered.
+                    Property details are required when a full street address (including house number) is not provided.
                   </p>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -373,9 +374,9 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                 </>
               )}
 
-              {hasAddress && (
+              {hasFullAddress && (
                 <p className="text-xs text-muted-foreground">
-                  Property details (beds, baths, sqft, type) will be fetched automatically from the address.
+                  Property details will be fetched automatically from the full street address.
                 </p>
               )}
 

@@ -22,8 +22,9 @@ export const dealFormSchema = z
     sendNotifications: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
-    const hasAddress = typeof data.address === "string" && data.address.trim().length > 0;
-    if (!hasAddress) {
+    const hasFullAddress =
+      typeof data.address === "string" && /^\d+[a-zA-Z]?\s+/i.test(data.address.trim());
+    if (!hasFullAddress) {
       if (data.beds == null)
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["beds"],         message: "Required when no street address" });
       if (data.baths == null)
