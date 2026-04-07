@@ -385,10 +385,9 @@ export async function sendDealNotification(
                 recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
                 templateAlias: template,
                 templateModelForRecipient: () => ({
-                    street_view_url:  streetViewUrl,
-                    no_image:         !streetViewUrl,
-                    deal_type_label:  dealTypeLabel,
-                    deal_type_color:  dealTypeColor,
+                    // Each block is an object so badge vars are in direct context (no scope chain needed)
+                    image_block:    streetViewUrl ? { url: streetViewUrl, deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
+                    no_image_block: !streetViewUrl ? { deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
                     address:          deal.address || "Undisclosed Address",
                     city:             deal.city    ?? "",
                     state:            deal.state   ?? "",

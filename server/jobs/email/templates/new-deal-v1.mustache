@@ -37,15 +37,15 @@
                     <!-- Left: Image column -->
                     <td width="200" valign="top" style="width:200px; min-width:200px; vertical-align:top;">
 
-                      {{#street_view_url}}
+                      {{#image_block}}
                       <!-- Street view image with badge overlay -->
                       <!--[if gte mso 9]>
-                      <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;" src="{{.}}" />
+                      <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;" src="{{url}}" />
                       <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;">
                       <v:fill opacity="0%" color="#000000" />
                       <v:textbox inset="0,0,0,0">
                       <![endif]-->
-                      <table width="200" cellpadding="0" cellspacing="0" style="background-image:url('{{.}}'); background-size:cover; background-position:center center; width:200px;" role="presentation">
+                      <table width="200" cellpadding="0" cellspacing="0" style="background-image:url('{{url}}'); background-size:cover; background-position:center center; width:200px;" role="presentation">
                         <tr>
                           <td height="200" valign="top" style="padding:10px;">
                             <span style="display:inline-block; background-color:{{deal_type_color}}; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; white-space:nowrap;">
@@ -58,9 +58,9 @@
                       </v:textbox>
                       </v:rect>
                       <![endif]-->
-                      {{/street_view_url}}
+                      {{/image_block}}
 
-                      {{#no_image}}
+                      {{#no_image_block}}
                       <!-- Placeholder when no image -->
                       <table width="200" cellpadding="0" cellspacing="0" style="background-color:#e8edf0; width:200px;" role="presentation">
                         <tr>
@@ -71,7 +71,7 @@
                           </td>
                         </tr>
                       </table>
-                      {{/no_image}}
+                      {{/no_image_block}}
 
                     </td>
 
