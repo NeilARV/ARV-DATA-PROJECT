@@ -25,8 +25,10 @@ export const deals = pgTable("deals", {
 
   // Property details (fetched from SFR when address provided, else manually entered)
   price:        decimal("price", { precision: 15, scale: 2 }),
+  potentialARV: decimal("potential_arv", { precision: 15, scale: 2 }),
   beds:         integer("beds"),
   baths:        decimal("baths", { precision: 3, scale: 1 }),
   sqft:         integer("sqft"),
   propertyType: varchar("property_type", { length: 100 }),
+  notes:        text("notes"),
 });

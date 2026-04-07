@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -66,18 +67,21 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
       state: "",
       zipCode: "",
       price: undefined,
+      potentialARV: undefined,
       dealType: "agent",
       beds: undefined,
       baths: undefined,
       sqft: undefined,
       propertyType: undefined,
+      notes: "",
       sendNotifications: true,
     },
   });
 
   // Watch address to determine whether to show manual property detail fields
   const addressValue = useWatch({ control: form.control, name: "address" });
-  const hasAddress = typeof addressValue === "string" && addressValue.trim().length > 0;
+  const hasFullAddress =
+    typeof addressValue === "string" && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
 
   const postDeal = useMutation({
     mutationFn: async (data: DealFormValues) => {
@@ -89,10 +93,12 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         userId:       user?.id,
         dealType:     data.dealType,
         price:        data.price,
+        potentialARV:          data.potentialARV,
         beds:         data.beds,
         baths:        data.baths,
         sqft:         data.sqft,
         propertyType:      data.propertyType,
+        notes:             data.notes?.trim() || undefined,
         sendNotifications: data.sendNotifications,
       });
       return res.json();
@@ -225,6 +231,28 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                 )}
               />
 
+            {/* ARV */}
+            <FormField
+              control={form.control}
+              name="potentialARV"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ARV <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={1}
+                      placeholder="425000"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Deal Type */}
             <FormField
               control={form.control}
@@ -250,10 +278,10 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
             />
 
               {/* Manual property details — shown only when no street address is provided */}
-              {!hasAddress && (
+              {!hasFullAddress && (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    Property details are required when no street address is entered.
+                    Property details are required when a full street address (including house number) is not provided.
                   </p>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -346,11 +374,31 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                 </>
               )}
 
-              {hasAddress && (
+              {hasFullAddress && (
                 <p className="text-xs text-muted-foreground">
-                  Property details (beds, baths, sqft, type) will be fetched automatically from the address.
+                  Property details will be fetched automatically from the full street address.
                 </p>
               )}
+
+              {/* Notes */}
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder="Add any additional details about this deal..."
+                        className="resize-none"
+                        rows={3}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
             </div>{/* end scrollable region */}
 

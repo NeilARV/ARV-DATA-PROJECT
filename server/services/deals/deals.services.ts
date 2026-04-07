@@ -97,6 +97,13 @@ async function resolvePropertyDetails(
     };
 }
 
+// ── Address helpers ────────────────────────────────────────────────────────────
+// Returns true only when the address begins with a house/building number (e.g. "123 Main St").
+// A street-name-only value like "Main St" returns false and is treated as a partial address.
+function isFullStreetAddress(address: string): boolean {
+    return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
+}
+
 // ── GET deals ──────────────────────────────────────────────────────────────────
 export interface GetDealsFilters {
     userId?: string;
@@ -138,10 +145,12 @@ export async function getDeals(filters: GetDealsFilters) {
             state:        deals.state,
             zipCode:      deals.zipCode,
             price:        deals.price,
+            potentialARV: deals.potentialARV,
             beds:         deals.beds,
             baths:        deals.baths,
             sqft:         deals.sqft,
             propertyType: deals.propertyType,
+            notes:        deals.notes,
             msaId:        deals.msaId,
             msaName:      msas.name,
             type:         deals.type,
@@ -190,21 +199,25 @@ export interface CreateDealInput {
     userId: string;
     dealType?: string;
     price: number | string;
+    potentialARV?: number | string;
     beds?: unknown;
     baths?: unknown;
     sqft?: unknown;
     propertyType?: string;
+    notes?: string;
     sendNotifications?: boolean;
 }
 
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, beds, baths, sqft, propertyType } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
 
-    const hasAddress = typeof address === "string" && address.trim().length > 0;
+    const addressStr     = typeof address === "string" ? address.trim() : "";
+    const hasAddress     = addressStr.length > 0;
+    const hasFullAddress = hasAddress && isFullStreetAddress(addressStr);
 
-    // Business rule: manual property details required when no address
-    if (!hasAddress) {
+    // Business rule: manual property details required when no full street address
+    if (!hasFullAddress) {
         const missing: string[] = [];
         if (beds == null)    missing.push("beds");
         if (baths == null)   missing.push("baths");
@@ -213,7 +226,7 @@ export async function createDeal(input: CreateDealInput) {
         if (missing.length > 0) {
             throw new DealServiceError(
                 400,
-                `beds, baths, sqft, and propertyType are required when no street address is provided`,
+                `beds, baths, sqft, and propertyType are required when a full street address (with house number) is not provided`,
             );
         }
     }
@@ -238,9 +251,9 @@ export async function createDeal(input: CreateDealInput) {
     let resolvedSqft:          number | null = sqft  != null ? Number(sqft)  : null;
     let resolvedPropertyType:  string | null = propertyType ?? null;
 
-    if (hasAddress) {
+    if (hasFullAddress) {
         const sfr = await resolvePropertyDetails(
-            (address as string).trim(), city, state, zipCode, label
+            addressStr, city, state, zipCode, label
         );
         if (sfr.beds !== null || sfr.baths !== null) {
             resolvedSfrPropertyId = sfr.sfrPropertyId;
@@ -263,10 +276,12 @@ export async function createDeal(input: CreateDealInput) {
             state:         state.toUpperCase().trim(),
             zipCode:       String(zipCode).trim(),
             price:         String(price),
+            potentialARV:           potentialARV != null ? String(potentialARV) : null,
             beds:          resolvedBeds,
             baths:         resolvedBaths != null ? String(resolvedBaths) : null,
             sqft:          resolvedSqft,
             propertyType:  normalizePropertyType(resolvedPropertyType),
+            notes:         notes ?? null,
         })
         .returning();
 
@@ -286,9 +301,11 @@ export interface DealNotificationData {
     baths: string | null;
     sqft: number | null;
     price: string | null;
+    potentialARV: string | null;
     propertyType: string | null;
     type: "wholesale" | "agent" | "sold";
     sfrPropertyId: number | null;
+    notes: string | null;
 }
 
 export async function sendDealNotification(
@@ -335,10 +352,11 @@ export async function sendDealNotification(
 
             const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
 
-            const beds  = deal.beds  != null ? deal.beds                         : null;
-            const baths = deal.baths != null ? parseFloat(deal.baths)            : null;
-            const sqft  = deal.sqft  != null ? deal.sqft.toLocaleString("en-US") : null;
-            const price = deal.price ? Number(deal.price).toLocaleString("en-US") : null;
+            const beds         = deal.beds         != null ? deal.beds                                  : null;
+            const baths        = deal.baths        != null ? parseFloat(deal.baths)                    : null;
+            const sqft         = deal.sqft         != null ? deal.sqft.toLocaleString("en-US")         : null;
+            const price        = deal.price        ? Number(deal.price).toLocaleString("en-US")        : null;
+            const potentialARV = deal.potentialARV ? Number(deal.potentialARV).toLocaleString("en-US") : null;
 
             const specsParts: string[] = [];
             if (beds  != null) specsParts.push(`${beds} bd`);
@@ -394,8 +412,10 @@ export async function sendDealNotification(
                     zipcode:          deal.zipCode ?? "",
                     specs_line:       specsLine,
                     price:            price,
+                    potential_arv:    potentialARV,
                     property_type:    deal.propertyType ?? null,
                     posted_at:        postedAt,
+                    notes:            deal.notes ?? null,
                     county:           county,
                     cta_url:          "https://data.arvfinance.com/",
                     year:             new Date().getFullYear(),
@@ -422,10 +442,12 @@ export interface UpdateDealInput {
     zipCode?: string;
     dealType?: string;
     price?: number | string;
+    potentialARV?: number | string;
     beds?: unknown;
     baths?: unknown;
     sqft?: unknown;
     propertyType?: string;
+    notes?: string;
 }
 
 export async function updateDeal(id: number, callerId: string, input: UpdateDealInput) {
@@ -446,7 +468,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, beds, baths, sqft, propertyType } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -461,17 +483,16 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         );
     }
 
-    const incomingAddress = (address !== undefined && address !== null)
-        ? String(address).trim()
-        : null;
+    const incomingAddress    = (address !== undefined && address !== null) ? String(address).trim() : null;
+    const incomingFullAddress = incomingAddress ? isFullStreetAddress(incomingAddress) : false;
 
     let resolvedBeds:         number | null = beds  != null ? Number(beds)  : null;
     let resolvedBaths:        number | null = baths != null ? Number(baths) : null;
     let resolvedSqft:         number | null = sqft  != null ? Number(sqft)  : null;
     let resolvedPropertyType: string | null = propertyType ?? null;
 
-    if (incomingAddress) {
-        const sfr = await resolvePropertyDetails(incomingAddress, mergedCity, mergedState, mergedZip, label);
+    if (incomingFullAddress) {
+        const sfr = await resolvePropertyDetails(incomingAddress!, mergedCity, mergedState, mergedZip, label);
         if (sfr.beds !== null || sfr.baths !== null) {
             resolvedBeds         = sfr.beds;
             resolvedBaths        = sfr.baths;
@@ -492,13 +513,15 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             state:        state        !== undefined ? mergedState  : undefined,
             zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
             price:        price        !== undefined ? String(price) : undefined,
+            potentialARV:          potentialARV          !== undefined ? (potentialARV != null ? String(potentialARV) : null) : undefined,
             type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
-            beds:         incomingAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
-            baths:        incomingAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
-            sqft:         incomingAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
-            propertyType: incomingAddress
+            beds:         incomingFullAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
+            baths:        incomingFullAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
+            sqft:         incomingFullAddress ? resolvedSqft : (sqft  !== undefined ? (sqft  != null ? Number(sqft)  : null) : undefined),
+            propertyType: incomingFullAddress
                 ? normalizePropertyType(resolvedPropertyType)
                 : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
+            notes:        notes !== undefined ? (notes ?? null) : undefined,
         })
         .where(eq(deals.id, id))
         .returning();

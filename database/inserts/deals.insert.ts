@@ -14,11 +14,17 @@ export const dealFormSchema = z
     baths:        z.coerce.number().positive().optional(),
     sqft:         z.coerce.number().int().positive().optional(),
     propertyType:      z.string().optional(),
+    potentialARV:      z.preprocess(
+                         (v) => (v === "" || v == null ? undefined : v),
+                         z.coerce.number().positive("ARV must be greater than 0").optional()
+                       ),
+    notes:             z.string().max(1000, "Notes must be 1000 characters or fewer").optional(),
     sendNotifications: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
-    const hasAddress = typeof data.address === "string" && data.address.trim().length > 0;
-    if (!hasAddress) {
+    const hasFullAddress =
+      typeof data.address === "string" && /^\d+[a-zA-Z]?\s+/i.test(data.address.trim());
+    if (!hasFullAddress) {
       if (data.beds == null)
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["beds"],         message: "Required when no street address" });
       if (data.baths == null)

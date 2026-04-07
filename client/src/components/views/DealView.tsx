@@ -36,6 +36,8 @@ import {
   Phone,
   Pencil,
   Trophy,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -58,6 +60,8 @@ interface Deal {
   baths: string | null;
   sqft: number | null;
   price: string | null;
+  potentialARV: string | null;
+  notes: string | null;
   msaId: number;
   msaName: string | null;
   type: "wholesale" | "agent" | "sold";
@@ -89,6 +93,7 @@ function DealCard({
 }) {
   const [imageUrl, setImageUrl] = useState("");
   const [imageLoading, setImageLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!deal.streetViewUrl) {
@@ -102,6 +107,7 @@ function DealCard({
   }, [deal.streetViewUrl]);
 
   const price = deal.price ? Number(deal.price) : null;
+  const potentialARV = deal.potentialARV ? Number(deal.potentialARV) : null;
   const beds = deal.beds ? Number(deal.beds) : null;
   const baths = deal.baths ? parseFloat(deal.baths) : null;
   const sqft = deal.sqft ? Number(deal.sqft) : null;
@@ -114,7 +120,8 @@ function DealCard({
   });
 
   return (
-    <div className="rounded-lg border border-border bg-card flex gap-0">
+    <div className="rounded-lg border border-border bg-card flex flex-col">
+      <div className="flex gap-0">
       {/* Left: street view thumbnail */}
       <div className="w-52 shrink-0 bg-muted flex items-center justify-center self-stretch relative rounded-tl-lg rounded-bl-lg overflow-hidden">
         {imageLoading ? (
@@ -149,19 +156,33 @@ function DealCard({
               {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
             </p>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {canRequestContact && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-7"
-                onClick={onRequestContact}
-              >
-                <Phone className="w-3.5 h-3.5" />
-                Request Contact
-              </Button>
-            )}
-            <DropdownMenu>
+          <div className="flex items-start gap-1 shrink-0">
+            <div className="flex flex-col gap-1">
+              {canRequestContact && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={onRequestContact}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  Request Contact
+                </Button>
+              )}
+              {canEdit && deal.address && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={onTopBuyers}
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                  Top Potential Buyers
+                </Button>
+              )}
+            </div>
+            {(canEdit || canDelete) && (
+              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -172,15 +193,6 @@ function DealCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="z-[10001]">
-                  {deal.address && (
-                    <DropdownMenuItem
-                      className="gap-2 cursor-pointer"
-                      onSelect={onTopBuyers}
-                    >
-                      <Trophy className="h-4 w-4 text-amber-500" />
-                      Top Buyers
-                    </DropdownMenuItem>
-                  )}
                   {canEdit && (
                     <DropdownMenuItem
                       className="gap-2 cursor-pointer"
@@ -201,6 +213,7 @@ function DealCard({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -227,22 +240,45 @@ function DealCard({
           </div>
         )}
 
-        {(price !== null) && (
-          <div className="flex items-center gap-3 text-sm">
+        {(price !== null || potentialARV !== null) && (
+          <div className="flex items-center gap-6 text-sm">
             {price !== null && price > 0 && (
-              <span className="font-semibold text-foreground text-base">
-                ${price.toLocaleString()}
-              </span>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Purchase Price</span>
+                <span className="font-bold text-foreground text-base">${price.toLocaleString()}</span>
+              </div>
             )}
-            {deal.propertyType && (
-              <span className="text-muted-foreground truncate">{deal.propertyType}</span>
+            {potentialARV !== null && potentialARV > 0 && (
+              <div className="flex flex-col">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Potential ARV</span>
+                <span className="font-bold text-[#2e7d32] text-base">${potentialARV.toLocaleString()}</span>
+              </div>
             )}
           </div>
         )}
 
-        <div className="inline-flex space-x-2 text-sm text-muted-foreground/70 leading-tight">
-          <span>{postedAt}</span>
-        </div>
+        <span className="text-sm text-muted-foreground/70">{postedAt}</span>
+
+        {deal.notes && (
+          <button
+            className="flex items-center justify-center gap-1 w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? (
+              <>View Less <ChevronUp className="w-3.5 h-3.5" /></>
+            ) : (
+              <>View More <ChevronDown className="w-3.5 h-3.5" /></>
+            )}
+          </button>
+        )}
+
+        {expanded && deal.notes && (
+          <div className="border-t border-border pt-3 mt-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Notes</p>
+            <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );

@@ -38,9 +38,9 @@ export async function createDealController(req: Request, res: Response): Promise
     try {
         const {
             address, city, state, zipCode,
-            userId, dealType, price,
+            userId, dealType, price, potentialARV,
             beds, baths, sqft, propertyType,
-            sendNotifications,
+            notes, sendNotifications,
         } = req.body;
 
         // Input validation (format, not business logic)
@@ -62,9 +62,9 @@ export async function createDealController(req: Request, res: Response): Promise
 
         const { deal, msaId } = await createDeal({
             address, city, state, zipCode,
-            userId, dealType, price,
+            userId, dealType, price, potentialARV,
             beds, baths, sqft, propertyType,
-            sendNotifications,
+            notes, sendNotifications,
         });
 
         res.status(201).json({ message: "Deal posted successfully", deal });
@@ -93,14 +93,16 @@ export async function updateDealController(req: Request, res: Response): Promise
 
         const {
             address, city, state, zipCode,
-            dealType, price,
+            dealType, price, potentialARV,
             beds, baths, sqft, propertyType,
+            notes,
         } = req.body;
 
         const updated = await updateDeal(id, callerId, {
             address, city, state, zipCode,
-            dealType, price,
+            dealType, price, potentialARV,
             beds, baths, sqft, propertyType,
+            notes,
         });
 
         res.json({ message: "Deal updated successfully", deal: updated });
