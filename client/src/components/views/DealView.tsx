@@ -156,19 +156,33 @@ function DealCard({
               {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
             </p>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {canRequestContact && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-7"
-                onClick={onRequestContact}
-              >
-                <Phone className="w-3.5 h-3.5" />
-                Request Contact
-              </Button>
-            )}
-            <DropdownMenu>
+          <div className="flex items-start gap-1 shrink-0">
+            <div className="flex flex-col gap-1">
+              {canRequestContact && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={onRequestContact}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  Request Contact
+                </Button>
+              )}
+              {canEdit && deal.address && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={onTopBuyers}
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                  Top Potential Buyers
+                </Button>
+              )}
+            </div>
+            {(canEdit || canDelete) && (
+              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -179,15 +193,6 @@ function DealCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="z-[10001]">
-                  {deal.address && (
-                    <DropdownMenuItem
-                      className="gap-2 cursor-pointer"
-                      onSelect={onTopBuyers}
-                    >
-                      <Trophy className="h-4 w-4 text-amber-500" />
-                      Top Buyers
-                    </DropdownMenuItem>
-                  )}
                   {canEdit && (
                     <DropdownMenuItem
                       className="gap-2 cursor-pointer"
@@ -208,6 +213,7 @@ function DealCard({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
           </div>
         </div>
 
