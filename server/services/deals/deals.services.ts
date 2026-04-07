@@ -190,16 +190,18 @@ export interface CreateDealInput {
     userId: string;
     dealType?: string;
     price: number | string;
+    potentialARV?: number | string;
     beds?: unknown;
     baths?: unknown;
     sqft?: unknown;
     propertyType?: string;
+    notes?: string;
     sendNotifications?: boolean;
 }
 
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, beds, baths, sqft, propertyType } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
 
     const hasAddress = typeof address === "string" && address.trim().length > 0;
 
@@ -263,10 +265,12 @@ export async function createDeal(input: CreateDealInput) {
             state:         state.toUpperCase().trim(),
             zipCode:       String(zipCode).trim(),
             price:         String(price),
+            potentialARV:           potentialARV != null ? String(potentialARV) : null,
             beds:          resolvedBeds,
             baths:         resolvedBaths != null ? String(resolvedBaths) : null,
             sqft:          resolvedSqft,
             propertyType:  normalizePropertyType(resolvedPropertyType),
+            notes:         notes ?? null,
         })
         .returning();
 
@@ -357,7 +361,7 @@ export async function sendDealNotification(
             // Resolve absolute street view URL (email clients cannot follow relative paths)
             let streetViewUrl: string | null = null;
             if (deal.address && deal.city && deal.state) {
-                const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
+                const APP_BASE_URL = process.env.APP_URL || "https://data.potentialARVfinance.com";
                 const params = new URLSearchParams({
                     address: deal.address,
                     city:    deal.city,
@@ -397,7 +401,7 @@ export async function sendDealNotification(
                     property_type:    deal.propertyType ?? null,
                     posted_at:        postedAt,
                     county:           county,
-                    cta_url:          "https://data.arvfinance.com/",
+                    cta_url:          "https://data.potentialARVfinance.com/",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
                 }),
@@ -422,10 +426,12 @@ export interface UpdateDealInput {
     zipCode?: string;
     dealType?: string;
     price?: number | string;
+    potentialARV?: number | string;
     beds?: unknown;
     baths?: unknown;
     sqft?: unknown;
     propertyType?: string;
+    notes?: string;
 }
 
 export async function updateDeal(id: number, callerId: string, input: UpdateDealInput) {
@@ -446,7 +452,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, beds, baths, sqft, propertyType } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -492,6 +498,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             state:        state        !== undefined ? mergedState  : undefined,
             zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
             price:        price        !== undefined ? String(price) : undefined,
+            potentialARV:          potentialARV          !== undefined ? (potentialARV != null ? String(potentialARV) : null) : undefined,
             type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
             beds:         incomingAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
             baths:        incomingAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),
@@ -499,6 +506,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             propertyType: incomingAddress
                 ? normalizePropertyType(resolvedPropertyType)
                 : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
+            notes:        notes !== undefined ? (notes ?? null) : undefined,
         })
         .where(eq(deals.id, id))
         .returning();
