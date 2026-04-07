@@ -35,30 +35,22 @@
                   <tr>
 
                     <!-- Left: Image column -->
-                    <td width="200" valign="top" style="width:200px; min-width:200px; position:relative; background-color:#f0f0f0; vertical-align:top;">
+                    <td width="200" valign="top" style="width:200px; min-width:200px; vertical-align:top;">
 
                       {{#street_view_url}}
-                      <!-- Image with badge overlay -->
+                      <!-- Street view image with badge overlay -->
                       <!--[if gte mso 9]>
-                      <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;" src="{{street_view_url}}" />
+                      <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;" src="{{.}}" />
                       <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;">
                       <v:fill opacity="0%" color="#000000" />
                       <v:textbox inset="0,0,0,0">
                       <![endif]-->
-                      <table width="200" cellpadding="0" cellspacing="0" style="background-image:url('{{street_view_url}}'); background-size:cover; background-position:center center; width:200px;" role="presentation">
+                      <table width="200" cellpadding="0" cellspacing="0" style="background-image:url('{{.}}'); background-size:cover; background-position:center center; width:200px;" role="presentation">
                         <tr>
                           <td height="200" valign="top" style="padding:10px;">
-                            <span style="
-                              display:inline-block;
-                              background-color:{{deal_type_color}};
-                              color:#ffffff;
-                              font-family:Arial, Helvetica, sans-serif;
-                              font-size:11px;
-                              font-weight:700;
-                              padding:4px 8px;
-                              border-radius:4px;
-                              white-space:nowrap;
-                            ">{{deal_type_label}}</span>
+                            <span style="display:inline-block; background-color:{{deal_type_color}}; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; white-space:nowrap;">
+                              {{deal_type_label}}
+                            </span>
                           </td>
                         </tr>
                       </table>
@@ -68,26 +60,18 @@
                       <![endif]-->
                       {{/street_view_url}}
 
-                      {{^street_view_url}}
+                      {{#no_image}}
                       <!-- Placeholder when no image -->
                       <table width="200" cellpadding="0" cellspacing="0" style="background-color:#e8edf0; width:200px;" role="presentation">
                         <tr>
                           <td height="200" valign="top" style="padding:10px;">
-                            <span style="
-                              display:inline-block;
-                              background-color:{{deal_type_color}};
-                              color:#ffffff;
-                              font-family:Arial, Helvetica, sans-serif;
-                              font-size:11px;
-                              font-weight:700;
-                              padding:4px 8px;
-                              border-radius:4px;
-                              white-space:nowrap;
-                            ">{{deal_type_label}}</span>
+                            <span style="display:inline-block; background-color:{{deal_type_color}}; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; white-space:nowrap;">
+                              {{deal_type_label}}
+                            </span>
                           </td>
                         </tr>
                       </table>
-                      {{/street_view_url}}
+                      {{/no_image}}
 
                     </td>
 
@@ -103,37 +87,21 @@
                       </p>
 
                       <!-- Beds / Baths / Sqft -->
-                      {{#has_specs}}
-                      <table cellpadding="0" cellspacing="0" role="presentation" style="margin-top:12px;">
-                        <tr>
-                          {{#beds}}
-                          <td style="padding-right:14px; font-size:13px; color:#333333; white-space:nowrap;">
-                            🛏 <span style="font-weight:500;">{{beds}} bd</span>
-                          </td>
-                          {{/beds}}
-                          {{#baths}}
-                          <td style="padding-right:14px; font-size:13px; color:#333333; white-space:nowrap;">
-                            🛁 <span style="font-weight:500;">{{baths}} ba</span>
-                          </td>
-                          {{/baths}}
-                          {{#sqft}}
-                          <td style="font-size:13px; color:#333333; white-space:nowrap;">
-                            📐 <span style="font-weight:500;">{{sqft}} sqft</span>
-                          </td>
-                          {{/sqft}}
-                        </tr>
-                      </table>
-                      {{/has_specs}}
+                      {{#specs_line}}
+                      <p style="margin:12px 0 0; font-size:13px; color:#333333;">{{.}}</p>
+                      {{/specs_line}}
 
-                      <!-- Price + Property Type -->
+                      <!-- Price -->
                       {{#price}}
                       <p style="margin:12px 0 0; font-size:20px; font-weight:700; color:#1a1a1a;">
-                        ${{price}}
+                        ${{.}}
                       </p>
                       {{/price}}
+
+                      <!-- Property Type -->
                       {{#property_type}}
                       <p style="margin:2px 0 0; font-size:13px; color:#999999;">
-                        {{property_type}}
+                        {{.}}
                       </p>
                       {{/property_type}}
 

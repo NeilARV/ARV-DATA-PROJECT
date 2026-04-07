@@ -17,6 +17,15 @@ export class DealServiceError extends Error {
     }
 }
 
+// ── Deal type display helpers ──────────────────────────────────────────────────
+function getDealTypeMeta(type: "wholesale" | "agent" | "sold"): { label: string; color: string } {
+    switch (type) {
+        case "wholesale": return { label: "Wholesale", color: "#9333EA" };
+        case "sold":      return { label: "Sold",      color: "#FF0000" };
+        default:          return { label: "Agent",     color: "#F97316" };
+    }
+}
+
 // ── Shared: build a relative streetview URL for a deal ────────────────────────
 function buildDealStreetViewUrl(
     address: string | null,
@@ -267,7 +276,23 @@ export async function createDeal(input: CreateDealInput) {
 }
 
 // ── POST deal — background notification (fire and forget) ──────────────────────
+export interface DealNotificationData {
+    createdAt: Date;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+    beds: number | null;
+    baths: string | null;
+    sqft: number | null;
+    price: string | null;
+    propertyType: string | null;
+    type: "wholesale" | "agent" | "sold";
+    sfrPropertyId: number | null;
+}
+
 export async function sendDealNotification(
+    deal: DealNotificationData,
     msaId: number,
     posterUserId: string,
     sendNotifications: boolean,
@@ -297,14 +322,85 @@ export async function sendDealNotification(
 
         const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
         // TEMP OVERRIDE — notifications disabled until ready to enable
-        const shouldNotify = false; // sendNotifications === true && !!template
+        const shouldNotify = true; // sendNotifications === true && !!template
 
         if (template && shouldNotify) {
+            // Look up MSA name for the county field
+            const [msaRow] = await db
+                .select({ name: msas.name })
+                .from(msas)
+                .where(eq(msas.id, msaId))
+                .limit(1);
+            const county = deal.city ?? msaRow?.name ?? "your area";
+
+            const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
+
+            const beds  = deal.beds  != null ? deal.beds                         : null;
+            const baths = deal.baths != null ? parseFloat(deal.baths)            : null;
+            const sqft  = deal.sqft  != null ? deal.sqft.toLocaleString("en-US") : null;
+            const price = deal.price ? Number(deal.price).toLocaleString("en-US") : null;
+
+            const specsParts: string[] = [];
+            if (beds  != null) specsParts.push(`${beds} bd`);
+            if (baths != null) specsParts.push(`${baths} ba`);
+            if (sqft  != null) specsParts.push(`${sqft} sqft`);
+            const specsLine = specsParts.length > 0 ? specsParts.join("  ·  ") : null;
+            const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                timeZone: "America/Los_Angeles",
+            });
+
+            // Resolve absolute street view URL (email clients cannot follow relative paths)
+            let streetViewUrl: string | null = null;
+            if (deal.address && deal.city && deal.state) {
+                const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
+                const params = new URLSearchParams({
+                    address: deal.address,
+                    city:    deal.city,
+                    state:   deal.state,
+                    size:    "200x200",
+                });
+                if (deal.sfrPropertyId != null) params.set("sfrPropertyId", String(deal.sfrPropertyId));
+                try {
+                    const result = await getStreetviewImage({
+                        address:       deal.address,
+                        city:          deal.city,
+                        state:         deal.state,
+                        size:          "200x200",
+                        sfrPropertyId: deal.sfrPropertyId ?? undefined,
+                    });
+                    if ("imageData" in result) {
+                        streetViewUrl = `${APP_BASE_URL}/api/properties/streetview?${params}`;
+                    }
+                } catch {
+                    // No image available — placeholder will render via {{#no_image}}
+                }
+            }
+
             const { sent, failed } = await sendTemplateToUsers({
                 recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
                 templateAlias: template,
                 templateModelForRecipient: () => ({
-                    cta_url: "https://data.arvfinance.com/",
+                    street_view_url:  streetViewUrl,
+                    no_image:         !streetViewUrl,
+                    deal_type_label:  dealTypeLabel,
+                    deal_type_color:  dealTypeColor,
+                    address:          deal.address || "Undisclosed Address",
+                    city:             deal.city    ?? "",
+                    state:            deal.state   ?? "",
+                    zipcode:          deal.zipCode ?? "",
+                    specs_line:       specsLine,
+                    price:            price,
+                    property_type:    deal.propertyType ?? null,
+                    posted_at:        postedAt,
+                    county:           county,
+                    cta_url:          "https://data.arvfinance.com/",
+                    year:             new Date().getFullYear(),
+                    company_name:     "ARV Finance",
                 }),
                 logPrefix: label,
             });
