@@ -5,8 +5,9 @@ import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
-import { eq, desc, and, inArray } from "drizzle-orm";
-import { companies, companyMsas } from "@database/schemas/companies.schema";
+import { eq, desc, and, inArray, gte, isNotNull } from "drizzle-orm";
+import { companies } from "@database/schemas/companies.schema";
+import { properties, propertyTransactions, addresses } from "@database/schemas/properties.schema";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
 import { normalizeToTitleCase } from "server/utils/normalization";
 
@@ -104,6 +105,48 @@ function isFullStreetAddress(address: string): boolean {
     return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
 }
 
+// ── Top buyers by zip code ─────────────────────────────────────────────────────
+export interface TopBuyer {
+    companyId: string | null;
+    companyName: string;
+    contactName: string | null;
+}
+
+async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
+    const label = "[dealsService.getTopBuyersByZipCode]";
+    if (!zipCode) return [];
+
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const cutoff = threeMonthsAgo.toISOString().split("T")[0];
+
+    const rows = await db
+        .selectDistinctOn([propertyTransactions.buyerId], {
+            buyerId:     propertyTransactions.buyerId,
+            buyerName:   propertyTransactions.buyerName,
+            contactName: companies.contactName,
+        })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .innerJoin(addresses,  eq(properties.id, addresses.propertyId))
+        .leftJoin(companies,   eq(propertyTransactions.buyerId, companies.id))
+        .where(and(
+            eq(addresses.zipCode, zipCode),
+            eq(propertyTransactions.transactionType, "Arms Length"),
+            gte(propertyTransactions.recordingDate, cutoff),
+            isNotNull(propertyTransactions.buyerId),
+        ))
+        .limit(3);
+
+    console.log(`${label} ${rows.length} top buyers for zip=${zipCode}`);
+
+    return rows.map((row) => ({
+        companyId:   row.buyerId  ?? null,
+        companyName: normalizeToTitleCase(row.buyerName ?? "") ?? (row.buyerName ?? "Unknown"),
+        contactName: row.contactName ?? null,
+    }));
+}
+
 // ── GET deals ──────────────────────────────────────────────────────────────────
 export interface GetDealsFilters {
     userId?: string;
@@ -169,10 +212,25 @@ export async function getDeals(filters: GetDealsFilters) {
         `${filterMsaName ? ` (msaName=${filterMsaName})` : ""}`
     );
 
+    // Batch-fetch top buyers for each unique zip code
+    const uniqueZips = Array.from(new Set(results.map((d) => d.zipCode).filter((z): z is string => Boolean(z))));
+    const topBuyersByZip = new Map<string, TopBuyer[]>();
+    await Promise.all(
+        uniqueZips.map(async (zip) => {
+            try {
+                topBuyersByZip.set(zip, await getTopBuyersByZipCode(zip));
+            } catch (err) {
+                console.error(`[dealsService.getDeals] Failed top buyers for zip=${zip}:`, err);
+                topBuyersByZip.set(zip, []);
+            }
+        })
+    );
+
     return Promise.all(
         results.map(async (deal) => {
+            const topBuyers = topBuyersByZip.get(deal.zipCode ?? "") ?? [];
             const url = buildDealStreetViewUrl(deal.address, deal.city, deal.state, deal.sfrPropertyId);
-            if (!url) return { ...deal, streetViewUrl: null };
+            if (!url) return { ...deal, streetViewUrl: null, topBuyers };
 
             try {
                 const result = await getStreetviewImage({
@@ -182,9 +240,9 @@ export async function getDeals(filters: GetDealsFilters) {
                     size:    "200x200",
                     sfrPropertyId: deal.sfrPropertyId ?? undefined,
                 });
-                return { ...deal, streetViewUrl: "imageData" in result ? url : null };
+                return { ...deal, streetViewUrl: "imageData" in result ? url : null, topBuyers };
             } catch {
-                return { ...deal, streetViewUrl: null };
+                return { ...deal, streetViewUrl: null, topBuyers };
             }
         })
     );
@@ -528,88 +586,6 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
 
     console.log(`${label} Deal updated: id=${id}`);
     return updated;
-}
-
-// ── GET best buyers ────────────────────────────────────────────────────────────
-export interface BestBuyer {
-    name: string;
-    formattedName: string;
-    matchScore: number;
-    matchReasons: string[];
-    totalAcquisitions: number;
-    purchasesWithinQuarterMile: number;
-    purchasesWithinOneMile: number;
-    recentPurchasesCount: number;
-    companyId: string | null;
-    contactName: string | null;
-}
-
-export interface GetBestBuyersInput {
-    address: string;
-    city: string;
-    state: string;
-    zipCode: string;
-}
-
-export async function getBestBuyers({ address, city, state, zipCode }: GetBestBuyersInput): Promise<BestBuyer[]> {
-    const label = "[dealsService.getBestBuyers]";
-    const API_KEY = process.env.SFR_API_KEY;
-    const API_URL = process.env.SFR_API_URL;
-
-    if (!API_KEY || !API_URL) {
-        throw new DealServiceError(503, "Best buyers lookup is not available — SFR API not configured");
-    }
-
-    const fullAddress = [address, city, state, zipCode].filter(Boolean).join(", ");
-
-    const params = new URLSearchParams({ address: fullAddress });
-    const response = await fetch(`${API_URL}/buyers/best-buyers?${params}`, {
-        method: "GET",
-        headers: {
-            "X-API-TOKEN": API_KEY,
-            "Accept": "application/json",
-            "User-Agent": "PostmanRuntime/7.41.0",
-        },
-    });
-
-    if (!response.ok) {
-        throw new DealServiceError(
-            502,
-            `Best buyers lookup failed (${response.status}) for "${fullAddress}"`,
-        );
-    }
-
-    const data = (await response.json()) as { buyers?: unknown[] };
-    type SfrBuyer = Omit<BestBuyer, "companyId" | "contactName">;
-    const rawBuyers = Array.isArray(data.buyers) ? (data.buyers as SfrBuyer[]) : [];
-    const topBuyers = rawBuyers.slice(0, 3);
-
-    console.log(`${label} ${rawBuyers.length} buyers returned for "${fullAddress}"`);
-
-    // Look up matching companies within the MSA (case-insensitive, using raw SFR names before normalization)
-    const companyLookup = new Map<string, { id: string; contactName: string | null }>();
-    const msaId = await resolveMsaId(city, state, zipCode);
-    if (msaId) {
-        const msaCompanies = await db
-            .select({ id: companies.id, companyName: companies.companyName, contactName: companies.contactName })
-            .from(companies)
-            .innerJoin(companyMsas, eq(companies.id, companyMsas.companyId))
-            .where(eq(companyMsas.msaId, msaId));
-
-        for (const c of msaCompanies) {
-            companyLookup.set(c.companyName.toLowerCase(), { id: c.id, contactName: c.contactName ?? null });
-        }
-    }
-
-    return topBuyers.map((b) => {
-        const match = companyLookup.get(b.name.toLowerCase());
-        return {
-            ...b,
-            name: normalizeToTitleCase(b.name) ?? b.name,
-            companyId: match?.id ?? null,
-            contactName: match?.contactName ?? null,
-        };
-    });
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────
