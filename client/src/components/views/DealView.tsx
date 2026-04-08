@@ -151,7 +151,7 @@ function DealCard({
       </div>
 
       {/* Right: property details */}
-      <div className="flex-1 min-w-0 px-5 py-4 flex flex-col gap-2">
+      <div className="flex-1 min-w-0 px-5 py-4 flex flex-col gap-2 min-h-0">
         <div className="flex items-start justify-between gap-1 min-w-0">
           <div className="min-w-0">
             <p className="font-medium text-base leading-tight truncate">
@@ -239,12 +239,12 @@ function DealCard({
         )}
 
         <div className="flex flex-col">
-          <span className="text-sm text-muted-foreground">Posted On</span>
+          <span className="text-sm text-muted-foreground">Posted</span>
           <span className="text-sm font-medium text-foreground">{postedAt}</span>
         </div>
 
         {(canRequestContact || isOwner) && (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col">
             <span className="text-sm text-muted-foreground">Actions</span>
             <div className="flex items-center gap-5">
               {canRequestContact && (
@@ -269,9 +269,16 @@ function DealCard({
           </div>
         )}
 
+        {expanded && deal.notes && (
+          <div>
+            <p className="text-sm text-muted-foreground">Notes</p>
+            <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
+          </div>
+        )}
+
         {deal.notes && (
           <button
-            className="flex items-center justify-center gap-1 w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center justify-center gap-1 w-full text-xs text-muted-foreground hover:text-foreground transition-colors mt-auto pt-2"
             onClick={() => setExpanded((v) => !v)}
           >
             {expanded ? (
@@ -280,13 +287,6 @@ function DealCard({
               <>View More <ChevronDown className="w-3.5 h-3.5" /></>
             )}
           </button>
-        )}
-
-        {expanded && deal.notes && (
-          <div className="border-t border-border pt-3 mt-1">
-            <p className="text-sm text-muted-foreground mb-1">Notes</p>
-            <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
-          </div>
         )}
       </div>
       </div>
