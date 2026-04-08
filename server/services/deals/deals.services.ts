@@ -5,8 +5,9 @@ import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, gte, isNotNull } from "drizzle-orm";
 import { companies, companyMsas } from "@database/schemas/companies.schema";
+import { properties, propertyTransactions, addresses } from "@database/schemas/properties.schema";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
 import { normalizeToTitleCase } from "server/utils/normalization";
 
@@ -104,6 +105,55 @@ function isFullStreetAddress(address: string): boolean {
     return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
 }
 
+// ── Top buyers by zip code ─────────────────────────────────────────────────────
+export interface TopBuyer {
+    companyId: string | null;
+    companyName: string;
+    contactName: string | null;
+}
+
+async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
+    const label = "[dealsService.getTopBuyersByZipCode]";
+    if (!zipCode) return [];
+
+    // TODO: remove — temporary fake data for UI development
+    return [
+        { companyId: null, companyName: "Opendoor Labs Inc", contactName: "James Carter" },
+        { companyId: null, companyName: "Invitation Homes", contactName: "Sarah Mitchell" },
+        { companyId: null, companyName: "Progress Residential", contactName: null },
+    ];
+
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const cutoff = threeMonthsAgo.toISOString().split("T")[0];
+
+    const rows = await db
+        .selectDistinctOn([propertyTransactions.buyerId], {
+            buyerId:     propertyTransactions.buyerId,
+            buyerName:   propertyTransactions.buyerName,
+            contactName: companies.contactName,
+        })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .innerJoin(addresses,  eq(properties.id, addresses.propertyId))
+        .leftJoin(companies,   eq(propertyTransactions.buyerId, companies.id))
+        .where(and(
+            eq(addresses.zipCode, zipCode),
+            eq(propertyTransactions.transactionType, "acquisition"),
+            gte(propertyTransactions.recordingDate, cutoff),
+            isNotNull(propertyTransactions.buyerId),
+        ))
+        .limit(3);
+
+    console.log(`${label} ${rows.length} top buyers for zip=${zipCode}`);
+
+    return rows.map((row) => ({
+        companyId:   row.buyerId  ?? null,
+        companyName: normalizeToTitleCase(row.buyerName ?? "") ?? (row.buyerName ?? "Unknown"),
+        contactName: row.contactName ?? null,
+    }));
+}
+
 // ── GET deals ──────────────────────────────────────────────────────────────────
 export interface GetDealsFilters {
     userId?: string;
@@ -169,10 +219,25 @@ export async function getDeals(filters: GetDealsFilters) {
         `${filterMsaName ? ` (msaName=${filterMsaName})` : ""}`
     );
 
+    // Batch-fetch top buyers for each unique zip code
+    const uniqueZips = Array.from(new Set(results.map((d) => d.zipCode).filter((z): z is string => Boolean(z))));
+    const topBuyersByZip = new Map<string, TopBuyer[]>();
+    await Promise.all(
+        uniqueZips.map(async (zip) => {
+            try {
+                topBuyersByZip.set(zip, await getTopBuyersByZipCode(zip));
+            } catch (err) {
+                console.error(`[dealsService.getDeals] Failed top buyers for zip=${zip}:`, err);
+                topBuyersByZip.set(zip, []);
+            }
+        })
+    );
+
     return Promise.all(
         results.map(async (deal) => {
+            const topBuyers = topBuyersByZip.get(deal.zipCode ?? "") ?? [];
             const url = buildDealStreetViewUrl(deal.address, deal.city, deal.state, deal.sfrPropertyId);
-            if (!url) return { ...deal, streetViewUrl: null };
+            if (!url) return { ...deal, streetViewUrl: null, topBuyers };
 
             try {
                 const result = await getStreetviewImage({
@@ -182,9 +247,9 @@ export async function getDeals(filters: GetDealsFilters) {
                     size:    "200x200",
                     sfrPropertyId: deal.sfrPropertyId ?? undefined,
                 });
-                return { ...deal, streetViewUrl: "imageData" in result ? url : null };
+                return { ...deal, streetViewUrl: "imageData" in result ? url : null, topBuyers };
             } catch {
-                return { ...deal, streetViewUrl: null };
+                return { ...deal, streetViewUrl: null, topBuyers };
             }
         })
     );

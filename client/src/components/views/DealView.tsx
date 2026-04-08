@@ -46,6 +46,8 @@ import { useFilters } from "@/hooks/useFilters";
 import { getMsaNameFromCounty } from "@/lib/county";
 import { formatAddress } from "@shared/utils/formatAddress";
 
+import type { TopBuyer } from "@/components/modals/BestBuyers";
+
 interface Deal {
   id: number;
   createdAt: string;
@@ -67,6 +69,7 @@ interface Deal {
   type: "wholesale" | "agent" | "sold";
   userId: string;
   userEmail: string | null;
+  topBuyers: TopBuyer[];
 }
 
 type Tab = "all" | "mine";
@@ -77,6 +80,7 @@ function DealCard({
   canDelete,
   canEdit,
   canRequestContact,
+  isOwner,
   onDelete,
   onEdit,
   onRequestContact,
@@ -86,6 +90,7 @@ function DealCard({
   canDelete: boolean;
   canEdit: boolean;
   canRequestContact: boolean;
+  isOwner: boolean;
   onDelete: () => void;
   onEdit: () => void;
   onRequestContact: () => void;
@@ -149,7 +154,7 @@ function DealCard({
       <div className="flex-1 min-w-0 px-5 py-4 flex flex-col gap-2">
         <div className="flex items-start justify-between gap-1 min-w-0">
           <div className="min-w-0">
-            <p className="font-semibold text-base leading-tight truncate">
+            <p className="font-medium text-base leading-tight truncate">
               {formatAddress(deal.address) ?? "Undisclosed Address"}
             </p>
             <p className="text-sm text-muted-foreground truncate mt-0.5">
@@ -157,30 +162,6 @@ function DealCard({
             </p>
           </div>
           <div className="flex items-start gap-1 shrink-0">
-            <div className="flex flex-col gap-1">
-              {canRequestContact && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs h-7"
-                  onClick={onRequestContact}
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  Request Contact
-                </Button>
-              )}
-              {canEdit && deal.address && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs h-7"
-                  onClick={onTopBuyers}
-                >
-                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                  Top Potential Buyers
-                </Button>
-              )}
-            </div>
             {(canEdit || canDelete) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -244,20 +225,50 @@ function DealCard({
           <div className="flex items-center gap-6 text-sm">
             {price !== null && price > 0 && (
               <div className="flex flex-col">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Purchase Price</span>
-                <span className="font-bold text-foreground text-base">${price.toLocaleString()}</span>
+                <span className="text-sm text-muted-foreground">Purchase Price</span>
+                <span className="text-xl font-bold text-foreground">${price.toLocaleString()}</span>
               </div>
             )}
             {potentialARV !== null && potentialARV > 0 && (
               <div className="flex flex-col">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Potential ARV</span>
-                <span className="font-bold text-[#2e7d32] text-base">${potentialARV.toLocaleString()}</span>
+                <span className="text-sm text-muted-foreground">Potential ARV</span>
+                <span className="text-xl font-bold text-[#2e7d32]">${potentialARV.toLocaleString()}</span>
               </div>
             )}
           </div>
         )}
 
-        <span className="text-sm text-muted-foreground/70">{postedAt}</span>
+        {(canRequestContact || isOwner) && (
+          <div>
+            <p className="text-sm text-muted-foreground mb-1.5">Actions</p>
+            <div className="flex flex-wrap gap-2">
+              {canRequestContact && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={onRequestContact}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  Request Contact
+                </Button>
+              )}
+              {isOwner && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={onTopBuyers}
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                  Top Potential Buyers
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <span className="text-xs text-muted-foreground">{postedAt}</span>
 
         {deal.notes && (
           <button
@@ -339,13 +350,15 @@ export default function DealView() {
 
   const renderCard = (deal: Deal) => {
     const isOwnerOfDeal = isPro && user?.id === deal.userId;
+    const isOwnerOfDealForTopBuyers = user?.id === deal.userId;
     return (
       <DealCard
         key={deal.id}
-        deal={deal}
+        deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
         canDelete={canManageDeals || isOwnerOfDeal}
         canEdit={user?.id === deal.userId}
         canRequestContact={canManageDeals || !isOwnerOfDeal}
+        isOwner={isOwnerOfDealForTopBuyers}
         onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
         onEdit={() => setEditDeal(deal)}
         onRequestContact={() => setContactDeal(deal)}
@@ -485,6 +498,7 @@ export default function DealView() {
       <AppDialog open={!!bestBuyersDeal} onClose={() => setBestBuyersDeal(null)} className="max-w-md">
         {bestBuyersDeal && (
           <BestBuyersContent
+            buyers={bestBuyersDeal.topBuyers}
             address={bestBuyersDeal.address}
             city={bestBuyersDeal.city}
             state={bestBuyersDeal.state}
@@ -493,6 +507,7 @@ export default function DealView() {
           />
         )}
       </AppDialog>
+
     </div>
   );
 }
