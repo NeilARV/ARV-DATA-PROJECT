@@ -46,7 +46,6 @@ const PROPERTY_TYPES = [
 const DEAL_TYPES = [
   { value: "agent", label: "Agent Deal" },
   { value: "wholesale", label: "Wholesale Deal" },
-  { value: "sold", label: "Sold Deal"}
 ]
 
 interface AddDealProps {
