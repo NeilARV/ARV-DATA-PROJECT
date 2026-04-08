@@ -17,7 +17,7 @@ import { useDialogs } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import type { MapPin } from "@/types/property";
-import { ViewProvider, useView } from "@/hooks/useView";
+import { useView } from "@/hooks/useView";
 import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
@@ -165,19 +165,17 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <ViewProvider>
-      <MapProvider>
-        <FiltersProvider>
-          <CompaniesProvider>
-            <PropertiesProvider>
-              <PropertyProvider>
-                <HomeContent />
-              </PropertyProvider>
-            </PropertiesProvider>
-          </CompaniesProvider>
-        </FiltersProvider>
-      </MapProvider>
-    </ViewProvider>
+    <MapProvider>
+      <FiltersProvider>
+        <CompaniesProvider>
+          <PropertiesProvider>
+            <PropertyProvider>
+              <HomeContent />
+            </PropertyProvider>
+          </PropertiesProvider>
+        </CompaniesProvider>
+      </FiltersProvider>
+    </MapProvider>
   );
 }
 

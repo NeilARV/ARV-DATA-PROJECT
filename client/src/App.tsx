@@ -6,8 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/pages/Home";
 import Admin from "@/pages/Admin";
 import Profile from "@/pages/Profile";
+import Analytics from "@/pages/Analytics";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
+import { ViewProvider } from "@/hooks/useView";
 
 function Router() {
   return (
@@ -15,6 +17,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/admin" component={Admin} />
       <Route path="/profile" component={Profile} />
+      <Route path="/analytics" component={Analytics} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -33,7 +36,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        <ViewProvider>
+          <Router />
+        </ViewProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

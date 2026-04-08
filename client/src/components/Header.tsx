@@ -18,6 +18,7 @@ import {
   Handshake,
   ChevronDown,
   Mail,
+  LineChart,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -81,7 +82,7 @@ export default function Header({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { toast } = useToast();
 
@@ -227,23 +228,27 @@ export default function Header({
   };
 
   const onBuyersFeedClick = async () => {
+    setLocation("/");
     setProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
     setView("buyers-feed");
   }
 
   const onWholesaleClick = async () => {
+    setLocation("/");
     setProperty(null);
     setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
     setView("wholesale");
   }
 
   const onTableViewClick = async () => {
+    setLocation("/");
     setProperty(null);
     setView("table")
   }
 
   const onLogoClick = async () => {
+    setLocation("/");
     setView("map")
     setSidebarView("directory")
     setCompany(null)
@@ -351,7 +356,7 @@ export default function Header({
             
           <div className="flex items-center border border-border rounded-md">
             <Button
-              variant={view === "buyers-feed" ? "default" : "ghost"}
+              variant={location === "/" && view === "buyers-feed" ? "default" : "ghost"}
               size="sm"
               onClick={onBuyersFeedClick}
               className="rounded-r-none"
@@ -362,7 +367,7 @@ export default function Header({
             </Button>
             <span className="w-px h-5 bg-border shrink-0" />
             <Button
-              variant={view === "wholesale" ? "default" : "ghost"}
+              variant={location === "/" && view === "wholesale" ? "default" : "ghost"}
               size="sm"
               onClick={onWholesaleClick}
               className="rounded-none"
@@ -373,9 +378,10 @@ export default function Header({
             </Button>
             <span className="w-px h-5 bg-border shrink-0" />
             <Button
-              variant={view === "map" ? "default" : "ghost"}
+              variant={location === "/" && view === "map" ? "default" : "ghost"}
               size="sm"
               onClick={() => {
+                setLocation("/");
                 setView("map");
                 const county = filters?.county ?? "San Diego";
                 const center = getCountyCenter(county) ?? getDefaultMapCenter();
@@ -391,7 +397,7 @@ export default function Header({
             <span className="w-px h-5 bg-border shrink-0" />
             <div className="relative" ref={moreMenuRef}>
               <Button
-                variant={view === "grid" || view === "table" ? "default" : "ghost"}
+                variant={location === "/" && (view === "grid" || view === "table") ? "default" : "ghost"}
                 size="sm"
                 className="rounded-l-none gap-1"
                 data-testid="button-view-more"
@@ -413,7 +419,7 @@ export default function Header({
                     <button
                       className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                       data-testid="button-view-grid"
-                      onClick={() => { setView("grid"); setShowMoreMenu(false); }}
+                      onClick={() => { setLocation("/"); setView("grid"); setShowMoreMenu(false); }}
                     >
                       <Grid3x3 className="w-4 h-4" />
                       Grid
@@ -443,13 +449,23 @@ export default function Header({
           </Button>
 
           <Button
-            variant={view === "deals" ? "default" : "outline"}
+            variant={location === "/" && view === "deals" ? "default" : "outline"}
             size="sm"
-            onClick={() => setView("deals")}
+            onClick={() => { setLocation("/"); setView("deals"); }}
             data-testid="button-deals"
           >
             <Handshake className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Deals</span>
+          </Button>
+
+          <Button
+            variant={location === "/analytics" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setLocation("/analytics")}
+            data-testid="button-analytics"
+          >
+            <LineChart className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Market Analytics</span>
           </Button>
         </div>
       </div>
