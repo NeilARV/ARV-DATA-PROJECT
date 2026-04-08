@@ -116,13 +116,6 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
     const label = "[dealsService.getTopBuyersByZipCode]";
     if (!zipCode) return [];
 
-    // TODO: remove — temporary fake data for UI development
-    return [
-        { companyId: null, companyName: "Opendoor Labs Inc", contactName: "James Carter" },
-        { companyId: null, companyName: "Invitation Homes", contactName: "Sarah Mitchell" },
-        { companyId: null, companyName: "Progress Residential", contactName: null },
-    ];
-
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const cutoff = threeMonthsAgo.toISOString().split("T")[0];

@@ -238,37 +238,36 @@ function DealCard({
           </div>
         )}
 
+        <div className="flex flex-col">
+          <span className="text-sm text-muted-foreground">Posted On</span>
+          <span className="text-sm font-medium text-foreground">{postedAt}</span>
+        </div>
+
         {(canRequestContact || isOwner) && (
-          <div>
-            <p className="text-sm text-muted-foreground mb-1.5">Actions</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-muted-foreground">Actions</span>
+            <div className="flex items-center gap-5">
               {canRequestContact && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs h-7"
+                <button
                   onClick={onRequestContact}
+                  className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
                 >
-                  <Phone className="w-3.5 h-3.5" />
+                  <Phone className="w-3 h-3 shrink-0" />
                   Request Contact
-                </Button>
+                </button>
               )}
               {isOwner && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs h-7"
+                <button
                   onClick={onTopBuyers}
+                  className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
                 >
-                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                  <Trophy className="w-3 h-3 shrink-0 text-amber-500" />
                   Top Potential Buyers
-                </Button>
+                </button>
               )}
             </div>
           </div>
         )}
-
-        <span className="text-xs text-muted-foreground">{postedAt}</span>
 
         {deal.notes && (
           <button
@@ -285,7 +284,7 @@ function DealCard({
 
         {expanded && deal.notes && (
           <div className="border-t border-border pt-3 mt-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Notes</p>
+            <p className="text-sm text-muted-foreground mb-1">Notes</p>
             <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
           </div>
         )}

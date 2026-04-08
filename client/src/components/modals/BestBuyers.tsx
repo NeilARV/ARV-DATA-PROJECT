@@ -56,7 +56,7 @@ export default function BestBuyersContent({
 
       {locationStr && (
         <p className="text-sm text-muted-foreground">
-          Best cash buyer matches for {locationStr}
+          Top buyer matches for {locationStr}
         </p>
       )}
 
