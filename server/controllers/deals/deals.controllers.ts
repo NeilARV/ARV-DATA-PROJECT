@@ -5,7 +5,6 @@ import {
     updateDeal,
     deleteDeal,
     sendDealNotification,
-    getBestBuyers,
     DealServiceError,
 } from "server/services/deals/deals.services";
 
@@ -108,26 +107,6 @@ export async function updateDealController(req: Request, res: Response): Promise
         res.json({ message: "Deal updated successfully", deal: updated });
     } catch (err) {
         handleServiceError(res, err, "Error updating deal");
-    }
-}
-
-// ── GET /api/deals/best-buyers ─────────────────────────────────────────────────
-export async function getBestBuyersController(req: Request, res: Response): Promise<void> {
-    try {
-        const address = typeof req.query.address === "string" ? req.query.address.trim() : "";
-        const city    = typeof req.query.city    === "string" ? req.query.city.trim()    : "";
-        const state   = typeof req.query.state   === "string" ? req.query.state.trim()   : "";
-        const zipCode = typeof req.query.zipCode === "string" ? req.query.zipCode.trim() : "";
-
-        if (!address || !city || !state) {
-            res.status(400).json({ message: "address, city, and state query parameters are required" });
-            return;
-        }
-
-        const buyers = await getBestBuyers({ address, city, state, zipCode });
-        res.json({ buyers });
-    } catch (err) {
-        handleServiceError(res, err, "Error fetching best buyers");
     }
 }
 
