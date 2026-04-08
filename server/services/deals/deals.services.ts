@@ -132,7 +132,7 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
         .leftJoin(companies,   eq(propertyTransactions.buyerId, companies.id))
         .where(and(
             eq(addresses.zipCode, zipCode),
-            eq(propertyTransactions.transactionType, "acquisition"),
+            eq(propertyTransactions.transactionType, "Arms Length"),
             gte(propertyTransactions.recordingDate, cutoff),
             isNotNull(propertyTransactions.buyerId),
         ))

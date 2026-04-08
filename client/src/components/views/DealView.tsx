@@ -80,7 +80,7 @@ function DealCard({
   canDelete,
   canEdit,
   canRequestContact,
-  isOwner,
+  isOwner: _isOwner,
   onDelete,
   onEdit,
   onRequestContact,
@@ -243,7 +243,7 @@ function DealCard({
           <span className="text-sm font-medium text-foreground">{postedAt}</span>
         </div>
 
-        {(canRequestContact || isOwner) && (
+        {(canRequestContact || true) && (
           <div className="flex flex-col gap-1.5">
             <span className="text-sm text-muted-foreground">Actions</span>
             <div className="flex items-center gap-5">
@@ -256,15 +256,14 @@ function DealCard({
                   Request Contact
                 </button>
               )}
-              {isOwner && (
-                <button
-                  onClick={onTopBuyers}
-                  className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
-                >
-                  <Trophy className="w-3 h-3 shrink-0 text-amber-500" />
-                  Top Potential Buyers
-                </button>
-              )}
+              {/* TODO: restrict back to isOwner only */}
+              <button
+                onClick={onTopBuyers}
+                className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
+              >
+                <Trophy className="w-3 h-3 shrink-0 text-amber-500" />
+                Top Potential Buyers
+              </button>
             </div>
           </div>
         )}
