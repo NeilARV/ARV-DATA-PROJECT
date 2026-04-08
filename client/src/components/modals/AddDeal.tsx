@@ -460,6 +460,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
             defaultFirstName={user?.firstName}
             defaultLastName={user?.lastName}
             defaultEmail={user?.email}
+            defaultPhone={user?.phone}
             defaultMessage="I would like to upgrade my account to access the deal feature."
           />
         )}

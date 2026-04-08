@@ -479,6 +479,7 @@ export default function DealView() {
             defaultFirstName={user?.firstName}
             defaultLastName={user?.lastName}
             defaultEmail={user?.email}
+            defaultPhone={user?.phone}
             defaultMessage={`I would like to request contact information for ${[formatAddress(contactDeal.address), formatAddress(contactDeal.city), contactDeal.state, contactDeal.zipCode].filter(Boolean).join(", ")} posted on ${new Date(contactDeal.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`}
           />
         )}

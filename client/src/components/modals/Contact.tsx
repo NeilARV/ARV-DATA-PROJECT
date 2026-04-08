@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { CONTACT_SUBJECTS, type ContactSubject } from "@database/validation/contactMessages.validation";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 
 export interface ContactContentProps {
   onClose: () => void;
@@ -26,6 +27,7 @@ export interface ContactContentProps {
   defaultFirstName?: string;
   defaultLastName?: string;
   defaultEmail?: string;
+  defaultPhone?: string;
   defaultMessage?: string;
 }
 
@@ -36,20 +38,25 @@ export default function ContactContent({
   defaultFirstName = "",
   defaultLastName = "",
   defaultEmail = "",
+  defaultPhone = "",
   defaultMessage = "",
 }: ContactContentProps) {
   const [firstName, setFirstName] = useState(defaultFirstName);
   const [lastName, setLastName] = useState(defaultLastName);
   const [email, setEmail] = useState(defaultEmail);
+  const [phone, setPhone] = useState(formatPhoneNumber(defaultPhone));
   const [subject, setSubject] = useState<ContactSubject | "">(defaultSubject ?? "");
   const [message, setMessage] = useState(defaultMessage);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const rawPhone = phone.replace(/\D/g, "");
+
   const isValid =
     firstName.trim() !== "" &&
     lastName.trim() !== "" &&
     email.trim() !== "" &&
+    rawPhone.length === 10 &&
     subject !== "" &&
     message.trim() !== "";
 
@@ -63,7 +70,7 @@ export default function ContactContent({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), subject, message: message.trim() }),
+        body: JSON.stringify({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: rawPhone, subject, message: message.trim() }),
       });
 
       if (!res.ok) {
@@ -121,6 +128,18 @@ export default function ContactContent({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
+            disabled={isSubmitting}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="contact-phone">Phone *</Label>
+          <Input
+            id="contact-phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+            placeholder="(555) 555-5555"
             disabled={isSubmitting}
           />
         </div>

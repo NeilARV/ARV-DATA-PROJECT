@@ -581,6 +581,7 @@ export default function Header({
             defaultFirstName={user?.firstName}
             defaultLastName={user?.lastName}
             defaultEmail={user?.email}
+            defaultPhone={user?.phone}
           />
         )}
       </AppDialog>

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { contactMessageSchema } from "@database/validation/contactMessages.validation";
 import {
   sendPlainEmail,
@@ -23,7 +24,8 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const { firstName, lastName, email, subject, message } = validation.data;
+    const { firstName, lastName, email, phone, subject, message } = validation.data;
+    const formattedPhone = formatPhoneNumber(phone);
     const userId: string | null = req.session.userId ?? null;
 
     // Determine recipient: user's RM if logged in and has one, otherwise default
@@ -41,13 +43,13 @@ router.post("/", async (req, res) => {
     }
 
     const htmlBody = `
-<p><strong>From:</strong> ${firstName} ${lastName} | ${email}</p>
+<p><strong>From:</strong> ${firstName} ${lastName} | ${email} | ${formattedPhone}</p>
 <p><strong>Subject:</strong> ${subject}</p>
 <hr />
 <p>${message.replace(/\n/g, "<br />")}</p>
     `.trim();
 
-    const textBody = `New Contact Message\n\nFrom: ${firstName} ${lastName} (${email})\nSubject: ${subject}\n\n${message}`;
+    const textBody = `New Contact Message\n\nFrom: ${firstName} ${lastName}\nEmail: ${email}\nPhone: ${formattedPhone}\nSubject: ${subject}\n\n${message}`;
 
     await sendPlainEmail({
       From: fromAddress,
