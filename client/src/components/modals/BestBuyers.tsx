@@ -2,13 +2,7 @@ import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Trophy } from "lucide-react";
 import { useCompanies } from "@/hooks/useCompanies";
 
-export interface TopBuyer {
-  companyId: string | null;
-  companyName: string;
-  contactName: string | null;
-}
-
-interface BestBuyersContentProps {
+type BestBuyersContentProps = {
   buyers: TopBuyer[];
   address?: string | null;
   city?: string | null;

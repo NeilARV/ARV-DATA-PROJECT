@@ -44,22 +44,6 @@ const DEAL_TYPES = [
   { value: "sold",      label: "Sold Deal" },
 ];
 
-export interface DealToEdit {
-  id: number;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  zipCode: string | null;
-  price: string | null;
-  type: "wholesale" | "agent" | "sold";
-  beds: number | null;
-  baths: string | null;
-  sqft: number | null;
-  propertyType: string | null;
-  potentialARV: string | null;
-  notes: string | null;
-}
-
 interface UpdateDealProps {
   deal: DealToEdit;
   open: boolean;
@@ -77,7 +61,7 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
       state:        deal.state        ?? "",
       zipCode:      deal.zipCode      ?? "",
       price:        deal.price        ? Number(deal.price) : undefined,
-      dealType:     deal.type,
+      dealType:     deal.dealType,
       beds:         deal.beds         ?? undefined,
       baths:        deal.baths        ? Number(deal.baths) : undefined,
       sqft:         deal.sqft         ?? undefined,

@@ -105,13 +105,6 @@ function isFullStreetAddress(address: string): boolean {
     return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
 }
 
-// ── Top buyers by zip code ─────────────────────────────────────────────────────
-export interface TopBuyer {
-    companyId: string | null;
-    companyName: string;
-    contactName: string | null;
-}
-
 async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
     const label = "[dealsService.getTopBuyersByZipCode]";
     if (!zipCode) return [];
@@ -148,7 +141,7 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 }
 
 // ── GET deals ──────────────────────────────────────────────────────────────────
-export interface GetDealsFilters {
+type GetDealsFilters = {
     userId?: string;
     msaName?: string;
 }
@@ -249,23 +242,6 @@ export async function getDeals(filters: GetDealsFilters) {
 }
 
 // ── POST deal ──────────────────────────────────────────────────────────────────
-export interface CreateDealInput {
-    address?: unknown;
-    city: string;
-    state: string;
-    zipCode: string;
-    userId: string;
-    dealType?: string;
-    price: number | string;
-    potentialARV?: number | string;
-    beds?: unknown;
-    baths?: unknown;
-    sqft?: unknown;
-    propertyType?: string;
-    notes?: string;
-    sendNotifications?: boolean;
-}
-
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
     const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
@@ -349,7 +325,7 @@ export async function createDeal(input: CreateDealInput) {
 }
 
 // ── POST deal — background notification (fire and forget) ──────────────────────
-export interface DealNotificationData {
+type DealNotificationData = {
     createdAt: Date;
     address: string | null;
     city: string | null;
@@ -361,7 +337,7 @@ export interface DealNotificationData {
     price: string | null;
     potentialARV: string | null;
     propertyType: string | null;
-    type: "wholesale" | "agent" | "sold";
+    type: DealType;
     sfrPropertyId: number | null;
     notes: string | null;
 }
@@ -493,21 +469,6 @@ export async function sendDealNotification(
 }
 
 // ── PATCH deal ─────────────────────────────────────────────────────────────────
-export interface UpdateDealInput {
-    address?: unknown;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    dealType?: string;
-    price?: number | string;
-    potentialARV?: number | string;
-    beds?: unknown;
-    baths?: unknown;
-    sqft?: unknown;
-    propertyType?: string;
-    notes?: string;
-}
-
 export async function updateDeal(id: number, callerId: string, input: UpdateDealInput) {
     const label = "[dealsService.updateDeal]";
 

@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddDeal from "@/components/modals/AddDeal";
 import UpdateDeal from "@/components/modals/UpdateDeal";
-import type { DealToEdit } from "@/components/modals/UpdateDeal";
 import AppDialog from "@/components/modals/Dialog";
 import ContactContent from "@/components/modals/Contact";
 import BestBuyersContent from "@/components/modals/BestBuyers";
@@ -25,14 +24,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useFilters } from "@/hooks/useFilters";
 import { getMsaNameFromCounty } from "@/lib/county";
 import { formatAddress } from "@shared/utils/formatAddress";
-import DealCard, { type Deal } from "@/components/deal/DealCard";
-
-type Tab = "all" | "mine";
+import DealCard from "@/components/deal/DealCard";
 
 // ── Main DealView component ────────────────────────────────────────────────────
 export default function DealView() {
   const [showAddDeal, setShowAddDeal] = useState(false);
-  const [tab, setTab] = useState<Tab>("all");
+  const [tab, setTab] = useState<DealTab>("all");
   const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
   const [contactDeal, setContactDeal] = useState<Deal | null>(null);
   const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
@@ -79,8 +76,8 @@ export default function DealView() {
     },
   });
 
-  const newDeals = deals.filter((d) => d.type !== "sold");
-  const soldDeals = deals.filter((d) => d.type === "sold");
+  const newDeals = deals.filter((d) => d.dealType !== "sold");
+  const soldDeals = deals.filter((d) => d.dealType === "sold");
 
   const renderCard = (deal: Deal) => {
     const isOwnerOfDeal = isPro && user?.id === deal.userId;
@@ -110,7 +107,7 @@ export default function DealView() {
           {tab === "mine" ? "Your Deal Feed" : `${msaName} Deal Feed`}
         </h2>
         <div className="flex items-center gap-3">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as DealTab)}>
             <TabsList>
               <TabsTrigger value="all">All Deals</TabsTrigger>
               <TabsTrigger value="mine">Your Deals</TabsTrigger>
