@@ -189,7 +189,7 @@ export async function getDeals(filters: GetDealsFilters) {
             notes:        deals.notes,
             msaId:        deals.msaId,
             msaName:      msas.name,
-            type:         deals.type,
+            dealType:     deals.type,
             userId:       deals.userId,
             userEmail:    users.email,
         })

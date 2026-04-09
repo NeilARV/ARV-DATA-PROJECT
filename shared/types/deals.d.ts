@@ -21,25 +21,6 @@ type Deal = DealProperty & {
     sfrPropertyId?: number | null;
     streetViewUrl?: string | null;
 
-    // Fields that need to be updated
-    // baths?: string | null;
-    // price?: string | null;
-    // potentialARV?: string | null;
-
-    // notes?: string | null;
-
-    // address?: string;
-    // city: string;
-    // state: string;
-    // zipCode: string;
-    // dealType: DealType;
-    // price: number | string;
-    // potentialARV?: number | string;
-    // beds?: number;
-    // baths?: number;
-    // sqft?: number;
-    // propertyType?: string;
-    // notes?: string;
 }
 
 type DealProperty = {
