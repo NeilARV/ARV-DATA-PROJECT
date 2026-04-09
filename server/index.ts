@@ -155,26 +155,14 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  const isReplit = process.env.REPL_ID !== undefined;
+  const isProduction = process.env.NODE_ENV === "production";
 
-  if (isReplit) {
-    // Replit needs 0.0.0.0 to accept external connections
-    server.listen(
-      {
-        port,
-        host: "0.0.0.0",
-        reusePort: true,
-      },
-      () => {
-        log(`serving on port ${port}`)
-        startScheduledJobs()
-      }
-    );
-  } else {
-    // Local development - simpler approach
-    server.listen(port, () => {
-      log(`serving on http://localhost:${port}`);
-      startScheduledJobs()
-    });
-  }
+  // In production (including Replit Autoscale deployments), bind to 0.0.0.0
+  // so the server is reachable from outside. In local dev, bind to localhost.
+  const host = isProduction ? "0.0.0.0" : "127.0.0.1";
+
+  server.listen({ port, host }, () => {
+    log(`serving on ${isProduction ? port : `http://localhost:${port}`}`);
+    startScheduledJobs();
+  });
 })();
