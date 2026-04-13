@@ -1,3 +1,4 @@
+-- NOTE: FILE NOT ADDED TO ALL_DATABASE.SQL
 -- Migration: 011
 -- Description: Add is_arv_client to companies table and is_arv_funded to properties table
 
@@ -26,7 +27,7 @@ WHERE p.id = lt.property_id
   AND UPPER(TRIM(lt.first_mtg_lender_name)) = 'ARV FINANCE INC';
 
   -- Find ARV Client properties that already exist and set is_arv_client to true
-  UPDATE companies c
+UPDATE companies c
 SET is_arv_client = TRUE
 WHERE c.id IN (
     SELECT DISTINCT pt.buyer_id
