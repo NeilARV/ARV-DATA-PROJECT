@@ -38,6 +38,7 @@ export const properties = pgTable("properties", {
   monthsOwned: integer("months_owned"),
   msa: varchar("msa", { length: 200 }),
   county: varchar("county", { length: 200 }),
+  isArvFunded: boolean("is_arv_funded").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

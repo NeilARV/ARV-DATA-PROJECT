@@ -10,7 +10,9 @@ import { insertCompanies } from "./processes/insert-companies";
 import { resolvePropertyIds } from "./processes/resolve-ids";
 import { resolveStatuses } from "./processes/resolve-status";
 import { cleanBeforeInsert } from "./processes/clean-before-insert";
+import { resolveArvFunded } from "./processes/is-arv-funded";
 import { insertProperties } from "./processes/insert-properties";
+import { updateArvClientCompanies } from "./processes/is-arv-client";
 
 import type { BuyersMarketRecord } from "./processes/get-market";
 import type { MarketScanQueue } from "@database/types/sync";
@@ -221,13 +223,19 @@ export async function runConsumer(): Promise<void> {
                 // ── Step 9: Final normalization (county, property_type) ────
                 const propertiesToInsert = cleanBeforeInsert(resolvedProperties);
 
-                // ── Step 10: Upsert properties + all child tables + transactions ─
-                console.log(`${msaLabel} Batch ${batchNum}: inserting ${propertiesToInsert.length} properties`);
+                // ── Step 10: Annotate is_arv_funded from transaction history ──
+                const propertiesToInsertWithArv = resolveArvFunded(propertiesToInsert);
+
+                // ── Step 11: Upsert properties + all child tables + transactions ─
+                console.log(`${msaLabel} Batch ${batchNum}: inserting ${propertiesToInsertWithArv.length} properties`);
                 const insertResult = await insertProperties({
-                    properties: propertiesToInsert,
+                    properties: propertiesToInsertWithArv,
                     msa: msa.name,
                     cityCode: msa.name,
                 });
+
+                // ── Step 12: Mark companies as ARV clients from resolved transactions ─
+                await updateArvClientCompanies(propertiesToInsertWithArv, msa.name);
 
                 // ── Mark complete only for properties that were not individually failed ──
                 const failedSfrIds = new Set<number>([...newConstructionSfrIds, ...unresolvedSfrIds]);

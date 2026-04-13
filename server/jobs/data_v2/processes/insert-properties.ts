@@ -79,6 +79,7 @@ function mapPropertyRow(
     monthsOwned: typeof p.months_owned === "number" ? p.months_owned : null,
     msa: getString(p, "msa") ?? msa,
     county: getString(p, "county") ?? null,
+    isArvFunded: (p.is_arv_funded as boolean) ?? false,
     updatedAt: new Date(),
   };
 }
@@ -192,6 +193,7 @@ export async function insertProperties(
           sellerId: propertyValues.sellerId,
           listingStatus: propertyValues.listingStatus,
           monthsOwned: propertyValues.monthsOwned,
+          isArvFunded: propertyValues.isArvFunded,
           updatedAt: propertyValues.updatedAt,
         },
       })

@@ -62,8 +62,11 @@ export function startScheduledJobs() {
     // Consumer: Run at 30 minute mark every hour from 5am to 10pm — processes all pending market_scan_queue rows
     // Earliest Run Time: 5am | Latest Run Time: 10:30pm
     // Can adjust time based on whether or not Scanner E is active
-    if (process.env.NODE_ENV === "production") {
-        cron.schedule("*/30 5-22 * * *", runConsumer, {
+    if (process.env.NODE_ENV !== "production") {
+        // cron.schedule("*/30 5-22 * * *", runConsumer, {
+        //     timezone: "America/Los_Angeles"
+        // })
+        cron.schedule("*52 * * * *", runConsumer, {
             timezone: "America/Los_Angeles"
         })
     } else {

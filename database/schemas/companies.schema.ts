@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, json, integer, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, timestamp, json, integer, boolean, primaryKey } from "drizzle-orm/pg-core";
 import { msas } from "./msas.schema";
 
 export const companies = pgTable("companies", {
@@ -8,6 +8,7 @@ export const companies = pgTable("companies", {
   contactEmail: text("contact_email"),
   phoneNumber: varchar("phone_number", { length: 20 }),
   counties: json("counties"),
+  isArvClient: boolean("is_arv_client").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
