@@ -58,7 +58,7 @@ export function startScheduledJobs() {
 
         // Init scanner — single MSA backfill (see scan-window-init.ts to set MSA_NAME and MODE)
         // Set the cron time below to whatever works locally, then comment this out when done.
-        // cron.schedule("16 * * * *", scanWindowInit, {
+        // cron.schedule("8 * * * *", scanWindowInit, {
         //     timezone: "America/Los_Angeles"
         // })
 
@@ -73,7 +73,7 @@ export function startScheduledJobs() {
         cron.schedule("*/30 5-22 * * *", runConsumer, {
             timezone: "America/Los_Angeles"
         })
-        // cron.schedule("30 * * * *", runConsumer, {
+        // cron.schedule("13 * * * *", runConsumer, {
         //     timezone: "America/Los_Angeles"
         // })
     } else {
