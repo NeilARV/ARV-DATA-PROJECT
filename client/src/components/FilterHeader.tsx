@@ -169,6 +169,8 @@ export default function FilterHeader({
             } else {
                 msaZipCodes = MIAMI_MSA_ZIP_CODES;
             }
+        } else if (selectedState === "WA") {
+            msaZipCodes = SEATTLE_MSA_ZIP_CODES;
         } else {
             msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
         }
