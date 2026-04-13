@@ -12,7 +12,7 @@ const MSA_NAME = "Seattle-Tacoma-Bellevue, WA";
 
 // "test"  → scans only 0-30 days (windows A + B) — quick sanity check
 // "full"  → scans all 0-180 days (windows A–E)   — production backfill
-const MODE: "test" | "full" = "test";
+const MODE: "test" | "full" = "full";
 // ─────────────────────────────────────────────────────────────────────────────
 
 type WindowDef = {

@@ -73,6 +73,9 @@ export function startScheduledJobs() {
         cron.schedule("*/30 5-22 * * *", runConsumer, {
             timezone: "America/Los_Angeles"
         })
+        // cron.schedule("30 * * * *", runConsumer, {
+        //     timezone: "America/Los_Angeles"
+        // })
     } else {
         console.log(`[CRON] Consumer skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
     }
