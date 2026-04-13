@@ -372,6 +372,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             contactName: sql<string | null>`COALESCE(${buyerCompanies.contactName}, ${sellerCompanies.contactName})`,
             contactEmail: sql<string | null>`COALESCE(${buyerCompanies.contactEmail}, ${sellerCompanies.contactEmail})`,
             contactPhone: sql<string | null>`COALESCE(${buyerCompanies.phoneNumber}, ${sellerCompanies.phoneNumber})`,
+            // ARV funded flag — sourced directly from the DB column set by the pipeline
+            isArvFunded: properties.isArvFunded,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -458,8 +460,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const buyerDisplayName = prop.buyerCompanyName || (latest?.buyerName ?? null);
         const sellerDisplayName = prop.sellerCompanyName || (latest?.sellerName ?? null);
 
-        const isFinancedByARV =
-            latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
+        // Read from DB column — set by the pipeline's resolveArvFunded step
+        const isFinancedByARV = prop.isArvFunded ?? false;
 
         // Fallback contact info from transaction-linked company when property has no buyerId/sellerId
         const txBuyerCompany = !prop.buyerId && latest?.buyerId ? txFallbackCompanyMap.get(latest.buyerId) ?? null : null;

@@ -2,15 +2,16 @@ import { normalizeCountyName, normalizePropertyType } from "server/utils/normali
 import type { PropertyWithStatus } from "./resolve-status";
 
 /**
- * Last-mile cleanup before DB insert. Normalizes fields that must match app
- * conventions (e.g. county as "Los Angeles" not "Los Angeles County",
- * property_type to canonical values like "Single Family", "Condo").
+ * Last-mile normalization before DB insert. Canonicalizes county names
+ * (e.g. "Los Angeles County" → "Los Angeles") and property types
+ * (e.g. "SFR" → "Single Family") on both the property and its address.
  */
 export function cleanBeforeInsert(
   properties: PropertyWithStatus[]
 ): PropertyWithStatus[] {
   return properties.map((item) => {
     const property = { ...item.property } as Record<string, unknown>;
+
     const county = property.county as string | null | undefined;
     property.county = normalizeCountyName(county) ?? county ?? null;
 
