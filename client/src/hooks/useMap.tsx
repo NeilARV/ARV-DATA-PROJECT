@@ -2,7 +2,6 @@ import { createContext, useState, useMemo, useEffect, useRef, ReactNode, useCont
 import { useQuery } from "@tanstack/react-query";
 import type { MapPin } from "@/types/property";
 import { COUNTIES } from "@/constants/filters.constants";
-import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, MIAMI_MSA_ZIP_CODES, PORT_ST_LUCIE_MSA_ZIP_CODES } from "@/constants/filters.constants";
 import {
   MAP_ZOOM_DEFAULT,
   MAP_ZOOM_COUNTY,
@@ -14,9 +13,8 @@ import {
 } from "@/constants/map.constants";
 import {
   getCountyCenter,
-  getStateFromCounty,
-  countyNameToKey,
   getDefaultMapCenter,
+  getZipCodesForCounty,
 } from "@/lib/county";
 import { cityMatchesFilter, matchesFiltersForPin } from "@/lib/propertyFilters";
 import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
@@ -116,32 +114,10 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     enabled: fetchMapPins && view === "map" && !!mapPinsQueryUrl,
   });
 
-  // Zip code list for filtering pins (same logic as Home)
+  // Zip code list for filtering pins
   const zipCodeList = useMemo(() => {
     if (!fetchMapPins) return [];
-    const countyName = filters.county ?? "San Diego";
-    const state = getStateFromCounty(countyName);
-    const countyKey = countyNameToKey(countyName);
-    let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
-    if (state === "CA") {
-      msaZipCodes =
-        countyName === "Los Angeles" || countyName === "Orange"
-          ? LOS_ANGELES_MSA_ZIP_CODES
-          : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
-            ? SAN_FRANCISCO_MSA_ZIP_CODES
-            : SAN_DIEGO_MSA_ZIP_CODES;
-    } else if (state === "CO") {
-      msaZipCodes = DENVER_MSA_ZIP_CODES;
-    } else if (state === "FL") {
-      msaZipCodes =
-        countyName === "St. Lucie" || countyName === "Martin"
-          ? PORT_ST_LUCIE_MSA_ZIP_CODES
-          : MIAMI_MSA_ZIP_CODES;
-    } else {
-      msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-    }
-    const countyZipCodes = msaZipCodes[countyKey] ?? [];
-    return Array.isArray(countyZipCodes) ? countyZipCodes : [];
+    return getZipCodesForCounty(filters.county ?? "San Diego");
   }, [fetchMapPins, filters.county]);
 
   const filteredMapPins = useMemo(() => {
@@ -239,27 +215,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
 
       if (filters?.city?.trim()) {
         const countyName = filters?.county ?? "San Diego";
-        const state = getStateFromCounty(countyName);
-        const countyKey = countyNameToKey(countyName);
-        let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
-        if (state === "CA") {
-          msaZipCodes =
-            countyName === "Los Angeles" || countyName === "Orange"
-              ? LOS_ANGELES_MSA_ZIP_CODES
-              : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
-                ? SAN_FRANCISCO_MSA_ZIP_CODES
-                : SAN_DIEGO_MSA_ZIP_CODES;
-        } else if (state === "CO") {
-          msaZipCodes = DENVER_MSA_ZIP_CODES;
-        } else if (state === "FL") {
-          msaZipCodes =
-            countyName === "St. Lucie" || countyName === "Martin"
-              ? PORT_ST_LUCIE_MSA_ZIP_CODES
-              : MIAMI_MSA_ZIP_CODES;
-        } else {
-          msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-        }
-        const currentZipCodeList = msaZipCodes[countyKey] ?? [];
+        const currentZipCodeList = getZipCodesForCounty(countyName);
         const cityZipCodes = currentZipCodeList.filter((z) =>
           cityMatchesFilter(filters.city!, z.city)
         );

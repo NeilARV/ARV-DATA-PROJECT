@@ -1,4 +1,13 @@
-import { COUNTIES } from "@/constants/filters.constants";
+import {
+  COUNTIES,
+  SAN_DIEGO_MSA_ZIP_CODES,
+  LOS_ANGELES_MSA_ZIP_CODES,
+  DENVER_MSA_ZIP_CODES,
+  SAN_FRANCISCO_MSA_ZIP_CODES,
+  MIAMI_MSA_ZIP_CODES,
+  PORT_ST_LUCIE_MSA_ZIP_CODES,
+  SEATTLE_MSA_ZIP_CODES,
+} from "@/constants/filters.constants";
 
 /** Default map center when county is not found (San Diego coordinates). */
 const DEFAULT_MAP_CENTER: [number, number] = [32.7157, -117.1611];
@@ -62,9 +71,45 @@ const COUNTY_TO_MSA: Record<string, string> = {
   "Palm Beach": "Miami-Fort Lauderdale-West Palm Beach, FL",
   "St. Lucie": "Port St. Lucie, FL",
   "Martin": "Port St. Lucie, FL",
+  "King": "Seattle-Tacoma-Bellevue, WA",
+  "Pierce": "Seattle-Tacoma-Bellevue, WA",
+  "Snohomish": "Seattle-Tacoma-Bellevue, WA",
 };
 
 /** Returns the MSA name for a given county, or undefined if not mapped. */
 export function getMsaNameFromCounty(countyName: string): string | undefined {
   return COUNTY_TO_MSA[countyName];
+}
+
+/**
+ * Returns the zip code list for a given county, keyed by the MSA zip code maps.
+ * Used by FilterHeader and useMap to derive available zip codes for filtering.
+ */
+export function getZipCodesForCounty(countyName: string): { zip: string; city: string }[] {
+  const state = getStateFromCounty(countyName);
+  const countyKey = countyNameToKey(countyName);
+
+  let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
+  if (state === "CA") {
+    msaZipCodes =
+      countyName === "Los Angeles" || countyName === "Orange"
+        ? LOS_ANGELES_MSA_ZIP_CODES
+        : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
+          ? SAN_FRANCISCO_MSA_ZIP_CODES
+          : SAN_DIEGO_MSA_ZIP_CODES;
+  } else if (state === "CO") {
+    msaZipCodes = DENVER_MSA_ZIP_CODES;
+  } else if (state === "FL") {
+    msaZipCodes =
+      countyName === "St. Lucie" || countyName === "Martin"
+        ? PORT_ST_LUCIE_MSA_ZIP_CODES
+        : MIAMI_MSA_ZIP_CODES;
+  } else if (state === "WA") {
+    msaZipCodes = SEATTLE_MSA_ZIP_CODES;
+  } else {
+    msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
+  }
+
+  const list = msaZipCodes[countyKey] ?? [];
+  return Array.isArray(list) ? list : [];
 }
