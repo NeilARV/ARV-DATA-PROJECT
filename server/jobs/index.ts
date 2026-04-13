@@ -11,6 +11,7 @@ import { scanWindowB } from "./data_v2/scan-window-b"
 import { scanWindowC } from "./data_v2/scan-window-c"
 import { scanWindowD } from "./data_v2/scan-window-d"
 import { scanWindowE } from "./data_v2/scan-window-e"
+import { scanWindowInit } from "./data_v2/scan-window-init"
 import { runConsumer } from "./data_v2/consumer"
 
 export function startScheduledJobs() {
@@ -52,6 +53,12 @@ export function startScheduledJobs() {
 
         // // Scanner E (90-180d): 1st of each month at 4:00 AM — one-time deep historical backfill
         // cron.schedule("0 4 1 * *", scanWindowE, {
+        //     timezone: "America/Los_Angeles"
+        // })
+
+        // Init scanner — single MSA backfill (see scan-window-init.ts to set MSA_NAME and MODE)
+        // Set the cron time below to whatever works locally, then comment this out when done.
+        // cron.schedule("16 * * * *", scanWindowInit, {
         //     timezone: "America/Los_Angeles"
         // })
 
