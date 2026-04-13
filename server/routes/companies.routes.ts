@@ -194,22 +194,6 @@ router.get("/contacts", async (req, res) => {
         }
         soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
 
-        const arvFinancedQuery =
-            contactIds.length > 0
-                ? db
-                      .select({ buyerId: propertyTransactions.buyerId, sellerId: propertyTransactions.sellerId })
-                      .from(propertyTransactions)
-                      .where(
-                          and(
-                              sql`UPPER(TRIM(${propertyTransactions.firstMtgLenderName})) = 'ARV FINANCE INC'`,
-                              or(
-                                  inArray(propertyTransactions.buyerId, contactIds),
-                                  inArray(propertyTransactions.sellerId, contactIds)
-                              )
-                          )
-                      )
-                : Promise.resolve([] as { buyerId: string | null; sellerId: string | null }[]);
-
         // Count properties with "wholesale" status where buyer_id = company id
         const wholesaleBuyWhereParts: ReturnType<typeof sql>[] = [
             sql`${statuses.name} = 'wholesale'`,
@@ -225,11 +209,10 @@ router.get("/contacts", async (req, res) => {
             .where(and(...wholesaleBuyWhereParts))
             .groupBy(properties.buyerId);
 
-        const [propertyCountRows, soldCountRows, soldCountAllTimeRows, arvFinancedRows, wholesaleBuyRows] = await Promise.all([
+        const [propertyCountRows, soldCountRows, soldCountAllTimeRows, wholesaleBuyRows] = await Promise.all([
             propertyCountQuery,
             soldYtdQuery,
             soldAllTimeQuery,
-            arvFinancedQuery,
             wholesaleBuyQuery,
         ]);
 
@@ -251,18 +234,13 @@ router.get("/contacts", async (req, res) => {
             if (row.buyerId) wholesaleBuyCountByBuyerId.set(row.buyerId, row.count);
         });
 
-        const arvFinancedCompanyIds = new Set<string>();
-        (arvFinancedRows as { buyerId: string | null; sellerId: string | null }[]).forEach((row) => {
-            if (row.buyerId) arvFinancedCompanyIds.add(row.buyerId);
-            if (row.sellerId) arvFinancedCompanyIds.add(row.sellerId);
-        });
-
         const contactsWithCounts = contacts.map((contact) => {
             const propertyCount = propertyCountByBuyerId.get(contact.id) ?? 0;
             const propertiesSoldCount = soldCountByCompanyId.get(contact.id) ?? 0;
             const propertiesSoldCountAllTime = soldCountAllTimeByCompanyId.get(contact.id) ?? 0;
             const wholesaleBuyCount = wholesaleBuyCountByBuyerId.get(contact.id) ?? 0;
-            const isFinancedByARV = arvFinancedCompanyIds.has(contact.id);
+            // Read from DB column — set by the pipeline's updateArvClientCompanies step
+            const isFinancedByARV = contact.isArvClient ?? false;
             return {
                 ...contact,
                 propertyCount,
