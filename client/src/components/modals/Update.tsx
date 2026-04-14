@@ -10,6 +10,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Company, UpdateCompany } from "@database/types";
@@ -36,7 +43,7 @@ export default function UpdateContent({
 
   const form = useForm<UpdateCompany>({
     resolver: zodResolver(updateCompanySchema),
-    defaultValues: { companyName: "", contactName: "", contactEmail: "", phoneNumber: "" },
+    defaultValues: { companyName: "", contactName: "", contactEmail: "", phoneNumber: "", isArvClient: false },
   });
 
   useEffect(() => {
@@ -51,6 +58,7 @@ export default function UpdateContent({
         contactName: initialData.contactName ?? "",
         contactEmail: initialData.contactEmail ?? "",
         phoneNumber,
+        isArvClient: initialData.isArvClient ?? false,
       });
       return;
     }
@@ -70,6 +78,7 @@ export default function UpdateContent({
           contactName: data.contactName ?? "",
           contactEmail: data.contactEmail ?? "",
           phoneNumber,
+          isArvClient: data.isArvClient ?? false,
         });
       })
       .catch(() => {
@@ -86,6 +95,7 @@ export default function UpdateContent({
         contactName: data.contactName?.trim() || null,
         contactEmail: data.contactEmail?.trim() || null,
         phoneNumber: data.phoneNumber?.trim() || null,
+        isArvClient: data.isArvClient,
       };
       await apiRequest("PATCH", `/api/companies/${companyId}`, updateData);
       toast({ title: "Company Contact Updated", description: "Company contact has been successfully updated." });
@@ -168,6 +178,30 @@ export default function UpdateContent({
                       maxLength={14}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isArvClient"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ARV Client</FormLabel>
+                  <Select
+                    value={field.value ? "true" : "false"}
+                    onValueChange={(val) => field.onChange(val === "true")}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-arv-client">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="z-[10000]">
+                      <SelectItem value="true">Yes</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

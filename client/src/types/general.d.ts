@@ -3,6 +3,7 @@ export type UpdateDialogInitialData = {
   contactName?: string;
   contactEmail?: string;
   phoneNumber?: string;
+  isArvClient?: boolean;
 };
 
 export type UpdateDialogProps = {
