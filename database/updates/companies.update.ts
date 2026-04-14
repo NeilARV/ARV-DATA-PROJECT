@@ -12,4 +12,5 @@ export const updateCompanySchema = z.object({
   ),
   phoneNumber: z.string().nullable().optional(),
   counties: z.array(z.string()).nullable().optional(),
+  isArvClient: z.boolean().optional(),
 }).strict();

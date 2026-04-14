@@ -19,7 +19,7 @@ router.get("/suggestions", PropertyController.getPropertySuggestionsHandler);
 // Get streetview image of a property
 router.get("/streetview", StreetviewController.getStreetview);
 
-// Update is_arv_funded on a property
+// Update is_arv_funded on a property -- ability to edit whole property is not implemented but can be
 router.patch("/:id", requireRole(["admin", "owner", "relationship-manager"]), PropertyController.patchPropertyHandler);
 
 // Delete a property

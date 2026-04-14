@@ -513,6 +513,7 @@ export async function updateCompany(id: string, data: UpdateCompanyInput): Promi
     if (data.phoneNumber !== undefined) updateFields.phoneNumber = data.phoneNumber;
     if (data.counties !== undefined) updateFields.counties = data.counties;
     if (data.companyName !== undefined) updateFields.companyName = data.companyName;
+    if (data.isArvClient !== undefined) updateFields.isArvClient = data.isArvClient;
     updateFields.updatedAt = new Date();
 
     const [updatedContact] = await db
