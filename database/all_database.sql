@@ -119,6 +119,7 @@ CREATE TABLE company_msas (
     updated_at TIMESTAMP DEFAULT now(),
     PRIMARY KEY (company_id, msa_id)
 );
+
 CREATE INDEX idx_company_msas_msa_id ON company_msas(msa_id);
 
 -- ============================================================================
