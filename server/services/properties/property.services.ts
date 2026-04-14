@@ -451,3 +451,20 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
     console.log(`Property created: ${sfrPropertyId} (ID: ${newProperty.id})`);
     return { status: "created", id: newProperty.id, sfrPropertyId: Number(sfrPropertyId) };
 }
+
+// ─── Patch ────────────────────────────────────────────────────────────────────
+
+export interface PatchPropertyResult {
+    id: string;
+    isArvFunded: boolean;
+}
+
+export async function patchProperty(id: string, isArvFunded: boolean): Promise<PatchPropertyResult | null> {
+    const updated = await db
+        .update(properties)
+        .set({ isArvFunded, updatedAt: new Date() })
+        .where(eq(properties.id, id))
+        .returning({ id: properties.id, isArvFunded: properties.isArvFunded });
+
+    return updated.length > 0 ? updated[0] : null;
+}

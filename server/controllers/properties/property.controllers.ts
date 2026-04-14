@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
+import { patchPropertySchema } from "@database/updates/properties.update";
 import {
     createProperty,
     deleteProperty,
     getPropertyById,
     getPropertySuggestions,
+    patchProperty,
 } from "server/services/properties/property.services";
 
 export async function getProperty(req: Request, res: Response) {
@@ -84,5 +86,23 @@ export async function getPropertySuggestionsHandler(req: Request, res: Response)
     } catch (error) {
         console.error("Error fetching property suggestions:", error);
         return res.status(500).json({ message: "Error fetching property suggestions" });
+    }
+}
+
+export async function patchPropertyHandler(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const validation = patchPropertySchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ message: "Invalid update data", errors: validation.error.errors });
+        }
+        const updated = await patchProperty(id, validation.data.isArvFunded);
+        if (!updated) {
+            return res.status(404).json({ message: "Property not found" });
+        }
+        return res.status(200).json({ message: "Property updated", id: updated.id, isArvFunded: updated.isArvFunded });
+    } catch (error) {
+        console.error("Error updating property:", error);
+        return res.status(500).json({ message: "Error updating property" });
     }
 }
