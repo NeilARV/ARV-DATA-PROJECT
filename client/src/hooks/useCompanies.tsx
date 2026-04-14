@@ -20,7 +20,7 @@ export type CompaniesContextValue = {
   directorySearch: string;
   setDirectorySort: (sort: DirectorySortOption) => void;
   setDirectorySearch: (search: string) => void;
-  loadCompanies: (overrides?: { sort?: DirectorySortOption; search?: string }) => Promise<void>;
+  loadCompanies: (overrides?: { sort?: DirectorySortOption; search?: string; force?: boolean }) => Promise<void>;
   loadMoreCompanies: () => Promise<void>;
   companySelectionInProgressRef: React.MutableRefObject<boolean>;
   /** Tracks the ID of the company for which filters were last expanded. Persists across sidebar tab switches (remounts). Used to expand filters on new company selection but skip on navigation remounts. */
@@ -62,17 +62,19 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
   const lastLoadedParamsRef = useRef<{ county: string; sort: string; search: string } | null>(null);
 
   const loadCompanies = useCallback(
-    async (overrides?: { sort?: DirectorySortOption; search?: string }) => {
+    async (overrides?: { sort?: DirectorySortOption; search?: string; force?: boolean }) => {
       const sort = overrides?.sort ?? directorySort;
       const search = overrides?.search ?? directorySearch;
+      const force = overrides?.force ?? false;
       // Always filter by county so directory shows only companies in the selected county (default San Diego)
       const county = (filters.county && filters.county.trim()) ? filters.county.trim() : "San Diego";
       // Never run a "load all" (no overrides) when user has active search – prevents search results being overwritten by a stale effect
-      if (!overrides && directorySearch.trim() !== "") {
+      if (!force && !overrides && directorySearch.trim() !== "") {
         return;
       }
       // Skip reload when just switching back to directory with same params (first load or county/sort/search change still trigger load)
       if (
+        !force &&
         !overrides &&
         lastLoadedParamsRef.current &&
         lastLoadedParamsRef.current.county === county &&
@@ -81,6 +83,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
       ) {
         return;
       }
+      if (force) lastLoadedParamsRef.current = null;
       loadCompaniesAbortRef.current?.abort();
       const controller = new AbortController();
       loadCompaniesAbortRef.current = controller;
