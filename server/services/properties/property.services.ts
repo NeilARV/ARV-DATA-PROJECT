@@ -109,6 +109,7 @@ export async function getPropertyById(id: string) {
             sellerContactName: sellerCompanies.contactName,
             sellerContactEmail: sellerCompanies.contactEmail,
             sellerContactPhone: sellerCompanies.phoneNumber,
+            isArvFunded: properties.isArvFunded,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -166,7 +167,8 @@ export async function getPropertyById(id: string) {
     }
     const txBuyerCompany = txBuyerCompanyId ? txCompanyMap.get(txBuyerCompanyId) ?? null : null;
     const txSellerCompany = txSellerCompanyId ? txCompanyMap.get(txSellerCompanyId) ?? null : null;
-    const isFinancedByARV = latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC";
+    // DB column is the authoritative manual override; fall back to transaction lender check
+    const isFinancedByARV = result.isArvFunded ?? (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
 
     const lat = result.latitude ? Number(result.latitude) : null;
     const lon = result.longitude ? Number(result.longitude) : null;
@@ -457,14 +459,58 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 export interface PatchPropertyResult {
     id: string;
     isArvFunded: boolean;
+    statuses: string[];
 }
 
-export async function patchProperty(id: string, isArvFunded: boolean): Promise<PatchPropertyResult | null> {
-    const updated = await db
-        .update(properties)
-        .set({ isArvFunded, updatedAt: new Date() })
+export async function patchProperty(
+    id: string,
+    data: { isArvFunded?: boolean; statuses?: string[] }
+): Promise<PatchPropertyResult | null> {
+    const [existing] = await db
+        .select({ id: properties.id, isArvFunded: properties.isArvFunded })
+        .from(properties)
         .where(eq(properties.id, id))
-        .returning({ id: properties.id, isArvFunded: properties.isArvFunded });
+        .limit(1);
 
-    return updated.length > 0 ? updated[0] : null;
+    if (!existing) return null;
+
+    if (data.isArvFunded !== undefined) {
+        await db
+            .update(properties)
+            .set({ isArvFunded: data.isArvFunded, updatedAt: new Date() })
+            .where(eq(properties.id, id));
+    }
+
+    if (data.statuses !== undefined && data.statuses.length > 0) {
+        const statusRows = await db
+            .select({ id: statuses.id, name: statuses.name })
+            .from(statuses)
+            .where(inArray(statuses.name, data.statuses));
+
+        await db.delete(propertyStatuses).where(eq(propertyStatuses.propertyId, id));
+
+        if (statusRows.length > 0) {
+            await db.insert(propertyStatuses).values(
+                statusRows.map((s) => ({ propertyId: id, statusId: s.id }))
+            );
+        }
+    }
+
+    const [updated] = await db
+        .select({ id: properties.id, isArvFunded: properties.isArvFunded })
+        .from(properties)
+        .where(eq(properties.id, id))
+        .limit(1);
+
+    const currentStatuses = await db
+        .select({ name: statuses.name })
+        .from(propertyStatuses)
+        .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+        .where(eq(propertyStatuses.propertyId, id));
+
+    return {
+        id: updated.id,
+        isArvFunded: updated.isArvFunded,
+        statuses: currentStatuses.map((r) => r.name),
+    };
 }

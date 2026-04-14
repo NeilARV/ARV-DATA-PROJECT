@@ -6,6 +6,7 @@ import { useDeleteProperty } from "@/hooks/properties/useDeleteProperty";
 import { PropertyContent } from "./PropertyContent";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
+import UpdatePropertyContent from "@/components/modals/UpdateProperty";
 
 interface PropertyModalContentProps {
   onClose: () => void;
@@ -13,7 +14,8 @@ interface PropertyModalContentProps {
 
 export default function PropertyModalContent({ onClose }: PropertyModalContentProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const { property } = useProperty();
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const { property, fetchProperty } = useProperty();
   const { isAdminOrOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
   const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
@@ -26,6 +28,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
         variant="modal"
         property={property}
         isAdminOrOwner={isAdminOrOwner}
+        onEditClick={() => setShowEditDialog(true)}
         onDeleteClick={() => setShowDeleteDialog(true)}
         deleteIsPending={deletePropertyMutation.isPending}
         onCompanyClick={(name, id, isBuyer) => {
@@ -33,6 +36,24 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
           onClose();
         }}
       />
+
+      <AppDialog
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        className="max-w-md"
+      >
+        {showEditDialog && (
+          <UpdatePropertyContent
+            onClose={() => setShowEditDialog(false)}
+            propertyId={property.id}
+            initialData={{
+              isArvFunded: property.isFinancedByARV,
+              statuses: property.statuses ?? (property.status ? [property.status] : ["in-renovation"]),
+            }}
+            onSuccess={() => fetchProperty(property.id)}
+          />
+        )}
+      </AppDialog>
 
       <AppDialog
         open={showDeleteDialog}

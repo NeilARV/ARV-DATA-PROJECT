@@ -99,7 +99,12 @@ export default function UpdateContent({
       };
       await apiRequest("PATCH", `/api/companies/${companyId}`, updateData);
       toast({ title: "Company Contact Updated", description: "Company contact has been successfully updated." });
-      queryClient.invalidateQueries({ queryKey: ["/api/companies/contacts"] });
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === "string" && key.startsWith("/api/companies");
+        },
+      });
       onSuccess?.();
       onClose();
     } catch (error: any) {

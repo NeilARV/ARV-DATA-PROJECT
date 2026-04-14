@@ -96,11 +96,11 @@ export async function patchPropertyHandler(req: Request, res: Response) {
         if (!validation.success) {
             return res.status(400).json({ message: "Invalid update data", errors: validation.error.errors });
         }
-        const updated = await patchProperty(id, validation.data.isArvFunded);
+        const updated = await patchProperty(id, validation.data);
         if (!updated) {
             return res.status(404).json({ message: "Property not found" });
         }
-        return res.status(200).json({ message: "Property updated", id: updated.id, isArvFunded: updated.isArvFunded });
+        return res.status(200).json({ message: "Property updated", id: updated.id, isArvFunded: updated.isArvFunded, statuses: updated.statuses });
     } catch (error) {
         console.error("Error updating property:", error);
         return res.status(500).json({ message: "Error updating property" });
