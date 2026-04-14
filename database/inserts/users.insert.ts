@@ -7,6 +7,9 @@ const MSA_NAMES = [
   "Los Angeles-Long Beach-Anaheim, CA",
   "Denver-Aurora-Centennial, CO",
   "San Francisco-Oakland-Fremont, CA",
+  "Miami-Fort Lauderdale-West Palm Beach, FL",
+  "Port St. Lucie, FL",
+  "Seattle-Tacoma-Bellevue, WA",
 ] as const;
 
 export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
