@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const patchPropertySchema = z.object({
+  isArvFunded: z.boolean(),
+}).strict();
+
 export const updatePropertySchema = z.object({
   sfrPropertyId: z.coerce.number().int().optional(),
   buyerId: z.string().uuid().nullable().optional(),
