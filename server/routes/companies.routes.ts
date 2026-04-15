@@ -22,4 +22,9 @@ router.get("/:id", CompaniesController.getCompanyByIdHandler);
 // Edit company by id
 router.patch("/:id", requireRole(["admin", "owner"]), CompaniesController.updateCompanyHandler);
 
+// Company contacts
+router.post("/:id/contacts", requireRole(["admin", "owner"]), CompaniesController.addContactHandler);
+router.patch("/:id/contacts/:contactId", requireRole(["admin", "owner"]), CompaniesController.updateContactHandler);
+router.delete("/:id/contacts/:contactId", requireRole(["admin", "owner"]), CompaniesController.deleteContactHandler);
+
 export default router;

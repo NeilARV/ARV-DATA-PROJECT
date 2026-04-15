@@ -2,7 +2,8 @@ import { db } from "server/storage";
 import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { updateCompanySchema } from "@database/updates/companies.update";
+import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
+import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
@@ -575,4 +576,80 @@ export async function updateCompany(id: string, data: UpdateCompanyInput): Promi
 
     console.log(`Updated company: ${updatedContact.companyName} (ID: ${id})`);
     return { status: "ok", company: updatedContact };
+}
+
+// ─── Company Contacts ─────────────────────────────────────────────────────────
+
+export type AddContactInput = z.infer<typeof insertCompanyContactSchema>;
+export type UpdateContactInput = z.infer<typeof updateCompanyContactSchema>;
+
+export type ContactMutationResult =
+    | { status: "ok"; contact: typeof companyContacts.$inferSelect }
+    | { status: "company-not-found" }
+    | { status: "contact-not-found" };
+
+export async function addContact(companyId: string, data: AddContactInput): Promise<ContactMutationResult> {
+    const existing = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).limit(1);
+    if (existing.length === 0) return { status: "company-not-found" };
+
+    const [{ nextSortOrder }] = await db
+        .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
+        .from(companyContacts)
+        .where(eq(companyContacts.companyId, companyId));
+
+    const [inserted] = await db
+        .insert(companyContacts)
+        .values({
+            companyId,
+            firstName: data.firstName,
+            lastName: data.lastName ?? null,
+            email: data.email ?? null,
+            phoneNumber: data.phoneNumber ?? null,
+            title: data.title ?? null,
+            sortOrder: nextSortOrder ?? 1,
+        })
+        .returning();
+
+    console.log(`Added contact ${inserted.firstName} to company ${companyId}`);
+    return { status: "ok", contact: inserted };
+}
+
+export async function updateContact(companyId: string, contactId: number, data: UpdateContactInput): Promise<ContactMutationResult> {
+    const existing = await db
+        .select()
+        .from(companyContacts)
+        .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
+        .limit(1);
+    if (existing.length === 0) return { status: "contact-not-found" };
+
+    const updateFields: Partial<typeof companyContacts.$inferInsert> = { updatedAt: new Date() };
+    if (data.firstName !== undefined) updateFields.firstName = data.firstName;
+    if (data.lastName !== undefined) updateFields.lastName = data.lastName ?? null;
+    if (data.email !== undefined) updateFields.email = (data.email as string | null) ?? null;
+    if (data.phoneNumber !== undefined) updateFields.phoneNumber = data.phoneNumber ?? null;
+    if (data.title !== undefined) updateFields.title = data.title ?? null;
+
+    const [updated] = await db
+        .update(companyContacts)
+        .set(updateFields)
+        .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
+        .returning();
+
+    console.log(`Updated contact ${contactId} on company ${companyId}`);
+    return { status: "ok", contact: updated };
+}
+
+export type DeleteContactResult =
+    | { status: "ok" }
+    | { status: "contact-not-found" };
+
+export async function deleteContact(companyId: string, contactId: number): Promise<DeleteContactResult> {
+    const deleted = await db
+        .delete(companyContacts)
+        .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
+        .returning({ id: companyContacts.id });
+
+    if (deleted.length === 0) return { status: "contact-not-found" };
+    console.log(`Deleted contact ${contactId} from company ${companyId}`);
+    return { status: "ok" };
 }

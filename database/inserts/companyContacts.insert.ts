@@ -1,11 +1,7 @@
 import { z } from "zod";
 
-export const updateCompanySchema = z.object({
-  isArvClient: z.boolean().optional(),
-}).strict();
-
-export const updateCompanyContactSchema = z.object({
-  firstName: z.string().min(1, "First name is required").optional(),
+export const insertCompanyContactSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
   lastName: z.string().nullable().optional(),
   email: z.preprocess(
     (val) => (val === "" || val === undefined ? null : val),
@@ -13,4 +9,4 @@ export const updateCompanyContactSchema = z.object({
   ),
   phoneNumber: z.string().nullable().optional(),
   title: z.string().nullable().optional(),
-}).strict();
+});
