@@ -289,6 +289,7 @@ export default function UpdateContent({
 
       {/* Add / Edit contact dialog */}
       <AppDialog
+        hideOverlay
         open={showAddContact || !!editContact}
         onClose={() => {
           setShowAddContact(false);
@@ -311,6 +312,7 @@ export default function UpdateContent({
 
       {/* Delete confirmation dialog */}
       <AppDialog
+        hideOverlay
         open={!!contactToDelete}
         onClose={() => setContactToDelete(null)}
         className="max-w-md"

@@ -35,6 +35,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
       />
 
       <AppDialog
+        hideOverlay
         open={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         className="max-w-md"
