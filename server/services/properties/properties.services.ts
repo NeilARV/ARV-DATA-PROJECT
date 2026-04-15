@@ -359,27 +359,27 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             dateSold: lastSales.recordingDate,
             // Buyer company info
             buyerCompanyName: buyerCompanies.companyName,
-            buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1)`,
-            buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1)`,
-            buyerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1)`,
+            buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            buyerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
             // Seller company info
             sellerCompanyName: sellerCompanies.companyName,
-            sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)`,
-            sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)`,
-            sellerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)`,
+            sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            sellerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
             // Legacy company info (buyer as primary, seller as fallback)
             companyName: sql<string>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
             contactName: sql<string | null>`COALESCE(
-                (SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1),
-                (SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)
+                (SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1),
+                (SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)
             )`,
             contactEmail: sql<string | null>`COALESCE(
-                (SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1),
-                (SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)
+                (SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1),
+                (SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)
             )`,
             contactPhone: sql<string | null>`COALESCE(
-                (SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1),
-                (SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)
+                (SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1),
+                (SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)
             )`,
             // ARV funded flag — sourced directly from the DB column set by the pipeline
             isArvFunded: properties.isArvFunded,
@@ -451,7 +451,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             .select()
             .from(companyContacts)
             .where(inArray(companyContacts.companyId, companyIds))
-            .orderBy(companyContacts.companyId, companyContacts.id);
+            .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id);
         const primaryContactByCompanyId = new Map<string, typeof companyContacts.$inferSelect>();
         for (const row of fallbackContactRows) {
             if (!primaryContactByCompanyId.has(row.companyId)) primaryContactByCompanyId.set(row.companyId, row);

@@ -137,7 +137,7 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
             .select()
             .from(companyContacts)
             .where(inArray(companyContacts.companyId, buyerIds))
-            .orderBy(companyContacts.companyId, companyContacts.id)
+            .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id)
         : [];
     const primaryContactMap = new Map<string, typeof companyContacts.$inferSelect>();
     for (const c of contactRows) {

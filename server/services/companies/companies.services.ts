@@ -34,7 +34,7 @@ async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, P
         .select()
         .from(companyContacts)
         .where(inArray(companyContacts.companyId, companyIds))
-        .orderBy(companyContacts.companyId, companyContacts.id);
+        .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id);
     const map = new Map<string, PrimaryContact>();
     for (const row of rows) {
         if (!map.has(row.companyId)) map.set(row.companyId, row);

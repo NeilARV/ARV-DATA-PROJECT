@@ -18,6 +18,7 @@ export const companyContacts = pgTable("company_contacts", {
   email: text("email"),
   phoneNumber: varchar("phone_number", { length: 20 }),
   title: text("title"),
+  sortOrder: integer("sort_order").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
