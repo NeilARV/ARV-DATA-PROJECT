@@ -29,6 +29,7 @@ export interface GetPropertiesFilters {
     page?: string;
     limit?: string;
     sortBy?: string;
+    search?: string; // Full-text search across address, city, state, zip
 }
 
 export interface GetPropertiesResult {
@@ -58,7 +59,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         dateMax,
         page,
         limit,
-        sortBy
+        sortBy,
+        search,
     } = filters;
 
     // Parse pagination parameters
@@ -67,6 +69,19 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const offset = (pageNum - 1) * limitNum;
 
     const conditions = []
+
+    // Full-text search across address, city, state, zip
+    if (search && search.trim().length > 0) {
+        const searchTerm = `%${search.trim().toLowerCase()}%`;
+        conditions.push(
+            or(
+                sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
+                sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`,
+            ) as any
+        );
+    }
 
     const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
     const hasCompanyFilter = companyIdTrimmed !== '';
@@ -483,8 +498,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const buyerDisplayName = prop.buyerCompanyName || (latest?.buyerName ?? null);
         const sellerDisplayName = prop.sellerCompanyName || (latest?.sellerName ?? null);
 
-        // Read from DB column — set by the pipeline's resolveArvFunded step
-        const isFinancedByARV = prop.isArvFunded ?? false;
+        // DB column is the authoritative manual override; fall back to transaction lender check
+        const isFinancedByARV = prop.isArvFunded ?? (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
 
         // Fallback contact info from transaction-linked company when property has no buyerId/sellerId
         const txBuyerCompany = !prop.buyerId && latest?.buyerId ? txFallbackCompanyMap.get(latest.buyerId) ?? null : null;

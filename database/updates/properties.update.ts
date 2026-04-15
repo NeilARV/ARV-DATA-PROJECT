@@ -1,8 +1,14 @@
 import { z } from "zod";
 
+const PROPERTY_STATUSES = ["in-renovation", "on-market", "sold", "wholesale"] as const;
+
 export const patchPropertySchema = z.object({
-  isArvFunded: z.boolean(),
-}).strict();
+  isArvFunded: z.boolean().optional(),
+  statuses: z.array(z.enum(PROPERTY_STATUSES)).min(1).optional(),
+}).strict().refine(
+  (data) => data.isArvFunded !== undefined || data.statuses !== undefined,
+  { message: "At least one of isArvFunded or statuses must be provided" }
+);
 
 export const updatePropertySchema = z.object({
   sfrPropertyId: z.coerce.number().int().optional(),

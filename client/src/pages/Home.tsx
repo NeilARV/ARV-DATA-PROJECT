@@ -105,18 +105,12 @@ function HomeContent() {
           ) : view === "table" ? (
             <TableView />
           ) : view === "buyers-feed" ? (
-            <>
-              <PropertyDetailPanel />
-              <GridView sideBarView={sidebarView} />
-            </>
+            <GridView sideBarView="none" />
           ) : (
-            <>
-              <PropertyDetailPanel />
-              <GridView
-                showWholesaleLeaderboard={view === "wholesale"}
-                sideBarView={sidebarView}
-              />
-            </>
+            <GridView
+              showWholesaleLeaderboard={view === "wholesale"}
+              sideBarView="none"
+            />
           )}
         </div>
 

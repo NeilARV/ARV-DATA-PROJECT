@@ -660,7 +660,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             }}
             companyId={editDialogCompanyId}
             initialData={editDialogInitialData}
-            onSuccess={() => loadCompanies()}
+            onSuccess={() => loadCompanies({ force: true })}
           />
         )}
       </AppDialog>

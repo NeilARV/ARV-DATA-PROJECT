@@ -1,6 +1,6 @@
 import { Property } from "@/types/property";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail, Star } from "lucide-react";
+import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail, Star, Pencil } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { StatusTag } from "./StatusTag";
@@ -82,6 +82,7 @@ interface PropertyContentProps {
   variant: Section;
   onDeleteClick?: () => void;
   deleteIsPending?: boolean;
+  onEditClick?: () => void;
   isAdminOrOwner?: boolean;
   onCompanyClick?: (name: string, id: string | null, isBuyer: boolean) => void;
 }
@@ -91,6 +92,7 @@ export function PropertyContent({
   variant,
   onDeleteClick,
   deleteIsPending,
+  onEditClick,
   isAdminOrOwner,
   onCompanyClick,
 }: PropertyContentProps) {
@@ -526,18 +528,31 @@ export function PropertyContent({
         </div>
       )}
 
-      {/* Delete (detail + admin only) */}
-      {isDetail && isAdminOrOwner && onDeleteClick && (
-        <div className="pt-4">
-          <Button
-            variant="destructive"
-            onClick={onDeleteClick}
-            disabled={deleteIsPending}
-            className="w-full"
-            data-testid="button-delete-property"
-          >
-            Delete Property
-          </Button>
+      {/* Edit + Delete (detail + admin only) */}
+      {isDetail && isAdminOrOwner && (
+        <div className="pt-4 space-y-2">
+          {onEditClick && (
+            <Button
+              variant="outline"
+              onClick={onEditClick}
+              className="w-full"
+              data-testid="button-edit-property"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit Property
+            </Button>
+          )}
+          {onDeleteClick && (
+            <Button
+              variant="destructive"
+              onClick={onDeleteClick}
+              disabled={deleteIsPending}
+              className="w-full"
+              data-testid="button-delete-property"
+            >
+              Delete Property
+            </Button>
+          )}
         </div>
       )}
     </div>
