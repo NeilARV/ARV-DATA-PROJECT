@@ -209,6 +209,31 @@ export default function UpdateContent({
               <Input value={companyName} readOnly className="bg-muted cursor-not-allowed" data-testid="input-company-name" />
             </div>
 
+            <FormField
+              control={form.control}
+              name="isArvClient"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ARV Client</FormLabel>
+                  <Select
+                    value={field.value ? "true" : "false"}
+                    onValueChange={(val) => field.onChange(val === "true")}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-arv-client">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="z-[10000]">
+                      <SelectItem value="true">Yes</SelectItem>
+                      <SelectItem value="false">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium leading-none">Contacts</label>
@@ -242,31 +267,6 @@ export default function UpdateContent({
                 </div>
               )}
             </div>
-
-            <FormField
-              control={form.control}
-              name="isArvClient"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>ARV Client</FormLabel>
-                  <Select
-                    value={field.value ? "true" : "false"}
-                    onValueChange={(val) => field.onChange(val === "true")}
-                  >
-                    <FormControl>
-                      <SelectTrigger data-testid="select-arv-client">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="z-[10000]">
-                      <SelectItem value="true">Yes</SelectItem>
-                      <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <div className="flex gap-2 pt-4">
               <Button type="button" variant="outline" onClick={onClose} className="flex-1" disabled={isLoading} data-testid="button-cancel-update">
