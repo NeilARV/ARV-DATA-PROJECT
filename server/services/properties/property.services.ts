@@ -87,6 +87,7 @@ export async function getPropertyById(id: string) {
             monthsOwned: properties.monthsOwned,
             msa: properties.msa,
             county: properties.county,
+            isArvFunded: properties.isArvFunded,
             createdAt: properties.createdAt,
             updatedAt: properties.updatedAt,
             address: addresses.formattedStreetAddress,
@@ -180,7 +181,7 @@ export async function getPropertyById(id: string) {
     const txBuyerCompany = txBuyerCompanyId ? txCompanyMap.get(txBuyerCompanyId) ?? null : null;
     const txSellerCompany = txSellerCompanyId ? txCompanyMap.get(txSellerCompanyId) ?? null : null;
     // DB column is the authoritative manual override; fall back to transaction lender check
-    const isFinancedByARV = result.isArvFunded ?? (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
+    const isFinancedByARV = result.isArvFunded || (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
 
     const lat = result.latitude ? Number(result.latitude) : null;
     const lon = result.longitude ? Number(result.longitude) : null;

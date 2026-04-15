@@ -499,7 +499,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const sellerDisplayName = prop.sellerCompanyName || (latest?.sellerName ?? null);
 
         // DB column is the authoritative manual override; fall back to transaction lender check
-        const isFinancedByARV = prop.isArvFunded ?? (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
+        const isFinancedByARV = prop.isArvFunded || (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
 
         // Fallback contact info from transaction-linked company when property has no buyerId/sellerId
         const txBuyerCompany = !prop.buyerId && latest?.buyerId ? txFallbackCompanyMap.get(latest.buyerId) ?? null : null;
