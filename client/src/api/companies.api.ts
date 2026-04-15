@@ -31,7 +31,7 @@ export async function fetchCompanyContactsPage(
     const query = searchParams.toString() ? `?${searchParams.toString()}` : "";
 
     try {
-        const res = await apiRequest("GET", `/api/companies/contacts${query}`);
+        const res = await apiRequest("GET", `/api/companies${query}`);
         return res.json();
     } catch {
         return null;

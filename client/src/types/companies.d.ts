@@ -8,6 +8,10 @@ export type CompanyContactWithCounts = Company & {
   propertiesSoldCountAllTime: number;
   wholesaleBuyCount: number;
   isFinancedByARV: boolean;
+  // Joined from company_contacts (primary contact)
+  contactName?: string | null;
+  contactEmail?: string | null;
+  phoneNumber?: string | null;
 };
 
 export type CompanyContactDetail = Company & {
@@ -15,6 +19,10 @@ export type CompanyContactDetail = Company & {
   propertiesSoldCountAllTime?: number;
   acquisition90DayTotal: number;
   acquisition90DayByMonth: Array<{ key: string; count: number }>;
+  // Joined from company_contacts (primary contact)
+  contactName?: string | null;
+  contactEmail?: string | null;
+  phoneNumber?: string | null;
 };
 
 export type CompanyDirectoryProps = Record<string, never>;

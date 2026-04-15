@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Company, UpdateCompany } from "@database/types";
+import { UpdateCompany } from "@database/types";
+import type { CompanyContactDetail } from "@/types/companies";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -69,7 +70,7 @@ export default function UpdateContent({
         if (!res.ok) throw new Error("Failed to fetch company contact");
         return res.json();
       })
-      .then((data: Company) => {
+      .then((data: CompanyContactDetail) => {
         const phoneNumber = data.phoneNumber
           ? data.phoneNumber.includes("(") ? data.phoneNumber : formatPhoneNumber(data.phoneNumber)
           : "";
@@ -99,7 +100,7 @@ export default function UpdateContent({
       };
       await apiRequest("PATCH", `/api/companies/${companyId}`, updateData);
       toast({ title: "Company Contact Updated", description: "Company contact has been successfully updated." });
-      queryClient.invalidateQueries({ queryKey: ["/api/companies/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       onSuccess?.();
       onClose();
     } catch (error: any) {

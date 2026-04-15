@@ -7,7 +7,7 @@ import {
     propertyTransactions,
 } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { companies } from "@database/schemas/companies.schema";
+import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
@@ -102,13 +102,13 @@ export async function getPropertyById(id: string) {
             price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
             dateSold: lastSales.recordingDate,
             buyerCompanyName: buyerCompanies.companyName,
-            buyerContactName: buyerCompanies.contactName,
-            buyerContactEmail: buyerCompanies.contactEmail,
-            buyerContactPhone: buyerCompanies.phoneNumber,
+            buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1)`,
+            buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1)`,
+            buyerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.id LIMIT 1)`,
             sellerCompanyName: sellerCompanies.companyName,
-            sellerContactName: sellerCompanies.contactName,
-            sellerContactEmail: sellerCompanies.contactEmail,
-            sellerContactPhone: sellerCompanies.phoneNumber,
+            sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)`,
+            sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)`,
+            sellerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.id LIMIT 1)`,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -158,11 +158,24 @@ export async function getPropertyById(id: string) {
     type TxCompany = { id: string; contactName: string | null; contactEmail: string | null; phoneNumber: string | null };
     const txCompanyMap = new Map<string, TxCompany>();
     if (txCompanyIds.length > 0) {
-        const rows = await db
-            .select({ id: companies.id, contactName: companies.contactName, contactEmail: companies.contactEmail, phoneNumber: companies.phoneNumber })
-            .from(companies)
-            .where(inArray(companies.id, txCompanyIds));
-        for (const row of rows) txCompanyMap.set(row.id, row);
+        const contactRows = await db
+            .select()
+            .from(companyContacts)
+            .where(inArray(companyContacts.companyId, txCompanyIds))
+            .orderBy(companyContacts.companyId, companyContacts.id);
+        const primaryContactByCompanyId = new Map<string, typeof companyContacts.$inferSelect>();
+        for (const row of contactRows) {
+            if (!primaryContactByCompanyId.has(row.companyId)) primaryContactByCompanyId.set(row.companyId, row);
+        }
+        for (const id of txCompanyIds) {
+            const primary = primaryContactByCompanyId.get(id);
+            txCompanyMap.set(id, {
+                id,
+                contactName: primary ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null : null,
+                contactEmail: primary?.email ?? null,
+                phoneNumber: primary?.phoneNumber ?? null,
+            });
+        }
     }
     const txBuyerCompany = txBuyerCompanyId ? txCompanyMap.get(txBuyerCompanyId) ?? null : null;
     const txSellerCompany = txSellerCompanyId ? txCompanyMap.get(txSellerCompanyId) ?? null : null;
@@ -303,38 +316,15 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
         const existingCompany = contactsMap.get(name);
         if (existingCompany) {
-            if (county) {
-                try {
-                    let countiesArray: string[] = [];
-                    if (Array.isArray(existingCompany.counties)) {
-                        countiesArray = existingCompany.counties;
-                    } else if (typeof existingCompany.counties === "string") {
-                        try { countiesArray = JSON.parse(existingCompany.counties); } catch { countiesArray = []; }
-                    }
-                    const countyLower = county.toLowerCase();
-                    if (!countiesArray.some((c) => c.toLowerCase() === countyLower)) {
-                        countiesArray.push(county);
-                        await db.update(companies).set({ counties: countiesArray, updatedAt: new Date() }).where(eq(companies.id, existingCompany.id));
-                        existingCompany.counties = countiesArray;
-                        contactsMap.set(name, existingCompany);
-                    }
-                } catch (updateError) {
-                    console.error(`Error updating counties for company ${existingCompany.companyName}:`, updateError);
-                }
-            }
+            // County tracking now uses company_counties table; requires state info — handled by dedicated sync
             return existingCompany.id;
         }
 
         try {
-            const countiesArray = county ? [county] : [];
             const [newCompany] = await db
                 .insert(companies)
                 .values({
                     companyName: name,
-                    contactName: null,
-                    contactEmail: propertyData.owner?.contact_email || null,
-                    phoneNumber: propertyData.owner?.phone || null,
-                    counties: countiesArray,
                     updatedAt: new Date(),
                 })
                 .returning();
