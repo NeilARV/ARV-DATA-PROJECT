@@ -499,7 +499,7 @@ export async function getCompanyById(id: string, county?: string) {
         propertyCount = propertyCountResult?.count ?? 0;
     }
 
-    const [acquisitions90Day, primaryContacts] = await Promise.all([
+    const [acquisitions90Day, contactsList] = await Promise.all([
         db
             .select({ recordingDate: propertyTransactions.recordingDate })
             .from(propertyTransactions)
@@ -508,10 +508,14 @@ export async function getCompanyById(id: string, county?: string) {
                 gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
                 lte(propertyTransactions.recordingDate, todayStr)
             )),
-        fetchPrimaryContacts([id]),
+        db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.companyId, id))
+            .orderBy(companyContacts.sortOrder, companyContacts.id),
     ]);
 
-    const primaryContact = primaryContacts.get(id) ?? null;
+    const primaryContact = contactsList[0] ?? null;
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const months: { key: string; count: number }[] = [];
@@ -534,6 +538,7 @@ export async function getCompanyById(id: string, county?: string) {
 
     return {
         ...result,
+        contacts: contactsList,
         contactName: buildContactName(primaryContact),
         contactEmail: primaryContact?.email ?? null,
         phoneNumber: primaryContact?.phoneNumber ?? null,
