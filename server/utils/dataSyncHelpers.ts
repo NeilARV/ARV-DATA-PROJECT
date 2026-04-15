@@ -85,7 +85,7 @@ export function isFlippingCompany(name: string | null | undefined, ownershipCode
 
 // Helper to add counties to a company via company_counties table
 export async function addCountiesToCompanyIfNeeded(
-    company: typeof companies.$inferSelect,
+    company: { id: string },
     countiesToAdd: string[] | Set<string>
 ): Promise<void> {
     const newCounties = Array.isArray(countiesToAdd) ? countiesToAdd : Array.from(countiesToAdd);
