@@ -10,6 +10,7 @@ CREATE TABLE company_contacts (
     email        TEXT,
     phone_number VARCHAR(20),
     title        TEXT,
+    sort_order   INTEGER      NOT NULL DEFAULT 1,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    DEFAULT now()
 );
