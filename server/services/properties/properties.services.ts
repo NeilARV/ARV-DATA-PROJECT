@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { companies } from "@database/schemas/companies.schema";
+import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { trimCompanyName } from "server/utils/normalization";
 import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { eq, sql, or, and, inArray, desc, gte, lte } from "drizzle-orm";
@@ -374,19 +374,28 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             dateSold: lastSales.recordingDate,
             // Buyer company info
             buyerCompanyName: buyerCompanies.companyName,
-            buyerContactName: buyerCompanies.contactName,
-            buyerContactEmail: buyerCompanies.contactEmail,
-            buyerContactPhone: buyerCompanies.phoneNumber,
+            buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            buyerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
             // Seller company info
             sellerCompanyName: sellerCompanies.companyName,
-            sellerContactName: sellerCompanies.contactName,
-            sellerContactEmail: sellerCompanies.contactEmail,
-            sellerContactPhone: sellerCompanies.phoneNumber,
+            sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+            sellerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
             // Legacy company info (buyer as primary, seller as fallback)
             companyName: sql<string>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
-            contactName: sql<string | null>`COALESCE(${buyerCompanies.contactName}, ${sellerCompanies.contactName})`,
-            contactEmail: sql<string | null>`COALESCE(${buyerCompanies.contactEmail}, ${sellerCompanies.contactEmail})`,
-            contactPhone: sql<string | null>`COALESCE(${buyerCompanies.phoneNumber}, ${sellerCompanies.phoneNumber})`,
+            contactName: sql<string | null>`COALESCE(
+                (SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1),
+                (SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)
+            )`,
+            contactEmail: sql<string | null>`COALESCE(
+                (SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1),
+                (SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)
+            )`,
+            contactPhone: sql<string | null>`COALESCE(
+                (SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1),
+                (SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)
+            )`,
             // ARV funded flag — sourced directly from the DB column set by the pipeline
             isArvFunded: properties.isArvFunded,
         })
@@ -452,11 +461,25 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     type CompanyContact = { id: string; contactName: string | null; contactEmail: string | null; phoneNumber: string | null };
     const txFallbackCompanyMap = new Map<string, CompanyContact>();
     if (txFallbackCompanyIds.size > 0) {
-        const fallbackRows = await db
-            .select({ id: companies.id, contactName: companies.contactName, contactEmail: companies.contactEmail, phoneNumber: companies.phoneNumber })
-            .from(companies)
-            .where(inArray(companies.id, Array.from(txFallbackCompanyIds)));
-        for (const row of fallbackRows) txFallbackCompanyMap.set(row.id, row);
+        const companyIds = Array.from(txFallbackCompanyIds);
+        const fallbackContactRows = await db
+            .select()
+            .from(companyContacts)
+            .where(inArray(companyContacts.companyId, companyIds))
+            .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id);
+        const primaryContactByCompanyId = new Map<string, typeof companyContacts.$inferSelect>();
+        for (const row of fallbackContactRows) {
+            if (!primaryContactByCompanyId.has(row.companyId)) primaryContactByCompanyId.set(row.companyId, row);
+        }
+        for (const id of companyIds) {
+            const primary = primaryContactByCompanyId.get(id);
+            txFallbackCompanyMap.set(id, {
+                id,
+                contactName: primary ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null : null,
+                contactEmail: primary?.email ?? null,
+                phoneNumber: primary?.phoneNumber ?? null,
+            });
+        }
     }
 
     // Map results to flat Property structure expected by frontend

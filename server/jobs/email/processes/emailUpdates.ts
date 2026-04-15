@@ -217,13 +217,13 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         baths: structures.baths,
         livingAreaSqft: structures.livingAreaSqft,
         buyerCompanyName: buyerCompanies.companyName,
-        buyerContactName: buyerCompanies.contactName,
-        buyerContactEmail: buyerCompanies.contactEmail,
-        buyerPhone: buyerCompanies.phoneNumber,
+        buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        buyerPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
         sellerCompanyName: sellerCompanies.companyName,
-        sellerContactName: sellerCompanies.contactName,
-        sellerContactEmail: sellerCompanies.contactEmail,
-        sellerPhone: sellerCompanies.phoneNumber,
+        sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        sellerPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
         isARVFunded: sql<boolean>`EXISTS (
           SELECT 1 FROM property_transactions pt
           WHERE pt.property_id = ${properties.id}

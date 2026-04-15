@@ -6,7 +6,7 @@ import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
 import { eq, desc, and, inArray, gte, isNotNull } from "drizzle-orm";
-import { companies } from "@database/schemas/companies.schema";
+import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, propertyTransactions, addresses } from "@database/schemas/properties.schema";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
 import { normalizeToTitleCase } from "server/utils/normalization";
@@ -115,14 +115,12 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 
     const rows = await db
         .selectDistinctOn([propertyTransactions.buyerId], {
-            buyerId:     propertyTransactions.buyerId,
-            buyerName:   propertyTransactions.buyerName,
-            contactName: companies.contactName,
+            buyerId:   propertyTransactions.buyerId,
+            buyerName: propertyTransactions.buyerName,
         })
         .from(propertyTransactions)
         .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .innerJoin(addresses,  eq(properties.id, addresses.propertyId))
-        .leftJoin(companies,   eq(propertyTransactions.buyerId, companies.id))
         .where(and(
             eq(addresses.zipCode, zipCode),
             eq(propertyTransactions.transactionType, "Arms Length"),
@@ -133,11 +131,30 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 
     console.log(`${label} ${rows.length} top buyers for zip=${zipCode}`);
 
-    return rows.map((row) => ({
-        companyId:   row.buyerId  ?? null,
-        companyName: normalizeToTitleCase(row.buyerName ?? "") ?? (row.buyerName ?? "Unknown"),
-        contactName: row.contactName ?? null,
-    }));
+    const buyerIds = rows.map((r) => r.buyerId).filter(Boolean) as string[];
+    const contactRows = buyerIds.length > 0
+        ? await db
+            .select()
+            .from(companyContacts)
+            .where(inArray(companyContacts.companyId, buyerIds))
+            .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id)
+        : [];
+    const primaryContactMap = new Map<string, typeof companyContacts.$inferSelect>();
+    for (const c of contactRows) {
+        if (!primaryContactMap.has(c.companyId)) primaryContactMap.set(c.companyId, c);
+    }
+
+    return rows.map((row) => {
+        const primary = row.buyerId ? primaryContactMap.get(row.buyerId) ?? null : null;
+        const contactName = primary
+            ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null
+            : null;
+        return {
+            companyId:   row.buyerId  ?? null,
+            companyName: normalizeToTitleCase(row.buyerName ?? "") ?? (row.buyerName ?? "Unknown"),
+            contactName,
+        };
+    });
 }
 
 // ── GET deals ──────────────────────────────────────────────────────────────────

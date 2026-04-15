@@ -135,10 +135,6 @@ export async function insertCompanies(
         const chunk = needCompanyAndMsa.slice(i, i + BATCH_SIZE);
         const companyValues = chunk.map((name) => ({
             companyName: name,
-            contactName: null,
-            contactEmail: null,
-            phoneNumber: null,
-            counties: (companyCounties[name] ?? []) as string[],
             updatedAt: new Date(),
         }));
 
@@ -156,6 +152,11 @@ export async function insertCompanies(
                 if (!companyIdsWithThisMsa.has(row.id)) {
                     companyMsasToAdd.push({ companyId: row.id, msaId });
                     companyIdsWithThisMsa.add(row.id);
+                }
+                // Insert counties for newly created company
+                const counties = key ? companyCounties[key] : undefined;
+                if (counties?.length) {
+                    await addCountiesToCompanyIfNeeded(row, counties);
                 }
             }
 
@@ -175,6 +176,11 @@ export async function insertCompanies(
                     if (!companyIdsWithThisMsa.has(row.id)) {
                         companyMsasToAdd.push({ companyId: row.id, msaId });
                         companyIdsWithThisMsa.add(row.id);
+                    }
+                    // Insert counties for conflict company (existed in DB but not in initial cache)
+                    const counties = key ? companyCounties[key] : undefined;
+                    if (counties?.length) {
+                        await addCountiesToCompanyIfNeeded(row, counties);
                     }
                 }
             }

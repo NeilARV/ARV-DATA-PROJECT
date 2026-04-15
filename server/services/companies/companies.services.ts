@@ -1,8 +1,9 @@
 import { db } from "server/storage";
-import { companies } from "@database/schemas/companies.schema";
+import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { updateCompanySchema } from "@database/updates/companies.update";
+import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
+import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
@@ -19,6 +20,29 @@ export const CONTACTS_SORT_OPTIONS = [
 ] as const;
 export type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type PrimaryContact = typeof companyContacts.$inferSelect;
+
+function buildContactName(contact: PrimaryContact | null | undefined): string | null {
+    if (!contact) return null;
+    return [contact.firstName, contact.lastName].filter(Boolean).join(" ") || null;
+}
+
+async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, PrimaryContact>> {
+    if (companyIds.length === 0) return new Map();
+    const rows = await db
+        .select()
+        .from(companyContacts)
+        .where(inArray(companyContacts.companyId, companyIds))
+        .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id);
+    const map = new Map<string, PrimaryContact>();
+    for (const row of rows) {
+        if (!map.has(row.companyId)) map.set(row.companyId, row);
+    }
+    return map;
+}
+
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
 export interface CompanySuggestion {
@@ -30,17 +54,25 @@ export interface CompanySuggestion {
 
 export async function getCompanySuggestions(search: string): Promise<CompanySuggestion[]> {
     const searchTerm = `%${search.trim().toLowerCase()}%`;
-    return db
-        .select({
-            id: companies.id,
-            companyName: companies.companyName,
-            contactName: companies.contactName,
-            contactEmail: companies.contactEmail,
-        })
+    const results = await db
+        .select({ id: companies.id, companyName: companies.companyName })
         .from(companies)
         .where(sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`)
         .orderBy(companies.companyName)
         .limit(5);
+
+    if (results.length === 0) return [];
+
+    const primaryContacts = await fetchPrimaryContacts(results.map((r) => r.id));
+    return results.map((r) => {
+        const primary = primaryContacts.get(r.id) ?? null;
+        return {
+            id: r.id,
+            companyName: r.companyName,
+            contactName: buildContactName(primary),
+            contactEmail: primary?.email ?? null,
+        };
+    });
 }
 
 // ─── Contacts list ────────────────────────────────────────────────────────────
@@ -72,15 +104,27 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const conditions: ReturnType<typeof sql>[] = [];
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
-        conditions.push(sql`LOWER(${companies.counties}::text) LIKE ${'%"' + normalizedCounty + '"%'}`);
+        conditions.push(
+            sql`EXISTS (
+                SELECT 1 FROM company_counties cc
+                WHERE cc.company_id = ${companies.id}
+                AND LOWER(cc.county) = ${normalizedCounty}
+            )`
+        );
     }
     if (searchTerm.length >= 2) {
         const searchPattern = `%${searchTerm.toLowerCase()}%`;
         conditions.push(
             or(
                 sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchPattern}`,
-                sql`LOWER(TRIM(COALESCE(${companies.contactName}, ''))) LIKE ${searchPattern}`,
-                sql`LOWER(TRIM(COALESCE(${companies.contactEmail}, ''))) LIKE ${searchPattern}`
+                sql`EXISTS (
+                    SELECT 1 FROM company_contacts con
+                    WHERE con.company_id = ${companies.id}
+                    AND (
+                        LOWER(TRIM(con.first_name || ' ' || COALESCE(con.last_name, ''))) LIKE ${searchPattern}
+                        OR LOWER(TRIM(COALESCE(con.email, ''))) LIKE ${searchPattern}
+                    )
+                )`
             ) as any
         );
     }
@@ -200,11 +244,14 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         .where(and(...wholesaleBuyWhereParts))
         .groupBy(properties.buyerId);
 
-    const [propertyCountRows, soldCountRows, soldCountAllTimeRows, wholesaleBuyRows] = await Promise.all([
+    const primaryContactsQuery = fetchPrimaryContacts(contactIds);
+
+    const [propertyCountRows, soldCountRows, soldCountAllTimeRows, wholesaleBuyRows, primaryContacts] = await Promise.all([
         propertyCountQuery,
         soldYtdQuery,
         soldAllTimeQuery,
         wholesaleBuyQuery,
+        primaryContactsQuery,
     ]);
 
     const propertyCountByBuyerId = new Map<string, number>();
@@ -224,14 +271,20 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         if (row.buyerId) wholesaleBuyCountByBuyerId.set(row.buyerId, row.count);
     });
 
-    const contactsWithCounts = contacts.map((contact) => ({
-        ...contact,
-        propertyCount: propertyCountByBuyerId.get(contact.id) ?? 0,
-        propertiesSoldCount: soldCountByCompanyId.get(contact.id) ?? 0,
-        propertiesSoldCountAllTime: soldCountAllTimeByCompanyId.get(contact.id) ?? 0,
-        wholesaleBuyCount: wholesaleBuyCountByBuyerId.get(contact.id) ?? 0,
-        isFinancedByARV: contact.isArvClient ?? false,
-    }));
+    const contactsWithCounts = contacts.map((contact) => {
+        const primary = primaryContacts.get(contact.id) ?? null;
+        return {
+            ...contact,
+            contactName: buildContactName(primary),
+            contactEmail: primary?.email ?? null,
+            phoneNumber: primary?.phoneNumber ?? null,
+            propertyCount: propertyCountByBuyerId.get(contact.id) ?? 0,
+            propertiesSoldCount: soldCountByCompanyId.get(contact.id) ?? 0,
+            propertiesSoldCountAllTime: soldCountAllTimeByCompanyId.get(contact.id) ?? 0,
+            wholesaleBuyCount: wholesaleBuyCountByBuyerId.get(contact.id) ?? 0,
+            isFinancedByARV: contact.isArvClient ?? false,
+        };
+    });
 
     const zeroCountFilter: Record<string, (c: typeof contactsWithCounts[0]) => boolean> = {
         "most-properties": (c) => c.propertyCount > 0,
@@ -307,22 +360,26 @@ export async function getWholesaleLeaderboard(county?: string) {
     if (countRows.length === 0) return [];
 
     const sellerIds = countRows.map((r) => r.sellerId).filter(Boolean) as string[];
-    const companyRows = await db
-        .select({ id: companies.id, companyName: companies.companyName, contactName: companies.contactName })
-        .from(companies)
-        .where(inArray(companies.id, sellerIds));
+    const [companyRows, primaryContacts] = await Promise.all([
+        db
+            .select({ id: companies.id, companyName: companies.companyName })
+            .from(companies)
+            .where(inArray(companies.id, sellerIds)),
+        fetchPrimaryContacts(sellerIds),
+    ]);
 
     const companyById = new Map(companyRows.map((c) => [c.id, c]));
     return countRows
         .map((row, index) => {
             const company = row.sellerId ? companyById.get(row.sellerId) : null;
             if (!company) return null;
+            const primary = row.sellerId ? primaryContacts.get(row.sellerId) ?? null : null;
             return {
                 rank: index + 1,
                 companyId: company.id,
                 companyName: company.companyName,
                 wholesaleCount: row.count,
-                contactName: company.contactName ?? null,
+                contactName: buildContactName(primary),
             };
         })
         .filter(Boolean);
@@ -338,9 +395,7 @@ export async function getLeaderboard(county: string) {
     const allProperties = await db
         .select({
             buyerCompanyName: buyerCompanies.companyName,
-            buyerContactName: buyerCompanies.contactName,
             sellerCompanyName: sellerCompanies.companyName,
-            sellerContactName: sellerCompanies.contactName,
         })
         .from(properties)
         .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
@@ -354,29 +409,23 @@ export async function getLeaderboard(county: string) {
         ) as any;
 
     const companyCounts: Record<string, number> = {};
-    const companyContactNames: Record<string, string | null> = {};
-    type Prop = { buyerCompanyName: string | null; buyerContactName: string | null; sellerCompanyName: string | null; sellerContactName: string | null };
+    type Prop = { buyerCompanyName: string | null; sellerCompanyName: string | null };
     allProperties.forEach((p: Prop) => {
-        const addCompany = (name: string | null, contact: string | null) => {
+        const addCompany = (name: string | null) => {
             if (!name) return;
             const companyName = name.trim();
             companyCounts[companyName] = (companyCounts[companyName] || 0) + 1;
-            if (contact && !companyContactNames[companyName]) {
-                companyContactNames[companyName] = contact.trim();
-            } else if (!(companyName in companyContactNames)) {
-                companyContactNames[companyName] = null;
-            }
         };
-        addCompany(p.buyerCompanyName, p.buyerContactName);
+        addCompany(p.buyerCompanyName);
         if (p.sellerCompanyName !== p.buyerCompanyName) {
-            addCompany(p.sellerCompanyName, p.sellerContactName);
+            addCompany(p.sellerCompanyName);
         }
     });
 
     const topCompanies = Object.entries(companyCounts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
-        .map(([name, count], index) => ({ rank: index + 1, name, count, contactName: companyContactNames[name] || null }));
+        .map(([name, count], index) => ({ rank: index + 1, name, count, contactName: null as string | null }));
 
     const propertiesWithAddresses = await db
         .select({ zipCode: addresses.zipCode })
@@ -451,14 +500,23 @@ export async function getCompanyById(id: string, county?: string) {
         propertyCount = propertyCountResult?.count ?? 0;
     }
 
-    const acquisitions90Day = await db
-        .select({ recordingDate: propertyTransactions.recordingDate })
-        .from(propertyTransactions)
-        .where(and(
-            eq(propertyTransactions.buyerId, id),
-            gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
-            lte(propertyTransactions.recordingDate, todayStr)
-        ));
+    const [acquisitions90Day, contactsList] = await Promise.all([
+        db
+            .select({ recordingDate: propertyTransactions.recordingDate })
+            .from(propertyTransactions)
+            .where(and(
+                eq(propertyTransactions.buyerId, id),
+                gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
+                lte(propertyTransactions.recordingDate, todayStr)
+            )),
+        db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.companyId, id))
+            .orderBy(companyContacts.sortOrder, companyContacts.id),
+    ]);
+
+    const primaryContact = contactsList[0] ?? null;
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const months: { key: string; count: number }[] = [];
@@ -481,6 +539,10 @@ export async function getCompanyById(id: string, county?: string) {
 
     return {
         ...result,
+        contacts: contactsList,
+        contactName: buildContactName(primaryContact),
+        contactEmail: primaryContact?.email ?? null,
+        phoneNumber: primaryContact?.phoneNumber ?? null,
         propertyCount,
         propertiesSoldCount: sellerCountResult?.count ?? 0,
         propertiesSoldCountAllTime: sellerCountAllTimeResult?.count ?? 0,
@@ -502,17 +564,7 @@ export async function updateCompany(id: string, data: UpdateCompanyInput): Promi
     const existing = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
     if (existing.length === 0) return { status: "not-found" };
 
-    if (data.companyName && data.companyName !== existing[0].companyName) {
-        const duplicate = await db.select().from(companies).where(eq(companies.companyName, data.companyName)).limit(1);
-        if (duplicate.length > 0) return { status: "duplicate-name" };
-    }
-
     const updateFields: any = {};
-    if (data.contactName !== undefined) updateFields.contactName = data.contactName;
-    if (data.contactEmail !== undefined) updateFields.contactEmail = data.contactEmail;
-    if (data.phoneNumber !== undefined) updateFields.phoneNumber = data.phoneNumber;
-    if (data.counties !== undefined) updateFields.counties = data.counties;
-    if (data.companyName !== undefined) updateFields.companyName = data.companyName;
     if (data.isArvClient !== undefined) updateFields.isArvClient = data.isArvClient;
     updateFields.updatedAt = new Date();
 
@@ -524,4 +576,80 @@ export async function updateCompany(id: string, data: UpdateCompanyInput): Promi
 
     console.log(`Updated company: ${updatedContact.companyName} (ID: ${id})`);
     return { status: "ok", company: updatedContact };
+}
+
+// ─── Company Contacts ─────────────────────────────────────────────────────────
+
+export type AddContactInput = z.infer<typeof insertCompanyContactSchema>;
+export type UpdateContactInput = z.infer<typeof updateCompanyContactSchema>;
+
+export type ContactMutationResult =
+    | { status: "ok"; contact: typeof companyContacts.$inferSelect }
+    | { status: "company-not-found" }
+    | { status: "contact-not-found" };
+
+export async function addContact(companyId: string, data: AddContactInput): Promise<ContactMutationResult> {
+    const existing = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).limit(1);
+    if (existing.length === 0) return { status: "company-not-found" };
+
+    const [{ nextSortOrder }] = await db
+        .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
+        .from(companyContacts)
+        .where(eq(companyContacts.companyId, companyId));
+
+    const [inserted] = await db
+        .insert(companyContacts)
+        .values({
+            companyId,
+            firstName: data.firstName,
+            lastName: data.lastName ?? null,
+            email: data.email ?? null,
+            phoneNumber: data.phoneNumber ?? null,
+            title: data.title ?? null,
+            sortOrder: nextSortOrder ?? 1,
+        })
+        .returning();
+
+    console.log(`Added contact ${inserted.firstName} to company ${companyId}`);
+    return { status: "ok", contact: inserted };
+}
+
+export async function updateContact(companyId: string, contactId: number, data: UpdateContactInput): Promise<ContactMutationResult> {
+    const existing = await db
+        .select()
+        .from(companyContacts)
+        .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
+        .limit(1);
+    if (existing.length === 0) return { status: "contact-not-found" };
+
+    const updateFields: Partial<typeof companyContacts.$inferInsert> = { updatedAt: new Date() };
+    if (data.firstName !== undefined) updateFields.firstName = data.firstName;
+    if (data.lastName !== undefined) updateFields.lastName = data.lastName ?? null;
+    if (data.email !== undefined) updateFields.email = (data.email as string | null) ?? null;
+    if (data.phoneNumber !== undefined) updateFields.phoneNumber = data.phoneNumber ?? null;
+    if (data.title !== undefined) updateFields.title = data.title ?? null;
+
+    const [updated] = await db
+        .update(companyContacts)
+        .set(updateFields)
+        .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
+        .returning();
+
+    console.log(`Updated contact ${contactId} on company ${companyId}`);
+    return { status: "ok", contact: updated };
+}
+
+export type DeleteContactResult =
+    | { status: "ok" }
+    | { status: "contact-not-found" };
+
+export async function deleteContact(companyId: string, contactId: number): Promise<DeleteContactResult> {
+    const deleted = await db
+        .delete(companyContacts)
+        .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
+        .returning({ id: companyContacts.id });
+
+    if (deleted.length === 0) return { status: "contact-not-found" };
+    console.log(`Deleted contact ${contactId} from company ${companyId}`);
+    return { status: "ok" };
 }

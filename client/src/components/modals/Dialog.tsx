@@ -1,6 +1,7 @@
 import {
   Dialog as RadixDialog,
   DialogContent,
+  NoOverlayDialogContent,
 } from "@/components/ui/dialog";
 import { cn } from "@/utils/merge";
 
@@ -12,6 +13,8 @@ interface AppDialogProps {
   forced?: boolean;
   /** Tailwind classes forwarded to DialogContent (use for sizing, overflow, etc.) */
   className?: string;
+  /** When true: suppresses the backdrop overlay — use when this dialog opens on top of another dialog */
+  hideOverlay?: boolean;
 }
 
 export default function AppDialog({
@@ -20,7 +23,9 @@ export default function AppDialog({
   children,
   forced = false,
   className,
+  hideOverlay = false,
 }: AppDialogProps) {
+  const Content = hideOverlay ? NoOverlayDialogContent : DialogContent;
   return (
     <RadixDialog
       open={open}
@@ -28,7 +33,7 @@ export default function AppDialog({
         if (!isOpen && !forced) onClose();
       }}
     >
-      <DialogContent
+      <Content
         className={cn(forced && "[&>button]:hidden", className)}
         onPointerDownOutside={(e) => {
           if (forced) e.preventDefault();
@@ -38,7 +43,7 @@ export default function AppDialog({
         }}
       >
         {children}
-      </DialogContent>
+      </Content>
     </RadixDialog>
   );
 }

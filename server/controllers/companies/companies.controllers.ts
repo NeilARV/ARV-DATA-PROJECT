@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { CompaniesServices } from "server/services/companies";
-import { updateCompanySchema } from "@database/updates/companies.update";
+import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
+import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 
 export async function getCompanySuggestionsHandler(req: Request, res: Response) {
     try {
@@ -101,5 +102,72 @@ export async function updateCompanyHandler(req: Request, res: Response) {
             message: "Error updating company",
             error: error instanceof Error ? error.message : "Unknown error",
         });
+    }
+}
+
+export async function addContactHandler(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const validation = insertCompanyContactSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ message: "Invalid contact data", errors: validation.error.errors });
+        }
+        const result = await CompaniesServices.addContact(id, validation.data);
+        switch (result.status) {
+            case "company-not-found":
+                return res.status(404).json({ message: "Company not found" });
+            case "ok":
+                return res.status(201).json(result.contact);
+        }
+    } catch (error) {
+        console.error("Error adding contact:", error);
+        return res.status(500).json({ message: "Error adding contact" });
+    }
+}
+
+export async function updateContactHandler(req: Request, res: Response) {
+    try {
+        const { id, contactId } = req.params;
+        const contactIdNum = parseInt(contactId, 10);
+        if (isNaN(contactIdNum)) {
+            return res.status(400).json({ message: "Invalid contact ID" });
+        }
+        const validation = updateCompanyContactSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ message: "Invalid contact data", errors: validation.error.errors });
+        }
+        if (Object.keys(validation.data).length === 0) {
+            return res.status(400).json({ message: "No fields provided to update" });
+        }
+        const result = await CompaniesServices.updateContact(id, contactIdNum, validation.data);
+        switch (result.status) {
+            case "contact-not-found":
+                return res.status(404).json({ message: "Contact not found" });
+            case "ok":
+                return res.json(result.contact);
+        }
+    } catch (error) {
+        console.error("Error updating contact:", error);
+        return res.status(500).json({ message: "Error updating contact" });
+    }
+}
+
+export async function deleteContactHandler(req: Request, res: Response) {
+    try {
+        const { id, contactId } = req.params;
+        const contactIdNum = parseInt(contactId, 10);
+        if (isNaN(contactIdNum)) {
+            return res.status(400).json({ message: "Invalid contact ID" });
+        }
+        const result = await CompaniesServices.deleteContact(id, contactIdNum);
+        switch (result.status) {
+            case "contact-not-found":
+                return res.status(404).json({ message: "Contact not found" });
+            case "ok":
+                return res.status(204).send();
+        }
+    } catch (error) {
+        console.error("Error deleting contact:", error);
+        return res.status(500).json({ message: "Error deleting contact" });
     }
 }

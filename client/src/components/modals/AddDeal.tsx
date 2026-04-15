@@ -449,7 +449,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         </Form>
       </AppDialog>
 
-      <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
+      <AppDialog hideOverlay open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
         {showContact && (
           <ContactContent
             onClose={() => setShowContact(false)}

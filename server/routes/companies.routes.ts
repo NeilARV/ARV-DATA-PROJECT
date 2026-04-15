@@ -4,11 +4,11 @@ import { CompaniesController } from "server/controllers/companies";
 
 const router = Router();
 
+// Get all companies (directory listing)
+router.get("/", CompaniesController.getContactsHandler);
+
 // Get suggestions when searching company contacts
 router.get("/contacts/suggestions", CompaniesController.getCompanySuggestionsHandler);
-
-// Get all company contacts
-router.get("/contacts", CompaniesController.getContactsHandler);
 
 // Get wholesale-leaderboard for grid view
 router.get("/wholesale-leaderboard", CompaniesController.getWholesaleLeaderboardHandler);
@@ -21,5 +21,10 @@ router.get("/:id", CompaniesController.getCompanyByIdHandler);
 
 // Edit company by id
 router.patch("/:id", requireRole(["admin", "owner"]), CompaniesController.updateCompanyHandler);
+
+// Company contacts
+router.post("/:id/contacts", requireRole(["admin", "owner"]), CompaniesController.addContactHandler);
+router.patch("/:id/contacts/:contactId", requireRole(["admin", "owner"]), CompaniesController.updateContactHandler);
+router.delete("/:id/contacts/:contactId", requireRole(["admin", "owner"]), CompaniesController.deleteContactHandler);
 
 export default router;
