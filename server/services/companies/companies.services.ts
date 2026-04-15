@@ -563,15 +563,8 @@ export async function updateCompany(id: string, data: UpdateCompanyInput): Promi
     const existing = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
     if (existing.length === 0) return { status: "not-found" };
 
-    if (data.companyName && data.companyName !== existing[0].companyName) {
-        const duplicate = await db.select().from(companies).where(eq(companies.companyName, data.companyName)).limit(1);
-        if (duplicate.length > 0) return { status: "duplicate-name" };
-    }
-
     const updateFields: any = {};
-    if (data.companyName !== undefined) updateFields.companyName = data.companyName;
     if (data.isArvClient !== undefined) updateFields.isArvClient = data.isArvClient;
-    // contactName, contactEmail, phoneNumber are now in company_contacts — handled by contacts routes
     updateFields.updatedAt = new Date();
 
     const [updatedContact] = await db

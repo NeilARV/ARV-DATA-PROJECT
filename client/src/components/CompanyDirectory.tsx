@@ -580,9 +580,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                             setEditDialogCompanyId(listCompany.id);
                             setEditDialogInitialData({
                               companyName: listCompany.companyName,
-                              contactName: listCompany.contactName ?? undefined,
-                              contactEmail: listCompany.contactEmail ?? undefined,
-                              phoneNumber: listCompany.phoneNumber ?? undefined,
                               isArvClient: listCompany.isArvClient ?? false,
                             });
                             setUpdateDialogOpen(true);

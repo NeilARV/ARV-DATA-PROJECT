@@ -1,8 +1,5 @@
 export type UpdateDialogInitialData = {
   companyName?: string;
-  contactName?: string;
-  contactEmail?: string;
-  phoneNumber?: string;
   isArvClient?: boolean;
 };
 
