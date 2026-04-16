@@ -160,7 +160,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
 
   const assignRoleMutation = useMutation({
     mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
-      const res = await apiRequest("POST", `/api/users/${userId}/roles`, { roleName });
+      const res = await apiRequest("POST", `/api/users/${userId}/user-role`, { role: roleName });
       return res.json();
     },
     onSuccess: (_, { roleName }) => {
@@ -178,9 +178,8 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
   });
 
   const removeRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
-      const encodedRole = encodeURIComponent(roleName);
-      const res = await apiRequest("DELETE", `/api/users/${userId}/roles/${encodedRole}`);
+    mutationFn: async ({ userId }: { userId: string; roleName: string }) => {
+      const res = await apiRequest("DELETE", `/api/users/${userId}/user-role`);
       return res.json();
     },
     onSuccess: (_, { roleName }) => {
