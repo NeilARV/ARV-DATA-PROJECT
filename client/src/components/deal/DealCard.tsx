@@ -30,7 +30,7 @@ type DealCardProps = {
     isOwner: boolean;
     onDelete: () => void;
     onEdit: () => void;
-    onRequestContact: () => void;
+    onRequestInfo: () => void;
     onTopBuyers: () => void;
 }
 
@@ -42,7 +42,7 @@ export default function DealCard({
     isOwner,
     onDelete,
     onEdit,
-    onRequestContact,
+    onRequestInfo,
     onTopBuyers,
 }: DealCardProps) {
     const [imageUrl, setImageUrl] = useState("");
@@ -198,11 +198,11 @@ export default function DealCard({
                         <div className="flex items-center gap-5">
                             {canRequestContact && (
                                 <button
-                                    onClick={onRequestContact}
+                                    onClick={onRequestInfo}
                                     className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
                                 >
                                     <Phone className="w-3 h-3 shrink-0" />
-                                    Request Contact
+                                    Request More Info
                                 </button>
                             )}
                             {isOwner && (

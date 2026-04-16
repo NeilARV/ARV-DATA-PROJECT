@@ -92,7 +92,7 @@ export default function DealView() {
         isOwner={isOwnerOfDealForTopBuyers}
         onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
         onEdit={() => setEditDeal(deal)}
-        onRequestContact={() => setContactDeal(deal)}
+        onRequestInfo={() => setContactDeal(deal)}
         onTopBuyers={() => setBestBuyersDeal(deal)}
       />
     );
