@@ -26,7 +26,7 @@ export const emailWhitelist = pgTable("email_whitelist", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Users (admin/owner determined via user_roles + roles, not a column here)
+// Users (ARV team roles via user_roles + roles; user tier role stored directly as user_role)
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   firstName: text("first_name").notNull(),
@@ -37,6 +37,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   notifications: boolean("notifications").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
+  userRole: varchar("user_role", { length: 50 }),
 });
 
 // Roles (owner, admin, relationship-manager)
