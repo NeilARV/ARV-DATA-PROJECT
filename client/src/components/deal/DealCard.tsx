@@ -74,10 +74,9 @@ export default function DealCard({
     });
 
   return (
-    <div className="rounded-lg border border-border bg-card flex flex-col">
-        <div className="flex gap-0">
-            {/* Left: street view thumbnail */}
-            <div className="w-52 shrink-0 bg-muted flex items-center justify-center self-stretch relative rounded-tl-lg rounded-bl-lg overflow-hidden">
+    <div className="rounded-lg border border-border bg-card flex">
+        {/* Left: street view thumbnail */}
+        <div className="w-52 shrink-0 bg-muted flex items-center justify-center self-stretch relative rounded-tl-lg rounded-bl-lg overflow-hidden">
                 {imageLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/40" />
                 ) : imageUrl ? (
@@ -99,8 +98,9 @@ export default function DealCard({
                 </span>
             </div>
 
-            {/* Right: property details */}
-            <div className="flex-1 min-w-0 px-5 py-2.5 flex flex-col gap-2 min-h-0">
+        {/* Right: property details + footer */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
+            <div className="px-5 py-2.5 flex flex-col gap-2 flex-1">
                 <div className="flex items-start justify-between gap-1 min-w-0">
                     <div className="min-w-0">
                         <p className="font-medium text-base leading-tight truncate">
@@ -192,31 +192,6 @@ export default function DealCard({
                     <span className="text-sm font-medium text-foreground">{postedAt}</span>
                 </div>
 
-                {(canRequestContact || isOwner) && (
-                    <div className="flex flex-col">
-                        <span className="text-sm text-muted-foreground">Actions</span>
-                        <div className="flex items-center gap-5">
-                            {canRequestContact && (
-                                <button
-                                    onClick={onRequestInfo}
-                                    className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
-                                >
-                                    <Phone className="w-3 h-3 shrink-0" />
-                                    Request More Info
-                                </button>
-                            )}
-                            {isOwner && (
-                                <button
-                                    onClick={onTopBuyers}
-                                    className="flex items-center gap-1.5 text-sm text-foreground hover:text-muted-foreground underline underline-offset-2 decoration-foreground/40 hover:decoration-muted-foreground/40 transition-colors"
-                                >
-                                    <Trophy className="w-3 h-3 shrink-0 text-amber-500" />
-                                    Top Potential Buyers
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                )}
 
                 {expanded && deal.notes && (
                     <div>
@@ -238,6 +213,22 @@ export default function DealCard({
                     </button>
                 )}
             </div>
+            {(canRequestContact || isOwner) && (
+                <div className="border-t border-border px-5 py-2.5 flex justify-end gap-2">
+                    {isOwner && (
+                        <Button variant="outline" size="sm" onClick={onTopBuyers} className="gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                            Top Potential Buyers
+                        </Button>
+                    )}
+                    {canRequestContact && (
+                        <Button variant="outline" size="sm" onClick={onRequestInfo} className="gap-1.5">
+                            <Phone className="w-3.5 h-3.5" />
+                            Request More Info
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
     </div>
   );
