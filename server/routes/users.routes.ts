@@ -13,20 +13,23 @@ import { UserServices } from "server/services/auth";
 
 const router = Router();
 
+/** User tier roles — stored on users.user_role column, not in the user_roles join table. */
+const USER_TIER_ROLES = new Set<string>(["base", "pro"]);
+
 /** Role names that each caller role is allowed to assign or remove. Owner cannot be assigned/removed via API. */
 const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
-  owner: ["admin", "relationship-manager", "pro"],
-  admin: ["relationship-manager", "pro"],
+  owner: ["admin", "relationship-manager", "member", "pro"],
+  admin: ["relationship-manager", "member", "pro"],
   "relationship-manager": ["pro"],
 };
-const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager", "pro"] as const;
+const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager", "member", "pro"] as const;
 
 /** Hierarchy: higher number = more privilege. Used to block altering users with equal or higher privilege. */
 const ROLE_HIERARCHY: Record<string, number> = {
   owner: 4,
   admin: 3,
   "relationship-manager": 2,
-  pro: 1,
+  member: 1,
 };
 
 function getAllowedRolesForCaller(callerRoleRows: { roleName: string }[]): string[] {
@@ -71,6 +74,7 @@ router.get("/", requireRole(["admin", "owner", "relationship-manager"]), async (
                 phone: users.phone,
                 email: users.email,
                 createdAt: users.createdAt,
+                userRole: users.userRole,
             })
             .from(users)
             .where(whereClause)
@@ -122,9 +126,12 @@ router.get("/", requireRole(["admin", "owner", "relationship-manager"]), async (
             relationshipManagersByUserId.set(row.userId, list);
         }
 
-        const usersWithRoles = allUsers.map((u) => ({
+        const usersWithRoles = allUsers.map(({ userRole, ...u }) => ({
             ...u,
-            roles: rolesByUserId.get(u.id) ?? [],
+            roles: [
+                ...(rolesByUserId.get(u.id) ?? []),
+                ...(userRole ? [userRole] : []),
+            ],
             relationshipManagers: relationshipManagersByUserId.get(u.id) ?? [],
         }));
         res.json(usersWithRoles);
@@ -316,6 +323,36 @@ router.post("/:userId/roles", requireRole(["admin", "owner", "relationship-manag
             });
         }
 
+        // User tier roles (base, pro) are stored on users.user_role — not in the user_roles join table
+        if (USER_TIER_ROLES.has(roleName)) {
+            const [targetUser] = await db
+                .select({ id: users.id, userRole: users.userRole })
+                .from(users)
+                .where(eq(users.id, userId))
+                .limit(1);
+            if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+            if (userId !== req.session.userId) {
+                const targetTeamRoleRows = await db
+                    .select({ roleName: roles.name })
+                    .from(userRoles)
+                    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+                    .where(eq(userRoles.userId, userId));
+                const callerLevel = getCallerLevel(callerRoleRows);
+                const targetLevel = getTargetLevel(targetTeamRoleRows.map((r) => r.roleName));
+                if (callerLevel <= targetLevel) {
+                    return res.status(403).json({ message: "You cannot alter roles of a user with equal or higher permissions" });
+                }
+            }
+
+            if (targetUser.userRole === roleName) {
+                return res.status(409).json({ message: "User already has this role" });
+            }
+            await db.update(users).set({ userRole: roleName }).where(eq(users.id, userId));
+            return res.status(201).json({ message: "Role assigned", userId, roleName });
+        }
+
+        // ARV team roles — stored in user_roles join table
         const [roleRow] = await db.select().from(roles).where(eq(roles.name, roleName)).limit(1);
         if (!roleRow) {
             return res.status(400).json({ message: "Role not found" });
@@ -432,6 +469,36 @@ router.delete("/:userId/roles/:role", requireRole(["admin", "owner", "relationsh
             });
         }
 
+        // User tier roles (base, pro) are stored on users.user_role — not in the user_roles join table
+        if (USER_TIER_ROLES.has(roleName)) {
+            const [targetUser] = await db
+                .select({ id: users.id, userRole: users.userRole })
+                .from(users)
+                .where(eq(users.id, userId))
+                .limit(1);
+            if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+            if (userId !== req.session.userId) {
+                const targetTeamRoleRows = await db
+                    .select({ roleName: roles.name })
+                    .from(userRoles)
+                    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+                    .where(eq(userRoles.userId, userId));
+                const callerLevel = getCallerLevel(callerRoleRows);
+                const targetLevel = getTargetLevel(targetTeamRoleRows.map((r) => r.roleName));
+                if (callerLevel <= targetLevel) {
+                    return res.status(403).json({ message: "You cannot alter roles of a user with equal or higher permissions" });
+                }
+            }
+
+            if (targetUser.userRole !== roleName) {
+                return res.status(404).json({ message: "User does not have this role" });
+            }
+            await db.update(users).set({ userRole: null }).where(eq(users.id, userId));
+            return res.status(200).json({ message: "Role removed", userId, roleName });
+        }
+
+        // ARV team roles — stored in user_roles join table
         const [roleRow] = await db.select().from(roles).where(eq(roles.name, roleName)).limit(1);
         if (!roleRow) {
             return res.status(400).json({ message: "Role not found" });
