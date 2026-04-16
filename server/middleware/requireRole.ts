@@ -1,7 +1,10 @@
-import { userRoles, roles } from "@database/schemas/users.schema";
+import { userRoles, roles, users } from "@database/schemas/users.schema";
 import { Request, Response, NextFunction } from "express";
 import { db } from "server/storage";
 import { eq, and, inArray } from "drizzle-orm";
+
+// These roles live on users.user_role — not in the user_roles join table
+const USER_TIER_ROLES = new Set<string>(["base", "pro"]);
 
 /**
  * Normalizes role(s) to a non-empty array of role names.
@@ -17,9 +20,16 @@ function toRoleArray(roleOrRoles: string | string[]): string[] {
 /**
  * Returns a middleware that requires the user to have at least one of the given roles.
  * Pass a single role or an array of roles, e.g. requireRole("owner") or requireRole(["owner", "admin"]).
+ *
+ * ARV team roles (owner, admin, relationship-manager, member) are checked via the user_roles join table.
+ * User tier roles (base, pro) are checked via the user_role column on the users table.
  */
-export function requireRole(roleOrRoles: string | string[]) {
+type RoleOrRoles = Roles | Roles[];
+
+export function requireRole(roleOrRoles: RoleOrRoles) {
   const allowedRoles = toRoleArray(roleOrRoles);
+  const teamRoles = allowedRoles.filter((r) => !USER_TIER_ROLES.has(r));
+  const tierRoles = allowedRoles.filter((r) => USER_TIER_ROLES.has(r));
 
   return async function requireRoleMiddleware(
     req: Request,
@@ -34,19 +44,42 @@ export function requireRole(roleOrRoles: string | string[]) {
         return res.status(401).json({ message: "Unauthorized - Please log in" });
       }
 
-      const allowedRows = await db
-        .select({ roleName: roles.name })
-        .from(userRoles)
-        .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(
-          and(
-            eq(userRoles.userId, req.session.userId),
-            inArray(roles.name, allowedRoles),
-          ),
-        )
-        .limit(1);
+      let matchedRole: string | null = null;
 
-      if (allowedRows.length === 0) {
+      // Check ARV team roles via the user_roles join table
+      if (teamRoles.length > 0) {
+        const rows = await db
+          .select({ roleName: roles.name })
+          .from(userRoles)
+          .innerJoin(roles, eq(userRoles.roleId, roles.id))
+          .where(
+            and(
+              eq(userRoles.userId, req.session.userId),
+              inArray(roles.name, teamRoles),
+            ),
+          )
+          .limit(1);
+
+        if (rows.length > 0) matchedRole = rows[0].roleName;
+      }
+
+      // Check user tier role via users.user_role column
+      if (!matchedRole && tierRoles.length > 0) {
+        const rows = await db
+          .select({ userRole: users.userRole })
+          .from(users)
+          .where(
+            and(
+              eq(users.id, req.session.userId),
+              inArray(users.userRole, tierRoles),
+            ),
+          )
+          .limit(1);
+
+        if (rows.length > 0) matchedRole = rows[0].userRole;
+      }
+
+      if (!matchedRole) {
         console.error(
           `[AUTH DENIED] User ${req.session.userId} has none of [${allowedRoles.join(", ")}] for ${req.path}`,
         );
@@ -56,7 +89,7 @@ export function requireRole(roleOrRoles: string | string[]) {
       }
 
       console.log(
-        `[AUTH GRANTED] User ${req.session.userId} (${allowedRows[0].roleName}) accessing ${req.path}`,
+        `[AUTH GRANTED] User ${req.session.userId} (${matchedRole}) accessing ${req.path}`,
       );
       next();
     } catch (error) {

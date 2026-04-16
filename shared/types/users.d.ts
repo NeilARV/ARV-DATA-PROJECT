@@ -1,0 +1,1 @@
+type Roles = 'owner' | 'admin' | 'relationship-manager' | 'member' | 'pro' | 'base'
