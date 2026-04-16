@@ -124,13 +124,17 @@ export default function RolesTab({ isAdmin, isOwner = false, currentUserId = nul
     assignRoleMutation.isPending || removeRoleMutation.isPending;
 
   const assignableRoles = (rolesList ?? []).filter(
-    (r) => r.name === "relationship-manager" || (isOwner && r.name === "admin")
+    (r) =>
+      r.name === "member" ||
+      r.name === "relationship-manager" ||
+      (isOwner && r.name === "admin")
   );
 
   const ROLE_LEVEL: Record<string, number> = {
     owner: 3,
     admin: 2,
     "relationship-manager": 1,
+    member: 0,
   };
   const getTargetLevel = (roleNames: string[]) => {
     if (!roleNames.length) return 0;
