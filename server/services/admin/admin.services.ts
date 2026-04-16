@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { userRoles, roles } from "@database/schemas/users.schema";
+import { userRoles, roles, users } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -13,18 +13,28 @@ export interface AdminStatusResult {
 }
 
 export async function getAdminStatus(userId: string): Promise<AdminStatusResult> {
-    const allowedRows = await db
+    // Fetch ARV team roles from the user_roles join table
+    const teamRoleRows = await db
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
         .where(
             and(
                 eq(userRoles.userId, userId),
-                inArray(roles.name, [...ADMIN_PANEL_ROLES, "pro"])
+                inArray(roles.name, [...ADMIN_PANEL_ROLES])
             )
         );
 
-    const rolesList = allowedRows.map((r) => r.roleName);
+    // Fetch user tier role from users.user_role (base, pro, etc.)
+    const [userRow] = await db
+        .select({ userRole: users.userRole })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+    const rolesList = teamRoleRows.map((r) => r.roleName);
+    if (userRow?.userRole) rolesList.push(userRow.userRole);
+
     const isAdmin = rolesList.some((r) => (ADMIN_PANEL_ROLES as readonly string[]).includes(r));
     return { authenticated: true, isAdmin, roles: rolesList };
 }
