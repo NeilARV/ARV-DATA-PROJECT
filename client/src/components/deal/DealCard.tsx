@@ -227,7 +227,7 @@ export default function DealCard({
 
                 {deal.notes && (
                     <button
-                        className="flex items-center justify-center gap-1 w-full text-xs text-muted-foreground hover:text-foreground transition-colors mt-auto pt-1"
+                        className="flex items-center justify-center gap-1 w-full text-sm text-muted-foreground hover:text-foreground transition-colors mt-auto pt-1"
                         onClick={() => setExpanded((v) => !v)}
                     >
                     {expanded ? (
