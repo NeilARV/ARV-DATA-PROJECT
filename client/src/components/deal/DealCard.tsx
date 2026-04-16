@@ -19,6 +19,7 @@ import {
     Trophy,
     ChevronDown,
     ChevronUp,
+    ExternalLink,
 } from "lucide-react";
 import { formatAddress } from "@shared/utils/formatAddress";
 
@@ -192,15 +193,37 @@ export default function DealCard({
                     <span className="text-sm font-medium text-foreground">{postedAt}</span>
                 </div>
 
-
-                {expanded && deal.notes && (
-                    <div>
-                        <p className="text-sm text-muted-foreground">Notes</p>
-                        <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
-                    </div>
+                {expanded && (
+                    <>
+                        {deal.notes && (
+                            <div>
+                                <p className="text-sm text-muted-foreground">Notes</p>
+                                <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
+                            </div>
+                        )}
+                        {deal.links && deal.links.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-sm text-muted-foreground">Links</span>
+                                <div className="flex flex-wrap gap-2">
+                                    {deal.links.map((link, i) => (
+                                        <a
+                                            key={i}
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md border border-border bg-muted hover:bg-accent transition-colors capitalize"
+                                        >
+                                            <ExternalLink className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                            {link.domain}
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
 
-                {deal.notes && (
+                {(deal.notes || (deal.links && deal.links.length > 0)) && (
                     <button
                         className="flex items-center justify-center gap-1 w-full text-sm text-muted-foreground hover:text-foreground transition-colors mt-auto pt-1"
                         onClick={() => setExpanded((v) => !v)}

@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { deals } from "@database/schemas/deals.schema";
+import { deals, dealLinks } from "@database/schemas/deals.schema";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
@@ -103,6 +103,28 @@ async function resolvePropertyDetails(
 // A street-name-only value like "Main St" returns false and is treated as a partial address.
 function isFullStreetAddress(address: string): boolean {
     return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
+}
+
+function isValidUrl(url: string): boolean {
+    try { new URL(url); return true; } catch { return false; }
+}
+
+function extractDomain(url: string): string {
+    try {
+        const hostname = new URL(url).hostname;             // e.g. "www.redfin.com" or "maps.google.com"
+        const parts = hostname.replace(/^www\./, "").split(".");
+        // Take the segment just before the TLD: ["redfin","com"] → "redfin", ["google","com"] → "google"
+        return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+    } catch {
+        return url;
+    }
+}
+
+function filterValidLinks(links: string[] | undefined): { url: string; domain: string }[] {
+    return (links ?? [])
+        .filter((u) => typeof u === "string" && isValidUrl(u.trim()))
+        .map((u) => ({ url: u.trim(), domain: extractDomain(u.trim()) }))
+        .slice(0, 3);
 }
 
 async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
@@ -236,11 +258,28 @@ export async function getDeals(filters: GetDealsFilters) {
         })
     );
 
+    // Batch-fetch links for all deals
+    const dealIds = results.map((d) => d.id);
+    const allLinks = dealIds.length > 0
+        ? await db
+            .select({ dealId: dealLinks.dealId, url: dealLinks.url, domain: dealLinks.domain })
+            .from(dealLinks)
+            .where(inArray(dealLinks.dealId, dealIds))
+            .orderBy(dealLinks.dealId, dealLinks.sortOrder)
+        : [];
+    const linksByDealId = new Map<number, { url: string; domain: string }[]>();
+    for (const row of allLinks) {
+        const arr = linksByDealId.get(row.dealId) ?? [];
+        arr.push({ url: row.url, domain: row.domain });
+        linksByDealId.set(row.dealId, arr);
+    }
+
     return Promise.all(
         results.map(async (deal) => {
             const topBuyers = topBuyersByZip.get(deal.zipCode ?? "") ?? [];
+            const links = linksByDealId.get(deal.id) ?? [];
             const url = buildDealStreetViewUrl(deal.address, deal.city, deal.state, deal.sfrPropertyId);
-            if (!url) return { ...deal, streetViewUrl: null, topBuyers };
+            if (!url) return { ...deal, streetViewUrl: null, topBuyers, links };
 
             try {
                 const result = await getStreetviewImage({
@@ -250,9 +289,9 @@ export async function getDeals(filters: GetDealsFilters) {
                     size:    "200x200",
                     sfrPropertyId: deal.sfrPropertyId ?? undefined,
                 });
-                return { ...deal, streetViewUrl: "imageData" in result ? url : null, topBuyers };
+                return { ...deal, streetViewUrl: "imageData" in result ? url : null, topBuyers, links };
             } catch {
-                return { ...deal, streetViewUrl: null, topBuyers };
+                return { ...deal, streetViewUrl: null, topBuyers, links };
             }
         })
     );
@@ -261,7 +300,7 @@ export async function getDeals(filters: GetDealsFilters) {
 // ── POST deal ──────────────────────────────────────────────────────────────────
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes, links } = input;
 
     const addressStr     = typeof address === "string" ? address.trim() : "";
     const hasAddress     = addressStr.length > 0;
@@ -338,7 +377,14 @@ export async function createDeal(input: CreateDealInput) {
 
     console.log(`${label} Deal posted: id=${deal.id}, city=${city}, state=${state}, msaId=${msaId}`);
 
-    return { deal, msaId };
+    const validLinks = filterValidLinks(links);
+    if (validLinks.length > 0) {
+        await db.insert(dealLinks).values(
+            validLinks.map((link, i) => ({ dealId: deal.id, sortOrder: i + 1, url: link.url, domain: link.domain }))
+        );
+    }
+
+    return { deal, msaId, links: validLinks };
 }
 
 // ── POST deal — background notification (fire and forget) ──────────────────────
@@ -504,7 +550,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes, links } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -562,8 +608,17 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .returning();
 
+    // Replace all links (delete + re-insert)
+    await db.delete(dealLinks).where(eq(dealLinks.dealId, id));
+    const validLinks = filterValidLinks(links);
+    if (validLinks.length > 0) {
+        await db.insert(dealLinks).values(
+            validLinks.map((link, i) => ({ dealId: id, sortOrder: i + 1, url: link.url, domain: link.domain }))
+        );
+    }
+
     console.log(`${label} Deal updated: id=${id}`);
-    return updated;
+    return { ...updated, links: validLinks };
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────

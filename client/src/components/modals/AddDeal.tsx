@@ -4,6 +4,7 @@ import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Trash2, Plus } from "lucide-react";
 import {
   Form,
   FormControl,
@@ -20,6 +21,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+
+function isValidUrl(url: string): boolean {
+  try { new URL(url); return true; } catch { return false; }
+}
 import { Checkbox } from "@/components/ui/checkbox";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,6 +62,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showContact, setShowContact] = useState(false);
+  const [links, setLinks] = useState<string[]>([]);
 
   const form = useForm<DealFormValues>({
     resolver: zodResolver(dealFormSchema),
@@ -99,6 +105,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         propertyType:      data.propertyType,
         notes:             data.notes?.trim() || undefined,
         sendNotifications: data.sendNotifications,
+        links:             links.filter(isValidUrl),
       });
       return res.json();
     },
@@ -130,6 +137,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
   const handleClose = () => {
     if (postDeal.isPending) return;
     form.reset();
+    setLinks([]);
     onClose();
   };
 
@@ -398,6 +406,45 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                   </FormItem>
                 )}
               />
+
+            {/* Links */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium leading-none">
+                  Links <span className="text-muted-foreground font-normal">(optional, max 3)</span>
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs px-2"
+                  onClick={() => setLinks((prev) => [...prev, ""])}
+                  disabled={links.length >= 3}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Link
+                </Button>
+              </div>
+              {links.map((link, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    value={link}
+                    onChange={(e) => setLinks((prev) => prev.map((l, idx) => idx === i ? e.target.value : l))}
+                    placeholder="https://example.com"
+                    className={link.length > 0 && !isValidUrl(link) ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => setLinks((prev) => prev.filter((_, idx) => idx !== i))}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
 
             </div>{/* end scrollable region */}
 

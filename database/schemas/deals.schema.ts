@@ -1,4 +1,4 @@
-import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, primaryKey } from "drizzle-orm/pg-core";
 import { users } from "./users.schema";
 import { msas } from "./msas.schema";
 
@@ -32,3 +32,16 @@ export const deals = pgTable("deals", {
   propertyType: varchar("property_type", { length: 100 }),
   notes:        text("notes"),
 });
+
+export const dealLinks = pgTable(
+  "deal_links",
+  {
+    dealId:    bigint("deal_id", { mode: "number" }).notNull().references(() => deals.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(1),
+    url:       text("url").notNull(),
+    domain:    text("domain").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.dealId, t.sortOrder] })]
+);
