@@ -18,7 +18,9 @@ function toRoleArray(roleOrRoles: string | string[]): string[] {
  * Returns a middleware that requires the user to have at least one of the given roles.
  * Pass a single role or an array of roles, e.g. requireRole("owner") or requireRole(["owner", "admin"]).
  */
-export function requireRole(roleOrRoles: string | string[]) {
+type RoleOrRoles = Roles | Roles[];
+
+export function requireRole(roleOrRoles: RoleOrRoles) {
   const allowedRoles = toRoleArray(roleOrRoles);
 
   return async function requireRoleMiddleware(
