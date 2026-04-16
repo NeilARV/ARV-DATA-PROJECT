@@ -232,6 +232,8 @@ export const streetviewCache = pgTable("streetview_cache", {
   contentType: text("content_type").default("image/jpeg"),
   // Metadata status from Google API (e.g., "OK", "ZERO_RESULTS", "NOT_FOUND")
   metadataStatus: text("metadata_status"),
+  // Source of the cached image: 'streetview' | 'satellite' | null (cached failures)
+  imageSource: text("image_source"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   expiresAt: timestamp("expires_at").notNull(),
 });
