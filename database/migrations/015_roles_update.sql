@@ -11,7 +11,7 @@ CREATE TABLE subscriptions (
   name VARCHAR(20) NOT NULL UNIQUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMP DEFAULT NOW()
-)
+);
 
 -- Step 1: Seed subscriptions
 INSERT INTO subscriptions (name) VALUES ('basic'), ('pro'), ('premium');
