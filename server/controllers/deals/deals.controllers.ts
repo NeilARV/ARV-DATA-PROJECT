@@ -54,6 +54,10 @@ export async function createDealController(req: Request, res: Response): Promise
             res.status(400).json({ message: "Invalid userId — must be a valid UUID" });
             return;
         }
+        if (userId !== req.session.userId) {
+            res.status(403).json({ message: "Forbidden - userId must match authenticated user" });
+            return;
+        }
         if (Number(price) <= 0) {
             res.status(400).json({ message: "Price must be greater than 0" });
             return;

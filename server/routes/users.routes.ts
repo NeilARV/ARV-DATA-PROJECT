@@ -5,10 +5,10 @@ import { UsersController } from "server/controllers/users";
 const router = Router();
 
 // GET / — list all users (with roles and relationship managers)
-router.get("/", requireRole(["admin", "owner", "relationship-manager"]), UsersController.listUsersHandler);
+router.get("/", requireRole(["admin", "owner", "relationship-manager", "member"]), UsersController.listUsersHandler);
 
 // GET /relationship-managers — list all users with the relationship-manager role
-router.get("/relationship-managers", requireRole(["admin", "owner", "relationship-manager"]), UsersController.listRelationshipManagersHandler);
+router.get("/relationship-managers", requireRole(["admin", "owner", "relationship-manager", "member"]), UsersController.listRelationshipManagersHandler);
 
 // GET /roles — list all roles
 router.get("/roles", requireRole(["admin", "owner"]), UsersController.listRolesHandler);
@@ -20,10 +20,10 @@ router.post("/:userId/relationship-managers", requireRole(["admin", "owner", "re
 router.delete("/:userId/relationship-managers/:relationshipManagerId", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeRelationshipManagerHandler);
 
 // POST /:userId/roles — assign an ARV team role to a user
-router.post("/:userId/roles", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignRoleHandler);
+router.post("/:userId/roles", requireRole(["admin", "owner"]), UsersController.assignRoleHandler);
 
 // DELETE /:userId/roles/:role — remove an ARV team role from a user
-router.delete("/:userId/roles/:role", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeRoleHandler);
+router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), UsersController.removeRoleHandler);
 
 // POST /:userId/subscription-tier — assign a tier role (fails 409 if user already has one)
 router.post("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignUserTierRoleHandler);
