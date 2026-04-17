@@ -1,16 +1,16 @@
-import { userRoles, roles, users } from "@database/schemas/users.schema";
+import { userRoles, roles, users, subscriptions } from "@database/schemas/users.schema";
 import { Request, Response, NextFunction } from "express";
 import { db } from "server/storage";
 import { eq, and, inArray } from "drizzle-orm";
 
 const TEAM_ROLES = ["owner", "admin", "relationship-manager", "member"] as const satisfies readonly Roles[];
-const TIER_ROLES = ["base", "pro"] as const satisfies readonly Roles[];
+const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const satisfies readonly Roles[];
 
 // Compile-time guard: if a new value is added to the Roles type without being placed in one of the
 // two arrays above, this line will produce a TypeScript error.
-void (true as [Exclude<Roles, typeof TEAM_ROLES[number] | typeof TIER_ROLES[number]>] extends [never] ? true : never);
+void (true as [Exclude<Roles, typeof TEAM_ROLES[number] | typeof SUBSCRIPTION_TIERS[number]>] extends [never] ? true : never);
 
-const USER_TIER_ROLES = new Set<Roles>(TIER_ROLES);
+const SUBSCRIPTION_TIER_SET = new Set<Roles>(SUBSCRIPTION_TIERS);
 
 /**
  * Normalizes role(s) to a non-empty array of role names.
@@ -28,14 +28,14 @@ function toRoleArray(roleOrRoles: Roles | Roles[]): Roles[] {
  * Pass a single role or an array of roles, e.g. requireRole("owner") or requireRole(["owner", "admin"]).
  *
  * ARV team roles (owner, admin, relationship-manager, member) are checked via the user_roles join table.
- * User tier roles (base, pro) are checked via the user_role column on the users table.
+ * Subscription tiers (basic, pro, premium) are checked by joining users -> subscriptions.
  */
 type RoleOrRoles = Roles | Roles[];
 
 export function requireRole(roleOrRoles: RoleOrRoles) {
   const allowedRoles = toRoleArray(roleOrRoles);
-  const teamRoles = allowedRoles.filter((r) => !USER_TIER_ROLES.has(r));
-  const tierRoles = allowedRoles.filter((r) => USER_TIER_ROLES.has(r));
+  const teamRoles = allowedRoles.filter((r) => !SUBSCRIPTION_TIER_SET.has(r));
+  const tierRoles = allowedRoles.filter((r) => SUBSCRIPTION_TIER_SET.has(r));
 
   return async function requireRoleMiddleware(
     req: Request,
@@ -69,20 +69,21 @@ export function requireRole(roleOrRoles: RoleOrRoles) {
         if (rows.length > 0) matchedRole = rows[0].roleName;
       }
 
-      // Check user tier role via users.user_role column
+      // Check subscription tier by joining users -> subscriptions
       if (!matchedRole && tierRoles.length > 0) {
         const rows = await db
-          .select({ userRole: users.userRole })
+          .select({ subscriptionName: subscriptions.name })
           .from(users)
+          .innerJoin(subscriptions, eq(users.subscriptionId, subscriptions.id))
           .where(
             and(
               eq(users.id, req.session.userId),
-              inArray(users.userRole, tierRoles),
+              inArray(subscriptions.name, tierRoles),
             ),
           )
           .limit(1);
 
-        if (rows.length > 0) matchedRole = rows[0].userRole;
+        if (rows.length > 0) matchedRole = rows[0].subscriptionName;
       }
 
       if (!matchedRole) {

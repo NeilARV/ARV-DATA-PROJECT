@@ -16,8 +16,8 @@ const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
 };
 const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager", "member"] as const;
 
-/** Valid values for the users.user_role column (user tier roles). */
-const VALID_USER_TIER_ROLES = ["base", "pro"] as const;
+/** Valid values for the users.subscription_tier column. */
+const VALID_SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
 
 /** Hierarchy: higher number = more privilege. Used to block altering users with equal or higher privilege. */
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -82,12 +82,10 @@ export async function listUsersHandler(req: Request, res: Response) {
             relationshipManagersByUserId.set(row.userId, list);
         }
 
-        const usersWithRoles = allUsers.map(({ userRole, ...u }) => ({
+        const usersWithRoles = allUsers.map(({ subscriptionTier, ...u }) => ({
             ...u,
-            roles: [
-                ...(rolesByUserId.get(u.id) ?? []),
-                ...(userRole ? [userRole] : []),
-            ],
+            roles: rolesByUserId.get(u.id) ?? [],
+            subscriptionTier: subscriptionTier ?? null,
             relationshipManagers: relationshipManagersByUserId.get(u.id) ?? [],
         }));
 
@@ -369,8 +367,8 @@ export async function assignUserTierRoleHandler(req: Request, res: Response) {
         const { userId } = req.params;
         const role = typeof req.body?.role === "string" ? req.body.role.trim().toLowerCase() : null;
 
-        if (!role || !VALID_USER_TIER_ROLES.includes(role as (typeof VALID_USER_TIER_ROLES)[number])) {
-            return res.status(400).json({ message: "Invalid or missing role", allowed: VALID_USER_TIER_ROLES });
+        if (!role || !VALID_SUBSCRIPTION_TIERS.includes(role as (typeof VALID_SUBSCRIPTION_TIERS)[number])) {
+            return res.status(400).json({ message: "Invalid or missing subscription tier", allowed: VALID_SUBSCRIPTION_TIERS });
         }
 
         const callerTeamRoles = await UsersServices.getCallerTeamRoleRows(req.session.userId!);
@@ -383,7 +381,7 @@ export async function assignUserTierRoleHandler(req: Request, res: Response) {
 
         const targetUser = await UsersServices.findUserWithTierRole(userId);
         if (!targetUser) return res.status(404).json({ message: "User not found" });
-        if (targetUser.userRole !== null) return res.status(409).json({ message: "User already has a tier role — use PATCH to change it" });
+        if (targetUser.subscriptionTier !== null) return res.status(409).json({ message: "User already has a subscription tier — use PATCH to change it" });
 
         await UsersServices.updateUserTierRole(userId, role);
         return res.status(201).json({ message: "User role assigned", userId, role });
@@ -399,8 +397,8 @@ export async function updateUserTierRoleHandler(req: Request, res: Response) {
         const { userId } = req.params;
         const role = typeof req.body?.role === "string" ? req.body.role.trim().toLowerCase() : null;
 
-        if (!role || !VALID_USER_TIER_ROLES.includes(role as (typeof VALID_USER_TIER_ROLES)[number])) {
-            return res.status(400).json({ message: "Invalid or missing role", allowed: VALID_USER_TIER_ROLES });
+        if (!role || !VALID_SUBSCRIPTION_TIERS.includes(role as (typeof VALID_SUBSCRIPTION_TIERS)[number])) {
+            return res.status(400).json({ message: "Invalid or missing subscription tier", allowed: VALID_SUBSCRIPTION_TIERS });
         }
 
         const callerTeamRoles = await UsersServices.getCallerTeamRoleRows(req.session.userId!);
@@ -437,7 +435,7 @@ export async function removeUserTierRoleHandler(req: Request, res: Response) {
 
         const targetUser = await UsersServices.findUserWithTierRole(userId);
         if (!targetUser) return res.status(404).json({ message: "User not found" });
-        if (targetUser.userRole === null) return res.status(404).json({ message: "User does not have a tier role" });
+        if (targetUser.subscriptionTier === null) return res.status(404).json({ message: "User does not have a subscription tier" });
 
         await UsersServices.updateUserTierRole(userId, null);
         return res.status(200).json({ message: "User role removed", userId });

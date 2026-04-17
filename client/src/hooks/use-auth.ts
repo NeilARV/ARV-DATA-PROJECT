@@ -37,7 +37,7 @@ export function useAuth() {
   const {
     data: adminStatus,
     isLoading: isAdminStatusLoading,
-  } = useQuery<{ authenticated: boolean; isAdmin: boolean; roles: string[] }>({
+  } = useQuery<{ authenticated: boolean; isAdmin: boolean; roles: string[]; subscriptionTier: string | null }>({
     queryKey: ADMIN_STATUS_QUERY_KEY,
     staleTime: 5 * 60 * 1000,
     enabled: isAuthenticated,
@@ -54,6 +54,7 @@ export function useAuth() {
   });
 
   const roles = adminStatus?.roles ?? [];
+  const subscriptionTier = adminStatus?.subscriptionTier ?? null;
   const isOwner = roles.includes("owner");
   /** True when user has owner or admin only (delete property, edit company, etc.). Not relationship-manager. */
   const isAdminOrOwner =
@@ -75,9 +76,11 @@ export function useAuth() {
     isOwner,
     /** True when current user has the relationship-manager role. */
     isRelationshipManager,
-    /** True when current user has the pro role (can post and delete own deals). */
-    isPro: isAuthenticated && !isAdminStatusLoading && roles.includes("pro"),
-    /** All roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "pro"). */
+    /** The current user's subscription tier ('basic' | 'pro' | 'premium' | null). */
+    subscriptionTier,
+    /** True when the user has a pro or premium subscription (can post and delete own deals). */
+    isPro: isAuthenticated && !isAdminStatusLoading && (subscriptionTier === "pro" || subscriptionTier === "premium"),
+    /** All ARV team roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "member"). */
     roles,
     isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,

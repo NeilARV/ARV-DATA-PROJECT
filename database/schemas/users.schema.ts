@@ -26,7 +26,15 @@ export const emailWhitelist = pgTable("email_whitelist", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Users (ARV team roles via user_roles + roles; user tier role stored directly as user_role)
+// Subscriptions lookup table (basic, pro, premium)
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 20 }).notNull().unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Users (ARV team roles via user_roles + roles; subscription tier via subscription_id FK)
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   firstName: text("first_name").notNull(),
@@ -37,10 +45,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   notifications: boolean("notifications").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
-  userRole: varchar("user_role", { length: 50 }),
+  subscriptionId: integer("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
 });
 
-// Roles (owner, admin, relationship-manager)
+// Roles (owner, admin, relationship-manager, member)
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
@@ -72,6 +80,6 @@ export const userRelationshipManagers = pgTable("user_relationship_managers", {
       .references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
-  }, 
+  },
   (t) => [primaryKey({ columns: [t.userId, t.relationshipManagerId] })]
 );

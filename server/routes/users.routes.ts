@@ -25,14 +25,14 @@ router.post("/:userId/roles", requireRole(["admin", "owner", "relationship-manag
 // DELETE /:userId/roles/:role — remove an ARV team role from a user
 router.delete("/:userId/roles/:role", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeRoleHandler);
 
-// POST /:userId/user-role — assign a tier role (fails 409 if user already has one)
-router.post("/:userId/user-role", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignUserTierRoleHandler);
+// POST /:userId/subscription-tier — assign a tier role (fails 409 if user already has one)
+router.post("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignUserTierRoleHandler);
 
-// PATCH /:userId/user-role — update/change tier role
-router.patch("/:userId/user-role", requireRole(["admin", "owner", "relationship-manager"]), UsersController.updateUserTierRoleHandler);
+// PATCH /:userId/subscription-tier — update/change tier role
+router.patch("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.updateUserTierRoleHandler);
 
-// DELETE /:userId/user-role — remove tier role
-router.delete("/:userId/user-role", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeUserTierRoleHandler);
+// DELETE /:userId/subscription-tier — remove tier role
+router.delete("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeUserTierRoleHandler);
 
 // DELETE /:userId — delete a user account
 router.delete("/:userId", requireRole(["admin", "owner"]), UsersController.deleteUserHandler);

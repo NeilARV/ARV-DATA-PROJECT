@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { userRoles, roles, users } from "@database/schemas/users.schema";
+import { userRoles, roles, users, subscriptions } from "@database/schemas/users.schema";
 import { emailWhitelist, msas } from "@database/schemas";
 import { eq, and, inArray } from "drizzle-orm";
 
@@ -10,6 +10,7 @@ export interface AdminStatusResult {
     authenticated: boolean;
     isAdmin: boolean;
     roles: string[];
+    subscriptionTier: string | null;
 }
 
 export async function getAdminStatus(userId: string): Promise<AdminStatusResult> {
@@ -25,18 +26,19 @@ export async function getAdminStatus(userId: string): Promise<AdminStatusResult>
             )
         );
 
-    // Fetch user tier role from users.user_role (base, pro, etc.)
+    // Fetch subscription tier by joining users -> subscriptions
     const [userRow] = await db
-        .select({ userRole: users.userRole })
+        .select({ subscriptionTier: subscriptions.name })
         .from(users)
+        .leftJoin(subscriptions, eq(users.subscriptionId, subscriptions.id))
         .where(eq(users.id, userId))
         .limit(1);
 
+    const subscriptionTier = userRow?.subscriptionTier ?? null;
     const rolesList = teamRoleRows.map((r) => r.roleName);
-    if (userRow?.userRole) rolesList.push(userRow.userRole);
 
     const isAdmin = rolesList.some((r) => (ADMIN_PANEL_ROLES as readonly string[]).includes(r));
-    return { authenticated: true, isAdmin, roles: rolesList };
+    return { authenticated: true, isAdmin, roles: rolesList, subscriptionTier };
 }
 
 export interface WhitelistRow {

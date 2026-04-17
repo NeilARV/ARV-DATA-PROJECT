@@ -1,4 +1,4 @@
-import { users, roles, userRoles, userRelationshipManagers } from "@database/schemas/users.schema";
+import { users, roles, userRoles, userRelationshipManagers, subscriptions } from "@database/schemas/users.schema";
 import { db } from "server/storage";
 import { desc, asc, eq, and, inArray, ilike, sql } from "drizzle-orm";
 
@@ -18,9 +18,10 @@ export async function getUserList(options: { domain?: string; excludeDomain?: st
             phone: users.phone,
             email: users.email,
             createdAt: users.createdAt,
-            userRole: users.userRole,
+            subscriptionTier: subscriptions.name,
         })
         .from(users)
+        .leftJoin(subscriptions, eq(users.subscriptionId, subscriptions.id))
         .where(whereClause)
         .orderBy(desc(users.createdAt));
 }
@@ -115,12 +116,13 @@ export async function findUserProfile(userId: string) {
 }
 
 export async function findUserWithTierRole(userId: string) {
-    const [user] = await db
-        .select({ id: users.id, userRole: users.userRole })
+    const [row] = await db
+        .select({ id: users.id, subscriptionTier: subscriptions.name })
         .from(users)
+        .leftJoin(subscriptions, eq(users.subscriptionId, subscriptions.id))
         .where(eq(users.id, userId))
         .limit(1);
-    return user ?? null;
+    return row ?? null;
 }
 
 export async function getCallerTeamRoleRows(callerId: string) {
@@ -189,8 +191,18 @@ export async function checkExistingRMAssignment(userId: string) {
     return rows.length > 0;
 }
 
-export async function updateUserTierRole(userId: string, role: string | null) {
-    await db.update(users).set({ userRole: role }).where(eq(users.id, userId));
+export async function updateUserTierRole(userId: string, tierName: string | null) {
+    if (tierName === null) {
+        await db.update(users).set({ subscriptionId: null }).where(eq(users.id, userId));
+        return;
+    }
+    const [sub] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.name, tierName))
+        .limit(1);
+    if (!sub) throw new Error(`Unknown subscription tier: '${tierName}'`);
+    await db.update(users).set({ subscriptionId: sub.id }).where(eq(users.id, userId));
 }
 
 export async function deleteUserAccount(userId: string) {
