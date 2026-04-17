@@ -3,13 +3,19 @@ import { Request, Response, NextFunction } from "express";
 import { db } from "server/storage";
 import { eq, and, inArray } from "drizzle-orm";
 
-// These roles live on users.user_role — not in the user_roles join table
-const USER_TIER_ROLES = new Set<string>(["base", "pro"]);
+const TEAM_ROLES = ["owner", "admin", "relationship-manager", "member"] as const satisfies readonly Roles[];
+const TIER_ROLES = ["base", "pro"] as const satisfies readonly Roles[];
+
+// Compile-time guard: if a new value is added to the Roles type without being placed in one of the
+// two arrays above, this line will produce a TypeScript error.
+void (true as [Exclude<Roles, typeof TEAM_ROLES[number] | typeof TIER_ROLES[number]>] extends [never] ? true : never);
+
+const USER_TIER_ROLES = new Set<Roles>(TIER_ROLES);
 
 /**
  * Normalizes role(s) to a non-empty array of role names.
  */
-function toRoleArray(roleOrRoles: string | string[]): string[] {
+function toRoleArray(roleOrRoles: Roles | Roles[]): Roles[] {
   const arr = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
   if (arr.length === 0) {
     throw new Error("requireRole: at least one role must be provided");

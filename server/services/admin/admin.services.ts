@@ -4,7 +4,7 @@ import { emailWhitelist, msas } from "@database/schemas";
 import { eq, and, inArray } from "drizzle-orm";
 
 /** Roles that grant access to the admin panel. */
-export const ADMIN_PANEL_ROLES = ["admin", "owner", "relationship-manager"] as const;
+export const ADMIN_PANEL_ROLES = ["admin", "owner", "relationship-manager", "member"] as const;
 
 export interface AdminStatusResult {
     authenticated: boolean;
