@@ -50,7 +50,9 @@ function parseRoleApiError(error: unknown): string {
   return message;
 }
 
-export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProRole = false }: UsersTabProps) {
+const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
+
+export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubscriptionTier = false }: UsersTabProps) {
   const { toast } = useToast();
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
@@ -158,14 +160,14 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
     },
   });
 
-  const assignRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
-      const res = await apiRequest("POST", `/api/users/${userId}/roles`, { roleName });
+  const assignTierMutation = useMutation({
+    mutationFn: async ({ userId, tier }: { userId: string; tier: string }) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/subscription-tier`, { role: tier });
       return res.json();
     },
-    onSuccess: (_, { roleName }) => {
+    onSuccess: (_, { tier }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
-      toast({ title: "Role assigned", description: `Role "${roleName}" has been assigned.` });
+      toast({ title: "Subscription tier assigned", description: `Tier "${tier}" has been assigned.` });
       setRoleConfirm(null);
     },
     onError: (error: unknown) => {
@@ -177,15 +179,14 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
     },
   });
 
-  const removeRoleMutation = useMutation({
-    mutationFn: async ({ userId, roleName }: { userId: string; roleName: string }) => {
-      const encodedRole = encodeURIComponent(roleName);
-      const res = await apiRequest("DELETE", `/api/users/${userId}/roles/${encodedRole}`);
+  const removeTierMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string; roleName: string }) => {
+      const res = await apiRequest("DELETE", `/api/users/${userId}/subscription-tier`);
       return res.json();
     },
-    onSuccess: (_, { roleName }) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
-      toast({ title: "Role removed", description: `Role "${roleName}" has been removed.` });
+      toast({ title: "Subscription tier removed" });
       setRoleConfirm(null);
     },
     onError: (error: unknown) => {
@@ -200,13 +201,13 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
   const handleRoleConfirm = () => {
     if (!roleConfirm) return;
     if (roleConfirm.action === "assign") {
-      assignRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
+      assignTierMutation.mutate({ userId: roleConfirm.userId, tier: roleConfirm.roleName });
     } else {
-      removeRoleMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
+      removeTierMutation.mutate({ userId: roleConfirm.userId, roleName: roleConfirm.roleName });
     }
   };
 
-  const isRoleMutationPending = assignRoleMutation.isPending || removeRoleMutation.isPending;
+  const isRoleMutationPending = assignTierMutation.isPending || removeTierMutation.isPending;
 
   const handleManagerConfirm = () => {
     if (!managerConfirm) return;
@@ -358,26 +359,26 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {user.roles?.includes("pro") ? (
+                            {user.subscriptionTier ? (
                               <Badge
                                 variant="secondary"
-                                className={canManageProRole ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
+                                className={canManageSubscriptionTier ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
                               >
-                                pro
-                                {canManageProRole && (
+                                {user.subscriptionTier}
+                                {canManageSubscriptionTier && (
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="icon"
                                     className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
-                                    aria-label="Remove pro role"
+                                    aria-label={`Remove ${user.subscriptionTier} tier`}
                                     disabled={isRoleMutationPending}
                                     onClick={() =>
                                       setRoleConfirm({
                                         open: true,
                                         userId: user.id,
                                         userName: `${user.firstName} ${user.lastName}`,
-                                        roleName: "pro",
+                                        roleName: user.subscriptionTier!,
                                         action: "remove",
                                       })
                                     }
@@ -386,7 +387,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
                                   </Button>
                                 )}
                               </Badge>
-                            ) : canManageProRole ? (
+                            ) : canManageSubscriptionTier ? (
                               <Select
                                 value=""
                                 onValueChange={(value) => {
@@ -395,7 +396,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
                                     open: true,
                                     userId: user.id,
                                     userName: `${user.firstName} ${user.lastName}`,
-                                    roleName: "pro",
+                                    roleName: value,
                                     action: "assign",
                                   });
                                 }}
@@ -403,14 +404,16 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
                               >
                                 <SelectTrigger
                                   className="h-7 w-[120px] border-dashed"
-                                  data-testid={`select-add-role-${user.id}`}
+                                  data-testid={`select-add-tier-${user.id}`}
                                 >
-                                  <SelectValue placeholder="Add role" />
+                                  <SelectValue placeholder="Add tier" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="pro" hideIndicator data-testid="option-role-pro">
-                                    pro
-                                  </SelectItem>
+                                  {SUBSCRIPTION_TIERS.map((tier) => (
+                                    <SelectItem key={tier} value={tier} hideIndicator data-testid={`option-tier-${tier}`}>
+                                      {tier}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             ) : (
@@ -475,12 +478,12 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageProR
           <ConfirmationContent
             onClose={() => setRoleConfirm(null)}
             onConfirm={handleRoleConfirm}
-            title={roleConfirm?.action === "assign" ? "Assign role" : "Remove role"}
+            title={roleConfirm?.action === "assign" ? "Assign subscription tier" : "Remove subscription tier"}
             description={
               roleConfirm
                 ? roleConfirm.action === "assign"
-                  ? `Assign the role "${roleConfirm.roleName}" to ${roleConfirm.userName}?`
-                  : `Remove the role "${roleConfirm.roleName}" from ${roleConfirm.userName}?`
+                  ? `Assign the "${roleConfirm.roleName}" tier to ${roleConfirm.userName}?`
+                  : `Remove the "${roleConfirm.roleName}" tier from ${roleConfirm.userName}?`
                 : ""
             }
             confirmText={roleConfirm?.action === "assign" ? "Assign" : "Remove"}
