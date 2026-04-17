@@ -34,12 +34,13 @@ export async function getStreetview(req: Request, res: Response, next: NextFunct
         }
 
         // Result contains image data
-        const imageResult = result as { imageData: Buffer; contentType: string; cached: boolean };
-        
+        const imageResult = result as { imageData: Buffer; contentType: string; cached: boolean; imageSource: string };
+
         // Set appropriate headers
         res.setHeader("Content-Type", imageResult.contentType);
         res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
-        
+        res.setHeader("X-Image-Source", imageResult.imageSource); // 'streetview' | 'satellite'
+
         res.send(imageResult.imageData);
     } catch (error) {
         console.error("Error fetching Street View image:", error);

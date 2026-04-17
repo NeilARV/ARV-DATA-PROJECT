@@ -6,6 +6,7 @@ export interface StreetviewImageResult {
     imageData: Buffer;
     contentType: string;
     cached: boolean;
+    imageSource: "streetview" | "satellite";
 }
 
 export interface StreetviewErrorResult {
@@ -25,9 +26,16 @@ export interface StreetviewParams {
     sfrPropertyId?: number;
 }
 
+// Cache expiry durations in days
+const EXPIRY_DAYS = {
+    streetview: 29,  // Google TOS requires < 30 days
+    satellite: 15,   // Shorter so we retry Street View sooner
+    noImage: 7,      // Re-check periodically for new Street View coverage
+} as const;
+
 /**
- * Gets a Street View image for the given address
- * Checks cache first, then Google API if needed
+ * Gets a Street View image for the given address, falling back to satellite if unavailable.
+ * Order: cache → Street View API → Satellite API → no image
  * @param params - Streetview parameters (address, city, state, size, propertyId)
  * @returns StreetviewResult with image data or error information
  */
@@ -45,15 +53,12 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
     const normalizedState = state.trim();
     const normalizedSize = size.trim();
 
-    // Check cache first - look for non-expired entry matching address+city+state+size
+    // Step 1: Check cache — returns any cached result (streetview, satellite, or failure)
     const cachedResult = await checkCache(normalizedAddress, normalizedCity, normalizedState, normalizedSize, sfrPropertyId);
-    
+
     if (cachedResult) {
         return cachedResult;
     }
-
-    // Cache miss - check metadata API first to avoid charges for unavailable images
-    console.log(`[STREETVIEW CACHE MISS] Checking metadata for: ${normalizedAddress}, ${normalizedCity}, ${normalizedState}`);
 
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -67,65 +72,66 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
     if (normalizedState) locationParts.push(normalizedState);
     const location = locationParts.join(", ");
 
-    // Check metadata API first to see if image is available (avoids charges for unavailable images)
+    // Step 2: Check Street View metadata API (free — avoids charges for unavailable images)
+    console.log(`[STREETVIEW CACHE MISS] Checking metadata for: ${normalizedAddress}, ${normalizedCity}, ${normalizedState}`);
     const metadata = await checkMetadata(location, apiKey);
-    
-    if (metadata.status !== "OK") {
-        // Cache the negative result
-        await cacheNegativeResult(
-            normalizedAddress,
-            normalizedCity,
-            normalizedState,
-            normalizedSize,
-            sfrPropertyId,
-            metadata.status
+
+    if (metadata.status === "OK") {
+        console.log(`[STREETVIEW] Fetching image from Google API for: ${location}`);
+        const imageResult = await fetchStreetviewImage(location, normalizedSize, apiKey);
+
+        if (imageResult) {
+            await cacheImage(
+                normalizedAddress, normalizedCity, normalizedState, normalizedSize,
+                sfrPropertyId, imageResult.buffer, imageResult.contentType, "streetview"
+            );
+            return {
+                imageData: imageResult.buffer,
+                contentType: imageResult.contentType,
+                cached: false,
+                imageSource: "streetview",
+            };
+        }
+    }
+
+    // Step 3: Street View not available — try satellite fallback
+    console.log(`[STREETVIEW] Street View unavailable (status: ${metadata.status}), trying satellite for: ${location}`);
+    const satelliteResult = await fetchSatelliteImage(location, normalizedSize, apiKey);
+
+    if (satelliteResult) {
+        await cacheImage(
+            normalizedAddress, normalizedCity, normalizedState, normalizedSize,
+            sfrPropertyId, satelliteResult.buffer, satelliteResult.contentType, "satellite"
         );
-
         return {
-            message: "Street View image not available",
-            status: metadata.status,
-            reason: metadata.status === "ZERO_RESULTS"
-                ? "No panorama found near this location"
-                : metadata.status === "NOT_FOUND"
-                ? "Address not found"
-                : "Street View not available for this location",
-            cached: false
+            imageData: satelliteResult.buffer,
+            contentType: satelliteResult.contentType,
+            cached: false,
+            imageSource: "satellite",
         };
     }
 
-    // Metadata check passed (status === "OK") - now fetch the actual image
-    console.log(`[STREETVIEW] Fetching image from Google API for: ${location}`);
-    const imageResult = await fetchStreetviewImage(location, normalizedSize, apiKey);
-
-    if (!imageResult) {
-        return {
-            message: "Street View image not available",
-            status: "ERROR",
-            cached: false
-        };
-    }
-
-    // Store in cache
-    await cacheImage(
-        normalizedAddress,
-        normalizedCity,
-        normalizedState,
-        normalizedSize,
-        sfrPropertyId,
-        imageResult.buffer,
-        imageResult.contentType
+    // Step 4: Neither source returned an image — cache the failure
+    await cacheNegativeResult(
+        normalizedAddress, normalizedCity, normalizedState, normalizedSize,
+        sfrPropertyId, metadata.status
     );
 
     return {
-        imageData: imageResult.buffer,
-        contentType: imageResult.contentType,
-        cached: false
+        message: "Street View image not available",
+        status: metadata.status,
+        reason: metadata.status === "ZERO_RESULTS"
+            ? "No panorama found near this location"
+            : metadata.status === "NOT_FOUND"
+            ? "Address not found"
+            : "Street View not available for this location",
+        cached: false,
     };
 }
 
 /**
- * Checks the cache for a streetview image
- * @returns StreetviewResult if cached, null if cache miss
+ * Checks the cache for a streetview or satellite image.
+ * Returns the cached result (any source) or null on cache miss.
  */
 async function checkCache(
     address: string,
@@ -157,39 +163,41 @@ async function checkCache(
     }
 
     const cached = cachedEntry[0];
-    
-    // Check if this is a cached negative result (no image available)
+
+    // Cached failure (no image data)
     if (!cached.imageData || cached.metadataStatus !== "OK") {
         console.log(`[STREETVIEW CACHE HIT] Cached negative result (status: ${cached.metadataStatus || 'no image'}) for: ${address}, ${city}, ${state}`);
         return {
             message: "Street View image not available",
             status: cached.metadataStatus || "NOT_AVAILABLE",
-            cached: true
+            cached: true,
         };
     }
-    
-    console.log(`[STREETVIEW CACHE HIT] Using cached image for: ${address}, ${city}, ${state}`);
-    
-    // imageData is Buffer | null, but we've already checked it's not null above
+
+    const source = (cached.imageSource === "satellite" ? "satellite" : "streetview") as "streetview" | "satellite";
+    console.log(`[STREETVIEW CACHE HIT] Using cached ${source} image for: ${address}, ${city}, ${state}`);
+
     return {
         imageData: cached.imageData!,
         contentType: cached.contentType || "image/jpeg",
-        cached: true
+        cached: true,
+        imageSource: source,
     };
 }
 
 /**
- * Checks Google Street View metadata API to see if image is available
+ * Checks Google Street View metadata API to see if image is available.
+ * Free endpoint — no charge even when status is not OK.
  */
 async function checkMetadata(location: string, apiKey: string): Promise<{ status: string }> {
     const metadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${encodeURIComponent(location)}&key=${apiKey}`;
-    
+
     try {
         const metadataResponse = await fetch(metadataUrl);
         const metadata = await metadataResponse.json();
-        
+
         console.log(`[STREETVIEW METADATA] Status: ${metadata.status} for location: ${location}`);
-        
+
         return metadata;
     } catch (error) {
         console.error("[STREETVIEW METADATA] Error checking metadata:", error);
@@ -198,7 +206,7 @@ async function checkMetadata(location: string, apiKey: string): Promise<{ status
 }
 
 /**
- * Fetches the actual Street View image from Google API
+ * Fetches the actual Street View image from Google API.
  */
 async function fetchStreetviewImage(
     location: string,
@@ -233,7 +241,78 @@ async function fetchStreetviewImage(
 }
 
 /**
- * Caches a negative result (no image available)
+ * Fetches a satellite image from Google Maps Static API.
+ * Uses zoom=19 for close overhead view of the property.
+ * Note: always returns an image (even for unknown addresses), no metadata pre-check needed.
+ */
+async function fetchSatelliteImage(
+    location: string,
+    size: string,
+    apiKey: string
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+    const satelliteUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(location)}&zoom=19&size=${size}&maptype=satellite&key=${apiKey}`;
+
+    try {
+        const imageResponse = await fetch(satelliteUrl);
+
+        if (!imageResponse.ok) {
+            console.error("[SATELLITE] Failed to fetch satellite image:", {
+                status: imageResponse.status,
+                statusText: imageResponse.statusText,
+                location,
+            });
+            return null;
+        }
+
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const buffer = Buffer.from(imageBuffer);
+        const contentType = imageResponse.headers.get("content-type") || "image/png";
+
+        return { buffer, contentType };
+    } catch (error) {
+        console.error("[SATELLITE] Error fetching satellite image:", error);
+        return null;
+    }
+}
+
+/**
+ * Caches a successful image result (streetview or satellite).
+ */
+async function cacheImage(
+    address: string,
+    city: string,
+    state: string,
+    size: string,
+    sfrPropertyId: number | undefined,
+    imageData: Buffer,
+    contentType: string,
+    imageSource: "streetview" | "satellite"
+): Promise<void> {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + EXPIRY_DAYS[imageSource]);
+
+    try {
+        await db.insert(streetviewCache).values({
+            sfrPropertyId: sfrPropertyId ?? null,
+            address,
+            city,
+            state,
+            size,
+            imageData,
+            contentType,
+            metadataStatus: "OK",
+            imageSource,
+            expiresAt,
+        });
+        console.log(`[STREETVIEW CACHE] Stored ${imageSource} image, expires: ${expiresAt.toISOString()}`);
+    } catch (cacheError) {
+        // Log error but don't fail the request — image will still be served
+        console.error("[STREETVIEW CACHE] Error storing in cache:", cacheError);
+    }
+}
+
+/**
+ * Caches a negative result (no image available from any source).
  */
 async function cacheNegativeResult(
     address: string,
@@ -244,7 +323,7 @@ async function cacheNegativeResult(
     status: string
 ): Promise<void> {
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now so we keep checking if google added image
+    expiresAt.setDate(expiresAt.getDate() + EXPIRY_DAYS.noImage);
 
     try {
         await db.insert(streetviewCache).values({
@@ -256,46 +335,12 @@ async function cacheNegativeResult(
             imageData: null,
             contentType: null,
             metadataStatus: status,
-            expiresAt: expiresAt,
+            imageSource: null,
+            expiresAt,
         });
         console.log(`[STREETVIEW CACHE] Cached negative result (status: ${status}), expires: ${expiresAt.toISOString()}`);
     } catch (cacheError) {
         console.error("[STREETVIEW CACHE] Error storing negative result in cache:", cacheError);
-        // Don't throw - caching errors shouldn't fail the request
+        // Don't throw — caching errors shouldn't fail the request
     }
 }
-
-/**
- * Caches a successful image result
- */
-async function cacheImage(
-    address: string,
-    city: string,
-    state: string,
-    size: string,
-    sfrPropertyId: number | undefined,
-    imageData: Buffer,
-    contentType: string
-): Promise<void> {
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 29); // 29 days from now (1 less than google requirements to ensure compliance)
-
-    try {
-        await db.insert(streetviewCache).values({
-            sfrPropertyId: sfrPropertyId ?? null,
-            address,
-            city,
-            state,
-            size,
-            imageData: imageData,
-            contentType: contentType,
-            metadataStatus: "OK",
-            expiresAt: expiresAt,
-        });
-        console.log(`[STREETVIEW CACHE] Stored new image in cache, expires: ${expiresAt.toISOString()}`);
-    } catch (cacheError) {
-        // Log error but don't fail the request - image will still be served
-        console.error("[STREETVIEW CACHE] Error storing in cache:", cacheError);
-    }
-}
-
