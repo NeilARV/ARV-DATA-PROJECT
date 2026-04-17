@@ -78,8 +78,6 @@ export function useAuth() {
     isRelationshipManager,
     /** The current user's subscription tier ('basic' | 'pro' | 'premium' | null). */
     subscriptionTier,
-    /** True when the user has a pro or premium subscription (can post and delete own deals). */
-    isPro: isAuthenticated && !isAdminStatusLoading && (subscriptionTier === "pro" || subscriptionTier === "premium"),
     /** All ARV team roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "member"). */
     roles,
     isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,

@@ -35,7 +35,7 @@ export default function DealView() {
   const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
   const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
   const { toast } = useToast();
-  const { user, isPro, isAdminOrOwner, isRelationshipManager } = useAuth();
+  const { user, subscriptionTier, isAdminOrOwner, isRelationshipManager } = useAuth();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
   const { filters } = useFilters();
 
@@ -80,7 +80,7 @@ export default function DealView() {
   const soldDeals = deals.filter((d) => d.dealType === "sold");
 
   const renderCard = (deal: Deal) => {
-    const isOwnerOfDeal = isPro && user?.id === deal.userId;
+    const isOwnerOfDeal = subscriptionTier !== null && user?.id === deal.userId;
     const isOwnerOfDealForTopBuyers = user?.id === deal.userId;
     return (
       <DealCard
