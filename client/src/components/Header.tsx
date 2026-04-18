@@ -451,7 +451,15 @@ export default function Header({
           <Button
             variant={location === "/" && view === "deals" ? "default" : "outline"}
             size="sm"
-            onClick={() => { setLocation("/"); setView("deals"); }}
+            onClick={() => {
+              if (!isAuthenticated) {
+                toast({ title: "Sign up to access Deals", description: "You must be signed in to view the deal feed." });
+                onSignupClick?.();
+                return;
+              }
+              setLocation("/");
+              setView("deals");
+            }}
             data-testid="button-deals"
           >
             <Handshake className="w-4 h-4 mr-1" />

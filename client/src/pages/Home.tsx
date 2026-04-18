@@ -47,6 +47,7 @@ function HomeContent() {
     }
   }, [filters.county, loadCompanies, companySelectionInProgressRef]);
 
+
   // Calculate zip codes with property counts
   // Use map pins in map view, full properties in grid/table views
   const zipCodesWithCounts = useMemo(() => {
