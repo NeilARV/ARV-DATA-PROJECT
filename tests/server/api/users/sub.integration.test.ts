@@ -26,51 +26,51 @@ vi.mock("server/controllers/users", () => ({
 }));
 
 // ── Test user IDs ──────────────────────────────────────────────────────────
-const ACTING_USER_ID = "00000000-0000-0000-0000-000000000001";
-const TARGET_USER_ID = "00000000-0000-0000-0000-000000000002";
+const ACTING_USER_ID = "00000000-0000-0000-0000-000000000003";
+const TARGET_USER_ID = "00000000-0000-0000-0000-000000000004";
 
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, TARGET_USER_ID);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function deleteUser() {
+function deleteSubscriptionTier() {
     return request(getApp())
-        .delete(`/api/users/${TARGET_USER_ID}`)
+        .delete(`/api/users/${TARGET_USER_ID}/subscription-tier`)
         .set("x-test-user-id", ACTING_USER_ID);
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
-describe("DELETE /api/users/:userId — role enforcement (integration)", () => {
+describe("DELETE /api/users/:userId/subscription-tier — role enforcement (integration)", () => {
     describe("allowed roles", () => {
         it("returns 204 when caller has admin role", async () => {
             await assignRole(ACTING_USER_ID, "admin");
-            expect((await deleteUser()).status).toBe(204);
+            expect((await deleteSubscriptionTier()).status).toBe(204);
         });
 
         it("returns 204 when caller has owner role", async () => {
             await assignRole(ACTING_USER_ID, "owner");
-            expect((await deleteUser()).status).toBe(204);
+            expect((await deleteSubscriptionTier()).status).toBe(204);
+        });
+
+        it("returns 204 when caller has relationship-manager role", async () => {
+            await assignRole(ACTING_USER_ID, "relationship-manager");
+            expect((await deleteSubscriptionTier()).status).toBe(204);
         });
     });
 
     describe("blocked roles", () => {
-        it("returns 403 when caller has relationship-manager role", async () => {
-            await assignRole(ACTING_USER_ID, "relationship-manager");
-            expect((await deleteUser()).status).toBe(403);
-        });
-
         it("returns 403 when caller has member role", async () => {
             await assignRole(ACTING_USER_ID, "member");
-            expect((await deleteUser()).status).toBe(403);
+            expect((await deleteSubscriptionTier()).status).toBe(403);
         });
 
         it("returns 403 when caller has no roles", async () => {
-            expect((await deleteUser()).status).toBe(403);
+            expect((await deleteSubscriptionTier()).status).toBe(403);
         });
     });
 
     describe("unauthenticated", () => {
         it("returns 401 when there is no session", async () => {
-            const res = await request(getApp()).delete(`/api/users/${TARGET_USER_ID}`);
+            const res = await request(getApp()).delete(`/api/users/${TARGET_USER_ID}/subscription-tier`);
             expect(res.status).toBe(401);
         });
     });
