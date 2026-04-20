@@ -8,7 +8,7 @@ import type { MarketScanWindow } from "@database/types/sync";
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Set to the MSA name exactly as it appears in the msas table.
-const MSA_NAME = "Seattle-Tacoma-Bellevue, WA";
+const MSA_NAME = "Tampa-St. Petersburg-Clearwater, FL";
 
 // "test"  → scans only 0-30 days (windows A + B) — quick sanity check
 // "full"  → scans all 0-180 days (windows A–E)   — production backfill

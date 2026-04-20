@@ -28,7 +28,7 @@ import type { MarketScanQueue } from "@database/types/sync";
 /**
  * Adjusted from 10 --> 5 to reduce total processing time per call (8 minutes --> 4 minutes)
  */
-const MAX_PROPERTIES_PER_MSA = 5;
+const MAX_PROPERTIES_PER_MSA = 20;
 
 /**
  * Converts a market_scan_queue row into the BuyersMarketRecord shape that the
@@ -95,6 +95,11 @@ export async function runConsumer(): Promise<void> {
     };
 
     for (const msa of msaList) {
+
+        if (msa.name !== "Tampa-St. Petersburg-Clearwater, FL") {
+            continue;
+        }
+
         const msaLabel = `${label}[${msa.name}]`;
         let batchNum = 0;
         let processedThisMsa = 0;

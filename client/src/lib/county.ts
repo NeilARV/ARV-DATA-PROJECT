@@ -7,6 +7,7 @@ import {
   MIAMI_MSA_ZIP_CODES,
   PORT_ST_LUCIE_MSA_ZIP_CODES,
   SEATTLE_MSA_ZIP_CODES,
+  TAMPA_MSA_ZIP_CODES
 } from "@/constants/filters.constants";
 
 /** Default map center when county is not found (San Diego coordinates). */
@@ -103,7 +104,9 @@ export function getZipCodesForCounty(countyName: string): { zip: string; city: s
     msaZipCodes =
       countyName === "St. Lucie" || countyName === "Martin"
         ? PORT_ST_LUCIE_MSA_ZIP_CODES
-        : MIAMI_MSA_ZIP_CODES;
+      : countyName === "Hillsborough" || countyName === "Pinellas" || countyName === "Pasco" || countyName === "Hernando"
+        ? TAMPA_MSA_ZIP_CODES
+      : MIAMI_MSA_ZIP_CODES;
   } else if (state === "WA") {
     msaZipCodes = SEATTLE_MSA_ZIP_CODES;
   } else {

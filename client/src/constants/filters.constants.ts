@@ -10,7 +10,8 @@ export const MSA = [
     "San Francisco-Oakland-Fremont, CA",
     "Miami-Fort Lauderdale-West Palm Beach, FL",
     "Port St. Lucie, FL",
-    "Seattle-Tacoma-Bellevue, WA"
+    "Seattle-Tacoma-Bellevue, WA",
+    "Tampa-St. Petersburg-Clearwater, FL"
 ]
 
 export const DENVER_MSA_ZIP_CODES = {
@@ -1413,6 +1414,304 @@ export const SEATTLE_MSA_ZIP_CODES = {
 
 };
 
+export const TAMPA_MSA_ZIP_CODES = {
+  // Hillsborough County (Tampa, Brandon, Plant City, etc.)
+    hillsborough: [
+        // Balm
+        { zip: '33503', city: 'Balm' },
+        // Brandon
+        { zip: '33508', city: 'Brandon' },
+        { zip: '33509', city: 'Brandon' },
+        { zip: '33510', city: 'Brandon' },
+        { zip: '33511', city: 'Brandon' },
+        // Dover
+        { zip: '33527', city: 'Dover' },
+        // Durant
+        { zip: '33530', city: 'Durant' },
+        // Gibsonton
+        { zip: '33534', city: 'Gibsonton' },
+        // Lithia
+        { zip: '33547', city: 'Lithia' },
+        // Lutz
+        { zip: '33548', city: 'Lutz' },
+        { zip: '33549', city: 'Lutz' },
+        { zip: '33558', city: 'Lutz' },
+        { zip: '33559', city: 'Lutz' },
+        // Mango
+        { zip: '33550', city: 'Mango' },
+        // Odessa
+        { zip: '33556', city: 'Odessa' },
+        // Plant City
+        { zip: '33563', city: 'Plant City' },
+        { zip: '33564', city: 'Plant City' },
+        { zip: '33565', city: 'Plant City' },
+        { zip: '33566', city: 'Plant City' },
+        { zip: '33567', city: 'Plant City' },
+        // Riverview
+        { zip: '33568', city: 'Riverview' },
+        { zip: '33569', city: 'Riverview' },
+        { zip: '33578', city: 'Riverview' },
+        { zip: '33579', city: 'Riverview' },
+        // Ruskin
+        { zip: '33570', city: 'Ruskin' },
+        { zip: '33575', city: 'Ruskin' },
+        // Seffner
+        { zip: '33583', city: 'Seffner' },
+        { zip: '33584', city: 'Seffner' },
+        // Sun City / Sun City Center
+        { zip: '33571', city: 'Sun City Center' },
+        { zip: '33573', city: 'Sun City Center' },
+        { zip: '33586', city: 'Sun City' },
+        // Sydney
+        { zip: '33587', city: 'Sydney' },
+        // Tampa
+        { zip: '33601', city: 'Tampa' },
+        { zip: '33602', city: 'Tampa' },
+        { zip: '33603', city: 'Tampa' },
+        { zip: '33604', city: 'Tampa' },
+        { zip: '33605', city: 'Tampa' },
+        { zip: '33606', city: 'Tampa' },
+        { zip: '33607', city: 'Tampa' },
+        { zip: '33608', city: 'Tampa' },
+        { zip: '33609', city: 'Tampa' },
+        { zip: '33610', city: 'Tampa' },
+        { zip: '33611', city: 'Tampa' },
+        { zip: '33612', city: 'Tampa' },
+        { zip: '33613', city: 'Tampa' },
+        { zip: '33614', city: 'Tampa' },
+        { zip: '33615', city: 'Tampa' },
+        { zip: '33616', city: 'Tampa' },
+        { zip: '33617', city: 'Tampa' },
+        { zip: '33618', city: 'Tampa' },
+        { zip: '33619', city: 'Tampa' },
+        { zip: '33620', city: 'Tampa' },
+        { zip: '33621', city: 'Tampa' },
+        { zip: '33622', city: 'Tampa' },
+        { zip: '33623', city: 'Tampa' },
+        { zip: '33624', city: 'Tampa' },
+        { zip: '33625', city: 'Tampa' },
+        { zip: '33626', city: 'Tampa' },
+        { zip: '33629', city: 'Tampa' },
+        { zip: '33630', city: 'Tampa' },
+        { zip: '33631', city: 'Tampa' },
+        { zip: '33633', city: 'Tampa' },
+        { zip: '33634', city: 'Tampa' },
+        { zip: '33635', city: 'Tampa' },
+        { zip: '33637', city: 'Tampa' },
+        { zip: '33647', city: 'Tampa' },
+        { zip: '33650', city: 'Tampa' },
+        { zip: '33651', city: 'Tampa' },
+        { zip: '33655', city: 'Tampa' },
+        { zip: '33660', city: 'Tampa' },
+        { zip: '33661', city: 'Tampa' },
+        { zip: '33662', city: 'Tampa' },
+        { zip: '33663', city: 'Tampa' },
+        { zip: '33664', city: 'Tampa' },
+        { zip: '33672', city: 'Tampa' },
+        { zip: '33673', city: 'Tampa' },
+        { zip: '33674', city: 'Tampa' },
+        { zip: '33675', city: 'Tampa' },
+        { zip: '33677', city: 'Tampa' },
+        { zip: '33679', city: 'Tampa' },
+        { zip: '33680', city: 'Tampa' },
+        { zip: '33681', city: 'Tampa' },
+        { zip: '33682', city: 'Tampa' },
+        { zip: '33684', city: 'Tampa' },
+        { zip: '33685', city: 'Tampa' },
+        { zip: '33686', city: 'Tampa' },
+        { zip: '33687', city: 'Tampa' },
+        { zip: '33688', city: 'Tampa' },
+        { zip: '33689', city: 'Tampa' },
+        { zip: '33694', city: 'Tampa' },
+        // Thonotosassa
+        { zip: '33592', city: 'Thonotosassa' },
+        // Apollo Beach
+        { zip: '33572', city: 'Apollo Beach' },
+        // Valrico
+        { zip: '33594', city: 'Valrico' },
+        { zip: '33595', city: 'Valrico' },
+        { zip: '33596', city: 'Valrico' },
+        // Wimauma
+        { zip: '33598', city: 'Wimauma' },
+        // Zephyrhills (partial — primary county is Pasco; listed here as multi-county)
+        { zip: '33540', city: 'Zephyrhills' },
+        // Wesley Chapel (partial — primary county is Pasco; multi-county)
+        { zip: '33544', city: 'Wesley Chapel' },
+        // Lakeland / Kathleen (partial — multi-county)
+        { zip: '33810', city: 'Lakeland' },
+    ],
+ 
+    // Pinellas County (St. Petersburg, Clearwater, Largo, etc.)
+    pinellas: [
+        // Saint Petersburg
+        { zip: '33701', city: 'Saint Petersburg' },
+        { zip: '33702', city: 'Saint Petersburg' },
+        { zip: '33703', city: 'Saint Petersburg' },
+        { zip: '33704', city: 'Saint Petersburg' },
+        { zip: '33705', city: 'Saint Petersburg' },
+        { zip: '33706', city: 'Saint Petersburg' },
+        { zip: '33707', city: 'Saint Petersburg' },
+        { zip: '33708', city: 'Saint Petersburg' },
+        { zip: '33709', city: 'Saint Petersburg' },
+        { zip: '33710', city: 'Saint Petersburg' },
+        { zip: '33711', city: 'Saint Petersburg' },
+        { zip: '33712', city: 'Saint Petersburg' },
+        { zip: '33713', city: 'Saint Petersburg' },
+        { zip: '33714', city: 'Saint Petersburg' },
+        { zip: '33715', city: 'Saint Petersburg' },
+        { zip: '33716', city: 'Saint Petersburg' },
+        { zip: '33729', city: 'Saint Petersburg' },
+        { zip: '33730', city: 'Saint Petersburg' },
+        { zip: '33731', city: 'Saint Petersburg' },
+        { zip: '33732', city: 'Saint Petersburg' },
+        { zip: '33733', city: 'Saint Petersburg' },
+        { zip: '33734', city: 'Saint Petersburg' },
+        { zip: '33736', city: 'Saint Petersburg' },
+        { zip: '33738', city: 'Saint Petersburg' },
+        { zip: '33740', city: 'Saint Petersburg' },
+        { zip: '33741', city: 'Saint Petersburg' },
+        { zip: '33742', city: 'Saint Petersburg' },
+        { zip: '33743', city: 'Saint Petersburg' },
+        { zip: '33747', city: 'Saint Petersburg' },
+        { zip: '33784', city: 'Saint Petersburg' },
+        // Bay Pines
+        { zip: '33744', city: 'Bay Pines' },
+        // Clearwater
+        { zip: '33755', city: 'Clearwater' },
+        { zip: '33756', city: 'Clearwater' },
+        { zip: '33757', city: 'Clearwater' },
+        { zip: '33758', city: 'Clearwater' },
+        { zip: '33759', city: 'Clearwater' },
+        { zip: '33760', city: 'Clearwater' },
+        { zip: '33761', city: 'Clearwater' },
+        { zip: '33762', city: 'Clearwater' },
+        { zip: '33763', city: 'Clearwater' },
+        { zip: '33764', city: 'Clearwater' },
+        { zip: '33765', city: 'Clearwater' },
+        { zip: '33766', city: 'Clearwater' },
+        { zip: '33769', city: 'Clearwater' },
+        // Clearwater Beach
+        { zip: '33767', city: 'Clearwater Beach' },
+        // Largo
+        { zip: '33770', city: 'Largo' },
+        { zip: '33771', city: 'Largo' },
+        { zip: '33773', city: 'Largo' },
+        { zip: '33774', city: 'Largo' },
+        { zip: '33778', city: 'Largo' },
+        { zip: '33779', city: 'Largo' },
+        // Seminole
+        { zip: '33772', city: 'Seminole' },
+        { zip: '33775', city: 'Seminole' },
+        { zip: '33776', city: 'Seminole' },
+        { zip: '33777', city: 'Seminole' },
+        // Pinellas Park
+        { zip: '33780', city: 'Pinellas Park' },
+        { zip: '33781', city: 'Pinellas Park' },
+        { zip: '33782', city: 'Pinellas Park' },
+        // Indian Rocks Beach
+        { zip: '33785', city: 'Indian Rocks Beach' },
+        // Belleair Beach
+        { zip: '33786', city: 'Belleair Beach' },
+        // Oldsmar
+        { zip: '34677', city: 'Oldsmar' },
+        // Crystal Beach
+        { zip: '34681', city: 'Crystal Beach' },
+        // Palm Harbor
+        { zip: '34682', city: 'Palm Harbor' },
+        { zip: '34683', city: 'Palm Harbor' },
+        { zip: '34684', city: 'Palm Harbor' },
+        { zip: '34685', city: 'Palm Harbor' },
+        // Safety Harbor
+        { zip: '34695', city: 'Safety Harbor' },
+        // Tarpon Springs
+        { zip: '34688', city: 'Tarpon Springs' },
+        { zip: '34689', city: 'Tarpon Springs' },
+        { zip: '34697', city: 'Tarpon Springs' },
+        // Dunedin
+        { zip: '34698', city: 'Dunedin' },
+        // Ozona
+        { zip: '34660', city: 'Ozona' },
+    ],
+    
+    // Pasco County (New Port Richey, Wesley Chapel, Zephyrhills, Land O Lakes, etc.)
+    pasco: [
+        // Dade City
+        { zip: '33523', city: 'Dade City' },
+        { zip: '33524', city: 'Crystal Springs' },
+        { zip: '33525', city: 'Dade City' },
+        { zip: '33526', city: 'Dade City' },
+        // Lacoochee
+        { zip: '33537', city: 'Lacoochee' },
+        // Zephyrhills
+        { zip: '33539', city: 'Zephyrhills' },
+        { zip: '33540', city: 'Zephyrhills' },
+        { zip: '33541', city: 'Zephyrhills' },
+        { zip: '33542', city: 'Zephyrhills' },
+        // Wesley Chapel
+        { zip: '33543', city: 'Wesley Chapel' },
+        { zip: '33544', city: 'Wesley Chapel' },
+        { zip: '33545', city: 'Wesley Chapel' },
+        // Saint Leo
+        { zip: '33574', city: 'Saint Leo' },
+        // San Antonio
+        { zip: '33576', city: 'San Antonio' },
+        // Trilby
+        { zip: '33593', city: 'Trilby' },
+        // Land O Lakes
+        { zip: '34637', city: 'Land O Lakes' },
+        { zip: '34638', city: 'Land O Lakes' },
+        { zip: '34639', city: 'Land O Lakes' },
+        // New Port Richey
+        { zip: '34652', city: 'New Port Richey' },
+        { zip: '34653', city: 'New Port Richey' },
+        { zip: '34654', city: 'New Port Richey' },
+        { zip: '34655', city: 'New Port Richey' },
+        { zip: '34656', city: 'New Port Richey' },
+        // Hudson
+        { zip: '34667', city: 'Hudson' },
+        { zip: '34669', city: 'Hudson' },
+        { zip: '34674', city: 'Hudson' },
+        // Port Richey
+        { zip: '34668', city: 'Port Richey' },
+        { zip: '34673', city: 'Port Richey' },
+        // Aripeka
+        { zip: '34679', city: 'Aripeka' },
+        // Elfers
+        { zip: '34680', city: 'Elfers' },
+        // Holiday
+        { zip: '34690', city: 'Holiday' },
+        { zip: '34691', city: 'Holiday' },
+        { zip: '34692', city: 'Holiday' },
+        // Spring Hill (partial — primary in Hernando; multi-county)
+        { zip: '34610', city: 'Spring Hill' },
+    ],
+ 
+    // Hernando County (Spring Hill, Brooksville)
+    hernando: [
+        // Brooksville
+        { zip: '34601', city: 'Brooksville' },
+        { zip: '34602', city: 'Brooksville' },
+        { zip: '34603', city: 'Brooksville' },
+        { zip: '34604', city: 'Brooksville' },
+        { zip: '34605', city: 'Brooksville' },
+        { zip: '34613', city: 'Brooksville' },
+        { zip: '34614', city: 'Brooksville' },
+        // Spring Hill
+        { zip: '34606', city: 'Spring Hill' },
+        { zip: '34607', city: 'Spring Hill' },
+        { zip: '34608', city: 'Spring Hill' },
+        { zip: '34609', city: 'Spring Hill' },
+        { zip: '34611', city: 'Spring Hill' },
+        // Istachatta
+        { zip: '34636', city: 'Istachatta' },
+        // Nobleton
+        { zip: '34661', city: 'Nobleton' },
+        // Multi-county (primary in adjacent counties)
+        { zip: '33523', city: 'Dade City' },
+        { zip: '33597', city: 'Webster' },
+    ],
+};
+
 export const COUNTIES = [
     { county: "San Diego", state: "CA", center: [32.7157, -117.1611] },
     { county: "Orange", state: "CA", center: [33.7879, -117.8531] },
@@ -1449,4 +1748,10 @@ export const COUNTIES = [
     { county: "King", state: "WA", center: [47.3928, -121.5141] },
     { county: "Pierce", state: "WA", center: [46.9920, -122.0940] },
     { county: "Snohomish", state: "WA", center: [48.0123, -121.6904] },
+
+    // Tampa-St. Petersburg-Clearwater, FL MSA
+    { county: "Hillsborough", state: "FL", center: [27.9292, -82.3088] },
+    { county: "Pinellas",     state: "FL", center: [27.9198, -82.7255] },
+    { county: "Pasco",        state: "FL", center: [28.3092, -82.3920] },
+    { county: "Hernando",     state: "FL", center: [28.5537, -82.4240] },
 ];
