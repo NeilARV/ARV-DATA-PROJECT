@@ -14,6 +14,7 @@ import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransac
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
+import { replacePropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
 import { alias } from "drizzle-orm/pg-core";
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -519,7 +520,21 @@ export interface PatchPropertyResult {
 
 export async function patchProperty(
     id: string,
-    data: { isArvFunded?: boolean; statuses?: string[]; buyerCompanyName?: string; sellerCompanyName?: string }
+    data: {
+        isArvFunded?: boolean;
+        statuses?: string[];
+        buyerCompanyName?: string;
+        sellerCompanyName?: string;
+        transactions?: Array<{
+            transactionType?: string | null;
+            recordingDate: string;
+            saleDate: string;
+            buyerName?: string | null;
+            sellerName?: string | null;
+            salePrice?: string | null;
+            firstMtgLenderName?: string | null;
+        }>;
+    }
 ): Promise<PatchPropertyResult | null> {
     const [existing] = await db
         .select({ id: properties.id, isArvFunded: properties.isArvFunded, county: properties.county, msa: properties.msa })
@@ -583,6 +598,11 @@ export async function patchProperty(
                 statusRows.map((s) => ({ propertyId: id, statusId: s.id }))
             );
         }
+    }
+
+    if (data.transactions !== undefined) {
+        await replacePropertyTransactions(id, data.transactions, existing.county, existing.msa);
+        await reprocessProperty(id);
     }
 
     const [updated] = await db

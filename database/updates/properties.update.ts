@@ -2,13 +2,33 @@ import { z } from "zod";
 
 const PROPERTY_STATUSES = ["in-renovation", "on-market", "sold", "wholesale"] as const;
 
+const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+const patchTransactionInputSchema = z.object({
+  transactionType: z.string().nullable().optional(),
+  recordingDate: z.string().regex(dateRegex, "Must be YYYY-MM-DD"),
+  saleDate: z.string().regex(dateRegex, "Must be YYYY-MM-DD"),
+  buyerName: z.string().nullable().optional(),
+  sellerName: z.string().nullable().optional(),
+  salePrice: z.string().nullable().optional(),
+  firstMtgLenderName: z.string().nullable().optional(),
+});
+
+export type PatchTransactionInput = z.infer<typeof patchTransactionInputSchema>;
+
 export const patchPropertySchema = z.object({
   isArvFunded: z.boolean().optional(),
   statuses: z.array(z.enum(PROPERTY_STATUSES)).min(1).optional(),
   buyerCompanyName: z.string().optional(),
   sellerCompanyName: z.string().optional(),
+  transactions: z.array(patchTransactionInputSchema).optional(),
 }).strict().refine(
-  (data) => data.isArvFunded !== undefined || data.statuses !== undefined || data.buyerCompanyName !== undefined || data.sellerCompanyName !== undefined,
+  (data) =>
+    data.isArvFunded !== undefined ||
+    data.statuses !== undefined ||
+    data.buyerCompanyName !== undefined ||
+    data.sellerCompanyName !== undefined ||
+    data.transactions !== undefined,
   { message: "At least one field must be provided" }
 );
 

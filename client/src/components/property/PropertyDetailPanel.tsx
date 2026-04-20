@@ -60,10 +60,6 @@ export default function PropertyDetailPanel() {
             initialData={{
               isArvFunded: property.isFinancedByARV,
               statuses: property.statuses ?? (property.status ? [property.status] : ["in-renovation"]),
-              buyerId: property.buyerId,
-              buyerCompanyName: property.buyerCompanyName,
-              sellerId: property.sellerId,
-              sellerCompanyName: property.sellerCompanyName,
               county: property.county,
             }}
             onSuccess={() => fetchProperty(property.id)}
