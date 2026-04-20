@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        env:
+            NODE_ENV: test
+            TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+            SESSION_SECRET: test-secret
+
+        steps:
+          - name: Checkout repo
+            uses: actions/checkout@v4
+
+          - name: Use Node.js 22
+            uses: actions/setup-node@v4
+            with:
+                node-version: 22
+                cache: npm
+
+          - name: Install dependencies
+            run: npm ci
+
+          - name: Type check
+            run: npm run check
+
+          - name: Build
+            run: npm run build
+
+          - name: Unit tests
+            run: npm run test
+
+          - name: Integration tests
+            run: npm run test:integration

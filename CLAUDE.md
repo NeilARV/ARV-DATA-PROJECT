@@ -21,6 +21,10 @@ Express + Vite full-stack app for ARV (After Repair Value) / real estate finance
 - `npm run start` — Run production server (`node dist/index.js`)
 - `npm run check` — TypeScript type-check (`tsc`)
 - `npm run db:push` — Push Drizzle schema (requires `DATABASE_URL`)
+- `npm run test` — Run unit tests once (Vitest)
+- `npm run test:watch` — Run unit tests in watch mode (Vitest)
+- `npm run test:integration` — Run integration tests once (uses `vitest.integration.config.ts`)
+- `npm run test:all` — Run unit tests + integration tests sequentially
 
 ---
 
@@ -209,6 +213,46 @@ Full dark mode support via CSS variables. The `dark` class on `<html>` swaps all
 - Foregrounds flip light
 - Primary teal stays the same across both modes
 - Chart colors get slightly lighter for readability
+
+---
+
+## Testing
+
+### Framework
+- **Vitest** — test runner for both server and (future) client tests
+- `npm run test` — single run, unit tests (CI)
+- `npm run test:watch` — interactive watch mode
+- `npm run test:integration` — single run, integration tests (uses `vitest.integration.config.ts`)
+- `npm run test:all` — run unit + integration tests sequentially
+
+### Folder Structure
+```
+tests/
+├── client/                        # Frontend tests (structure reserved; not yet populated)
+└── server/
+    └── api/                       # API route tests, grouped by resource
+        ├── auth/
+        ├── admin/
+        ├── users/
+        │   ├── users.test.ts          # Routes directly under /api/users (e.g. GET /api/users, DELETE /api/users/:userId)
+        │   └── subscriptions.test.ts  # Sub-resource routes (e.g. GET /api/users/:userId/subscription-tier)
+        ├── properties/
+        ├── companies/
+        ├── geocoding/
+        ├── deals/
+        └── contact/
+```
+
+### File Naming Convention
+Each folder under `tests/server/api/` maps to a broad API resource category. Within a folder:
+- The **primary file** (e.g. `users.test.ts`) covers routes that are a single level deep under the resource (e.g. `GET /api/users`, `DELETE /api/users/:userId`)
+- **Sub-resource files** (e.g. `subscriptions.test.ts`) cover routes that nest deeper under that resource (e.g. `GET /api/users/:userId/subscription-tier`)
+
+### Writing Tests
+- Tests are TypeScript and live under `tests/` at the project root
+- Use Vitest's `describe` / `it` / `expect` API
+- Group related routes under a `describe` block matching the route pattern
+- Test both success responses and expected error cases (400, 401, 403, 404, etc.)
 
 ---
 
