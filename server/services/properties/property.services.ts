@@ -7,10 +7,12 @@ import {
     propertyTransactions,
 } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { companies, companyContacts } from "@database/schemas/companies.schema";
+import { companies, companyContacts, companyMsas } from "@database/schemas/companies.schema";
+import { msas } from "@database/schemas/msas.schema";
 import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
+import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
@@ -446,6 +448,69 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
 // ─── Patch ────────────────────────────────────────────────────────────────────
 
+async function upsertCompanyByName(
+    companyName: string,
+    propertyCounty: string | null,
+    propertyMsa: string | null
+): Promise<string | null> {
+    const name = trimCompanyName(companyName);
+    if (!name) return null;
+
+    // Search globally (no county/MSA filter) to avoid creating duplicates
+    const [existing] = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.companyName, name))
+        .limit(1);
+
+    let companyId: string;
+
+    if (existing) {
+        companyId = existing.id;
+    } else {
+        const inserted = await db
+            .insert(companies)
+            .values({ companyName: name, updatedAt: new Date() })
+            .onConflictDoNothing({ target: companies.companyName })
+            .returning({ id: companies.id });
+
+        if (inserted.length > 0) {
+            companyId = inserted[0].id;
+        } else {
+            // Race condition — re-fetch
+            const [refetched] = await db
+                .select({ id: companies.id })
+                .from(companies)
+                .where(eq(companies.companyName, name))
+                .limit(1);
+            if (!refetched) return null;
+            companyId = refetched.id;
+        }
+    }
+
+    // Add county association if property has a known county
+    if (propertyCounty) {
+        await addCountiesToCompanyIfNeeded({ id: companyId }, [propertyCounty]);
+    }
+
+    // Add MSA association if property has an MSA
+    if (propertyMsa) {
+        const [msaRow] = await db
+            .select({ id: msas.id })
+            .from(msas)
+            .where(eq(msas.name, propertyMsa))
+            .limit(1);
+        if (msaRow) {
+            await db
+                .insert(companyMsas)
+                .values({ companyId, msaId: msaRow.id })
+                .onConflictDoNothing();
+        }
+    }
+
+    return companyId;
+}
+
 export interface PatchPropertyResult {
     id: string;
     isArvFunded: boolean;
@@ -454,10 +519,10 @@ export interface PatchPropertyResult {
 
 export async function patchProperty(
     id: string,
-    data: { isArvFunded?: boolean; statuses?: string[] }
+    data: { isArvFunded?: boolean; statuses?: string[]; buyerCompanyName?: string; sellerCompanyName?: string }
 ): Promise<PatchPropertyResult | null> {
     const [existing] = await db
-        .select({ id: properties.id, isArvFunded: properties.isArvFunded })
+        .select({ id: properties.id, isArvFunded: properties.isArvFunded, county: properties.county, msa: properties.msa })
         .from(properties)
         .where(eq(properties.id, id))
         .limit(1);
@@ -469,6 +534,40 @@ export async function patchProperty(
             .update(properties)
             .set({ isArvFunded: data.isArvFunded, updatedAt: new Date() })
             .where(eq(properties.id, id));
+    }
+
+    if (data.buyerCompanyName !== undefined) {
+        if (data.buyerCompanyName.trim() === '') {
+            await db
+                .update(properties)
+                .set({ buyerId: null, updatedAt: new Date() })
+                .where(eq(properties.id, id));
+        } else {
+            const newBuyerId = await upsertCompanyByName(data.buyerCompanyName, existing.county, existing.msa);
+            if (newBuyerId) {
+                await db
+                    .update(properties)
+                    .set({ buyerId: newBuyerId, updatedAt: new Date() })
+                    .where(eq(properties.id, id));
+            }
+        }
+    }
+
+    if (data.sellerCompanyName !== undefined) {
+        if (data.sellerCompanyName.trim() === '') {
+            await db
+                .update(properties)
+                .set({ sellerId: null, updatedAt: new Date() })
+                .where(eq(properties.id, id));
+        } else {
+            const newSellerId = await upsertCompanyByName(data.sellerCompanyName, existing.county, existing.msa);
+            if (newSellerId) {
+                await db
+                    .update(properties)
+                    .set({ sellerId: newSellerId, updatedAt: new Date() })
+                    .where(eq(properties.id, id));
+            }
+        }
     }
 
     if (data.statuses !== undefined && data.statuses.length > 0) {

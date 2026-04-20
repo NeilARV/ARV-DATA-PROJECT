@@ -5,11 +5,14 @@ import { insertCompanyContactSchema } from "@database/inserts/companyContacts.in
 
 export async function getCompanySuggestionsHandler(req: Request, res: Response) {
     try {
-        const { search } = req.query;
+        const { search, county } = req.query;
         if (!search || search.toString().trim().length < 2) {
             return res.status(200).json([]);
         }
-        const results = await CompaniesServices.getCompanySuggestions(search.toString());
+        const results = await CompaniesServices.getCompanySuggestions(
+            search.toString(),
+            county?.toString()
+        );
         return res.status(200).json(results);
     } catch (error) {
         console.error("Error fetching company suggestions:", error);

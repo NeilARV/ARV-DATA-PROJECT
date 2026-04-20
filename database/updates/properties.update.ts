@@ -5,9 +5,11 @@ const PROPERTY_STATUSES = ["in-renovation", "on-market", "sold", "wholesale"] as
 export const patchPropertySchema = z.object({
   isArvFunded: z.boolean().optional(),
   statuses: z.array(z.enum(PROPERTY_STATUSES)).min(1).optional(),
+  buyerCompanyName: z.string().optional(),
+  sellerCompanyName: z.string().optional(),
 }).strict().refine(
-  (data) => data.isArvFunded !== undefined || data.statuses !== undefined,
-  { message: "At least one of isArvFunded or statuses must be provided" }
+  (data) => data.isArvFunded !== undefined || data.statuses !== undefined || data.buyerCompanyName !== undefined || data.sellerCompanyName !== undefined,
+  { message: "At least one field must be provided" }
 );
 
 export const updatePropertySchema = z.object({

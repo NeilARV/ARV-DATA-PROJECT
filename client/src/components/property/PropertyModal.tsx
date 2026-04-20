@@ -39,6 +39,28 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
 
       <AppDialog
         hideOverlay
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        className="max-w-md z-[10001]"
+      >
+        <UpdatePropertyContent
+          onClose={() => setShowEditDialog(false)}
+          propertyId={property.id}
+          initialData={{
+            isArvFunded: property.isFinancedByARV,
+            statuses: property.statuses ?? [property.status],
+            buyerId: property.buyerId,
+            buyerCompanyName: property.buyerCompanyName,
+            sellerId: property.sellerId,
+            sellerCompanyName: property.sellerCompanyName,
+            county: property.county,
+          }}
+          onSuccess={() => fetchProperty(property.id)}
+        />
+      </AppDialog>
+
+      <AppDialog
+        hideOverlay
         open={showDeleteDialog}
         onClose={() => setShowDeleteDialog(false)}
         className="max-w-md"

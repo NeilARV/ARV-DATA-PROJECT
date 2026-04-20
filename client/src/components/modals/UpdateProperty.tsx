@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
@@ -38,9 +39,16 @@ const updatePropertyFormSchema = z.object({
   statuses: z
     .array(z.enum(PROPERTY_STATUSES))
     .min(1, "At least one status is required"),
+  buyerCompanyName: z.string().optional(),
+  sellerCompanyName: z.string().optional(),
 });
 
 type UpdatePropertyFormValues = z.infer<typeof updatePropertyFormSchema>;
+
+type CompanySuggestion = {
+  id: string;
+  companyName: string;
+};
 
 type UpdatePropertyContentProps = {
   onClose: () => void;
@@ -48,9 +56,93 @@ type UpdatePropertyContentProps = {
   initialData: {
     isArvFunded: boolean;
     statuses: string[];
+    buyerId?: string | null;
+    buyerCompanyName?: string | null;
+    sellerId?: string | null;
+    sellerCompanyName?: string | null;
+    county?: string | null;
   };
   onSuccess?: () => void;
 };
+
+function CompanyAutocomplete({
+  value,
+  onChange,
+  county,
+  label,
+  testId,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  county?: string | null;
+  label: string;
+  testId: string;
+}) {
+  const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (value.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ search: value });
+        if (county) params.set("county", county);
+        const resp = await fetch(`/api/companies/contacts/suggestions?${params}`);
+        if (!resp.ok) return;
+        const data: CompanySuggestion[] = await resp.json();
+        setSuggestions(data ?? []);
+        setShowSuggestions(data.length > 0);
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [value, county]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+        placeholder={`Search or enter ${label.toLowerCase()} name`}
+        data-testid={testId}
+        autoComplete="off"
+      />
+      {showSuggestions && (
+        <ul className="absolute left-0 right-0 top-full mt-1 z-[10002] bg-popover border border-border rounded-md shadow-md overflow-hidden">
+          {suggestions.map((s) => (
+            <li
+              key={s.id}
+              className="px-3 py-2 text-sm cursor-pointer hover:bg-accent"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(s.companyName);
+                setShowSuggestions(false);
+              }}
+            >
+              {s.companyName}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function UpdatePropertyContent({
   onClose,
@@ -70,6 +162,8 @@ export default function UpdatePropertyContent({
     defaultValues: {
       isArvFunded: initialData.isArvFunded,
       statuses: safeStatuses.length > 0 ? safeStatuses : ["in-renovation"],
+      buyerCompanyName: initialData.buyerCompanyName ?? "",
+      sellerCompanyName: initialData.sellerCompanyName ?? "",
     },
   });
 
@@ -79,6 +173,8 @@ export default function UpdatePropertyContent({
       await apiRequest("PATCH", `/api/properties/${propertyId}`, {
         isArvFunded: data.isArvFunded,
         statuses: data.statuses,
+        buyerCompanyName: data.buyerCompanyName,
+        sellerCompanyName: data.sellerCompanyName,
       });
       toast({
         title: "Property Updated",
@@ -155,7 +251,6 @@ export default function UpdatePropertyContent({
                         type="button"
                         onClick={() => {
                           if (active) {
-                            // Don't allow deselecting the last active status
                             if (field.value.length <= 1) return;
                             field.onChange(field.value.filter((s) => s !== status));
                           } else {
@@ -179,6 +274,44 @@ export default function UpdatePropertyContent({
                   <p className="text-sm text-destructive">{fieldState.error.message}</p>
                 )}
               </div>
+            )}
+          />
+
+          {/* Buyer */}
+          <Controller
+            control={form.control}
+            name="buyerCompanyName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Buyer</FormLabel>
+                <CompanyAutocomplete
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  county={initialData.county}
+                  label="Buyer"
+                  testId="input-buyer-company"
+                />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Seller */}
+          <Controller
+            control={form.control}
+            name="sellerCompanyName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Seller</FormLabel>
+                <CompanyAutocomplete
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  county={initialData.county}
+                  label="Seller"
+                  testId="input-seller-company"
+                />
+                <FormMessage />
+              </FormItem>
             )}
           />
 
