@@ -14,7 +14,7 @@ import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransac
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
-import { replacePropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
+import { appendPropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
 import { alias } from "drizzle-orm/pg-core";
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -601,7 +601,7 @@ export async function patchProperty(
     }
 
     if (data.transactions !== undefined) {
-        await replacePropertyTransactions(id, data.transactions, existing.county, existing.msa);
+        await appendPropertyTransactions(id, data.transactions, existing.county, existing.msa);
         await reprocessProperty(id);
     }
 

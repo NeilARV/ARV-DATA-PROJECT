@@ -22,7 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Loader2, Plus, Check, X } from "lucide-react";
 
 // ─── Property form ─────────────────────────────────────────────────────────
 
@@ -294,41 +294,23 @@ function TxEditRow({
 
 // ─── Transaction display card ──────────────────────────────────────────────
 
-function TxDisplayCard({
-  tx,
-  onEdit,
-  onDelete,
-}: {
-  tx: TxRow;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
+function TxDisplayCard({ tx }: { tx: TxRow }) {
   const typeStyle = tx.transactionType ? TX_TYPE_COLORS[tx.transactionType] : null;
 
   return (
     <div className="border border-border rounded-lg p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          {typeStyle ? (
-            <span
-              className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm"
-              style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
-            >
-              {tx.transactionType}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">{tx.transactionType || "—"}</span>
-          )}
-          <span className="text-xs text-muted-foreground">{tx.recordingDate || "—"}</span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={onEdit}>
-            <Pencil className="w-3 h-3" />
-          </Button>
-          <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="w-3 h-3" />
-          </Button>
-        </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {typeStyle ? (
+          <span
+            className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm"
+            style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
+          >
+            {tx.transactionType}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">{tx.transactionType || "—"}</span>
+        )}
+        <span className="text-xs text-muted-foreground">{tx.recordingDate || "—"}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-1 text-xs">
@@ -407,19 +389,6 @@ export default function UpdatePropertyContent({
       .finally(() => setTxLoading(false));
   }, [propertyId]);
 
-  function startEdit(tx: TxRow) {
-    setEditingKey(tx._key);
-    setEditForm({
-      transactionType: tx.transactionType,
-      recordingDate: tx.recordingDate,
-      saleDate: tx.saleDate,
-      buyerName: tx.buyerName,
-      sellerName: tx.sellerName,
-      salePrice: tx.salePrice,
-      firstMtgLenderName: tx.firstMtgLenderName,
-    });
-  }
-
   function startAdd() {
     const key = `new-${Date.now()}`;
     setEditingKey(key);
@@ -435,15 +404,8 @@ export default function UpdatePropertyContent({
   }
 
   function cancelEdit() {
-    if (editingKey?.startsWith("new-")) {
-      setTransactions((prev) => prev.filter((tx) => tx._key !== editingKey));
-    }
+    setTransactions((prev) => prev.filter((tx) => tx._key !== editingKey));
     setEditingKey(null);
-  }
-
-  function deleteTx(key: string) {
-    setTransactions((prev) => prev.filter((tx) => tx._key !== key));
-    if (editingKey === key) setEditingKey(null);
   }
 
   const safeStatuses = initialData.statuses.filter((s): s is PropertyStatus =>
@@ -461,18 +423,21 @@ export default function UpdatePropertyContent({
   const handleSubmit = async (data: UpdatePropertyFormValues) => {
     setIsLoading(true);
     try {
+      const newTransactions = transactions.filter((tx) => tx._key.startsWith("new-"));
       await apiRequest("PATCH", `/api/properties/${propertyId}`, {
         isArvFunded: data.isArvFunded,
         statuses: data.statuses,
-        transactions: transactions.map((tx) => ({
-          transactionType: tx.transactionType || null,
-          recordingDate: tx.recordingDate,
-          saleDate: tx.saleDate,
-          buyerName: tx.buyerName || null,
-          sellerName: tx.sellerName || null,
-          salePrice: tx.salePrice || null,
-          firstMtgLenderName: tx.firstMtgLenderName || null,
-        })),
+        ...(newTransactions.length > 0 && {
+          transactions: newTransactions.map((tx) => ({
+            transactionType: tx.transactionType || null,
+            recordingDate: tx.recordingDate,
+            saleDate: tx.saleDate,
+            buyerName: tx.buyerName || null,
+            sellerName: tx.sellerName || null,
+            salePrice: tx.salePrice || null,
+            firstMtgLenderName: tx.firstMtgLenderName || null,
+          })),
+        }),
       });
       toast({ title: "Property Updated", description: "Property has been successfully updated." });
       queryClient.invalidateQueries({
@@ -613,8 +578,6 @@ export default function UpdatePropertyContent({
                     <TxDisplayCard
                       key={tx._key}
                       tx={tx}
-                      onEdit={() => startEdit(tx)}
-                      onDelete={() => deleteTx(tx._key)}
                     />
                   )
                 )}

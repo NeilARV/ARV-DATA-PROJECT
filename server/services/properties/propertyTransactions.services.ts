@@ -255,7 +255,7 @@ export async function getPropertyTransactions(propertyId: string): Promise<GetTr
     return sorted.map((tx) => formatTxRow(tx as TransactionRow));
 }
 
-// ─── Bulk Replace (called from patchProperty) ─────────────────────────────────
+// ─── Append (called from patchProperty) ──────────────────────────────────────
 
 export type BulkTransactionInput = {
     transactionType?: string | null;
@@ -267,14 +267,12 @@ export type BulkTransactionInput = {
     firstMtgLenderName?: string | null;
 };
 
-export async function replacePropertyTransactions(
+export async function appendPropertyTransactions(
     propertyId: string,
     transactions: BulkTransactionInput[],
     county: string | null,
     msa: string | null
 ): Promise<void> {
-    await db.delete(propertyTransactions).where(eq(propertyTransactions.propertyId, propertyId));
-
     if (transactions.length === 0) return;
 
     const rows = await Promise.all(
