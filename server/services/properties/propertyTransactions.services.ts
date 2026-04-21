@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { properties, propertyTransactions } from "@database/schemas/properties.schema";
+import { properties, propertyTransactions, parcels } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies, companyMsas } from "@database/schemas/companies.schema";
 import { msas } from "@database/schemas/msas.schema";
@@ -276,6 +276,14 @@ export async function appendPropertyTransactions(
 ): Promise<void> {
     if (transactions.length === 0) return;
 
+    const [parcel] = await db
+        .select({ apn: parcels.apnOriginal })
+        .from(parcels)
+        .where(eq(parcels.propertyId, propertyId))
+        .limit(1);
+
+    const apn = parcel?.apn ?? null;
+
     const rows = await Promise.all(
         transactions.map(async (tx) => {
             const buyerId = tx.buyerName
@@ -286,6 +294,7 @@ export async function appendPropertyTransactions(
                 : null;
             return {
                 propertyId,
+                apn,
                 transactionType: tx.transactionType ?? null,
                 recordingDate: tx.recordingDate,
                 saleDate: tx.saleDate,

@@ -483,7 +483,7 @@ export default function UpdatePropertyContent({
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent className="z-[10000]">
+                  <SelectContent className="z-[10002]">
                     <SelectItem value="true">Yes</SelectItem>
                     <SelectItem value="false">No</SelectItem>
                   </SelectContent>
