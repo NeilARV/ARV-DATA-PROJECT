@@ -83,7 +83,7 @@ export default function Header({
   const menuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [location, setLocation] = useLocation();
-  const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout, subscriptionTier } = useAuth();
   const { toast } = useToast();
 
   // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -207,6 +207,18 @@ export default function Header({
     }
   };
 
+  const requireSubscription = (action: () => void) => {
+    if (isAuthenticated && subscriptionTier === null) {
+      toast({
+        title: "Upgrade Account",
+        description: "Please request an upgrade to your account to access this area",
+      });
+      setShowContact(true);
+      return;
+    }
+    action();
+  };
+
   const handleLogout = async () => {
     try {
       
@@ -227,25 +239,31 @@ export default function Header({
     }
   };
 
-  const onBuyersFeedClick = async () => {
-    setLocation("/");
-    setProperty(null);
-    setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
-    setView("buyers-feed");
-  }
+  const onBuyersFeedClick = () => {
+    requireSubscription(() => {
+      setLocation("/");
+      setProperty(null);
+      setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
+      setView("buyers-feed");
+    });
+  };
 
-  const onWholesaleClick = async () => {
-    setLocation("/");
-    setProperty(null);
-    setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
-    setView("wholesale");
-  }
+  const onWholesaleClick = () => {
+    requireSubscription(() => {
+      setLocation("/");
+      setProperty(null);
+      setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
+      setView("wholesale");
+    });
+  };
 
-  const onTableViewClick = async () => {
-    setLocation("/");
-    setProperty(null);
-    setView("table")
-  }
+  const onTableViewClick = () => {
+    requireSubscription(() => {
+      setLocation("/");
+      setProperty(null);
+      setView("table");
+    });
+  };
 
   const onLogoClick = async () => {
     setLocation("/");
@@ -419,7 +437,7 @@ export default function Header({
                     <button
                       className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                       data-testid="button-view-grid"
-                      onClick={() => { setLocation("/"); setView("grid"); setShowMoreMenu(false); }}
+                      onClick={() => { requireSubscription(() => { setLocation("/"); setView("grid"); }); setShowMoreMenu(false); }}
                     >
                       <Grid3x3 className="w-4 h-4" />
                       Grid
@@ -457,8 +475,10 @@ export default function Header({
                 onSignupClick?.();
                 return;
               }
-              setLocation("/");
-              setView("deals");
+              requireSubscription(() => {
+                setLocation("/");
+                setView("deals");
+              });
             }}
             data-testid="button-deals"
           >
@@ -469,7 +489,7 @@ export default function Header({
           <Button
             variant={location === "/analytics" ? "default" : "outline"}
             size="sm"
-            onClick={() => setLocation("/analytics")}
+            onClick={() => requireSubscription(() => setLocation("/analytics"))}
             data-testid="button-analytics"
           >
             <LineChart className="w-4 h-4 mr-1" />
