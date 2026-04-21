@@ -39,7 +39,7 @@ export function useAuth() {
     isLoading: isAdminStatusLoading,
   } = useQuery<{ authenticated: boolean; isAdmin: boolean; roles: string[]; subscriptionTier: string | null }>({
     queryKey: ADMIN_STATUS_QUERY_KEY,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
     enabled: isAuthenticated,
   });
 
@@ -66,6 +66,16 @@ export function useAuth() {
 
   const isRelationshipManager = isAuthenticated && !isAdminStatusLoading && roles.includes("relationship-manager");
 
+  /**
+   * True when the authenticated user may access app pages.
+   * Access is granted when the user has a subscription tier (basic/pro/premium)
+   * OR has a staff role (admin, owner, relationship-manager, member).
+   * Stays true while admin status is still loading to avoid blocking during hydration.
+   */
+  const canAccessApp =
+    isAuthenticated &&
+    (isAdminStatusLoading || subscriptionTier !== null || (adminStatus?.isAdmin ?? false));
+
   return {
     user: data?.user ?? null,
     isLoading,
@@ -82,6 +92,11 @@ export function useAuth() {
     subscriptionTier,
     /** All ARV team roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "member"). */
     roles,
+    /**
+     * True when the user is allowed to access app pages (has a subscription OR a staff role).
+     * Use this instead of checking subscriptionTier directly to avoid blocking admin/owner users.
+     */
+    canAccessApp,
     isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,

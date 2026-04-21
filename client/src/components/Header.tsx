@@ -83,7 +83,7 @@ export default function Header({
   const menuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [location, setLocation] = useLocation();
-  const { user, isAuthenticated, isAdmin, logout, subscriptionTier } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout, canAccessApp } = useAuth();
   const { toast } = useToast();
 
   // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -208,7 +208,7 @@ export default function Header({
   };
 
   const requireSubscription = (action: () => void) => {
-    if (isAuthenticated && subscriptionTier === null) {
+    if (isAuthenticated && !canAccessApp) {
       toast({
         title: "Upgrade Account",
         description: "Please request an upgrade to your account to access this area",
