@@ -92,6 +92,7 @@ async function upsertCompanyByName(
     if (county) {
         await addCountiesToCompanyIfNeeded({ id: companyId }, [county]);
     }
+    
     if (msa) {
         const [msaRow] = await db
             .select({ id: msas.id })
