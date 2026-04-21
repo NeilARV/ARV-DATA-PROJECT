@@ -72,8 +72,12 @@ async function main() {
         }
 
         // Sort using the existing algorithm (same one used everywhere in the app)
+        type TxWithStrDates = Omit<typeof txs[number], "recordingDate" | "saleDate"> & {
+            recordingDate: string | null;
+            saleDate: string | null;
+        };
         const sorted = sortTransactionsDesc(
-            txs.map((tx) => ({
+            txs.map((tx): TxWithStrDates => ({
                 ...tx,
                 recordingDate: toDateStr(tx.recordingDate),
                 saleDate: toDateStr(tx.saleDate),
@@ -91,10 +95,9 @@ async function main() {
 
         if (MODE === "preview") {
             console.log(`  Property ${id}: ${txs.length} transaction(s) ordered`);
-            sorted.forEach((tx, i) => {
-                const t = tx as typeof txs[number];
+            sorted.forEach((tx: TxWithStrDates, i: number) => {
                 console.log(
-                    `    [${i + 1}] id=${t.propertyTransactionsId}  type=${t.transactionType ?? "—"}  recording=${toDateStr(t.recordingDate) ?? "—"}`
+                    `    [${i + 1}] id=${tx.propertyTransactionsId}  type=${tx.transactionType ?? "—"}  recording=${tx.recordingDate ?? "—"}`
                 );
             });
         }
