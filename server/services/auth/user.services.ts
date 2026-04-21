@@ -94,14 +94,14 @@ async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Pro
 }
 
 /**
- * Adds a single MSA subscription for a user (e.g. from email_whitelist on signup).
+ * Adds a single MSA subscription for a user.
  */
 export async function addUserMsaSubscription(userId: string, msaId: number): Promise<void> {
     await db.insert(userMsaSubscriptions).values({ userId, msaId });
 }
 
 /**
- * Links a user to a relationship manager in user_relationship_managers (e.g. from email_whitelist on signup).
+ * Links a user to a relationship manager in user_relationship_managers.
  */
 export async function addUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
     await db.insert(userRelationshipManagers).values({ userId, relationshipManagerId });
@@ -144,7 +144,6 @@ export async function getUserById(userId: string) {
 
 /**
  * Returns a randomly selected relationship manager from all users with the relationship-manager role.
- * Used to display a contact suggestion when signup fails due to email not being whitelisted.
  */
 export async function getRandomRelationshipManager(): Promise<{
     firstName: string;
