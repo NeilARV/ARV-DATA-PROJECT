@@ -41,7 +41,9 @@ export default function LoginContent({ onSuccess, onSwitchToSignup }: LoginConte
       return response.json();
     },
     onSuccess: () => {
+      queryClient.setQueryData(["/api/admin/status"], null);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/status"] });
       toast({ title: "Welcome back!", description: "You've successfully signed in." });
       form.reset();
       onSuccess();
