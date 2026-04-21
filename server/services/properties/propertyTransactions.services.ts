@@ -3,10 +3,11 @@ import { properties, propertyTransactions, parcels } from "@database/schemas/pro
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies, companyMsas } from "@database/schemas/companies.schema";
 import { msas } from "@database/schemas/msas.schema";
-import { eq, asc, inArray } from "drizzle-orm";
+import { eq, asc, and, gte, inArray, sql } from "drizzle-orm";
 import { trimCompanyName } from "server/utils/normalization";
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { isFlippingCompany } from "server/utils/dataSyncHelpers";
+
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -252,6 +253,7 @@ export type BulkTransactionInput = {
     sellerName?: string | null;
     salePrice?: string | null;
     firstMtgLenderName?: string | null;
+    position?: number | null;
 };
 
 export async function appendPropertyTransactions(
@@ -270,29 +272,45 @@ export async function appendPropertyTransactions(
 
     const apn = parcel?.apn ?? null;
 
-    const rows = await Promise.all(
-        transactions.map(async (tx) => {
-            const buyerId = tx.buyerName
-                ? await upsertCompanyByName(tx.buyerName, county, msa)
-                : null;
-            const sellerId = tx.sellerName
-                ? await upsertCompanyByName(tx.sellerName, county, msa)
-                : null;
-            return {
-                propertyId,
-                apn,
-                transactionType: tx.transactionType ?? null,
-                recordingDate: tx.recordingDate,
-                saleDate: tx.saleDate,
-                buyerName: trimCompanyName(tx.buyerName ?? null),
-                buyerId,
-                sellerName: trimCompanyName(tx.sellerName ?? null),
-                sellerId,
-                salePrice: tx.salePrice ?? null,
-                firstMtgLenderName: tx.firstMtgLenderName ?? null,
-            };
-        })
-    );
+    for (const tx of transactions) {
+        const buyerId = tx.buyerName
+            ? await upsertCompanyByName(tx.buyerName, county, msa)
+            : null;
+        const sellerId = tx.sellerName
+            ? await upsertCompanyByName(tx.sellerName, county, msa)
+            : null;
 
-    await db.insert(propertyTransactions).values(rows);
+        const row = {
+            propertyId,
+            apn,
+            transactionType: tx.transactionType ?? null,
+            recordingDate: tx.recordingDate,
+            saleDate: tx.saleDate,
+            buyerName: trimCompanyName(tx.buyerName ?? null),
+            buyerId,
+            sellerName: trimCompanyName(tx.sellerName ?? null),
+            sellerId,
+            salePrice: tx.salePrice ?? null,
+            firstMtgLenderName: tx.firstMtgLenderName ?? null,
+        };
+
+        if (tx.position != null) {
+            // Shift every existing transaction at or after the target position down by one
+            await db
+                .update(propertyTransactions)
+                .set({ sortOrder: sql`sort_order + 1` })
+                .where(and(
+                    eq(propertyTransactions.propertyId, propertyId),
+                    gte(propertyTransactions.sortOrder, tx.position)
+                ));
+            await db.insert(propertyTransactions).values({ ...row, sortOrder: tx.position });
+        } else {
+            // No position specified — append after the last transaction
+            const [maxRow] = await db
+                .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
+                .from(propertyTransactions)
+                .where(eq(propertyTransactions.propertyId, propertyId));
+            await db.insert(propertyTransactions).values({ ...row, sortOrder: (maxRow?.max ?? 0) + 1 });
+        }
+    }
 }

@@ -12,6 +12,7 @@ const patchTransactionInputSchema = z.object({
   sellerName: z.string().nullable().optional(),
   salePrice: z.string().nullable().optional(),
   firstMtgLenderName: z.string().nullable().optional(),
+  position: z.number().int().min(1).optional(),
 });
 
 export type PatchTransactionInput = z.infer<typeof patchTransactionInputSchema>;

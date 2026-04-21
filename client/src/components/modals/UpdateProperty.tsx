@@ -22,7 +22,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Check, X } from "lucide-react";
+import { Loader2, Plus, Check, X, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 // ─── Property form ─────────────────────────────────────────────────────────
 
@@ -196,6 +198,21 @@ function CompanyAutocomplete({
   );
 }
 
+// ─── Date helpers ─────────────────────────────────────────────────────────
+
+function parseDateStr(s: string): Date | undefined {
+  if (!s || s.length !== 10) return undefined;
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // ─── Transaction inline edit row ───────────────────────────────────────────
 
 function TxEditRow({
@@ -211,10 +228,12 @@ function TxEditRow({
   onCancel: () => void;
   county?: string | null;
 }) {
+  const [recordingOpen, setRecordingOpen] = useState(false);
+  const [saleDateOpen, setSaleDateOpen] = useState(false);
   const missingRequired = !form.recordingDate || !form.saleDate;
 
   return (
-    <div className="border border-border rounded-lg p-3 space-y-3 bg-muted/30">
+    <div className="border border-primary/50 rounded-lg p-3 space-y-3 bg-muted/30">
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
           <label className="text-xs text-muted-foreground mb-1 block">Type</label>
@@ -234,24 +253,62 @@ function TxEditRow({
           <label className="text-xs text-muted-foreground mb-1 block">
             Recording Date <span className="text-destructive">*</span>
           </label>
-          <Input
-            type="date"
-            value={form.recordingDate}
-            onChange={(e) => onChange("recordingDate", e.target.value)}
-            className="h-8 text-sm"
-          />
+          <Popover open={recordingOpen} onOpenChange={setRecordingOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 h-8 w-full rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors"
+              >
+                <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className={form.recordingDate ? "text-foreground" : "text-muted-foreground"}>
+                  {form.recordingDate || "Pick a date"}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-[10004]" align="start">
+              <Calendar
+                mode="single"
+                selected={parseDateStr(form.recordingDate)}
+                defaultMonth={parseDateStr(form.recordingDate)}
+                onSelect={(date) => {
+                  if (date) onChange("recordingDate", toDateStr(date));
+                  setRecordingOpen(false);
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">
             Sale Date <span className="text-destructive">*</span>
           </label>
-          <Input
-            type="date"
-            value={form.saleDate}
-            onChange={(e) => onChange("saleDate", e.target.value)}
-            className="h-8 text-sm"
-          />
+          <Popover open={saleDateOpen} onOpenChange={setSaleDateOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 h-8 w-full rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors"
+              >
+                <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className={form.saleDate ? "text-foreground" : "text-muted-foreground"}>
+                  {form.saleDate || "Pick a date"}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-[10004]" align="start">
+              <Calendar
+                mode="single"
+                selected={parseDateStr(form.saleDate)}
+                defaultMonth={parseDateStr(form.saleDate)}
+                onSelect={(date) => {
+                  if (date) onChange("saleDate", toDateStr(date));
+                  setSaleDateOpen(false);
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="col-span-2">
@@ -303,6 +360,32 @@ function TxEditRow({
           <Check className="w-3 h-3 mr-1" /> Apply
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─── Hover insert zone ────────────────────────────────────────────────────
+
+function HoverInsertZone({ onInsert }: { onInsert: () => void }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className={`relative flex items-center overflow-hidden cursor-pointer transition-[height] duration-150 ease-in-out ${hovered ? "h-8" : "h-2"}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onInsert}
+    >
+      {hovered && (
+        <div className="absolute inset-x-0 flex items-center gap-2 px-1">
+          <div className="flex-1 h-px bg-primary/60" />
+          <span className="flex items-center gap-1 text-xs text-primary bg-primary/10 rounded px-2 py-0.5 shrink-0 select-none whitespace-nowrap">
+            <Plus className="w-3 h-3" />
+            Add here
+          </span>
+          <div className="flex-1 h-px bg-primary/60" />
+        </div>
+      )}
     </div>
   );
 }
@@ -378,6 +461,7 @@ export default function UpdatePropertyContent({
   const [txLoading, setTxLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<TxEditForm>(emptyEditForm());
+  const [newTxPosition, setNewTxPosition] = useState(1);
 
   useEffect(() => {
     fetch(`/api/properties/${propertyId}/transactions`)
@@ -411,11 +495,15 @@ export default function UpdatePropertyContent({
       .finally(() => setTxLoading(false));
   }, [propertyId]);
 
-  function startAdd() {
+  function startAdd(position: number) {
     const key = `new-${Date.now()}`;
     setEditingKey(key);
     setEditForm(emptyEditForm());
-    setTransactions((prev) => [emptyTxRow(key), ...prev]);
+    setNewTxPosition(position);
+    setTransactions((prev) => {
+      const insertAt = position - 1;
+      return [...prev.slice(0, insertAt), emptyTxRow(key), ...prev.slice(insertAt)];
+    });
   }
 
   function applyEdit() {
@@ -458,6 +546,7 @@ export default function UpdatePropertyContent({
             sellerName: tx.sellerName || null,
             salePrice: tx.salePrice || null,
             firstMtgLenderName: tx.firstMtgLenderName || null,
+            position: newTxPosition,
           })),
         }),
       });
@@ -558,51 +647,53 @@ export default function UpdatePropertyContent({
 
           {/* Transactions */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium leading-none">Transactions</label>
-              {!editingKey && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 text-xs px-2"
-                  onClick={startAdd}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Transaction
-                </Button>
-              )}
-            </div>
+            <label className="text-sm font-medium leading-none">Transactions</label>
 
             {txLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               </div>
-            ) : transactions.length === 0 && !editingKey ? (
-              <p className="text-xs text-muted-foreground py-2">No transactions recorded.</p>
+            ) : transactions.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <p className="text-xs text-muted-foreground">No transactions recorded.</p>
+                {!editingKey && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 text-xs px-3"
+                    onClick={() => startAdd(1)}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Transaction
+                  </Button>
+                )}
+              </div>
             ) : (
               <div
-                className="space-y-2 overflow-y-auto pr-1"
-                style={{ maxHeight: "18rem" }}
+                className="overflow-y-auto pr-1"
+                style={{ maxHeight: "20rem" }}
                 onWheel={(e) => e.stopPropagation()}
               >
-                {transactions.map((tx) =>
-                  editingKey === tx._key ? (
-                    <TxEditRow
-                      key={tx._key}
-                      form={editForm}
-                      onChange={(field, val) => setEditForm((prev) => ({ ...prev, [field]: val }))}
-                      onApply={applyEdit}
-                      onCancel={cancelEdit}
-                      county={initialData.county}
-                    />
-                  ) : (
-                    <TxDisplayCard
-                      key={tx._key}
-                      tx={tx}
-                    />
-                  )
-                )}
+                {!editingKey && <HoverInsertZone onInsert={() => startAdd(1)} />}
+                {transactions.map((tx, i) => (
+                  <div key={tx._key}>
+                    {editingKey === tx._key ? (
+                      <TxEditRow
+                        form={editForm}
+                        onChange={(field, val) => setEditForm((prev) => ({ ...prev, [field]: val }))}
+                        onApply={applyEdit}
+                        onCancel={cancelEdit}
+                        county={initialData.county}
+                      />
+                    ) : (
+                      <TxDisplayCard tx={tx} />
+                    )}
+                    {!editingKey && (
+                      <HoverInsertZone onInsert={() => startAdd(i + 2)} />
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
