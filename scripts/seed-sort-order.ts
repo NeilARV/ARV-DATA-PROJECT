@@ -45,6 +45,9 @@ async function main() {
     let totalProps = 0;
 
     for (const id of propertyIds) {
+
+        console.log(`[seed-sort-order] Processing property ${id}...`);
+        
         const txs = await db
             .select()
             .from(propertyTransactions)
@@ -83,11 +86,13 @@ async function main() {
         if (totalProps % 100 === 0) {
             console.log(`[seed-sort-order] ${totalProps} / ${propertyIds.length} properties done...`);
         }
+
+        console.log(`[seed-sort-order] Finished processing property ${id}...`);
     }
 
     console.log(`[seed-sort-order] Done.`);
-    console.log(`  Properties updated : ${totalProps}`);
-    console.log(`  Transactions sorted: ${totalTx}`);
+    console.log(`Properties updated : ${totalProps}`);
+    console.log(`Transactions sorted: ${totalTx}`);
 }
 
 main()
