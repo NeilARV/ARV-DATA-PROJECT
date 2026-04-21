@@ -96,11 +96,6 @@ export async function runConsumer(): Promise<void> {
 
     for (const msa of msaList) {
 
-        if (msa.name !== 'San Diego-Chula Vista-Carlsbad, CA') {
-            console.log('skipping San Diego for testing purposes');
-            return;
-        }
-
         const msaLabel = `${label}[${msa.name}]`;
         let batchNum = 0;
         let processedThisMsa = 0;
