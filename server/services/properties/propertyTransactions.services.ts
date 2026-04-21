@@ -3,11 +3,11 @@ import { properties, propertyTransactions, parcels } from "@database/schemas/pro
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies, companyMsas } from "@database/schemas/companies.schema";
 import { msas } from "@database/schemas/msas.schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, asc, inArray } from "drizzle-orm";
 import { trimCompanyName } from "server/utils/normalization";
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { isFlippingCompany } from "server/utils/dataSyncHelpers";
-import { sortTransactionsDesc } from "server/utils/orderTransactions";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ export type GetTransactionsResult = {
     sellerName: string | null;
     salePrice: string | null;
     firstMtgLenderName: string | null;
+    sortOrder: number | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ function formatTxRow(tx: TransactionRow): GetTransactionsResult {
         sellerName: tx.sellerName,
         salePrice: tx.salePrice,
         firstMtgLenderName: tx.firstMtgLenderName,
+        sortOrder: tx.sortOrder,
     };
 }
 
@@ -180,17 +182,9 @@ export async function reprocessProperty(propertyId: string): Promise<void> {
         .select()
         .from(propertyTransactions)
         .where(eq(propertyTransactions.propertyId, propertyId))
-        .orderBy(desc(propertyTransactions.recordingDate), desc(propertyTransactions.propertyTransactionsId));
+        .orderBy(asc(propertyTransactions.sortOrder));
 
-    const sorted = sortTransactionsDesc(
-        txs.map((tx) => ({
-            ...tx,
-            recordingDate: toDateStr(tx.recordingDate),
-            saleDate: toDateStr(tx.saleDate),
-        }))
-    );
-
-    const armsLengthSorted = sorted.filter((tx) => isArmsLength(tx.transactionType));
+    const armsLengthSorted = txs.filter((tx) => isArmsLength(tx.transactionType));
     const latestAL = armsLengthSorted[0] ?? null;
 
     let newBuyerId: string | null = latestAL?.buyerId ?? null;
@@ -243,17 +237,9 @@ export async function getPropertyTransactions(propertyId: string): Promise<GetTr
         .select()
         .from(propertyTransactions)
         .where(eq(propertyTransactions.propertyId, propertyId))
-        .orderBy(desc(propertyTransactions.recordingDate), desc(propertyTransactions.propertyTransactionsId));
+        .orderBy(asc(propertyTransactions.sortOrder));
 
-    const sorted = sortTransactionsDesc(
-        rows.map((tx) => ({
-            ...tx,
-            recordingDate: toDateStr(tx.recordingDate),
-            saleDate: toDateStr(tx.saleDate),
-        }))
-    );
-
-    return sorted.map((tx) => formatTxRow(tx as TransactionRow));
+    return rows.map((tx) => formatTxRow(tx));
 }
 
 // ─── Append (called from patchProperty) ──────────────────────────────────────

@@ -78,6 +78,7 @@ const TX_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 
 type TxRow = {
   _key: string;
+  sortOrder: number | null;
   transactionType: string;
   recordingDate: string;
   saleDate: string;
@@ -87,7 +88,21 @@ type TxRow = {
   firstMtgLenderName: string;
 };
 
-type TxEditForm = Omit<TxRow, "_key">;
+type TxEditForm = Omit<TxRow, "_key" | "sortOrder">;
+
+function emptyTxRow(key: string): TxRow {
+  return {
+    _key: key,
+    sortOrder: null,
+    transactionType: "",
+    recordingDate: "",
+    saleDate: "",
+    buyerName: "",
+    sellerName: "",
+    salePrice: "",
+    firstMtgLenderName: "",
+  };
+}
 
 function emptyEditForm(): TxEditForm {
   return {
@@ -299,18 +314,23 @@ function TxDisplayCard({ tx }: { tx: TxRow }) {
 
   return (
     <div className="border border-border rounded-lg p-3 space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        {typeStyle ? (
-          <span
-            className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm"
-            style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
-          >
-            {tx.transactionType}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">{tx.transactionType || "—"}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {typeStyle ? (
+            <span
+              className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm"
+              style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
+            >
+              {tx.transactionType}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">{tx.transactionType || "—"}</span>
+          )}
+          <span className="text-xs text-muted-foreground">{tx.recordingDate || "—"}</span>
+        </div>
+        {tx.sortOrder != null && (
+          <span className="text-xs font-mono text-muted-foreground shrink-0">#{tx.sortOrder}</span>
         )}
-        <span className="text-xs text-muted-foreground">{tx.recordingDate || "—"}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-1 text-xs">
@@ -364,6 +384,7 @@ export default function UpdatePropertyContent({
       .then((r) => r.json())
       .then((data: Array<{
         id: number;
+        sortOrder: number | null;
         transactionType: string | null;
         recordingDate: string;
         saleDate: string;
@@ -375,6 +396,7 @@ export default function UpdatePropertyContent({
         setTransactions(
           data.map((tx) => ({
             _key: String(tx.id),
+            sortOrder: tx.sortOrder,
             transactionType: tx.transactionType ?? "",
             recordingDate: tx.recordingDate ?? "",
             saleDate: tx.saleDate ?? "",
@@ -393,12 +415,12 @@ export default function UpdatePropertyContent({
     const key = `new-${Date.now()}`;
     setEditingKey(key);
     setEditForm(emptyEditForm());
-    setTransactions((prev) => [{ _key: key, ...emptyEditForm() }, ...prev]);
+    setTransactions((prev) => [emptyTxRow(key), ...prev]);
   }
 
   function applyEdit() {
     setTransactions((prev) =>
-      prev.map((tx) => (tx._key === editingKey ? { _key: tx._key, ...editForm } : tx))
+      prev.map((tx) => (tx._key === editingKey ? { _key: tx._key, sortOrder: tx.sortOrder, ...editForm } : tx))
     );
     setEditingKey(null);
   }
