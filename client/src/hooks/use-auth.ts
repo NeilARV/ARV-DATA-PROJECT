@@ -88,49 +88,6 @@ export function useAuth() {
   };
 }
 
-const TRIAL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-
-export function useSubscriptionGate() {
-  const { isAuthenticated, isLoading, subscriptionTier, isAdminStatusLoading, user } = useAuth();
-  const [shouldBlock, setShouldBlock] = useState(false);
-
-  useEffect(() => {
-    if (isLoading || isAdminStatusLoading) return;
-
-    // Only applies to logged-in users with no subscription
-    if (!isAuthenticated || subscriptionTier !== null) {
-      setShouldBlock(false);
-      return;
-    }
-
-    const storageKey = `trial_start_${user!.id}`;
-    const stored = localStorage.getItem(storageKey);
-    const now = Date.now();
-
-    if (stored === null) {
-      // First visit — start the clock
-      localStorage.setItem(storageKey, String(now));
-      const remaining = TRIAL_DURATION_MS;
-      const timer = setTimeout(() => setShouldBlock(true), remaining);
-      return () => clearTimeout(timer);
-    }
-
-    const elapsed = now - Number(stored);
-
-    if (elapsed >= TRIAL_DURATION_MS) {
-      // Already expired — block immediately
-      setShouldBlock(true);
-    } else {
-      // Partway through — schedule block for the remaining time
-      const remaining = TRIAL_DURATION_MS - elapsed;
-      const timer = setTimeout(() => setShouldBlock(true), remaining);
-      return () => clearTimeout(timer);
-    }
-  }, [isAuthenticated, isLoading, subscriptionTier, isAdminStatusLoading, user]);
-
-  return { shouldBlock };
-}
-
 const VIEW_LIMIT_REACHED_KEY = "view_limit_reached";
 let SIGNUP_DELAY_MS = 30000; // 30 seconds
 

@@ -13,7 +13,6 @@ import LoginContent from "@/components/modals/Login";
 import SignupContent from "@/components/modals/Signup";
 import LeaderboardContent from "@/components/modals/Leaderboard";
 import InfoContent from "@/components/modals/Info";
-import ContactContent from "@/components/modals/Contact";
 import { useDialogs } from "@/hooks/useDialogs";
 import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
@@ -30,7 +29,7 @@ function HomeContent() {
   const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
   const { dialog, openDialog, closeDialog, isForced, forcedDialogActive, headerDialogHandlers } = useDialogs();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { property, setProperty } = useProperty();
 
   // Open the property modal whenever a property is selected in table/grid views
@@ -153,18 +152,6 @@ function HomeContent() {
         {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
         {dialog?.type === "property" && (
           <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
-        )}
-        {dialog?.type === "contact" && (
-          <ContactContent
-            onClose={closeDialog}
-            forced={dialog.forced}
-            onLogout={logout}
-            defaultFirstName={user?.firstName ?? ""}
-            defaultLastName={user?.lastName ?? ""}
-            defaultEmail={user?.email ?? ""}
-            defaultPhone={user?.phone ?? ""}
-            defaultSubject="Request Access"
-          />
         )}
       </AppDialog>
     </div>

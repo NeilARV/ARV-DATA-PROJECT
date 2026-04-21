@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth, useSignupPrompt, useSubscriptionGate } from "@/hooks/use-auth";
+import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 
 /**
  * Discriminated union of every dialog the app can show.
@@ -9,7 +9,6 @@ export type DialogState =
   | null
   | { type: "login"; forced: boolean }
   | { type: "signup"; forced: boolean }
-  | { type: "contact"; forced: boolean }
   | { type: "leaderboard" }
   | { type: "info" }
   | { type: "property" }
@@ -44,16 +43,8 @@ export function useDialogs(): UseDialogsResult {
 
   const { isAuthenticated } = useAuth();
   const { shouldShowSignup, isForced: promptIsForced, dismissPrompt } = useSignupPrompt();
-  const { shouldBlock } = useSubscriptionGate();
 
-  // Block authenticated users with no subscription once trial expires
-  useEffect(() => {
-    if (shouldBlock) {
-      setDialog({ type: "contact", forced: true });
-    }
-  }, [shouldBlock]);
-
-  // Auto-show signup prompt when triggered (unauthenticated only)
+  // Auto-show signup prompt when triggered
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
       setDialog({ type: "signup", forced: promptIsForced });
@@ -65,20 +56,17 @@ export function useDialogs(): UseDialogsResult {
     if (dialog?.type === "signup") {
       dismissPrompt();
     }
-    // Never allow closing a forced contact dialog
-    if (dialog?.type === "contact" && dialog.forced) return;
     setDialog(null);
   };
 
   const openDialog = (d: NonNullable<DialogState>) => setDialog(d);
 
   const isForced =
-    (dialog?.type === "login" || dialog?.type === "signup" || dialog?.type === "contact") &&
-    dialog.forced;
+    (dialog?.type === "login" || dialog?.type === "signup") && dialog.forced;
 
   const forcedDialogActive =
     dialog != null &&
-    (dialog.type === "login" || dialog.type === "signup" || dialog.type === "contact") &&
+    (dialog.type === "login" || dialog.type === "signup") &&
     dialog.forced;
 
   return {

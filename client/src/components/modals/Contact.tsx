@@ -23,9 +23,6 @@ export interface ContactContentProps {
   onClose: () => void;
   /** Called after the message is sent successfully. Use for toast notifications. */
   onSuccess?: () => void;
-  /** When true, replaces the Cancel button with a Log Out button. */
-  forced?: boolean;
-  onLogout?: () => void;
   defaultSubject?: ContactSubject;
   defaultFirstName?: string;
   defaultLastName?: string;
@@ -37,8 +34,6 @@ export interface ContactContentProps {
 export default function ContactContent({
   onClose,
   onSuccess,
-  forced = false,
-  onLogout,
   defaultSubject,
   defaultFirstName = "",
   defaultLastName = "",
@@ -187,25 +182,14 @@ export default function ContactContent({
       </div>
 
       <div className="flex gap-2 pt-4">
-        {forced ? (
-          <Button
-            variant="outline"
-            onClick={onLogout}
-            className="flex-1"
-            disabled={isSubmitting}
-          >
-            Log Out
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="flex-1"
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          onClick={onClose}
+          className="flex-1"
+          disabled={isSubmitting}
+        >
+          Cancel
+        </Button>
         <Button
           onClick={handleSubmit}
           className="flex-1"
