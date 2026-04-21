@@ -1,14 +1,17 @@
 /**
  * One-time script: seeds sort_order on all property_transactions.
  *
+ * Safe to re-run — only processes properties that have at least one
+ * transaction with sort_order IS NULL, so a crashed run can be resumed.
+ *
  * Usage:
  *   npm run seed:sort-order
  */
 
 import "dotenv/config";
 import { db } from "server/storage";
-import { properties, propertyTransactions } from "@database/schemas/properties.schema";
-import { eq, desc, asc } from "drizzle-orm";
+import { propertyTransactions } from "@database/schemas/properties.schema";
+import { eq, desc, isNull } from "drizzle-orm";
 import { sortTransactionsDesc } from "server/utils/orderTransactions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -22,21 +25,26 @@ function toDateStr(d: Date | string | null | undefined): string | null {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-    const allProperties = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .orderBy(asc(properties.id));
+    // Only fetch property IDs that still have at least one unsorted transaction.
+    // This makes the script safe to resume after a crash.
+    const unsortedRows = await db
+        .selectDistinct({ propertyId: propertyTransactions.propertyId })
+        .from(propertyTransactions)
+        .where(isNull(propertyTransactions.sortOrder));
 
-    console.log(`[seed-sort-order] Processing ${allProperties.length} properties...`);
+    const propertyIds = unsortedRows.map((r) => r.propertyId);
+
+    console.log(`[seed-sort-order] Properties with unsorted transactions: ${propertyIds.length}`);
+
+    if (propertyIds.length === 0) {
+        console.log(`[seed-sort-order] Nothing to do — all transactions already have sort_order.`);
+        return;
+    }
 
     let totalTx = 0;
     let totalProps = 0;
-    let skipped = 0;
 
-    for (const { id } of allProperties) {
-
-        console.log(`[seed-sort-order] Processing property ID ${id}`);
-
+    for (const id of propertyIds) {
         const txs = await db
             .select()
             .from(propertyTransactions)
@@ -46,10 +54,7 @@ async function main() {
                 desc(propertyTransactions.propertyTransactionsId)
             );
 
-        if (txs.length === 0) {
-            skipped++;
-            continue;
-        }
+        if (txs.length === 0) continue;
 
         type TxWithStrDates = Omit<typeof txs[number], "recordingDate" | "saleDate"> & {
             recordingDate: string | null;
@@ -75,12 +80,13 @@ async function main() {
         totalTx += txs.length;
         totalProps++;
 
-        console.log(`[seed-sort-order] Finished processing property ID ${id}`);
+        if (totalProps % 100 === 0) {
+            console.log(`[seed-sort-order] ${totalProps} / ${propertyIds.length} properties done...`);
+        }
     }
 
     console.log(`[seed-sort-order] Done.`);
     console.log(`  Properties updated : ${totalProps}`);
-    console.log(`  Properties skipped : ${skipped} (no transactions)`);
     console.log(`  Transactions sorted: ${totalTx}`);
 }
 

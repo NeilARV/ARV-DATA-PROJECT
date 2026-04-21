@@ -17,6 +17,7 @@ import {
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { eq } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
+import { sortTransactionsDesc } from "server/utils/orderTransactions";
 import type { PropertyWithStatus } from "./resolve-status";
 import type { TransactionWithIds } from "./resolve-ids";
 import type { SfrPropertyData } from "server/utils/propertyDataHelpers";
@@ -380,12 +381,14 @@ export async function insertProperties(
       .where(eq(propertyTransactions.propertyId, propertyId));
 
     const transactions = item.transactions ?? [];
-    for (const tx of transactions) {
-      const row = mapTransactionRow(propertyId, tx);
-      if (row) {
-        await db.insert(propertyTransactions).values(row);
-        transactionsInserted += 1;
-      }
+    const mappedTxRows = transactions
+      .map((tx) => mapTransactionRow(propertyId, tx))
+      .filter((row): row is NonNullable<ReturnType<typeof mapTransactionRow>> => row !== null);
+
+    const sortedTxRows = sortTransactionsDesc(mappedTxRows);
+    for (let i = 0; i < sortedTxRows.length; i++) {
+      await db.insert(propertyTransactions).values({ ...sortedTxRows[i], sortOrder: i + 1 });
+      transactionsInserted += 1;
     }
   }
 
