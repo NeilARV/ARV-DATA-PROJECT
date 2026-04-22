@@ -517,21 +517,21 @@ export function PropertyContent({
       {/* Assignor (shown when an assignment tx sits between the 2 most recent arms-length txs) */}
       {property.assignorCompanyName && (
         <div className="mt-2 flex items-center justify-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Assigned by</span>
+          <span className="text-sm text-muted-foreground">Assigned by</span>
           {cfg.clickableCompanies && property.assignorId && onCompanyClick ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onCompanyClick(property.assignorCompanyName!, property.assignorId!, false);
               }}
-              className="text-xs font-medium text-primary hover:underline truncate"
+              className="text-sm font-medium text-primary hover:underline truncate"
               data-testid={tid.assignorCompanyName}
             >
               {formatCompanyName(property.assignorCompanyName)}
             </button>
           ) : (
             <span
-              className="text-xs font-medium text-primary truncate"
+              className="text-sm font-medium text-primary truncate"
               data-testid={tid.assignorCompanyName}
             >
               {formatCompanyName(property.assignorCompanyName)}
