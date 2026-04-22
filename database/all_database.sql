@@ -453,6 +453,7 @@ CREATE TABLE property_transactions (
     first_mtg_amount DECIMAL(15, 2),
     first_mtg_lender_name VARCHAR(200),
     first_mtg_due_date DATE,
+    sort_order INTEGER DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

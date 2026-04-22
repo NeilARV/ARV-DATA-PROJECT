@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
@@ -20,6 +20,11 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
   const { handleCompanyClick } = useCompanies();
   const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
 
+  useEffect(() => {
+    if (property?.id) fetchProperty(property.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property?.id]);
+
   if (!property) return null;
 
   return (
@@ -36,6 +41,24 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
           onClose();
         }}
       />
+
+      <AppDialog
+        hideOverlay
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        className="max-w-md z-[10001]"
+      >
+        <UpdatePropertyContent
+          onClose={() => setShowEditDialog(false)}
+          propertyId={property.id}
+          initialData={{
+            isArvFunded: property.isFinancedByARV,
+            statuses: property.statuses ?? [property.status],
+            county: property.county,
+          }}
+          onSuccess={() => fetchProperty(property.id)}
+        />
+      </AppDialog>
 
       <AppDialog
         hideOverlay

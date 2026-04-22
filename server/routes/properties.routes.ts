@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "server/middleware/requireRole";
-import { MapsController, StreetviewController, PropertiesController, PropertyController } from "server/controllers/properties";
+import { MapsController, StreetviewController, PropertiesController, PropertyController, PropertyTransactionsController } from "server/controllers/properties";
 
 const router = Router();
 
@@ -24,6 +24,9 @@ router.patch("/:id", requireRole(["admin", "owner", "relationship-manager"]), Pr
 
 // Delete a property
 router.delete("/:id", requireRole(["admin", "owner"]), PropertyController.removeProperty);
+
+// Property transactions (read-only; mutations go through PATCH /:id)
+router.get("/:id/transactions", PropertyTransactionsController.getTransactionsHandler);
 
 // Get a property by id
 router.get("/:id", PropertyController.getProperty);

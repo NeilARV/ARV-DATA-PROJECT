@@ -140,23 +140,34 @@ async function checkCache(
     size: string,
     sfrPropertyId?: number
 ): Promise<StreetviewResult | null> {
-    const cacheConditions = [
+    const baseConditions = [
         sql`LOWER(TRIM(${streetviewCache.address})) = ${address.toLowerCase()}`,
         sql`LOWER(TRIM(${streetviewCache.city})) = ${city.toLowerCase()}`,
         sql`LOWER(TRIM(${streetviewCache.state})) = ${state.toLowerCase()}`,
-        sql`TRIM(${streetviewCache.size}) = ${size}`,
-        sql`${streetviewCache.expiresAt} > NOW()`
+        sql`${streetviewCache.expiresAt} > NOW()`,
     ];
 
     if (sfrPropertyId != null) {
-        cacheConditions.push(eq(streetviewCache.sfrPropertyId, sfrPropertyId));
+        baseConditions.push(eq(streetviewCache.sfrPropertyId, sfrPropertyId));
     }
 
-    const cachedEntry = await db
+    // First try exact size match, then fall back to any cached size for the same address.
+    // This ensures that images cached at one size (e.g. "400x300" for cards) are reused
+    // by other variants (modal, panel) rather than triggering a redundant Google API call.
+    const exactSizeConditions = [...baseConditions, sql`TRIM(${streetviewCache.size}) = ${size}`];
+    let cachedEntry = await db
         .select()
         .from(streetviewCache)
-        .where(and(...cacheConditions))
+        .where(and(...exactSizeConditions))
         .limit(1);
+
+    if (cachedEntry.length === 0) {
+        cachedEntry = await db
+            .select()
+            .from(streetviewCache)
+            .where(and(...baseConditions))
+            .limit(1);
+    }
 
     if (cachedEntry.length === 0) {
         return null;
@@ -175,7 +186,7 @@ async function checkCache(
     }
 
     const source = (cached.imageSource === "satellite" ? "satellite" : "streetview") as "streetview" | "satellite";
-    console.log(`[STREETVIEW CACHE HIT] Using cached ${source} image for: ${address}, ${city}, ${state}`);
+    console.log(`[STREETVIEW CACHE HIT] Using cached ${source} image (size: ${cached.size}) for: ${address}, ${city}, ${state}`);
 
     return {
         imageData: cached.imageData!,

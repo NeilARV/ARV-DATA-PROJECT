@@ -32,6 +32,7 @@ export function startScheduledJobs() {
     // DATA PIPELINE V2 — MARKET SCAN QUEUE
     // =========================================================================
     if (process.env.NODE_ENV === "production") {
+
         // Scanner A (0-15d): nightly at 12:00am (midnight) — primary ingestion window
         cron.schedule("0 0 * * *", scanWindowA, {
             timezone: "America/Los_Angeles"
@@ -74,7 +75,7 @@ export function startScheduledJobs() {
         cron.schedule("*/30 5-22 * * *", runConsumer, {
             timezone: "America/Los_Angeles"
         })
-        // cron.schedule("19 * * * *", runConsumer, {
+        // cron.schedule("55 * * * *", runConsumer, {
         //     timezone: "America/Los_Angeles"
         // })
     } else {

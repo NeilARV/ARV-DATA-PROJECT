@@ -255,6 +255,8 @@ export const propertyTransactions = pgTable("property_transactions", {
   firstMtgAmount: decimal("first_mtg_amount", { precision: 15, scale: 2 }),
   firstMtgLenderName: varchar("first_mtg_lender_name", { length: 200 }),
   firstMtgDueDate: date("first_mtg_due_date"),
+  sortOrder: integer("sort_order"),
+  userCreated: boolean("user_created").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -52,12 +52,25 @@ export interface CompanySuggestion {
     contactEmail: string | null;
 }
 
-export async function getCompanySuggestions(search: string): Promise<CompanySuggestion[]> {
+export async function getCompanySuggestions(search: string, county?: string): Promise<CompanySuggestion[]> {
     const searchTerm = `%${search.trim().toLowerCase()}%`;
+    const conditions: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`,
+    ];
+
+    if (county) {
+        const normalizedCounty = county.trim().toLowerCase();
+        conditions.push(
+            sql`EXISTS (SELECT 1 FROM company_counties cc WHERE cc.company_id = ${companies.id} AND LOWER(cc.county) = ${normalizedCounty})`
+        );
+    }
+
+    const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+
     const results = await db
         .select({ id: companies.id, companyName: companies.companyName })
         .from(companies)
-        .where(sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`)
+        .where(whereClause as any)
         .orderBy(companies.companyName)
         .limit(5);
 

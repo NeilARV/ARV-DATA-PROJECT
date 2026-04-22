@@ -224,6 +224,9 @@ export function PropertyContent({
       : variant === "modal"
       ? `text-spread-${property.id}-modal`
       : `text-spread-${property.id}-panel`,
+    assignorCompanyName: isCard
+      ? `text-assignor-${property.id}`
+      : "text-assignor-company-name",
   };
 
   // ── Image section ──────────────────────────────────────────────────────────
@@ -510,6 +513,32 @@ export function PropertyContent({
         {buyerColumn}
         {sellerColumn}
       </div>
+
+      {/* Assignor (shown when an assignment tx sits between the 2 most recent arms-length txs) */}
+      {property.assignorCompanyName && (
+        <div className="mt-2 flex items-center justify-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Assigned by</span>
+          {cfg.clickableCompanies && property.assignorId && onCompanyClick ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCompanyClick(property.assignorCompanyName!, property.assignorId!, false);
+              }}
+              className="text-xs font-medium text-primary hover:underline truncate"
+              data-testid={tid.assignorCompanyName}
+            >
+              {formatCompanyName(property.assignorCompanyName)}
+            </button>
+          ) : (
+            <span
+              className="text-xs font-medium text-primary truncate"
+              data-testid={tid.assignorCompanyName}
+            >
+              {formatCompanyName(property.assignorCompanyName)}
+            </span>
+          )}
+        </div>
+      )}
       </div>{/* end flex-1 main content */}
 
       {/* Spread */}

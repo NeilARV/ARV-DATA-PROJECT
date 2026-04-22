@@ -7,11 +7,14 @@ import {
     propertyTransactions,
 } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { companies, companyContacts } from "@database/schemas/companies.schema";
+import { companies, companyContacts, companyMsas } from "@database/schemas/companies.schema";
+import { msas } from "@database/schemas/msas.schema";
 import { normalizeCountyName, trimCompanyName, normalizePropertyType, normalizeDateToYMD } from "server/utils/normalization";
 import { sortTransactionsDesc, calculateSpread } from "server/utils/orderTransactions";
 import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propertyDataHelpers";
+import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
+import { appendPropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
 import { alias } from "drizzle-orm/pg-core";
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -63,6 +66,56 @@ export async function getPropertySuggestions(search: string, county?: string): P
     }
 
     return query.limit(5);
+}
+
+// ─── Assignment detection ─────────────────────────────────────────────────────
+
+function toISODate(d: Date | string | null): string {
+    if (!d) return "";
+    if (typeof d === "string") return d.split("T")[0];
+    return (d as Date).toISOString().split("T")[0];
+}
+
+function detectAssignor(
+    txs: Array<{
+        transactionType: string | null;
+        recordingDate: Date | string | null;
+        sortOrder: number | null;
+        sellerName: string | null;
+        sellerId: string | null;
+    }>
+): { assignorName: string | null; assignorId: string | null } {
+    // Sort by sortOrder ASC (1 = most recent per pipeline convention).
+    // Fall back to recordingDate DESC for any rows where sortOrder is null.
+    const sorted = [...txs].sort((a, b) => {
+        if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder != null) return -1;
+        if (b.sortOrder != null) return 1;
+        const da = toISODate(a.recordingDate);
+        const db = toISODate(b.recordingDate);
+        return db > da ? 1 : db < da ? -1 : 0;
+    });
+
+    // Collect the indices of the two most recent Arms Length transactions.
+    const alIndices: number[] = [];
+    for (let i = 0; i < sorted.length && alIndices.length < 2; i++) {
+        if ((sorted[i].transactionType ?? "").trim().toLowerCase() === "arms length") {
+            alIndices.push(i);
+        }
+    }
+    if (alIndices.length < 2) return { assignorName: null, assignorId: null };
+
+    const [latestIdx, secondIdx] = alIndices;
+
+    // An "Assignment" tx that sits between those two AL txs (by position) is the assignor.
+    for (let i = latestIdx + 1; i < secondIdx; i++) {
+        const tx = sorted[i];
+        if ((tx.transactionType ?? "").trim().toLowerCase() === "assignment") {
+            return { assignorName: tx.sellerName ?? null, assignorId: tx.sellerId ?? null };
+        }
+    }
+
+    return { assignorName: null, assignorId: null };
 }
 
 // ─── Get by ID ────────────────────────────────────────────────────────────────
@@ -135,6 +188,7 @@ export async function getPropertyById(id: string) {
             transactionType: propertyTransactions.transactionType,
             id: propertyTransactions.propertyTransactionsId,
             firstMtgLenderName: propertyTransactions.firstMtgLenderName,
+            sortOrder: propertyTransactions.sortOrder,
         })
         .from(propertyTransactions)
         .where(eq(propertyTransactions.propertyId, id))
@@ -152,6 +206,8 @@ export async function getPropertyById(id: string) {
     const latest = latestArmsLengthTx;
     const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
     const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
+
+    const { assignorName: rawAssignorName, assignorId: rawAssignorId } = detectAssignor(allTxs);
 
     const txBuyerCompanyId = !result.buyerId && latest?.buyerId ? latest.buyerId : null;
     const txSellerCompanyId = !result.sellerId && latest?.sellerId ? latest.sellerId : null;
@@ -190,6 +246,7 @@ export async function getPropertyById(id: string) {
 
     return {
         id: String(result.id),
+        sfrPropertyId: result.sfrPropertyId ?? null,
         address: result.address || '',
         city: result.city || '',
         state: result.state || '',
@@ -220,6 +277,8 @@ export async function getPropertyById(id: string) {
         sellerContactName: result.sellerContactName || txSellerCompany?.contactName || null,
         sellerContactEmail: result.sellerContactEmail || txSellerCompany?.contactEmail || null,
         sellerContactPhone: result.sellerContactPhone || txSellerCompany?.phoneNumber || null,
+        assignorId: rawAssignorId ?? null,
+        assignorCompanyName: rawAssignorName ?? null,
         buyerPurchasePrice,
         buyerPurchaseDate,
         sellerPurchasePrice,
@@ -446,6 +505,69 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
 // ─── Patch ────────────────────────────────────────────────────────────────────
 
+async function upsertCompanyByName(
+    companyName: string,
+    propertyCounty: string | null,
+    propertyMsa: string | null
+): Promise<string | null> {
+    const name = trimCompanyName(companyName);
+    if (!name) return null;
+
+    // Search globally (no county/MSA filter) to avoid creating duplicates
+    const [existing] = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.companyName, name))
+        .limit(1);
+
+    let companyId: string;
+
+    if (existing) {
+        companyId = existing.id;
+    } else {
+        const inserted = await db
+            .insert(companies)
+            .values({ companyName: name, updatedAt: new Date() })
+            .onConflictDoNothing({ target: companies.companyName })
+            .returning({ id: companies.id });
+
+        if (inserted.length > 0) {
+            companyId = inserted[0].id;
+        } else {
+            // Race condition — re-fetch
+            const [refetched] = await db
+                .select({ id: companies.id })
+                .from(companies)
+                .where(eq(companies.companyName, name))
+                .limit(1);
+            if (!refetched) return null;
+            companyId = refetched.id;
+        }
+    }
+
+    // Add county association if property has a known county
+    if (propertyCounty) {
+        await addCountiesToCompanyIfNeeded({ id: companyId }, [propertyCounty]);
+    }
+
+    // Add MSA association if property has an MSA
+    if (propertyMsa) {
+        const [msaRow] = await db
+            .select({ id: msas.id })
+            .from(msas)
+            .where(eq(msas.name, propertyMsa))
+            .limit(1);
+        if (msaRow) {
+            await db
+                .insert(companyMsas)
+                .values({ companyId, msaId: msaRow.id })
+                .onConflictDoNothing();
+        }
+    }
+
+    return companyId;
+}
+
 export interface PatchPropertyResult {
     id: string;
     isArvFunded: boolean;
@@ -454,10 +576,25 @@ export interface PatchPropertyResult {
 
 export async function patchProperty(
     id: string,
-    data: { isArvFunded?: boolean; statuses?: string[] }
+    data: {
+        isArvFunded?: boolean;
+        statuses?: string[];
+        buyerCompanyName?: string;
+        sellerCompanyName?: string;
+        transactions?: Array<{
+            transactionType?: string | null;
+            recordingDate: string;
+            saleDate: string;
+            buyerName?: string | null;
+            sellerName?: string | null;
+            salePrice?: string | null;
+            firstMtgLenderName?: string | null;
+        }>;
+        deletedTransactionIds?: number[];
+    }
 ): Promise<PatchPropertyResult | null> {
     const [existing] = await db
-        .select({ id: properties.id, isArvFunded: properties.isArvFunded })
+        .select({ id: properties.id, isArvFunded: properties.isArvFunded, county: properties.county, msa: properties.msa })
         .from(properties)
         .where(eq(properties.id, id))
         .limit(1);
@@ -469,6 +606,40 @@ export async function patchProperty(
             .update(properties)
             .set({ isArvFunded: data.isArvFunded, updatedAt: new Date() })
             .where(eq(properties.id, id));
+    }
+
+    if (data.buyerCompanyName !== undefined) {
+        if (data.buyerCompanyName.trim() === '') {
+            await db
+                .update(properties)
+                .set({ buyerId: null, updatedAt: new Date() })
+                .where(eq(properties.id, id));
+        } else {
+            const newBuyerId = await upsertCompanyByName(data.buyerCompanyName, existing.county, existing.msa);
+            if (newBuyerId) {
+                await db
+                    .update(properties)
+                    .set({ buyerId: newBuyerId, updatedAt: new Date() })
+                    .where(eq(properties.id, id));
+            }
+        }
+    }
+
+    if (data.sellerCompanyName !== undefined) {
+        if (data.sellerCompanyName.trim() === '') {
+            await db
+                .update(properties)
+                .set({ sellerId: null, updatedAt: new Date() })
+                .where(eq(properties.id, id));
+        } else {
+            const newSellerId = await upsertCompanyByName(data.sellerCompanyName, existing.county, existing.msa);
+            if (newSellerId) {
+                await db
+                    .update(properties)
+                    .set({ sellerId: newSellerId, updatedAt: new Date() })
+                    .where(eq(properties.id, id));
+            }
+        }
     }
 
     if (data.statuses !== undefined && data.statuses.length > 0) {
@@ -484,6 +655,24 @@ export async function patchProperty(
                 statusRows.map((s) => ({ propertyId: id, statusId: s.id }))
             );
         }
+    }
+
+    if (data.transactions !== undefined) {
+        await appendPropertyTransactions(id, data.transactions, existing.county, existing.msa);
+        await reprocessProperty(id);
+    }
+
+    if (data.deletedTransactionIds !== undefined && data.deletedTransactionIds.length > 0) {
+        await db
+            .delete(propertyTransactions)
+            .where(
+                and(
+                    eq(propertyTransactions.propertyId, id),
+                    inArray(propertyTransactions.propertyTransactionsId, data.deletedTransactionIds),
+                    eq(propertyTransactions.userCreated, true)
+                )
+            );
+        await reprocessProperty(id);
     }
 
     const [updated] = await db
