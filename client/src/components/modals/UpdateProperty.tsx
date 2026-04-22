@@ -140,11 +140,16 @@ function CompanyAutocomplete({
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const justSelected = useRef(false);
 
   useEffect(() => {
     if (value.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
+      return;
+    }
+    if (justSelected.current) {
+      justSelected.current = false;
       return;
     }
     const timer = setTimeout(async () => {
@@ -189,6 +194,8 @@ function CompanyAutocomplete({
               className="px-3 py-2 text-sm cursor-pointer hover:bg-accent"
               onMouseDown={(e) => {
                 e.preventDefault();
+                justSelected.current = true;
+                setSuggestions([]);
                 onChange(s.companyName);
                 setShowSuggestions(false);
               }}
