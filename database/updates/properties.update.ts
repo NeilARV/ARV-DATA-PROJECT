@@ -23,13 +23,15 @@ export const patchPropertySchema = z.object({
   buyerCompanyName: z.string().optional(),
   sellerCompanyName: z.string().optional(),
   transactions: z.array(patchTransactionInputSchema).optional(),
+  deletedTransactionIds: z.array(z.number().int().positive()).optional(),
 }).strict().refine(
   (data) =>
     data.isArvFunded !== undefined ||
     data.statuses !== undefined ||
     data.buyerCompanyName !== undefined ||
     data.sellerCompanyName !== undefined ||
-    data.transactions !== undefined,
+    data.transactions !== undefined ||
+    data.deletedTransactionIds !== undefined,
   { message: "At least one field must be provided" }
 );
 
