@@ -68,6 +68,56 @@ export async function getPropertySuggestions(search: string, county?: string): P
     return query.limit(5);
 }
 
+// ─── Assignment detection ─────────────────────────────────────────────────────
+
+function toISODate(d: Date | string | null): string {
+    if (!d) return "";
+    if (typeof d === "string") return d.split("T")[0];
+    return (d as Date).toISOString().split("T")[0];
+}
+
+function detectAssignor(
+    txs: Array<{
+        transactionType: string | null;
+        recordingDate: Date | string | null;
+        sortOrder: number | null;
+        sellerName: string | null;
+        sellerId: string | null;
+    }>
+): { assignorName: string | null; assignorId: string | null } {
+    // Sort by sortOrder ASC (1 = most recent per pipeline convention).
+    // Fall back to recordingDate DESC for any rows where sortOrder is null.
+    const sorted = [...txs].sort((a, b) => {
+        if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+        if (a.sortOrder != null) return -1;
+        if (b.sortOrder != null) return 1;
+        const da = toISODate(a.recordingDate);
+        const db = toISODate(b.recordingDate);
+        return db > da ? 1 : db < da ? -1 : 0;
+    });
+
+    // Collect the indices of the two most recent Arms Length transactions.
+    const alIndices: number[] = [];
+    for (let i = 0; i < sorted.length && alIndices.length < 2; i++) {
+        if ((sorted[i].transactionType ?? "").trim().toLowerCase() === "arms length") {
+            alIndices.push(i);
+        }
+    }
+    if (alIndices.length < 2) return { assignorName: null, assignorId: null };
+
+    const [latestIdx, secondIdx] = alIndices;
+
+    // An "Assignment" tx that sits between those two AL txs (by position) is the assignor.
+    for (let i = latestIdx + 1; i < secondIdx; i++) {
+        const tx = sorted[i];
+        if ((tx.transactionType ?? "").trim().toLowerCase() === "assignment") {
+            return { assignorName: tx.sellerName ?? null, assignorId: tx.sellerId ?? null };
+        }
+    }
+
+    return { assignorName: null, assignorId: null };
+}
+
 // ─── Get by ID ────────────────────────────────────────────────────────────────
 
 export async function getPropertyById(id: string) {
@@ -138,6 +188,7 @@ export async function getPropertyById(id: string) {
             transactionType: propertyTransactions.transactionType,
             id: propertyTransactions.propertyTransactionsId,
             firstMtgLenderName: propertyTransactions.firstMtgLenderName,
+            sortOrder: propertyTransactions.sortOrder,
         })
         .from(propertyTransactions)
         .where(eq(propertyTransactions.propertyId, id))
@@ -155,6 +206,8 @@ export async function getPropertyById(id: string) {
     const latest = latestArmsLengthTx;
     const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
     const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
+
+    const { assignorName: rawAssignorName, assignorId: rawAssignorId } = detectAssignor(allTxs);
 
     const txBuyerCompanyId = !result.buyerId && latest?.buyerId ? latest.buyerId : null;
     const txSellerCompanyId = !result.sellerId && latest?.sellerId ? latest.sellerId : null;
@@ -193,6 +246,7 @@ export async function getPropertyById(id: string) {
 
     return {
         id: String(result.id),
+        sfrPropertyId: result.sfrPropertyId ?? null,
         address: result.address || '',
         city: result.city || '',
         state: result.state || '',
@@ -223,6 +277,8 @@ export async function getPropertyById(id: string) {
         sellerContactName: result.sellerContactName || txSellerCompany?.contactName || null,
         sellerContactEmail: result.sellerContactEmail || txSellerCompany?.contactEmail || null,
         sellerContactPhone: result.sellerContactPhone || txSellerCompany?.phoneNumber || null,
+        assignorId: rawAssignorId ?? null,
+        assignorCompanyName: rawAssignorName ?? null,
         buyerPurchasePrice,
         buyerPurchaseDate,
         sellerPurchasePrice,

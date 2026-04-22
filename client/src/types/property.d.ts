@@ -48,6 +48,9 @@ export type Property = {
   companyContactPhone: string | null;
   propertyOwner: string | null;
   propertyOwnerId: string | null;
+  // Assignor company info (present when an Assignment tx sits between the 2 most recent Arms Length txs)
+  assignorId?: string | null;
+  assignorCompanyName?: string | null;
   // ARV Finance lender flag
   isFinancedByARV: boolean;
   // Optional fields

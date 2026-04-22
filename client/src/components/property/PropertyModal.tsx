@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
@@ -19,6 +19,11 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
   const { isAdminOrOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
   const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
+
+  useEffect(() => {
+    if (property?.id) fetchProperty(property.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property?.id]);
 
   if (!property) return null;
 

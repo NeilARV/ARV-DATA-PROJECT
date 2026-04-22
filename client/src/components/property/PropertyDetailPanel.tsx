@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
@@ -17,6 +17,11 @@ export default function PropertyDetailPanel() {
   const { handleCompanyClick } = useCompanies();
   const { property, setProperty, fetchProperty } = useProperty();
   const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
+
+  useEffect(() => {
+    if (property?.id) fetchProperty(property.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property?.id]);
 
   if (!property) return null;
 
