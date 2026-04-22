@@ -11,7 +11,7 @@
 import "dotenv/config";
 import { db } from "server/storage";
 import { propertyTransactions } from "@database/schemas/properties.schema";
-import { eq, desc, isNull } from "drizzle-orm";
+import { eq, desc, isNull, max } from "drizzle-orm";
 import { sortTransactionsDesc } from "server/utils/orderTransactions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -28,9 +28,14 @@ async function main() {
     // Only fetch property IDs that still have at least one unsorted transaction.
     // This makes the script safe to resume after a crash.
     const unsortedRows = await db
-        .selectDistinct({ propertyId: propertyTransactions.propertyId })
+        .select({
+            propertyId: propertyTransactions.propertyId,
+            latestDate: max(propertyTransactions.recordingDate),
+        })
         .from(propertyTransactions)
-        .where(isNull(propertyTransactions.sortOrder));
+        .where(isNull(propertyTransactions.sortOrder))
+        .groupBy(propertyTransactions.propertyId)
+        .orderBy(desc(max(propertyTransactions.recordingDate)));
 
     const propertyIds = unsortedRows.map((r) => r.propertyId);
 
