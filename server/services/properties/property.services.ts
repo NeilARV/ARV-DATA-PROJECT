@@ -208,6 +208,23 @@ export async function getPropertyById(id: string) {
 
     const { assignorName: rawAssignorName, assignorId: rawAssignorId } = detectAssignor(allTxs);
 
+    let assignorContactName: string | null = null;
+    let assignorContactEmail: string | null = null;
+    let assignorContactPhone: string | null = null;
+    if (rawAssignorId) {
+        const [assignorContact] = await db
+            .select()
+            .from(companyContacts)
+            .where(eq(companyContacts.companyId, rawAssignorId))
+            .orderBy(companyContacts.sortOrder, companyContacts.id)
+            .limit(1);
+        if (assignorContact) {
+            assignorContactName = [assignorContact.firstName, assignorContact.lastName].filter(Boolean).join(" ") || null;
+            assignorContactEmail = assignorContact.email ?? null;
+            assignorContactPhone = assignorContact.phoneNumber ?? null;
+        }
+    }
+
     const txBuyerCompanyId = !result.buyerId && latest?.buyerId ? latest.buyerId : null;
     const txSellerCompanyId = !result.sellerId && latest?.sellerId ? latest.sellerId : null;
     const txCompanyIds = [txBuyerCompanyId, txSellerCompanyId].filter(Boolean) as string[];
@@ -278,6 +295,9 @@ export async function getPropertyById(id: string) {
         sellerContactPhone: result.sellerContactPhone || txSellerCompany?.phoneNumber || null,
         assignorId: rawAssignorId ?? null,
         assignorCompanyName: rawAssignorName ?? null,
+        assignorContactName,
+        assignorContactEmail,
+        assignorContactPhone,
         buyerPurchasePrice,
         buyerPurchaseDate,
         sellerPurchasePrice,

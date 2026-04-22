@@ -227,6 +227,9 @@ export function PropertyContent({
     assignorCompanyName: isCard
       ? `text-assignor-${property.id}`
       : "text-assignor-company-name",
+    assignorContact: isCard ? `text-assignor-contact-${property.id}` : "text-assignor-contact",
+    assignorEmail: isCard ? `text-assignor-email-${property.id}` : undefined,
+    assignorPhone: isCard ? `text-assignor-phone-${property.id}` : undefined,
   };
 
   // ── Image section ──────────────────────────────────────────────────────────
@@ -516,26 +519,60 @@ export function PropertyContent({
 
       {/* Assignor (shown when an assignment tx sits between the 2 most recent arms-length txs) */}
       {property.assignorCompanyName && (
-        <div className="mt-2 flex items-center justify-center gap-1.5">
-          <span className="text-sm text-muted-foreground">Assigned by</span>
-          {cfg.clickableCompanies && property.assignorId && onCompanyClick ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onCompanyClick(property.assignorCompanyName!, property.assignorId!, false);
-              }}
-              className="text-sm font-medium text-primary hover:underline truncate"
-              data-testid={tid.assignorCompanyName}
-            >
-              {formatCompanyName(property.assignorCompanyName)}
-            </button>
-          ) : (
-            <span
-              className="text-sm font-medium text-primary truncate"
-              data-testid={tid.assignorCompanyName}
-            >
-              {formatCompanyName(property.assignorCompanyName)}
-            </span>
+        <div className="mt-2 flex flex-col items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-muted-foreground">Assigned by</span>
+            {cfg.clickableCompanies && property.assignorId && onCompanyClick ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCompanyClick(property.assignorCompanyName!, property.assignorId!, false);
+                }}
+                className="text-sm font-medium text-primary hover:underline truncate"
+                data-testid={tid.assignorCompanyName}
+              >
+                {formatCompanyName(property.assignorCompanyName)}
+              </button>
+            ) : (
+              <span
+                className="text-sm font-medium text-primary truncate"
+                data-testid={tid.assignorCompanyName}
+              >
+                {formatCompanyName(property.assignorCompanyName)}
+              </span>
+            )}
+          </div>
+          {(property.assignorContactName || property.assignorContactEmail || property.assignorContactPhone) && (
+            <div className={`${cfg.contactTextClass} space-y-0.5 flex flex-col items-center`}>
+              {property.assignorContactName && (
+                <div className="flex items-center gap-1.5" data-testid={tid.assignorContact}>
+                  <User className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="text-foreground">{property.assignorContactName}</span>
+                </div>
+              )}
+              {property.assignorContactEmail && (
+                <a
+                  href={`mailto:${property.assignorContactEmail}`}
+                  className="flex items-center gap-1.5 text-muted-foreground hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={tid.assignorEmail}
+                >
+                  <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{property.assignorContactEmail}</span>
+                </a>
+              )}
+              {property.assignorContactPhone && (
+                <a
+                  href={`tel:${property.assignorContactPhone.replace(/\D/g, "")}`}
+                  className="flex items-center gap-1.5 text-muted-foreground hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={tid.assignorPhone}
+                >
+                  <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{property.assignorContactPhone}</span>
+                </a>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -51,6 +51,9 @@ export type Property = {
   // Assignor company info (present when an Assignment tx sits between the 2 most recent Arms Length txs)
   assignorId?: string | null;
   assignorCompanyName?: string | null;
+  assignorContactName?: string | null;
+  assignorContactEmail?: string | null;
+  assignorContactPhone?: string | null;
   // ARV Finance lender flag
   isFinancedByARV: boolean;
   // Optional fields

@@ -44,24 +44,24 @@ export interface GetPropertiesResult {
 // the array directly without re-sorting.
 function detectAssignorFromSortedTxs(txs: Array<{
     transactionType: string | null;
+    buyerId: string | null;
     sellerName: string | null;
     sellerId: string | null;
 }>): { assignorId: string | null; assignorCompanyName: string | null } {
-    const alIndices: number[] = [];
-    for (let i = 0; i < txs.length && alIndices.length < 2; i++) {
-        if ((txs[i].transactionType ?? "").trim().toLowerCase() === "arms length") {
-            alIndices.push(i);
-        }
-    }
-    if (alIndices.length < 2) return { assignorId: null, assignorCompanyName: null };
-    const [latestIdx, secondIdx] = alIndices;
-    for (let i = latestIdx + 1; i < secondIdx; i++) {
-        const tx = txs[i];
-        if ((tx.transactionType ?? "").trim().toLowerCase() === "assignment") {
-            return { assignorId: tx.sellerId ?? null, assignorCompanyName: tx.sellerName ?? null };
-        }
-    }
-    return { assignorId: null, assignorCompanyName: null };
+    const latestAL = txs.find(
+        (tx) => (tx.transactionType ?? "").trim().toLowerCase() === "arms length"
+    );
+    if (!latestAL?.buyerId) return { assignorId: null, assignorCompanyName: null };
+
+    const assignmentTx = txs.find(
+        (tx) =>
+            (tx.transactionType ?? "").trim().toLowerCase() === "assignment" &&
+            tx.buyerId === latestAL.buyerId
+    );
+    return {
+        assignorId: assignmentTx?.sellerId ?? null,
+        assignorCompanyName: assignmentTx?.sellerName ?? null,
+    };
 }
 
 export async function getProperties(filters: GetPropertiesFilters): Promise<GetPropertiesResult> {
@@ -502,6 +502,36 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
+    // Pre-pass: collect assignor company IDs for contact info
+    const assignorCompanyIds = new Set<string>();
+    for (const prop of rawPropertiesList as any[]) {
+        const txs = transactionsByPropertyId.get(prop.id) ?? [];
+        const { assignorId } = detectAssignorFromSortedTxs(txs);
+        if (assignorId) assignorCompanyIds.add(assignorId);
+    }
+    const assignorContactMap = new Map<string, CompanyContact>();
+    if (assignorCompanyIds.size > 0) {
+        const assignorIds = Array.from(assignorCompanyIds);
+        const assignorContactRows = await db
+            .select()
+            .from(companyContacts)
+            .where(inArray(companyContacts.companyId, assignorIds))
+            .orderBy(companyContacts.companyId, companyContacts.sortOrder, companyContacts.id);
+        const primaryByCompanyId = new Map<string, typeof companyContacts.$inferSelect>();
+        for (const row of assignorContactRows) {
+            if (!primaryByCompanyId.has(row.companyId)) primaryByCompanyId.set(row.companyId, row);
+        }
+        for (const id of assignorIds) {
+            const primary = primaryByCompanyId.get(id);
+            assignorContactMap.set(id, {
+                id,
+                contactName: primary ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null : null,
+                contactEmail: primary?.email ?? null,
+                phoneNumber: primary?.phoneNumber ?? null,
+            });
+        }
+    }
+
     // Map results to flat Property structure expected by frontend
     const propertiesList = rawPropertiesList.map((prop: any) => {
         const lat = prop.latitude ? Number(prop.latitude) : null;
@@ -514,6 +544,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const { buyerPurchasePrice, buyerPurchaseDate, sellerPurchasePrice, sellerPurchaseDate, spread, latestArmsLengthTx } = calculateSpread(txs);
         const latest = latestArmsLengthTx;
         const { assignorId, assignorCompanyName } = detectAssignorFromSortedTxs(txs);
+        const assignorContact = assignorId ? assignorContactMap.get(assignorId) ?? null : null;
 
         // Fallback buyer/seller names from most recent Arms Length transaction when company is null
         const buyerDisplayName = prop.buyerCompanyName || (latest?.buyerName ?? null);
@@ -571,6 +602,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             spread,
             assignorId: assignorId ?? null,
             assignorCompanyName: assignorCompanyName ?? null,
+            assignorContactName: assignorContact?.contactName ?? null,
+            assignorContactEmail: assignorContact?.contactEmail ?? null,
+            assignorContactPhone: assignorContact?.phoneNumber ?? null,
             isFinancedByARV,
             sellerName: sellerDisplayName,
             // Legacy aliases for backward compatibility
