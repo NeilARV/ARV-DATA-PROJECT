@@ -15,9 +15,8 @@ import {
   currentSales,
 } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
-import { sortTransactionsDesc } from "server/utils/orderTransactions";
 import type { PropertyWithStatus } from "./resolve-status";
 import type { TransactionWithIds } from "./resolve-ids";
 import type { SfrPropertyData } from "server/utils/propertyDataHelpers";
@@ -376,19 +375,61 @@ export async function insertProperties(
         });
     }
 
+    // Fetch any user-created transactions before wiping pipeline rows so we can
+    // merge them with the incoming pipeline rows and compute sort orders in one pass.
+    const userCreatedRows = await db
+      .select({
+        id: propertyTransactions.propertyTransactionsId,
+        recordingDate: propertyTransactions.recordingDate,
+      })
+      .from(propertyTransactions)
+      .where(and(
+        eq(propertyTransactions.propertyId, propertyId),
+        eq(propertyTransactions.userCreated, true)
+      ));
+
     await db
       .delete(propertyTransactions)
-      .where(eq(propertyTransactions.propertyId, propertyId));
+      .where(and(
+        eq(propertyTransactions.propertyId, propertyId),
+        eq(propertyTransactions.userCreated, false)
+      ));
 
     const transactions = item.transactions ?? [];
     const mappedTxRows = transactions
       .map((tx) => mapTransactionRow(propertyId, tx))
       .filter((row): row is NonNullable<ReturnType<typeof mapTransactionRow>> => row !== null);
 
-    const sortedTxRows = sortTransactionsDesc(mappedTxRows);
-    for (let i = 0; i < sortedTxRows.length; i++) {
-      await db.insert(propertyTransactions).values({ ...sortedTxRows[i], sortOrder: i + 1 });
-      transactionsInserted += 1;
+    // Merge pipeline rows with user-created rows and sort by recording_date DESC,
+    // then assign sort orders so every row gets the correct position up front.
+    type MergeEntry =
+      | { kind: "pipeline"; row: NonNullable<ReturnType<typeof mapTransactionRow>> }
+      | { kind: "user"; id: number };
+
+    const merged: MergeEntry[] = [
+      ...mappedTxRows.map((row) => ({ kind: "pipeline" as const, row, recordingDate: row.recordingDate ?? "" })),
+      ...userCreatedRows.map((r) => ({ kind: "user" as const, id: r.id, recordingDate: typeof r.recordingDate === "string" ? r.recordingDate : (r.recordingDate as Date | null)?.toISOString().split("T")[0] ?? "" })),
+    ].sort((a, b) => {
+      if (b.recordingDate < a.recordingDate) return -1;
+      if (b.recordingDate > a.recordingDate) return 1;
+      // Same date: pipeline rows before user-created (lower natural id wins)
+      if (a.kind === "pipeline" && b.kind === "user") return -1;
+      if (a.kind === "user" && b.kind === "pipeline") return 1;
+      return 0;
+    });
+
+    for (let i = 0; i < merged.length; i++) {
+      const entry = merged[i];
+      const sortOrder = i + 1;
+      if (entry.kind === "pipeline") {
+        await db.insert(propertyTransactions).values({ ...entry.row, sortOrder });
+        transactionsInserted += 1;
+      } else {
+        await db
+          .update(propertyTransactions)
+          .set({ sortOrder })
+          .where(eq(propertyTransactions.propertyTransactionsId, entry.id));
+      }
     }
   }
 

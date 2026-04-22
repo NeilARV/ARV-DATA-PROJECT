@@ -534,6 +534,7 @@ export async function patchProperty(
             salePrice?: string | null;
             firstMtgLenderName?: string | null;
         }>;
+        deletedTransactionIds?: number[];
     }
 ): Promise<PatchPropertyResult | null> {
     const [existing] = await db
@@ -602,6 +603,19 @@ export async function patchProperty(
 
     if (data.transactions !== undefined) {
         await appendPropertyTransactions(id, data.transactions, existing.county, existing.msa);
+        await reprocessProperty(id);
+    }
+
+    if (data.deletedTransactionIds !== undefined && data.deletedTransactionIds.length > 0) {
+        await db
+            .delete(propertyTransactions)
+            .where(
+                and(
+                    eq(propertyTransactions.propertyId, id),
+                    inArray(propertyTransactions.propertyTransactionsId, data.deletedTransactionIds),
+                    eq(propertyTransactions.userCreated, true)
+                )
+            );
         await reprocessProperty(id);
     }
 

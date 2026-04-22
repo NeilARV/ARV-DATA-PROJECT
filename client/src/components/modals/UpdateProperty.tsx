@@ -22,7 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Check, X, CalendarIcon } from "lucide-react";
+import { Loader2, Plus, Check, X, CalendarIcon, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
@@ -80,7 +80,9 @@ const TX_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 
 type TxRow = {
   _key: string;
+  id: number | null;
   sortOrder: number | null;
+  userCreated: boolean;
   transactionType: string;
   recordingDate: string;
   saleDate: string;
@@ -90,12 +92,14 @@ type TxRow = {
   firstMtgLenderName: string;
 };
 
-type TxEditForm = Omit<TxRow, "_key" | "sortOrder">;
+type TxEditForm = Omit<TxRow, "_key" | "id" | "sortOrder" | "userCreated">;
 
 function emptyTxRow(key: string): TxRow {
   return {
     _key: key,
+    id: null,
     sortOrder: null,
+    userCreated: true,
     transactionType: "",
     recordingDate: "",
     saleDate: "",
@@ -392,7 +396,7 @@ function HoverInsertZone({ onInsert }: { onInsert: () => void }) {
 
 // ─── Transaction display card ──────────────────────────────────────────────
 
-function TxDisplayCard({ tx }: { tx: TxRow }) {
+function TxDisplayCard({ tx, onDelete }: { tx: TxRow; onDelete?: () => void }) {
   const typeStyle = tx.transactionType ? TX_TYPE_COLORS[tx.transactionType] : null;
 
   return (
@@ -411,9 +415,21 @@ function TxDisplayCard({ tx }: { tx: TxRow }) {
           )}
           <span className="text-xs text-muted-foreground">{tx.recordingDate || "—"}</span>
         </div>
-        {tx.sortOrder != null && (
-          <span className="text-xs font-mono text-muted-foreground shrink-0">#{tx.sortOrder}</span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {tx.sortOrder != null && (
+            <span className="text-xs font-mono text-muted-foreground">#{tx.sortOrder}</span>
+          )}
+          {tx.userCreated && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              aria-label="Delete transaction"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-1 text-xs">
@@ -462,6 +478,7 @@ export default function UpdatePropertyContent({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<TxEditForm>(emptyEditForm());
   const [newTxPosition, setNewTxPosition] = useState(1);
+  const [deletedTxIds, setDeletedTxIds] = useState<number[]>([]);
 
   useEffect(() => {
     fetch(`/api/properties/${propertyId}/transactions`)
@@ -469,6 +486,7 @@ export default function UpdatePropertyContent({
       .then((data: Array<{
         id: number;
         sortOrder: number | null;
+        userCreated: boolean;
         transactionType: string | null;
         recordingDate: string;
         saleDate: string;
@@ -480,7 +498,9 @@ export default function UpdatePropertyContent({
         setTransactions(
           data.map((tx) => ({
             _key: String(tx.id),
+            id: tx.id,
             sortOrder: tx.sortOrder,
+            userCreated: tx.userCreated,
             transactionType: tx.transactionType ?? "",
             recordingDate: tx.recordingDate ?? "",
             saleDate: tx.saleDate ?? "",
@@ -508,7 +528,11 @@ export default function UpdatePropertyContent({
 
   function applyEdit() {
     setTransactions((prev) =>
-      prev.map((tx) => (tx._key === editingKey ? { _key: tx._key, sortOrder: tx.sortOrder, ...editForm } : tx))
+      prev.map((tx) =>
+        tx._key === editingKey
+          ? { _key: tx._key, id: tx.id, sortOrder: tx.sortOrder, userCreated: tx.userCreated, ...editForm }
+          : tx
+      )
     );
     setEditingKey(null);
   }
@@ -516,6 +540,11 @@ export default function UpdatePropertyContent({
   function cancelEdit() {
     setTransactions((prev) => prev.filter((tx) => tx._key !== editingKey));
     setEditingKey(null);
+  }
+
+  function handleDeleteTx(tx: TxRow) {
+    setTransactions((prev) => prev.filter((t) => t._key !== tx._key));
+    if (tx.id) setDeletedTxIds((prev) => [...prev, tx.id!]);
   }
 
   const safeStatuses = initialData.statuses.filter((s): s is PropertyStatus =>
@@ -549,6 +578,7 @@ export default function UpdatePropertyContent({
             position: newTxPosition,
           })),
         }),
+        ...(deletedTxIds.length > 0 && { deletedTransactionIds: deletedTxIds }),
       });
       toast({ title: "Property Updated", description: "Property has been successfully updated." });
       queryClient.invalidateQueries({
@@ -687,7 +717,7 @@ export default function UpdatePropertyContent({
                         county={initialData.county}
                       />
                     ) : (
-                      <TxDisplayCard tx={tx} />
+                      <TxDisplayCard tx={tx} onDelete={() => handleDeleteTx(tx)} />
                     )}
                     {!editingKey && (
                       <HoverInsertZone onInsert={() => startAdd(i + 2)} />

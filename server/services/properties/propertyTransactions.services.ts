@@ -27,6 +27,7 @@ export type GetTransactionsResult = {
     salePrice: string | null;
     firstMtgLenderName: string | null;
     sortOrder: number | null;
+    userCreated: boolean;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ function formatTxRow(tx: TransactionRow): GetTransactionsResult {
         salePrice: tx.salePrice,
         firstMtgLenderName: tx.firstMtgLenderName,
         sortOrder: tx.sortOrder,
+        userCreated: tx.userCreated,
     };
 }
 
@@ -292,6 +294,7 @@ export async function appendPropertyTransactions(
             sellerId,
             salePrice: tx.salePrice ?? null,
             firstMtgLenderName: tx.firstMtgLenderName ?? null,
+            userCreated: true,
         };
 
         if (tx.position != null) {
@@ -314,3 +317,4 @@ export async function appendPropertyTransactions(
         }
     }
 }
+

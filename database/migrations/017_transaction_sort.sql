@@ -6,3 +6,6 @@
 
 ALTER TABLE property_transactions
 ADD COLUMN sort_order INTEGER DEFAULT NULL;
+
+ALTER TABLE property_transactions
+ADD COLUMN user_created BOOLEAN NOT NULL DEFAULT FALSE;
