@@ -81,6 +81,7 @@ function detectAssignor(
         transactionType: string | null;
         recordingDate: Date | string | null;
         sortOrder: number | null;
+        buyerId: string | null;
         sellerName: string | null;
         sellerId: string | null;
     }>
@@ -96,26 +97,24 @@ function detectAssignor(
         return db > da ? 1 : db < da ? -1 : 0;
     });
 
-    // Collect the indices of the two most recent Arms Length transactions.
-    const alIndices: number[] = [];
-    for (let i = 0; i < sorted.length && alIndices.length < 2; i++) {
-        if ((sorted[i].transactionType ?? "").trim().toLowerCase() === "arms length") {
-            alIndices.push(i);
-        }
-    }
-    if (alIndices.length < 2) return { assignorName: null, assignorId: null };
+    // Show assignor when an Assignment transaction shares the same buyer_id
+    // as the most recent Arms Length transaction.
+    const latestAL = sorted.find(
+        (tx) => (tx.transactionType ?? "").trim().toLowerCase() === "arms length"
+    );
 
-    const [latestIdx, secondIdx] = alIndices;
+    if (!latestAL?.buyerId) return { assignorName: null, assignorId: null };
 
-    // An "Assignment" tx that sits between those two AL txs (by position) is the assignor.
-    for (let i = latestIdx + 1; i < secondIdx; i++) {
-        const tx = sorted[i];
-        if ((tx.transactionType ?? "").trim().toLowerCase() === "assignment") {
-            return { assignorName: tx.sellerName ?? null, assignorId: tx.sellerId ?? null };
-        }
-    }
+    const assignmentTx = sorted.find(
+        (tx) =>
+            (tx.transactionType ?? "").trim().toLowerCase() === "assignment" &&
+            tx.buyerId === latestAL.buyerId
+    );
 
-    return { assignorName: null, assignorId: null };
+    return {
+        assignorName: assignmentTx?.sellerName ?? null,
+        assignorId: assignmentTx?.sellerId ?? null,
+    };
 }
 
 // ─── Get by ID ────────────────────────────────────────────────────────────────
@@ -584,7 +583,6 @@ export async function patchProperty(
         transactions?: Array<{
             transactionType?: string | null;
             recordingDate: string;
-            saleDate: string;
             buyerName?: string | null;
             sellerName?: string | null;
             salePrice?: string | null;

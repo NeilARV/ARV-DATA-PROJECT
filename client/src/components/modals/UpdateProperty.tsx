@@ -58,15 +58,7 @@ export type UpdatePropertyContentProps = {
 
 // ─── Transaction types ─────────────────────────────────────────────────────
 
-const TRANSACTION_TYPES = [
-  "Arms Length",
-  "Non-Arms Length",
-  "Assignment",
-  "REFI LOANS",
-  "2ND TRUST DEEDS",
-  "HELOCS",
-  "New Construction",
-] as const;
+const TRANSACTION_TYPES = ["Assignment"] as const;
 
 const TX_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   "Arms Length":      { bg: "#3B82F6", text: "#fff" },
@@ -92,7 +84,7 @@ type TxRow = {
   firstMtgLenderName: string;
 };
 
-type TxEditForm = Omit<TxRow, "_key" | "id" | "sortOrder" | "userCreated">;
+type TxEditForm = Omit<TxRow, "_key" | "id" | "sortOrder" | "userCreated" | "saleDate">;
 
 function emptyTxRow(key: string): TxRow {
   return {
@@ -114,7 +106,6 @@ function emptyEditForm(): TxEditForm {
   return {
     transactionType: "",
     recordingDate: "",
-    saleDate: "",
     buyerName: "",
     sellerName: "",
     salePrice: "",
@@ -240,8 +231,7 @@ function TxEditRow({
   county?: string | null;
 }) {
   const [recordingOpen, setRecordingOpen] = useState(false);
-  const [saleDateOpen, setSaleDateOpen] = useState(false);
-  const missingRequired = !form.recordingDate || !form.saleDate;
+  const missingRequired = !form.recordingDate;
 
   return (
     <div className="border border-primary/50 rounded-lg p-3 space-y-3 bg-muted/30">
@@ -260,7 +250,7 @@ function TxEditRow({
           </Select>
         </div>
 
-        <div>
+        <div className="col-span-2">
           <label className="text-xs text-muted-foreground mb-1 block">
             Recording Date <span className="text-destructive">*</span>
           </label>
@@ -284,37 +274,6 @@ function TxEditRow({
                 onSelect={(date) => {
                   if (date) onChange("recordingDate", toDateStr(date));
                   setRecordingOpen(false);
-                }}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Sale Date <span className="text-destructive">*</span>
-          </label>
-          <Popover open={saleDateOpen} onOpenChange={setSaleDateOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 h-8 w-full rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors"
-              >
-                <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <span className={form.saleDate ? "text-foreground" : "text-muted-foreground"}>
-                  {form.saleDate || "Pick a date"}
-                </span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 z-[10004]" align="start">
-              <Calendar
-                mode="single"
-                selected={parseDateStr(form.saleDate)}
-                defaultMonth={parseDateStr(form.saleDate)}
-                onSelect={(date) => {
-                  if (date) onChange("saleDate", toDateStr(date));
-                  setSaleDateOpen(false);
                 }}
                 initialFocus
               />
@@ -371,32 +330,6 @@ function TxEditRow({
           <Check className="w-3 h-3 mr-1" /> Apply
         </Button>
       </div>
-    </div>
-  );
-}
-
-// ─── Hover insert zone ────────────────────────────────────────────────────
-
-function HoverInsertZone({ onInsert }: { onInsert: () => void }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      className={`relative flex items-center overflow-hidden cursor-pointer transition-[height] duration-150 ease-in-out ${hovered ? "h-8" : "h-2"}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={onInsert}
-    >
-      {hovered && (
-        <div className="absolute inset-x-0 flex items-center gap-2 px-1">
-          <div className="flex-1 h-px bg-primary/60" />
-          <span className="flex items-center gap-1 text-xs text-primary bg-primary/10 rounded px-2 py-0.5 shrink-0 select-none whitespace-nowrap">
-            <Plus className="w-3 h-3" />
-            Add here
-          </span>
-          <div className="flex-1 h-px bg-primary/60" />
-        </div>
-      )}
     </div>
   );
 }
@@ -484,7 +417,6 @@ export default function UpdatePropertyContent({
   const [txLoading, setTxLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<TxEditForm>(emptyEditForm());
-  const [newTxPosition, setNewTxPosition] = useState(1);
   const [deletedTxIds, setDeletedTxIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -522,22 +454,25 @@ export default function UpdatePropertyContent({
       .finally(() => setTxLoading(false));
   }, [propertyId]);
 
-  function startAdd(position: number) {
+  function startAdd() {
     const key = `new-${Date.now()}`;
     setEditingKey(key);
     setEditForm(emptyEditForm());
-    setNewTxPosition(position);
-    setTransactions((prev) => {
-      const insertAt = position - 1;
-      return [...prev.slice(0, insertAt), emptyTxRow(key), ...prev.slice(insertAt)];
-    });
+    setTransactions((prev) => [emptyTxRow(key), ...prev]);
   }
 
   function applyEdit() {
     setTransactions((prev) =>
       prev.map((tx) =>
         tx._key === editingKey
-          ? { _key: tx._key, id: tx.id, sortOrder: tx.sortOrder, userCreated: tx.userCreated, ...editForm }
+          ? {
+              _key: tx._key,
+              id: tx.id,
+              sortOrder: tx.sortOrder,
+              userCreated: tx.userCreated,
+              ...editForm,
+              saleDate: editForm.recordingDate,
+            }
           : tx
       )
     );
@@ -577,12 +512,10 @@ export default function UpdatePropertyContent({
           transactions: newTransactions.map((tx) => ({
             transactionType: tx.transactionType || null,
             recordingDate: tx.recordingDate,
-            saleDate: tx.saleDate,
             buyerName: tx.buyerName || null,
             sellerName: tx.sellerName || null,
             salePrice: tx.salePrice || null,
             firstMtgLenderName: tx.firstMtgLenderName || null,
-            position: newTxPosition,
           })),
         }),
         ...(deletedTxIds.length > 0 && { deletedTransactionIds: deletedTxIds }),
@@ -684,36 +617,35 @@ export default function UpdatePropertyContent({
 
           {/* Transactions */}
           <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Transactions</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium leading-none">Transactions</label>
+              {!editingKey && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs px-2"
+                  onClick={startAdd}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Transaction
+                </Button>
+              )}
+            </div>
 
             {txLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               </div>
-            ) : transactions.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-4">
-                <p className="text-xs text-muted-foreground">No transactions recorded.</p>
-                {!editingKey && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1 text-xs px-3"
-                    onClick={() => startAdd(1)}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Transaction
-                  </Button>
-                )}
-              </div>
+            ) : transactions.length === 0 && !editingKey ? (
+              <p className="text-xs text-muted-foreground">No transactions recorded.</p>
             ) : (
               <div
-                className="overflow-y-auto pr-1"
+                className="overflow-y-auto pr-1 space-y-2"
                 style={{ maxHeight: "20rem" }}
                 onWheel={(e) => e.stopPropagation()}
               >
-                {!editingKey && <HoverInsertZone onInsert={() => startAdd(1)} />}
-                {transactions.map((tx, i) => (
+                {transactions.map((tx) => (
                   <div key={tx._key}>
                     {editingKey === tx._key ? (
                       <TxEditRow
@@ -725,9 +657,6 @@ export default function UpdatePropertyContent({
                       />
                     ) : (
                       <TxDisplayCard tx={tx} onDelete={() => handleDeleteTx(tx)} />
-                    )}
-                    {!editingKey && (
-                      <HoverInsertZone onInsert={() => startAdd(i + 2)} />
                     )}
                   </div>
                 ))}

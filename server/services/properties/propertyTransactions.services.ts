@@ -250,13 +250,66 @@ export async function getPropertyTransactions(propertyId: string): Promise<GetTr
 export type BulkTransactionInput = {
     transactionType?: string | null;
     recordingDate: string;
-    saleDate: string;
     buyerName?: string | null;
     sellerName?: string | null;
     salePrice?: string | null;
     firstMtgLenderName?: string | null;
-    position?: number | null;
 };
+
+// Inserts a transaction at the end of the sort order for a property.
+async function insertAtEnd(
+    propertyId: string,
+    row: Parameters<typeof db.insert>[0] extends never ? never : object
+): Promise<void> {
+    const [maxRow] = await db
+        .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
+        .from(propertyTransactions)
+        .where(eq(propertyTransactions.propertyId, propertyId));
+    await db
+        .insert(propertyTransactions)
+        .values({ ...(row as typeof propertyTransactions.$inferInsert), sortOrder: (maxRow?.max ?? 0) + 1 });
+}
+
+// Assignment: finds the Arms Length transaction whose buyer_id matches the
+// assignment's buyer_id and inserts the assignment immediately after it
+// (shifting everything below down by one). Falls back to end if no match.
+async function insertAssignment(
+    propertyId: string,
+    row: typeof propertyTransactions.$inferInsert,
+    buyerId: string | null
+): Promise<void> {
+    if (buyerId) {
+        const [matchingAL] = await db
+            .select({ sortOrder: propertyTransactions.sortOrder })
+            .from(propertyTransactions)
+            .where(
+                and(
+                    eq(propertyTransactions.propertyId, propertyId),
+                    eq(propertyTransactions.buyerId, buyerId),
+                    sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
+                )
+            )
+            .orderBy(asc(propertyTransactions.sortOrder))
+            .limit(1);
+
+        if (matchingAL?.sortOrder != null) {
+            const insertAt = matchingAL.sortOrder + 1;
+            await db
+                .update(propertyTransactions)
+                .set({ sortOrder: sql`sort_order + 1` })
+                .where(
+                    and(
+                        eq(propertyTransactions.propertyId, propertyId),
+                        gte(propertyTransactions.sortOrder, insertAt)
+                    )
+                );
+            await db.insert(propertyTransactions).values({ ...row, sortOrder: insertAt });
+            return;
+        }
+    }
+
+    await insertAtEnd(propertyId, row);
+}
 
 export async function appendPropertyTransactions(
     propertyId: string,
@@ -282,12 +335,12 @@ export async function appendPropertyTransactions(
             ? await upsertCompanyByName(tx.sellerName, county, msa)
             : null;
 
-        const row = {
+        const row: typeof propertyTransactions.$inferInsert = {
             propertyId,
             apn,
             transactionType: tx.transactionType ?? null,
             recordingDate: tx.recordingDate,
-            saleDate: tx.saleDate,
+            saleDate: tx.recordingDate,
             buyerName: trimCompanyName(tx.buyerName ?? null),
             buyerId,
             sellerName: trimCompanyName(tx.sellerName ?? null),
@@ -297,23 +350,14 @@ export async function appendPropertyTransactions(
             userCreated: true,
         };
 
-        if (tx.position != null) {
-            // Shift every existing transaction at or after the target position down by one
-            await db
-                .update(propertyTransactions)
-                .set({ sortOrder: sql`sort_order + 1` })
-                .where(and(
-                    eq(propertyTransactions.propertyId, propertyId),
-                    gte(propertyTransactions.sortOrder, tx.position)
-                ));
-            await db.insert(propertyTransactions).values({ ...row, sortOrder: tx.position });
-        } else {
-            // No position specified — append after the last transaction
-            const [maxRow] = await db
-                .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
-                .from(propertyTransactions)
-                .where(eq(propertyTransactions.propertyId, propertyId));
-            await db.insert(propertyTransactions).values({ ...row, sortOrder: (maxRow?.max ?? 0) + 1 });
+        const txType = (tx.transactionType ?? "").trim().toLowerCase();
+
+        switch (txType) {
+            case "assignment":
+                await insertAssignment(propertyId, row, buyerId);
+                break;
+            default:
+                await insertAtEnd(propertyId, row);
         }
     }
 }
