@@ -13,6 +13,7 @@ import { scanWindowD } from "./data_v2/scan-window-d"
 import { scanWindowE } from "./data_v2/scan-window-e"
 import { scanWindowInit } from "./data_v2/scan-window-init"
 import { runConsumer } from "./data_v2/consumer"
+import { sendTampaEmail } from "./email/tampa-email"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
@@ -59,7 +60,7 @@ export function startScheduledJobs() {
 
         // Init scanner — single MSA backfill (see scan-window-init.ts to set MSA_NAME and MODE)
         // Set the cron time below to whatever works locally, then comment this out when done.
-        // cron.schedule("8 * * * *", scanWindowInit, {
+        // cron.schedule("33 * * * *", scanWindowInit, {
         //     timezone: "America/Los_Angeles"
         // })
 
@@ -87,7 +88,8 @@ export function startScheduledJobs() {
     if (process.env.NODE_ENV === "production") {
         // EST
         cron.schedule("0 6 * * *", sendMiamiEmail, { timezone: "America/Los_Angeles" })
-        cron.schedule("5 6 * * *", sendPortStLucieEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("5 6 * * *", sendTampaEmail, { timezone: "America/Los_Angeles"})
+        cron.schedule("10 6 * * *", sendPortStLucieEmail, { timezone: "America/Los_Angeles" })
         
         // CST
         cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
