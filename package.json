@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:all": "vitest run && vitest run --config vitest.integration.config.ts",
-    "seed:sort-order": "tsx --tsconfig tsconfig.json scripts/seed-sort-order.ts"
+    "seed:sort-order": "tsx --tsconfig tsconfig.json scripts/seed-sort-order.ts",
+    "count:transactions": "tsx --tsconfig tsconfig.json scripts/count-transactions.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
