@@ -4,6 +4,7 @@ import { normalizeDateToYMD } from "server/utils/normalization";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import type { BuyersMarketRecord } from "./get-market";
 import type { MarketScanWindow } from "@database/types/sync";
+import { MSA_STATE } from "../msa-states";
 
 export interface InsertQueueParams {
     records: BuyersMarketRecord[];
@@ -21,7 +22,8 @@ export interface InsertQueueResult {
 function toRow(
     record: BuyersMarketRecord,
     msaId: number,
-    scanWindow: MarketScanWindow
+    scanWindow: MarketScanWindow,
+    msaName: string
 ): typeof marketScanQueue.$inferInsert | null {
     const sfrMarketId = record.id as number | null | undefined;
     const sfrPropertyId = record.propertyId as number | null | undefined;
@@ -40,7 +42,7 @@ function toRow(
         sfrPropertyId,
         address: (record.address as string) || null,
         city: (record.city as string) || null,
-        state: (record.state as string) || null,
+        state: (record.state as string) || MSA_STATE[msaName] || null,
         zipCode: (record.zipCode as string) || null,
         msaId,
         saleDate,
@@ -79,7 +81,7 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
 
     // Map to DB rows, dropping any malformed records
     const rows = records
-        .map((r) => toRow(r, msaId, scanWindow))
+        .map((r) => toRow(r, msaId, scanWindow, msaName))
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
     const malformed = records.length - rows.length;

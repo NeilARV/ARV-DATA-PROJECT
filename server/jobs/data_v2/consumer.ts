@@ -16,6 +16,7 @@ import { updateArvClientCompanies } from "./processes/is-arv-client";
 
 import type { BuyersMarketRecord } from "./processes/get-market";
 import type { MarketScanQueue } from "@database/types/sync";
+import { MSA_STATE } from "./msa-states";
 
 /**
  * Maximum unique properties to process per MSA per consumer run.
@@ -28,20 +29,34 @@ import type { MarketScanQueue } from "@database/types/sync";
 /**
  * Adjusted from 10 --> 5 to reduce total processing time per call (8 minutes --> 4 minutes)
  */
-const MAX_PROPERTIES_PER_MSA = 5;
+const MAX_PROPERTIES_PER_MSA = 20;
+
 
 /**
  * Converts a market_scan_queue row into the BuyersMarketRecord shape that the
- * v1 pipeline process functions expect. BuyersMarketRecord is Record<string, unknown>
- * so this is a straightforward field mapping — no data transformation.
+ * v1 pipeline process functions expect.
+ *
+ * rawData is spread first so that formatAddressForBatch (in batch-lookup.ts) can
+ * find address fields under whatever name the SFR API uses (e.g. "street_address",
+ * "formattedStreetAddress"). The typed columns are then overlaid — they win for
+ * fields that were successfully mapped on insert, but fall through to rawData for
+ * anything that was stored as null (e.g. when the API used an unexpected field name).
+ *
+ * msaName is used as a reliable state fallback: if the API stopped returning the
+ * state field, the MSA name (e.g. "Denver-Aurora-Centennial, CO") always has it.
+ * This also handles rows already sitting in the queue with state = NULL.
  */
-function queueRowToMarketRecord(row: MarketScanQueue): BuyersMarketRecord {
+function queueRowToMarketRecord(row: MarketScanQueue, msaName: string): BuyersMarketRecord {
+    const raw = (row.rawData as Record<string, unknown>) ?? {};
+    // Derive state from MSA name as a fallback for rows where the API omitted it
+    const stateFromMsa = MSA_STATE[msaName];
     return {
+        ...raw,
         id: row.sfrMarketId,
         propertyId: row.sfrPropertyId,
         address: row.address ?? undefined,
         city: row.city ?? undefined,
-        state: row.state ?? undefined,
+        state: row.state ?? stateFromMsa,
         zipCode: row.zipCode ?? undefined,
         saleDate: row.saleDate,
         recordingDate: row.recordingDate,
@@ -100,6 +115,14 @@ export async function runConsumer(): Promise<void> {
         let batchNum = 0;
         let processedThisMsa = 0;
 
+        // if (msa.name !== 'Tampa-St. Petersburg-Clearwater, FL') {
+        //     continue;
+        // }
+
+        if (msa.name !== 'San Diego-Chula Vista-Carlsbad, CA') {
+            continue;
+        }
+
         while (processedThisMsa < MAX_PROPERTIES_PER_MSA) {
             const remaining = MAX_PROPERTIES_PER_MSA - processedThisMsa;
 
@@ -129,7 +152,7 @@ export async function runConsumer(): Promise<void> {
 
             try {
                 // Convert queue rows → BuyersMarketRecord for downstream functions
-                const marketRecords = rows.map(queueRowToMarketRecord);
+                const marketRecords = rows.map((row) => queueRowToMarketRecord(row, msa.name));
 
                 // ── Step 1: Batch property lookup (/properties/batch) ─────────
                 console.log(`${msaLabel} Batch ${batchNum}: fetching property details for ${rows.length} addresses`);
@@ -141,13 +164,16 @@ export async function runConsumer(): Promise<void> {
                 });
 
                 if (mergedProperties.length === 0) {
+                    // All properties in this batch came back NOT_FOUND from the batch API.
+                    // Mark as failed so they appear in the queue for manual review rather
+                    // than silently disappearing as "complete" with nothing inserted.
                     console.warn(
-                        `${msaLabel} Batch ${batchNum}: batch lookup returned 0 results — ` +
-                        `addresses may be malformed. Marking complete to avoid repeated failures.`
+                        `${msaLabel} Batch ${batchNum}: all ${rows.length} properties returned NOT_FOUND from batch lookup — marking failed`
                     );
-                    await markComplete(msa.id, allPropertyIds);
+                    await markFailed(msa.id, allPropertyIds, "NOT_FOUND in batch property lookup");
                     processedThisMsa += rows.length;
                     totals.propertiesProcessed += rows.length;
+                    totals.propertiesFailed += rows.length;
                     continue;
                 }
 

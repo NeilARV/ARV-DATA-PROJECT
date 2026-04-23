@@ -157,21 +157,24 @@ export async function batchLookup(
             continue;
         }
 
-        console.log(`[${cityCode} SYNC] Batch ${batchNum}/${totalBatches}: fetched ${batchData.length} properties`);
+        const notFound = batchData.filter(item => item.error || !item.property);
+        if (notFound.length > 0) {
+            console.warn(
+                `[${cityCode} SYNC] Batch ${batchNum}/${totalBatches}: ` +
+                `${notFound.length}/${batchData.length} properties NOT_FOUND or errored — skipping those`
+            );
+        }
+        console.log(`[${cityCode} SYNC] Batch ${batchNum}/${totalBatches}: fetched ${batchData.length} properties (${batchData.length - notFound.length} valid)`);
 
         for (const item of batchData) {
             if (item.error || !item.property) {
-                results.push({
-                address: item.address,
-                property: item.property || {},
-                error: item.error,
-                });
+                // Skip — NOT_FOUND / error items are excluded from results so the
+                // consumer can detect them via length checks and mark them failed.
                 continue;
             }
 
             const batchAddress = item.address;
             if (!batchAddress) {
-                results.push({ property: item.property, error: item.error });
                 continue;
             }
 

@@ -72,10 +72,10 @@ export function startScheduledJobs() {
     // Earliest Run Time: 5am | Latest Run Time: 10:30pm
     // Can adjust time based on whether or not Scanner E is active
     if (process.env.NODE_ENV === "production") {
-        cron.schedule("*/30 5-22 * * *", runConsumer, {
-            timezone: "America/Los_Angeles"
-        })
-        // cron.schedule("55 * * * *", runConsumer, {
+        // cron.schedule("*/30 5-22 * * *", runConsumer, {
+        //     timezone: "America/Los_Angeles"
+        // })
+        // cron.schedule("36 * * * *", runConsumer, {
         //     timezone: "America/Los_Angeles"
         // })
     } else {
