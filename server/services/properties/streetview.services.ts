@@ -130,54 +130,16 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
 }
 
 /**
- * Checks the cache for a streetview or satellite image.
- * Returns the cached result (any source) or null on cache miss.
+ * Builds a StreetviewResult from a raw cache row.
  */
-async function checkCache(
+function buildCacheResult(
+    cached: typeof streetviewCache.$inferSelect,
     address: string,
     city: string,
-    state: string,
-    size: string,
-    sfrPropertyId?: number
-): Promise<StreetviewResult | null> {
-    const baseConditions = [
-        sql`LOWER(TRIM(${streetviewCache.address})) = ${address.toLowerCase()}`,
-        sql`LOWER(TRIM(${streetviewCache.city})) = ${city.toLowerCase()}`,
-        sql`LOWER(TRIM(${streetviewCache.state})) = ${state.toLowerCase()}`,
-        sql`${streetviewCache.expiresAt} > NOW()`,
-    ];
-
-    if (sfrPropertyId != null) {
-        baseConditions.push(eq(streetviewCache.sfrPropertyId, sfrPropertyId));
-    }
-
-    // First try exact size match, then fall back to any cached size for the same address.
-    // This ensures that images cached at one size (e.g. "400x300" for cards) are reused
-    // by other variants (modal, panel) rather than triggering a redundant Google API call.
-    const exactSizeConditions = [...baseConditions, sql`TRIM(${streetviewCache.size}) = ${size}`];
-    let cachedEntry = await db
-        .select()
-        .from(streetviewCache)
-        .where(and(...exactSizeConditions))
-        .limit(1);
-
-    if (cachedEntry.length === 0) {
-        cachedEntry = await db
-            .select()
-            .from(streetviewCache)
-            .where(and(...baseConditions))
-            .limit(1);
-    }
-
-    if (cachedEntry.length === 0) {
-        return null;
-    }
-
-    const cached = cachedEntry[0];
-
-    // Cached failure (no image data)
+    state: string
+): StreetviewResult {
     if (!cached.imageData || cached.metadataStatus !== "OK") {
-        console.log(`[STREETVIEW CACHE HIT] Cached negative result (status: ${cached.metadataStatus || 'no image'}) for: ${address}, ${city}, ${state}`);
+        console.log(`[STREETVIEW CACHE HIT] Cached negative result (status: ${cached.metadataStatus || "no image"}) for: ${address}, ${city}, ${state}`);
         return {
             message: "Street View image not available",
             status: cached.metadataStatus || "NOT_AVAILABLE",
@@ -189,11 +151,73 @@ async function checkCache(
     console.log(`[STREETVIEW CACHE HIT] Using cached ${source} image (size: ${cached.size}) for: ${address}, ${city}, ${state}`);
 
     return {
-        imageData: cached.imageData!,
+        imageData: cached.imageData,
         contentType: cached.contentType || "image/jpeg",
         cached: true,
         imageSource: source,
     };
+}
+
+/**
+ * Checks the cache for a streetview or satellite image.
+ *
+ * Lookup order:
+ * 1. By sfrPropertyId (fast indexed lookup — finds entries cached with an explicit ID)
+ * 2. By address + city + state + exact size (catches entries cached without sfrPropertyId, e.g. from grid view)
+ * 3. By address + city + state, any size (allows modal/panel to reuse card-sized cache entries)
+ *
+ * Keeping sfrPropertyId out of the address-based conditions is intentional: grid view properties
+ * don't carry sfrPropertyId, so their cache entries are stored with sfr_property_id = NULL.
+ * If we required sfrPropertyId to match in the address lookup, detail views (which do have an ID)
+ * would always miss those entries and then fail when no API key is configured.
+ */
+async function checkCache(
+    address: string,
+    city: string,
+    state: string,
+    size: string,
+    sfrPropertyId?: number
+): Promise<StreetviewResult | null> {
+    // Fast path: try by sfrPropertyId for entries that were cached with one.
+    if (sfrPropertyId != null) {
+        const byId = await db
+            .select()
+            .from(streetviewCache)
+            .where(and(
+                eq(streetviewCache.sfrPropertyId, sfrPropertyId),
+                sql`${streetviewCache.expiresAt} > NOW()`,
+            ))
+            .limit(1);
+
+        if (byId.length > 0) return buildCacheResult(byId[0], address, city, state);
+    }
+
+    // Address-based lookup — finds entries regardless of whether sfrPropertyId was stored.
+    // Try exact size first, then fall back to any size so modal (800x450) reuses card (400x300) entries.
+    const addressConditions = [
+        sql`LOWER(TRIM(${streetviewCache.address})) = ${address.toLowerCase()}`,
+        sql`LOWER(TRIM(${streetviewCache.city})) = ${city.toLowerCase()}`,
+        sql`LOWER(TRIM(${streetviewCache.state})) = ${state.toLowerCase()}`,
+        sql`${streetviewCache.expiresAt} > NOW()`,
+    ];
+
+    let cachedEntry = await db
+        .select()
+        .from(streetviewCache)
+        .where(and(...addressConditions, sql`TRIM(${streetviewCache.size}) = ${size}`))
+        .limit(1);
+
+    if (cachedEntry.length === 0) {
+        cachedEntry = await db
+            .select()
+            .from(streetviewCache)
+            .where(and(...addressConditions))
+            .limit(1);
+    }
+
+    if (cachedEntry.length === 0) return null;
+
+    return buildCacheResult(cachedEntry[0], address, city, state);
 }
 
 /**
