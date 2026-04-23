@@ -139,13 +139,13 @@ function HomeContent() {
         {dialog?.type === "login" && (
           <LoginContent
             onSuccess={closeDialog}
-            onSwitchToSignup={() => openDialog({ type: "signup", forced: false })}
+            onSwitchToSignup={() => openDialog({ type: "signup", forced: isForced })}
           />
         )}
         {dialog?.type === "signup" && (
           <SignupContent
             onSuccess={closeDialog}
-            onSwitchToLogin={() => openDialog({ type: "login", forced: false })}
+            onSwitchToLogin={() => openDialog({ type: "login", forced: isForced })}
           />
         )}
         {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
