@@ -13,10 +13,10 @@ export type PropertyStatusValue = (typeof PROPERTY_STATUS)[keyof typeof PROPERTY
 /** Default status filter (single status). */
 export const DEFAULT_STATUS_FILTERS: Status[] = [PROPERTY_STATUS.IN_RENOVATION];
 
-/** Status filters when opening leaderboard zip (in-renovation, on-market, sold). */
+/** Status filters when opening leaderboard zip (in-renovation, sold). */
 export const LEADERBOARD_ZIP_STATUS_FILTERS: Status[] = [
   PROPERTY_STATUS.IN_RENOVATION,
-  PROPERTY_STATUS.ON_MARKET,
+  // PROPERTY_STATUS.ON_MARKET, // removed: on-market data unreliable
   PROPERTY_STATUS.SOLD,
 ];
 
@@ -24,7 +24,7 @@ export const LEADERBOARD_ZIP_STATUS_FILTERS: Status[] = [
 export const BUYERS_FEED_STATUS_FILTERS: Status[] = [
   PROPERTY_STATUS.WHOLESALE,
   PROPERTY_STATUS.IN_RENOVATION,
-  PROPERTY_STATUS.ON_MARKET,
+  // PROPERTY_STATUS.ON_MARKET, // removed: on-market data unreliable
 ];
 
 /** Status filter for wholesale-only view. */
@@ -34,6 +34,6 @@ export const WHOLESALE_VIEW_STATUS_FILTERS: Status[] = [PROPERTY_STATUS.WHOLESAL
 export const ALL_STATUS_FILTERS: Status[] = [
   PROPERTY_STATUS.IN_RENOVATION,
   PROPERTY_STATUS.WHOLESALE,
-  PROPERTY_STATUS.ON_MARKET,
+  // PROPERTY_STATUS.ON_MARKET, // removed: on-market data unreliable
   PROPERTY_STATUS.SOLD,
 ];

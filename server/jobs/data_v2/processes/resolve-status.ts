@@ -136,8 +136,11 @@ export function resolveStatuses(
 
         const statuses: PropertyStatus[] = [];
 
+        // On-market data unreliable — treat on-market listings as in-renovation instead.
+        // To restore: replace the in-renovation push below with statuses.push("on-market") and remove the else-if.
         if (listingStatus === "On Market") {
-            statuses.push("on-market");
+            // statuses.push("on-market"); // original: disabled until on-market data is reliable
+            statuses.push("in-renovation");
         } else {
             // Off Market (or unrecognized listing_status → treat as off-market)
             if (!mostRecentRaw) {

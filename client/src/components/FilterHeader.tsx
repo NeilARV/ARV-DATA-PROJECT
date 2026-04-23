@@ -344,6 +344,7 @@ export default function FilterHeader({
                     >
                         Wholesale
                     </button>
+                    {/* On Market button removed: on-market data unreliable
                     <button
                         onClick={() => toggleStatusFilter(PROPERTY_STATUS.ON_MARKET)}
                         className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
@@ -360,6 +361,7 @@ export default function FilterHeader({
                     >
                         On Market
                     </button>
+                    */}
                     <button
                         onClick={() => toggleStatusFilter(PROPERTY_STATUS.SOLD)}
                         className={`px-3 h-8 flex items-center text-xs font-medium transition-colors whitespace-nowrap ${
