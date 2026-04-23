@@ -29,7 +29,7 @@ import { MSA_STATE } from "./msa-states";
 /**
  * Adjusted from 10 --> 5 to reduce total processing time per call (8 minutes --> 4 minutes)
  */
-const MAX_PROPERTIES_PER_MSA = 20;
+const MAX_PROPERTIES_PER_MSA = 5;
 
 
 /**
@@ -114,14 +114,6 @@ export async function runConsumer(): Promise<void> {
         const msaLabel = `${label}[${msa.name}]`;
         let batchNum = 0;
         let processedThisMsa = 0;
-
-        // if (msa.name !== 'Tampa-St. Petersburg-Clearwater, FL') {
-        //     continue;
-        // }
-
-        if (msa.name !== 'San Diego-Chula Vista-Carlsbad, CA') {
-            continue;
-        }
 
         while (processedThisMsa < MAX_PROPERTIES_PER_MSA) {
             const remaining = MAX_PROPERTIES_PER_MSA - processedThisMsa;
