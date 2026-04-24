@@ -207,6 +207,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         .groupBy(companies.id) as any;
 
     const ytdWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
         gte(propertyTransactions.recordingDate, ytdStartStr),
         lte(propertyTransactions.recordingDate, todayStr),
     ];
@@ -229,7 +230,9 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         .where(and(...ytdWhereParts))
         .groupBy(propertyTransactions.sellerId);
 
-    const allTimeWhereParts: ReturnType<typeof sql>[] = [];
+    const allTimeWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+    ];
     if (canPaginateInDb && contactIds.length > 0) {
         allTimeWhereParts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
     }
@@ -488,6 +491,7 @@ export async function getCompanyById(id: string, county?: string) {
         .from(propertyTransactions)
         .where(and(
             eq(propertyTransactions.sellerId, id),
+            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
             gte(propertyTransactions.recordingDate, ytdStartStr),
             lte(propertyTransactions.recordingDate, todayStr)
         ));
@@ -495,7 +499,10 @@ export async function getCompanyById(id: string, county?: string) {
     const [sellerCountAllTimeResult] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(propertyTransactions)
-        .where(eq(propertyTransactions.sellerId, id));
+        .where(and(
+            eq(propertyTransactions.sellerId, id),
+            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
+        ));
 
     const companyNameNormalized = result.companyName.trim().toLowerCase();
     const ownershipCondition = or(
