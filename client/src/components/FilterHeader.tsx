@@ -491,7 +491,7 @@ export default function FilterHeader({
                 {/* Date Range */}
                 <Select
                     value={filters.dateRange ?? "60d"}
-                    onValueChange={(val) => setFilters((f) => ({ ...f, dateRange: val }))}
+                    onValueChange={(val) => setFilters((f) => ({ ...f, dateRange: val as DateRange }))}
                 >
                     <SelectTrigger
                         className="h-8 w-[140px] text-xs flex-shrink-0"

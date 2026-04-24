@@ -1,20 +1,18 @@
 import { db } from "server/storage";
 import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
 import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
 export const CONTACTS_PAGE_SIZE = 50;
 export const CONTACTS_SORT_OPTIONS = [
-    "alphabetical",
     "most-properties",
-    "fewest-properties",
     "most-sold-properties",
     "most-sold-properties-all-time",
+    "most-bought-properties",
+    "most-bought-properties-all-time",
     "new-buyers",
     "buys-wholesale",
 ] as const;
@@ -147,7 +145,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const ytdStartStr = `${now.getFullYear()}-01-01`;
     const todayStr = now.toISOString().slice(0, 10);
 
-    const canPaginateInDb = sortOption === "alphabetical" || sortOption === "new-buyers";
+    const canPaginateInDb = sortOption === "new-buyers";
     type CompanyRow = typeof companies.$inferSelect;
     let contacts: CompanyRow[];
     let total: number;
@@ -160,10 +158,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         const countQuery = whereClause
             ? db.select({ count: sql<number>`count(*)::int` }).from(companies).where(whereClause as any)
             : db.select({ count: sql<number>`count(*)::int` }).from(companies);
-        const contactsPageQuery =
-            sortOption === "alphabetical"
-                ? baseContactsQuery.orderBy(companies.companyName).limit(limitNum).offset(offset)
-                : baseContactsQuery.orderBy(desc(companies.createdAt)).limit(limitNum).offset(offset);
+        const contactsPageQuery = baseContactsQuery.orderBy(desc(companies.createdAt)).limit(limitNum).offset(offset);
 
         const [totalResult, contactsPage] = await Promise.all([countQuery, contactsPageQuery]);
         total = Number((totalResult as { count: number }[])[0]?.count ?? 0);
@@ -178,7 +173,11 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 
     const contactIds = contacts.map((c) => c.id).filter(Boolean) as string[];
 
-    const propertyCountWhereParts: ReturnType<typeof sql>[] = [];
+    // A company owns a property if, on the most recent transaction (sort_order = 1),
+    // it is the buyer — matched by ID first, falling back to name when buyer_id is null.
+    const propertyCountWhereParts: ReturnType<typeof sql>[] = [
+        sql`${propertyTransactions.sortOrder} = 1`,
+    ];
     if (normalizedCountyForProps) {
         propertyCountWhereParts.push(
             or(
@@ -188,19 +187,28 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         );
     }
     if (canPaginateInDb && contactIds.length > 0) {
-        propertyCountWhereParts.push(inArray(properties.buyerId, contactIds) as any);
+        propertyCountWhereParts.push(inArray(companies.id, contactIds) as any);
     }
-    const propertyCountWhere = propertyCountWhereParts.length > 0 ? and(...propertyCountWhereParts) : undefined;
+    const propertyCountWhere = and(...propertyCountWhereParts);
     let propertyCountQuery = db
-        .select({ buyerId: properties.buyerId, count: sql<number>`count(*)::int` })
-        .from(properties)
-        .leftJoin(addresses, eq(properties.id, addresses.propertyId));
-    if (propertyCountWhere) {
-        propertyCountQuery = propertyCountQuery.where(propertyCountWhere as any) as typeof propertyCountQuery;
-    }
-    propertyCountQuery = propertyCountQuery.groupBy(properties.buyerId) as typeof propertyCountQuery;
+        .select({ companyId: companies.id, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .innerJoin(companies,
+            or(
+                eq(companies.id, propertyTransactions.buyerId),
+                and(
+                    sql`${propertyTransactions.buyerId} IS NULL`,
+                    sql`LOWER(TRIM(${companies.companyName})) = LOWER(TRIM(${propertyTransactions.buyerName}))`
+                )
+            ) as any
+        )
+        .where(propertyCountWhere as any)
+        .groupBy(companies.id) as any;
 
     const ytdWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
         gte(propertyTransactions.recordingDate, ytdStartStr),
         lte(propertyTransactions.recordingDate, todayStr),
     ];
@@ -223,7 +231,9 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         .where(and(...ytdWhereParts))
         .groupBy(propertyTransactions.sellerId);
 
-    const allTimeWhereParts: ReturnType<typeof sql>[] = [];
+    const allTimeWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+    ];
     if (canPaginateInDb && contactIds.length > 0) {
         allTimeWhereParts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
     }
@@ -245,31 +255,89 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     }
     soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
 
-    const wholesaleBuyWhereParts: ReturnType<typeof sql>[] = [sql`${statuses.name} = 'wholesale'`];
+    const boughtYtdWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+        gte(propertyTransactions.recordingDate, ytdStartStr),
+        lte(propertyTransactions.recordingDate, todayStr),
+    ];
     if (canPaginateInDb && contactIds.length > 0) {
-        wholesaleBuyWhereParts.push(inArray(properties.buyerId, contactIds) as any);
+        boughtYtdWhereParts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+    }
+    if (normalizedCountyForProps) {
+        boughtYtdWhereParts.push(
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+            ) as any
+        );
+    }
+    const boughtYtdQuery = db
+        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .where(and(...boughtYtdWhereParts))
+        .groupBy(propertyTransactions.buyerId);
+
+    const boughtAllTimeWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+    ];
+    if (canPaginateInDb && contactIds.length > 0) {
+        boughtAllTimeWhereParts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+    }
+    if (normalizedCountyForProps) {
+        boughtAllTimeWhereParts.push(
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+            ) as any
+        );
+    }
+    const boughtAllTimeQuery = db
+        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .where(and(...boughtAllTimeWhereParts))
+        .groupBy(propertyTransactions.buyerId);
+
+    // A wholesale purchase is a transaction where the seller had previously bought the
+    // same property within 30 days — i.e., a quick-flip. Count every occurrence per buyer.
+    const wholesaleBuyWhereParts: ReturnType<typeof sql>[] = [
+        sql`${propertyTransactions.buyerId} IS NOT NULL`,
+        sql`${propertyTransactions.sellerId} IS NOT NULL`,
+        sql`EXISTS (
+            SELECT 1 FROM property_transactions pt_prior
+            WHERE pt_prior.property_id = ${propertyTransactions.propertyId}
+              AND pt_prior.buyer_id = ${propertyTransactions.sellerId}
+              AND pt_prior.recording_date <= ${propertyTransactions.recordingDate}
+              AND (${propertyTransactions.recordingDate} - pt_prior.recording_date) <= 30
+        )`,
+    ];
+    if (canPaginateInDb && contactIds.length > 0) {
+        wholesaleBuyWhereParts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
     }
     const wholesaleBuyQuery = db
-        .select({ buyerId: properties.buyerId, count: sql<number>`count(*)::int` })
-        .from(properties)
-        .innerJoin(propertyStatuses, eq(properties.id, propertyStatuses.propertyId))
-        .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
+        .from(propertyTransactions)
         .where(and(...wholesaleBuyWhereParts))
-        .groupBy(properties.buyerId);
+        .groupBy(propertyTransactions.buyerId);
 
     const primaryContactsQuery = fetchPrimaryContacts(contactIds);
 
-    const [propertyCountRows, soldCountRows, soldCountAllTimeRows, wholesaleBuyRows, primaryContacts] = await Promise.all([
+    const [propertyCountRows, soldCountRows, soldCountAllTimeRows, boughtCountRows, boughtCountAllTimeRows, wholesaleBuyRows, primaryContacts] = await Promise.all([
         propertyCountQuery,
         soldYtdQuery,
         soldAllTimeQuery,
+        boughtYtdQuery,
+        boughtAllTimeQuery,
         wholesaleBuyQuery,
         primaryContactsQuery,
     ]);
 
-    const propertyCountByBuyerId = new Map<string, number>();
-    propertyCountRows.forEach((row: { buyerId: string | null; count: number }) => {
-        if (row.buyerId) propertyCountByBuyerId.set(row.buyerId, row.count);
+    const propertyCountByCompanyId = new Map<string, number>();
+    propertyCountRows.forEach((row: { companyId: string | null; count: number }) => {
+        if (row.companyId) propertyCountByCompanyId.set(row.companyId, row.count);
     });
     const soldCountByCompanyId = new Map<string, number>();
     soldCountRows.forEach((row: { sellerId: string | null; count: number }) => {
@@ -278,6 +346,14 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const soldCountAllTimeByCompanyId = new Map<string, number>();
     soldCountAllTimeRows.forEach((row: { sellerId: string | null; count: number }) => {
         if (row.sellerId) soldCountAllTimeByCompanyId.set(row.sellerId, row.count);
+    });
+    const boughtCountByBuyerId = new Map<string, number>();
+    boughtCountRows.forEach((row: { buyerId: string | null; count: number }) => {
+        if (row.buyerId) boughtCountByBuyerId.set(row.buyerId, row.count);
+    });
+    const boughtCountAllTimeByBuyerId = new Map<string, number>();
+    boughtCountAllTimeRows.forEach((row: { buyerId: string | null; count: number }) => {
+        if (row.buyerId) boughtCountAllTimeByBuyerId.set(row.buyerId, row.count);
     });
     const wholesaleBuyCountByBuyerId = new Map<string, number>();
     wholesaleBuyRows.forEach((row: { buyerId: string | null; count: number }) => {
@@ -291,9 +367,11 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
             contactName: buildContactName(primary),
             contactEmail: primary?.email ?? null,
             phoneNumber: primary?.phoneNumber ?? null,
-            propertyCount: propertyCountByBuyerId.get(contact.id) ?? 0,
+            propertyCount: propertyCountByCompanyId.get(contact.id) ?? 0,
             propertiesSoldCount: soldCountByCompanyId.get(contact.id) ?? 0,
             propertiesSoldCountAllTime: soldCountAllTimeByCompanyId.get(contact.id) ?? 0,
+            propertiesBoughtCount: boughtCountByBuyerId.get(contact.id) ?? 0,
+            propertiesBoughtCountAllTime: boughtCountAllTimeByBuyerId.get(contact.id) ?? 0,
             wholesaleBuyCount: wholesaleBuyCountByBuyerId.get(contact.id) ?? 0,
             isFinancedByARV: contact.isArvClient ?? false,
         };
@@ -301,9 +379,10 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 
     const zeroCountFilter: Record<string, (c: typeof contactsWithCounts[0]) => boolean> = {
         "most-properties": (c) => c.propertyCount > 0,
-        "fewest-properties": (c) => c.propertyCount > 0,
         "most-sold-properties": (c) => c.propertiesSoldCount > 0,
         "most-sold-properties-all-time": (c) => c.propertiesSoldCountAllTime > 0,
+        "most-bought-properties": (c) => c.propertiesBoughtCount > 0,
+        "most-bought-properties-all-time": (c) => c.propertiesBoughtCountAllTime > 0,
         "buys-wholesale": (c) => c.wholesaleBuyCount > 0,
     };
     const filterFn = zeroCountFilter[sortOption];
@@ -321,9 +400,10 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         contactsWithCounts.sort((a, b) => {
             switch (sortOption) {
                 case "most-properties": return b.propertyCount - a.propertyCount;
-                case "fewest-properties": return a.propertyCount - b.propertyCount;
                 case "most-sold-properties": return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
                 case "most-sold-properties-all-time": return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
+                case "most-bought-properties": return (b.propertiesBoughtCount ?? 0) - (a.propertiesBoughtCount ?? 0);
+                case "most-bought-properties-all-time": return (b.propertiesBoughtCountAllTime ?? 0) - (a.propertiesBoughtCountAllTime ?? 0);
                 case "buys-wholesale": return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);
                 default: return 0;
             }
@@ -341,33 +421,31 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 export async function getWholesaleLeaderboard(county?: string) {
     const normalizedCounty = county ? county.trim().toLowerCase() : null;
 
+    const wholesaleWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) IN ('arms length', 'assignment')`,
+        sql`EXISTS (
+            SELECT 1 FROM property_statuses ps
+            JOIN statuses s ON s.id = ps.status_id
+            WHERE ps.property_id = ${properties.id}
+            AND s.name = 'wholesale'
+        )`,
+    ];
+    if (normalizedCounty) {
+        wholesaleWhereParts.push(
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+            ) as any
+        );
+    }
     const countRows = await db
-        .select({ sellerId: properties.sellerId, count: sql<number>`count(*)::int` })
-        .from(properties)
+        .select({ sellerId: propertyTransactions.sellerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
-        .where(
-            normalizedCounty
-                ? and(
-                      sql`EXISTS (
-                          SELECT 1 FROM property_statuses ps
-                          JOIN statuses s ON s.id = ps.status_id
-                          WHERE ps.property_id = ${properties.id}
-                          AND s.name = 'wholesale'
-                      )`,
-                      or(
-                          sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                          sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-                      )
-                  )
-                : sql`EXISTS (
-                      SELECT 1 FROM property_statuses ps
-                      JOIN statuses s ON s.id = ps.status_id
-                      WHERE ps.property_id = ${properties.id}
-                      AND s.name = 'wholesale'
-                  )`
-        )
-        .groupBy(properties.sellerId)
-        .orderBy(sql`count(*) desc`)
+        .where(and(...wholesaleWhereParts))
+        .groupBy(propertyTransactions.sellerId)
+        .orderBy(sql`count(DISTINCT ${propertyTransactions.propertyId}) desc`)
         .limit(3);
 
     if (countRows.length === 0) return [];
@@ -402,36 +480,36 @@ export async function getWholesaleLeaderboard(county?: string) {
 
 export async function getLeaderboard(county: string) {
     const normalizedCounty = county.trim().toLowerCase();
-    const buyerCompanies = alias(companies, "buyer_companies");
-    const sellerCompanies = alias(companies, "seller_companies");
 
-    const allProperties = await db
+    const allTransactions = await db
         .select({
-            buyerCompanyName: buyerCompanies.companyName,
-            sellerCompanyName: sellerCompanies.companyName,
+            buyerName: propertyTransactions.buyerName,
+            sellerName: propertyTransactions.sellerName,
         })
-        .from(properties)
-        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
-        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .where(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-            ) as any
-        ) as any;
+            and(
+                sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+                or(
+                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+                ) as any
+            )
+        );
 
     const companyCounts: Record<string, number> = {};
-    type Prop = { buyerCompanyName: string | null; sellerCompanyName: string | null };
-    allProperties.forEach((p: Prop) => {
+    type TxRow = { buyerName: string | null; sellerName: string | null };
+    allTransactions.forEach((p: TxRow) => {
         const addCompany = (name: string | null) => {
             if (!name) return;
             const companyName = name.trim();
             companyCounts[companyName] = (companyCounts[companyName] || 0) + 1;
         };
-        addCompany(p.buyerCompanyName);
-        if (p.sellerCompanyName !== p.buyerCompanyName) {
-            addCompany(p.sellerCompanyName);
+        addCompany(p.buyerName);
+        if (p.sellerName !== p.buyerName) {
+            addCompany(p.sellerName);
         }
     });
 
@@ -482,6 +560,7 @@ export async function getCompanyById(id: string, county?: string) {
         .from(propertyTransactions)
         .where(and(
             eq(propertyTransactions.sellerId, id),
+            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
             gte(propertyTransactions.recordingDate, ytdStartStr),
             lte(propertyTransactions.recordingDate, todayStr)
         ));
@@ -489,16 +568,30 @@ export async function getCompanyById(id: string, county?: string) {
     const [sellerCountAllTimeResult] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(propertyTransactions)
-        .where(eq(propertyTransactions.sellerId, id));
+        .where(and(
+            eq(propertyTransactions.sellerId, id),
+            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
+        ));
+
+    const companyNameNormalized = result.companyName.trim().toLowerCase();
+    const ownershipCondition = or(
+        eq(propertyTransactions.buyerId, id),
+        and(
+            sql`${propertyTransactions.buyerId} IS NULL`,
+            sql`LOWER(TRIM(${propertyTransactions.buyerName})) = ${companyNameNormalized}`
+        )
+    ) as any;
 
     let propertyCount: number;
     if (normalizedCounty) {
         const [propertyCountResult] = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(properties)
+            .select({ count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+            .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
             .where(and(
-                eq(properties.buyerId, id),
+                sql`${propertyTransactions.sortOrder} = 1`,
+                ownershipCondition,
                 or(
                     sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
                     sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
@@ -507,9 +600,12 @@ export async function getCompanyById(id: string, county?: string) {
         propertyCount = propertyCountResult?.count ?? 0;
     } else {
         const [propertyCountResult] = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(properties)
-            .where(eq(properties.buyerId, id));
+            .select({ count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+            .from(propertyTransactions)
+            .where(and(
+                sql`${propertyTransactions.sortOrder} = 1`,
+                ownershipCondition
+            ));
         propertyCount = propertyCountResult?.count ?? 0;
     }
 

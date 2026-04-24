@@ -20,6 +20,8 @@ export type CompanyContactWithCounts = Company & {
   propertyCount: number;
   propertiesSoldCount: number;
   propertiesSoldCountAllTime: number;
+  propertiesBoughtCount: number;
+  propertiesBoughtCountAllTime: number;
   wholesaleBuyCount: number;
   isFinancedByARV: boolean;
   // Joined from company_contacts (primary contact)

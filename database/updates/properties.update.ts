@@ -18,16 +18,12 @@ export type PatchTransactionInput = z.infer<typeof patchTransactionInputSchema>;
 export const patchPropertySchema = z.object({
   isArvFunded: z.boolean().optional(),
   statuses: z.array(z.enum(PROPERTY_STATUSES)).min(1).optional(),
-  buyerCompanyName: z.string().optional(),
-  sellerCompanyName: z.string().optional(),
   transactions: z.array(patchTransactionInputSchema).optional(),
   deletedTransactionIds: z.array(z.number().int().positive()).optional(),
 }).strict().refine(
   (data) =>
     data.isArvFunded !== undefined ||
     data.statuses !== undefined ||
-    data.buyerCompanyName !== undefined ||
-    data.sellerCompanyName !== undefined ||
     data.transactions !== undefined ||
     data.deletedTransactionIds !== undefined,
   { message: "At least one field must be provided" }
@@ -35,8 +31,6 @@ export const patchPropertySchema = z.object({
 
 export const updatePropertySchema = z.object({
   sfrPropertyId: z.coerce.number().int().optional(),
-  buyerId: z.string().uuid().nullable().optional(),
-  sellerId: z.string().uuid().nullable().optional(),
   propertyClassDescription: z.string().nullable().optional(),
   propertyType: z.string().nullable().optional(),
   vacant: z.boolean().nullable().optional(),

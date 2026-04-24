@@ -26,8 +26,6 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
 export const properties = pgTable("properties", {
   id: uuid("id").defaultRandom().primaryKey(),
   sfrPropertyId: bigint("sfr_property_id", { mode: "number" }).unique().notNull(),
-  buyerId: uuid("buyer_id").references(() => companies.id, { onDelete: "set null" }),
-  sellerId: uuid("seller_id").references(() => companies.id, { onDelete: "set null" }),
   propertyClassDescription: text("property_class_description"),
   propertyType: varchar("property_type", { length: 100 }),
   vacant: varchar("vacant", { length: 50 }),

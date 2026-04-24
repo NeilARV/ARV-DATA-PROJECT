@@ -15,7 +15,6 @@ import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propert
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
 import { appendPropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
-import { alias } from "drizzle-orm/pg-core";
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
@@ -120,15 +119,10 @@ function detectAssignor(
 // ─── Get by ID ────────────────────────────────────────────────────────────────
 
 export async function getPropertyById(id: string) {
-    const buyerCompanies = alias(companies, "buyer_companies");
-    const sellerCompanies = alias(companies, "seller_companies");
-
     const [result] = await db
         .select({
             id: properties.id,
             sfrPropertyId: properties.sfrPropertyId,
-            buyerId: properties.buyerId,
-            sellerId: properties.sellerId,
             propertyClassDescription: properties.propertyClassDescription,
             propertyType: properties.propertyType,
             vacant: properties.vacant,
@@ -154,21 +148,11 @@ export async function getPropertyById(id: string) {
             yearBuilt: structures.yearBuilt,
             price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
             dateSold: lastSales.recordingDate,
-            buyerCompanyName: buyerCompanies.companyName,
-            buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            buyerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            sellerCompanyName: sellerCompanies.companyName,
-            sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            sellerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
-        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
         .where(eq(properties.id, id))
         .limit(1);
 
@@ -203,8 +187,12 @@ export async function getPropertyById(id: string) {
     const sortedTxs = sortTransactionsDesc(allTxs);
     const { buyerPurchasePrice, buyerPurchaseDate, sellerPurchasePrice, sellerPurchaseDate, spread, latestArmsLengthTx } = calculateSpread(sortedTxs);
     const latest = latestArmsLengthTx;
-    const buyerDisplayName = result.buyerCompanyName || (latest?.buyerName ?? null);
-    const sellerDisplayName = result.sellerCompanyName || (latest?.sellerName ?? null);
+
+    // TX data is the sole source of truth for buyer/seller
+    const buyerDisplayName = latest?.buyerName ?? null;
+    const sellerDisplayName = latest?.sellerName ?? null;
+    const txBuyerId = latest?.buyerId ?? null;
+    const txSellerId = latest?.sellerId ?? null;
 
     const { assignorName: rawAssignorName, assignorId: rawAssignorId } = detectAssignor(allTxs);
 
@@ -225,9 +213,9 @@ export async function getPropertyById(id: string) {
         }
     }
 
-    const txBuyerCompanyId = !result.buyerId && latest?.buyerId ? latest.buyerId : null;
-    const txSellerCompanyId = !result.sellerId && latest?.sellerId ? latest.sellerId : null;
-    const txCompanyIds = [txBuyerCompanyId, txSellerCompanyId].filter(Boolean) as string[];
+    // Batch-fetch contacts for the TX buyer/seller companies (primary) plus any
+    // property-join company IDs that differ (as fallback).
+    const txCompanyIds = [txBuyerId, txSellerId].filter(Boolean) as string[];
     type TxCompany = { id: string; contactName: string | null; contactEmail: string | null; phoneNumber: string | null };
     const txCompanyMap = new Map<string, TxCompany>();
     if (txCompanyIds.length > 0) {
@@ -250,15 +238,32 @@ export async function getPropertyById(id: string) {
             });
         }
     }
-    const txBuyerCompany = txBuyerCompanyId ? txCompanyMap.get(txBuyerCompanyId) ?? null : null;
-    const txSellerCompany = txSellerCompanyId ? txCompanyMap.get(txSellerCompanyId) ?? null : null;
+    const txBuyerCompany = txBuyerId ? txCompanyMap.get(txBuyerId) ?? null : null;
+    const txSellerCompany = txSellerId ? txCompanyMap.get(txSellerId) ?? null : null;
+
     // DB column is the authoritative manual override; fall back to transaction lender check
     const isFinancedByARV = result.isArvFunded || (latest?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
 
     const lat = result.latitude ? Number(result.latitude) : null;
     const lon = result.longitude ? Number(result.longitude) : null;
     const baths = result.bathrooms ? Number(result.bathrooms) : null;
-    const price = result.price ? Number(result.price) : 0;
+
+    // Price and date from most recent AL tx; fall back to lastSales
+    const txSalePrice = latest?.salePrice != null ? parseFloat(String(latest.salePrice)) : null;
+    const price = txSalePrice !== null && !isNaN(txSalePrice) ? txSalePrice : (result.price ? Number(result.price) : 0);
+    const txDate = latest?.recordingDate
+        ? typeof latest.recordingDate === "string"
+            ? latest.recordingDate.split("T")[0]
+            : (latest.recordingDate as Date).toISOString().split("T")[0]
+        : null;
+    const dateSoldStr = txDate ?? (result.dateSold
+        ? (typeof result.dateSold === "object" && result.dateSold !== null && "toISOString" in result.dateSold
+            ? (result.dateSold as Date).toISOString().split("T")[0]
+            : String(result.dateSold).split("T")[0])
+        : null);
+
+    const resolvedBuyerId = txBuyerId;
+    const resolvedSellerId = txSellerId;
 
     return {
         id: String(result.id),
@@ -277,22 +282,18 @@ export async function getPropertyById(id: string) {
         statuses: propertyStatusNames.length > 0 ? propertyStatusNames : ['in-renovation'],
         status: propertyStatusNames[0] ?? 'in-renovation',
         price,
-        dateSold: result.dateSold
-            ? (typeof result.dateSold === 'object' && result.dateSold !== null && 'toISOString' in result.dateSold
-                ? (result.dateSold as Date).toISOString().split('T')[0]
-                : String(result.dateSold).split('T')[0])
-            : null,
-        buyerId: result.buyerId ? String(result.buyerId) : null,
+        dateSold: dateSoldStr,
+        buyerId: resolvedBuyerId,
         buyerCompanyName: buyerDisplayName,
-        buyerContactName: result.buyerContactName || txBuyerCompany?.contactName || null,
-        buyerContactEmail: result.buyerContactEmail || txBuyerCompany?.contactEmail || null,
-        buyerContactPhone: result.buyerContactPhone || txBuyerCompany?.phoneNumber || null,
-        sellerId: result.sellerId ? String(result.sellerId) : null,
+        buyerContactName: txBuyerCompany?.contactName ?? null,
+        buyerContactEmail: txBuyerCompany?.contactEmail ?? null,
+        buyerContactPhone: txBuyerCompany?.phoneNumber ?? null,
+        sellerId: resolvedSellerId,
         sellerCompanyName: sellerDisplayName,
         sellerName: sellerDisplayName,
-        sellerContactName: result.sellerContactName || txSellerCompany?.contactName || null,
-        sellerContactEmail: result.sellerContactEmail || txSellerCompany?.contactEmail || null,
-        sellerContactPhone: result.sellerContactPhone || txSellerCompany?.phoneNumber || null,
+        sellerContactName: txSellerCompany?.contactName ?? null,
+        sellerContactEmail: txSellerCompany?.contactEmail ?? null,
+        sellerContactPhone: txSellerCompany?.phoneNumber ?? null,
         assignorId: rawAssignorId ?? null,
         assignorCompanyName: rawAssignorName ?? null,
         assignorContactName,
@@ -304,13 +305,13 @@ export async function getPropertyById(id: string) {
         sellerPurchaseDate,
         spread,
         isFinancedByARV,
-        companyId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
-        companyName: result.buyerCompanyName || result.sellerCompanyName || buyerDisplayName || sellerDisplayName || null,
-        companyContactName: result.buyerContactName || result.sellerContactName || null,
-        companyContactEmail: result.buyerContactEmail || result.sellerContactEmail || null,
-        companyContactPhone: result.buyerContactPhone || result.sellerContactPhone || null,
-        propertyOwner: result.buyerCompanyName || result.sellerCompanyName || buyerDisplayName || sellerDisplayName || null,
-        propertyOwnerId: result.buyerId ? String(result.buyerId) : (result.sellerId ? String(result.sellerId) : null),
+        companyId: resolvedBuyerId || resolvedSellerId || null,
+        companyName: buyerDisplayName || sellerDisplayName || null,
+        companyContactName: txBuyerCompany?.contactName || txSellerCompany?.contactName || null,
+        companyContactEmail: txBuyerCompany?.contactEmail || txSellerCompany?.contactEmail || null,
+        companyContactPhone: txBuyerCompany?.phoneNumber || txSellerCompany?.phoneNumber || null,
+        propertyOwner: buyerDisplayName || sellerDisplayName || null,
+        propertyOwnerId: resolvedBuyerId || resolvedSellerId || null,
         purchasePrice: sellerPurchasePrice ?? price,
         saleValue: buyerPurchasePrice ?? price,
     };
@@ -477,8 +478,6 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
     if (existingProperty) {
         await db.update(properties).set({
-            buyerId,
-            sellerId,
             propertyClassDescription: propertyData.property_class_description || null,
             propertyType: normalizePropertyType(propertyData.property_type) || null,
             vacant: propertyData.vacant || null,
@@ -501,8 +500,6 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
         .insert(properties)
         .values({
             sfrPropertyId: Number(sfrPropertyId),
-            buyerId,
-            sellerId,
             propertyClassDescription: propertyData.property_class_description || null,
             propertyType: normalizePropertyType(propertyData.property_type) || null,
             vacant: propertyData.vacant || null,
@@ -624,40 +621,6 @@ export async function patchProperty(
             .update(properties)
             .set({ isArvFunded: data.isArvFunded, updatedAt: new Date() })
             .where(eq(properties.id, id));
-    }
-
-    if (data.buyerCompanyName !== undefined) {
-        if (data.buyerCompanyName.trim() === '') {
-            await db
-                .update(properties)
-                .set({ buyerId: null, updatedAt: new Date() })
-                .where(eq(properties.id, id));
-        } else {
-            const newBuyerId = await upsertCompanyByName(data.buyerCompanyName, existing.county, existing.msa);
-            if (newBuyerId) {
-                await db
-                    .update(properties)
-                    .set({ buyerId: newBuyerId, updatedAt: new Date() })
-                    .where(eq(properties.id, id));
-            }
-        }
-    }
-
-    if (data.sellerCompanyName !== undefined) {
-        if (data.sellerCompanyName.trim() === '') {
-            await db
-                .update(properties)
-                .set({ sellerId: null, updatedAt: new Date() })
-                .where(eq(properties.id, id));
-        } else {
-            const newSellerId = await upsertCompanyByName(data.sellerCompanyName, existing.county, existing.msa);
-            if (newSellerId) {
-                await db
-                    .update(properties)
-                    .set({ sellerId: newSellerId, updatedAt: new Date() })
-                    .where(eq(properties.id, id));
-            }
-        }
     }
 
     if (data.statuses !== undefined && data.statuses.length > 0) {

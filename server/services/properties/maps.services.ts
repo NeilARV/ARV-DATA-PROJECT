@@ -1,12 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
-import { companies } from "@database/schemas/companies.schema";
-import { eq, sql, and, or, gte, lte } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { eq, sql, and, or } from "drizzle-orm";
 import { resolveDateRange } from "server/utils/resolveDateRange";
-
-const buyerCompanies = alias(companies, "buyer_companies");
-const sellerCompanies = alias(companies, "seller_companies");
 
 export interface MapPropertyData {
     id: string;
@@ -23,20 +18,28 @@ export interface MapPropertyData {
     status: string;
     statuses: string[];
     propertyOwner: string | null;
-    companyId: string | null; // Primary company for display (buyer or seller)
+    companyId: string | null;
     buyerId: string | null;
     sellerId: string | null;
 }
 
 /**
- * Fetches minimal property data for map pins
- * @param county - Optional county filter
- * @returns Array of property data formatted for map display
+ * Fetches minimal property data for map pins.
+ *
+ * Buyer/seller IDs and owner name are derived from property_transactions (not from
+ * properties.buyer_id / properties.seller_id):
+ *  - companyId provided → only properties where that company appears as buyer or seller
+ *    in any Arms Length or Assignment tx; buyerId/sellerId reflect that company's role.
+ *  - No companyId → buyerId/sellerId from most recent Arms Length tx (sort_order ASC).
  */
-export async function getMapProperties(county?: string, statusFilter?: string | string[], dateRange?: string): Promise<MapPropertyData[]> {
+export async function getMapProperties(
+    county?: string,
+    statusFilter?: string | string[],
+    dateRange?: string,
+    companyId?: string,
+): Promise<MapPropertyData[]> {
     const conditions = [];
 
-    // Apply status filter if provided, otherwise show all statuses
     if (statusFilter) {
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
@@ -54,7 +57,6 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
 
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
-        // Filter by county from either properties table or addresses table
         conditions.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
@@ -66,18 +68,42 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
     if (dateRange) {
         const range = resolveDateRange(dateRange);
         if (range) {
-            conditions.push(gte(lastSales.recordingDate, range.dateMin));
-            conditions.push(lte(lastSales.recordingDate, range.dateMax));
+            conditions.push(
+                sql`(
+                    SELECT MAX(pt.recording_date)
+                    FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
+                ) >= ${range.dateMin}::date`
+            );
+            conditions.push(
+                sql`(
+                    SELECT MAX(pt.recording_date)
+                    FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
+                ) <= ${range.dateMax}::date`
+            );
         }
+    }
+
+    const companyIdTrimmed = companyId?.trim() ?? "";
+    const hasCompanyFilter = companyIdTrimmed !== "";
+
+    if (hasCompanyFilter) {
+        conditions.push(
+            sql`EXISTS (
+                SELECT 1 FROM property_transactions pt
+                WHERE pt.property_id = ${properties.id}
+                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+            )`
+        );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Select only minimal fields needed for map pins and filtering
-    // Join with addresses for location data, structures for bedrooms/bathrooms, 
-    // lastSales for price, and companies for property owner (buyer or seller)
-    // Only include properties that have addresses (needed for coordinates)
-    let query = db
+    const query = db
         .select({
             id: properties.id,
             latitude: addresses.latitude,
@@ -90,68 +116,105 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
             bedrooms: structures.bedsCount,
             bathrooms: structures.baths,
             price: lastSales.price,
-            status: sql<string | null>`(SELECT s.name FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id} ORDER BY CASE s.name WHEN 'wholesale' THEN 0 WHEN 'on-market' THEN 1 WHEN 'in-renovation' THEN 2 WHEN 'sold' THEN 3 ELSE 4 END LIMIT 1)`,
-            statuses: sql<string[]>`COALESCE((SELECT array_agg(s.name) FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id}), ARRAY[]::text[])`,
-            // Company name and ID from buyer or seller (for client-side filtering)
-            companyName: sql<string | null>`COALESCE(${buyerCompanies.companyName}, ${sellerCompanies.companyName})`,
-            buyerId: properties.buyerId,
-            sellerId: properties.sellerId,
+            status: sql<string | null>`(
+                SELECT s.name FROM property_statuses ps
+                JOIN statuses s ON s.id = ps.status_id
+                WHERE ps.property_id = ${properties.id}
+                ORDER BY CASE s.name
+                    WHEN 'wholesale' THEN 0 WHEN 'on-market' THEN 1
+                    WHEN 'in-renovation' THEN 2 WHEN 'sold' THEN 3 ELSE 4
+                END LIMIT 1
+            )`,
+            statuses: sql<string[]>`COALESCE(
+                (SELECT array_agg(s.name) FROM property_statuses ps
+                 JOIN statuses s ON s.id = ps.status_id
+                 WHERE ps.property_id = ${properties.id}),
+                ARRAY[]::text[]
+            )`,
+            // Buyer/seller from most recent AL tx (company-filtered or global)
+            txBuyerId: hasCompanyFilter
+                ? sql<string | null>`(
+                    SELECT pt.buyer_id::text FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+                    AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
+                  )`
+                : sql<string | null>`(
+                    SELECT pt.buyer_id::text FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
+                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
+                  )`,
+            txSellerId: hasCompanyFilter
+                ? sql<string | null>`(
+                    SELECT pt.seller_id::text FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+                    AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
+                  )`
+                : sql<string | null>`(
+                    SELECT pt.seller_id::text FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
+                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
+                  )`,
+            txBuyerName: hasCompanyFilter
+                ? sql<string | null>`(
+                    SELECT pt.buyer_name FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+                    AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
+                  )`
+                : sql<string | null>`(
+                    SELECT pt.buyer_name FROM property_transactions pt
+                    WHERE pt.property_id = ${properties.id}
+                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
+                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
+                  )`,
         })
         .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId)) // Use inner join to only get properties with addresses
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
-        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
-        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id));
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
 
-    if (whereClause) {
-        query = query.where(whereClause) as any;
-    }
+    const rawResults = await (whereClause ? query.where(whereClause) : query).execute();
 
-    const rawResults = await query.execute();
-
-    // Map results to use companyName as propertyOwner for backward compatibility
-    // Also ensure we have valid coordinates (latitude and longitude) for map pins
-    const results = rawResults
+    return rawResults
         .filter((prop: any) => {
-            // Only include properties with valid coordinates
-            // Decimal types come back as strings, so we need to parse them
-            const lat = prop.latitude ? (typeof prop.latitude === 'string' ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
-            const lon = prop.longitude ? (typeof prop.longitude === 'string' ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
+            const lat = prop.latitude ? (typeof prop.latitude === "string" ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
+            const lon = prop.longitude ? (typeof prop.longitude === "string" ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
             return lat != null && lon != null && !isNaN(lat) && !isNaN(lon);
         })
         .map((prop: any) => {
-            const { companyName, buyerId, sellerId, ...rest } = prop;
-            // Parse decimal types (they come as strings from the database)
-            const lat = prop.latitude ? (typeof prop.latitude === 'string' ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
-            const lon = prop.longitude ? (typeof prop.longitude === 'string' ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
-            const baths = prop.bathrooms ? (typeof prop.bathrooms === 'string' ? parseFloat(prop.bathrooms) : Number(prop.bathrooms)) : null;
-            const price = prop.price ? (typeof prop.price === 'string' ? parseFloat(prop.price) : Number(prop.price)) : 0;
-            const companyId = (buyerId || sellerId) ? String(buyerId || sellerId) : null;
-            const bid = buyerId ? String(buyerId) : null;
-            const sid = sellerId ? String(sellerId) : null;
-            
+            const lat = prop.latitude ? (typeof prop.latitude === "string" ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
+            const lon = prop.longitude ? (typeof prop.longitude === "string" ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
+            const baths = prop.bathrooms ? (typeof prop.bathrooms === "string" ? parseFloat(prop.bathrooms) : Number(prop.bathrooms)) : null;
+            const price = prop.price ? (typeof prop.price === "string" ? parseFloat(prop.price) : Number(prop.price)) : 0;
+            const buyerId = prop.txBuyerId ? String(prop.txBuyerId) : null;
+            const sellerId = prop.txSellerId ? String(prop.txSellerId) : null;
+            const companyIdOut = buyerId || sellerId || null;
+
             return {
-                ...rest,
                 id: String(prop.id),
                 latitude: lat,
                 longitude: lon,
-                address: prop.address || '',
-                city: prop.city || '',
-                zipcode: prop.zipcode || '',
-                county: prop.county || '',
-                propertyType: prop.propertyType || '',
+                address: prop.address || "",
+                city: prop.city || "",
+                zipcode: prop.zipcode || "",
+                county: prop.county || "",
+                propertyType: prop.propertyType || "",
                 bedrooms: prop.bedrooms ? Number(prop.bedrooms) : null,
                 bathrooms: baths,
-                price: price,
-                status: prop.status || '',
+                price,
+                status: prop.status || "",
                 statuses: Array.isArray(prop.statuses) ? prop.statuses : [],
-                propertyOwner: companyName || null,
-                companyId,
-                buyerId: bid,
-                sellerId: sid,
+                propertyOwner: prop.txBuyerName || null,
+                companyId: companyIdOut,
+                buyerId,
+                sellerId,
             };
         });
-
-    return results;
 }

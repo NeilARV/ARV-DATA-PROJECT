@@ -2,10 +2,8 @@ import { db } from "server/storage";
 import { users, emailWhitelist } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures, propertyTransactions } from "@database/schemas/properties.schema";
-import { companies } from "@database/schemas/companies.schema";
 import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { StreetviewServices } from "server/services/properties";
 import {
   sendTemplateToUsers,
@@ -15,9 +13,6 @@ import {
 import { formatAddress } from "@shared/utils/formatAddress";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
-
-const buyerCompanies = alias(companies, "buyer_companies");
-const sellerCompanies = alias(companies, "seller_companies");
 
 const PROPERTY_COUNT_TARGET = 3;
 /** Fetch this many recent properties and take the first 3 that have Street View images. */
@@ -216,14 +211,14 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         bedsCount: structures.bedsCount,
         baths: structures.baths,
         livingAreaSqft: structures.livingAreaSqft,
-        buyerCompanyName: buyerCompanies.companyName,
-        buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-        buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-        buyerPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-        sellerCompanyName: sellerCompanies.companyName,
-        sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-        sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-        sellerPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        buyerCompanyName: sql<string | null>`(SELECT pt.buyer_name FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
+        buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = (SELECT pt.buyer_id FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = (SELECT pt.buyer_id FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        buyerPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = (SELECT pt.buyer_id FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        sellerCompanyName: sql<string | null>`(SELECT pt.seller_name FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
+        sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = (SELECT pt.seller_id FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = (SELECT pt.seller_id FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
+        sellerPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = (SELECT pt.seller_id FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
         isARVFunded: sql<boolean>`EXISTS (
           SELECT 1 FROM property_transactions pt
           WHERE pt.property_id = ${properties.id}
@@ -234,8 +229,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
       .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
       .leftJoin(structures, eq(properties.id, structures.propertyId))
-      .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
-      .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
       .where(
         and(
           eq(properties.msa, msaName),
