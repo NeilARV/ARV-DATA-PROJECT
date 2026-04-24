@@ -31,6 +31,7 @@ export type CompanyContactWithCounts = Company & {
 };
 
 export type CompanyContactDetail = Company & {
+  propertyCount: number;
   propertiesSoldCount: number;
   propertiesSoldCountAllTime?: number;
   acquisition90DayTotal: number;

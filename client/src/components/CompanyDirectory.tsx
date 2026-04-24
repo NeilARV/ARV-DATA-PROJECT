@@ -400,7 +400,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     <div className="flex items-center gap-2">
                       <Home className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        <span className="font-semibold text-foreground">{listCompany.propertyCount}</span>
+                        <span className="font-semibold text-foreground">{expandedCompanyDetail?.propertyCount ?? listCompany.propertyCount}</span>
                         <span className="text-muted-foreground"> Properties Owned</span>
                       </span>
                     </div>
