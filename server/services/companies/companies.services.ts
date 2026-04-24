@@ -1,7 +1,6 @@
 import { db } from "server/storage";
 import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
 import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
@@ -254,19 +253,25 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     }
     soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
 
+    // A wholesale purchase is a transaction where the seller had previously bought the
+    // same property within 30 days — i.e., a quick-flip. Count every occurrence per buyer.
     const wholesaleBuyWhereParts: ReturnType<typeof sql>[] = [
-        sql`${statuses.name} = 'wholesale'`,
-        sql`LOWER(TRIM(${propertyTransactions.transactionType})) IN ('arms length', 'assignment')`,
+        sql`${propertyTransactions.buyerId} IS NOT NULL`,
+        sql`${propertyTransactions.sellerId} IS NOT NULL`,
+        sql`EXISTS (
+            SELECT 1 FROM property_transactions pt_prior
+            WHERE pt_prior.property_id = ${propertyTransactions.propertyId}
+              AND pt_prior.buyer_id = ${propertyTransactions.sellerId}
+              AND pt_prior.recording_date <= ${propertyTransactions.recordingDate}
+              AND (${propertyTransactions.recordingDate} - pt_prior.recording_date) <= 30
+        )`,
     ];
     if (canPaginateInDb && contactIds.length > 0) {
         wholesaleBuyWhereParts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
     }
     const wholesaleBuyQuery = db
-        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
         .from(propertyTransactions)
-        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
-        .innerJoin(propertyStatuses, eq(properties.id, propertyStatuses.propertyId))
-        .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
         .where(and(...wholesaleBuyWhereParts))
         .groupBy(propertyTransactions.buyerId);
 
