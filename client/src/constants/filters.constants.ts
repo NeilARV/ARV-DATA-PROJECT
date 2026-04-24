@@ -7,8 +7,8 @@ export const DATE_RANGE_OPTIONS = [
     { label: "Last 30 Days",  value: "30d" },
     { label: "Last 60 Days",  value: "60d" },
     { label: "Last 90 Days",  value: "90d" },
-    { label: "Last 180 Days", value: "180d" },
-    { label: "Last Year",     value: "1y" },
+    { label: "Past 6 Months", value: "180d" },
+    { label: "Past 12 Months", value: "1y" },
     { label: "YTD",           value: "ytd" },
     { label: "All-Time",      value: "all-time" },
 ] as const;
