@@ -15,7 +15,6 @@ import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propert
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
 import { appendPropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
-import { alias } from "drizzle-orm/pg-core";
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
@@ -120,15 +119,10 @@ function detectAssignor(
 // ─── Get by ID ────────────────────────────────────────────────────────────────
 
 export async function getPropertyById(id: string) {
-    const buyerCompanies = alias(companies, "buyer_companies");
-    const sellerCompanies = alias(companies, "seller_companies");
-
     const [result] = await db
         .select({
             id: properties.id,
             sfrPropertyId: properties.sfrPropertyId,
-            buyerId: properties.buyerId,
-            sellerId: properties.sellerId,
             propertyClassDescription: properties.propertyClassDescription,
             propertyType: properties.propertyType,
             vacant: properties.vacant,
@@ -154,21 +148,11 @@ export async function getPropertyById(id: string) {
             yearBuilt: structures.yearBuilt,
             price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
             dateSold: lastSales.recordingDate,
-            buyerCompanyName: buyerCompanies.companyName,
-            buyerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            buyerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            buyerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${buyerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            sellerCompanyName: sellerCompanies.companyName,
-            sellerContactName: sql<string | null>`(SELECT TRIM(cc.first_name || ' ' || COALESCE(cc.last_name, '')) FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            sellerContactEmail: sql<string | null>`(SELECT cc.email FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
-            sellerContactPhone: sql<string | null>`(SELECT cc.phone_number FROM company_contacts cc WHERE cc.company_id = ${sellerCompanies.id} ORDER BY cc.sort_order ASC, cc.id ASC LIMIT 1)`,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(buyerCompanies, eq(properties.buyerId, buyerCompanies.id))
-        .leftJoin(sellerCompanies, eq(properties.sellerId, sellerCompanies.id))
         .where(eq(properties.id, id))
         .limit(1);
 
@@ -204,9 +188,9 @@ export async function getPropertyById(id: string) {
     const { buyerPurchasePrice, buyerPurchaseDate, sellerPurchasePrice, sellerPurchaseDate, spread, latestArmsLengthTx } = calculateSpread(sortedTxs);
     const latest = latestArmsLengthTx;
 
-    // TX data is primary source of truth; company join values are fallback
-    const buyerDisplayName = latest?.buyerName || result.buyerCompanyName || null;
-    const sellerDisplayName = latest?.sellerName || result.sellerCompanyName || null;
+    // TX data is the sole source of truth for buyer/seller
+    const buyerDisplayName = latest?.buyerName ?? null;
+    const sellerDisplayName = latest?.sellerName ?? null;
     const txBuyerId = latest?.buyerId ?? null;
     const txSellerId = latest?.sellerId ?? null;
 
@@ -278,8 +262,8 @@ export async function getPropertyById(id: string) {
             : String(result.dateSold).split("T")[0])
         : null);
 
-    const resolvedBuyerId = txBuyerId || (result.buyerId ? String(result.buyerId) : null);
-    const resolvedSellerId = txSellerId || (result.sellerId ? String(result.sellerId) : null);
+    const resolvedBuyerId = txBuyerId;
+    const resolvedSellerId = txSellerId;
 
     return {
         id: String(result.id),
@@ -301,15 +285,15 @@ export async function getPropertyById(id: string) {
         dateSold: dateSoldStr,
         buyerId: resolvedBuyerId,
         buyerCompanyName: buyerDisplayName,
-        buyerContactName: txBuyerCompany?.contactName || result.buyerContactName || null,
-        buyerContactEmail: txBuyerCompany?.contactEmail || result.buyerContactEmail || null,
-        buyerContactPhone: txBuyerCompany?.phoneNumber || result.buyerContactPhone || null,
+        buyerContactName: txBuyerCompany?.contactName ?? null,
+        buyerContactEmail: txBuyerCompany?.contactEmail ?? null,
+        buyerContactPhone: txBuyerCompany?.phoneNumber ?? null,
         sellerId: resolvedSellerId,
         sellerCompanyName: sellerDisplayName,
         sellerName: sellerDisplayName,
-        sellerContactName: txSellerCompany?.contactName || result.sellerContactName || null,
-        sellerContactEmail: txSellerCompany?.contactEmail || result.sellerContactEmail || null,
-        sellerContactPhone: txSellerCompany?.phoneNumber || result.sellerContactPhone || null,
+        sellerContactName: txSellerCompany?.contactName ?? null,
+        sellerContactEmail: txSellerCompany?.contactEmail ?? null,
+        sellerContactPhone: txSellerCompany?.phoneNumber ?? null,
         assignorId: rawAssignorId ?? null,
         assignorCompanyName: rawAssignorName ?? null,
         assignorContactName,
@@ -494,8 +478,6 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
     if (existingProperty) {
         await db.update(properties).set({
-            buyerId,
-            sellerId,
             propertyClassDescription: propertyData.property_class_description || null,
             propertyType: normalizePropertyType(propertyData.property_type) || null,
             vacant: propertyData.vacant || null,
@@ -518,8 +500,6 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
         .insert(properties)
         .values({
             sfrPropertyId: Number(sfrPropertyId),
-            buyerId,
-            sellerId,
             propertyClassDescription: propertyData.property_class_description || null,
             propertyType: normalizePropertyType(propertyData.property_type) || null,
             vacant: propertyData.vacant || null,
@@ -641,40 +621,6 @@ export async function patchProperty(
             .update(properties)
             .set({ isArvFunded: data.isArvFunded, updatedAt: new Date() })
             .where(eq(properties.id, id));
-    }
-
-    if (data.buyerCompanyName !== undefined) {
-        if (data.buyerCompanyName.trim() === '') {
-            await db
-                .update(properties)
-                .set({ buyerId: null, updatedAt: new Date() })
-                .where(eq(properties.id, id));
-        } else {
-            const newBuyerId = await upsertCompanyByName(data.buyerCompanyName, existing.county, existing.msa);
-            if (newBuyerId) {
-                await db
-                    .update(properties)
-                    .set({ buyerId: newBuyerId, updatedAt: new Date() })
-                    .where(eq(properties.id, id));
-            }
-        }
-    }
-
-    if (data.sellerCompanyName !== undefined) {
-        if (data.sellerCompanyName.trim() === '') {
-            await db
-                .update(properties)
-                .set({ sellerId: null, updatedAt: new Date() })
-                .where(eq(properties.id, id));
-        } else {
-            const newSellerId = await upsertCompanyByName(data.sellerCompanyName, existing.county, existing.msa);
-            if (newSellerId) {
-                await db
-                    .update(properties)
-                    .set({ sellerId: newSellerId, updatedAt: new Date() })
-                    .where(eq(properties.id, id));
-            }
-        }
     }
 
     if (data.statuses !== undefined && data.statuses.length > 0) {

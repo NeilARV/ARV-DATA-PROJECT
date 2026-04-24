@@ -190,24 +190,6 @@ export async function reprocessProperty(propertyId: string): Promise<void> {
     const armsLengthSorted = txs.filter((tx) => isArmsLength(tx.transactionType));
     const latestAL = armsLengthSorted[0] ?? null;
 
-    let newBuyerId: string | null = latestAL?.buyerId ?? null;
-    let newSellerId: string | null = latestAL?.sellerId ?? null;
-
-    if (!newBuyerId && latestAL?.buyerName) {
-        const trimmed = trimCompanyName(latestAL.buyerName);
-        if (trimmed) {
-            const [c] = await db.select({ id: companies.id }).from(companies).where(eq(companies.companyName, trimmed)).limit(1);
-            newBuyerId = c?.id ?? null;
-        }
-    }
-    if (!newSellerId && latestAL?.sellerName) {
-        const trimmed = trimCompanyName(latestAL.sellerName);
-        if (trimmed) {
-            const [c] = await db.select({ id: companies.id }).from(companies).where(eq(companies.companyName, trimmed)).limit(1);
-            newSellerId = c?.id ?? null;
-        }
-    }
-
     const isArvFunded =
         latestAL?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
 
@@ -215,7 +197,7 @@ export async function reprocessProperty(propertyId: string): Promise<void> {
 
     await db
         .update(properties)
-        .set({ buyerId: newBuyerId, sellerId: newSellerId, isArvFunded, updatedAt: new Date() })
+        .set({ isArvFunded, updatedAt: new Date() })
         .where(eq(properties.id, propertyId));
 
     if (derivedStatuses.length > 0) {

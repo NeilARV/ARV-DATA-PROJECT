@@ -67,8 +67,6 @@ function mapPropertyRow(
   const p = item.property as Record<string, unknown>;
   return {
     sfrPropertyId: Number(p.property_id ?? 0),
-    buyerId: (p.buyer_id as string) ?? null,
-    sellerId: (p.seller_id as string) ?? null,
     propertyClassDescription: getString(p, "property_class_description") ?? null,
     propertyType: getString(p, "property_type") ?? null,
     vacant: getString(p, "vacant") ?? null,
@@ -189,8 +187,6 @@ export async function insertProperties(
       .onConflictDoUpdate({
         target: properties.sfrPropertyId,
         set: {
-          buyerId: propertyValues.buyerId,
-          sellerId: propertyValues.sellerId,
           listingStatus: propertyValues.listingStatus,
           monthsOwned: propertyValues.monthsOwned,
           isArvFunded: propertyValues.isArvFunded,
