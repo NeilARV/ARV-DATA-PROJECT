@@ -62,8 +62,11 @@ function detectAssignorFromSortedTxs(txs: Array<{
 /**
  * Returns the transaction to use for display (buyer name, seller name, price, date).
  *
- * Company selected → most recent Arms Length or Assignment tx where company is buyer or seller.
- * No company      → most recent Arms Length tx.
+ * Company selected → most recent AL or Assignment tx where company is buyer or seller.
+ *   Exception: if the match is an Assignment tx where the company is the SELLER (assigner),
+ *   fall back to the most recent Arms Length tx. The assigner role is already surfaced via
+ *   assignorId/assignorCompanyName; the display tx should show the actual sale.
+ * No company → most recent Arms Length tx.
  *
  * Txs must be ordered COALESCE(sort_order, 999999) ASC so the first match is most recent.
  */
@@ -72,18 +75,29 @@ function findDisplayTx<T extends {
     buyerId: string | null;
     sellerId: string | null;
 }>(txs: T[], companyId: string | null): T | null {
-    if (companyId) {
-        return txs.find((tx) => {
-            const type = (tx.transactionType ?? "").trim().toLowerCase();
-            return (
-                (type === "arms length" || type === "assignment") &&
-                (tx.buyerId === companyId || tx.sellerId === companyId)
-            );
-        }) ?? null;
-    }
-    return txs.find(
+    const latestAL = txs.find(
         (tx) => (tx.transactionType ?? "").trim().toLowerCase() === "arms length"
     ) ?? null;
+
+    if (!companyId) return latestAL;
+
+    const companyTx = txs.find((tx) => {
+        const type = (tx.transactionType ?? "").trim().toLowerCase();
+        return (
+            (type === "arms length" || type === "assignment") &&
+            (tx.buyerId === companyId || tx.sellerId === companyId)
+        );
+    }) ?? null;
+
+    if (!companyTx) return latestAL;
+
+    // If the company's involvement is as the assigner (seller in an Assignment tx),
+    // show the Arms Length tx instead — the assigner role appears separately on the card.
+    const isAssigner =
+        (companyTx.transactionType ?? "").trim().toLowerCase() === "assignment" &&
+        companyTx.sellerId === companyId;
+
+    return isAssigner ? latestAL : companyTx;
 }
 
 export async function getProperties(filters: GetPropertiesFilters): Promise<GetPropertiesResult> {

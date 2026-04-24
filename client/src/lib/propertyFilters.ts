@@ -209,7 +209,8 @@ export function matchesCompanyForProperty(
   if (selectedCompanyId) {
     const bid = property.buyerId ?? null;
     const sid = property.sellerId ?? null;
-    return bid === selectedCompanyId || sid === selectedCompanyId;
+    const aid = property.assignorId ?? null;
+    return bid === selectedCompanyId || sid === selectedCompanyId || aid === selectedCompanyId;
   }
   if (selectedCompany) {
     const companyName = (
