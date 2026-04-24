@@ -9,9 +9,7 @@ import type { z } from "zod";
 
 export const CONTACTS_PAGE_SIZE = 50;
 export const CONTACTS_SORT_OPTIONS = [
-    "alphabetical",
     "most-properties",
-    "fewest-properties",
     "most-sold-properties",
     "most-sold-properties-all-time",
     "new-buyers",
@@ -146,7 +144,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const ytdStartStr = `${now.getFullYear()}-01-01`;
     const todayStr = now.toISOString().slice(0, 10);
 
-    const canPaginateInDb = sortOption === "alphabetical" || sortOption === "new-buyers";
+    const canPaginateInDb = sortOption === "new-buyers";
     type CompanyRow = typeof companies.$inferSelect;
     let contacts: CompanyRow[];
     let total: number;
@@ -159,10 +157,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         const countQuery = whereClause
             ? db.select({ count: sql<number>`count(*)::int` }).from(companies).where(whereClause as any)
             : db.select({ count: sql<number>`count(*)::int` }).from(companies);
-        const contactsPageQuery =
-            sortOption === "alphabetical"
-                ? baseContactsQuery.orderBy(companies.companyName).limit(limitNum).offset(offset)
-                : baseContactsQuery.orderBy(desc(companies.createdAt)).limit(limitNum).offset(offset);
+        const contactsPageQuery = baseContactsQuery.orderBy(desc(companies.createdAt)).limit(limitNum).offset(offset);
 
         const [totalResult, contactsPage] = await Promise.all([countQuery, contactsPageQuery]);
         total = Number((totalResult as { count: number }[])[0]?.count ?? 0);
@@ -316,7 +311,6 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 
     const zeroCountFilter: Record<string, (c: typeof contactsWithCounts[0]) => boolean> = {
         "most-properties": (c) => c.propertyCount > 0,
-        "fewest-properties": (c) => c.propertyCount > 0,
         "most-sold-properties": (c) => c.propertiesSoldCount > 0,
         "most-sold-properties-all-time": (c) => c.propertiesSoldCountAllTime > 0,
         "buys-wholesale": (c) => c.wholesaleBuyCount > 0,
@@ -336,7 +330,6 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         contactsWithCounts.sort((a, b) => {
             switch (sortOption) {
                 case "most-properties": return b.propertyCount - a.propertyCount;
-                case "fewest-properties": return a.propertyCount - b.propertyCount;
                 case "most-sold-properties": return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
                 case "most-sold-properties-all-time": return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
                 case "buys-wholesale": return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);

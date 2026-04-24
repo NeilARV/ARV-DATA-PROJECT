@@ -267,16 +267,10 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="alphabetical" data-testid="sort-alphabetical">
-                Alphabetical
-              </SelectItem>
-              <SelectItem value="most-properties" data-testid="sort-most-properties">
+<SelectItem value="most-properties" data-testid="sort-most-properties">
                 Most Properties
               </SelectItem>
-              <SelectItem value="fewest-properties" data-testid="sort-fewest-properties">
-                Fewest Properties
-              </SelectItem>
-              <SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
+<SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
                 Most Sold Properties (YTD)
               </SelectItem>
               <SelectItem value="most-sold-properties-all-time" data-testid="sort-most-sold-properties-all-time">
