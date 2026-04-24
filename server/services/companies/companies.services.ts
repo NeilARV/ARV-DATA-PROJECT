@@ -11,6 +11,8 @@ export const CONTACTS_SORT_OPTIONS = [
     "most-properties",
     "most-sold-properties",
     "most-sold-properties-all-time",
+    "most-bought-properties",
+    "most-bought-properties-all-time",
     "new-buyers",
     "buys-wholesale",
 ] as const;
@@ -253,6 +255,52 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     }
     soldAllTimeQuery = soldAllTimeQuery.groupBy(propertyTransactions.sellerId) as typeof soldAllTimeQuery;
 
+    const boughtYtdWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+        gte(propertyTransactions.recordingDate, ytdStartStr),
+        lte(propertyTransactions.recordingDate, todayStr),
+    ];
+    if (canPaginateInDb && contactIds.length > 0) {
+        boughtYtdWhereParts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+    }
+    if (normalizedCountyForProps) {
+        boughtYtdWhereParts.push(
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+            ) as any
+        );
+    }
+    const boughtYtdQuery = db
+        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .where(and(...boughtYtdWhereParts))
+        .groupBy(propertyTransactions.buyerId);
+
+    const boughtAllTimeWhereParts: ReturnType<typeof sql>[] = [
+        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+    ];
+    if (canPaginateInDb && contactIds.length > 0) {
+        boughtAllTimeWhereParts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+    }
+    if (normalizedCountyForProps) {
+        boughtAllTimeWhereParts.push(
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
+            ) as any
+        );
+    }
+    const boughtAllTimeQuery = db
+        .select({ buyerId: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
+        .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .where(and(...boughtAllTimeWhereParts))
+        .groupBy(propertyTransactions.buyerId);
+
     // A wholesale purchase is a transaction where the seller had previously bought the
     // same property within 30 days — i.e., a quick-flip. Count every occurrence per buyer.
     const wholesaleBuyWhereParts: ReturnType<typeof sql>[] = [
@@ -277,10 +325,12 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 
     const primaryContactsQuery = fetchPrimaryContacts(contactIds);
 
-    const [propertyCountRows, soldCountRows, soldCountAllTimeRows, wholesaleBuyRows, primaryContacts] = await Promise.all([
+    const [propertyCountRows, soldCountRows, soldCountAllTimeRows, boughtCountRows, boughtCountAllTimeRows, wholesaleBuyRows, primaryContacts] = await Promise.all([
         propertyCountQuery,
         soldYtdQuery,
         soldAllTimeQuery,
+        boughtYtdQuery,
+        boughtAllTimeQuery,
         wholesaleBuyQuery,
         primaryContactsQuery,
     ]);
@@ -297,6 +347,14 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     soldCountAllTimeRows.forEach((row: { sellerId: string | null; count: number }) => {
         if (row.sellerId) soldCountAllTimeByCompanyId.set(row.sellerId, row.count);
     });
+    const boughtCountByBuyerId = new Map<string, number>();
+    boughtCountRows.forEach((row: { buyerId: string | null; count: number }) => {
+        if (row.buyerId) boughtCountByBuyerId.set(row.buyerId, row.count);
+    });
+    const boughtCountAllTimeByBuyerId = new Map<string, number>();
+    boughtCountAllTimeRows.forEach((row: { buyerId: string | null; count: number }) => {
+        if (row.buyerId) boughtCountAllTimeByBuyerId.set(row.buyerId, row.count);
+    });
     const wholesaleBuyCountByBuyerId = new Map<string, number>();
     wholesaleBuyRows.forEach((row: { buyerId: string | null; count: number }) => {
         if (row.buyerId) wholesaleBuyCountByBuyerId.set(row.buyerId, row.count);
@@ -312,6 +370,8 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
             propertyCount: propertyCountByCompanyId.get(contact.id) ?? 0,
             propertiesSoldCount: soldCountByCompanyId.get(contact.id) ?? 0,
             propertiesSoldCountAllTime: soldCountAllTimeByCompanyId.get(contact.id) ?? 0,
+            propertiesBoughtCount: boughtCountByBuyerId.get(contact.id) ?? 0,
+            propertiesBoughtCountAllTime: boughtCountAllTimeByBuyerId.get(contact.id) ?? 0,
             wholesaleBuyCount: wholesaleBuyCountByBuyerId.get(contact.id) ?? 0,
             isFinancedByARV: contact.isArvClient ?? false,
         };
@@ -321,6 +381,8 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         "most-properties": (c) => c.propertyCount > 0,
         "most-sold-properties": (c) => c.propertiesSoldCount > 0,
         "most-sold-properties-all-time": (c) => c.propertiesSoldCountAllTime > 0,
+        "most-bought-properties": (c) => c.propertiesBoughtCount > 0,
+        "most-bought-properties-all-time": (c) => c.propertiesBoughtCountAllTime > 0,
         "buys-wholesale": (c) => c.wholesaleBuyCount > 0,
     };
     const filterFn = zeroCountFilter[sortOption];
@@ -340,6 +402,8 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 case "most-properties": return b.propertyCount - a.propertyCount;
                 case "most-sold-properties": return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
                 case "most-sold-properties-all-time": return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
+                case "most-bought-properties": return (b.propertiesBoughtCount ?? 0) - (a.propertiesBoughtCount ?? 0);
+                case "most-bought-properties-all-time": return (b.propertiesBoughtCountAllTime ?? 0) - (a.propertiesBoughtCountAllTime ?? 0);
                 case "buys-wholesale": return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);
                 default: return 0;
             }
