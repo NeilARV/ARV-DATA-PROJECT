@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -67,11 +67,24 @@ export default function FilterHeader({
     const [countyOpen, setCountyOpen] = useState(false);
     const [zipOpen, setZipOpen] = useState(false);
     const [typeOpen, setTypeOpen] = useState(false);
+    const zipWrapperRef = useRef<HTMLDivElement>(null);
 
     // Suggestion results
     const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
     const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
     const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
+
+    // Close zip dropdown when clicking outside the wrapper
+    useEffect(() => {
+        if (!zipOpen) return;
+        const handleMouseDown = (e: MouseEvent) => {
+            if (zipWrapperRef.current && !zipWrapperRef.current.contains(e.target as Node)) {
+                setZipOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleMouseDown);
+        return () => document.removeEventListener('mousedown', handleMouseDown);
+    }, [zipOpen]);
 
     // Sync local display state when context filters change
     useEffect(() => {
@@ -398,9 +411,7 @@ export default function FilterHeader({
                 </Popover>
 
                 {/* Zip/City search */}
-                <Popover open={zipOpen} onOpenChange={setZipOpen}>
-                <PopoverTrigger asChild>
-                    <div className="relative flex-shrink-0" data-testid="zip-trigger-wrapper">
+                <div ref={zipWrapperRef} className="relative flex-shrink-0" data-testid="zip-trigger-wrapper">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
                     <Input
                         type="text"
@@ -408,65 +419,74 @@ export default function FilterHeader({
                         value={zipInput}
                         onChange={(e) => handleZipInputChange(e.target.value)}
                         onFocus={() => {
-                        if (sortedZipCodes.length > 0 || citiesWithCounts.length > 0) {
-                            setFilteredZipCodes(sortedZipCodes.slice(0, 10));
-                            setFilteredCities(citiesWithCounts.slice(0, 10));
-                            setZipOpen(true);
-                        }
+                            if (sortedZipCodes.length > 0 || citiesWithCounts.length > 0) {
+                                setFilteredZipCodes(sortedZipCodes.slice(0, 10));
+                                setFilteredCities(citiesWithCounts.slice(0, 10));
+                                setZipOpen(true);
+                            }
+                        }}
+                        onClick={() => {
+                            if (!zipOpen && (sortedZipCodes.length > 0 || citiesWithCounts.length > 0)) {
+                                setFilteredZipCodes(sortedZipCodes.slice(0, 10));
+                                setFilteredCities(citiesWithCounts.slice(0, 10));
+                                setZipOpen(true);
+                            }
                         }}
                         className="h-8 pl-7 pr-6 text-xs w-52"
                         data-testid="input-zipcode"
                     />
                     {zipInput && (
                         <X
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground hover:text-foreground cursor-pointer z-10"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleZipInputChange("");
-                        }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground hover:text-foreground cursor-pointer z-10"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleZipInputChange("");
+                            }}
                         />
                     )}
-                    </div>
-                </PopoverTrigger>
-                <PopoverContent
-                    className="p-0 w-60 z-[10000]"
-                    align="start"
-                    onOpenAutoFocus={(e) => e.preventDefault()}
-                    data-testid="zipcode-suggestions"
-                >
-                    <div className="max-h-60 overflow-y-auto">
-                    {filteredCities.map((city) => (
+                    {zipOpen && (filteredCities.length > 0 || filteredZipCodes.length > 0) && (
                         <div
-                        key={`city-${city.city}`}
-                        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                        onClick={() => selectCity(city)}
-                        data-testid={`suggestion-city-${city.city}`}
+                            className="absolute top-full left-0 mt-1 w-60 max-h-60 overflow-y-auto bg-popover border border-border rounded-md shadow-md z-[10000]"
+                            data-testid="zipcode-suggestions"
                         >
-                        <span className="flex items-center gap-2 min-w-0">
-                            <Home className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium truncate">{city.city}</span>
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{city.count}</span>
+                            {filteredCities.map((city) => (
+                                <div
+                                    key={`city-${city.city}`}
+                                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        selectCity(city);
+                                    }}
+                                    data-testid={`suggestion-city-${city.city}`}
+                                >
+                                    <span className="flex items-center gap-2 min-w-0">
+                                        <Home className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                        <span className="font-medium truncate">{city.city}</span>
+                                    </span>
+                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{city.count}</span>
+                                </div>
+                            ))}
+                            {filteredZipCodes.map((z) => (
+                                <div
+                                    key={z.zipCode}
+                                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        selectZipCode(z);
+                                    }}
+                                    data-testid={`suggestion-${z.zipCode}`}
+                                >
+                                    <span className="flex items-center gap-2 min-w-0">
+                                        <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                        <span className="font-medium">{z.zipCode}</span>
+                                        <span className="text-muted-foreground text-xs truncate">{z.city}</span>
+                                    </span>
+                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{z.count}</span>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    {filteredZipCodes.map((z) => (
-                        <div
-                        key={z.zipCode}
-                        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                        onClick={() => selectZipCode(z)}
-                        data-testid={`suggestion-${z.zipCode}`}
-                        >
-                        <span className="flex items-center gap-2 min-w-0">
-                            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="font-medium">{z.zipCode}</span>
-                            <span className="text-muted-foreground text-xs truncate">{z.city}</span>
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{z.count}</span>
-                        </div>
-                    ))}
-                    </div>
-                </PopoverContent>
-                </Popover>
+                    )}
+                </div>
 
                 {/* Date Range */}
                 <Select

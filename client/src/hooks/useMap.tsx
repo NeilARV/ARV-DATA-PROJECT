@@ -111,7 +111,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
       if (!res.ok) throw new Error(`Failed to fetch map pins: ${res.status}`);
       return res.json();
     },
-    enabled: fetchMapPins && view === "map" && !!mapPinsQueryUrl,
+    enabled: fetchMapPins && !!mapPinsQueryUrl,
   });
 
   // Zip code list for filtering pins
