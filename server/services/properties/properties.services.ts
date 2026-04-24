@@ -6,6 +6,7 @@ import { trimCompanyName } from "server/utils/normalization";
 import { calculateSpread } from "server/utils/orderTransactions";
 import { eq, sql, or, and, inArray, asc, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { resolveDateRange } from "server/utils/resolveDateRange";
 
 const buyerCompanies = alias(companies, "buyer_companies");
 const sellerCompanies = alias(companies, "seller_companies");
@@ -24,8 +25,7 @@ export interface GetPropertiesFilters {
     propertyOwner?: string;
     companyId?: string; // Company ID filter - matches buyer_id OR seller_id
     hasDateSold?: string;
-    dateMin?: string; // YYYY-MM-DD
-    dateMax?: string; // YYYY-MM-DD
+    dateRange?: DateRange
     page?: string;
     limit?: string;
     sortBy?: string;
@@ -79,8 +79,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         propertyOwner, 
         companyId,
         hasDateSold,
-        dateMin,
-        dateMax,
+        dateRange,
         page,
         limit,
         sortBy,
@@ -250,11 +249,12 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
 
     // Date range filter - from lastSales table
-    if (dateMin) {
-        conditions.push(gte(lastSales.recordingDate, dateMin as string));
-    }
-    if (dateMax) {
-        conditions.push(lte(lastSales.recordingDate, dateMax as string));
+    if (dateRange) {
+        const range = resolveDateRange(dateRange as string);
+        if (range) {
+            conditions.push(gte(lastSales.recordingDate, range.dateMin));
+            conditions.push(lte(lastSales.recordingDate, range.dateMax));
+        }
     }
 
     // Build where clause
@@ -274,7 +274,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     }
     
     // Join lastSales if price, hasDateSold, or date range filter is used
-    if (minPrice || maxPrice || hasDateSold || dateMin || dateMax) {
+    if (minPrice || maxPrice || hasDateSold || (dateRange && dateRange !== "all-time")) {
         countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId)) as any;
     }
     

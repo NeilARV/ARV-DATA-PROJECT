@@ -140,9 +140,8 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
       // Expand filters when a new company is selected. Skip if same company (e.g. sidebar tab remount).
       if (companyFiltersExpandedRef.current !== (company?.id ?? null)) {
         companyFiltersExpandedRef.current = company?.id ?? null;
-        const today = new Date().toISOString().split('T')[0];
         setStatusFilters(new Set(ALL_STATUS_FILTERS));
-        setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateMin: "2025-07-07", dateMax: today });
+        setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateRange: "all-time" });
       }
     } else if (!hasSelection && hadSelection) {
       const statuses =
@@ -151,15 +150,11 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
           : view === "buyers-feed"
             ? BUYERS_FEED_STATUS_FILTERS
             : DEFAULT_STATUS_FILTERS;
-      const today = new Date();
-      const sixtyDaysAgo = new Date(today);
-      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       setStatusFilters(new Set(statuses));
       setFilters({
         ...filters,
         statusFilters: statuses,
-        dateMin: sixtyDaysAgo.toISOString().split('T')[0],
-        dateMax: today.toISOString().split('T')[0],
+        dateRange: "60d",
       });
     }
   }, [company, view]);
@@ -224,17 +219,13 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
           : view === "buyers-feed"
             ? BUYERS_FEED_STATUS_FILTERS
             : DEFAULT_STATUS_FILTERS;
-      const today = new Date();
-      const sixtyDaysAgo = new Date(today);
-      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
       filterResetHandledRef.current = true;
       companySelectionInProgressRef.current = false;
       setStatusFilters(new Set(statuses));
       setFilters({
         ...filters,
         statusFilters: statuses,
-        dateMin: sixtyDaysAgo.toISOString().split('T')[0],
-        dateMax: today.toISOString().split('T')[0],
+        dateRange: "60d",
       });
       setCompany(null);
       // If directory was opened via wholesaler/panel/modal click, we may have skipped the initial load; load now so list isn't empty

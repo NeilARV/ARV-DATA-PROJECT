@@ -1,9 +1,9 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { companies } from "@database/schemas/companies.schema";
 import { eq, sql, and, or, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { resolveDateRange } from "server/utils/resolveDateRange";
 
 const buyerCompanies = alias(companies, "buyer_companies");
 const sellerCompanies = alias(companies, "seller_companies");
@@ -33,7 +33,7 @@ export interface MapPropertyData {
  * @param county - Optional county filter
  * @returns Array of property data formatted for map display
  */
-export async function getMapProperties(county?: string, statusFilter?: string | string[], dateMin?: string, dateMax?: string): Promise<MapPropertyData[]> {
+export async function getMapProperties(county?: string, statusFilter?: string | string[], dateRange?: string): Promise<MapPropertyData[]> {
     const conditions = [];
 
     // Apply status filter if provided, otherwise show all statuses
@@ -63,11 +63,12 @@ export async function getMapProperties(county?: string, statusFilter?: string | 
         );
     }
 
-    if (dateMin) {
-        conditions.push(gte(lastSales.recordingDate, dateMin as string));
-    }
-    if (dateMax) {
-        conditions.push(lte(lastSales.recordingDate, dateMax as string));
+    if (dateRange) {
+        const range = resolveDateRange(dateRange);
+        if (range) {
+            conditions.push(gte(lastSales.recordingDate, range.dateMin));
+            conditions.push(lte(lastSales.recordingDate, range.dateMax));
+        }
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

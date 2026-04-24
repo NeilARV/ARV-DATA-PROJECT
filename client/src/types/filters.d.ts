@@ -8,8 +8,7 @@ export type PropertyFilters = {
   city?: string; // Optional city filter
   county?: string; // Optional county filter
   statusFilters: string[];
-  dateMin?: string; // YYYY-MM-DD
-  dateMax?: string; // YYYY-MM-DD
+  dateRange?: DateRange; // Currently coming from shared types | filters.d.ts
 }
 
 export type ZipCodeWithCount = {

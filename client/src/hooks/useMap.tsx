@@ -102,7 +102,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
       limit: "10",
     });
     return `/api/properties/map${queryString}`;
-  }, [fetchMapPins, filters.county, filters.statusFilters, company?.id, filters.dateMin, filters.dateMax]);
+  }, [fetchMapPins, filters.county, filters.statusFilters, company?.id, filters.dateRange]);
 
   const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
     queryKey: [mapPinsQueryUrl],

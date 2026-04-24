@@ -3,6 +3,16 @@ export const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 export const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 export const MAX_PRICE = 10000000;
 
+export const DATE_RANGE_OPTIONS = [
+    { label: "Last 30 Days",  value: "30d" },
+    { label: "Last 60 Days",  value: "60d" },
+    { label: "Last 90 Days",  value: "90d" },
+    { label: "Last 180 Days", value: "180d" },
+    { label: "Last Year",     value: "1y" },
+    { label: "YTD",           value: "ytd" },
+    { label: "All-Time",      value: "all-time" },
+] as const;
+
 export const MSA = [
     "San Diego-Chula Vista-Carlsbad, CA",
     "Los Angeles-Long Beach-Anaheim, CA",

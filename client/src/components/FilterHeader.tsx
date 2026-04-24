@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { X, Search, MapPin, Home, CalendarIcon, ChevronDown, DollarSign } from "lucide-react";
+import { X, Search, MapPin, Home, ChevronDown, DollarSign } from "lucide-react";
 import {
     Select,
     SelectContent,
@@ -16,12 +16,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { getZipCodesForCounty } from "@/lib/county";
 import {
     PROPERTY_TYPES,
     BEDROOM_OPTIONS,
     BATHROOM_OPTIONS,
+    DATE_RANGE_OPTIONS,
     MAX_PRICE,
     COUNTIES,
 } from "@/constants/filters.constants";
@@ -30,41 +30,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 
-// ---- Date helpers ----
-function isoToDisplay(iso: string | undefined): string {
-    if (!iso || iso.length !== 10) return "";
-    const [y, m, d] = iso.split("-");
-    return `${m}/${d}/${y}`;
-}
-
-function displayToIso(display: string): string | undefined {
-    if (display.length !== 10) return undefined;
-    
-    const parts = display.split("/");
-    if (parts.length !== 3) return undefined;
-    
-    const [m, d, y] = parts;
-    if (!m || !d || !y || y.length !== 4) return undefined;
-    
-    const date = new Date(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}T00:00:00`);
-    if (isNaN(date.getTime())) return undefined;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-}
-
-function toISODate(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
-
-function parseDisplayDate(display: string): Date | undefined {
-    const iso = displayToIso(display);
-    if (!iso) return undefined;
-    const d = new Date(iso + "T00:00:00");
-    return isNaN(d.getTime()) ? undefined : d;
-}
-
+// ---- Price helper ----
 function formatPrice(val: number): string {
     if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
     if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
@@ -96,12 +62,7 @@ export default function FilterHeader({
     const [statusFilters, setStatusFilters] = useState<Set<string>>(
         new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS)
     );
-    const [dateMinDisplay, setDateMinDisplay] = useState(isoToDisplay(filters.dateMin));
-    const [dateMaxDisplay, setDateMaxDisplay] = useState(isoToDisplay(filters.dateMax));
-
     // Popover/dropdown open states
-    const [dateMinOpen, setDateMinOpen] = useState(false);
-    const [dateMaxOpen, setDateMaxOpen] = useState(false);
     const [priceOpen, setPriceOpen] = useState(false);
     const [countyOpen, setCountyOpen] = useState(false);
     const [zipOpen, setZipOpen] = useState(false);
@@ -126,8 +87,6 @@ export default function FilterHeader({
         const countyData = COUNTIES.find((c) => c.county === countyVal);
         setSelectedState(countyData?.state ?? "CA");
         setStatusFilters(new Set(filters.statusFilters ?? []));
-        setDateMinDisplay(isoToDisplay(filters.dateMin));
-        setDateMaxDisplay(isoToDisplay(filters.dateMax));
     }, [filters]);
 
     const availableStates = useMemo(() => {
@@ -264,18 +223,10 @@ export default function FilterHeader({
 
     const handleClearFilters = () => {
         const countyToKeep = filters.county ?? "San Diego";
-        const today = new Date();
-        const sixtyDaysAgo = new Date(today);
-        
-        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-        const dateMax = toISODate(today);
-        const dateMin = toISODate(sixtyDaysAgo);
 
         setPriceRange([0, MAX_PRICE]);
         setZipInput("");
         setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
-        setDateMinDisplay(isoToDisplay(dateMin));
-        setDateMaxDisplay(isoToDisplay(dateMax));
         setFilters((f) => ({
             ...f,
             minPrice: 0,
@@ -287,8 +238,7 @@ export default function FilterHeader({
             city: undefined,
             county: countyToKeep,
             statusFilters: DEFAULT_STATUS_FILTERS,
-            dateMin,
-            dateMax,
+            dateRange: "60d",
         }));
     };
 
@@ -518,73 +468,25 @@ export default function FilterHeader({
                 </PopoverContent>
                 </Popover>
 
-                {/* Date From */}
-                <div className="items-center flex space-x-2">
-                <Popover open={dateMinOpen} onOpenChange={setDateMinOpen}>
-                    <PopoverTrigger asChild>
-                    <button
-                        type="button"
-                        className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
-                        data-testid="input-date-min"
+                {/* Date Range */}
+                <Select
+                    value={filters.dateRange ?? "60d"}
+                    onValueChange={(val) => setFilters((f) => ({ ...f, dateRange: val }))}
+                >
+                    <SelectTrigger
+                        className="h-8 w-[140px] text-xs flex-shrink-0"
+                        data-testid="select-date-range"
                     >
-                        <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className={dateMinDisplay ? "text-foreground" : "text-muted-foreground"}>
-                        {dateMinDisplay || "From"}
-                        </span>
-                    </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[10000]" align="start">
-                    <Calendar
-                        mode="single"
-                        selected={parseDisplayDate(dateMinDisplay)}
-                        defaultMonth={parseDisplayDate(dateMinDisplay)}
-                        onSelect={(date) => {
-                        if (date) {
-                            const iso = toISODate(date);
-                            setDateMinDisplay(isoToDisplay(iso));
-                            setFilters((f) => ({ ...f, dateMin: iso }));
-                        }
-                        setDateMinOpen(false);
-                        }}
-                        disabled={(date) => date > new Date()}
-                        initialFocus
-                    />
-                    </PopoverContent>
-                </Popover>
-                <span className="text-xs text-muted-foreground flex-shrink-0">→</span>
-                {/* Date To */}
-                <Popover open={dateMaxOpen} onOpenChange={setDateMaxOpen}>
-                    <PopoverTrigger asChild>
-                    <button
-                        type="button"
-                        className="flex items-center gap-1.5 h-8 rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors flex-shrink-0 whitespace-nowrap"
-                        data-testid="input-date-max"
-                    >
-                        <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className={dateMaxDisplay ? "text-foreground" : "text-muted-foreground"}>
-                        {dateMaxDisplay || "To"}
-                        </span>
-                    </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[10000]" align="start">
-                    <Calendar
-                        mode="single"
-                        selected={parseDisplayDate(dateMaxDisplay)}
-                        defaultMonth={parseDisplayDate(dateMaxDisplay)}
-                        onSelect={(date) => {
-                        if (date) {
-                            const iso = toISODate(date);
-                            setDateMaxDisplay(isoToDisplay(iso));
-                            setFilters((f) => ({ ...f, dateMax: iso }));
-                        }
-                        setDateMaxOpen(false);
-                        }}
-                        disabled={(date) => date > new Date()}
-                        initialFocus
-                    />
-                    </PopoverContent>
-                </Popover>
-                </div>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10000]">
+                        {DATE_RANGE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} data-testid={`option-date-range-${opt.value}`}>
+                            {opt.label}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
                 {/* Price popover */}
                 <Popover open={priceOpen} onOpenChange={setPriceOpen}>

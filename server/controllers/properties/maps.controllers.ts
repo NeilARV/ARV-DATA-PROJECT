@@ -3,13 +3,12 @@ import { MapServices } from "server/services/properties";
 
 export async function getMapData(req: Request, res: Response, next: NextFunction) {
     try {
-        const { county, status, dateMin, dateMax } = req.query;
+        const { county, status, dateRange } = req.query;
         const countyParam = county ? county.toString() : undefined;
         const statusParam = status ? (Array.isArray(status) ? status.map(s => s.toString()) : status.toString()) : undefined;
-        const dateMinParam = dateMin ? dateMin.toString() : undefined;
-        const dateMaxParam = dateMax ? dateMax.toString() : undefined;
+        const dateRangeParam = dateRange ? dateRange.toString() : undefined;
 
-        const results = await MapServices.getMapProperties(countyParam, statusParam, dateMinParam, dateMaxParam);
+        const results = await MapServices.getMapProperties(countyParam, statusParam, dateRangeParam);
 
         console.log("Properties map pins:", results.length);
 

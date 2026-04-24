@@ -20,6 +20,7 @@ const DEFAULT_FILTERS: PropertyFilters = {
   city: undefined,
   county: "San Diego",
   statusFilters: [...DEFAULT_STATUS_FILTERS],
+  dateRange: "90d",
 };
 
 /**
@@ -28,15 +29,8 @@ const DEFAULT_FILTERS: PropertyFilters = {
 export function getDefaultFilters(
   overrides?: Partial<PropertyFilters>
 ): PropertyFilters {
-  const today = new Date();
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
-  const defaults: PropertyFilters = {
-    ...DEFAULT_FILTERS,
-    dateMax: today.toISOString().split('T')[0],
-    dateMin: thirtyDaysAgo.toISOString().split('T')[0],
-  };
-  return overrides ? { ...defaults, ...overrides } : { ...defaults };
+  const defaults: PropertyFilters = { ...DEFAULT_FILTERS, statusFilters: [...DEFAULT_STATUS_FILTERS] };
+  return overrides ? { ...defaults, ...overrides } : defaults;
 }
 
 // ---- Effective status filters (single source of truth for wholesale / in-renovation) ----

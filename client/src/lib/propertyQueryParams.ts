@@ -55,11 +55,8 @@ export function buildPropertyQueryParams(
     } else if (company?.companyName) {
       params.append("company", company.companyName);
     }
-    if (filters.dateMin) {
-      params.append("dateMin", filters.dateMin);
-    }
-    if (filters.dateMax) {
-      params.append("dateMax", filters.dateMax);
+    if (filters.dateRange) {
+      params.append("dateRange", filters.dateRange);
     }
     const queryString = params.toString();
     return queryString ? `?${queryString}` : "";
@@ -100,11 +97,8 @@ export function buildPropertyQueryParams(
     params.append("hasDateSold", "true");
   }
 
-  if (filters.dateMin) {
-    params.append("dateMin", filters.dateMin);
-  }
-  if (filters.dateMax) {
-    params.append("dateMax", filters.dateMax);
+  if (filters.dateRange) {
+    params.append("dateRange", filters.dateRange);
   }
 
   params.append("page", page.toString());

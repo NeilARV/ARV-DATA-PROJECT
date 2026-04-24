@@ -156,9 +156,8 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
       // Expand filters to all statuses immediately so useProperties fetches with the correct
       // filters in the same render batch as the company change (prevents race where properties
       // are fetched with old filters before CompanyDirectory's useEffect can expand them).
-      const today = new Date().toISOString().split('T')[0];
       companyFiltersExpandedRef.current = companyId ?? companyName;
-      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateMin: "2025-07-07", dateMax: today });
+      setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateRange: "all-time" });
       try {
         const found = companies.find(
           (c) => c.id === companyId || c.companyName.trim().toLowerCase() === companyName.trim().toLowerCase()
