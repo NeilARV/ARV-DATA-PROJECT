@@ -251,7 +251,7 @@ export default function FilterHeader({
             city: undefined,
             county: countyToKeep,
             statusFilters: DEFAULT_STATUS_FILTERS,
-            dateRange: "60d",
+            dateRange: "60d" as DateRange,
         }));
     };
 
