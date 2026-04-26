@@ -17,6 +17,7 @@ import {
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { eq, and } from "drizzle-orm";
 import { normalizeDateToYMD } from "server/utils/normalization";
+import { sortTransactionsDesc } from "server/utils/orderTransactions";
 import type { PropertyWithStatus } from "./resolve-status";
 import type { TransactionWithIds } from "./resolve-ids";
 import type { SfrPropertyData } from "server/utils/propertyDataHelpers";
@@ -396,19 +397,24 @@ export async function insertProperties(
       .map((tx) => mapTransactionRow(propertyId, tx))
       .filter((row): row is NonNullable<ReturnType<typeof mapTransactionRow>> => row !== null);
 
+    // Chain-aware sort so simultaneous-close wholesale deals (multiple Arms Length
+    // transactions on the same recording date) get the correct sort_order assigned.
+    const sortedPipelineRows = sortTransactionsDesc(mappedTxRows);
+
     // Merge pipeline rows with user-created rows and sort by recording_date DESC,
     // then assign sort orders so every row gets the correct position up front.
+    // Same-date pipeline-pipeline ties preserve the sortTransactionsDesc order (stable sort).
     type MergeEntry =
       | { kind: "pipeline"; row: NonNullable<ReturnType<typeof mapTransactionRow>> }
       | { kind: "user"; id: number };
 
     const merged: MergeEntry[] = [
-      ...mappedTxRows.map((row) => ({ kind: "pipeline" as const, row, recordingDate: row.recordingDate ?? "" })),
+      ...sortedPipelineRows.map((row) => ({ kind: "pipeline" as const, row, recordingDate: row.recordingDate ?? "" })),
       ...userCreatedRows.map((r) => ({ kind: "user" as const, id: r.id, recordingDate: typeof r.recordingDate === "string" ? r.recordingDate : (r.recordingDate as Date | null)?.toISOString().split("T")[0] ?? "" })),
     ].sort((a, b) => {
       if (b.recordingDate < a.recordingDate) return -1;
       if (b.recordingDate > a.recordingDate) return 1;
-      // Same date: pipeline rows before user-created (lower natural id wins)
+      // Same date: pipeline rows before user-created; pipeline-pipeline ties preserve sortTransactionsDesc order
       if (a.kind === "pipeline" && b.kind === "user") return -1;
       if (a.kind === "user" && b.kind === "pipeline") return 1;
       return 0;
