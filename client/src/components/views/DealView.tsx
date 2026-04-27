@@ -115,7 +115,7 @@ export default function DealView() {
               <TabsTrigger value="mine">Your Deals</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button size="sm" onClick={() => requireSubscription(() => setShowAddDeal(true), { tiers: ["pro", "premium"], subject: "Request Access", message: "I would like to request an account upgrade to post deals" })} className="gap-1">
+          <Button size="sm" onClick={() => requireSubscription(() => setShowAddDeal(true), { tiers: ["pro", "premium"], subject: "Request Access", message: "I would like to request access to post deals on the ARV data application" })} className="gap-1">
             <Plus className="w-4 h-4" />
             Add Deal
           </Button>
