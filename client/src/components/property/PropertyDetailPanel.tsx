@@ -13,7 +13,7 @@ import { PropertyContent } from "./PropertyContent";
 export default function PropertyDetailPanel() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const { isAdminOrOwner } = useAuth();
+  const { isAdmin, isOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
   const { property, setProperty, fetchProperty } = useProperty();
   const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
@@ -41,7 +41,7 @@ export default function PropertyDetailPanel() {
         <PropertyContent
           variant="panel"
           property={property}
-          isAdminOrOwner={isAdminOrOwner}
+          isAdminOrOwner={isAdmin || isOwner}
           onEditClick={() => setShowEditDialog(true)}
           onDeleteClick={() => setShowDeleteDialog(true)}
           deleteIsPending={deletePropertyMutation.isPending}

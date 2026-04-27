@@ -36,9 +36,9 @@ export default function DealView() {
   const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
   const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
   const { toast } = useToast();
-  const { user, canAccessApp, isAdminOrOwner, isRelationshipManager } = useAuth();
+  const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
   const { requireSubscription, ContactDialog } = useRequireSubscription();
-  const canManageDeals = isAdminOrOwner || isRelationshipManager;
+  const canManageDeals = isAdmin || isOwner || isRelationshipManager;
   const { filters } = useFilters();
 
   const msaName = getMsaNameFromCounty(filters.county ?? "San Diego") ?? "San Diego-Chula Vista-Carlsbad, CA";

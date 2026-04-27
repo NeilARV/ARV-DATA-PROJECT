@@ -16,7 +16,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const { property, fetchProperty } = useProperty();
-  const { isAdminOrOwner } = useAuth();
+  const { isAdmin, isOwner } = useAuth();
   const { handleCompanyClick } = useCompanies();
   const deletePropertyMutation = useDeleteProperty(() => setShowDeleteDialog(false));
 
@@ -27,7 +27,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
       <PropertyContent
         variant="modal"
         property={property}
-        isAdminOrOwner={isAdminOrOwner}
+        isAdminOrOwner={isAdmin || isOwner}
         onEditClick={() => setShowEditDialog(true)}
         onDeleteClick={() => setShowDeleteDialog(true)}
         deleteIsPending={deletePropertyMutation.isPending}

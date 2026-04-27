@@ -57,7 +57,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
-  const { isAdminOrOwner } = useAuth();
+  const { isAdmin, isOwner } = useAuth();
   const { requireSubscription, ContactDialog } = useRequireSubscription();
   const { view, setView } = useView();
   const {
@@ -574,7 +574,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     </div>
 
                     {/* Admin Actions - Only visible to owner or admin */}
-                    {isAdminOrOwner && (
+                    {(isAdmin || isOwner) && (
                       <div className="pt-3 border-t border-border space-y-2">
                         <Button
                           variant="outline"

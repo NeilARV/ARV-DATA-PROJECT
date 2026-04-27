@@ -67,12 +67,8 @@ export function useAuth() {
   const isMember = isAuthenticated && !isAdminStatusLoading && roles.includes("member");
 
   // ── Combined role flags ───────────────────────────────────────────────────────
-  /** True when user has owner or admin role (e.g. delete property, edit company). */
-  const isAdminOrOwner = isOwner || isAdmin;
-
   /** True when user has any ARV team role (admin, owner, relationship-manager, member). */
-  const canAccessAdminPanel =
-    isAuthenticated && !isAdminStatusLoading && (isOwner || isAdmin || isRelationshipManager || isMember);
+  const canAccessAdminPanel = isAuthenticated && !isAdminStatusLoading && (isOwner || isAdmin || isRelationshipManager || isMember);
 
   // ── Subscription tier flags ───────────────────────────────────────────────────
   const isBasic = isAuthenticated && subscriptionTier === "basic";
@@ -102,7 +98,6 @@ export function useAuth() {
     isAdmin,
     isRelationshipManager,
     isMember,
-    isAdminOrOwner,
     canAccessAdminPanel,
     // ── Subscription flags ──────────────────────────────────────────────────────
     isBasic,
