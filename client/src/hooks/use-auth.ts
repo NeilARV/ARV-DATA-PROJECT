@@ -26,6 +26,8 @@ export interface AuthUser {
 /** Admin status from GET /api/admin/status (role-based: admin, owner, or relationship-manager can access panel). */
 const ADMIN_STATUS_QUERY_KEY = ["/api/admin/status"] as const;
 
+const ROLE_PRIORITY: Roles[] = ["owner", "admin", "relationship-manager", "member"];
+
 export function useAuth() {
   const { data, isLoading } = useQuery<{ user: AuthUser | null }>({
     queryKey: ["/api/auth/me"],
@@ -57,46 +59,63 @@ export function useAuth() {
 
   const roles = adminStatus?.roles ?? [];
   const subscriptionTier = adminStatus?.subscriptionTier ?? null;
-  const isOwner = roles.includes("owner");
-  /** True when user has owner or admin only (delete property, edit company, etc.). Not relationship-manager. */
-  const isAdminOrOwner =
-    isAuthenticated &&
-    !isAdminStatusLoading &&
-    (isOwner || roles.includes("admin"));
 
+  // ── Specific role flags ───────────────────────────────────────────────────────
+  const isOwner = isAuthenticated && !isAdminStatusLoading && roles.includes("owner");
+  const isAdmin = isAuthenticated && !isAdminStatusLoading && roles.includes("admin");
   const isRelationshipManager = isAuthenticated && !isAdminStatusLoading && roles.includes("relationship-manager");
+  const isMember = isAuthenticated && !isAdminStatusLoading && roles.includes("member");
+
+  // ── Combined role flags ───────────────────────────────────────────────────────
+  /** True when user has owner or admin role (e.g. delete property, edit company). */
+  const isAdminOrOwner = isOwner || isAdmin;
+
+  /** True when user has any ARV team role (admin, owner, relationship-manager, member). */
+  const canAccessAdminPanel =
+    isAuthenticated && !isAdminStatusLoading && (isOwner || isAdmin || isRelationshipManager || isMember);
+
+  // ── Subscription tier flags ───────────────────────────────────────────────────
+  const isBasic = isAuthenticated && subscriptionTier === "basic";
+  const isPro = isAuthenticated && subscriptionTier === "pro";
+  const isPremium = isAuthenticated && subscriptionTier === "premium";
 
   /**
    * True when the authenticated user may access app pages.
-   * Access is granted when the user has a subscription tier (basic/pro/premium)
-   * OR has a staff role (admin, owner, relationship-manager, member).
-   * Stays true while admin status is still loading to avoid blocking during hydration.
+   * Granted when the user has any subscription tier OR any ARV team role.
+   * Stays true while admin status is loading to avoid blocking during hydration.
    */
-  const canAccessApp =
-    isAuthenticated &&
-    (isAdminStatusLoading || subscriptionTier !== null || (adminStatus?.isAdmin ?? false));
+  const hasTeamRole = roles.some((r) => (["admin", "owner", "relationship-manager", "member"] as string[]).includes(r));
+  const canAccessApp = isAuthenticated && (isAdminStatusLoading || subscriptionTier !== null || hasTeamRole);
+
+  // ── Raw string values ─────────────────────────────────────────────────────────
+  /** The user's primary ARV team role (highest privilege), or null if none. */
+  const role: Roles | null = ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
+  /** The user's subscription tier, or null if none. */
+  const subscription: SubscriptionTier | null = subscriptionTier as SubscriptionTier | null;
 
   return {
     user: data?.user ?? null,
     isLoading,
     isAuthenticated,
-    /** Role-based: true when user has admin, owner, or relationship-manager (can see Admin link and access /admin). */
-    isAdmin: isAuthenticated && (adminStatus?.isAdmin ?? false),
-    /** True when user has owner or admin role (e.g. delete property, edit company). Use for property/company actions. */
-    isAdminOrOwner,
-    /** True when current user has owner role (for role-management permissions). */
+    // ── Role flags ──────────────────────────────────────────────────────────────
     isOwner,
-    /** True when current user has the relationship-manager role. */
+    isAdmin,
     isRelationshipManager,
-    /** The current user's subscription tier ('basic' | 'pro' | 'premium' | null). */
-    subscriptionTier,
-    /** All ARV team roles assigned to the current user (e.g. "owner", "admin", "relationship-manager", "member"). */
-    roles,
-    /**
-     * True when the user is allowed to access app pages (has a subscription OR a staff role).
-     * Use this instead of checking subscriptionTier directly to avoid blocking admin/owner users.
-     */
+    isMember,
+    isAdminOrOwner,
+    canAccessAdminPanel,
+    // ── Subscription flags ──────────────────────────────────────────────────────
+    isBasic,
+    isPro,
+    isPremium,
+    
     canAccessApp,
+    // ── Raw values ──────────────────────────────────────────────────────────────
+    roles,
+    role,
+    subscriptionTier,
+    subscription,
+
     isAdminStatusLoading: isAuthenticated && isAdminStatusLoading,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
@@ -122,7 +141,7 @@ export function useSignupPrompt() {
     }
 
     const viewLimitReached = sessionStorage.getItem(VIEW_LIMIT_REACHED_KEY);
-    
+
     if (viewLimitReached) {
       SIGNUP_DELAY_MS = 0;
     }

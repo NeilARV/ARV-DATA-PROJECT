@@ -82,7 +82,7 @@ export default function Header({
   const menuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [location, setLocation] = useLocation();
-  const { user, isAuthenticated, isAdmin, logout, canAccessApp } = useAuth();
+  const { user, isAuthenticated, canAccessAdminPanel, logout, canAccessApp } = useAuth();
   const { toast } = useToast();
 
   // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -568,7 +568,7 @@ export default function Header({
                         <Mail className="w-4 h-4" />
                         Contact Us
                       </button>
-                      {isAdmin && (
+                      {canAccessAdminPanel && (
                         <button
                           className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                           onClick={() => {

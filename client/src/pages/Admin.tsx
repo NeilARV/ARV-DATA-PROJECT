@@ -39,6 +39,7 @@ export default function Admin() {
     isAuthenticated: isUserAuthenticated,
     isAdmin,
     isOwner,
+    canAccessAdminPanel,
     roles,
     isAdminStatusLoading,
   } = useAuth();
@@ -46,7 +47,7 @@ export default function Admin() {
   const [selectedCounty, setSelectedCounty] = useState<string>("San Diego");
 
   const isVerifying = isLoadingUser || isAdminStatusLoading;
-  const showAccessDenied = isUserAuthenticated && !isAdmin && !isVerifying;
+  const showAccessDenied = isUserAuthenticated && !canAccessAdminPanel && !isVerifying;
   /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
   const canManageRoles = isOwner || (roles ?? []).includes("admin");
   /** RMs can manage subscription tiers on users but not access the full Roles tab. */
@@ -103,8 +104,8 @@ export default function Admin() {
     return <AdminLogin />;
   }
 
-  // If user is authenticated but not admin (role-based), show dialog and don't render admin content
-  if (!isAdmin && isUserAuthenticated) {
+  // If user is authenticated but has no ARV team role, show dialog and don't render admin content
+  if (!canAccessAdminPanel && isUserAuthenticated) {
     return (
       <AlertDialog
         open={showAccessDenied}
@@ -176,16 +177,16 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={isAdmin} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} />
+          <UsersTab isAdmin={canAccessAdminPanel} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} />
         </TabsContent>
 
         <TabsContent value="email-list">
-          <EmailListTab isAdmin={isAdmin} />
+          <EmailListTab isAdmin={canAccessAdminPanel} />
         </TabsContent>
 
         {canManageRoles && (
           <TabsContent value="roles">
-            <RolesTab isAdmin={isAdmin} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
+            <RolesTab isAdmin={canAccessAdminPanel} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
           </TabsContent>
         )}
       </Tabs>
