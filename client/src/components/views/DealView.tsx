@@ -22,6 +22,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useFilters } from "@/hooks/useFilters";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 import { getMsaNameFromCounty } from "@/lib/county";
 import { formatAddress } from "@shared/utils/formatAddress";
 import DealCard from "@/components/deal/DealCard";
@@ -36,6 +37,7 @@ export default function DealView() {
   const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
   const { toast } = useToast();
   const { user, canAccessApp, isAdminOrOwner, isRelationshipManager } = useAuth();
+  const { requireSubscription, ContactDialog } = useRequireSubscription();
   const canManageDeals = isAdminOrOwner || isRelationshipManager;
   const { filters } = useFilters();
 
@@ -113,7 +115,7 @@ export default function DealView() {
               <TabsTrigger value="mine">Your Deals</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button size="sm" onClick={() => setShowAddDeal(true)} className="gap-1">
+          <Button size="sm" onClick={() => requireSubscription(() => setShowAddDeal(true), { tiers: ["pro", "premium"], subject: "Request Access", message: "I would like to request an account upgrade to post deals" })} className="gap-1">
             <Plus className="w-4 h-4" />
             Add Deal
           </Button>
@@ -218,6 +220,7 @@ export default function DealView() {
       </AppDialog>
 
       <AddDeal open={showAddDeal} onClose={() => setShowAddDeal(false)} />
+      {ContactDialog}
 
       {editDeal && (
         <UpdateDeal
