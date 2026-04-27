@@ -64,9 +64,9 @@ function matchesBuyer(tx: TxRow, targetName: string, targetId: string | null): b
 /**
  * Sorts transactions most-recent-first using:
  *  1. recording_date DESC
- *  2. Chain detection (same recording_date): if txB's buyer === txA's seller →
- *     txA is the resale (more recent in the chain)
- *  3. sale_date DESC
+ *  2. Chain detection (same recording_date): a seller for an Arms Length tx must
+ *     have been the buyer first — traces buyer/seller name links to order the chain
+ *  3. Transaction type priority (same recording_date): Arms Length before all others
  *  4. Original array order (stable fallback)
  *
  * Works on ALL transaction types (not just Arms Length).
@@ -85,7 +85,7 @@ export function sortTransactionsDesc<T extends TxRow>(txs: T[]): T[] {
         else if (recB) return 1;
 
         // 2. Chain detection (same recording_date)
-        // If txB bought from txA's entity → txA is the resale (more recent)
+        // The same entity that bought in tx_b later sold in tx_a → tx_a is more recent
         const buyerA = nameKey(a.buyerName);
         const sellerA = nameKey(a.sellerName);
         const buyerB = nameKey(b.buyerName);
@@ -93,13 +93,11 @@ export function sortTransactionsDesc<T extends TxRow>(txs: T[]): T[] {
         if (buyerB && sellerA && buyerB === sellerA) return -1;
         if (buyerA && sellerB && buyerA === sellerB) return 1;
 
-        // 3. sale_date DESC
-        const saleA = toDateStr(a.saleDate ?? null);
-        const saleB = toDateStr(b.saleDate ?? null);
-        if (saleA && saleB) {
-            if (saleA > saleB) return -1;
-            if (saleA < saleB) return 1;
-        }
+        // 3. Arms Length before all other transaction types
+        const aIsAL = isArmsLength(a);
+        const bIsAL = isArmsLength(b);
+        if (aIsAL && !bIsAL) return -1;
+        if (!aIsAL && bIsAL) return 1;
 
         return 0; // preserve original order
     });
