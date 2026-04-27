@@ -6,7 +6,6 @@ import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home,
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import UpdateContent from "@/components/modals/Update";
-import ContactContent from "@/components/modals/Contact";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
 import {
@@ -32,6 +31,7 @@ import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -54,11 +54,11 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const [searchInput, setSearchInput] = useState("");
   const [_statusFilters, setStatusFilters] = useState<Set<string>>(new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS));
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [showContact, setShowContact] = useState(false);
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
-  const { isAdminOrOwner, isAuthenticated, canAccessApp, user } = useAuth();
+  const { isAdminOrOwner } = useAuth();
+  const { requireSubscription, ContactDialog } = useRequireSubscription();
   const { view, setView } = useView();
   const {
     company,
@@ -210,18 +210,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     if (ensuredCompany && listCompany.id === ensuredCompany.id) return undefined;
     return index + 1;
   }, [ensuredCompany]);
-
-  const requireSubscription = (action: () => void) => {
-    if (isAuthenticated && !canAccessApp) {
-      toast({
-        title: "Upgrade Account",
-        description: "Please request an upgrade to your account to access this area",
-      });
-      setShowContact(true);
-      return;
-    }
-    action();
-  };
 
   const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
     const next = company?.id === clickedCompany.id ? null : clickedCompany;
@@ -688,21 +676,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         </div>
       </div>
 
-      <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
-        {showContact && (
-          <ContactContent
-            onClose={() => setShowContact(false)}
-            onSuccess={() => {
-              toast({ title: "Message Sent", description: "We will get back to you shortly." });
-            }}
-            defaultSubject="Contact ARV"
-            defaultFirstName={user?.firstName}
-            defaultLastName={user?.lastName}
-            defaultEmail={user?.email}
-            defaultPhone={user?.phone}
-          />
-        )}
-      </AppDialog>
+      {ContactDialog}
     </div>
   );
 }

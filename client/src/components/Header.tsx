@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import AppDialog from "@/components/modals/Dialog";
-import ContactContent from "@/components/modals/Contact";
 import darkLogoUrl from "@assets/arv-data-logo-dark.png";
 import lightLogoUrl from "@assets/arv-data-logo-light.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -32,6 +30,7 @@ import { X } from "lucide-react";
 import type { HeaderProps, PropertySuggestion } from "@/types/general";
 import { useView } from "@/hooks/useView";
 import { useFilters } from "@/hooks/useFilters";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useCompanies } from "@/hooks/useCompanies";
@@ -71,7 +70,7 @@ export default function Header({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showContact, setShowContact] = useState(false);
+  const { requireSubscription, ContactDialog, setShowContact } = useRequireSubscription();
 
   // Close contact dialog when a forced auth dialog activates
   useEffect(() => {
@@ -205,18 +204,6 @@ export default function Header({
       // Fallback to search if onPropertySelect is not provided
       onSearch?.(formattedQuery);
     }
-  };
-
-  const requireSubscription = (action: () => void) => {
-    if (isAuthenticated && !canAccessApp) {
-      toast({
-        title: "Upgrade Account",
-        description: "Please request an upgrade to your account to access this area",
-      });
-      setShowContact(true);
-      return;
-    }
-    action();
   };
 
   const handleLogout = async () => {
@@ -614,21 +601,7 @@ export default function Header({
         )}
       </div>
 
-      <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
-        {showContact && (
-          <ContactContent
-            onClose={() => setShowContact(false)}
-            onSuccess={() => {
-              toast({ title: "Message Sent", description: "We will get back to you shortly." });
-            }}
-            defaultSubject="Contact ARV"
-            defaultFirstName={user?.firstName}
-            defaultLastName={user?.lastName}
-            defaultEmail={user?.email}
-            defaultPhone={user?.phone}
-          />
-        )}
-      </AppDialog>
+      {ContactDialog}
     </header>
   );
 }
