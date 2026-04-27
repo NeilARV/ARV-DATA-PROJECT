@@ -46,18 +46,18 @@ describe("sortTransactionsDesc", () => {
     });
 
     describe("chain detection on same recording date", () => {
-        it("corrects transaction order | sale dates do not represent buyer/seller order correctly", () => {
-            // Simultaneous close: STARK bought from RON WEASLEY, then immediately sold to WAYNE LLC.
+        it("wholesale | corrects transaction order | sale dates do not represent buyer/seller order correctly", () => {
+            // Simultaneous close: STARK LLC bought from NICK FURY, then immediately sold to ROGERS LLC.
             // Both Arms Length transactions share recording_date 2026-04-15.
-            // The SFR API returned STARK (seller tx) before WAYNE LLC (buyer tx) — wrong chain order.
-            // Chain detection: WAYNE LLC's seller === STARK's buyer → STARK is older in the chain.
+            // The SFR API returned STARK LLC (seller tx) before ROGERS LLC (buyer tx) — wrong chain order.
+            // Chain detection: ROGERS LLC's seller === STARK LLC's buyer → STARK LLC is older in the chain.
             const txs = [
                 {
                     recordingDate: "2026-04-15",
                     saleDate: "2026-04-08",
                     transactionType: "Non-Arms Length",
-                    buyerName: "SKYWALKER FAMILY TRUST",
-                    sellerName: "GINNY WEASLEY",
+                    buyerName: "BANNER FAMILY TRUST",
+                    sellerName: "PEPPER POTTS",
                     salePrice: "0",
                 },
                 {
@@ -65,14 +65,14 @@ describe("sortTransactionsDesc", () => {
                     saleDate: "2026-04-02",
                     transactionType: "Arms Length",
                     buyerName: "STARK LLC",
-                    sellerName: "RON WEASLEY",
+                    sellerName: "NICK FURY",
                     salePrice: "1340000",
                 },
                 {
                     recordingDate: "2026-04-15",
                     saleDate: "2026-04-01",
                     transactionType: "Arms Length",
-                    buyerName: "WAYNE LLC",
+                    buyerName: "ROGERS LLC",
                     sellerName: "STARK LLC",
                     salePrice: "1350000",
                 },
@@ -80,7 +80,7 @@ describe("sortTransactionsDesc", () => {
                     recordingDate: "2004-10-21",
                     saleDate: "2004-09-24",
                     transactionType: "HELOCS",
-                    buyerName: "SLAUGHTER THOMAS D",
+                    buyerName: "BARTON CLINT",
                     sellerName: null,
                     salePrice: null,
                 },
@@ -88,41 +88,41 @@ describe("sortTransactionsDesc", () => {
                     recordingDate: "2004-06-14",
                     saleDate: "2004-06-09",
                     transactionType: "Non-Arms Length",
-                    buyerName: "SLAUGHTER THOMAS D",
-                    sellerName: "SLAUGHTER THOMAS D",
+                    buyerName: "BARTON CLINT",
+                    sellerName: "BARTON CLINT",
                     salePrice: "0",
                 },
             ];
 
             const result = sortTransactionsDesc(txs);
-            logSortResult("Sorted Result (Stark LLC is buyer on Tx 3 | Stark LLC is seller on Tx 2): ", result);
+            logSortResult("Sorted Result (STARK LLC is buyer on Tx 3 | STARK LLC is seller on Tx 2)", result);
             const buyers = result.map((t) => t.buyerName);
 
-            // Core assertion: WAYNE LLC (end buyer) must appear before STARK LLC (wholesaler)
-            const lmpIdx = buyers.indexOf("WAYNE LLC");
-            const sdvrevIdx = buyers.indexOf("STARK LLC");
-            expect(lmpIdx).toBeLessThan(sdvrevIdx);
+            // Core assertion: ROGERS LLC (end buyer) must appear before STARK LLC (wholesaler)
+            const rogersIdx = buyers.indexOf("ROGERS LLC");
+            const starkIdx = buyers.indexOf("STARK LLC");
+            expect(rogersIdx).toBeLessThan(starkIdx);
 
             // Full expected order
-            expect(result[0].buyerName).toBe("SKYWALKER FAMILY TRUST"); // Non-Arms Length wins by sale_date DESC (04-08)
-            expect(result[1].buyerName).toBe("WAYNE LLC");              // most recent Arms Length in chain
-            expect(result[2].buyerName).toBe("STARK LLC");             // older Arms Length in chain
+            expect(result[0].buyerName).toBe("BANNER FAMILY TRUST"); // Non-Arms Length wins by sale_date DESC (04-08)
+            expect(result[1].buyerName).toBe("ROGERS LLC");           // most recent Arms Length in chain
+            expect(result[2].buyerName).toBe("STARK LLC");            // older Arms Length in chain
             expect(result[3].recordingDate).toBe("2004-10-21");
             expect(result[4].recordingDate).toBe("2004-06-14");
         });
 
         it("corrects transaction order | different sale dates in wrong order", () => {
-            // Simultaneous close: WAYNE bought from HARRY POTTER, then immediately sold to STARK.
+            // Simultaneous close: ROGERS LLC bought from THOR ODINSON, then immediately sold to STARK LLC.
             // Both Arms Length transactions share recording_date 2026-04-15.
-            // The SFR API happened to return STARK (end buyer) first — already correct chain order.
-            // Chain detection: STARK's seller === WAYNE's buyer → WAYNE is older.
+            // The SFR API returned ROGERS LLC (wholesaler) first — wrong chain order.
+            // Chain detection: STARK LLC's seller === ROGERS LLC's buyer → ROGERS LLC is older.
             const txs = [
                 {
                     recordingDate: "2026-04-15",
                     saleDate: "2026-03-27",
                     transactionType: "Arms Length",
-                    buyerName: "WAYNE LLC",
-                    sellerName: "HARRY POTTER",
+                    buyerName: "ROGERS LLC",
+                    sellerName: "THOR ODINSON",
                     salePrice: "635000",
                 },
                 {
@@ -130,14 +130,14 @@ describe("sortTransactionsDesc", () => {
                     saleDate: "2026-03-18",
                     transactionType: "Arms Length",
                     buyerName: "STARK LLC",
-                    sellerName: "WAYNE LLC",
+                    sellerName: "ROGERS LLC",
                     salePrice: "640000",
                 },
                 {
                     recordingDate: "2007-07-03",
                     saleDate: "2007-06-22",
                     transactionType: "REFI LOANS and 2ND TRUST DEEDS",
-                    buyerName: "JAMES POTTER",
+                    buyerName: "PETER PARKER",
                     sellerName: null,
                     salePrice: null,
                 },
@@ -145,7 +145,7 @@ describe("sortTransactionsDesc", () => {
                     recordingDate: "2006-04-27",
                     saleDate: "2006-02-20",
                     transactionType: "HELOCS",
-                    buyerName: "JAMES POTTER",
+                    buyerName: "PETER PARKER",
                     sellerName: null,
                     salePrice: null,
                 },
@@ -153,56 +153,56 @@ describe("sortTransactionsDesc", () => {
                     recordingDate: "2006-04-05",
                     saleDate: "2006-03-26",
                     transactionType: "Non-Arms Length",
-                    buyerName: "JAMES POTTER",
-                    sellerName: "JAMES POTTER",
+                    buyerName: "PETER PARKER",
+                    sellerName: "PETER PARKER",
                     salePrice: "0",
                 },
             ];
 
             const result = sortTransactionsDesc(txs);
-            logSortResult("Sorted Result (Wayne LLC is buyer on Tx 1 | Wayne LLC is buyer on Tx 2): ", result);
+            logSortResult("Sorted Result (ROGERS LLC is buyer on Tx 1 | ROGERS LLC is seller on Tx 2)", result);
             const buyers = result.map((t) => t.buyerName);
 
-            // Core assertion: STARK (end buyer) must appear before WAYNE (wholesaler)
-            const gyIdx = buyers.indexOf("STARK LLC");
-            const reviveIdx = buyers.indexOf("WAYNE LLC");
-            expect(gyIdx).toBeLessThan(reviveIdx);
+            // Core assertion: STARK LLC (end buyer) must appear before ROGERS LLC (wholesaler)
+            const starkIdx = buyers.indexOf("STARK LLC");
+            const rogersIdx = buyers.indexOf("ROGERS LLC");
+            expect(starkIdx).toBeLessThan(rogersIdx);
 
             // Full expected order
-            expect(result[0].buyerName).toBe("STARK LLC"); // most recent Arms Length in chain
-            expect(result[1].buyerName).toBe("WAYNE LLC");       // older Arms Length in chain
+            expect(result[0].buyerName).toBe("STARK LLC");   // most recent Arms Length in chain
+            expect(result[1].buyerName).toBe("ROGERS LLC");  // older Arms Length in chain
             expect(result[2].recordingDate).toBe("2007-07-03");
             expect(result[3].recordingDate).toBe("2006-04-27");
             expect(result[4].recordingDate).toBe("2006-04-05");
         });
 
         it("preserves transaction order | different sale dates in correct order", () => {
-            // Simultaneous close: WAYNE bought from HARRY POTTER, then immediately sold to STARK.
+            // Simultaneous close: ROGERS LLC bought from THOR ODINSON, then immediately sold to STARK LLC.
             // Both Arms Length transactions share recording_date 2026-04-15.
-            // The SFR API happened to return STARK (end buyer) first — already correct chain order.
-            // Chain detection: STARK's seller === WAYNE's buyer → WAYNE is older.
+            // The SFR API happened to return STARK LLC (end buyer) first — already correct chain order.
+            // Chain detection: STARK LLC's seller === ROGERS LLC's buyer → ROGERS LLC is older.
             const txs = [
                 {
                     recordingDate: "2026-04-15",
                     saleDate: "2026-03-18",
                     transactionType: "Arms Length",
                     buyerName: "STARK LLC",
-                    sellerName: "WAYNE LLC",
+                    sellerName: "ROGERS LLC",
                     salePrice: "640000",
                 },
                 {
                     recordingDate: "2026-04-15",
                     saleDate: "2026-03-27",
                     transactionType: "Arms Length",
-                    buyerName: "WAYNE LLC",
-                    sellerName: "HARRY POTTER",
+                    buyerName: "ROGERS LLC",
+                    sellerName: "THOR ODINSON",
                     salePrice: "635000",
                 },
                 {
                     recordingDate: "2007-07-03",
                     saleDate: "2007-06-22",
                     transactionType: "REFI LOANS and 2ND TRUST DEEDS",
-                    buyerName: "JAMES POTTER",
+                    buyerName: "PETER PARKER",
                     sellerName: null,
                     salePrice: null,
                 },
@@ -210,7 +210,7 @@ describe("sortTransactionsDesc", () => {
                     recordingDate: "2006-04-27",
                     saleDate: "2006-02-20",
                     transactionType: "HELOCS",
-                    buyerName: "JAMES POTTER",
+                    buyerName: "PETER PARKER",
                     sellerName: null,
                     salePrice: null,
                 },
@@ -218,24 +218,24 @@ describe("sortTransactionsDesc", () => {
                     recordingDate: "2006-04-05",
                     saleDate: "2006-03-26",
                     transactionType: "Non-Arms Length",
-                    buyerName: "JAMES POTTER",
-                    sellerName: "JAMES POTTER",
+                    buyerName: "PETER PARKER",
+                    sellerName: "PETER PARKER",
                     salePrice: "0",
                 },
             ];
 
             const result = sortTransactionsDesc(txs);
-            logSortResult("Sorted Result (Wayne LLC is buyer on Tx 1 | Wayne LLC is buyer on Tx 2): ", result);
+            logSortResult("Sorted Result (ROGERS LLC is buyer on Tx 2 | ROGERS LLC is seller on Tx 1)", result);
             const buyers = result.map((t) => t.buyerName);
 
-            // Core assertion: STARK (end buyer) must appear before WAYNE (wholesaler)
-            const gyIdx = buyers.indexOf("STARK LLC");
-            const reviveIdx = buyers.indexOf("WAYNE LLC");
-            expect(gyIdx).toBeLessThan(reviveIdx);
+            // Core assertion: STARK LLC (end buyer) must appear before ROGERS LLC (wholesaler)
+            const starkIdx = buyers.indexOf("STARK LLC");
+            const rogersIdx = buyers.indexOf("ROGERS LLC");
+            expect(starkIdx).toBeLessThan(rogersIdx);
 
             // Full expected order
-            expect(result[0].buyerName).toBe("STARK LLC"); // most recent Arms Length in chain
-            expect(result[1].buyerName).toBe("WAYNE LLC");       // older Arms Length in chain
+            expect(result[0].buyerName).toBe("STARK LLC");   // most recent Arms Length in chain
+            expect(result[1].buyerName).toBe("ROGERS LLC");  // older Arms Length in chain
             expect(result[2].recordingDate).toBe("2007-07-03");
             expect(result[3].recordingDate).toBe("2006-04-27");
             expect(result[4].recordingDate).toBe("2006-04-05");
