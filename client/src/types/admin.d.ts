@@ -14,10 +14,6 @@ export type RelationshipManager = {
   roles: string[];
 };
 
-export type EmailListTabProps = {
-  isAdmin: boolean;
-}
-
 export type ManagePropertiesTabProps = {
   properties: PropertyRow[];
   isLoading: boolean;
@@ -59,4 +55,10 @@ export type UsersTabProps = {
   isAdmin: boolean;
   canDeleteUser?: boolean;
   canManageSubscriptionTier?: boolean;
+  canManageRelationshipManagers?: boolean;
+}
+
+export type EmailListTabProps = {
+  isAdmin: boolean;
+  canEditEntries?: boolean;
 }

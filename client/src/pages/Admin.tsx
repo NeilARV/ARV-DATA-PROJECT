@@ -39,8 +39,8 @@ export default function Admin() {
     isAuthenticated: isUserAuthenticated,
     isAdmin,
     isOwner,
+    isRelationshipManager,
     canAccessAdminPanel,
-    roles,
     isAdminStatusLoading,
   } = useAuth();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -49,9 +49,9 @@ export default function Admin() {
   const isVerifying = isLoadingUser || isAdminStatusLoading;
   const showAccessDenied = isUserAuthenticated && !canAccessAdminPanel && !isVerifying;
   /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
-  const canManageRoles = isOwner || (roles ?? []).includes("admin");
-  /** RMs can manage subscription tiers on users but not access the full Roles tab. */
-  const canManageSubscriptionTier = canManageRoles || (roles ?? []).includes("relationship-manager");
+  const canManageRoles = isOwner || isAdmin;
+  /** RMs can manage subscription tiers, relationship manager assignments, and email list entries. */
+  const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
 
   // Build query URL with county filter
   const propertiesQueryUrl = useMemo(() => {
@@ -177,11 +177,11 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={canAccessAdminPanel} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} />
+          <UsersTab isAdmin={canAccessAdminPanel} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} canManageRelationshipManagers={canManageSubscriptionTier} />
         </TabsContent>
 
         <TabsContent value="email-list">
-          <EmailListTab isAdmin={canAccessAdminPanel} />
+          <EmailListTab isAdmin={canAccessAdminPanel} canEditEntries={canManageSubscriptionTier} />
         </TabsContent>
 
         {canManageRoles && (
