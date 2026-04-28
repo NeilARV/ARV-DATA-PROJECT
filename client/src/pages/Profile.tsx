@@ -17,7 +17,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2, User, Edit, Save, X } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
-import { MSA } from "@/constants/filters.constants";
+import { MSA, COUNTIES } from "@/constants/filters.constants";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
+const STATE_DEFAULT_COUNTY: Record<string, string> = {
+  CA: "San Diego",
+  CO: "Denver",
+  FL: "Miami-Dade",
+  WA: "King",
+};
 
 export default function Profile() {
   const [, setLocation] = useLocation();
@@ -32,6 +47,8 @@ export default function Profile() {
     phone: "",
     notifications: true,
     msaSubscriptions: [] as string[],
+    county: "San Diego",
+    state: "CA",
   });
 
   // Initialize form data when user loads or changes
@@ -50,6 +67,8 @@ export default function Profile() {
         phone: phone,
         notifications: user.notifications ?? true,
         msaSubscriptions,
+        county: user.county ?? "San Diego",
+        state: user.state ?? "CA",
       });
     }
   }, [user]);
@@ -281,6 +300,62 @@ export default function Profile() {
               </div>
             </div>
 
+            <div className="space-y-4 pt-6 border-t">
+              <div>
+                <CardTitle className="text-lg">Preferred Market</CardTitle>
+                <CardDescription>
+                  The county and state you'd like to see property data for — this is a data preference, not your physical location.
+                </CardDescription>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">County</label>
+                  {isEditing ? (
+                    <Select
+                      value={formData.county}
+                      onValueChange={(value) => setFormData({ ...formData, county: value })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10000]">
+                        {COUNTIES.filter((c) => c.state === formData.state).map((c) => (
+                          <SelectItem key={c.county} value={c.county}>
+                            {c.county}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-base font-medium mt-1">{user.county ?? "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">State</label>
+                  {isEditing ? (
+                    <Select
+                      value={formData.state}
+                      onValueChange={(value) => {
+                        const defaultCounty = STATE_DEFAULT_COUNTY[value] ?? "";
+                        setFormData({ ...formData, state: value, county: defaultCounty });
+                      }}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[10000]">
+                        {UNIQUE_STATES.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-base font-medium mt-1">{user.state ?? "—"}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {(isEditing ? formData.notifications : (user.notifications ?? true)) && (
               <div className="space-y-4 pt-6 border-t">
                 <div>
@@ -380,6 +455,8 @@ export default function Profile() {
                       phone,
                       notifications: user.notifications ?? true,
                       msaSubscriptions,
+                      county: user.county ?? "San Diego",
+                      state: user.state ?? "CA",
                     });
                     setIsEditing(false);
                   }}
@@ -397,6 +474,8 @@ export default function Profile() {
                       phone: formData.phone,
                       notifications: formData.notifications,
                       msaSubscriptions: formData.msaSubscriptions,
+                      county: formData.county || null,
+                      state: formData.state || null,
                     };
 
                     const validation = updateUserProfileSchema.safeParse(updateData);
@@ -428,6 +507,8 @@ export default function Profile() {
                           user: {
                             ...result.user,
                             msaSubscriptions: formData.msaSubscriptions,
+                            county: formData.county || null,
+                            state: formData.state || null,
                           },
                         });
                         toast({

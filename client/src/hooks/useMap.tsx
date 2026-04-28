@@ -1,4 +1,4 @@
-import { createContext, useState, useMemo, useEffect, useRef, ReactNode, useContext } from "react";
+import { createContext, useState, useMemo, useEffect, ReactNode, useContext } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { MapPin } from "@/types/property";
 import { COUNTIES } from "@/constants/filters.constants";
@@ -29,8 +29,6 @@ export type MapContextValue = {
   >;
   mapZoom: number | undefined;
   setMapZoom: React.Dispatch<React.SetStateAction<number | undefined>>;
-  /** Shared ref so geolocation runs only once per app, not once per useGeoMap instance (e.g. when PropertyMap mounts). */
-  geolocationAttemptedRef: React.MutableRefObject<boolean>;
 };
 
 const MapContext = createContext<MapContextValue | null>(null);
@@ -44,7 +42,6 @@ export function MapProvider({ children }: MapProviderProps) {
     [number, number] | undefined
   >(undefined);
   const [mapZoom, setMapZoom] = useState<number | undefined>(12);
-  const geolocationAttemptedRef = useRef(false);
 
   const value = useMemo<MapContextValue>(
     () => ({
@@ -52,7 +49,6 @@ export function MapProvider({ children }: MapProviderProps) {
       setMapCenter,
       mapZoom,
       setMapZoom,
-      geolocationAttemptedRef,
     }),
     [mapCenter, mapZoom]
   );
@@ -77,7 +73,7 @@ export type UseGeoMapResult = MapContextValue & {
  * Returns map center and zoom state. When called with `{ fetchMapPins: true }`, also:
  * - Fetches map pins from the API (when view === "map")
  * - Computes filteredMapPins from filters/company
- * - Runs geolocation once, filter-based and company-based center/zoom sync
+ * - Runs filter-based and company-based center/zoom sync
  * - Returns mapPins, filteredMapPins, isLoadingMapPins
  */
 export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
@@ -86,7 +82,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     throw new Error("useGeoMap must be used within a MapProvider");
   }
 
-  const { setMapCenter, setMapZoom, geolocationAttemptedRef } = ctx;
+  const { setMapCenter, setMapZoom } = ctx;
   const { company, companySelectionInProgressRef } = useCompanies();
   const { filters } = useFilters();
   const { view } = useView();
@@ -128,63 +124,6 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
   }, [fetchMapPins, mapPins, filters, company, zipCodeList]);
 
   const syncActive = fetchMapPins;
-
-  // Geolocation: once on mount when sync is active
-  useEffect(() => {
-    if (!syncActive) return;
-    if (geolocationAttemptedRef.current) return;
-    geolocationAttemptedRef.current = true;
-
-    if (!navigator.geolocation) {
-      setMapCenter(getDefaultMapCenter());
-      setMapZoom(MAP_ZOOM_DEFAULT);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const response = await fetch(
-            `/api/geocoding/county?longitude=${longitude}&latitude=${latitude}`,
-            { credentials: "include" }
-          );
-          if (!response.ok)
-            throw new Error(`Failed to fetch county: ${response.status}`);
-          const data = await response.json();
-          const userCounty = data.county;
-
-          if (userCounty) {
-            const enabledCounties = COUNTIES.map((c) => c.county);
-            const isEnabledCounty = enabledCounties.some(
-              (enabledCounty) =>
-                enabledCounty.toLowerCase() === userCounty.toLowerCase()
-            );
-            if (isEnabledCounty) {
-              setMapCenter([latitude, longitude]);
-              setMapZoom(MAP_ZOOM_DEFAULT);
-            } else {
-              const defaultCounty = enabledCounties[0] ?? "San Diego";
-              const defaultCenter =
-                getCountyCenter(defaultCounty) ?? getDefaultMapCenter();
-              setMapCenter(defaultCenter);
-              setMapZoom(MAP_ZOOM_DEFAULT);
-            }
-          } else {
-            setMapCenter([latitude, longitude]);
-            setMapZoom(MAP_ZOOM_DEFAULT);
-          }
-        } catch {
-          setMapCenter([latitude, longitude]);
-          setMapZoom(MAP_ZOOM_DEFAULT);
-        }
-      },
-      () => {
-        setMapCenter(getDefaultMapCenter());
-        setMapZoom(MAP_ZOOM_DEFAULT);
-      }
-    );
-  }, []);
 
   // Filter-based center/zoom: when zip, city, county, or company (clear) change. Skip when company selected or selection in progress.
   useEffect(() => {

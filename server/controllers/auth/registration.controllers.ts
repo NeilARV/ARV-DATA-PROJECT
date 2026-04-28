@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { insertUserSchema } from "@database/inserts";
 import { UserServices } from "server/services/auth";
+import { getMsaNameFromCounty } from "server/utils/countyToMsa";
+import { db } from "server/storage";
+import { msas } from "@database/schemas/msas.schema";
+import { eq } from "drizzle-orm";
 
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -16,7 +20,9 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             return;
         }
 
-        const { firstName, lastName, phone, email, password } = validation.data;
+        const { firstName, lastName, phone, email, password, county, state } = validation.data;
+        const normalizedCounty = county || null;
+        const normalizedState = state || null;
 
         const existingUser = await UserServices.getUserByEmail(email);
 
@@ -31,7 +37,23 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             phone,
             email,
             password,
+            county: normalizedCounty,
+            state: normalizedState,
         });
+
+        if (normalizedCounty) {
+            const msaName = getMsaNameFromCounty(normalizedCounty);
+            if (msaName) {
+                const [msaRow] = await db
+                    .select({ id: msas.id })
+                    .from(msas)
+                    .where(eq(msas.name, msaName))
+                    .limit(1);
+                if (msaRow) {
+                    await UserServices.addUserMsaSubscription(newUser.id, msaRow.id);
+                }
+            }
+        }
 
         req.session.userId = newUser.id;
 

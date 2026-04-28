@@ -1,0 +1,3 @@
+ALTER TABLE users
+    ADD COLUMN county TEXT DEFAULT 'San Diego',
+    ADD COLUMN state  VARCHAR(2) DEFAULT 'CA';

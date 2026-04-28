@@ -28,6 +28,7 @@ import {
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
+import { useAuth } from "@/hooks/use-auth";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 
 // ---- Price helper ----
@@ -47,6 +48,8 @@ export default function FilterHeader({
 }: FilterHeaderProps) {
     const { filters, setFilters, hasActiveFilters } = useFilters();
     const { setCompany } = useCompanies();
+    const { user } = useAuth();
+    const hasInitializedFromUser = useRef(false);
 
     // Local display state (synced from context)
     const [priceRange, setPriceRange] = useState<[number, number]>([
@@ -73,6 +76,16 @@ export default function FilterHeader({
     const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
     const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
     const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
+
+    // Apply user's county/state preference once per mount, when auth data first arrives
+    useEffect(() => {
+        if (hasInitializedFromUser.current) return;
+        if (!user) return;
+        hasInitializedFromUser.current = true;
+        if (user.county && user.state) {
+            setFilters((f) => ({ ...f, county: user.county!, zipCode: "", city: undefined }));
+        }
+    }, [user]);
 
     // Close zip dropdown when clicking outside the wrapper
     useEffect(() => {
