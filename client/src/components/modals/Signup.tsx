@@ -33,7 +33,6 @@ import { insertUserBySignUpSchema } from "@database/inserts";
 import { SignupFormData } from "@database/types";
 import ContactContent from "@/components/modals/Contact";
 import { COUNTIES } from "@/constants/filters.constants";
-import { getMsaNameFromCounty } from "@/lib/county";
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
 const STATE_DEFAULT_COUNTY: Record<string, string> = {
