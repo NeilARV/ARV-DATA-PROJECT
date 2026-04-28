@@ -19,6 +19,8 @@ export interface AuthUser {
   isAdmin: boolean;
   notifications: boolean;
   createdAt: string;
+  county?: string | null;
+  state?: string | null;
   msaSubscriptions?: string[];
   relationshipManager?: RelationshipManager | null;
 }

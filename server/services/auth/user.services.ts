@@ -47,6 +47,8 @@ export async function updateUser(userId: string, updateData: {
     phone?: string;
     notifications?: boolean;
     msaSubscriptions?: string[];
+    county?: string | null;
+    state?: string | null;
 }) {
     const { msaSubscriptions, ...dbUpdateData } = updateData;
 

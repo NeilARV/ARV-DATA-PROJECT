@@ -7,4 +7,6 @@ export const updateUserProfileSchema = z.object({
   phone: z.string().min(1, "Phone is required").optional(),
   notifications: z.boolean().optional(),
   msaSubscriptions: z.array(z.string()).optional(),
+  county: z.string().nullable().optional(),
+  state: z.string().max(2).nullable().optional(),
 }).strict();
