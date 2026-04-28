@@ -16,5 +16,4 @@ SELECT email, msa, relationship_manager_id, COALESCE(created_at, NOW()), NOW()
 FROM email_whitelist
 ON CONFLICT (email) DO NOTHING;
 
-DROP INDEX IF EXISTS email_whitelist_email_key;
 DROP TABLE IF EXISTS email_whitelist;
