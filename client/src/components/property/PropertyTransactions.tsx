@@ -379,7 +379,8 @@ interface PropertyTransactionsProps {
 
 export function PropertyTransactions({ propertyId, county, onReprocess }: PropertyTransactionsProps) {
     const { toast } = useToast();
-    const { isAdminOrOwner } = useAuth();
+    const { isAdmin, isOwner } = useAuth();
+    const isAdminOrOwner = isAdmin || isOwner;
 
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
