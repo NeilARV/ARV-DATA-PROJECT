@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +15,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -25,6 +32,16 @@ import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { insertUserBySignUpSchema } from "@database/inserts";
 import { SignupFormData } from "@database/types";
 import ContactContent from "@/components/modals/Contact";
+import { COUNTIES } from "@/constants/filters.constants";
+import { getMsaNameFromCounty } from "@/lib/county";
+
+const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
+const STATE_DEFAULT_COUNTY: Record<string, string> = {
+  CA: "San Diego",
+  CO: "Denver",
+  FL: "Miami-Dade",
+  WA: "King",
+};
 
 interface SignupContentProps {
   onSuccess: () => void;
@@ -44,17 +61,36 @@ export default function SignupContent({ onSuccess, onSwitchToLogin }: SignupCont
       email: "",
       password: "",
       confirmPassword: "",
+      state: "CA",
+      county: "San Diego",
     },
   });
 
+  const watchedState = form.watch("state");
+  const watchedCounty = form.watch("county");
+  const availableCounties = watchedState
+    ? COUNTIES.filter((c) => c.state === watchedState)
+    : COUNTIES;
+
+  useEffect(() => {
+    const defaultCounty = STATE_DEFAULT_COUNTY[watchedState ?? ""];
+    if (defaultCounty) {
+      form.setValue("county", defaultCounty, { shouldDirty: true });
+    }
+  }, [watchedState]);
+
   const signupMutation = useMutation({
     mutationFn: async (data: SignupFormData) => {
+      const county = data.county || null;
+      const state = data.state || null;
       const response = await apiRequest("POST", "/api/auth/signup", {
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone,
         email: data.email.trim(),
         password: data.password,
+        county,
+        state,
       });
       return response.json();
     },
@@ -223,6 +259,69 @@ export default function SignupContent({ onSuccess, onSwitchToLogin }: SignupCont
               </FormItem>
             )}
           />
+
+          <div className="space-y-2">
+            <div>
+              <p className="text-sm font-medium leading-none">Preferred Market</p>
+              <p className="text-sm text-muted-foreground mt-1">Which area would you like to see property data for?</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="county"
+              render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>County</FormLabel>
+                    <Select
+                      value={watchedCounty ?? ""}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-signup-county">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="z-[10000]">
+                        {availableCounties.map((c) => (
+                          <SelectItem key={c.county} value={c.county}>
+                            {c.county}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+            )}
+            />
+            <FormField
+              control={form.control}
+              name="state"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>State</FormLabel>
+                  <Select
+                    value={field.value ?? "CA"}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger data-testid="select-signup-state">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="z-[10000]">
+                      {UNIQUE_STATES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            </div>
+          </div>
 
           <Button type="submit" className="w-full" disabled={signupMutation.isPending} data-testid="button-signup-submit">
             {signupMutation.isPending ? (

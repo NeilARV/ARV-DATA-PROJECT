@@ -34,6 +34,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(14, "Valid phone number is required"),
+  county: z.string().nullable().optional(),
+  state: z.string().max(2).nullable().optional(),
 });
 
 export const insertUserBySignUpSchema = insertUserSchema
@@ -43,5 +45,9 @@ export const insertUserBySignUpSchema = insertUserSchema
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
-  });
+  })
+  .refine(
+    (data) => !(data.county && !data.state),
+    { message: "State is required when a county is selected", path: ["state"] }
+  );
 

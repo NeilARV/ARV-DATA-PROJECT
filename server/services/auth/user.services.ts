@@ -11,11 +11,13 @@ interface SignupData {
     phone: string;
     email: string;
     password: string;
+    county?: string | null;
+    state?: string | null;
 }
 
 export async function createUser(data: SignupData) {
 
-    const { firstName, lastName, phone, email, password } = data
+    const { firstName, lastName, phone, email, password, county, state } = data
 
     const passwordHash = await bcrypt.hash(password, 10)
 
@@ -27,10 +29,12 @@ export async function createUser(data: SignupData) {
             phone,
             email,
             passwordHash,
-            notifications: true // Explicitly set to true on signup
+            notifications: true,
+            county: county || null,
+            state: state || null,
         })
         .returning()
-    
+
     const { passwordHash: _, ...userWithoutPassword} = newUser
 
     return userWithoutPassword
