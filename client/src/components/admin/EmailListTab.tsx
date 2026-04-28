@@ -235,9 +235,9 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email Whitelist</CardTitle>
+        <CardTitle>Email Subscription List</CardTitle>
         <CardDescription>
-          Emails allowed to register. Add new emails or remove existing ones.
+          Emails on this list will receieve buyers feed updates and deal notifications
         </CardDescription>
       </CardHeader>
       <CardContent>
