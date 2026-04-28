@@ -263,7 +263,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Relationship Manager</TableHead>
-                      <TableHead className="w-[140px]">Role</TableHead>
+                      <TableHead className="w-[140px]">Account Tier</TableHead>
                       {canDeleteUser && (
                         <TableHead className="w-[80px] text-right">Actions</TableHead>
                       )}
