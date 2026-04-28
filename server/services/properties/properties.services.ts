@@ -273,8 +273,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         );
     }
 
-    // Date range: filter by most recent Arms Length recording_date
-    if (dateRange) {
+    // Date range: filter by most recent Arms Length recording_date.
+    // Skipped when a company is selected — show all transactions regardless of date.
+    if (dateRange && !hasCompanyFilter) {
         const range = resolveDateRange(dateRange);
         if (range) {
             conditions.push(

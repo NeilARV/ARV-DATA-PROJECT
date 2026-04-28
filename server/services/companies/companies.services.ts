@@ -265,22 +265,23 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 .groupBy(propertyTransactions.buyerId) as SortRow[];
 
         } else if (sortOption === "buys-wholesale") {
-            // A wholesale purchase: seller had previously bought the same property within 30 days.
+            // Buyer on a transaction for a property with status 'wholesale'.
             const parts: ReturnType<typeof sql>[] = [
                 sql`${propertyTransactions.buyerId} IS NOT NULL`,
-                sql`${propertyTransactions.sellerId} IS NOT NULL`,
                 sql`EXISTS (
-                    SELECT 1 FROM property_transactions pt_prior
-                    WHERE pt_prior.property_id = ${propertyTransactions.propertyId}
-                      AND pt_prior.buyer_id = ${propertyTransactions.sellerId}
-                      AND pt_prior.recording_date <= ${propertyTransactions.recordingDate}
-                      AND (${propertyTransactions.recordingDate} - pt_prior.recording_date) <= 30
+                    SELECT 1 FROM property_statuses ps
+                    JOIN statuses s ON s.id = ps.status_id
+                    WHERE ps.property_id = ${propertyTransactions.propertyId}
+                    AND s.name = 'wholesale'
                 )`,
+                ...countyParts(),
             ];
             if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
             rows = await db
-                .select({ id: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
+                .select({ id: propertyTransactions.buyerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
                 .from(propertyTransactions)
+                .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+                .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
                 .groupBy(propertyTransactions.buyerId) as SortRow[];
 
@@ -493,23 +494,41 @@ export async function getCompanyById(id: string, county?: string) {
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
 
-    const [sellerCountResult] = await db
+    const countyCondition = normalizedCounty
+        ? or(
+            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+        ) as any
+        : undefined;
+
+    const sellerCountQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .where(and(
             eq(propertyTransactions.sellerId, id),
             sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
             gte(propertyTransactions.recordingDate, ytdStartStr),
-            lte(propertyTransactions.recordingDate, todayStr)
+            lte(propertyTransactions.recordingDate, todayStr),
+            ...(countyCondition ? [countyCondition] : [])
         ));
 
-    const [sellerCountAllTimeResult] = await db
+    const sellerCountAllTimeQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(propertyTransactions)
+        .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .where(and(
             eq(propertyTransactions.sellerId, id),
-            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
+            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+            ...(countyCondition ? [countyCondition] : [])
         ));
+
+    const [[sellerCountResult], [sellerCountAllTimeResult]] = await Promise.all([
+        sellerCountQuery,
+        sellerCountAllTimeQuery,
+    ]);
 
     let propertyCount: number;
     if (normalizedCounty) {
@@ -542,10 +561,13 @@ export async function getCompanyById(id: string, county?: string) {
         db
             .select({ recordingDate: propertyTransactions.recordingDate })
             .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
             .where(and(
                 eq(propertyTransactions.buyerId, id),
                 gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
-                lte(propertyTransactions.recordingDate, todayStr)
+                lte(propertyTransactions.recordingDate, todayStr),
+                ...(countyCondition ? [countyCondition] : [])
             )),
         db
             .select()
