@@ -1,6 +1,6 @@
 import { db } from "server/storage";
-import { userRoles, roles, users, subscriptions } from "@database/schemas/users.schema";
-import { emailWhitelist, msas } from "@database/schemas";
+import { userRoles, roles, users, subscriptions, emailSubscriptionList } from "@database/schemas/users.schema";
+import { msas } from "@database/schemas";
 import { eq, and, inArray } from "drizzle-orm";
 
 /** Roles that grant access to the admin panel. */
@@ -42,7 +42,7 @@ export async function getAdminStatus(userId: string): Promise<AdminStatusResult>
 }
 
 export interface WhitelistRow {
-    id: string;
+    id: number;
     email: string;
     msaName: string | null;
     relationshipManagerId: string | null;
@@ -51,14 +51,14 @@ export interface WhitelistRow {
 export async function getWhitelist(): Promise<WhitelistRow[]> {
     const rows = await db
         .select({
-            id: emailWhitelist.id,
-            email: emailWhitelist.email,
+            id: emailSubscriptionList.id,
+            email: emailSubscriptionList.email,
             msaName: msas.name,
-            relationshipManagerId: emailWhitelist.relationshipManagerId,
+            relationshipManagerId: emailSubscriptionList.relationshipManagerId,
         })
-        .from(emailWhitelist)
-        .leftJoin(msas, eq(emailWhitelist.msa, msas.id))
-        .orderBy(emailWhitelist.createdAt);
+        .from(emailSubscriptionList)
+        .leftJoin(msas, eq(emailSubscriptionList.msa, msas.id))
+        .orderBy(emailSubscriptionList.createdAt);
 
     return rows.map((r) => ({
         id: r.id,
@@ -68,30 +68,32 @@ export async function getWhitelist(): Promise<WhitelistRow[]> {
     }));
 }
 
-export async function deleteWhitelistEntry(id: string): Promise<string | null> {
+export async function deleteWhitelistEntry(id: number): Promise<number | null> {
     const deleted = await db
-        .delete(emailWhitelist)
-        .where(eq(emailWhitelist.id, id))
-        .returning({ id: emailWhitelist.id });
+        .delete(emailSubscriptionList)
+        .where(eq(emailSubscriptionList.id, id))
+        .returning({ id: emailSubscriptionList.id });
 
     return deleted.length > 0 ? deleted[0].id : null;
 }
 
 export interface UpdateWhitelistParams {
-    id: string;
+    id: number;
     msaName?: string;
     relationshipManagerId?: string | null;
 }
 
 export interface UpdateWhitelistResult {
-    id: string;
+    id: number;
     email: string;
     relationshipManagerId: string | null;
 }
 
 export async function updateWhitelistEntry(params: UpdateWhitelistParams): Promise<UpdateWhitelistResult | null> {
     const { id, msaName, relationshipManagerId } = params;
-    const updates: { msa?: number; relationshipManagerId?: string | null } = {};
+    const updates: { msa?: number; relationshipManagerId?: string | null; updatedAt: Date } = {
+        updatedAt: new Date(),
+    };
 
     if (msaName !== undefined) {
         const [msaRow] = await db
@@ -108,13 +110,13 @@ export async function updateWhitelistEntry(params: UpdateWhitelistParams): Promi
     }
 
     const updated = await db
-        .update(emailWhitelist)
+        .update(emailSubscriptionList)
         .set(updates)
-        .where(eq(emailWhitelist.id, id))
+        .where(eq(emailSubscriptionList.id, id))
         .returning({
-            id: emailWhitelist.id,
-            email: emailWhitelist.email,
-            relationshipManagerId: emailWhitelist.relationshipManagerId,
+            id: emailSubscriptionList.id,
+            email: emailSubscriptionList.email,
+            relationshipManagerId: emailSubscriptionList.relationshipManagerId,
         });
 
     if (updated.length === 0) return null;
@@ -132,7 +134,7 @@ export interface AddWhitelistParams {
     relationshipManagerId?: string | null;
 }
 
-/** Returns null if MSA not found, "duplicate" if email already exists, otherwise "ok". */
+/** Returns "invalid-msa" if MSA not found, "duplicate" if email already exists, otherwise "ok". */
 export async function addWhitelistEntry(params: AddWhitelistParams): Promise<"ok" | "invalid-msa" | "duplicate"> {
     const { email, msaName, relationshipManagerId } = params;
     const normalizedEmail = email.toLowerCase().trim();
@@ -147,13 +149,13 @@ export async function addWhitelistEntry(params: AddWhitelistParams): Promise<"ok
 
     const existing = await db
         .select()
-        .from(emailWhitelist)
-        .where(eq(emailWhitelist.email, normalizedEmail))
+        .from(emailSubscriptionList)
+        .where(eq(emailSubscriptionList.email, normalizedEmail))
         .limit(1);
 
     if (existing.length > 0) return "duplicate";
 
-    await db.insert(emailWhitelist).values({
+    await db.insert(emailSubscriptionList).values({
         email: normalizedEmail,
         msa: msaRow.id,
         relationshipManagerId: relationshipManagerId ?? null,

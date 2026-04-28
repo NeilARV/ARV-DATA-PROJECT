@@ -84,7 +84,7 @@ export function startScheduledJobs() {
     // =========================================================================
     // Email Jobs by MSA
     // =========================================================================
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV !== "production") {
         // EST
         cron.schedule("0 6 * * *", sendMiamiEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("5 6 * * *", sendTampaEmail, { timezone: "America/Los_Angeles"})

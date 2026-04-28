@@ -1,5 +1,5 @@
 export type WhitelistEntry = {
-    id: string;
+    id: number;
     email: string;
     msaName: string | null;
     relationshipManagerId: string | null;

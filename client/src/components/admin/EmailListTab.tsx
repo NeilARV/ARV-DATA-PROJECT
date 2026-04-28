@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
+import { insertEmailSubscriptionListSchema } from "@database/inserts/users.insert";
 import {
   Card,
   CardContent,
@@ -60,10 +60,10 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
   const [whitelistRelationshipManagerId, setWhitelistRelationshipManagerId] =
     useState<string>("none");
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{id: string; email: string;} | null>(null);
-  const [editConfirm, setEditConfirm] = useState<{id: string; email: string; msaName: string; relationshipManagerId: string | null;} | null>(null);
-  const [removeRmConfirm, setRemoveRmConfirm] = useState<{id: string; email: string; msaName: string; managerName: string;} | null>(null);
-  const [addRmConfirm, setAddRmConfirm] = useState<{id: string; email: string; msaName: string; relationshipManagerId: string; managerName: string;} | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{id: number; email: string;} | null>(null);
+  const [editConfirm, setEditConfirm] = useState<{id: number; email: string; msaName: string; relationshipManagerId: string | null;} | null>(null);
+  const [removeRmConfirm, setRemoveRmConfirm] = useState<{id: number; email: string; msaName: string; managerName: string;} | null>(null);
+  const [addRmConfirm, setAddRmConfirm] = useState<{id: number; email: string; msaName: string; relationshipManagerId: string; managerName: string;} | null>(null);
 
   const { data: whitelist = [], isLoading } = useQuery<WhitelistEntry[]>({
     queryKey: ["/api/admin/whitelist"],
@@ -106,7 +106,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (id: number) => {
       const res = await apiRequest("DELETE", `/api/admin/whitelist/${id}`);
       return res.json();
     },
@@ -133,7 +133,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
       msaName,
       relationshipManagerId,
     }: {
-      id: string;
+      id: number;
       msaName: string;
       relationshipManagerId: string | null;
     }) => {
@@ -167,7 +167,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
       whitelistRelationshipManagerId && whitelistRelationshipManagerId !== "none"
         ? whitelistRelationshipManagerId
         : undefined;
-    const result = insertEmailWhitelistSchema.safeParse({
+    const result = insertEmailSubscriptionListSchema.safeParse({
       email: trimmed,
       msaName: whitelistMsa,
       relationshipManagerId: relationshipManagerId ?? null,
