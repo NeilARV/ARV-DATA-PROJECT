@@ -31,6 +31,7 @@ import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -56,7 +57,8 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
-  const { isAdminOrOwner } = useAuth();
+  const { isAdmin, isOwner } = useAuth();
+  const { requireSubscription, ContactDialog } = useRequireSubscription();
   const { view, setView } = useView();
   const {
     company,
@@ -207,9 +209,12 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
     const next = company?.id === clickedCompany.id ? null : clickedCompany;
     if (next) {
-      companySelectionInProgressRef.current = true;
-      setCompany(next);
-      setProperty(null);
+      requireSubscription(() => {
+        companySelectionInProgressRef.current = true;
+        setCompany(next);
+        setProperty(null);
+      });
+      return;
     } else {
       // Batch setCompany + setFilters in the same event handler so React processes them in a single render,
       // eliminating the two-render cycle (company=null render, then filter-change render) that caused visual lag.
@@ -570,7 +575,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     </div>
 
                     {/* Admin Actions - Only visible to owner or admin */}
-                    {isAdminOrOwner && (
+                    {(isAdmin || isOwner) && (
                       <div className="pt-3 border-t border-border space-y-2">
                         <Button
                           variant="outline"
@@ -671,6 +676,8 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
           {total} {total === 1 ? "company" : "companies"}
         </div>
       </div>
+
+      {ContactDialog}
     </div>
   );
 }

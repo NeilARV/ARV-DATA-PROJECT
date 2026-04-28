@@ -49,8 +49,15 @@ export async function login(req: Request, res: Response, next: NextFunction):Pro
 }
 
 export async function logout(req: Request, res: Response, next: NextFunction):Promise<void> {
-    req.session.userId = undefined;
-    res.json({ success: true });
+    req.session.destroy((err) => {
+        if (err) {
+            console.error("Session destroy error:", err);
+            res.status(500).json({ message: "Error logging out" });
+            return;
+        }
+        res.clearCookie("connect.sid");
+        res.json({ success: true });
+    });
 }
 
 export async function me(req: Request, res: Response, next: NextFunction):Promise<void> {

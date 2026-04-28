@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { insertUserSchema } from "@database/inserts";
-import { RegistrationServices, UserServices } from "server/services/auth";
+import { UserServices } from "server/services/auth";
 
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        
+
         const validation = insertUserSchema.safeParse(req.body);
 
         if (!validation.success) {
@@ -18,21 +18,8 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
         const { firstName, lastName, phone, email, password } = validation.data;
 
-        const whitelistEntry = await RegistrationServices.isEmailWhiteListed(email);
-
-        if (whitelistEntry.length === 0) {
-            const rm = await UserServices.getRandomRelationshipManager();
-            res.status(403).json({
-                message: "Your email is not on the approved list.",
-                relationshipManager: rm ?? null,
-            });
-            return;
-        }
-
-        // Get user by email
         const existingUser = await UserServices.getUserByEmail(email);
 
-        // Check if email already exists
         if (existingUser.length > 0) {
             res.status(409).json({ message: "An account with this email already exists" });
             return;
@@ -46,19 +33,8 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             password,
         });
 
-        // Create initial MSA subscription and relationship manager link from whitelist when they were added
-        const whitelistRow = whitelistEntry[0];
-        if (whitelistRow.msa != null) {
-            await UserServices.addUserMsaSubscription(newUser.id, whitelistRow.msa);
-        }
-        if (whitelistRow.relationshipManagerId != null) {
-            await UserServices.addUserRelationshipManager(newUser.id, whitelistRow.relationshipManagerId);
-        }
-
-        // Set user session
         req.session.userId = newUser.id;
 
-        // Return user data (without password hash)
         res.status(201).json({
             success: true,
             user: newUser,

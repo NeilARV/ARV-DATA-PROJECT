@@ -52,7 +52,7 @@ function parseRoleApiError(error: unknown): string {
 
 const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
 
-export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubscriptionTier = false }: UsersTabProps) {
+export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubscriptionTier = false, canManageRelationshipManagers = false }: UsersTabProps) {
   const { toast } = useToast();
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
@@ -287,33 +287,36 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                                   <Badge
                                     key={rm.id}
                                     variant="secondary"
-                                    className="gap-0.5 pr-0.5 font-normal"
+                                    className={canManageRelationshipManagers ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
                                   >
                                     {rm.firstName} {rm.lastName}
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
-                                      aria-label={`Remove ${rm.firstName} ${rm.lastName}`}
-                                      disabled={isManagerMutationPending}
-                                      onClick={() =>
-                                        setManagerConfirm({
-                                          open: true,
-                                          userId: user.id,
-                                          userName: `${user.firstName} ${user.lastName}`,
-                                          relationshipManagerId: rm.id,
-                                          managerName: `${rm.firstName} ${rm.lastName}`,
-                                          action: "remove",
-                                        })
-                                      }
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
+                                    {canManageRelationshipManagers && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
+                                        aria-label={`Remove ${rm.firstName} ${rm.lastName}`}
+                                        disabled={isManagerMutationPending}
+                                        onClick={() =>
+                                          setManagerConfirm({
+                                            open: true,
+                                            userId: user.id,
+                                            userName: `${user.firstName} ${user.lastName}`,
+                                            relationshipManagerId: rm.id,
+                                            managerName: `${rm.firstName} ${rm.lastName}`,
+                                            action: "remove",
+                                          })
+                                        }
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    )}
                                   </Badge>
                                 ))
                               : null}
-                            {!user.relationshipManagers?.length &&
+                            {canManageRelationshipManagers &&
+                              !user.relationshipManagers?.length &&
                               relationshipManagers.filter((rm) => rm.id !== user.id).length > 0 && (
                               <Select
                                 value={addManagerSelectValue[user.id] ?? ""}

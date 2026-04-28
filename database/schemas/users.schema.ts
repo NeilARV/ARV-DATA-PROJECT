@@ -7,6 +7,7 @@ import {
   boolean,
   integer,
   serial,
+  bigserial,
   primaryKey,
 } from "drizzle-orm/pg-core";
 
@@ -17,13 +18,14 @@ export const sessions = pgTable("sessions", {
   expire: integer("expire").notNull(),
 });
 
-// Email Whitelist (msa references msas.id)
-export const emailWhitelist = pgTable("email_whitelist", {
-  id: uuid("id").defaultRandom().primaryKey(),
+// Email Subscription List (msa references msas.id)
+export const emailSubscriptionList = pgTable("email_subscription_list", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   email: text("email").unique().notNull(),
   msa: integer("msa"),
   relationshipManagerId: uuid("relationship_manager_id").references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Subscriptions lookup table (basic, pro, premium)

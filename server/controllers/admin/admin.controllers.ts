@@ -1,8 +1,11 @@
 import { Request, Response } from "express";
 import { AdminServices } from "server/services/admin";
-import { insertEmailWhitelistSchema } from "@database/inserts/users.insert";
+import { insertEmailSubscriptionListSchema } from "@database/inserts/users.insert";
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function parseEntryId(raw: string): number | null {
+    const n = parseInt(raw, 10);
+    return Number.isInteger(n) && n > 0 && String(n) === raw ? n : null;
+}
 
 export async function checkAdminStatus(req: Request, res: Response) {
     try {
@@ -29,12 +32,12 @@ export async function listWhitelist(req: Request, res: Response) {
 
 export async function removeWhitelistEntry(req: Request, res: Response) {
     try {
-        const { id } = req.params;
-        if (!id || !UUID_REGEX.test(id)) {
+        const numId = parseEntryId(req.params.id);
+        if (!numId) {
             return res.status(400).json({ message: "Invalid whitelist entry id" });
         }
 
-        const deletedId = await AdminServices.deleteWhitelistEntry(id);
+        const deletedId = await AdminServices.deleteWhitelistEntry(numId);
         if (!deletedId) {
             return res.status(404).json({ message: "Whitelist entry not found" });
         }
@@ -48,8 +51,8 @@ export async function removeWhitelistEntry(req: Request, res: Response) {
 
 export async function patchWhitelistEntry(req: Request, res: Response) {
     try {
-        const { id } = req.params;
-        if (!id || !UUID_REGEX.test(id)) {
+        const numId = parseEntryId(req.params.id);
+        if (!numId) {
             return res.status(400).json({ message: "Invalid whitelist entry id" });
         }
 
@@ -61,7 +64,7 @@ export async function patchWhitelistEntry(req: Request, res: Response) {
             });
         }
 
-        const updated = await AdminServices.updateWhitelistEntry({ id, msaName, relationshipManagerId });
+        const updated = await AdminServices.updateWhitelistEntry({ id: numId, msaName, relationshipManagerId });
         if (!updated) {
             // updateWhitelistEntry returns null for both invalid MSA and not-found entry;
             // treat as bad request for invalid MSA (msaName provided) otherwise not found.
@@ -85,7 +88,7 @@ export async function patchWhitelistEntry(req: Request, res: Response) {
 
 export async function createWhitelistEntry(req: Request, res: Response) {
     try {
-        const validation = insertEmailWhitelistSchema.safeParse(req.body);
+        const validation = insertEmailSubscriptionListSchema.safeParse(req.body);
         if (!validation.success) {
             return res.status(400).json({ message: "Invalid email data", errors: validation.error.errors });
         }

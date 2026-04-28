@@ -1,5 +1,5 @@
 export type WhitelistEntry = {
-    id: string;
+    id: number;
     email: string;
     msaName: string | null;
     relationshipManagerId: string | null;
@@ -13,10 +13,6 @@ export type RelationshipManager = {
   email: string;
   roles: string[];
 };
-
-export type EmailListTabProps = {
-  isAdmin: boolean;
-}
 
 export type ManagePropertiesTabProps = {
   properties: PropertyRow[];
@@ -59,4 +55,10 @@ export type UsersTabProps = {
   isAdmin: boolean;
   canDeleteUser?: boolean;
   canManageSubscriptionTier?: boolean;
+  canManageRelationshipManagers?: boolean;
+}
+
+export type EmailListTabProps = {
+  isAdmin: boolean;
+  canEditEntries?: boolean;
 }

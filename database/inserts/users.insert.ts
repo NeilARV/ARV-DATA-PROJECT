@@ -1,6 +1,6 @@
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { users, emailWhitelist } from "../schemas";
+import { users, emailSubscriptionList } from "../schemas";
 
 const MSA_NAMES = [
   "San Diego-Chula Vista-Carlsbad, CA",
@@ -13,9 +13,10 @@ const MSA_NAMES = [
   "Tampa-St. Petersburg-Clearwater, FL"
 ] as const;
 
-export const insertEmailWhitelistSchema = createInsertSchema(emailWhitelist).omit({
+export const insertEmailSubscriptionListSchema = createInsertSchema(emailSubscriptionList).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
   msa: true,
 }).extend({
   email: z.string().email("Invalid email address"),

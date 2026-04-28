@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import AppDialog from "@/components/modals/Dialog";
-import ContactContent from "@/components/modals/Contact";
 import darkLogoUrl from "@assets/arv-data-logo-dark.png";
 import lightLogoUrl from "@assets/arv-data-logo-light.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -32,6 +30,7 @@ import { X } from "lucide-react";
 import type { HeaderProps, PropertySuggestion } from "@/types/general";
 import { useView } from "@/hooks/useView";
 import { useFilters } from "@/hooks/useFilters";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useCompanies } from "@/hooks/useCompanies";
@@ -71,7 +70,7 @@ export default function Header({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showContact, setShowContact] = useState(false);
+  const { requireSubscription, ContactDialog, setShowContact } = useRequireSubscription();
 
   // Close contact dialog when a forced auth dialog activates
   useEffect(() => {
@@ -83,7 +82,7 @@ export default function Header({
   const menuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [location, setLocation] = useLocation();
-  const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const { user, isAuthenticated, canAccessAdminPanel, logout, canAccessApp } = useAuth();
   const { toast } = useToast();
 
   // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -227,25 +226,31 @@ export default function Header({
     }
   };
 
-  const onBuyersFeedClick = async () => {
-    setLocation("/");
-    setProperty(null);
-    setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
-    setView("buyers-feed");
-  }
+  const onBuyersFeedClick = () => {
+    requireSubscription(() => {
+      setLocation("/");
+      setProperty(null);
+      setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
+      setView("buyers-feed");
+    });
+  };
 
-  const onWholesaleClick = async () => {
-    setLocation("/");
-    setProperty(null);
-    setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
-    setView("wholesale");
-  }
+  const onWholesaleClick = () => {
+    requireSubscription(() => {
+      setLocation("/");
+      setProperty(null);
+      setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
+      setView("wholesale");
+    });
+  };
 
-  const onTableViewClick = async () => {
-    setLocation("/");
-    setProperty(null);
-    setView("table")
-  }
+  const onTableViewClick = () => {
+    requireSubscription(() => {
+      setLocation("/");
+      setProperty(null);
+      setView("table");
+    });
+  };
 
   const onLogoClick = async () => {
     setLocation("/");
@@ -419,7 +424,7 @@ export default function Header({
                     <button
                       className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                       data-testid="button-view-grid"
-                      onClick={() => { setLocation("/"); setView("grid"); setShowMoreMenu(false); }}
+                      onClick={() => { requireSubscription(() => { setLocation("/"); setView("grid"); }); setShowMoreMenu(false); }}
                     >
                       <Grid3x3 className="w-4 h-4" />
                       Grid
@@ -457,8 +462,10 @@ export default function Header({
                 onSignupClick?.();
                 return;
               }
-              setLocation("/");
-              setView("deals");
+              requireSubscription(() => {
+                setLocation("/");
+                setView("deals");
+              });
             }}
             data-testid="button-deals"
           >
@@ -469,7 +476,7 @@ export default function Header({
           <Button
             variant={location === "/analytics" ? "default" : "outline"}
             size="sm"
-            onClick={() => setLocation("/analytics")}
+            onClick={() => requireSubscription(() => setLocation("/analytics"))}
             data-testid="button-analytics"
           >
             <LineChart className="w-4 h-4 mr-1" />
@@ -561,7 +568,7 @@ export default function Header({
                         <Mail className="w-4 h-4" />
                         Contact Us
                       </button>
-                      {isAdmin && (
+                      {canAccessAdminPanel && (
                         <button
                           className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                           onClick={() => {
@@ -594,21 +601,7 @@ export default function Header({
         )}
       </div>
 
-      <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
-        {showContact && (
-          <ContactContent
-            onClose={() => setShowContact(false)}
-            onSuccess={() => {
-              toast({ title: "Message Sent", description: "We will get back to you shortly." });
-            }}
-            defaultSubject="Contact ARV"
-            defaultFirstName={user?.firstName}
-            defaultLastName={user?.lastName}
-            defaultEmail={user?.email}
-            defaultPhone={user?.phone}
-          />
-        )}
-      </AppDialog>
+      {ContactDialog}
     </header>
   );
 }

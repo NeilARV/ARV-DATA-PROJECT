@@ -22,6 +22,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useFilters } from "@/hooks/useFilters";
+import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 import { getMsaNameFromCounty } from "@/lib/county";
 import { formatAddress } from "@shared/utils/formatAddress";
 import DealCard from "@/components/deal/DealCard";
@@ -35,8 +36,9 @@ export default function DealView() {
   const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
   const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
   const { toast } = useToast();
-  const { user, subscriptionTier, isAdminOrOwner, isRelationshipManager } = useAuth();
-  const canManageDeals = isAdminOrOwner || isRelationshipManager;
+  const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
+  const { requireSubscription, ContactDialog } = useRequireSubscription();
+  const canManageDeals = isAdmin || isOwner || isRelationshipManager;
   const { filters } = useFilters();
 
   const msaName = getMsaNameFromCounty(filters.county ?? "San Diego") ?? "San Diego-Chula Vista-Carlsbad, CA";
@@ -80,7 +82,7 @@ export default function DealView() {
   const soldDeals = deals.filter((d) => d.dealType === "sold");
 
   const renderCard = (deal: Deal) => {
-    const isOwnerOfDeal = subscriptionTier !== null && user?.id === deal.userId;
+    const isOwnerOfDeal = canAccessApp && user?.id === deal.userId;
     const isOwnerOfDealForTopBuyers = user?.id === deal.userId;
     return (
       <DealCard
@@ -113,7 +115,7 @@ export default function DealView() {
               <TabsTrigger value="mine">Your Deals</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button size="sm" onClick={() => setShowAddDeal(true)} className="gap-1">
+          <Button size="sm" onClick={() => requireSubscription(() => setShowAddDeal(true), { tiers: ["pro", "premium"], subject: "Request Access", message: "I would like to request access to post deals on the ARV data application" })} className="gap-1">
             <Plus className="w-4 h-4" />
             Add Deal
           </Button>
@@ -218,6 +220,7 @@ export default function DealView() {
       </AppDialog>
 
       <AddDeal open={showAddDeal} onClose={() => setShowAddDeal(false)} />
+      {ContactDialog}
 
       {editDeal && (
         <UpdateDeal

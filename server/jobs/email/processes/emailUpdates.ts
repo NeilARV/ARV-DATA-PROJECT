@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { users, emailWhitelist } from "@database/schemas/users.schema";
+import { users, emailSubscriptionList } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, lastSales, structures, propertyTransactions } from "@database/schemas/properties.schema";
 import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
@@ -130,17 +130,17 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
     // Exclude in SQL so we don't rely on in-memory normalization; any email that exists in users is skipped for whitelist.
     const whitelistRows = await db
       .select({
-        email: emailWhitelist.email,
-        relationshipManagerId: emailWhitelist.relationshipManagerId,
+        email: emailSubscriptionList.email,
+        relationshipManagerId: emailSubscriptionList.relationshipManagerId,
       })
-      .from(emailWhitelist)
-      .innerJoin(msas, eq(emailWhitelist.msa, msas.id))
+      .from(emailSubscriptionList)
+      .innerJoin(msas, eq(emailSubscriptionList.msa, msas.id))
       .where(
         and(
           eq(msas.name, msaName),
           sql`NOT EXISTS (
             SELECT 1 FROM users
-            WHERE LOWER(TRIM(users.email)) = LOWER(TRIM(${emailWhitelist.email}))
+            WHERE LOWER(TRIM(users.email)) = LOWER(TRIM(${emailSubscriptionList.email}))
           )`
         )
       );

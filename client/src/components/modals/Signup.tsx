@@ -59,7 +59,9 @@ export default function SignupContent({ onSuccess, onSwitchToLogin }: SignupCont
       return response.json();
     },
     onSuccess: () => {
+      queryClient.setQueryData(["/api/admin/status"], null);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/status"] });
       toast({ title: "Account created!", description: "Welcome to ARV DATA. You're now signed in." });
       form.reset();
       onSuccess();
