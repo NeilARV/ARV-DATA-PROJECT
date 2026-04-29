@@ -126,7 +126,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                     <TableHead>Relationship Manager</TableHead>
                     <TableHead>Account Tier</TableHead>
                     <TableHead>Account Types</TableHead>
-                    <TableHead/>
+                    {canDeleteUser && <TableHead />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -182,25 +182,25 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                           <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label="User actions"
-                              data-testid={`button-user-actions-${user.id}`}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setEditUser(user)}>
-                              Edit User
-                            </DropdownMenuItem>
-                            {canDeleteUser && (
+                      {canDeleteUser && (
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label="User actions"
+                                data-testid={`button-user-actions-${user.id}`}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setEditUser(user)}>
+                                Edit User
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 disabled={deleteUserMutation.isPending}
@@ -214,10 +214,10 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                               >
                                 Delete User
                               </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
