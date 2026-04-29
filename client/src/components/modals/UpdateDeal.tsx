@@ -73,8 +73,9 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
       baths:        deal.baths        ? Number(deal.baths) : undefined,
       sqft:         deal.sqft         ?? undefined,
       propertyType: deal.propertyType ?? undefined,
-      potentialARV: deal.potentialARV ? Number(deal.potentialARV) : undefined,
-      notes:        deal.notes        ?? "",
+      potentialARV:  deal.potentialARV  ? Number(deal.potentialARV)  : undefined,
+      closeOfEscrow: deal.closeOfEscrow ? Number(deal.closeOfEscrow) : undefined,
+      notes:         deal.notes         ?? "",
     },
   });
 
@@ -94,8 +95,9 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
         baths:        data.baths        ?? null,
         sqft:         data.sqft         ?? null,
         propertyType: data.propertyType ?? null,
-        potentialARV: data.potentialARV ?? null,
-        notes:        data.notes?.trim() || null,
+        potentialARV:  data.potentialARV  ?? null,
+        closeOfEscrow: data.closeOfEscrow ?? null,
+        notes:         data.notes?.trim() || null,
         links:        links.filter(isValidUrl),
       });
       return res.json();
@@ -224,6 +226,28 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
                     type="number"
                     min={1}
                     placeholder="400000"
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(e.target.value)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Close of Escrow */}
+          <FormField
+            control={form.control}
+            name="closeOfEscrow"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Close of Escrow <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    type="number"
+                    min={1}
+                    placeholder="500000"
                     value={field.value ?? ""}
                     onChange={(e) => field.onChange(e.target.value)}
                   />

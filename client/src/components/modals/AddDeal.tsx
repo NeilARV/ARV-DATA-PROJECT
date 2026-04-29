@@ -73,6 +73,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
       zipCode: "",
       price: undefined,
       potentialARV: undefined,
+      closeOfEscrow: undefined,
       dealType: "agent",
       beds: undefined,
       baths: undefined,
@@ -97,8 +98,9 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
         zipCode:      data.zipCode,
         userId:       user?.id,
         dealType:     data.dealType,
-        price:        data.price,
-        potentialARV:          data.potentialARV,
+        price:         data.price,
+        potentialARV:  data.potentialARV,
+        closeOfEscrow: data.closeOfEscrow,
         beds:         data.beds,
         baths:        data.baths,
         sqft:         data.sqft,
@@ -251,6 +253,28 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                       type="number"
                       min={1}
                       placeholder="425000"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Close of Escrow */}
+            <FormField
+              control={form.control}
+              name="closeOfEscrow"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Close of Escrow <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={1}
+                      placeholder="500000"
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value)}
                     />

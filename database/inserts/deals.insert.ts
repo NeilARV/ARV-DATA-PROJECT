@@ -19,6 +19,10 @@ export const dealFormSchema = z
                          z.coerce.number().positive("ARV must be greater than 0").optional()
                        ),
     notes:             z.string().max(1000, "Notes must be 1000 characters or fewer").optional(),
+    closeOfEscrow:     z.preprocess(
+                         (v) => (v === "" || v == null ? undefined : v),
+                         z.coerce.number().positive("Close of escrow must be greater than 0").optional()
+                       ),
     sendNotifications: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {

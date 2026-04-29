@@ -523,6 +523,8 @@ CREATE TABLE deals (
     zip_code        VARCHAR(10)        NOT NULL,
     -- Property details stored directly (fetched from SFR when address provided)
     price           DECIMAL(15, 2),
+    potential_arv   DECIMAL(15, 2),
+    close_of_escrow DECIMAL(15, 2),
     beds            INTEGER,
     baths           DECIMAL(3, 1),
     sqft            INTEGER,

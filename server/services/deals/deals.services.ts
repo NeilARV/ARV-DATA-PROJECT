@@ -219,9 +219,10 @@ export async function getDeals(filters: GetDealsFilters) {
             city:         deals.city,
             state:        deals.state,
             zipCode:      deals.zipCode,
-            price:        deals.price,
-            potentialARV: deals.potentialARV,
-            beds:         deals.beds,
+            price:         deals.price,
+            potentialARV:  deals.potentialARV,
+            closeOfEscrow: deals.closeOfEscrow,
+            beds:          deals.beds,
             baths:        deals.baths,
             sqft:         deals.sqft,
             propertyType: deals.propertyType,
@@ -300,7 +301,7 @@ export async function getDeals(filters: GetDealsFilters) {
 // ── POST deal ──────────────────────────────────────────────────────────────────
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes, links } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, beds, baths, sqft, propertyType, notes, links } = input;
 
     const addressStr     = typeof address === "string" ? address.trim() : "";
     const hasAddress     = addressStr.length > 0;
@@ -366,7 +367,8 @@ export async function createDeal(input: CreateDealInput) {
             state:         state.toUpperCase().trim(),
             zipCode:       String(zipCode).trim(),
             price:         String(price),
-            potentialARV:           potentialARV != null ? String(potentialARV) : null,
+            potentialARV:  potentialARV  != null ? String(potentialARV)  : null,
+            closeOfEscrow: closeOfEscrow != null ? String(closeOfEscrow) : null,
             beds:          resolvedBeds,
             baths:         resolvedBaths != null ? String(resolvedBaths) : null,
             sqft:          resolvedSqft,
@@ -550,7 +552,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, potentialARV, beds, baths, sqft, propertyType, notes, links } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, beds, baths, sqft, propertyType, notes, links } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -595,7 +597,8 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             state:        state        !== undefined ? mergedState  : undefined,
             zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
             price:        price        !== undefined ? String(price) : undefined,
-            potentialARV:          potentialARV          !== undefined ? (potentialARV != null ? String(potentialARV) : null) : undefined,
+            potentialARV:  potentialARV  !== undefined ? (potentialARV  != null ? String(potentialARV)  : null) : undefined,
+            closeOfEscrow: closeOfEscrow !== undefined ? (closeOfEscrow != null ? String(closeOfEscrow) : null) : undefined,
             type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
             beds:         incomingFullAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
             baths:        incomingFullAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),

@@ -63,6 +63,7 @@ export default function DealCard({
 
     const price = deal.price ? Number(deal.price) : null;
     const potentialARV = deal.potentialARV ? Number(deal.potentialARV) : null;
+    const closeOfEscrow = deal.closeOfEscrow ? Number(deal.closeOfEscrow) : null;
     const beds = deal.beds ? Number(deal.beds) : null;
     const baths = deal.baths || null;
     const sqft = deal.sqft ? Number(deal.sqft) : null;
@@ -171,22 +172,29 @@ export default function DealCard({
                     </div>
                 )}
 
-                {(price !== null || potentialARV !== null) && (
-                    <div className="flex items-center gap-6 text-sm">
-                        {price !== null && price > 0 && (
-                            <div className="flex flex-col">
-                            <span className="text-sm text-muted-foreground">Purchase Price</span>
-                            <span className="text-xl font-bold text-foreground">${price.toLocaleString()}</span>
-                            </div>
-                        )}
-                        {potentialARV !== null && potentialARV > 0 && (
-                            <div className="flex flex-col">
-                            <span className="text-sm text-muted-foreground">Potential ARV</span>
-                            <span className="text-xl font-bold text-[#2e7d32]">${potentialARV.toLocaleString()}</span>
-                            </div>
-                        )}
+                <div className="flex items-center gap-6 text-sm">
+                    <div className="flex flex-col">
+                        <span className="text-sm text-muted-foreground">Purchase Price</span>
+                        {price !== null && price > 0
+                            ? <span className="text-xl font-bold text-foreground">${price.toLocaleString()}</span>
+                            : <span className="text-xl font-bold text-muted-foreground">-</span>
+                        }
                     </div>
-                )}
+                    <div className="flex flex-col">
+                        <span className="text-sm text-muted-foreground">Potential ARV</span>
+                        {potentialARV !== null && potentialARV > 0
+                            ? <span className="text-xl font-bold text-[#2e7d32]">${potentialARV.toLocaleString()}</span>
+                            : <span className="text-xl font-bold text-muted-foreground">-</span>
+                        }
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm text-muted-foreground">Close of Escrow</span>
+                        {closeOfEscrow !== null && closeOfEscrow > 0
+                            ? <span className="text-xl font-bold text-foreground">${closeOfEscrow.toLocaleString()}</span>
+                            : <span className="text-xl font-bold text-muted-foreground">-</span>
+                        }
+                    </div>
+                </div>
 
                 <div className="flex flex-col">
                     <span className="text-sm text-muted-foreground">Posted</span>

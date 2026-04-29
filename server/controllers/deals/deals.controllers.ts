@@ -37,7 +37,7 @@ export async function createDealController(req: Request, res: Response): Promise
     try {
         const {
             address, city, state, zipCode,
-            userId, dealType, price, potentialARV,
+            userId, dealType, price, potentialARV, closeOfEscrow,
             beds, baths, sqft, propertyType,
             notes, sendNotifications, links,
         } = req.body;
@@ -65,7 +65,7 @@ export async function createDealController(req: Request, res: Response): Promise
 
         const { deal, msaId } = await createDeal({
             address, city, state, zipCode,
-            userId, dealType, price, potentialARV,
+            userId, dealType, price, potentialARV, closeOfEscrow,
             beds, baths, sqft, propertyType,
             notes, sendNotifications, links,
         });
@@ -96,14 +96,14 @@ export async function updateDealController(req: Request, res: Response): Promise
 
         const {
             address, city, state, zipCode,
-            dealType, price, potentialARV,
+            dealType, price, potentialARV, closeOfEscrow,
             beds, baths, sqft, propertyType,
             notes, links,
         } = req.body;
 
         const updated = await updateDeal(id, callerId, {
             address, city, state, zipCode,
-            dealType, price, potentialARV,
+            dealType, price, potentialARV, closeOfEscrow,
             beds, baths, sqft, propertyType,
             notes, links,
         });
