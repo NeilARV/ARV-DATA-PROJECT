@@ -16,32 +16,11 @@ router.get("/roles", requireRole(["admin", "owner"]), UsersController.listRolesH
 // GET /account-types — list all account type options
 router.get("/account-types", requireRole(["admin", "owner", "relationship-manager", "member"]), UsersController.listAccountTypesHandler);
 
-// POST /:userId/relationship-managers — assign a relationship manager to a user
-router.post("/:userId/relationship-managers", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignRelationshipManagerHandler);
-
-// DELETE /:userId/relationship-managers/:relationshipManagerId — remove a relationship manager from a user
-router.delete("/:userId/relationship-managers/:relationshipManagerId", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeRelationshipManagerHandler);
-
 // POST /:userId/roles — assign an ARV team role to a user
 router.post("/:userId/roles", requireRole(["admin", "owner"]), UsersController.assignRoleHandler);
 
 // DELETE /:userId/roles/:role — remove an ARV team role from a user
 router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), UsersController.removeRoleHandler);
-
-// POST /:userId/subscription-tier — assign a tier role (fails 409 if user already has one)
-router.post("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignUserTierRoleHandler);
-
-// PATCH /:userId/subscription-tier — update/change tier role
-router.patch("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.updateUserTierRoleHandler);
-
-// DELETE /:userId/subscription-tier — remove tier role
-router.delete("/:userId/subscription-tier", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeUserTierRoleHandler);
-
-// POST /:userId/account-types — assign an account type to a user
-router.post("/:userId/account-types", requireRole(["admin", "owner", "relationship-manager"]), UsersController.assignAccountTypeHandler);
-
-// DELETE /:userId/account-types/:accountType — remove an account type from a user
-router.delete("/:userId/account-types/:accountType", requireRole(["admin", "owner", "relationship-manager"]), UsersController.removeAccountTypeHandler);
 
 // DELETE /:userId — delete a user account
 router.delete("/:userId", requireRole(["admin", "owner"]), UsersController.deleteUserHandler);

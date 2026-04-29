@@ -115,15 +115,6 @@ export async function findUserProfile(userId: string) {
     return user ?? null;
 }
 
-export async function findUserWithTierRole(userId: string) {
-    const [row] = await db
-        .select({ id: users.id, subscriptionTier: subscriptions.name })
-        .from(users)
-        .leftJoin(subscriptions, eq(users.subscriptionId, subscriptions.id))
-        .where(eq(users.id, userId))
-        .limit(1);
-    return row ?? null;
-}
 
 export async function getCallerTeamRoleRows(callerId: string) {
     return db
@@ -182,14 +173,6 @@ export async function deleteAllRMAssignmentsForManager(managerId: string) {
         .where(eq(userRelationshipManagers.relationshipManagerId, managerId));
 }
 
-export async function checkExistingRMAssignment(userId: string) {
-    const rows = await db
-        .select({ userId: userRelationshipManagers.userId })
-        .from(userRelationshipManagers)
-        .where(eq(userRelationshipManagers.userId, userId))
-        .limit(1);
-    return rows.length > 0;
-}
 
 export async function updateUserTierRole(userId: string, tierName: string | null) {
     if (tierName === null) {
@@ -234,14 +217,6 @@ export async function findAccountTypeByName(name: string) {
     return row ?? null;
 }
 
-export async function checkAccountTypeAssigned(userId: string, accountTypeId: number) {
-    const rows = await db
-        .select()
-        .from(userAccountTypes)
-        .where(and(eq(userAccountTypes.userId, userId), eq(userAccountTypes.accountTypeId, accountTypeId)))
-        .limit(1);
-    return rows.length > 0;
-}
 
 export async function insertUserAccountType(userId: string, accountTypeId: number) {
     await db.insert(userAccountTypes).values({ userId, accountTypeId });
