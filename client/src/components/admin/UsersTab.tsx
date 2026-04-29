@@ -24,7 +24,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, Phone, Trash2, Users, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, Mail, MoreVertical, Phone, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
@@ -318,9 +324,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                       <TableHead>Relationship Manager</TableHead>
                       <TableHead className="w-[140px]">Account Tier</TableHead>
                       <TableHead>Account Types</TableHead>
-                      {canDeleteUser && (
-                        <TableHead className="w-[80px] text-right">Actions</TableHead>
-                      )}
+                      <TableHead className="w-[60px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -488,7 +492,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {user.accountTypes?.map((typeName) => (
                               <Badge
@@ -558,27 +562,42 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                             )}
                           </div>
                         </TableCell>
-                        {canDeleteUser && (
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              aria-label={`Delete user ${user.firstName} ${user.lastName}`}
-                              disabled={deleteUserMutation.isPending}
-                              onClick={() =>
-                                setDeleteUserConfirm({
-                                  userId: user.id,
-                                  userName: `${user.firstName} ${user.lastName}`,
-                                })
-                              }
-                              data-testid={`button-delete-user-${user.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        )}
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label="User actions"
+                                data-testid={`button-user-actions-${user.id}`}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>
+                                Edit User
+                              </DropdownMenuItem>
+                              {canDeleteUser && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  disabled={deleteUserMutation.isPending}
+                                  onClick={() =>
+                                    setDeleteUserConfirm({
+                                      userId: user.id,
+                                      userName: `${user.firstName} ${user.lastName}`,
+                                    })
+                                  }
+                                  data-testid={`button-delete-user-${user.id}`}
+                                >
+                                  Delete User
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
