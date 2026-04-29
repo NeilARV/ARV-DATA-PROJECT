@@ -23,7 +23,7 @@ router.post("/:userId/roles", requireRole(["admin", "owner"]), UsersController.a
 router.delete("/:userId/roles/:role", requireRole(["admin", "owner"]), UsersController.removeRoleHandler);
 
 // PATCH /:userId — update a user's subscription tier, account types, and relationship manager
-router.patch("/:userId", requireRole(["admin", "owner", "relationship-manager"]), UsersController.patchUserHandler);
+router.patch("/:userId", requireRole(["admin", "owner"]), UsersController.patchUserHandler);
 
 // DELETE /:userId — delete a user account
 router.delete("/:userId", requireRole(["admin", "owner"]), UsersController.deleteUserHandler);
