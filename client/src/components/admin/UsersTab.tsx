@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
-import type { AdminUser, RelationshipManager, UsersTabProps } from "@/types/admin";
+import type { AdminUser, AccountTypeOption, RelationshipManager, UsersTabProps } from "@/types/admin";
 
 function parseRoleApiError(error: unknown): string {
   let message = "Something went wrong";
@@ -52,7 +52,7 @@ function parseRoleApiError(error: unknown): string {
 
 const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
 
-export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubscriptionTier = false, canManageRelationshipManagers = false }: UsersTabProps) {
+export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubscriptionTier = false, canManageRelationshipManagers = false, canManageAccountTypes = false }: UsersTabProps) {
   const { toast } = useToast();
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
@@ -74,6 +74,13 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
     roleName: string;
     action: "assign" | "remove";
   } | null>(null);
+  const [accountTypeConfirm, setAccountTypeConfirm] = useState<{
+    open: boolean;
+    userId: string;
+    userName: string;
+    accountTypeName: string;
+    action: "assign" | "remove";
+  } | null>(null);
 
   const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
     queryKey: ["/api/users/?excludeDomain=arvfinance.com"],
@@ -82,6 +89,11 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
 
   const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
     queryKey: ["/api/users/relationship-managers"],
+    enabled: isAdmin,
+  });
+
+  const { data: accountTypesList = [] } = useQuery<AccountTypeOption[]>({
+    queryKey: ["/api/users/account-types"],
     enabled: isAdmin,
   });
 
@@ -198,6 +210,48 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
     },
   });
 
+  const assignAccountTypeMutation = useMutation({
+    mutationFn: async ({ userId, accountTypeName }: { userId: string; accountTypeName: string }) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/account-types`, { accountTypeName });
+      return res.json();
+    },
+    onSuccess: (_, { accountTypeName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
+      toast({ title: "Account type assigned", description: `"${accountTypeName}" has been assigned.` });
+      setAccountTypeConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({ title: "Error", description: parseRoleApiError(error), variant: "destructive" });
+    },
+  });
+
+  const removeAccountTypeMutation = useMutation({
+    mutationFn: async ({ userId, accountTypeName }: { userId: string; accountTypeName: string }) => {
+      const encoded = encodeURIComponent(accountTypeName);
+      const res = await apiRequest("DELETE", `/api/users/${userId}/account-types/${encoded}`);
+      return res.json();
+    },
+    onSuccess: (_, { accountTypeName }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/?excludeDomain=arvfinance.com"] });
+      toast({ title: "Account type removed", description: `"${accountTypeName}" has been removed.` });
+      setAccountTypeConfirm(null);
+    },
+    onError: (error: unknown) => {
+      toast({ title: "Error", description: parseRoleApiError(error), variant: "destructive" });
+    },
+  });
+
+  const handleAccountTypeConfirm = () => {
+    if (!accountTypeConfirm) return;
+    if (accountTypeConfirm.action === "assign") {
+      assignAccountTypeMutation.mutate({ userId: accountTypeConfirm.userId, accountTypeName: accountTypeConfirm.accountTypeName });
+    } else {
+      removeAccountTypeMutation.mutate({ userId: accountTypeConfirm.userId, accountTypeName: accountTypeConfirm.accountTypeName });
+    }
+  };
+
+  const isAccountTypeMutationPending = assignAccountTypeMutation.isPending || removeAccountTypeMutation.isPending;
+
   const handleRoleConfirm = () => {
     if (!roleConfirm) return;
     if (roleConfirm.action === "assign") {
@@ -264,6 +318,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                       <TableHead>Phone</TableHead>
                       <TableHead>Relationship Manager</TableHead>
                       <TableHead className="w-[140px]">Account Tier</TableHead>
+                      <TableHead>Account Types</TableHead>
                       {canDeleteUser && (
                         <TableHead className="w-[80px] text-right">Actions</TableHead>
                       )}
@@ -424,6 +479,76 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                             )}
                           </div>
                         </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {user.accountTypes?.map((typeName) => (
+                              <Badge
+                                key={typeName}
+                                variant="secondary"
+                                className={canManageAccountTypes ? "gap-0.5 pr-0.5 font-normal" : "font-normal"}
+                              >
+                                {typeName}
+                                {canManageAccountTypes && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
+                                    aria-label={`Remove ${typeName}`}
+                                    disabled={isAccountTypeMutationPending}
+                                    onClick={() =>
+                                      setAccountTypeConfirm({
+                                        open: true,
+                                        userId: user.id,
+                                        userName: `${user.firstName} ${user.lastName}`,
+                                        accountTypeName: typeName,
+                                        action: "remove",
+                                      })
+                                    }
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </Badge>
+                            ))}
+                            {canManageAccountTypes &&
+                              accountTypesList.some((t) => !user.accountTypes?.includes(t.name)) && (
+                              <Select
+                                value=""
+                                onValueChange={(value) => {
+                                  if (!value) return;
+                                  setAccountTypeConfirm({
+                                    open: true,
+                                    userId: user.id,
+                                    userName: `${user.firstName} ${user.lastName}`,
+                                    accountTypeName: value,
+                                    action: "assign",
+                                  });
+                                }}
+                                disabled={isAccountTypeMutationPending}
+                              >
+                                <SelectTrigger
+                                  className="h-7 w-[120px] border-dashed"
+                                  data-testid={`select-add-account-type-${user.id}`}
+                                >
+                                  <SelectValue placeholder="Add type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {accountTypesList
+                                    .filter((t) => !user.accountTypes?.includes(t.name))
+                                    .map((t) => (
+                                      <SelectItem key={t.id} value={t.name} hideIndicator data-testid={`option-account-type-${t.name}`}>
+                                        {t.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                            {!canManageAccountTypes && !user.accountTypes?.length && (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </div>
+                        </TableCell>
                         {canDeleteUser && (
                           <TableCell className="text-right">
                             <Button
@@ -474,6 +599,25 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
             cancelText="Cancel"
             variant={managerConfirm?.action === "remove" ? "destructive" : "default"}
             isLoading={isManagerMutationPending}
+          />
+        </AppDialog>
+
+        <AppDialog open={accountTypeConfirm?.open ?? false} onClose={() => setAccountTypeConfirm(null)} className="max-w-md">
+          <ConfirmationContent
+            onClose={() => setAccountTypeConfirm(null)}
+            onConfirm={handleAccountTypeConfirm}
+            title={accountTypeConfirm?.action === "assign" ? "Assign account type" : "Remove account type"}
+            description={
+              accountTypeConfirm
+                ? accountTypeConfirm.action === "assign"
+                  ? `Assign the "${accountTypeConfirm.accountTypeName}" type to ${accountTypeConfirm.userName}?`
+                  : `Remove the "${accountTypeConfirm.accountTypeName}" type from ${accountTypeConfirm.userName}?`
+                : ""
+            }
+            confirmText={accountTypeConfirm?.action === "assign" ? "Assign" : "Remove"}
+            cancelText="Cancel"
+            variant={accountTypeConfirm?.action === "remove" ? "destructive" : "default"}
+            isLoading={isAccountTypeMutationPending}
           />
         </AppDialog>
 

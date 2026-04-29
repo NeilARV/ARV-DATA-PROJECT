@@ -32,6 +32,12 @@ export type AdminUser = {
   roles: string[];
   subscriptionTier: string | null;
   relationshipManagers?: RelationshipManagerAssignment[];
+  accountTypes: string[];
+}
+
+export type AccountTypeOption = {
+  id: number;
+  name: string;
 }
 
 export type RoleOption = {
@@ -56,6 +62,7 @@ export type UsersTabProps = {
   canDeleteUser?: boolean;
   canManageSubscriptionTier?: boolean;
   canManageRelationshipManagers?: boolean;
+  canManageAccountTypes?: boolean;
 }
 
 export type EmailListTabProps = {

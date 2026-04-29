@@ -177,7 +177,7 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="users">
-          <UsersTab isAdmin={canAccessAdminPanel} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} canManageRelationshipManagers={canManageSubscriptionTier} />
+          <UsersTab isAdmin={canAccessAdminPanel} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} canManageRelationshipManagers={canManageSubscriptionTier} canManageAccountTypes={canManageSubscriptionTier} />
         </TabsContent>
 
         <TabsContent value="email-list">

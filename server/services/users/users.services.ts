@@ -1,4 +1,4 @@
-import { users, roles, userRoles, userRelationshipManagers, subscriptions } from "@database/schemas/users.schema";
+import { users, roles, userRoles, userRelationshipManagers, subscriptions, accountTypes, userAccountTypes } from "@database/schemas/users.schema";
 import { db } from "server/storage";
 import { desc, asc, eq, and, inArray, ilike, sql } from "drizzle-orm";
 
@@ -207,4 +207,49 @@ export async function updateUserTierRole(userId: string, tierName: string | null
 
 export async function deleteUserAccount(userId: string) {
     await db.delete(users).where(eq(users.id, userId));
+}
+
+export async function getAllAccountTypes() {
+    return db
+        .select({ id: accountTypes.id, name: accountTypes.name })
+        .from(accountTypes)
+        .orderBy(asc(accountTypes.id));
+}
+
+export async function getUserAccountTypeRows(userIds: string[]) {
+    if (userIds.length === 0) return [];
+    return db
+        .select({ userId: userAccountTypes.userId, accountTypeName: accountTypes.name })
+        .from(userAccountTypes)
+        .innerJoin(accountTypes, eq(userAccountTypes.accountTypeId, accountTypes.id))
+        .where(inArray(userAccountTypes.userId, userIds));
+}
+
+export async function findAccountTypeByName(name: string) {
+    const [row] = await db
+        .select()
+        .from(accountTypes)
+        .where(eq(accountTypes.name, name))
+        .limit(1);
+    return row ?? null;
+}
+
+export async function checkAccountTypeAssigned(userId: string, accountTypeId: number) {
+    const rows = await db
+        .select()
+        .from(userAccountTypes)
+        .where(and(eq(userAccountTypes.userId, userId), eq(userAccountTypes.accountTypeId, accountTypeId)))
+        .limit(1);
+    return rows.length > 0;
+}
+
+export async function insertUserAccountType(userId: string, accountTypeId: number) {
+    await db.insert(userAccountTypes).values({ userId, accountTypeId });
+}
+
+export async function deleteUserAccountTypeAssignment(userId: string, accountTypeId: number) {
+    return db
+        .delete(userAccountTypes)
+        .where(and(eq(userAccountTypes.userId, userId), eq(userAccountTypes.accountTypeId, accountTypeId)))
+        .returning({ userId: userAccountTypes.userId, accountTypeId: userAccountTypes.accountTypeId });
 }

@@ -56,9 +56,10 @@ export async function listUsersHandler(req: Request, res: Response) {
         const allUsers = await UsersServices.getUserList({ domain, excludeDomain });
         const userIds = allUsers.map((u) => u.id);
 
-        const [roleRows, rmRows] = await Promise.all([
+        const [roleRows, rmRows, accountTypeRows] = await Promise.all([
             UsersServices.getUserRoleRows(userIds),
             UsersServices.getUserRelationshipManagerRows(userIds),
+            UsersServices.getUserAccountTypeRows(userIds),
         ]);
 
         const rolesByUserId = new Map<string, string[]>();
@@ -82,11 +83,19 @@ export async function listUsersHandler(req: Request, res: Response) {
             relationshipManagersByUserId.set(row.userId, list);
         }
 
+        const accountTypesByUserId = new Map<string, string[]>();
+        for (const row of accountTypeRows) {
+            const list = accountTypesByUserId.get(row.userId) ?? [];
+            list.push(row.accountTypeName);
+            accountTypesByUserId.set(row.userId, list);
+        }
+
         const usersWithRoles = allUsers.map(({ subscriptionTier, ...u }) => ({
             ...u,
             roles: rolesByUserId.get(u.id) ?? [],
             subscriptionTier: subscriptionTier ?? null,
             relationshipManagers: relationshipManagersByUserId.get(u.id) ?? [],
+            accountTypes: accountTypesByUserId.get(u.id) ?? [],
         }));
 
         return res.json(usersWithRoles);
@@ -442,6 +451,72 @@ export async function removeUserTierRoleHandler(req: Request, res: Response) {
     } catch (error) {
         console.error("Error removing user role:", error);
         return res.status(500).json({ message: "Error removing user role" });
+    }
+}
+
+// GET /account-types — list all account type options
+export async function listAccountTypesHandler(_req: Request, res: Response) {
+    try {
+        const types = await UsersServices.getAllAccountTypes();
+        return res.json(types);
+    } catch (error) {
+        console.error("Error fetching account types:", error);
+        return res.status(500).json({ message: "Error fetching account types" });
+    }
+}
+
+// POST /:userId/account-types — assign an account type to a user
+export async function assignAccountTypeHandler(req: Request, res: Response) {
+    try {
+        const { userId } = req.params;
+        const accountTypeName = typeof req.body?.accountTypeName === "string"
+            ? req.body.accountTypeName.trim().toLowerCase()
+            : null;
+
+        if (!accountTypeName) {
+            return res.status(400).json({ message: "accountTypeName is required" });
+        }
+
+        const targetUser = await UsersServices.findUserById(userId);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        const accountTypeRow = await UsersServices.findAccountTypeByName(accountTypeName);
+        if (!accountTypeRow) return res.status(400).json({ message: "Invalid account type" });
+
+        const alreadyAssigned = await UsersServices.checkAccountTypeAssigned(userId, accountTypeRow.id);
+        if (alreadyAssigned) return res.status(409).json({ message: "User already has this account type" });
+
+        await UsersServices.insertUserAccountType(userId, accountTypeRow.id);
+        return res.status(201).json({ message: "Account type assigned", userId, accountTypeName });
+    } catch (error) {
+        console.error("Error assigning account type:", error);
+        return res.status(500).json({ message: "Error assigning account type" });
+    }
+}
+
+// DELETE /:userId/account-types/:accountType — remove an account type from a user
+export async function removeAccountTypeHandler(req: Request, res: Response) {
+    try {
+        const { userId, accountType: accountTypeParam } = req.params;
+        const accountTypeName = accountTypeParam?.trim().toLowerCase() ?? "";
+
+        if (!accountTypeName) {
+            return res.status(400).json({ message: "accountType param is required" });
+        }
+
+        const targetUser = await UsersServices.findUserById(userId);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+        const accountTypeRow = await UsersServices.findAccountTypeByName(accountTypeName);
+        if (!accountTypeRow) return res.status(400).json({ message: "Invalid account type" });
+
+        const deleted = await UsersServices.deleteUserAccountTypeAssignment(userId, accountTypeRow.id);
+        if (deleted.length === 0) return res.status(404).json({ message: "User does not have this account type" });
+
+        return res.status(200).json({ message: "Account type removed", userId, accountTypeName });
+    } catch (error) {
+        console.error("Error removing account type:", error);
+        return res.status(500).json({ message: "Error removing account type" });
     }
 }
 
