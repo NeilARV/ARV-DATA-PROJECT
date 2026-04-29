@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
+
+export const adminPatchUserSchema = z.object({
+  subscriptionTier: z.enum(SUBSCRIPTION_TIERS).nullable().optional(),
+  accountTypes: z.array(z.string().min(1)).optional(),
+  relationshipManagerId: z.string().uuid().nullable().optional(),
+});
+
+export type AdminPatchUser = z.infer<typeof adminPatchUserSchema>;
+
 export const updateUserProfileSchema = z.object({
   firstName: z.string().min(1, "First name is required").optional(),
   lastName: z.string().min(1, "Last name is required").optional(),

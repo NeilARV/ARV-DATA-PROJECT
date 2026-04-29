@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { UsersServices } from "server/services/users";
 import { UserServices } from "server/services/auth";
+import { adminPatchUserSchema } from "@database/updates/users.update";
 import {
     listSenderSignatures,
     createSenderSignature,
@@ -15,9 +16,6 @@ const ASSIGNABLE_BY_CALLER: Record<string, string[]> = {
     "relationship-manager": [],
 };
 const VALID_ROLE_NAMES = ["owner", "admin", "relationship-manager", "member"] as const;
-
-/** Valid values for the users.subscription_tier column. */
-const VALID_SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
 
 /** Hierarchy: higher number = more privilege. Used to block altering users with equal or higher privilege. */
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -56,9 +54,10 @@ export async function listUsersHandler(req: Request, res: Response) {
         const allUsers = await UsersServices.getUserList({ domain, excludeDomain });
         const userIds = allUsers.map((u) => u.id);
 
-        const [roleRows, rmRows] = await Promise.all([
+        const [roleRows, rmRows, accountTypeRows] = await Promise.all([
             UsersServices.getUserRoleRows(userIds),
             UsersServices.getUserRelationshipManagerRows(userIds),
+            UsersServices.getUserAccountTypeRows(userIds),
         ]);
 
         const rolesByUserId = new Map<string, string[]>();
@@ -82,11 +81,19 @@ export async function listUsersHandler(req: Request, res: Response) {
             relationshipManagersByUserId.set(row.userId, list);
         }
 
+        const accountTypesByUserId = new Map<string, string[]>();
+        for (const row of accountTypeRows) {
+            const list = accountTypesByUserId.get(row.userId) ?? [];
+            list.push(row.accountTypeName);
+            accountTypesByUserId.set(row.userId, list);
+        }
+
         const usersWithRoles = allUsers.map(({ subscriptionTier, ...u }) => ({
             ...u,
             roles: rolesByUserId.get(u.id) ?? [],
             subscriptionTier: subscriptionTier ?? null,
             relationshipManagers: relationshipManagersByUserId.get(u.id) ?? [],
+            accountTypes: accountTypesByUserId.get(u.id) ?? [],
         }));
 
         return res.json(usersWithRoles);
@@ -123,62 +130,6 @@ export async function listRelationshipManagersHandler(_req: Request, res: Respon
     } catch (error) {
         console.error("Error fetching relationship managers:", error);
         return res.status(500).json({ message: "Error fetching relationship managers" });
-    }
-}
-
-// POST /:userId/relationship-managers — assign a relationship manager to a user
-export async function assignRelationshipManagerHandler(req: Request, res: Response) {
-    try {
-        const { userId } = req.params;
-        const body = req.body as { relationshipManagerId?: string };
-        const relationshipManagerId = body?.relationshipManagerId;
-
-        if (!relationshipManagerId || typeof relationshipManagerId !== "string") {
-            return res.status(400).json({ message: "relationshipManagerId is required" });
-        }
-
-        const isRM = await UsersServices.checkUserHasRoleByName(relationshipManagerId, "relationship-manager");
-        if (!isRM) {
-            return res.status(400).json({ message: "Selected user is not a relationship manager" });
-        }
-
-        const [targetUser] = await UserServices.getUserById(userId);
-        if (!targetUser) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        const alreadyHasRM = await UsersServices.checkExistingRMAssignment(userId);
-        if (alreadyHasRM) {
-            return res.status(400).json({ message: "User already has a relationship manager" });
-        }
-
-        await UserServices.addUserRelationshipManager(userId, relationshipManagerId);
-        return res.status(201).json({ message: "Relationship manager assigned" });
-    } catch (error) {
-        console.error("Error assigning relationship manager:", error);
-        return res.status(500).json({ message: "Error assigning relationship manager" });
-    }
-}
-
-// DELETE /:userId/relationship-managers/:relationshipManagerId — remove a relationship manager from a user
-export async function removeRelationshipManagerHandler(req: Request, res: Response) {
-    try {
-        const { userId, relationshipManagerId } = req.params;
-
-        if (!userId || !relationshipManagerId) {
-            return res.status(400).json({ message: "userId and relationshipManagerId are required" });
-        }
-
-        const [targetUser] = await UserServices.getUserById(userId);
-        if (!targetUser) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        await UserServices.removeUserRelationshipManager(userId, relationshipManagerId);
-        return res.status(200).json({ message: "Relationship manager removed" });
-    } catch (error) {
-        console.error("Error removing relationship manager:", error);
-        return res.status(500).json({ message: "Error removing relationship manager" });
     }
 }
 
@@ -361,87 +312,75 @@ export async function removeRoleHandler(req: Request, res: Response) {
     }
 }
 
-// POST /:userId/user-role — assign a tier role (fails 409 if user already has one)
-export async function assignUserTierRoleHandler(req: Request, res: Response) {
+// GET /account-types — list all account type options
+export async function listAccountTypesHandler(_req: Request, res: Response) {
     try {
-        const { userId } = req.params;
-        const role = typeof req.body?.role === "string" ? req.body.role.trim().toLowerCase() : null;
-
-        if (!role || !VALID_SUBSCRIPTION_TIERS.includes(role as (typeof VALID_SUBSCRIPTION_TIERS)[number])) {
-            return res.status(400).json({ message: "Invalid or missing subscription tier", allowed: VALID_SUBSCRIPTION_TIERS });
-        }
-
-        const callerTeamRoles = await UsersServices.getCallerTeamRoleRows(req.session.userId!);
-        if (userId !== req.session.userId) {
-            const targetRoleRows = await UsersServices.getUserTeamRoleRows(userId);
-            if (getCallerLevel(callerTeamRoles) <= getTargetLevel(targetRoleRows.map((r) => r.roleName))) {
-                return res.status(403).json({ message: "You cannot alter roles of a user with equal or higher permissions" });
-            }
-        }
-
-        const targetUser = await UsersServices.findUserWithTierRole(userId);
-        if (!targetUser) return res.status(404).json({ message: "User not found" });
-        if (targetUser.subscriptionTier !== null) return res.status(409).json({ message: "User already has a subscription tier — use PATCH to change it" });
-
-        await UsersServices.updateUserTierRole(userId, role);
-        return res.status(201).json({ message: "User role assigned", userId, role });
+        const types = await UsersServices.getAllAccountTypes();
+        return res.json(types);
     } catch (error) {
-        console.error("Error assigning user role:", error);
-        return res.status(500).json({ message: "Error assigning user role" });
+        console.error("Error fetching account types:", error);
+        return res.status(500).json({ message: "Error fetching account types" });
     }
 }
 
-// PATCH /:userId/user-role — update/change tier role (replaces existing or sets if null)
-export async function updateUserTierRoleHandler(req: Request, res: Response) {
+// PATCH /:userId — update a user's subscription tier, account types, and relationship manager
+export async function patchUserHandler(req: Request, res: Response) {
     try {
         const { userId } = req.params;
-        const role = typeof req.body?.role === "string" ? req.body.role.trim().toLowerCase() : null;
 
-        if (!role || !VALID_SUBSCRIPTION_TIERS.includes(role as (typeof VALID_SUBSCRIPTION_TIERS)[number])) {
-            return res.status(400).json({ message: "Invalid or missing subscription tier", allowed: VALID_SUBSCRIPTION_TIERS });
+        const validation = adminPatchUserSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ message: "Invalid request data", errors: validation.error.errors });
         }
 
-        const callerTeamRoles = await UsersServices.getCallerTeamRoleRows(req.session.userId!);
-        if (userId !== req.session.userId) {
-            const targetRoleRows = await UsersServices.getUserTeamRoleRows(userId);
-            if (getCallerLevel(callerTeamRoles) <= getTargetLevel(targetRoleRows.map((r) => r.roleName))) {
-                return res.status(403).json({ message: "You cannot alter roles of a user with equal or higher permissions" });
-            }
-        }
+        const { subscriptionTier, accountTypes, relationshipManagerId } = validation.data;
 
         const targetUser = await UsersServices.findUserById(userId);
-        if (!targetUser) return res.status(404).json({ message: "User not found" });
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
 
-        await UsersServices.updateUserTierRole(userId, role);
-        return res.status(200).json({ message: "User role updated", userId, role });
-    } catch (error) {
-        console.error("Error updating user role:", error);
-        return res.status(500).json({ message: "Error updating user role" });
-    }
-}
+        if (subscriptionTier !== undefined) {
+            await UsersServices.updateUserTierRole(userId, subscriptionTier);
+        }
 
-// DELETE /:userId/user-role — remove tier role (sets users.user_role to null)
-export async function removeUserTierRoleHandler(req: Request, res: Response) {
-    try {
-        const { userId } = req.params;
-
-        const callerTeamRoles = await UsersServices.getCallerTeamRoleRows(req.session.userId!);
-        if (userId !== req.session.userId) {
-            const targetRoleRows = await UsersServices.getUserTeamRoleRows(userId);
-            if (getCallerLevel(callerTeamRoles) <= getTargetLevel(targetRoleRows.map((r) => r.roleName))) {
-                return res.status(403).json({ message: "You cannot alter roles of a user with equal or higher permissions" });
+        if (relationshipManagerId !== undefined) {
+            const currentRMs = await UsersServices.getUserRelationshipManagerRows([userId]);
+            for (const rm of currentRMs) {
+                await UserServices.removeUserRelationshipManager(userId, rm.relationshipManagerId);
+            }
+            if (relationshipManagerId !== null) {
+                const isRM = await UsersServices.checkUserHasRoleByName(relationshipManagerId, "relationship-manager");
+                if (!isRM) {
+                    return res.status(400).json({ message: "Selected user is not a relationship manager" });
+                }
+                await UserServices.addUserRelationshipManager(userId, relationshipManagerId);
             }
         }
 
-        const targetUser = await UsersServices.findUserWithTierRole(userId);
-        if (!targetUser) return res.status(404).json({ message: "User not found" });
-        if (targetUser.subscriptionTier === null) return res.status(404).json({ message: "User does not have a subscription tier" });
+        if (accountTypes !== undefined) {
+            const currentRows = await UsersServices.getUserAccountTypeRows([userId]);
+            const currentNames = currentRows.map((r) => r.accountTypeName);
 
-        await UsersServices.updateUserTierRole(userId, null);
-        return res.status(200).json({ message: "User role removed", userId });
+            const toAdd = accountTypes.filter((t) => !currentNames.includes(t));
+            const toRemove = currentNames.filter((t) => !accountTypes.includes(t));
+
+            for (const typeName of toAdd) {
+                const row = await UsersServices.findAccountTypeByName(typeName);
+                if (!row) return res.status(400).json({ message: `Invalid account type: ${typeName}` });
+                await UsersServices.insertUserAccountType(userId, row.id);
+            }
+
+            for (const typeName of toRemove) {
+                const row = await UsersServices.findAccountTypeByName(typeName);
+                if (row) await UsersServices.deleteUserAccountTypeAssignment(userId, row.id);
+            }
+        }
+
+        return res.status(200).json({ message: "User updated", userId });
     } catch (error) {
-        console.error("Error removing user role:", error);
-        return res.status(500).json({ message: "Error removing user role" });
+        console.error("Error updating user:", error);
+        return res.status(500).json({ message: "Error updating user" });
     }
 }
 

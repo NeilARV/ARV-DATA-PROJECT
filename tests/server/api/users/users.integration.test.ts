@@ -14,13 +14,10 @@ vi.mock("server/controllers/users", () => ({
         listUsersHandler: vi.fn((_req, res) => res.status(200).json([])),
         listRelationshipManagersHandler: vi.fn((_req, res) => res.status(200).json([])),
         listRolesHandler: vi.fn((_req, res) => res.status(200).json([])),
-        assignRelationshipManagerHandler: vi.fn((_req, res) => res.status(201).json({})),
-        removeRelationshipManagerHandler: vi.fn((_req, res) => res.status(204).send()),
+        listAccountTypesHandler: vi.fn((_req, res) => res.status(200).json([])),
         assignRoleHandler: vi.fn((_req, res) => res.status(201).json({})),
         removeRoleHandler: vi.fn((_req, res) => res.status(204).send()),
-        assignUserTierRoleHandler: vi.fn((_req, res) => res.status(201).json({})),
-        updateUserTierRoleHandler: vi.fn((_req, res) => res.status(200).json({})),
-        removeUserTierRoleHandler: vi.fn((_req, res) => res.status(204).send()),
+        patchUserHandler: vi.fn((_req, res) => res.status(200).json({})),
         deleteUserHandler: vi.fn((_req, res) => res.status(204).send()),
     },
 }));
@@ -47,6 +44,12 @@ function listRelationshipManagers() {
 function listRoles() {
     return request(getApp())
         .get("/api/users/roles")
+        .set("x-test-user-id", ACTING_USER_ID);
+}
+
+function patchUser() {
+    return request(getApp())
+        .patch(`/api/users/${TARGET_USER_ID}`)
         .set("x-test-user-id", ACTING_USER_ID);
 }
 
@@ -163,6 +166,43 @@ describe("GET /api/users/roles — role enforcement (integration)", () => {
     describe("unauthenticated", () => {
         it("returns 401 when there is no session", async () => {
             const res = await request(getApp()).get("/api/users/roles");
+            expect(res.status).toBe(401);
+        });
+    });
+});
+
+describe("PATCH /api/users/:userId — role enforcement (integration)", () => {
+    describe("allowed roles", () => {
+        it("returns 200 when caller has admin role", async () => {
+            await assignRole(ACTING_USER_ID, "admin");
+            expect((await patchUser()).status).toBe(200);
+        });
+
+        it("returns 200 when caller has owner role", async () => {
+            await assignRole(ACTING_USER_ID, "owner");
+            expect((await patchUser()).status).toBe(200);
+        });
+    });
+
+    describe("blocked roles", () => {
+        it("returns 403 when caller has relationship-manager role", async () => {
+            await assignRole(ACTING_USER_ID, "relationship-manager");
+            expect((await patchUser()).status).toBe(403);
+        });
+
+        it("returns 403 when caller has member role", async () => {
+            await assignRole(ACTING_USER_ID, "member");
+            expect((await patchUser()).status).toBe(403);
+        });
+
+        it("returns 403 when caller has no roles", async () => {
+            expect((await patchUser()).status).toBe(403);
+        });
+    });
+
+    describe("unauthenticated", () => {
+        it("returns 401 when there is no session", async () => {
+            const res = await request(getApp()).patch(`/api/users/${TARGET_USER_ID}`);
             expect(res.status).toBe(401);
         });
     });

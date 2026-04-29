@@ -109,3 +109,4 @@ export async function createWhitelistEntry(req: Request, res: Response) {
         return res.status(500).json({ message: "Error adding email to whitelist" });
     }
 }
+

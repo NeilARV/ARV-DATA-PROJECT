@@ -74,6 +74,28 @@ export const userRoles = pgTable("user_roles", {
   (t) => [primaryKey({ columns: [t.userId, t.roleId] })]
 );
 
+// Account types lookup (agent, investor, wholesaler)
+export const accountTypes = pgTable("account_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User–account type assignment (many-to-many)
+export const userAccountTypes = pgTable("user_account_types", {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountTypeId: integer("account_type_id")
+      .notNull()
+      .references(() => accountTypes.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.accountTypeId] })]
+);
+
 // User–relationship manager assignment (many-to-many)
 export const userRelationshipManagers = pgTable("user_relationship_managers", {
     userId: uuid("user_id")
