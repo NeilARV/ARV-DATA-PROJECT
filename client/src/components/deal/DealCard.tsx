@@ -203,7 +203,7 @@ export default function DealCard({
                         )}
                         {deal.links && deal.links.length > 0 && (
                             <div className="flex flex-col gap-1">
-                                <span className="text-sm text-muted-foreground">Links</span>
+                                <span className="text-sm text-muted-foreground">Comparable Sale Links</span>
                                 <div className="flex flex-wrap gap-2">
                                     {deal.links.map((link, i) => (
                                         <a

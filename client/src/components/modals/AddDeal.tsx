@@ -411,7 +411,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium leading-none">
-                  Links <span className="text-muted-foreground font-normal">(optional, max 3)</span>
+                  Comparable Sale Links <span className="text-muted-foreground font-normal">(optional, max 3)</span>
                 </label>
                 <Button
                   type="button"
