@@ -35,6 +35,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
+import EditUserContent from "@/components/modals/EditUser";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { AdminUser, AccountTypeOption, RelationshipManager, UsersTabProps } from "@/types/admin";
 
@@ -60,6 +61,7 @@ const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
 
 export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubscriptionTier = false, canManageRelationshipManagers = false, canManageAccountTypes = false }: UsersTabProps) {
   const { toast } = useToast();
+  const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [addManagerSelectValue, setAddManagerSelectValue] = useState<Record<string, string>>({});
   const [managerConfirm, setManagerConfirm] = useState<{
     open: boolean;
@@ -577,7 +579,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setEditUser(user)}>
                                 Edit User
                               </DropdownMenuItem>
                               {canDeleteUser && (
@@ -683,6 +685,17 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
             variant="destructive"
             isLoading={deleteUserMutation.isPending}
           />
+        </AppDialog>
+
+        <AppDialog open={!!editUser} onClose={() => setEditUser(null)} className="max-w-md">
+          {editUser && (
+            <EditUserContent
+              user={editUser}
+              relationshipManagers={relationshipManagers}
+              accountTypesList={accountTypesList}
+              onClose={() => setEditUser(null)}
+            />
+          )}
         </AppDialog>
       </CardContent>
     </Card>

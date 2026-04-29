@@ -21,4 +21,7 @@ router.patch("/whitelist/:id", requireRole([...WHITELIST_ROLES]), AdminControlle
 // Add a new email to email whitelist
 router.post("/whitelist", requireRole([...WHITELIST_ROLES]), AdminController.createWhitelistEntry);
 
+// Admin update of a user's subscription tier, account types, and relationship manager
+router.patch("/users/:id", requireRole([...WHITELIST_ROLES]), AdminController.patchUser);
+
 export default router;
