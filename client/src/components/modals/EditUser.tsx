@@ -51,7 +51,7 @@ export default function EditUserContent({
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      await apiRequest("PATCH", `/api/admin/users/${user.id}`, {
+      await apiRequest("PATCH", `/api/users/${user.id}`, {
         subscriptionTier: selectedTier,
         accountTypes: selectedAccountTypes,
         relationshipManagerId: selectedRmId,

@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { UsersServices } from "server/services/users";
+import { UserServices } from "server/services/auth";
+import { adminPatchUserSchema } from "@database/updates/users.update";
 import {
     listSenderSignatures,
     createSenderSignature,
@@ -318,6 +320,67 @@ export async function listAccountTypesHandler(_req: Request, res: Response) {
     } catch (error) {
         console.error("Error fetching account types:", error);
         return res.status(500).json({ message: "Error fetching account types" });
+    }
+}
+
+// PATCH /:userId — update a user's subscription tier, account types, and relationship manager
+export async function patchUserHandler(req: Request, res: Response) {
+    try {
+        const { userId } = req.params;
+
+        const validation = adminPatchUserSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ message: "Invalid request data", errors: validation.error.errors });
+        }
+
+        const { subscriptionTier, accountTypes, relationshipManagerId } = validation.data;
+
+        const targetUser = await UsersServices.findUserById(userId);
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (subscriptionTier !== undefined) {
+            await UsersServices.updateUserTierRole(userId, subscriptionTier);
+        }
+
+        if (relationshipManagerId !== undefined) {
+            const currentRMs = await UsersServices.getUserRelationshipManagerRows([userId]);
+            for (const rm of currentRMs) {
+                await UserServices.removeUserRelationshipManager(userId, rm.relationshipManagerId);
+            }
+            if (relationshipManagerId !== null) {
+                const isRM = await UsersServices.checkUserHasRoleByName(relationshipManagerId, "relationship-manager");
+                if (!isRM) {
+                    return res.status(400).json({ message: "Selected user is not a relationship manager" });
+                }
+                await UserServices.addUserRelationshipManager(userId, relationshipManagerId);
+            }
+        }
+
+        if (accountTypes !== undefined) {
+            const currentRows = await UsersServices.getUserAccountTypeRows([userId]);
+            const currentNames = currentRows.map((r) => r.accountTypeName);
+
+            const toAdd = accountTypes.filter((t) => !currentNames.includes(t));
+            const toRemove = currentNames.filter((t) => !accountTypes.includes(t));
+
+            for (const typeName of toAdd) {
+                const row = await UsersServices.findAccountTypeByName(typeName);
+                if (!row) return res.status(400).json({ message: `Invalid account type: ${typeName}` });
+                await UsersServices.insertUserAccountType(userId, row.id);
+            }
+
+            for (const typeName of toRemove) {
+                const row = await UsersServices.findAccountTypeByName(typeName);
+                if (row) await UsersServices.deleteUserAccountTypeAssignment(userId, row.id);
+            }
+        }
+
+        return res.status(200).json({ message: "User updated", userId });
+    } catch (error) {
+        console.error("Error updating user:", error);
+        return res.status(500).json({ message: "Error updating user" });
     }
 }
 
