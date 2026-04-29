@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Trash2, Users, X } from "lucide-react";
+import { Loader2, Mail, Phone, Trash2, Users, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
@@ -314,8 +314,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                   <TableHeader className="sticky top-0 bg-background">
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
+                      <TableHead>Contact Information</TableHead>
                       <TableHead>Relationship Manager</TableHead>
                       <TableHead className="w-[140px]">Account Tier</TableHead>
                       <TableHead>Account Types</TableHead>
@@ -333,8 +332,18 @@ export default function UsersTab({ isAdmin, canDeleteUser = false, canManageSubs
                         <TableCell className="font-medium">
                           {user.firstName} {user.lastName}
                         </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{formatPhoneNumber(user.phone ?? "")}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <span className="flex items-center gap-1.5 text-sm">
+                              <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              {user.email}
+                            </span>
+                            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Phone className="w-3.5 h-3.5 shrink-0" />
+                              {formatPhoneNumber(user.phone ?? "")}
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {user.relationshipManagers?.length
