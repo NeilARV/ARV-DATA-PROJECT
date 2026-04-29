@@ -36,7 +36,7 @@ const STATE_DEFAULT_COUNTY: Record<string, string> = {
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, subscription, role } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -263,10 +263,12 @@ export default function Profile() {
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Account Type
+                  Account Level
                 </label>
                 <p className="text-base font-medium mt-1">
-                  {user.isAdmin ? "Administrator" : "Standard User"}
+                  {subscription
+                    ? subscription.charAt(0).toUpperCase() + subscription.slice(1)
+                    : "Free"}
                 </p>
               </div>
               <div>
@@ -298,6 +300,18 @@ export default function Profile() {
                   {format(new Date(user.createdAt), "MMMM d, yyyy 'at' h:mm a")}
                 </p>
               </div>
+              {role && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    ARV Role
+                  </label>
+                  <p className="text-base font-medium mt-1">
+                    {role === "relationship-manager"
+                      ? "Relationship Manager"
+                      : role.charAt(0).toUpperCase() + role.slice(1)}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4 pt-6 border-t">
