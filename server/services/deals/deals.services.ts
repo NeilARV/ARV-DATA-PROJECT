@@ -544,7 +544,22 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .limit(1);
 
     if (!existing) throw new DealServiceError(404, "Deal not found");
-    if (existing.userId !== callerId) throw new DealServiceError(403, "You can only edit your own deals");
+
+    if (existing.userId !== callerId) {
+        const callerIsPrivileged = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(and(
+                eq(userRoles.userId, callerId),
+                inArray(roles.name, ["admin", "owner"]),
+            ))
+            .limit(1);
+
+        if (callerIsPrivileged.length === 0) {
+            throw new DealServiceError(403, "You can only edit your own deals");
+        }
+    }
 
     const [current] = await db
         .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode })

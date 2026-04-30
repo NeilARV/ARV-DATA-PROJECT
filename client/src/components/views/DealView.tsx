@@ -89,7 +89,7 @@ export default function DealView() {
         key={deal.id}
         deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
         canDelete={canManageDeals || isOwnerOfDeal}
-        canEdit={user?.id === deal.userId}
+        canEdit={user?.id === deal.userId || isAdmin || isOwner}
         canRequestContact={canManageDeals || !isOwnerOfDeal}
         isOwner={isOwnerOfDealForTopBuyers}
         onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
