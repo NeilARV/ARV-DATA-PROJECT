@@ -67,7 +67,7 @@ export default function LeaderboardContent({ onClose }: LeaderboardContentProps)
       </DialogHeader>
 
       <p className="text-sm text-muted-foreground">
-        View the top flipping companies and zip codes{filters.county ? ` in ${filters.county} County` : ""}
+        View the most active companies and zip codes {filters.county ? ` in ${filters.county} County` : ""}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
