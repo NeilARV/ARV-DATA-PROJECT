@@ -531,6 +531,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                   />
                                   <YAxis hide />
                                   <Tooltip
+                                    cursor={false}
                                     contentStyle={{
                                       backgroundColor: "hsl(var(--background))",
                                       border: "1px solid hsl(var(--border))",
