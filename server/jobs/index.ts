@@ -15,6 +15,7 @@ import { scanWindowInit } from "./data_v2/scan-window-init"
 import { runConsumer } from "./data_v2/consumer"
 import { sendTampaEmail } from "./email/tampa-email"
 import { cleanEmailCache } from "./email/clean-email-cache"
+import { cleanMarketCache } from "./data_v2/clean-market-cache"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
@@ -28,8 +29,13 @@ export function startScheduledJobs() {
         timezone: "America/Los_Angeles"
     })
 
-    // Clean sent property ids (sent email cache)
-    cron.schedule("33 * * * *", cleanEmailCache, {
+    // Clean sent property ids (sent email cache) at 11:40 PM
+    cron.schedule("40 23 * * *", cleanEmailCache, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // Clean market scan queue (older than 90 days with status = 'complete') at 11:50 PM
+    cron.schedule("50 23 * * *", cleanMarketCache, {
         timezone: "America/Los_Angeles"
     })
 
