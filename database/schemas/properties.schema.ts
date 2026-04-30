@@ -11,6 +11,7 @@ import {
   text,
   date,
   customType,
+  unique,
 } from "drizzle-orm/pg-core";
 import { companies } from "./companies.schema";
 
@@ -33,6 +34,7 @@ export const properties = pgTable("properties", {
   ownerType: varchar("owner_type", { length: 50 }),
   purchaseMethod: varchar("purchase_method", { length: 50 }),
   listingStatus: varchar("listing_status", { length: 50 }),
+  status: varchar("status", { length: 50 }).default("in-renovation"),
   monthsOwned: integer("months_owned"),
   msa: varchar("msa", { length: 200 }),
   county: varchar("county", { length: 200 }),
@@ -75,7 +77,7 @@ export const assessments = pgTable("assessments", {
   improvementValue: decimal("improvement_value", { precision: 15, scale: 2 }),
   assessedValue: decimal("assessed_value", { precision: 15, scale: 2 }),
   marketValue: decimal("market_value", { precision: 15, scale: 2 }),
-});
+}, (t) => [unique().on(t.propertyId, t.assessedYear)]);
 
 // Exemptions
 export const exemptions = pgTable("exemptions", {
@@ -166,7 +168,7 @@ export const taxRecords = pgTable("tax_records", {
   taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }),
   taxDelinquentYear: integer("tax_delinquent_year"),
   taxRateCodeArea: varchar("tax_rate_code_area", { length: 50 }),
-});
+}, (t) => [unique().on(t.propertyId, t.taxYear)]);
 
 // Valuations
 export const valuations = pgTable("valuations", {
@@ -177,7 +179,7 @@ export const valuations = pgTable("valuations", {
   low: decimal("low", { precision: 15, scale: 2 }),
   forecastStandardDeviation: decimal("forecast_standard_deviation", { precision: 18, scale: 15 }),
   valuationDate: date("valuation_date"),
-});
+}, (t) => [unique().on(t.propertyId, t.valuationDate)]);
 
 // Pre-foreclosures
 export const preForeclosures = pgTable("pre_foreclosures", {
