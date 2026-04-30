@@ -48,8 +48,8 @@ export const users = pgTable("users", {
   notifications: boolean("notifications").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
   subscriptionId: integer("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
-  county: text("county"),
-  state: varchar("state", { length: 2 }),
+  county: text("county").default("San Diego"),
+  state: varchar("state", { length: 2 }).default("CA"),
 });
 
 // Roles (owner, admin, relationship-manager, member)

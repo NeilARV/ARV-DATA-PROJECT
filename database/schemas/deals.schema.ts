@@ -12,7 +12,7 @@ export const deals = pgTable("deals", {
   sfrPropertyId:   bigint("sfr_property_id", { mode: "number" }),
   userId:          uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   
-  msaId:        integer("msa_id").notNull().references(() => msas.id, { onDelete: "restrict" }),
+  msaId:        integer("msa_id").references(() => msas.id, { onDelete: "restrict" }),
   type:         dealTypeEnum("type").notNull(),
   createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -41,8 +41,8 @@ export const dealLinks = pgTable(
     sortOrder: integer("sort_order").notNull().default(1),
     url:       text("url").notNull(),
     domain:    text("domain").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.dealId, t.sortOrder] })]
 );

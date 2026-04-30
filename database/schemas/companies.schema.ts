@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, boolean, primaryKey, serial } from "drizzle-orm/pg-core";
 import { msas } from "./msas.schema";
+import { users } from "./users.schema";
 
 export const companies = pgTable("companies", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -12,7 +13,7 @@ export const companies = pgTable("companies", {
 export const companyContacts = pgTable("company_contacts", {
   id: serial("id").primaryKey(),
   companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
-  userId: uuid("user_id"),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
   email: text("email"),
