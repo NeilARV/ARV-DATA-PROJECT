@@ -14,6 +14,7 @@ import { scanWindowE } from "./data_v2/scan-window-e"
 import { scanWindowInit } from "./data_v2/scan-window-init"
 import { runConsumer } from "./data_v2/consumer"
 import { sendTampaEmail } from "./email/tampa-email"
+import { cleanEmailCache } from "./email/clean-email-cache"
 
 export function startScheduledJobs() {
     console.log("[CRON] Starting scheduled jobs...")
@@ -24,6 +25,11 @@ export function startScheduledJobs() {
 
     // Clean Streetview Cache Every Night at 11:30 PM
     cron.schedule("30 23 * * *", CleanCache, {
+        timezone: "America/Los_Angeles"
+    })
+
+    // Clean sent property ids (sent email cache)
+    cron.schedule("33 * * * *", cleanEmailCache, {
         timezone: "America/Los_Angeles"
     })
 
