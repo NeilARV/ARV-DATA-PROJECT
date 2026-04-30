@@ -401,6 +401,7 @@ type DealNotificationData = {
     sqft: number | null;
     price: string | null;
     potentialARV: string | null;
+    closeOfEscrow: string | null;
     propertyType: string | null;
     type: DealType;
     sfrPropertyId: number | null;
@@ -454,8 +455,9 @@ export async function sendDealNotification(
             const beds         = deal.beds         != null ? deal.beds                                  : null;
             const baths        = deal.baths        != null ? parseFloat(deal.baths)                    : null;
             const sqft         = deal.sqft         != null ? deal.sqft.toLocaleString("en-US")         : null;
-            const price        = deal.price        ? Number(deal.price).toLocaleString("en-US")        : null;
-            const potentialARV = deal.potentialARV ? Number(deal.potentialARV).toLocaleString("en-US") : null;
+            const price          = deal.price          ? Number(deal.price).toLocaleString("en-US")          : null;
+            const potentialARV   = deal.potentialARV   ? Number(deal.potentialARV).toLocaleString("en-US")   : null;
+            const closeOfEscrow  = deal.closeOfEscrow  ? Number(deal.closeOfEscrow).toLocaleString("en-US")  : null;
 
             const specsParts: string[] = [];
             if (beds  != null) specsParts.push(`${beds} bd`);
@@ -512,6 +514,7 @@ export async function sendDealNotification(
                     specs_line:       specsLine,
                     price:            price,
                     potential_arv:    potentialARV,
+                    close_of_escrow:  closeOfEscrow,
                     property_type:    deal.propertyType ?? null,
                     posted_at:        postedAt,
                     notes:            deal.notes ?? null,
