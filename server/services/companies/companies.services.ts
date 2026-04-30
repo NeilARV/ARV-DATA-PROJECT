@@ -5,6 +5,7 @@ import { updateCompanySchema, updateCompanyContactSchema } from "@database/updat
 import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
 import type { z } from "zod";
+import { formatCompanyName } from "@shared/utils/formatCompanyName";
 
 export const CONTACTS_PAGE_SIZE = 50;
 export const CONTACTS_SORT_OPTIONS = [
@@ -452,10 +453,36 @@ export async function getLeaderboard(county: string) {
         }
     });
 
-    const topCompanies = Object.entries(companyCounts)
+    const topCompanyEntries = Object.entries(companyCounts)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([name, count], index) => ({ rank: index + 1, name, count, contactName: null as string | null }));
+        .slice(0, 10);
+
+    const topCompanyNames = topCompanyEntries.map(([name]) => name);
+
+    const contactRows = await db
+        .select({
+            companyName: companies.companyName,
+            firstName: companyContacts.firstName,
+            lastName: companyContacts.lastName,
+        })
+        .from(companies)
+        .innerJoin(companyContacts, eq(companyContacts.companyId, companies.id))
+        .where(inArray(sql`LOWER(TRIM(${companies.companyName}))`, topCompanyNames.map((n) => n.toLowerCase())))
+        .orderBy(companyContacts.sortOrder);
+
+    const contactByCompany: Record<string, string> = {};
+    for (const row of contactRows) {
+        const key = row.companyName.trim().toLowerCase();
+        if (!contactByCompany[key]) {
+            contactByCompany[key] = [row.firstName, row.lastName].filter(Boolean).join(" ");
+        }
+    }
+
+    const topCompanies = topCompanyEntries.map(([name, count], index) => {
+        const formattedName = formatCompanyName(name) ?? name;
+        const contactName = contactByCompany[name.toLowerCase()] ?? null;
+        return { rank: index + 1, name: formattedName, count, contactName };
+    });
 
     const propertiesWithAddresses = await db
         .select({ zipCode: addresses.zipCode })
