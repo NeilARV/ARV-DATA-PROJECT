@@ -108,7 +108,13 @@ export async function updateDealController(req: Request, res: Response): Promise
             notes, links,
         });
 
-        res.json({ message: "Deal updated successfully", deal: updated });
+        const { previousType, ...dealForResponse } = updated;
+        res.json({ message: "Deal updated successfully", deal: dealForResponse });
+
+        // Fire-and-forget: notify subscribers when a deal transitions to sold
+        if (previousType !== "sold" && updated.type === "sold" && updated.msaId) {
+            sendDealNotification(updated, updated.msaId, callerId, true, true);
+        }
     } catch (err) {
         handleServiceError(res, err, "Error updating deal");
     }

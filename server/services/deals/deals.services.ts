@@ -413,6 +413,7 @@ export async function sendDealNotification(
     msaId: number,
     posterUserId: string,
     sendNotifications: boolean,
+    isUpdated: boolean = false,
 ): Promise<void> {
     const label = "[dealsService.sendDealNotification]";
     try {
@@ -522,6 +523,7 @@ export async function sendDealNotification(
                     cta_url:          "https://data.arvfinance.com/",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
+                    is_updated:        isUpdated,
                 }),
                 logPrefix: label,
             });
@@ -565,7 +567,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     }
 
     const [current] = await db
-        .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode })
+        .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode, type: deals.type })
         .from(deals)
         .where(eq(deals.id, id))
         .limit(1);
@@ -639,7 +641,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     }
 
     console.log(`${label} Deal updated: id=${id}`);
-    return { ...updated, links: validLinks };
+    return { ...updated, links: validLinks, previousType: current.type };
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────

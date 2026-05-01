@@ -2,19 +2,31 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>New Deal Available</title>
+    <title>
+      {{^is_updated}}
+        New Deal Available
+      {{^is_updated}}
+      {{#is_updated}}
+        Deal Sold
+      {{/is_updated}}
+    </title>
   </head>
   <body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td align="center">
-          <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:40px 0; border-radius:6px; overflow:hidden;">
+          <table width="650" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:40px 0; border-radius:6px; overflow:hidden;">
 
             <!-- Header -->
             <tr>
               <td style="background-color:#69C9E1; padding:24px; text-align:center;">
                 <h1 style="margin:0; color:#ffffff; font-size:22px;">
-                  New Deal Available
+                  {{^is_updated}}
+                    New Deal Available
+                  {{^is_updated}}
+                  {{#is_updated}}
+                    Deal Sold
+                  {{/is_updated}}
                 </h1>
               </td>
             </tr>
@@ -23,7 +35,13 @@
             <tr>
               <td style="padding:24px 24px 16px; color:#333333; text-align:center;">
                 <p style="margin:0; font-size:16px; line-height:1.5;">
-                  A new deal has been added in <strong>{{county}}</strong>.
+                  {{^is_updated}}
+                    A new deal has been added in
+                  {{^is_updated}}
+                  {{#is_updated}}
+                    A deal sold in
+                  {{/is_updated}}
+                  <strong>{{county}}</strong>
                 </p>
               </td>
             </tr>
@@ -119,11 +137,6 @@
                           {{/close_of_escrow}}
                         </tr>
                       </table>
-
-                      <!-- Posted date -->
-                      <p style="margin:12px 0 0; font-size:12px; color:#aaaaaa;">
-                        {{posted_at}}
-                      </p>
 
                     </td>
                   </tr>
