@@ -1,0 +1,1 @@
+DROP TABLE "sfr_sync_state" CASCADE;
