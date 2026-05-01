@@ -15,6 +15,13 @@
       "when": 1777671987745,
       "tag": "0001_breezy_mariko_yashida",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777677750244,
+      "tag": "0002_mean_beyonder",
+      "breakpoints": true
     }
   ]
 }

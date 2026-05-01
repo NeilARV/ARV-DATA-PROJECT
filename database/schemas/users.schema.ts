@@ -9,6 +9,7 @@ import {
   serial,
   bigserial,
   primaryKey,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // Sessions
@@ -50,7 +51,9 @@ export const users = pgTable("users", {
   subscriptionId: integer("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
   county: text("county").default("San Diego"),
   state: varchar("state", { length: 2 }).default("CA"),
-});
+}, (t) => [
+  unique("users_id_uuid_unique").on(t.id),
+]);
 
 // Roles (owner, admin, relationship-manager, member)
 export const roles = pgTable("roles", {
