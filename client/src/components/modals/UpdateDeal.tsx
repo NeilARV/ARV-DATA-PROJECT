@@ -67,7 +67,7 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
       city:         deal.city         ?? "",
       state:        deal.state        ?? "",
       zipCode:      deal.zipCode      ?? "",
-      price:        deal.price        ? Number(deal.price) : undefined,
+      price:        deal.price        != null ? Number(deal.price) : undefined,
       dealType:     deal.dealType,
       beds:         deal.beds         ?? undefined,
       baths:        deal.baths        ? Number(deal.baths) : undefined,
@@ -89,7 +89,7 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
         city:         data.city,
         state:        data.state,
         zipCode:      data.zipCode,
-        price:        data.price,
+        price:        data.price        ?? null,
         dealType:     data.dealType,
         beds:         data.beds         ?? null,
         baths:        data.baths        ?? null,
@@ -197,7 +197,7 @@ export default function UpdateDeal({ deal, open, onClose }: UpdateDealProps) {
             name="price"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Price *</FormLabel>
+                <FormLabel>Price <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
                 <FormControl>
                   <Input
                     {...field}

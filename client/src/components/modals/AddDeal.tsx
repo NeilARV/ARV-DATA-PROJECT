@@ -224,7 +224,7 @@ export default function AddDeal({ open, onClose }: AddDealProps) {
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price *</FormLabel>
+                    <FormLabel>Price <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
                     <FormControl>
                       <Input
                         {...field}

@@ -43,10 +43,10 @@ export async function createDealController(req: Request, res: Response): Promise
         } = req.body;
 
         // Input validation (format, not business logic)
-        if (!city || !state || !zipCode || !userId || price == null) {
+        if (!city || !state || !zipCode || !userId) {
             res.status(400).json({
                 message: "Missing required fields",
-                errors: [{ path: [], message: "city, state, zipCode, userId, and price are required" }],
+                errors: [{ path: [], message: "city, state, zipCode, and userId are required" }],
             });
             return;
         }
@@ -58,7 +58,7 @@ export async function createDealController(req: Request, res: Response): Promise
             res.status(403).json({ message: "Forbidden - userId must match authenticated user" });
             return;
         }
-        if (Number(price) <= 0) {
+        if (price != null && Number(price) <= 0) {
             res.status(400).json({ message: "Price must be greater than 0" });
             return;
         }

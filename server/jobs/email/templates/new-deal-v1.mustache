@@ -102,6 +102,8 @@
                       <!-- Financial details -->
                       <table cellpadding="0" cellspacing="0" style="margin-top:12px;">
                         <tr valign="top">
+
+                          <!-- Sold / Purchase Price -->
                           <td style="padding-right:16px;">
                             <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
                               {{^is_sold}}Purchase Price{{/is_sold}}{{#is_sold}}Sold Price{{/is_sold}}
@@ -109,19 +111,36 @@
                             {{#price}}
                               <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
                             {{/price}}
+                            {{^price}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">-</p>
+                            {{/price}}
                           </td>
-                          {{#potential_arv}}
+
+                          <!-- Potential ARV -->
                           <td style="padding-right:16px;">
-                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Potential ARV</p>
-                            <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#2e7d32; white-space:nowrap;">${{.}}</p>
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
+                              Potential ARV
+                            </p>
+                            {{#potential_arv}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#2e7d32; white-space:nowrap;">${{.}}</p>
+                            {{/potential_arv}}
+                            {{^potential_arv}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">-</p>
+                            {{/potential_arv}}
                           </td>
-                          {{/potential_arv}}
-                          {{#close_of_escrow}}
-                          <td>
-                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Close of Escrow</p>
-                            <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
+
+                          <!-- Close of Escrow -->
+                          <td style="padding-right:16px;">
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
+                              Close of Escrow
+                            </p>
+                            {{#close_of_escrow}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
+                            {{/close_of_escrow}}
+                            {{^close_of_escrow}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">-</p>
+                            {{/close_of_escrow}}
                           </td>
-                          {{/close_of_escrow}}
                         </tr>
                       </table>
 

@@ -30,9 +30,9 @@ type DealProperty = {
     state: string;
     zipCode: string;
     dealType: DealType;
-    price: number | string;
-    potentialARV?: number | string;
-    closeOfEscrow?: number | string;
+    price?: number | string | null;
+    potentialARV?: number | string | null;
+    closeOfEscrow?: number | string | null;
     beds?: number;
     baths?: number;
     sqft?: number;
