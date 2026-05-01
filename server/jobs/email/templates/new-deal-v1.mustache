@@ -3,12 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>
-      {{^is_updated}}
-        New Deal Available
-      {{^is_updated}}
-      {{#is_updated}}
-        Deal Sold
-      {{/is_updated}}
+      {{^is_sold}}New Deal Available{{/is_sold}}{{#is_sold}}Deal Sold{{/is_sold}}
     </title>
   </head>
   <body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
@@ -21,12 +16,7 @@
             <tr>
               <td style="background-color:#69C9E1; padding:24px; text-align:center;">
                 <h1 style="margin:0; color:#ffffff; font-size:22px;">
-                  {{^is_updated}}
-                    New Deal Available
-                  {{^is_updated}}
-                  {{#is_updated}}
-                    Deal Sold
-                  {{/is_updated}}
+                  {{^is_sold}}New Deal Available{{/is_sold}}{{#is_sold}}Deal Sold{{/is_sold}}
                 </h1>
               </td>
             </tr>
@@ -35,13 +25,8 @@
             <tr>
               <td style="padding:24px 24px 16px; color:#333333; text-align:center;">
                 <p style="margin:0; font-size:16px; line-height:1.5;">
-                  {{^is_updated}}
-                    A new deal has been added in
-                  {{^is_updated}}
-                  {{#is_updated}}
-                    A deal sold in
-                  {{/is_updated}}
-                  <strong>{{county}}</strong>
+                  {{^is_sold}}A new deal has been added in{{/is_sold}}{{#is_sold}}A deal sold in{{/is_sold}}
+                  <strong>{{county}}</strong>.
                 </p>
               </td>
             </tr>
@@ -52,8 +37,8 @@
                 <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e6; border-radius:6px; overflow:hidden;">
                   <tr>
 
-                    <!-- Left: Image column -->
-                    <td width="200" valign="top" style="width:200px; min-width:200px; vertical-align:top;">
+                    <!-- Left: Image column — background fills any space below the 200px image -->
+                    <td width="200" valign="top" style="width:200px; min-width:200px; vertical-align:top; background-color:#e8edf0;">
 
                       {{#image_block}}
                       <!-- Street view image with badge overlay -->
@@ -114,25 +99,27 @@
                       <p style="margin:4px 0 0; font-size:13px; color:#999999;">{{.}}</p>
                       {{/property_type}}
 
-                      <!-- Price + Potential ARV (same row) -->
+                      <!-- Financial details -->
                       <table cellpadding="0" cellspacing="0" style="margin-top:12px;">
                         <tr valign="top">
-                          {{#price}}
-                          <td style="padding-right:20px;">
-                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Purchase Price</p>
-                            <p style="margin:2px 0 0; font-size:20px; font-weight:700; color:#1a1a1a;">${{.}}</p>
+                          <td style="padding-right:16px;">
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
+                              {{^is_sold}}Purchase Price{{/is_sold}}{{#is_sold}}Sold Price{{/is_sold}}
+                            </p>
+                            {{#price}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
+                            {{/price}}
                           </td>
-                          {{/price}}
                           {{#potential_arv}}
-                          <td style="padding-right:20px;">
+                          <td style="padding-right:16px;">
                             <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Potential ARV</p>
-                            <p style="margin:2px 0 0; font-size:20px; font-weight:700; color:#2e7d32;">${{.}}</p>
+                            <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#2e7d32; white-space:nowrap;">${{.}}</p>
                           </td>
                           {{/potential_arv}}
                           {{#close_of_escrow}}
                           <td>
                             <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Close of Escrow</p>
-                            <p style="margin:2px 0 0; font-size:20px; font-weight:700; color:#1a1a1a;">${{.}}</p>
+                            <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
                           </td>
                           {{/close_of_escrow}}
                         </tr>

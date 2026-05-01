@@ -413,7 +413,7 @@ export async function sendDealNotification(
     msaId: number,
     posterUserId: string,
     sendNotifications: boolean,
-    isUpdated: boolean = false,
+    isSold: boolean = false,
 ): Promise<void> {
     const label = "[dealsService.sendDealNotification]";
     try {
@@ -465,14 +465,6 @@ export async function sendDealNotification(
             if (baths != null) specsParts.push(`${baths} ba`);
             if (sqft  != null) specsParts.push(`${sqft} sqft`);
             const specsLine = specsParts.length > 0 ? specsParts.join("  ·  ") : null;
-            const postedAt = new Date(deal.createdAt).toLocaleString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                timeZone: "America/Los_Angeles",
-            });
 
             // Resolve absolute street view URL (email clients cannot follow relative paths)
             let streetViewUrl: string | null = null;
@@ -517,13 +509,12 @@ export async function sendDealNotification(
                     potential_arv:    potentialARV,
                     close_of_escrow:  closeOfEscrow,
                     property_type:    deal.propertyType ?? null,
-                    posted_at:        postedAt,
                     notes:            deal.notes ?? null,
                     county:           county,
                     cta_url:          "https://data.arvfinance.com/",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
-                    is_updated:        isUpdated,
+                    is_sold:           isSold,
                 }),
                 logPrefix: label,
             });
