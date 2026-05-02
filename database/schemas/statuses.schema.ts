@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, uuid, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, uuid, timestamp, primaryKey, index } from "drizzle-orm/pg-core";
 import { properties } from "./properties.schema";
 
 export const statuses = pgTable("statuses", {
@@ -19,5 +19,9 @@ export const propertyStatuses = pgTable(
             .references(() => statuses.id, { onDelete: "cascade" }),
         createdAt: timestamp("created_at").notNull().defaultNow(),
     },
-    (t) => [primaryKey({ columns: [t.propertyId, t.statusId] })]
+    (t) => [
+        primaryKey({ columns: [t.propertyId, t.statusId] }),
+        index("idx_property_statuses_property_id").on(t.propertyId),
+        index("idx_property_statuses_status_id").on(t.statusId),
+    ]
 );

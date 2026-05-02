@@ -12,7 +12,9 @@ import {
   date,
   customType,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { companies } from "./companies.schema";
 
 // Custom type for BYTEA (binary data) in PostgreSQL
@@ -259,4 +261,19 @@ export const propertyTransactions = pgTable("property_transactions", {
   userCreated: boolean("user_created").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  // Covers all correlated subqueries that filter by property_id + LOWER(TRIM(transaction_type))
+  // and sort by COALESCE(sort_order, 999999) / recording_date. This is the most critical index
+  // for the properties grid query performance.
+  index("idx_pt_property_tx_type_sort").on(
+    t.propertyId,
+    sql`lower(trim(${t.transactionType}))`,
+    sql`coalesce(${t.sortOrder}, 999999)`,
+    t.recordingDate,
+  ),
+  // Covers buyer/seller company lookups and filtering
+  index("idx_pt_property_buyer_date").on(t.propertyId, t.buyerId, t.recordingDate),
+  index("idx_pt_seller_date").on(t.sellerId, t.recordingDate),
+  // Partial index: fast lookup of the most recent transaction per buyer
+  index("idx_pt_buyer_sort1").on(t.buyerId).where(sql`${t.sortOrder} = 1`),
+]);
