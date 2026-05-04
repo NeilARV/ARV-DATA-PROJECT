@@ -131,7 +131,8 @@ export async function getMapProperties(
                  WHERE ps.property_id = ${properties.id}),
                 ARRAY[]::text[]
             )`,
-            // Buyer/seller from most recent AL tx (company-filtered or global)
+            // Buyer/seller IDs are only needed when a company is selected (for pin color coding).
+            // Skip the correlated subqueries entirely when no company filter is active.
             txBuyerId: hasCompanyFilter
                 ? sql<string | null>`(
                     SELECT pt.buyer_id::text FROM property_transactions pt
@@ -140,12 +141,7 @@ export async function getMapProperties(
                     AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
                   )`
-                : sql<string | null>`(
-                    SELECT pt.buyer_id::text FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                  )`,
+                : sql<string | null>`null`,
             txSellerId: hasCompanyFilter
                 ? sql<string | null>`(
                     SELECT pt.seller_id::text FROM property_transactions pt
@@ -154,12 +150,7 @@ export async function getMapProperties(
                     AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
                   )`
-                : sql<string | null>`(
-                    SELECT pt.seller_id::text FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                  )`,
+                : sql<string | null>`null`,
             txBuyerName: hasCompanyFilter
                 ? sql<string | null>`(
                     SELECT pt.buyer_name FROM property_transactions pt
@@ -168,12 +159,7 @@ export async function getMapProperties(
                     AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
                   )`
-                : sql<string | null>`(
-                    SELECT pt.buyer_name FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                  )`,
+                : sql<string | null>`null`,
         })
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId))

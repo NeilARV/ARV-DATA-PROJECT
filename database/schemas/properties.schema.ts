@@ -43,7 +43,9 @@ export const properties = pgTable("properties", {
   isArvFunded: boolean("is_arv_funded").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  index("idx_properties_county_lower").on(sql`lower(trim(${t.county}))`),
+]);
 
 // Addresses
 export const addresses = pgTable("addresses", {
@@ -68,7 +70,9 @@ export const addresses = pgTable("addresses", {
   geocodingAccuracy: varchar("geocoding_accuracy", { length: 200 }),
   censusTract: varchar("census_tract", { length: 20 }),
   censusBlock: varchar("census_block", { length: 20 }),
-});
+}, (t) => [
+  index("idx_addresses_county_lower").on(sql`lower(trim(${t.county}))`),
+]);
 
 // Assessments
 export const assessments = pgTable("assessments", {
