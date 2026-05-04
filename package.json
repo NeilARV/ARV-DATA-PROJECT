@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx database/seed.ts",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "seed:sort-order": "tsx scripts/seed-sort-order.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
