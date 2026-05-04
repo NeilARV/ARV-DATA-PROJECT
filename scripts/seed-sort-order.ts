@@ -2,8 +2,12 @@
  * One-time script: re-seeds sort_order on ALL property_transactions using the
  * current sortTransactionsDesc algorithm (includes chain detection).
  *
- * Safe to re-run — idempotent. Processes all properties so stale sort_orders
- * assigned by older pipeline versions are also corrected.
+ * Processes properties ordered by most-recent transaction recording_date DESC,
+ * so the most recently active properties are fixed first.
+ *
+ * To resume after a cancelled run, set RESUME_FROM_DATE to the last
+ * "latest recording" date you saw in the logs before cancelling.
+ * Set to null to process all properties.
  *
  * Usage:
  *   npm run seed:sort-order
@@ -11,9 +15,14 @@
 
 import "dotenv/config";
 import { db } from "server/storage";
-import { properties, propertyTransactions } from "@database/schemas/properties.schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
+import { eq, sql } from "drizzle-orm";
 import { sortTransactionsDesc } from "server/utils/orderTransactions";
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+// Set to a YYYY-MM-DD string to resume from a specific date, or null to process all.
+const RESUME_FROM_DATE: string | null = null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -28,36 +37,59 @@ function toDateStr(d: Date | string | null | undefined): string | null {
 const BATCH_SIZE = 500;
 
 async function main() {
-    const [{ count }] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(properties);
+    const startDate = RESUME_FROM_DATE;
 
-    const total = Number(count);
-    console.log(`[seed-sort-order] Total properties to process: ${total}`);
+    if (startDate) {
+        console.log(`[seed-sort-order] Resuming from ${startDate} (max recording_date <= ${startDate})`);
+    } else {
+        console.log(`[seed-sort-order] Processing all properties (most recent first)`);
+    }
 
-    let offset = 0;
+    // Fetch all property IDs + addresses ordered by most-recent recording_date DESC.
+    // HAVING filters to only properties at or before the resume date when provided.
+    const allRows = await db
+        .select({
+            id: properties.id,
+            address: addresses.formattedStreetAddress,
+            city: addresses.city,
+            state: addresses.state,
+            maxRecordingDate: sql<string | null>`MAX(${propertyTransactions.recordingDate})`,
+        })
+        .from(properties)
+        .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+        .leftJoin(propertyTransactions, eq(properties.id, propertyTransactions.propertyId))
+        .groupBy(properties.id, addresses.formattedStreetAddress, addresses.city, addresses.state)
+        .having(
+            startDate
+                ? sql`MAX(${propertyTransactions.recordingDate}) <= ${startDate}::date OR MAX(${propertyTransactions.recordingDate}) IS NULL`
+                : sql`1=1`
+        )
+        .orderBy(sql`MAX(${propertyTransactions.recordingDate}) DESC NULLS LAST`);
+
+    const total = allRows.length;
+    console.log(`[seed-sort-order] Properties to process: ${total}\n`);
+
     let totalProps = 0;
     let totalTx = 0;
 
-    while (offset < total) {
-        const batch = await db
-            .select({ id: properties.id })
-            .from(properties)
-            .orderBy(properties.id)
-            .limit(BATCH_SIZE)
-            .offset(offset);
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+        const batch = allRows.slice(offset, offset + BATCH_SIZE);
 
-        for (const { id } of batch) {
+        for (const row of batch) {
+            const addressLabel = [row.address, row.city, row.state].filter(Boolean).join(", ") || row.id;
+            const dateLabel = toDateStr(row.maxRecordingDate) ?? "no date";
+
+            console.log(`[seed-sort-order] Processing: ${addressLabel} (latest recording: ${dateLabel})`);
+
             const txs = await db
                 .select()
                 .from(propertyTransactions)
-                .where(eq(propertyTransactions.propertyId, id))
-                .orderBy(
-                    desc(propertyTransactions.recordingDate),
-                    desc(propertyTransactions.propertyTransactionsId)
-                );
+                .where(eq(propertyTransactions.propertyId, row.id));
 
-            if (txs.length === 0) continue;
+            if (txs.length === 0) {
+                console.log(`[seed-sort-order]   → No transactions, skipping.`);
+                continue;
+            }
 
             type TxWithStrDates = Omit<typeof txs[number], "recordingDate" | "saleDate"> & {
                 recordingDate: string | null;
@@ -80,12 +112,14 @@ async function main() {
                     .where(eq(propertyTransactions.propertyTransactionsId, tx.propertyTransactionsId));
             }
 
+            console.log(`[seed-sort-order]   → Sorted ${txs.length} transaction(s).`);
+
             totalTx += txs.length;
             totalProps++;
         }
 
-        offset += BATCH_SIZE;
-        console.log(`[seed-sort-order] ${Math.min(offset, total)} / ${total} properties done...`);
+        const processed = Math.min(offset + BATCH_SIZE, total);
+        console.log(`\n[seed-sort-order] ── Batch complete: ${processed} / ${total} properties ──\n`);
     }
 
     console.log(`[seed-sort-order] Done.`);
