@@ -273,7 +273,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             </SelectTrigger>
             <SelectContent>
 <SelectItem value="most-properties" data-testid="sort-most-properties">
-                Most Properties
+                Most Properties Owned
               </SelectItem>
 <SelectItem value="most-sold-properties" data-testid="sort-most-sold-properties">
                 Most Sold Properties (YTD)
