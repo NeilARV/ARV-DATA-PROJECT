@@ -293,6 +293,9 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
               <SelectItem value="buys-wholesale" data-testid="sort-buys-wholesale">
                 Buys from Wholesalers
               </SelectItem>
+              <SelectItem value="wholesalers" data-testid="sort-wholesalers">
+                Wholesalers
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -368,7 +371,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
 
                     {/* Col 3: Count + ARV Partner badges */}
                     <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                      {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && sortBy !== "most-bought-properties" && sortBy !== "most-bought-properties-all-time" && sortBy !== "buys-wholesale" && listCompany.propertyCount > 0 && (
+                      {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && sortBy !== "most-bought-properties" && sortBy !== "most-bought-properties-all-time" && sortBy !== "buys-wholesale" && sortBy !== "wholesalers" && listCompany.propertyCount > 0 && (
                         <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
                           {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
                         </div>
@@ -396,6 +399,11 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                       {sortBy === "buys-wholesale" && (listCompany.wholesaleBuyCount ?? 0) > 0 && (
                         <div className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-wholesale-buy-count">
                           {listCompany.wholesaleBuyCount} wholesale
+                        </div>
+                      )}
+                      {sortBy === "wholesalers" && (listCompany.wholesalerCount ?? 0) > 0 && (
+                        <div className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-wholesaler-count">
+                          {listCompany.wholesalerCount} wholesales
                         </div>
                       )}
                       {listCompany.isFinancedByARV && (

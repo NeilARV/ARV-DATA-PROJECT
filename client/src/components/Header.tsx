@@ -242,7 +242,7 @@ export default function Header({
       setProperty(null);
       setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
       setView("wholesale");
-      loadCompanies({ sort: "buys-wholesale" });
+      loadCompanies({ sort: "wholesalers" });
     });
   };
 

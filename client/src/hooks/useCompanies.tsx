@@ -88,7 +88,10 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
       const controller = new AbortController();
       loadCompaniesAbortRef.current = controller;
 
-      if (overrides?.sort !== undefined) setDirectorySortState(overrides.sort);
+      if (overrides?.sort !== undefined) {
+        setDirectorySortState(overrides.sort);
+        setCompany(null);
+      }
       if (overrides?.search !== undefined) setDirectorySearchState(overrides.search);
       setEnsuredCompany(null);
       setPage(1);
@@ -117,7 +120,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
         }
       }
     },
-    [filters.county, directorySort, directorySearch]
+    [filters.county, directorySort, directorySearch, setCompany]
   );
 
   const loadMoreCompanies = useCallback(async () => {

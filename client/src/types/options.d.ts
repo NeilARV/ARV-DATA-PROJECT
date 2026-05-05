@@ -4,7 +4,7 @@ export type View = "map" | "grid" | "table" | "buyers-feed" | "wholesale" | "dea
 
 export type SidebarView = "filters" | "directory" | "none";
 
-export type DirectorySortOption = "most-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "most-bought-properties" | "most-bought-properties-all-time" | "new-buyers" | "buys-wholesale";
+export type DirectorySortOption = "most-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "most-bought-properties" | "most-bought-properties-all-time" | "new-buyers" | "buys-wholesale" | "wholesalers";
 
 export type Status = "in-renovation" | "wholesale" | "on-market" | "sold";
 

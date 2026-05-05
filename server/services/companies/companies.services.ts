@@ -16,6 +16,7 @@ export const CONTACTS_SORT_OPTIONS = [
     "most-bought-properties-all-time",
     "new-buyers",
     "buys-wholesale",
+    "wholesalers",
 ] as const;
 export type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
 
@@ -290,6 +291,29 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 .where(and(...parts))
                 .groupBy(propertyTransactions.buyerId) as SortRow[];
 
+        } else if (sortOption === "wholesalers") {
+            // Wholesaler: seller_id on the sort_order=1 (most recent) transaction for a wholesale property.
+            // The seller on the final transaction is the company that sold TO the end buyer — the wholesaler.
+            const parts: ReturnType<typeof sql>[] = [
+                sql`${propertyTransactions.sortOrder} = 1`,
+                sql`${propertyTransactions.sellerId} IS NOT NULL`,
+                sql`EXISTS (
+                    SELECT 1 FROM property_statuses ps
+                    JOIN statuses s ON s.id = ps.status_id
+                    WHERE ps.property_id = ${propertyTransactions.propertyId}
+                    AND s.id = 4
+                )`,
+                ...countyParts(),
+            ];
+            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            rows = await db
+                .select({ id: propertyTransactions.sellerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+                .from(propertyTransactions)
+                .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+                .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+                .where(and(...parts))
+                .groupBy(propertyTransactions.sellerId) as SortRow[];
+
         } else {
             rows = [];
         }
@@ -311,12 +335,13 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
             contactName: buildContactName(primary),
             contactEmail: primary?.email ?? null,
             phoneNumber: primary?.phoneNumber ?? null,
-            propertyCount:             sortOption === "most-properties"             ? sortCount : 0,
-            propertiesSoldCount:       sortOption === "most-sold-properties"        ? sortCount : 0,
-            propertiesSoldCountAllTime:sortOption === "most-sold-properties-all-time"? sortCount : 0,
-            propertiesBoughtCount:     sortOption === "most-bought-properties"      ? sortCount : 0,
+            propertyCount:               sortOption === "most-properties"               ? sortCount : 0,
+            propertiesSoldCount:         sortOption === "most-sold-properties"          ? sortCount : 0,
+            propertiesSoldCountAllTime:  sortOption === "most-sold-properties-all-time" ? sortCount : 0,
+            propertiesBoughtCount:       sortOption === "most-bought-properties"        ? sortCount : 0,
             propertiesBoughtCountAllTime:sortOption === "most-bought-properties-all-time"? sortCount : 0,
-            wholesaleBuyCount:         sortOption === "buys-wholesale"              ? sortCount : 0,
+            wholesaleBuyCount:           sortOption === "buys-wholesale"                ? sortCount : 0,
+            wholesalerCount:             sortOption === "wholesalers"                   ? sortCount : 0,
             isFinancedByARV: contact.isArvClient ?? false,
         };
     });
@@ -328,6 +353,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         "most-bought-properties": (c) => c.propertiesBoughtCount > 0,
         "most-bought-properties-all-time": (c) => c.propertiesBoughtCountAllTime > 0,
         "buys-wholesale": (c) => c.wholesaleBuyCount > 0,
+        "wholesalers": (c) => c.wholesalerCount > 0,
     };
     const filterFn = zeroCountFilter[sortOption];
     if (filterFn) {
@@ -349,6 +375,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 case "most-bought-properties": return (b.propertiesBoughtCount ?? 0) - (a.propertiesBoughtCount ?? 0);
                 case "most-bought-properties-all-time": return (b.propertiesBoughtCountAllTime ?? 0) - (a.propertiesBoughtCountAllTime ?? 0);
                 case "buys-wholesale": return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);
+                case "wholesalers": return (b.wholesalerCount ?? 0) - (a.wholesalerCount ?? 0);
                 default: return 0;
             }
         });
