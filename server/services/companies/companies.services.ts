@@ -124,6 +124,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
             )`
         );
     }
+    
     if (searchTerm.length >= 2) {
         const searchPattern = `%${searchTerm.toLowerCase()}%`;
         conditions.push(
@@ -266,8 +267,11 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 .groupBy(propertyTransactions.buyerId) as SortRow[];
 
         } else if (sortOption === "buys-wholesale") {
-            // Buyer on a transaction for a property with status 'wholesale'.
+            // End buyer on a wholesale property: buyer_id on the sort_order=1 (most recent) transaction
+            // where the property has status 'wholesale'. sort_order=1 is the final purchase — the company
+            // that bought FROM the wholesaler, not intermediate or assignment legs.
             const parts: ReturnType<typeof sql>[] = [
+                sql`${propertyTransactions.sortOrder} = 1`,
                 sql`${propertyTransactions.buyerId} IS NOT NULL`,
                 sql`EXISTS (
                     SELECT 1 FROM property_statuses ps
