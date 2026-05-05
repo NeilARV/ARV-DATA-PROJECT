@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npm run:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Github\\\\ARV-DATA-Project\\\\database\\\\schemas\\\\\" -File)",
+      "Bash(npx tsc *)"
     ]
   }
 }

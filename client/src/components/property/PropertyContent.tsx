@@ -1,7 +1,8 @@
 import { Property } from "@/types/property";
 import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail, Star, Pencil } from "lucide-react";
+import { Bed, Bath, Maximize2, Building2, Calendar, Phone, User, Mail, Star, Pencil, Landmark } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { getStreetViewUrl } from "@/lib/streetView";
 import { StatusTag } from "./StatusTag";
 import { formatAddress } from "@shared/utils/formatAddress";
@@ -96,6 +97,7 @@ export function PropertyContent({
   isAdminOrOwner,
   onCompanyClick,
 }: PropertyContentProps) {
+  const { canAccessAdminPanel } = useAuth();
   const [imageUrl, setImageUrl] = useState("");
   const [isImageLoading, setIsImageLoading] = useState(true);
 
@@ -574,6 +576,16 @@ export function PropertyContent({
               )}
             </div>
           )}
+        </div>
+      )}
+      {/* Lender (ARV team only) */}
+      {canAccessAdminPanel && property.lenderName && (
+        <div className="mt-2 flex items-center justify-center gap-1.5">
+          <Landmark className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <span className="text-sm text-muted-foreground">Lender:</span>
+          <span className="text-sm font-medium text-foreground truncate">
+            {formatCompanyName(property.lenderName)}
+          </span>
         </div>
       )}
       </div>{/* end flex-1 main content */}
