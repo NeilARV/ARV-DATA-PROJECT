@@ -278,6 +278,8 @@ export const propertyTransactions = pgTable("property_transactions", {
   // Covers buyer/seller company lookups and filtering
   index("idx_pt_property_buyer_date").on(t.propertyId, t.buyerId, t.recordingDate),
   index("idx_pt_seller_date").on(t.sellerId, t.recordingDate),
+  // Covers most-bought-properties YTD/all-time queries: buyer_id IN (...) AND recording_date BETWEEN ...
+  index("idx_pt_buyer_date").on(t.buyerId, t.recordingDate),
   // Partial index: fast lookup of the most recent transaction per buyer
   index("idx_pt_buyer_sort1").on(t.buyerId).where(sql`${t.sortOrder} = 1`),
 ]);

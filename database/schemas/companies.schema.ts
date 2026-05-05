@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, boolean, primaryKey, serial } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, timestamp, integer, boolean, primaryKey, serial, index } from "drizzle-orm/pg-core";
 import { msas } from "./msas.schema";
 import { users } from "./users.schema";
 
@@ -22,7 +22,9 @@ export const companyContacts = pgTable("company_contacts", {
   sortOrder: integer("sort_order").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  index("idx_company_contacts_company_id").on(t.companyId),
+]);
 
 export const companyCounties = pgTable(
   "company_counties",

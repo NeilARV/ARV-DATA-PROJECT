@@ -198,7 +198,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 sql`${propertyTransactions.buyerId} IS NOT NULL`,
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.buyerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
                 .from(propertyTransactions)
@@ -214,7 +214,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 lte(propertyTransactions.recordingDate, todayStr),
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
@@ -228,7 +228,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
@@ -244,7 +244,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 lte(propertyTransactions.recordingDate, todayStr),
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
@@ -258,7 +258,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
@@ -282,7 +282,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 )`,
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.buyerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
                 .from(propertyTransactions)
@@ -305,7 +305,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 )`,
                 ...countyParts(),
             ];
-            if (canPaginateInDb && contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
             rows = await db
                 .select({ id: propertyTransactions.sellerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
                 .from(propertyTransactions)
