@@ -462,6 +462,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             // lastSales values used as fallback when no AL transaction exists
             lastSalePrice: sql<number | null>`CAST(${lastSales.price} AS REAL)`,
             lastSaleDate: lastSales.recordingDate,
+            lastSaleLender: lastSales.lender,
             isArvFunded: properties.isArvFunded,
         })
         .from(properties)
@@ -650,6 +651,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             assignorContactEmail: assignorContact?.contactEmail ?? null,
             assignorContactPhone: assignorContact?.phoneNumber ?? null,
             isFinancedByARV,
+            lenderName: displayTx?.firstMtgLenderName ?? prop.lastSaleLender ?? null,
             sellerName: sellerDisplayName,
             propertyOwner: buyerDisplayName || sellerDisplayName || null,
             propertyOwnerId: txBuyerId || txSellerId || null,

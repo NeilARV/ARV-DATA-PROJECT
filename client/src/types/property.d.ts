@@ -56,6 +56,8 @@ export type Property = {
   assignorContactPhone?: string | null;
   // ARV Finance lender flag
   isFinancedByARV: boolean;
+  // Lender name from the display transaction's first mortgage
+  lenderName: string | null;
   // Optional fields
   description: string | null;
   imageUrl: string | null;

@@ -148,6 +148,7 @@ export async function getPropertyById(id: string) {
             yearBuilt: structures.yearBuilt,
             price: sql<number | null>`CAST(${lastSales.price} AS FLOAT)`,
             dateSold: lastSales.recordingDate,
+            lender: lastSales.lender,
         })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -305,6 +306,7 @@ export async function getPropertyById(id: string) {
         sellerPurchaseDate,
         spread,
         isFinancedByARV,
+        lenderName: latest?.firstMtgLenderName ?? result.lender ?? null,
         companyId: resolvedBuyerId || resolvedSellerId || null,
         companyName: buyerDisplayName || sellerDisplayName || null,
         companyContactName: txBuyerCompany?.contactName || txSellerCompany?.contactName || null,
