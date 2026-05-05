@@ -1,5 +1,6 @@
 import { db } from "server/storage";
 import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
+import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { eq, sql, and, or } from "drizzle-orm";
 import { resolveDateRange } from "server/utils/resolveDateRange";
 
@@ -103,6 +104,22 @@ export async function getMapProperties(
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+    // Aggregate all statuses per property in one pass, joined once instead of two
+    // correlated subqueries per row (which would execute N×2 times).
+    const statusData = db
+        .select({
+            propertyId: propertyStatuses.propertyId,
+            primaryStatus: sql<string | null>`(array_agg(${statuses.name} ORDER BY CASE ${statuses.name}
+                WHEN 'wholesale' THEN 0 WHEN 'on-market' THEN 1
+                WHEN 'in-renovation' THEN 2 WHEN 'sold' THEN 3 ELSE 4
+            END))[1]`.as("primary_status"),
+            allStatuses: sql<string[]>`COALESCE(array_agg(${statuses.name}), ARRAY[]::text[])`.as("all_statuses"),
+        })
+        .from(propertyStatuses)
+        .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
+        .groupBy(propertyStatuses.propertyId)
+        .as("status_data");
+
     const query = db
         .select({
             id: properties.id,
@@ -116,21 +133,8 @@ export async function getMapProperties(
             bedrooms: structures.bedsCount,
             bathrooms: structures.baths,
             price: lastSales.price,
-            status: sql<string | null>`(
-                SELECT s.name FROM property_statuses ps
-                JOIN statuses s ON s.id = ps.status_id
-                WHERE ps.property_id = ${properties.id}
-                ORDER BY CASE s.name
-                    WHEN 'wholesale' THEN 0 WHEN 'on-market' THEN 1
-                    WHEN 'in-renovation' THEN 2 WHEN 'sold' THEN 3 ELSE 4
-                END LIMIT 1
-            )`,
-            statuses: sql<string[]>`COALESCE(
-                (SELECT array_agg(s.name) FROM property_statuses ps
-                 JOIN statuses s ON s.id = ps.status_id
-                 WHERE ps.property_id = ${properties.id}),
-                ARRAY[]::text[]
-            )`,
+            status: statusData.primaryStatus,
+            statuses: statusData.allStatuses,
             // Buyer/seller IDs are only needed when a company is selected (for pin color coding).
             // Skip the correlated subqueries entirely when no company filter is active.
             txBuyerId: hasCompanyFilter
@@ -164,7 +168,8 @@ export async function getMapProperties(
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
-        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+        .leftJoin(statusData, eq(properties.id, statusData.propertyId));
 
     const rawResults = await (whereClause ? query.where(whereClause) : query).execute();
 
