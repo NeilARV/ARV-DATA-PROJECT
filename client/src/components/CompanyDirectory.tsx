@@ -312,80 +312,106 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             const isExpanded = company?.id === listCompany.id;
             const profile = companyProfiles[listCompany.companyName];
             const ranking = getRank(index, listCompany);
-            
+            const medalBorder =
+              ranking === 1
+                ? "border-l-4 border-l-amber-400"
+                : ranking === 2
+                  ? "border-l-4 border-l-slate-400"
+                  : ranking === 3
+                    ? "border-l-4 border-l-amber-700"
+                    : "";
+
             return (
               <div key={listCompany.id} ref={(el) => (itemRefs.current[listCompany.companyName] = el)}>
                 <Card
-                  className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isExpanded ? 'ring-2 ring-primary' : ''}`}
+                  className={`p-3 hover-elevate active-elevate-2 cursor-pointer transition-all ${isExpanded ? 'ring-2 ring-primary' : ''} ${medalBorder}`}
                   onClick={() => handleCompanyClick(listCompany)}
                   data-testid={`card-company-${listCompany.id}`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 flex-1 min-w-0">
-                        {(sortBy === "most-properties" || sortBy === "most-sold-properties" || sortBy === "most-sold-properties-all-time" || sortBy === "most-bought-properties" || sortBy === "most-bought-properties-all-time" || sortBy === "buys-wholesale") && ranking != null && (
-                          <span className="text-primary font-bold text-sm min-w-[24px]" data-testid={`text-rank-${ranking}`}>
+                  <div className="flex items-start gap-2">
+                    {/* Col 1: Rank (fixed small width) */}
+                    <div className="flex-shrink-0 w-5 flex items-start justify-center pt-0.5">
+                      {ranking != null && (
+                        ranking <= 3 ? (
+                          <span
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                              ranking === 1
+                                ? "bg-amber-400 text-white"
+                                : ranking === 2
+                                  ? "bg-slate-400 text-white"
+                                  : "bg-amber-700 text-amber-100"
+                            }`}
+                            data-testid={`text-rank-${ranking}`}
+                          >
+                            {ranking}
+                          </span>
+                        ) : (
+                          <span className="text-primary font-bold text-sm leading-tight" data-testid={`text-rank-${ranking}`}>
                             {ranking}.
                           </span>
-                        )}
-                        <Building2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
-                            {formatCompanyName(listCompany.companyName)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col items-end gap-1">
-                          {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && sortBy !== "most-bought-properties" && sortBy !== "most-bought-properties-all-time" && sortBy !== "buys-wholesale" && listCompany.propertyCount > 0 && (
-                            <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
-                              {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
-                            </div>
-                          )}
-                          {sortBy === "most-sold-properties" && (listCompany.propertiesSoldCount ?? 0) > 0 && (
-                            <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
-                              {listCompany.propertiesSoldCount} sold
-                            </div>
-                          )}
-                          {sortBy === "most-sold-properties-all-time" && (listCompany.propertiesSoldCountAllTime ?? 0) > 0 && (
-                            <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
-                              {listCompany.propertiesSoldCountAllTime} sold
-                            </div>
-                          )}
-                          {sortBy === "most-bought-properties" && (listCompany.propertiesBoughtCount ?? 0) > 0 && (
-                            <div className="text-xs font-medium text-green-600 bg-green-500/15 dark:text-green-400 dark:bg-green-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-bought-count">
-                              {listCompany.propertiesBoughtCount} bought
-                            </div>
-                          )}
-                          {sortBy === "most-bought-properties-all-time" && (listCompany.propertiesBoughtCountAllTime ?? 0) > 0 && (
-                            <div className="text-xs font-medium text-green-600 bg-green-500/15 dark:text-green-400 dark:bg-green-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-bought-count-all-time">
-                              {listCompany.propertiesBoughtCountAllTime} bought
-                            </div>
-                          )}
-                          {sortBy === "buys-wholesale" && (listCompany.wholesaleBuyCount ?? 0) > 0 && (
-                            <div className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-wholesale-buy-count">
-                              {listCompany.wholesaleBuyCount} wholesale
-                            </div>
-                          )}
-                          {listCompany.isFinancedByARV && (
-                            <div className="text-xs font-medium text-black bg-white px-2 py-0.5 rounded-full whitespace-nowrap">
-                              ARV Partner
-                            </div>
-                          )}
-                        </div>
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {listCompany.contactName && (
-                        <User className="w-3.5 h-3.5 flex-shrink-0" />
+                        )
                       )}
-                      <span className="truncate" data-testid="text-contact-name">{listCompany.contactName}</span>
+                    </div>
+
+                    {/* Col 2: Company name + contact (flex-1, truncates) */}
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <div className="font-medium text-sm leading-tight break-words" data-testid="text-company-name">
+                        {formatCompanyName(listCompany.companyName)}
+                      </div>
+                      {listCompany.contactName && (
+                        <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+                          <User className="w-3 h-3 flex-shrink-0" />
+                          <span className="text-sm truncate" data-testid="text-contact-name">{listCompany.contactName}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Col 3: Count + ARV Partner badges */}
+                    <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                      {sortBy !== "most-sold-properties" && sortBy !== "most-sold-properties-all-time" && sortBy !== "most-bought-properties" && sortBy !== "most-bought-properties-all-time" && sortBy !== "buys-wholesale" && listCompany.propertyCount > 0 && (
+                        <div className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-property-count">
+                          {listCompany.propertyCount} {listCompany.propertyCount === 1 ? 'property' : 'properties'}
+                        </div>
+                      )}
+                      {sortBy === "most-sold-properties" && (listCompany.propertiesSoldCount ?? 0) > 0 && (
+                        <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count">
+                          {listCompany.propertiesSoldCount} sold
+                        </div>
+                      )}
+                      {sortBy === "most-sold-properties-all-time" && (listCompany.propertiesSoldCountAllTime ?? 0) > 0 && (
+                        <div className="text-xs font-medium text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-sold-count-all-time">
+                          {listCompany.propertiesSoldCountAllTime} sold
+                        </div>
+                      )}
+                      {sortBy === "most-bought-properties" && (listCompany.propertiesBoughtCount ?? 0) > 0 && (
+                        <div className="text-xs font-medium text-green-600 bg-green-500/15 dark:text-green-400 dark:bg-green-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-bought-count">
+                          {listCompany.propertiesBoughtCount} bought
+                        </div>
+                      )}
+                      {sortBy === "most-bought-properties-all-time" && (listCompany.propertiesBoughtCountAllTime ?? 0) > 0 && (
+                        <div className="text-xs font-medium text-green-600 bg-green-500/15 dark:text-green-400 dark:bg-green-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-bought-count-all-time">
+                          {listCompany.propertiesBoughtCountAllTime} bought
+                        </div>
+                      )}
+                      {sortBy === "buys-wholesale" && (listCompany.wholesaleBuyCount ?? 0) > 0 && (
+                        <div className="text-xs font-medium text-purple-600 bg-purple-500/15 dark:text-purple-400 dark:bg-purple-500/20 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid="text-wholesale-buy-count">
+                          {listCompany.wholesaleBuyCount} wholesale
+                        </div>
+                      )}
+                      {listCompany.isFinancedByARV && (
+                        <div className="text-xs font-medium text-black bg-white px-2 py-0.5 rounded-full whitespace-nowrap">
+                          ARV Partner
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Col 4: Chevron (fixed small width) */}
+                    <div className="flex-shrink-0 flex items-start pt-0.5">
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      )}
                     </div>
                   </div>
                 </Card>

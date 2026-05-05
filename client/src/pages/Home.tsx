@@ -108,10 +108,7 @@ function HomeContent() {
           ) : view === "buyers-feed" ? (
             <GridView sideBarView="none" />
           ) : (
-            <GridView
-              showWholesaleLeaderboard={view === "wholesale"}
-              sideBarView="none"
-            />
+            <GridView sideBarView="none" />
           )}
         </div>
 

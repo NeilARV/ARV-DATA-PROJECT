@@ -6,26 +6,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Trophy } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import type { SortOption } from "@/types/options";
-import { GridViewProps, WholesaleLeaderboardEntry } from "@/types/views";
+import { GridViewProps } from "@/types/views";
 import { useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useMemo } from "react";
-import { formatCompanyName } from "@shared/utils/formatCompanyName";
 
 export default function GridView({
-  showWholesaleLeaderboard = false,
   sideBarView
 }: GridViewProps) {
 
   const { filters, clearFilters, hasActiveFilters, sortBy, setSortBy } = useFilters();
   const { properties, totalProperties, propertiesHasMore, isLoading, isFetching, isLoadingMoreProperties, loadMorePropertiesRef, stablePropertyCount } = useProperties();
   const { fetchProperty, setProperty } = useProperty();
-  const { company, setCompany, handleCompanyClick } = useCompanies();
+  const { company, setCompany } = useCompanies();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -34,19 +31,6 @@ export default function GridView({
   const displayShownCount = company && (isLoading || isFetching) ? properties.length : totalProperties;
   // Avoid stutter when deselecting: when no company and refetching, keep previous total
   const displayTotal = !company && (isLoading || isFetching) && stablePropertyCount > 0 ? stablePropertyCount : totalProperties;
-
-  const { data: wholesaleLeaderboard = [], isLoading: isLoadingLeaderboard } = useQuery<
-    WholesaleLeaderboardEntry[]
-  >({
-    queryKey: ["/api/companies/wholesale-leaderboard", filters.county],
-    queryFn: async () => {
-      const url = `/api/companies/wholesale-leaderboard${filters.county ? `?county=${encodeURIComponent(filters.county)}` : ""}`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch wholesale leaderboard");
-      return res.json();
-    },
-    enabled: showWholesaleLeaderboard,
-  });
 
 
     // Calculate grid columns based on sidebar visibility
@@ -69,65 +53,7 @@ export default function GridView({
                 : `${displayTotal} Properties`}
             </h2>
           </div>
-        {showWholesaleLeaderboard && (
-          <div className="flex items-center gap-2 min-w-0 flex-shrink flex-wrap">
-            <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <Trophy className="w-4 h-4 text-amber-500 shrink-0" />
-              Top Wholesalers
-            </span>
-            {isLoadingLeaderboard ? (
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            ) : wholesaleLeaderboard.length > 0 ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                {wholesaleLeaderboard.map((entry) => {
-                  const badgeStyles =
-                    entry.rank === 1
-                      ? "bg-amber-400 text-white font-semibold"
-                      : entry.rank === 2
-                        ? "bg-slate-400 text-white font-semibold"
-                        : "bg-amber-700 text-amber-100 font-semibold";
-                  const borderAccent =
-                    entry.rank === 1
-                      ? "border-l-amber-400"
-                      : entry.rank === 2
-                        ? "border-l-slate-400"
-                        : "border-l-amber-700";
-                  return (
-                    <button
-                      key={entry.companyId}
-                      type="button"
-                      onClick={() => {
-                        setProperty(null);
-                        handleCompanyClick?.(entry.companyName, entry.companyId);
-                      }}
-                      className={`w-[150px] pl-1.5 pr-1.5 py-1.5 rounded-md border border-border border-l-4 bg-background transition-colors flex items-center gap-1.5 text-left min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${borderAccent}`}
-                    >
-                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${badgeStyles}`}>
-                        {entry.rank}
-                      </span>
-                      <span className="min-w-0 flex-1 overflow-hidden">
-                        <span className="text-xs font-medium truncate block text-foreground leading-tight">
-                          {formatCompanyName(entry.companyName)}
-                        </span>
-                        {entry.contactName && (
-                          <span className="text-xs text-muted-foreground truncate block leading-tight">
-                            {entry.contactName}
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                        {entry.wholesaleCount}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <span className="text-xs text-muted-foreground">No data</span>
-            )}
-          </div>
-        )}
-        <div className="flex items-center gap-2 flex-shrink-0">
+<div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-sm text-muted-foreground">Sort by:</span>
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
             <SelectTrigger className="w-[180px]" data-testid="select-sort">
