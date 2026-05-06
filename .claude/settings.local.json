@@ -5,7 +5,9 @@
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
       "Bash(git stash *)",
       "Bash(Get-ChildItem -Path \"c:\\\\Github\\\\ARV-DATA-Project\\\\database\\\\schemas\\\\\" -File)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\ARV-DATA-PROJECT\\\\server\\\\controllers\" -Recurse)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

@@ -27,4 +27,7 @@ router.post("/:id/contacts", requireRole(["admin", "owner"]), CompaniesControlle
 router.patch("/:id/contacts/:contactId", requireRole(["admin", "owner"]), CompaniesController.updateContactHandler);
 router.delete("/:id/contacts/:contactId", requireRole(["admin", "owner"]), CompaniesController.deleteContactHandler);
 
+// Enrich company data from OpenCorporates
+router.post("/:id/enrich", requireRole(["admin", "owner"]), CompaniesController.enrichCompanyHandler);
+
 export default router;
