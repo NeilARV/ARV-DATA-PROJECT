@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone, Eye } from "lucide-react";
+import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone, Eye, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import UpdateContent from "@/components/modals/Update";
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { useFilters } from "@/hooks/useFilters";
 import type { CompanyContactWithCounts, CompanyContactDetail, CompanyDirectoryProps } from "@/types/companies";
 import type { UpdateDialogInitialData } from "@/types/general";
@@ -26,6 +27,7 @@ import {
   DEFAULT_STATUS_FILTERS,
   WHOLESALE_VIEW_STATUS_FILTERS,
 } from "@/constants/propertyStatus.constants";
+import { COUNTIES } from "@/constants/filters.constants";
 import { useView } from "@/hooks/useView";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
@@ -57,6 +59,11 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const [editDialogCompanyId, setEditDialogCompanyId] = useState<string | null>(null);
   const [editDialogInitialData, setEditDialogInitialData] = useState<UpdateDialogInitialData | null>(null);
   const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
+  const [enrichingCompanyId, setEnrichingCompanyId] = useState<string | null>(null);
+  const enrichState = useMemo(
+    () => COUNTIES.find((c) => c.county === (filters.county ?? "San Diego"))?.state ?? "CA",
+    [filters.county]
+  );
   const { isAdmin, isOwner } = useAuth();
   const { requireSubscription, ContactDialog } = useRequireSubscription();
   const { view, setView } = useView();
@@ -237,6 +244,27 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
       if (companies.length === 0) {
         loadCompanies();
       }
+    }
+  };
+
+  const handleEnrichCompany = async (companyId: string) => {
+    if (enrichingCompanyId) return;
+    setEnrichingCompanyId(companyId);
+    try {
+      await apiRequest("POST", `/api/companies/${companyId}/enrich`, { state: enrichState });
+      toast({ title: "Company data loaded", description: "OpenCorporates data saved successfully" });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "An error occurred";
+      // apiRequest error format is "status: body" — extract the body JSON message if present
+      const bodyPart = raw.includes(": ") ? raw.split(": ").slice(1).join(": ") : raw;
+      let displayMessage = bodyPart;
+      try {
+        const parsed = JSON.parse(bodyPart);
+        if (parsed?.message) displayMessage = parsed.message;
+      } catch { /* not JSON, use as-is */ }
+      toast({ title: "Failed to load company data", description: displayMessage, variant: "destructive" });
+    } finally {
+      setEnrichingCompanyId(null);
     }
   };
 
@@ -612,6 +640,20 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     {/* Admin Actions - Only visible to owner or admin */}
                     {(isAdmin || isOwner) && (
                       <div className="pt-3 border-t border-border space-y-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          disabled={enrichingCompanyId === listCompany.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEnrichCompany(listCompany.id);
+                          }}
+                          data-testid="button-enrich-company"
+                        >
+                          <RefreshCw className={`w-4 h-4 mr-2 ${enrichingCompanyId === listCompany.id ? "animate-spin" : ""}`} />
+                          {enrichingCompanyId === listCompany.id ? "Loading..." : "Load Company Data"}
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

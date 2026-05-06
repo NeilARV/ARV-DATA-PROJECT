@@ -854,142 +854,140 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
         return { status: "oc-error", message: err instanceof Error ? err.message : "Company lookup failed" };
     }
 
-    await db.transaction(async (tx) => {
-        // Upsert company_details
-        const detailValues = {
+    // Upsert company_details
+    const detailValues = {
+        companyId: id,
+        jurisdictionCode: ocCompany.jurisdiction_code,
+        ocCompanyNumber: ocCompany.company_number,
+        incorporationDate: ocCompany.incorporation_date ?? null,
+        dissolutionDate: ocCompany.dissolution_date ?? null,
+        companyType: ocCompany.company_type ?? null,
+        registryUrl: ocCompany.registry_url ?? null,
+        branch: ocCompany.branch ?? null,
+        branchStatus: ocCompany.branch_status ?? null,
+        inactive: ocCompany.inactive ?? false,
+        sourceName: ocCompany.source?.publisher ?? null,
+        sourceUrl: ocCompany.source?.url ?? null,
+        agentName: ocCompany.agent_name ?? null,
+        agentAddress: ocCompany.agent_address ? formatAgentAddress(ocCompany.agent_address) : null,
+        alternativeNames: ocCompany.alternative_names?.length ? ocCompany.alternative_names : null,
+        previousNames: ocCompany.previous_names?.length ? ocCompany.previous_names : null,
+        numberOfEmployees: ocCompany.number_of_employees ?? null,
+        nativeCompanyNumber: ocCompany.native_company_number ?? null,
+        alternateRegistrationEntities: ocCompany.alternate_registration_entities?.length ? ocCompany.alternate_registration_entities : null,
+        previousRegistrationEntities: ocCompany.previous_registration_entities?.length ? ocCompany.previous_registration_entities : null,
+        subsequentRegistrationEntities: ocCompany.subsequent_registration_entities?.length ? ocCompany.subsequent_registration_entities : null,
+        industryCodes: ocCompany.industry_codes?.length ? ocCompany.industry_codes : null,
+        identifiers: ocCompany.identifiers?.length ? ocCompany.identifiers : null,
+        trademarkRegistrations: ocCompany.trademark_registrations?.length ? ocCompany.trademark_registrations : null,
+        corporateGroupings: ocCompany.corporate_groupings?.length ? ocCompany.corporate_groupings : null,
+        financialSummary: ocCompany.financial_summary != null ? JSON.stringify(ocCompany.financial_summary) : null,
+        homeCompany: ocCompany.home_company != null ? JSON.stringify(ocCompany.home_company) : null,
+        controllingEntity: ocCompany.controlling_entity != null ? JSON.stringify(ocCompany.controlling_entity) : null,
+        ultimateBeneficialOwners: ocCompany.ultimate_beneficial_owners?.length ? ocCompany.ultimate_beneficial_owners : null,
+        ultimateControllingCompany: ocCompany.ultimate_controlling_company != null ? JSON.stringify(ocCompany.ultimate_controlling_company) : null,
+        filings: ocCompany.filings?.length ? ocCompany.filings : null,
+        enrichedAt: new Date(),
+        updatedAt: new Date(),
+    };
+
+    await db
+        .insert(companyDetails)
+        .values(detailValues)
+        .onConflictDoUpdate({
+            target: companyDetails.companyId,
+            set: detailValues,
+        });
+
+    // Replace all addresses for this company
+    await db.delete(companyAddresses).where(eq(companyAddresses.companyId, id));
+
+    const addressRows: (typeof companyAddresses.$inferInsert)[] = [];
+
+    if (ocCompany.registered_address) {
+        addressRows.push({
             companyId: id,
-            jurisdictionCode: ocCompany.jurisdiction_code,
-            ocCompanyNumber: ocCompany.company_number,
-            incorporationDate: ocCompany.incorporation_date ?? null,
-            dissolutionDate: ocCompany.dissolution_date ?? null,
-            companyType: ocCompany.company_type ?? null,
-            registryUrl: ocCompany.registry_url ?? null,
-            branch: ocCompany.branch ?? null,
-            branchStatus: ocCompany.branch_status ?? null,
-            inactive: ocCompany.inactive ?? false,
-            sourceName: ocCompany.source?.publisher ?? null,
-            sourceUrl: ocCompany.source?.url ?? null,
-            agentName: ocCompany.agent_name ?? null,
-            agentAddress: ocCompany.agent_address ? formatAgentAddress(ocCompany.agent_address) : null,
-            alternativeNames: ocCompany.alternative_names?.length ? ocCompany.alternative_names : null,
-            previousNames: ocCompany.previous_names?.length ? ocCompany.previous_names : null,
-            numberOfEmployees: ocCompany.number_of_employees ?? null,
-            nativeCompanyNumber: ocCompany.native_company_number ?? null,
-            alternateRegistrationEntities: ocCompany.alternate_registration_entities?.length ? ocCompany.alternate_registration_entities : null,
-            previousRegistrationEntities: ocCompany.previous_registration_entities?.length ? ocCompany.previous_registration_entities : null,
-            subsequentRegistrationEntities: ocCompany.subsequent_registration_entities?.length ? ocCompany.subsequent_registration_entities : null,
-            industryCodes: ocCompany.industry_codes?.length ? ocCompany.industry_codes : null,
-            identifiers: ocCompany.identifiers?.length ? ocCompany.identifiers : null,
-            trademarkRegistrations: ocCompany.trademark_registrations?.length ? ocCompany.trademark_registrations : null,
-            corporateGroupings: ocCompany.corporate_groupings?.length ? ocCompany.corporate_groupings : null,
-            financialSummary: ocCompany.financial_summary != null ? JSON.stringify(ocCompany.financial_summary) : null,
-            homeCompany: ocCompany.home_company != null ? JSON.stringify(ocCompany.home_company) : null,
-            controllingEntity: ocCompany.controlling_entity != null ? JSON.stringify(ocCompany.controlling_entity) : null,
-            ultimateBeneficialOwners: ocCompany.ultimate_beneficial_owners?.length ? ocCompany.ultimate_beneficial_owners : null,
-            ultimateControllingCompany: ocCompany.ultimate_controlling_company != null ? JSON.stringify(ocCompany.ultimate_controlling_company) : null,
-            filings: ocCompany.filings?.length ? ocCompany.filings : null,
-            enrichedAt: new Date(),
-            updatedAt: new Date(),
-        };
+            addressType: "registered",
+            streetAddress: ocCompany.registered_address.street_address ?? null,
+            locality: ocCompany.registered_address.locality ?? null,
+            region: ocCompany.registered_address.region ?? null,
+            postalCode: ocCompany.registered_address.postal_code ?? null,
+            country: ocCompany.registered_address.country ?? null,
+            addressInFull: ocCompany.registered_address_in_full ?? null,
+        });
+    }
 
-        await tx
-            .insert(companyDetails)
-            .values(detailValues)
-            .onConflictDoUpdate({
-                target: companyDetails.companyId,
-                set: detailValues,
-            });
-
-        // Replace all addresses for this company
-        await tx.delete(companyAddresses).where(eq(companyAddresses.companyId, id));
-
-        const addressRows: (typeof companyAddresses.$inferInsert)[] = [];
-
-        if (ocCompany.registered_address) {
+    for (const { datum } of ocCompany.data?.most_recent ?? []) {
+        if (datum.title === "Mailing Address") {
             addressRows.push({
                 companyId: id,
-                addressType: "registered",
-                streetAddress: ocCompany.registered_address.street_address ?? null,
-                locality: ocCompany.registered_address.locality ?? null,
-                region: ocCompany.registered_address.region ?? null,
-                postalCode: ocCompany.registered_address.postal_code ?? null,
-                country: ocCompany.registered_address.country ?? null,
-                addressInFull: ocCompany.registered_address_in_full ?? null,
+                addressType: "mailing",
+                streetAddress: null,
+                locality: null,
+                region: null,
+                postalCode: null,
+                country: null,
+                addressInFull: datum.description,
+            });
+        } else if (datum.title === "Head Office Address") {
+            addressRows.push({
+                companyId: id,
+                addressType: "head_office",
+                streetAddress: null,
+                locality: null,
+                region: null,
+                postalCode: null,
+                country: null,
+                addressInFull: datum.description,
             });
         }
+    }
 
-        for (const { datum } of ocCompany.data?.most_recent ?? []) {
-            if (datum.title === "Mailing Address") {
-                addressRows.push({
-                    companyId: id,
-                    addressType: "mailing",
-                    streetAddress: null,
-                    locality: null,
-                    region: null,
-                    postalCode: null,
-                    country: null,
-                    addressInFull: datum.description,
-                });
-            } else if (datum.title === "Head Office Address") {
-                addressRows.push({
-                    companyId: id,
-                    addressType: "head_office",
-                    streetAddress: null,
-                    locality: null,
-                    region: null,
-                    postalCode: null,
-                    country: null,
-                    addressInFull: datum.description,
-                });
-            }
-        }
+    if (addressRows.length > 0) {
+        await db.insert(companyAddresses).values(addressRows);
+    }
 
-        if (addressRows.length > 0) {
-            await tx.insert(companyAddresses).values(addressRows);
-        }
+    // Upsert officers as contacts (query-based to handle nullable last_name)
+    for (const { officer } of ocCompany.officers ?? []) {
+        const { firstName, lastName } = splitOfficerName(officer.name);
 
-        // Upsert officers as contacts (query-based to handle nullable last_name)
-        for (const { officer } of ocCompany.officers ?? []) {
-            const { firstName, lastName } = splitOfficerName(officer.name);
+        const lastNameCondition = lastName
+            ? sql`LOWER(TRIM(COALESCE(${companyContacts.lastName}, ''))) = LOWER(TRIM(${lastName}))`
+            : sql`${companyContacts.lastName} IS NULL`;
 
-            const lastNameCondition = lastName
-                ? sql`LOWER(TRIM(COALESCE(${companyContacts.lastName}, ''))) = LOWER(TRIM(${lastName}))`
-                : sql`${companyContacts.lastName} IS NULL`;
-
-            const [existing] = await tx
-                .select({ id: companyContacts.id })
-                .from(companyContacts)
-                .where(
-                    and(
-                        eq(companyContacts.companyId, id),
-                        sql`LOWER(TRIM(${companyContacts.firstName})) = LOWER(TRIM(${firstName}))`,
-                        lastNameCondition
-                    )
+        const [existing] = await db
+            .select({ id: companyContacts.id })
+            .from(companyContacts)
+            .where(
+                and(
+                    eq(companyContacts.companyId, id),
+                    sql`LOWER(TRIM(${companyContacts.firstName})) = LOWER(TRIM(${firstName}))`,
+                    lastNameCondition
                 )
-                .limit(1);
+            )
+            .limit(1);
 
-            if (existing) {
-                await tx
-                    .update(companyContacts)
-                    .set({ title: officer.position ?? null, address: officer.address ?? null, updatedAt: new Date() })
-                    .where(eq(companyContacts.id, existing.id));
-            } else {
-                const [{ nextSortOrder }] = await tx
-                    .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
-                    .from(companyContacts)
-                    .where(eq(companyContacts.companyId, id));
+        if (existing) {
+            await db
+                .update(companyContacts)
+                .set({ title: officer.position ?? null, address: officer.address ?? null, updatedAt: new Date() })
+                .where(eq(companyContacts.id, existing.id));
+        } else {
+            const [{ nextSortOrder }] = await db
+                .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
+                .from(companyContacts)
+                .where(eq(companyContacts.companyId, id));
 
-                await tx.insert(companyContacts).values({
-                    companyId: id,
-                    firstName,
-                    lastName: lastName ?? null,
-                    title: officer.position ?? null,
-                    address: officer.address ?? null,
-                    sortOrder: nextSortOrder ?? 1,
-                });
-            }
+            await db.insert(companyContacts).values({
+                companyId: id,
+                firstName,
+                lastName: lastName ?? null,
+                title: officer.position ?? null,
+                address: officer.address ?? null,
+                sortOrder: nextSortOrder ?? 1,
+            });
         }
-    });
+    }
 
     console.log(`Enriched company ${company.companyName} (ID: ${id}) from OpenCorporates`);
     return { status: "ok" };
