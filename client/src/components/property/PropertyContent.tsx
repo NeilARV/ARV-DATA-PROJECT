@@ -588,6 +588,15 @@ export function PropertyContent({
           </span>
         </div>
       )}
+      {/* Financing type (non-ARV team members) */}
+      {!canAccessAdminPanel && (
+        <div className="mt-2 flex items-center justify-center gap-1.5">
+          <Landmark className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <span className="text-sm font-medium text-foreground">
+            {property.lenderName ? "Hard Money Transaction" : "Cash Transaction"}
+          </span>
+        </div>
+      )}
       </div>{/* end flex-1 main content */}
 
       {/* Spread */}
