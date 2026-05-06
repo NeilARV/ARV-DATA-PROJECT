@@ -15,6 +15,7 @@ import { insertPropertyRelatedData, SfrPropertyData } from "server/utils/propert
 import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
 import { eq, sql, or, and, desc, inArray } from "drizzle-orm";
 import { appendPropertyTransactions, reprocessProperty } from "./propertyTransactions.services";
+import { formatContactName } from "@shared/utils/formatContactName";
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ export async function getPropertyById(id: string) {
             .orderBy(companyContacts.sortOrder, companyContacts.id)
             .limit(1);
         if (assignorContact) {
-            assignorContactName = [assignorContact.firstName, assignorContact.lastName].filter(Boolean).join(" ") || null;
+            assignorContactName = formatContactName([assignorContact.firstName, assignorContact.lastName].filter(Boolean).join(" "));
             assignorContactEmail = assignorContact.email ?? null;
             assignorContactPhone = assignorContact.phoneNumber ?? null;
         }
@@ -233,7 +234,7 @@ export async function getPropertyById(id: string) {
             const primary = primaryContactByCompanyId.get(id);
             txCompanyMap.set(id, {
                 id,
-                contactName: primary ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null : null,
+                contactName: primary ? formatContactName([primary.firstName, primary.lastName].filter(Boolean).join(" ")) : null,
                 contactEmail: primary?.email ?? null,
                 phoneNumber: primary?.phoneNumber ?? null,
             });

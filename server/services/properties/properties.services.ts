@@ -6,6 +6,7 @@ import { trimCompanyName } from "server/utils/normalization";
 import { calculateSpread } from "server/utils/orderTransactions";
 import { eq, sql, or, and, inArray } from "drizzle-orm";
 import { resolveDateRange } from "server/utils/resolveDateRange";
+import { formatContactName } from "@shared/utils/formatContactName";
 
 export interface GetPropertiesFilters {
     zipcode?: string;
@@ -539,7 +540,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             const primary = primaryByCompanyId.get(id);
             displayTxCompanyMap.set(id, {
                 id,
-                contactName: primary ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null : null,
+                contactName: primary ? formatContactName([primary.firstName, primary.lastName].filter(Boolean).join(" ")) : null,
                 contactEmail: primary?.email ?? null,
                 phoneNumber: primary?.phoneNumber ?? null,
             });
@@ -569,7 +570,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             const primary = primaryByCompanyId.get(id);
             assignorContactMap.set(id, {
                 id,
-                contactName: primary ? [primary.firstName, primary.lastName].filter(Boolean).join(" ") || null : null,
+                contactName: primary ? formatContactName([primary.firstName, primary.lastName].filter(Boolean).join(" ")) : null,
                 contactEmail: primary?.email ?? null,
                 phoneNumber: primary?.phoneNumber ?? null,
             });

@@ -7,6 +7,7 @@ import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
 import { OpenCorporatesService } from "server/services/opencorporates";
 import type { z } from "zod";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
+import { formatContactName } from "@shared/utils/formatContactName";
 
 export const CONTACTS_PAGE_SIZE = 50;
 export const CONTACTS_SORT_OPTIONS = [
@@ -27,7 +28,8 @@ type PrimaryContact = typeof companyContacts.$inferSelect;
 
 function buildContactName(contact: PrimaryContact | null | undefined): string | null {
     if (!contact) return null;
-    return [contact.firstName, contact.lastName].filter(Boolean).join(" ") || null;
+    const raw = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || null;
+    return formatContactName(raw);
 }
 
 async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, PrimaryContact>> {
@@ -506,7 +508,7 @@ export async function getLeaderboard(county: string) {
     for (const row of contactRows) {
         const key = row.companyName.trim().toLowerCase();
         if (!contactByCompany[key]) {
-            contactByCompany[key] = [row.firstName, row.lastName].filter(Boolean).join(" ");
+            contactByCompany[key] = formatContactName([row.firstName, row.lastName].filter(Boolean).join(" ")) ?? "";
         }
     }
 
