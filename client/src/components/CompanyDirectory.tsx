@@ -16,9 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useFilters } from "@/hooks/useFilters";
 import type { CompanyContactWithCounts, CompanyContactDetail, CompanyDirectoryProps } from "@/types/companies";
+import { fetchCompanyById } from "@/api/companies.api";
 import type { UpdateDialogInitialData } from "@/types/general";
 import type { DirectorySortOption } from "@/types/options";
 import {
@@ -82,6 +83,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     companySelectionInProgressRef,
     companyFiltersExpandedRef,
     ensuredCompany,
+    updateCompanyInList,
   } = useCompanies();
   const { setProperty } = useProperty();
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
@@ -253,6 +255,11 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     try {
       await apiRequest("POST", `/api/companies/${companyId}/enrich`, { state: enrichState });
       toast({ title: "Company data loaded", description: "OpenCorporates data saved successfully" });
+      // Refresh the expanded profile panel immediately
+      queryClient.invalidateQueries({ queryKey: ["/api/companies", companyId] });
+      // Patch the contact name in the list card without a full reload
+      const fresh = await fetchCompanyById(companyId, { county: filters.county ?? undefined });
+      if (fresh?.contactName) updateCompanyInList(companyId, { contactName: fresh.contactName });
     } catch (err) {
       const raw = err instanceof Error ? err.message : "An error occurred";
       // apiRequest error format is "status: body" — extract the body JSON message if present

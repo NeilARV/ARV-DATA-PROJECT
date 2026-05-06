@@ -28,6 +28,8 @@ export type CompaniesContextValue = {
   handleCompanyClick: (companyName: string, companyId: string | null, keepPanelOpen?: boolean) => void;
   /** When user selects a company from panel/modal that isn't in the loaded list, we fetch and show it here so scroll-into-view works */
   ensuredCompany: CompanyContactWithCounts | null;
+  /** Patch a single company entry in the list and selected company state (e.g. after enrich) */
+  updateCompanyInList: (id: string, patch: Partial<CompanyContactWithCounts>) => void;
 };
 
 const CompaniesContext = createContext<CompaniesContextValue | null>(null);
@@ -216,6 +218,12 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     [companies, setCompany, setSidebarView, filters, setFilters]
   );
 
+  const updateCompanyInList = useCallback((id: string, patch: Partial<CompanyContactWithCounts>) => {
+    setCompaniesState((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
+    setCompanyState((prev) => prev?.id === id ? { ...prev, ...patch } : prev);
+    setEnsuredCompany((prev) => prev?.id === id ? { ...prev, ...patch } : prev);
+  }, []);
+
   const hasMore = total > companies.length;
 
   const value: CompaniesContextValue = {
@@ -236,6 +244,7 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
     companyFiltersExpandedRef,
     handleCompanyClick,
     ensuredCompany,
+    updateCompanyInList,
   };
 
   return (
