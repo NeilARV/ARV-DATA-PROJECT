@@ -1,0 +1,48 @@
+{
+    "api_version": "0.4.8",
+    "results": {
+        "companies": [
+            {
+                "company": {
+                    "name": "SD VREV LLC",
+                    "company_number": "202464516473",
+                    "jurisdiction_code": "us_ca",
+                    "incorporation_date": "2024-11-11",
+                    "dissolution_date": null,
+                    "company_type": "Limited Liability Company - CA",
+                    "registry_url": "https://bizfileonline.sos.ca.gov/search/business",
+                    "branch": null,
+                    "branch_status": null,
+                    "inactive": false,
+                    "current_status": "Active",
+                    "created_at": "2024-11-18T18:10:13+00:00",
+                    "updated_at": "2026-05-04T11:12:15+00:00",
+                    "retrieved_at": "2026-04-30T00:00:00+00:00",
+                    "opencorporates_url": "https://opencorporates.com/companies/us_ca/202464516473",
+                    "previous_names": [],
+                    "alternative_names": [],
+                    "source": {
+                        "publisher": "California Secretary of State",
+                        "url": "https://bizfileonline.sos.ca.gov/search/business",
+                        "retrieved_at": "2026-04-30T00:00:00+00:00"
+                    },
+                    "registered_address": {
+                        "street_address": "2020 CAMINO DEL RIO N, STE 605",
+                        "locality": "SAN DIEGO",
+                        "region": "CA",
+                        "postal_code": "92108",
+                        "country": "United States"
+                    },
+                    "registered_address_in_full": "2020 CAMINO DEL RIO N, STE 605, SAN DIEGO, CA, 92108",
+                    "industry_codes": [],
+                    "restricted_for_marketing": null,
+                    "native_company_number": null
+                }
+            }
+        ],
+        "page": 1,
+        "per_page": 30,
+        "total_pages": 1,
+        "total_count": 1
+    }
+}

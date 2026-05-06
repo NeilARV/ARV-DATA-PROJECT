@@ -1,9 +1,10 @@
 import { db } from "server/storage";
-import { companies, companyContacts } from "@database/schemas/companies.schema";
+import { companies, companyContacts, companyDetails, companyAddresses } from "@database/schemas/companies.schema";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
 import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
 import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
 import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
+import { OpenCorporatesService } from "server/services/opencorporates";
 import type { z } from "zod";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
 
@@ -769,5 +770,225 @@ export async function deleteContact(companyId: string, contactId: number): Promi
 
     if (deleted.length === 0) return { status: "contact-not-found" };
     console.log(`Deleted contact ${contactId} from company ${companyId}`);
+    return { status: "ok" };
+}
+
+// ─── Enrich (OpenCorporates) ──────────────────────────────────────────────────
+
+const STATE_TO_JURISDICTION: Record<string, string> = {
+    CA: "us_ca",
+    FL: "us_fl",
+    CO: "us_co",
+    WA: "us_wa",
+};
+
+function normalizeCompanyName(name: string): string {
+    return name
+        .toUpperCase()
+        .replace(/[^A-Z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function splitOfficerName(name: string): { firstName: string; lastName: string | null } {
+    const idx = name.indexOf(" ");
+    if (idx === -1) return { firstName: name, lastName: null };
+    return { firstName: name.substring(0, idx), lastName: name.substring(idx + 1) };
+}
+
+function formatAgentAddress(addr: {
+    street_address: string | null;
+    locality: string | null;
+    region: string | null;
+    postal_code: string | null;
+    country: string | null;
+}): string {
+    return [addr.street_address, addr.locality, addr.region, addr.postal_code, addr.country]
+        .filter(Boolean)
+        .join(", ");
+}
+
+export type EnrichCompanyResult =
+    | { status: "ok" }
+    | { status: "not-found" }
+    | { status: "unknown-jurisdiction"; state: string }
+    | { status: "no-match"; companyName: string; jurisdiction: string }
+    | { status: "oc-error"; message: string };
+
+export async function enrichCompany(id: string, state: string): Promise<EnrichCompanyResult> {
+    const [company] = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
+    if (!company) return { status: "not-found" };
+
+    const jurisdictionCode = STATE_TO_JURISDICTION[state.toUpperCase()];
+    if (!jurisdictionCode) return { status: "unknown-jurisdiction", state };
+
+    const normalizedTarget = normalizeCompanyName(company.companyName);
+
+    let searchResults: Awaited<ReturnType<typeof OpenCorporatesService.searchCompany>>;
+    try {
+        searchResults = await OpenCorporatesService.searchCompany(company.companyName, jurisdictionCode);
+    } catch (err) {
+        return { status: "oc-error", message: err instanceof Error ? err.message : "Search request failed" };
+    }
+
+    const checkCount = Math.min(3, searchResults.totalCount, searchResults.companies.length);
+    let matchedNumber: string | null = null;
+    let matchedJurisdiction: string | null = null;
+    for (let i = 0; i < checkCount; i++) {
+        const result = searchResults.companies[i].company;
+        if (normalizeCompanyName(result.name) === normalizedTarget) {
+            matchedNumber = result.company_number;
+            matchedJurisdiction = result.jurisdiction_code;
+            break;
+        }
+    }
+
+    if (!matchedNumber || !matchedJurisdiction) {
+        return { status: "no-match", companyName: company.companyName, jurisdiction: jurisdictionCode };
+    }
+
+    let ocCompany: Awaited<ReturnType<typeof OpenCorporatesService.getCompanyByNumber>>;
+    try {
+        ocCompany = await OpenCorporatesService.getCompanyByNumber(matchedJurisdiction, matchedNumber);
+    } catch (err) {
+        return { status: "oc-error", message: err instanceof Error ? err.message : "Company lookup failed" };
+    }
+
+    // Upsert company_details
+    const detailValues = {
+        companyId: id,
+        jurisdictionCode: ocCompany.jurisdiction_code,
+        ocCompanyNumber: ocCompany.company_number,
+        incorporationDate: ocCompany.incorporation_date ?? null,
+        dissolutionDate: ocCompany.dissolution_date ?? null,
+        companyType: ocCompany.company_type ?? null,
+        registryUrl: ocCompany.registry_url ?? null,
+        branch: ocCompany.branch ?? null,
+        branchStatus: ocCompany.branch_status ?? null,
+        inactive: ocCompany.inactive ?? false,
+        sourceName: ocCompany.source?.publisher ?? null,
+        sourceUrl: ocCompany.source?.url ?? null,
+        agentName: ocCompany.agent_name ?? null,
+        agentAddress: ocCompany.agent_address ? formatAgentAddress(ocCompany.agent_address) : null,
+        alternativeNames: ocCompany.alternative_names?.length ? ocCompany.alternative_names : null,
+        previousNames: ocCompany.previous_names?.length ? ocCompany.previous_names : null,
+        numberOfEmployees: ocCompany.number_of_employees ?? null,
+        nativeCompanyNumber: ocCompany.native_company_number ?? null,
+        alternateRegistrationEntities: ocCompany.alternate_registration_entities?.length ? ocCompany.alternate_registration_entities : null,
+        previousRegistrationEntities: ocCompany.previous_registration_entities?.length ? ocCompany.previous_registration_entities : null,
+        subsequentRegistrationEntities: ocCompany.subsequent_registration_entities?.length ? ocCompany.subsequent_registration_entities : null,
+        industryCodes: ocCompany.industry_codes?.length ? ocCompany.industry_codes : null,
+        identifiers: ocCompany.identifiers?.length ? ocCompany.identifiers : null,
+        trademarkRegistrations: ocCompany.trademark_registrations?.length ? ocCompany.trademark_registrations : null,
+        corporateGroupings: ocCompany.corporate_groupings?.length ? ocCompany.corporate_groupings : null,
+        financialSummary: ocCompany.financial_summary != null ? JSON.stringify(ocCompany.financial_summary) : null,
+        homeCompany: ocCompany.home_company != null ? JSON.stringify(ocCompany.home_company) : null,
+        controllingEntity: ocCompany.controlling_entity != null ? JSON.stringify(ocCompany.controlling_entity) : null,
+        ultimateBeneficialOwners: ocCompany.ultimate_beneficial_owners?.length ? ocCompany.ultimate_beneficial_owners : null,
+        ultimateControllingCompany: ocCompany.ultimate_controlling_company != null ? JSON.stringify(ocCompany.ultimate_controlling_company) : null,
+        filings: ocCompany.filings?.length ? ocCompany.filings : null,
+        enrichedAt: new Date(),
+        updatedAt: new Date(),
+    };
+
+    await db
+        .insert(companyDetails)
+        .values(detailValues)
+        .onConflictDoUpdate({
+            target: companyDetails.companyId,
+            set: detailValues,
+        });
+
+    // Replace all addresses for this company
+    await db.delete(companyAddresses).where(eq(companyAddresses.companyId, id));
+
+    const addressRows: (typeof companyAddresses.$inferInsert)[] = [];
+
+    if (ocCompany.registered_address) {
+        addressRows.push({
+            companyId: id,
+            addressType: "registered",
+            streetAddress: ocCompany.registered_address.street_address ?? null,
+            locality: ocCompany.registered_address.locality ?? null,
+            region: ocCompany.registered_address.region ?? null,
+            postalCode: ocCompany.registered_address.postal_code ?? null,
+            country: ocCompany.registered_address.country ?? null,
+            addressInFull: ocCompany.registered_address_in_full ?? null,
+        });
+    }
+
+    for (const { datum } of ocCompany.data?.most_recent ?? []) {
+        if (datum.title === "Mailing Address") {
+            addressRows.push({
+                companyId: id,
+                addressType: "mailing",
+                streetAddress: null,
+                locality: null,
+                region: null,
+                postalCode: null,
+                country: null,
+                addressInFull: datum.description,
+            });
+        } else if (datum.title === "Head Office Address") {
+            addressRows.push({
+                companyId: id,
+                addressType: "head_office",
+                streetAddress: null,
+                locality: null,
+                region: null,
+                postalCode: null,
+                country: null,
+                addressInFull: datum.description,
+            });
+        }
+    }
+
+    if (addressRows.length > 0) {
+        await db.insert(companyAddresses).values(addressRows);
+    }
+
+    // Upsert officers as contacts (query-based to handle nullable last_name)
+    for (const { officer } of ocCompany.officers ?? []) {
+        const { firstName, lastName } = splitOfficerName(officer.name);
+
+        const lastNameCondition = lastName
+            ? sql`LOWER(TRIM(COALESCE(${companyContacts.lastName}, ''))) = LOWER(TRIM(${lastName}))`
+            : sql`${companyContacts.lastName} IS NULL`;
+
+        const [existing] = await db
+            .select({ id: companyContacts.id })
+            .from(companyContacts)
+            .where(
+                and(
+                    eq(companyContacts.companyId, id),
+                    sql`LOWER(TRIM(${companyContacts.firstName})) = LOWER(TRIM(${firstName}))`,
+                    lastNameCondition
+                )
+            )
+            .limit(1);
+
+        if (existing) {
+            await db
+                .update(companyContacts)
+                .set({ title: officer.position ?? null, address: officer.address ?? null, updatedAt: new Date() })
+                .where(eq(companyContacts.id, existing.id));
+        } else {
+            const [{ nextSortOrder }] = await db
+                .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
+                .from(companyContacts)
+                .where(eq(companyContacts.companyId, id));
+
+            await db.insert(companyContacts).values({
+                companyId: id,
+                firstName,
+                lastName: lastName ?? null,
+                title: officer.position ?? null,
+                address: officer.address ?? null,
+                sortOrder: nextSortOrder ?? 1,
+            });
+        }
+    }
+
+    console.log(`Enriched company ${company.companyName} (ID: ${id}) from OpenCorporates`);
     return { status: "ok" };
 }

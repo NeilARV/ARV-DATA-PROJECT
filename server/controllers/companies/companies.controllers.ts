@@ -174,3 +174,31 @@ export async function deleteContactHandler(req: Request, res: Response) {
         return res.status(500).json({ message: "Error deleting contact" });
     }
 }
+
+export async function enrichCompanyHandler(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const { state } = req.body as { state?: string };
+        if (!state || typeof state !== "string" || state.trim().length !== 2) {
+            return res.status(400).json({ message: "state is required and must be a 2-letter code (e.g. CA, FL)" });
+        }
+        const result = await CompaniesServices.enrichCompany(id, state.trim().toUpperCase());
+        switch (result.status) {
+            case "not-found":
+                return res.status(404).json({ message: "Company not found" });
+            case "unknown-jurisdiction":
+                return res.status(400).json({ message: `Unsupported state: ${result.state}` });
+            case "no-match":
+                return res.status(404).json({
+                    message: `No exact match found for "${result.companyName}" in jurisdiction ${result.jurisdiction}`,
+                });
+            case "oc-error":
+                return res.status(502).json({ message: result.message });
+            case "ok":
+                return res.status(200).json({ message: "Company enriched successfully" });
+        }
+    } catch (error) {
+        console.error("Error enriching company:", error);
+        return res.status(500).json({ message: "Error enriching company" });
+    }
+}
