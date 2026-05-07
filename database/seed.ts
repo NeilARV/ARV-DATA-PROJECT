@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { msas } from "./schemas/msas.schema";
 import { accountTypes, roles, subscriptions } from "./schemas/users.schema";
 import { statuses } from "./schemas/statuses.schema";
+import { categories } from "./schemas/vendors.schema";
 
 dotenv.config();
 
@@ -58,6 +59,20 @@ async function seed() {
         { name: "premium" },
     ]).onConflictDoNothing();
     console.log("  ✓ subscriptions");
+
+    await db.insert(categories).values([
+        { name: "General Contractor",  slug: "general-contractor",  description: "Full-service renovation & rehab",           iconName: "hammer" },
+        { name: "Plumber",             slug: "plumber",             description: "Plumbing installation & repair",            iconName: "wrench" },
+        { name: "Electrician",         slug: "electrician",         description: "Electrical work & wiring",                  iconName: "zap" },
+        { name: "Roofer",              slug: "roofer",              description: "Roofing installation & repair",             iconName: "house" },
+        { name: "HVAC",                slug: "hvac",                description: "Heating, ventilation & air conditioning",   iconName: "thermometer" },
+        { name: "Home Stager",         slug: "home-stager",         description: "Interior staging & design",                 iconName: "layout-dashboard" },
+        { name: "Wholesaler",          slug: "wholesaler",          description: "Off-market deal sourcing",                  iconName: "handshake" },
+        { name: "Painter",             slug: "painter",             description: "Interior & exterior painting",              iconName: "paintbrush" },
+        { name: "Flooring",            slug: "flooring",            description: "Hardwood, tile & flooring installation",    iconName: "layers" },
+        { name: "Landscaping",         slug: "landscaping",         description: "Landscaping, grading & outdoor work",       iconName: "tree-pine" },
+    ]).onConflictDoNothing();
+    console.log("  ✓ categories");
 
     console.log("Seed complete.");
 }
