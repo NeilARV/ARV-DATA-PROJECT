@@ -1,0 +1,1 @@
+CREATE INDEX "idx_pt_type_property_date" ON "property_transactions" USING btree (lower(trim("transaction_type")),"property_id","recording_date");
