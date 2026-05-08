@@ -254,6 +254,10 @@ Each folder under `tests/server/api/` maps to a broad API resource category. Wit
 - Group related routes under a `describe` block matching the route pattern
 - Test both success responses and expected error cases (400, 401, 403, 404, etc.)
 
+### References
+- `.claude/docs` contains feature design guides and docs that explain the goals of the feauture and the plan to integrate it
+- `VENDORS.md` contains the design documentation for our new vendor page
+
 ---
 
 ## Verification

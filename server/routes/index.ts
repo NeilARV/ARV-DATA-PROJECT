@@ -7,6 +7,8 @@ import geocodingRoutes from "./geocoding.routes"
 import userRoutes from "./users.routes"
 import dealsRoutes from "./deals.routes"
 import contactRoutes from "./contact.routes"
+import categoriesRoutes from "./categories.routes"
+import vendorsRoutes from "./vendors.routes"
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use("/companies", companyRoutes)
 router.use("/geocoding", geocodingRoutes)
 router.use("/deals", dealsRoutes)
 router.use("/contact", contactRoutes)
+router.use("/categories", categoriesRoutes)
+router.use("/vendors", vendorsRoutes)
 
 export default router
