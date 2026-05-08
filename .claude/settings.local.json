@@ -7,7 +7,8 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Github\\\\ARV-DATA-Project\\\\database\\\\schemas\\\\\" -File)",
       "Bash(npx tsc *)",
       "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\ARV-DATA-PROJECT\\\\server\\\\controllers\" -Recurse)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(node -e \"const t = require\\('./tsconfig.json'\\); console.log\\(JSON.stringify\\(t.compilerOptions.paths, null, 2\\)\\)\")"
     ]
   }
 }
