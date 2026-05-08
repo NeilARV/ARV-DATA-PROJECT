@@ -13,7 +13,7 @@ export async function getAllCategoriesHandler(req: Request, res: Response) {
 
 export async function getVendorsByCategoryHandler(req: Request, res: Response) {
     try {
-        const categoryId = parseInt(req.params.id, 10);
+        const categoryId = parseInt(req.params.categoryId, 10);
         if (isNaN(categoryId)) {
             return res.status(400).json({ message: "Invalid category id" });
         }

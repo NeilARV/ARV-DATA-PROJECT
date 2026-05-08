@@ -17,7 +17,7 @@ export async function getAllVendorsHandler(req: Request, res: Response) {
 
 export async function getVendorByIdHandler(req: Request, res: Response) {
     try {
-        const result = await VendorsServices.getById(req.params.id);
+        const result = await VendorsServices.getById(req.params.vendorId);
         if (!result) {
             return res.status(404).json({ message: "Vendor not found" });
         }

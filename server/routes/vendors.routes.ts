@@ -7,6 +7,6 @@ const router = Router();
 router.get("/", VendorsController.getAllVendorsHandler);
 
 // Get a single vendor with their categories
-router.get("/:id", VendorsController.getVendorByIdHandler);
+router.get("/:vendorId", VendorsController.getVendorByIdHandler);
 
 export default router;

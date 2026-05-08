@@ -7,6 +7,6 @@ const router = Router();
 router.get("/", CategoriesController.getAllCategoriesHandler);
 
 // Get all vendors belonging to a category
-router.get("/:id/vendors", CategoriesController.getVendorsByCategoryHandler);
+router.get("/:categoryId/vendors", CategoriesController.getVendorsByCategoryHandler);
 
 export default router;
