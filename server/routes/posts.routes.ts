@@ -14,15 +14,15 @@ const router = Router();
 router.get("/", getPostsController);
 
 // Requires basic subscription or higher; admin/owner bypass
-router.get("/:postId", /*requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), */ getPostByIdController);
+router.get("/:postId", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), getPostByIdController);
 
 // Requires basic subscription or higher; all team roles bypass
-router.post("/", /*requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }),*/ createPostController);
+router.post("/", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }), createPostController);
 
 // Requires basic subscription or higher; admin/owner bypass; ownership enforced in service
-router.put("/:postId", /*requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }),*/ updatePostController);
+router.put("/:postId", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), updatePostController);
 
 // Requires basic subscription or higher; admin/owner bypass; ownership enforced in service
-router.delete("/:postId", /*requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }),*/ deletePostController);
+router.delete("/:postId", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), deletePostController);
 
 export default router;
