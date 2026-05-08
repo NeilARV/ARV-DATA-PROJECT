@@ -9,6 +9,7 @@ import dealsRoutes from "./deals.routes"
 import contactRoutes from "./contact.routes"
 import categoriesRoutes from "./categories.routes"
 import vendorsRoutes from "./vendors.routes"
+import postsRoutes from "./posts.routes"
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/deals", dealsRoutes)
 router.use("/contact", contactRoutes)
 router.use("/categories", categoriesRoutes)
 router.use("/vendors", vendorsRoutes)
+router.use("/posts", postsRoutes)
 
 export default router

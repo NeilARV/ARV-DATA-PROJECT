@@ -315,13 +315,13 @@ reset()                               // full reset to default state
 ### Phase 2 — Backend: Categories & Vendors
 | Commit | Work |
 |---|---|
-| 3 | `GET /api/categories` and `GET /api/categories/:id/vendors` |
-| 4 | `GET /api/vendors` and `GET /api/vendors/:id` |
+| 3 | `GET /api/categories` and `GET /api/categories/:categoryId/vendors` |
+| 4 | `GET /api/vendors` and `GET /api/vendors/:categoryId` |
 
 ### Phase 3 — Backend: Posts
 | Commit | Work |
 |---|---|
-| 5 | Posts CRUD — `GET`, `POST`, `GET /:id`, `PUT /:id`, `DELETE /:id` |
+| 5 | Posts CRUD — `GET`, `POST`, `GET /:postId`, `PUT /:postId`, `DELETE /:postId` |
 | 6 | Post interactions — likes and comments endpoints |
 | 7 | API route tests for vendors and posts |
 
