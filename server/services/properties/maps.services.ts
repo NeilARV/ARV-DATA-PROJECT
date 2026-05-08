@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { properties, addresses, structures, lastSales } from "@database/schemas/properties.schema";
+import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
 import { eq, sql, and, or } from "drizzle-orm";
 import { resolveDateRange } from "server/utils/resolveDateRange";
@@ -41,71 +41,11 @@ export async function getMapProperties(
 ): Promise<MapPropertyData[]> {
     const conditions = [];
 
-    if (statusFilter) {
-        const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
-        if (statusArray.length > 0) {
-            const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
-            conditions.push(
-                sql`EXISTS (
-                    SELECT 1 FROM property_statuses ps
-                    JOIN statuses s ON s.id = ps.status_id
-                    WHERE ps.property_id = ${properties.id}
-                    AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}])
-                )`
-            );
-        }
-    }
-
-    if (county) {
-        const normalizedCounty = county.trim().toLowerCase();
-        conditions.push(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-            )
-        );
-    }
-
-    if (dateRange) {
-        const range = resolveDateRange(dateRange);
-        if (range) {
-            conditions.push(
-                sql`(
-                    SELECT MAX(pt.recording_date)
-                    FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                ) >= ${range.dateMin}::date`
-            );
-            conditions.push(
-                sql`(
-                    SELECT MAX(pt.recording_date)
-                    FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                ) <= ${range.dateMax}::date`
-            );
-        }
-    }
-
     const companyIdTrimmed = companyId?.trim() ?? "";
     const hasCompanyFilter = companyIdTrimmed !== "";
 
-    if (hasCompanyFilter) {
-        conditions.push(
-            sql`EXISTS (
-                SELECT 1 FROM property_transactions pt
-                WHERE pt.property_id = ${properties.id}
-                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-            )`
-        );
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    // Aggregate all statuses per property in one pass, joined once instead of two
-    // correlated subqueries per row (which would execute N×2 times).
+    // Aggregate all statuses per property once via a subquery join instead of
+    // correlated EXISTS subqueries per row.
     const statusData = db
         .select({
             propertyId: propertyStatuses.propertyId,
@@ -120,7 +60,62 @@ export async function getMapProperties(
         .groupBy(propertyStatuses.propertyId)
         .as("status_data");
 
-    const query = db
+    // Pre-aggregate max Arms Length recording_date per property once (replaces two
+    // correlated MAX subqueries that would execute once per row).
+    const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
+    const alDates = resolvedRange
+        ? db
+              .select({
+                  propertyId: propertyTransactions.propertyId,
+                  maxDate: sql<string | null>`MAX(${propertyTransactions.recordingDate})`.as("max_al_date"),
+              })
+              .from(propertyTransactions)
+              .where(sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`)
+              .groupBy(propertyTransactions.propertyId)
+              .as("al_dates")
+        : null;
+
+    if (statusFilter) {
+        const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
+        if (statusArray.length > 0) {
+            const normalizedStatuses = statusArray.map(s => s.toString().trim().toLowerCase());
+            // Filter on the already-joined statusData column (array overlap) instead of a
+            // correlated EXISTS subquery that re-scans property_statuses for every row.
+            conditions.push(
+                sql`${statusData.allStatuses} && ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}]::text[]`
+            );
+        }
+    }
+
+    if (county) {
+        const normalizedCounty = county.trim().toLowerCase();
+        conditions.push(
+            or(
+                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
+            )
+        );
+    }
+
+    if (alDates && resolvedRange) {
+        conditions.push(sql`${alDates.maxDate} >= ${resolvedRange.dateMin}::date`);
+        conditions.push(sql`${alDates.maxDate} <= ${resolvedRange.dateMax}::date`);
+    }
+
+    if (hasCompanyFilter) {
+        conditions.push(
+            sql`EXISTS (
+                SELECT 1 FROM property_transactions pt
+                WHERE pt.property_id = ${properties.id}
+                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+            )`
+        );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    let query = db
         .select({
             id: properties.id,
             latitude: addresses.latitude,
@@ -171,7 +166,11 @@ export async function getMapProperties(
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
         .leftJoin(statusData, eq(properties.id, statusData.propertyId));
 
-    const rawResults = await (whereClause ? query.where(whereClause) : query).execute();
+    if (alDates) {
+        query = (query as any).innerJoin(alDates, eq(properties.id, alDates.propertyId));
+    }
+
+    const rawResults = await (whereClause ? (query as any).where(whereClause) : query).execute();
 
     return rawResults
         .filter((prop: any) => {
