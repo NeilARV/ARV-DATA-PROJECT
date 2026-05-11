@@ -1,6 +1,6 @@
 import { db } from "server/storage";
 import { categories, vendors, vendorCategories } from "@database/schemas/vendors.schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 export async function getAll() {
     return db
@@ -10,8 +10,17 @@ export async function getAll() {
             slug: categories.slug,
             description: categories.description,
             iconName: categories.iconName,
+            vendorCount: sql<number>`cast(count(${vendorCategories.vendorId}) as int)`,
         })
         .from(categories)
+        .leftJoin(vendorCategories, eq(vendorCategories.categoryId, categories.id))
+        .groupBy(
+            categories.id,
+            categories.name,
+            categories.slug,
+            categories.description,
+            categories.iconName,
+        )
         .orderBy(categories.name);
 }
 

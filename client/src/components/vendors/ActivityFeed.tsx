@@ -51,9 +51,9 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
                         New Post
                     </Button>
                 </div>
-                {filterLabel && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{filterLabel}</p>
-                )}
+                <p className="text-xs text-muted-foreground mt-0.5 h-4">
+                    {filterLabel ?? ""}
+                </p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">

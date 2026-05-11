@@ -45,11 +45,18 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
             className="w-full text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors cursor-pointer"
             onClick={() => onClick(category)}
         >
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-primary/10 rounded-md flex-shrink-0">
-                    <Icon className="w-4 h-4 text-primary" />
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                        <Icon className="w-5 h-5 text-primary" />
+                    </div>
+                    <span className="font-semibold text-base text-foreground leading-tight">
+                        {category.name}
+                    </span>
                 </div>
-                <span className="font-medium text-sm text-foreground leading-tight">{category.name}</span>
+                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
+                    {category.vendorCount}
+                </span>
             </div>
             {description && (
                 <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>

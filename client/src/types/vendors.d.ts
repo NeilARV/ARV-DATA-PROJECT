@@ -4,6 +4,7 @@ export type Category = {
     slug: string;
     description: string | null;
     iconName: string;
+    vendorCount: number;
 };
 
 export type Vendor = {

@@ -15,10 +15,10 @@ function VendorsContent() {
         <div className="h-screen flex flex-col">
             <Header />
             <div className="flex-1 flex overflow-hidden">
-                <div className="w-2/5 border-r border-border flex flex-col overflow-hidden">
+                <div className="w-[calc(30%-100px)] h-full border-r border-border flex flex-col overflow-hidden">
                     <ActivityFeed postFilters={nav.postFilters} />
                 </div>
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 h-full flex flex-col overflow-hidden">
                     <BrowseByCategory
                         view={nav.view}
                         selectedCategory={nav.selectedCategory}

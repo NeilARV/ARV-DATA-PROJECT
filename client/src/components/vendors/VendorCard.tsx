@@ -9,28 +9,34 @@ type VendorCardProps = {
 };
 
 export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
+    const locationLine1 = vendor.address ?? null;
+    const locationLine2 = [vendor.city, vendor.state, vendor.zipCode].filter(Boolean).join(", ") || null;
+
     return (
-        <button
-            className={`w-full text-left p-4 bg-card border rounded-xl transition-colors cursor-pointer ${
-                isSelected
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-accent"
+        <div
+            className={`p-4 bg-card border rounded-xl transition-colors cursor-pointer ${
+                isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
             }`}
             onClick={() => onClick(vendor)}
         >
-            <h3 className="font-semibold text-sm text-foreground leading-tight mb-1">{vendor.name}</h3>
+            <h3 className="font-semibold text-base text-foreground leading-tight mb-1">
+                {vendor.name}
+            </h3>
 
             {vendor.description && (
-                <p className="text-xs text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                     {vendor.description}
                 </p>
             )}
 
-            <div className="space-y-1 mb-3">
-                {(vendor.city || vendor.state) && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span>{[vendor.city, vendor.state].filter(Boolean).join(", ")}</span>
+            <div className="space-y-1 mt-4 mb-3">
+                {(locationLine1 || locationLine2) && (
+                    <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                        <span className="leading-relaxed">
+                            {locationLine1 && <span className="block">{locationLine1}</span>}
+                            {locationLine2 && <span className="block">{locationLine2}</span>}
+                        </span>
                     </div>
                 )}
                 {vendor.phone && (
@@ -42,7 +48,15 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                 {vendor.website && (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Globe className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{vendor.website.replace(/^https?:\/\//, "")}</span>
+                        <a
+                            href={vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate hover:text-primary transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {vendor.website.replace(/^https?:\/\//, "")}
+                        </a>
                     </div>
                 )}
             </div>
@@ -56,6 +70,6 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                     ))}
                 </div>
             )}
-        </button>
+        </div>
     );
 }

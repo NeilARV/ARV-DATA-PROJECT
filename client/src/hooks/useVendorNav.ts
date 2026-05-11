@@ -49,16 +49,15 @@ export function useVendorNav() {
     }), [selectedVendor, selectedCategory]);
 
     const breadcrumbs: Breadcrumb[] = useMemo(() => {
-        if (!selectedCategory) return [];
         const crumbs: Breadcrumb[] = [{ label: "Categories", onClick: reset }];
-        if (selectedVendor) {
+        if (selectedCategory) {
             crumbs.push({
-                label: `${selectedCategory.name} Vendors`,
+                label: selectedCategory.name,
                 onClick: () => setSelectedVendor(null),
             });
         }
         return crumbs;
-    }, [selectedCategory, selectedVendor, reset]);
+    }, [selectedCategory, reset]);
 
     return {
         view,

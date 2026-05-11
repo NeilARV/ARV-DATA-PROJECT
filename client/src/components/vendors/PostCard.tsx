@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, MapPin, Image as ImageIcon } from "lucide-react";
+import { User, MapPin, Image as ImageIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Post } from "@/types/vendors";
 
@@ -25,64 +25,64 @@ export function PostCard({ post }: PostCardProps) {
 
     return (
         <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+
+            {/* Author row */}
+            <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-foreground leading-snug">
+                            {post.authorFirstName} {post.authorLastName}
+                        </span>
+                        {location && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                <span>{location}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <span className="text-xs text-muted-foreground">{formatTimeAgo(post.createdAt)}</span>
+            </div>
+
+            {/* Title + category tags */}
+            <div>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-semibold text-sm text-foreground leading-snug">{post.title}</h3>
+                    {post.categories.length > 0 && (
+                        <>
+                            <span className="text-border text-xs">|</span>
+                            <div className="flex flex-wrap gap-1">
+                                {post.categories.map((cat) => (
+                                    <Badge key={cat.id} variant="secondary" className="text-xs px-1.5 py-0">
+                                        {cat.name}
+                                    </Badge>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{post.content}</p>
+            </div>
+
             {/* Image placeholder */}
             <div className="w-full h-28 bg-muted rounded-lg flex items-center justify-center">
                 <ImageIcon className="w-5 h-5 text-muted-foreground/50" />
             </div>
 
-            <div>
-                <h3 className="font-semibold text-sm text-foreground leading-snug mb-1">{post.title}</h3>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                    <span>{post.authorFirstName} {post.authorLastName}</span>
-                    <span>·</span>
-                    <span>{formatTimeAgo(post.createdAt)}</span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                    {post.content}
-                </p>
-            </div>
-
-            {location && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MapPin className="w-3 h-3 flex-shrink-0" />
-                    <span>{location}</span>
-                </div>
-            )}
-
-            {post.categories.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                    {post.categories.map((cat) => (
-                        <Badge key={cat.id} variant="secondary" className="text-xs px-1.5 py-0">
-                            {cat.name}
-                        </Badge>
-                    ))}
-                </div>
-            )}
-
+            {/* Vendor tags */}
             {post.vendorTags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-x-2 gap-y-1">
                     {post.vendorTags.map((vendor) => (
-                        <Badge
-                            key={vendor.id}
-                            variant="outline"
-                            className="text-xs px-1.5 py-0 text-primary border-primary/40"
-                        >
+                        <span key={vendor.id} className="text-xs text-primary">
                             {vendor.name}
-                        </Badge>
+                        </span>
                     ))}
                 </div>
             )}
 
-            <div className="flex items-center gap-3 pt-1 border-t border-border">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Heart className="w-3.5 h-3.5" />
-                    <span>{post.likeCount}</span>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>{post.commentCount}</span>
-                </div>
-            </div>
         </div>
     );
 }
