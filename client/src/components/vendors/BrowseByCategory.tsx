@@ -34,7 +34,7 @@ export function BrowseByCategory({
 
     const { data: vendors, isLoading: vendorsLoading } = useQuery({
         queryKey: ["vendors", selectedCategory?.id],
-        queryFn: () => fetchVendors(selectedCategory!.id),
+        queryFn: () => fetchVendors([selectedCategory!.id]),
         enabled: view === "vendor-list" && selectedCategory !== null,
         staleTime: 5 * 60 * 1000,
     });

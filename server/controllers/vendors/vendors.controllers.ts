@@ -3,11 +3,17 @@ import { VendorsServices } from "server/services/vendors";
 
 export async function getAllVendorsHandler(req: Request, res: Response) {
     try {
-        const categoryId = req.query.categoryId ? parseInt(req.query.categoryId.toString(), 10) : undefined;
-        if (req.query.categoryId !== undefined && isNaN(categoryId!)) {
-            return res.status(400).json({ message: "Invalid categoryId" });
+        let categoryIds: number[] | undefined;
+        if (req.query.categoryIds) {
+            categoryIds = (req.query.categoryIds as string)
+                .split(",")
+                .map((n) => parseInt(n, 10))
+                .filter((n) => !isNaN(n));
+            if (categoryIds.length === 0) {
+                return res.status(400).json({ message: "Invalid categoryIds" });
+            }
         }
-        const result = await VendorsServices.getAll(categoryId);
+        const result = await VendorsServices.getAll(categoryIds);
         return res.status(200).json(result);
     } catch (error) {
         console.error("Error fetching vendors:", error);

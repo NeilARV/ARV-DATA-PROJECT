@@ -6,9 +6,9 @@ export async function fetchCategories(): Promise<Category[]> {
     return res.json();
 }
 
-export async function fetchVendors(categoryId?: number): Promise<Vendor[]> {
-    const url = categoryId !== undefined
-        ? `/api/vendors?categoryId=${categoryId}`
+export async function fetchVendors(categoryIds?: number[]): Promise<Vendor[]> {
+    const url = categoryIds && categoryIds.length > 0
+        ? `/api/vendors?categoryIds=${categoryIds.join(",")}`
         : "/api/vendors";
     const res = await apiRequest("GET", url);
     return res.json();
@@ -34,4 +34,17 @@ export async function createPost(input: CreatePostInput): Promise<Post> {
     const res = await apiRequest("POST", "/api/posts", input);
     const json = await res.json();
     return json.post;
+}
+
+export async function updatePost(
+    postId: string,
+    input: Partial<CreatePostInput>,
+): Promise<Post> {
+    const res = await apiRequest("PUT", `/api/posts/${postId}`, input);
+    const json = await res.json();
+    return json.post;
+}
+
+export async function deletePost(postId: string): Promise<void> {
+    await apiRequest("DELETE", `/api/posts/${postId}`);
 }

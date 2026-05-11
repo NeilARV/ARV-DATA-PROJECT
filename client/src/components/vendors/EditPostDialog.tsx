@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,21 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPost, fetchCategories, fetchVendors } from "@/api/vendors.api";
+import { updatePost, fetchCategories, fetchVendors } from "@/api/vendors.api";
 import { useToast } from "@/hooks/use-toast";
+import type { Post } from "@/types/vendors";
 
-type CreatePostDialogProps = {
+type EditPostDialogProps = {
     open: boolean;
     onClose: () => void;
+    post: Post;
 };
 
-export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
-    const [title, setTitle] = useState("");
-    const [content, setContent] = useState("");
-    const [city, setCity] = useState("");
-    const [state, setState] = useState("");
-    const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
-    const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+export function EditPostDialog({ open, onClose, post }: EditPostDialogProps) {
+    const [title, setTitle] = useState(post.title);
+    const [content, setContent] = useState(post.content);
+    const [city, setCity] = useState(post.city ?? "");
+    const [state, setState] = useState(post.state ?? "");
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
+        post.categories.map((c) => c.id)
+    );
+    const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>(
+        post.vendorTags.map((v) => v.id)
+    );
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
@@ -37,31 +43,33 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
         staleTime: 5 * 60 * 1000,
     });
 
+    // Vendor name lookup: seed from post data so pills show immediately before query loads
+    const vendorNameMap = useMemo(() => {
+        const map = new Map<string, string>();
+        post.vendorTags.forEach((v) => map.set(v.id, v.name));
+        vendorsData?.forEach((v) => map.set(v.id, v.name));
+        return map;
+    }, [post.vendorTags, vendorsData]);
+
     const mutation = useMutation({
         mutationFn: () =>
-            createPost({
+            updatePost(post.id, {
                 title,
                 content,
                 city: city.trim() || undefined,
                 state: state.trim() || undefined,
-                categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined,
-                vendorIds: selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
+                categoryIds: selectedCategoryIds,
+                vendorIds: selectedVendorIds,
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["posts"] });
-            toast({ title: "Post created", description: "Your post has been shared with the community." });
-            setTitle("");
-            setContent("");
-            setCity("");
-            setState("");
-            setSelectedCategoryIds([]);
-            setSelectedVendorIds([]);
+            toast({ title: "Post updated", description: "Your post has been saved." });
             onClose();
         },
         onError: () => {
             toast({
                 title: "Error",
-                description: "Failed to create post. Make sure you have the required access.",
+                description: "Failed to update post.",
                 variant: "destructive",
             });
         },
@@ -79,7 +87,6 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
     const removeCategory = (id: number) => {
         const remaining = selectedCategoryIds.filter((c) => c !== id);
         setSelectedCategoryIds(remaining);
-        // Drop vendors that no longer belong to any remaining selected category
         if (vendorsData) {
             setSelectedVendorIds((prev) =>
                 prev.filter((vendorId) => {
@@ -108,14 +115,14 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
         <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>New Post</DialogTitle>
+                    <DialogTitle>Edit Post</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label htmlFor="post-title">Title</Label>
+                        <Label htmlFor="edit-post-title">Title</Label>
                         <Input
-                            id="post-title"
+                            id="edit-post-title"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="Give your post a title"
@@ -123,30 +130,30 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="post-content">Content</Label>
+                        <Label htmlFor="edit-post-content">Content</Label>
                         <Textarea
-                            id="post-content"
+                            id="edit-post-content"
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
-                            placeholder="Share your project update, renovation tips, or flip story..."
+                            placeholder="Share your project update..."
                             rows={4}
                         />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label htmlFor="post-city">City</Label>
+                            <Label htmlFor="edit-post-city">City</Label>
                             <Input
-                                id="post-city"
+                                id="edit-post-city"
                                 value={city}
                                 onChange={(e) => setCity(e.target.value)}
                                 placeholder="San Diego"
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <Label htmlFor="post-state">State</Label>
+                            <Label htmlFor="edit-post-state">State</Label>
                             <Input
-                                id="post-state"
+                                id="edit-post-state"
                                 value={state}
                                 onChange={(e) => setState(e.target.value)}
                                 placeholder="CA"
@@ -173,7 +180,8 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                         {selectedCategoryIds.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                                 {selectedCategoryIds.map((id) => {
-                                    const cat = categoriesData?.find((c) => c.id === id);
+                                    const cat = categoriesData?.find((c) => c.id === id)
+                                        ?? post.categories.find((c) => c.id === id);
                                     return cat ? (
                                         <span
                                             key={id}
@@ -194,7 +202,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                         )}
                     </div>
 
-                    {/* Vendors — only shown once at least one category is selected */}
+                    {/* Vendors */}
                     {selectedCategoryIds.length > 0 && (
                         <div className="space-y-1.5">
                             <Label>Vendors</Label>
@@ -215,13 +223,13 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             {selectedVendorIds.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                     {selectedVendorIds.map((id) => {
-                                        const vendor = vendorsData?.find((v) => v.id === id);
-                                        return vendor ? (
+                                        const name = vendorNameMap.get(id);
+                                        return name ? (
                                             <span
                                                 key={id}
                                                 className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-md"
                                             >
-                                                {vendor.name}
+                                                {name}
                                                 <button
                                                     type="button"
                                                     onClick={() => removeVendor(id)}
@@ -245,7 +253,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             onClick={() => mutation.mutate()}
                             disabled={!title.trim() || !content.trim() || mutation.isPending}
                         >
-                            {mutation.isPending ? "Posting..." : "Post"}
+                            {mutation.isPending ? "Saving..." : "Save"}
                         </Button>
                     </div>
                 </div>

@@ -25,38 +25,34 @@ async function fetchCategoriesForVendors(vendorIds: string[]) {
     return map;
 }
 
-export async function getAll(categoryId?: number) {
-    const rows = categoryId !== undefined
-        ? await db
-            .select({
-                id: vendors.id,
-                name: vendors.name,
-                description: vendors.description,
-                address: vendors.address,
-                city: vendors.city,
-                state: vendors.state,
-                zipCode: vendors.zipCode,
-                phone: vendors.phone,
-                website: vendors.website,
-            })
+const VENDOR_COLUMNS = {
+    id: vendors.id,
+    name: vendors.name,
+    description: vendors.description,
+    address: vendors.address,
+    city: vendors.city,
+    state: vendors.state,
+    zipCode: vendors.zipCode,
+    phone: vendors.phone,
+    website: vendors.website,
+};
+
+export async function getAll(categoryIds?: number[]) {
+    let rows;
+
+    if (categoryIds && categoryIds.length > 0) {
+        const raw = await db
+            .select(VENDOR_COLUMNS)
             .from(vendors)
             .innerJoin(vendorCategories, eq(vendorCategories.vendorId, vendors.id))
-            .where(eq(vendorCategories.categoryId, categoryId))
-            .orderBy(vendors.name)
-        : await db
-            .select({
-                id: vendors.id,
-                name: vendors.name,
-                description: vendors.description,
-                address: vendors.address,
-                city: vendors.city,
-                state: vendors.state,
-                zipCode: vendors.zipCode,
-                phone: vendors.phone,
-                website: vendors.website,
-            })
-            .from(vendors)
+            .where(inArray(vendorCategories.categoryId, categoryIds))
             .orderBy(vendors.name);
+        // A vendor belonging to multiple matching categories appears once per match — deduplicate
+        const seen = new Set<string>();
+        rows = raw.filter((v) => { if (seen.has(v.id)) return false; seen.add(v.id); return true; });
+    } else {
+        rows = await db.select(VENDOR_COLUMNS).from(vendors).orderBy(vendors.name);
+    }
 
     if (rows.length === 0) return [];
 
