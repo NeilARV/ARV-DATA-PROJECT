@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import { eq } from "drizzle-orm";
-import { users, roles, userRoles } from "@database/schemas/users.schema";
+import { users, roles, userRoles, subscriptions } from "@database/schemas/users.schema";
 
 // Lazily initialised so the connection is created after globalSetup loads
 // .env.test and DATABASE_URL is available.
@@ -50,6 +50,23 @@ export async function assignRole(userId: string, roleName: string) {
 export async function removeAllRoles(userId: string) {
     const db = getTestDb();
     await db.delete(userRoles).where(eq(userRoles.userId, userId));
+}
+
+// ── Subscription helpers ──────────────────────────────────────────────────
+
+export async function assignSubscription(userId: string, tierName: string) {
+    const db = getTestDb();
+    const [sub] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.name, tierName));
+    if (!sub) throw new Error(`Subscription tier "${tierName}" not found. Ensure the test branch schema is up to date.`);
+    await db.update(users).set({ subscriptionId: sub.id }).where(eq(users.id, userId));
+}
+
+export async function removeSubscription(userId: string) {
+    const db = getTestDb();
+    await db.update(users).set({ subscriptionId: null }).where(eq(users.id, userId));
 }
 
 // ── Teardown helpers ──────────────────────────────────────────────────────

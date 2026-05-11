@@ -48,12 +48,11 @@ export async function getPostByIdController(req: Request, res: Response): Promis
 // ── POST /api/posts ────────────────────────────────────────────────────────────
 export async function createPostController(req: Request, res: Response): Promise<void> {
     try {
-        const callerId = '984ac64c-64f4-4ec1-99dd-94681112669d' //req.session?.userId;
-        
-        // if (!callerId) {
-        //     res.status(401).json({ message: "Not authenticated" });
-        //     return;
-        // }
+        const callerId = req.session.userId;
+        if (!callerId) {
+            res.status(401).json({ message: "Not authenticated" });
+            return;
+        }
 
         const { title, content, address, city, state, categoryIds, vendorIds, taggedUserIds } = req.body;
 
@@ -87,11 +86,7 @@ export async function createPostController(req: Request, res: Response): Promise
 // ── PUT /api/posts/:postId ─────────────────────────────────────────────────────
 export async function updatePostController(req: Request, res: Response): Promise<void> {
     try {
-        const callerId = '984ac64c-64f4-4ec1-99dd-94681112669d' //req.session?.userId;
-        // if (!callerId) {
-        //     res.status(401).json({ message: "Not authenticated" });
-        //     return;
-        // }
+        const callerId = req.session.userId!;
 
         const { title, content, address, city, state, categoryIds, vendorIds, taggedUserIds } = req.body;
 
@@ -115,11 +110,7 @@ export async function updatePostController(req: Request, res: Response): Promise
 // ── DELETE /api/posts/:postId ──────────────────────────────────────────────────
 export async function deletePostController(req: Request, res: Response): Promise<void> {
     try {
-        const callerId = '984ac64c-64f4-4ec1-99dd-94681112669d'//req.session?.userId;
-        // if (!callerId) {
-        //     res.status(401).json({ message: "Not authenticated" });
-        //     return;
-        // }
+        const callerId = req.session.userId!;
 
         const result = await PostsServices.deletePost(req.params.postId, callerId);
         res.json({ message: "Post deleted successfully", id: result.id });

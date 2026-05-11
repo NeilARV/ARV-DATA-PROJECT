@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireSub } from "server/middleware/requireSub";
+import { requireAuth } from "server/middleware/requireAuth";
 import {
     getPostsController,
     getPostByIdController,
@@ -10,19 +11,15 @@ import {
 
 const router = Router();
 
-// Public — no auth required to browse the feed
+// Public — no auth required
 router.get("/", getPostsController);
+router.get("/:postId", getPostByIdController);
 
-// Requires basic subscription or higher; admin/owner bypass
-router.get("/:postId", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), getPostByIdController);
+// pro/premium subscription required; all team roles bypass
+router.post("/", requireSub(["pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }), createPostController);
 
-// Requires basic subscription or higher; all team roles bypass
-router.post("/", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }), createPostController);
-
-// Requires basic subscription or higher; admin/owner bypass; ownership enforced in service
-router.put("/:postId", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), updatePostController);
-
-// Requires basic subscription or higher; admin/owner bypass; ownership enforced in service
-router.delete("/:postId", requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner"] }), deletePostController);
+// Auth required; ownership enforced in service (admin/owner can override)
+router.put("/:postId", requireAuth, updatePostController);
+router.delete("/:postId", requireAuth, deletePostController);
 
 export default router;
