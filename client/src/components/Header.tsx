@@ -10,7 +10,6 @@ import {
   Settings,
   LogIn,
   LogOut,
-  Trophy,
   Users,
   Menu,
   User,
@@ -31,6 +30,7 @@ import type { HeaderProps, PropertySuggestion } from "@/types/general";
 import { useView } from "@/hooks/useView";
 import { useFilters } from "@/hooks/useFilters";
 import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { useDialogs } from "@/hooks/useDialogs";
 import { BUYERS_FEED_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { WHOLESALE_VIEW_STATUS_FILTERS } from "@/constants/propertyStatus.constants";
 import { useCompanies } from "@/hooks/useCompanies";
@@ -42,14 +42,10 @@ import { useProperty } from "@/hooks/useProperty";
 
 export default function Header({
   onSearch,
-  onLoginClick,
-  onSignupClick,
-  onLeaderboardClick,
-  onDealsClick,
   county,
-  forcedDialogActive,
 }: HeaderProps) {
 
+  const { openDialog, forcedDialogActive } = useDialogs();
   const { filters, setFilters, setSortBy, clearFilters } = useFilters();
   const { view, setView, setSidebarView } = useView();
   const { setProperty } = useProperty();
@@ -446,22 +442,12 @@ export default function Header({
           </div>
 
           <Button
-            variant="outline"
-            size="sm"
-            onClick={onLeaderboardClick}
-            data-testid="button-leaderboard"
-          >
-            <Trophy className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Leaderboard</span>
-          </Button>
-
-          <Button
             variant={location === "/" && view === "deals" ? "default" : "outline"}
             size="sm"
             onClick={() => {
               if (!isAuthenticated) {
                 toast({ title: "Sign up to access Deals", description: "You must be signed in to view the deal feed." });
-                onSignupClick?.();
+                openDialog({ type: "signup", forced: false });
                 return;
               }
               requireSubscription(() => {
@@ -494,7 +480,7 @@ export default function Header({
             <Button
               variant="outline"
               size="sm"
-              onClick={onLoginClick}
+              onClick={() => openDialog({ type: "login", forced: false })}
               data-testid="button-login"
             >
               <LogIn className="w-4 h-4 mr-1" />
@@ -502,7 +488,7 @@ export default function Header({
             </Button>
             <Button
               size="sm"
-              onClick={onSignupClick}
+              onClick={() => openDialog({ type: "signup", forced: false })}
               data-testid="button-signup"
             >
               Sign up
