@@ -18,7 +18,7 @@ import {
   Handshake,
   ChevronDown,
   Mail,
-  LineChart,
+  Store,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -476,13 +476,13 @@ export default function Header({
           </Button>
 
           <Button
-            variant={location === "/analytics" ? "default" : "outline"}
+            variant={location === "/vendors" ? "default" : "outline"}
             size="sm"
-            onClick={() => requireSubscription(() => setLocation("/analytics"))}
-            data-testid="button-analytics"
+            onClick={() => setLocation("/vendors")}
+            data-testid="button-vendors"
           >
-            <LineChart className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Market Analytics</span>
+            <Store className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Vendors</span>
           </Button>
         </div>
       </div>
