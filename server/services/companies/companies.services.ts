@@ -949,8 +949,12 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
         await db.insert(companyAddresses).values(addressRows);
     }
 
-    // Upsert officers as contacts (query-based to handle nullable last_name)
-    for (const { officer } of ocCompany.officers ?? []) {
+    // Upsert officers as contacts (query-based to handle nullable last_name).
+    // OC returns officers oldest-first, so reverse to process newest first and assign lower sort orders to more recent officers.
+    // Skip registered agents (position: "agent") — they are not useful contacts.
+    const officers = [...(ocCompany.officers ?? [])].reverse();
+    for (const { officer } of officers) {
+        if (officer.position === "agent") continue;
         const { firstName, lastName } = splitOfficerName(officer.name);
 
         const lastNameCondition = lastName

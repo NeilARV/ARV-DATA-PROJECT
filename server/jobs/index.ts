@@ -6,6 +6,7 @@ import { sendLosAngelesEmail } from "./email/los-angeles-email"
 import { sendSanDiegoEmail } from "./email/san-diego-email"
 import { sendSanFranciscoEmail } from "./email/san-francisco-email"
 import { sendPortStLucieEmail } from "./email/port-st-lucie-email"
+import { sendSeattleEmail } from "./email/seattle-email"
 import { scanWindowA } from "./data_v2/scan-window-a"
 import { scanWindowB } from "./data_v2/scan-window-b"
 import { scanWindowC } from "./data_v2/scan-window-c"
@@ -110,6 +111,8 @@ export function startScheduledJobs() {
         cron.schedule("0 9 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("5 9 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("15 9 * * *", sendSeattleEmail, { timezone: "America/Los_Angeles" })
+
     } else {
         console.log(`[CRON] Email updates skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`)
     }

@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { users, emailSubscriptionList } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
-import { properties, addresses, lastSales, structures, propertyTransactions } from "@database/schemas/properties.schema";
+import { properties, addresses, structures } from "@database/schemas/properties.schema";
 import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
 import { eq, and, sql } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
@@ -201,9 +201,9 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         city: addresses.city,
         state: addresses.state,
         zipCode: addresses.zipCode,
-        price: lastSales.price,
-        saleDate: lastSales.saleDate,
-        recordingDate: lastSales.recordingDate,
+        price: sql<string | null>`(SELECT pt.sale_price FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
+        saleDate: sql<string | null>`(SELECT pt.sale_date FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
+        recordingDate: sql<string | null>`(SELECT pt.recording_date FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
         propertyId: properties.id,
         sfrPropertyId: properties.sfrPropertyId,
         statuses: sql<string[]>`COALESCE((SELECT array_agg(s.name) FROM property_statuses ps JOIN statuses s ON s.id = ps.status_id WHERE ps.property_id = ${properties.id}), ARRAY[]::text[])`,
@@ -227,7 +227,6 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       })
       .from(properties)
       .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-      .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
       .leftJoin(structures, eq(properties.id, structures.propertyId))
       .where(
         and(
@@ -238,8 +237,8 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         )
       )
       .orderBy(
-        sql`CASE WHEN ${lastSales.recordingDate} IS NULL THEN 1 ELSE 0 END`,
-        sql`CAST(${lastSales.recordingDate} AS DATE) DESC`,
+        sql`CASE WHEN (SELECT pt.recording_date FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) IS NULL THEN 1 ELSE 0 END`,
+        sql`CAST((SELECT pt.recording_date FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1) AS DATE) DESC`,
         properties.id,
       )
       .limit(CANDIDATE_POOL_SIZE);

@@ -275,6 +275,14 @@ export const propertyTransactions = pgTable("property_transactions", {
     sql`coalesce(${t.sortOrder}, 999999)`,
     t.recordingDate,
   ),
+  // Supports the pre-aggregated MAX(recording_date) per property for date-range map filtering.
+  // Leads with transaction_type so filtering by 'arms length' can skip all other types before
+  // grouping by property_id and computing the max date.
+  index("idx_pt_type_property_date").on(
+    sql`lower(trim(${t.transactionType}))`,
+    t.propertyId,
+    t.recordingDate,
+  ),
   // Covers buyer/seller company lookups and filtering
   index("idx_pt_property_buyer_date").on(t.propertyId, t.buyerId, t.recordingDate),
   index("idx_pt_seller_date").on(t.sellerId, t.recordingDate),
