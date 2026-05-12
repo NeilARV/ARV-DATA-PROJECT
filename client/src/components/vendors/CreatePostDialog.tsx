@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPost, fetchCategories, fetchVendors, uploadPostImage } from "@/api/vendors.api";
 import { useToast } from "@/hooks/use-toast";
+import { createPostSchema } from "@database/validation/posts.validation";
+import type { ZodFormattedError } from "zod";
 
 const MAX_IMAGES = 5;
 
@@ -25,9 +27,26 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
     const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
     const [pendingFiles, setPendingFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
+    const [attempted, setAttempted] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState<ZodFormattedError<{ title: string; content: string; city?: string; state?: string }> | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const queryClient = useQueryClient();
     const { toast } = useToast();
+
+    const validate = (values: { title: string; content: string; city: string; state: string }) => {
+        const result = createPostSchema.safeParse({
+            title:   values.title,
+            content: values.content,
+            city:    values.city.trim()  || undefined,
+            state:   values.state.trim() || undefined,
+        });
+        if (!result.success) {
+            setFieldErrors(result.error.format() as typeof fieldErrors);
+            return false;
+        }
+        setFieldErrors(null);
+        return true;
+    };
 
     const { data: categoriesData } = useQuery({
         queryKey: ["categories"],
@@ -47,10 +66,10 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
             const post = await createPost({
                 title,
                 content,
-                city: city.trim() || undefined,
-                state: state.trim() || undefined,
+                city:        city.trim()  || undefined,
+                state:       state.trim() || undefined,
                 categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined,
-                vendorIds: selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
+                vendorIds:   selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
             });
             if (pendingFiles.length > 0) {
                 await Promise.all(pendingFiles.map((file) => uploadPostImage(post.id, file)));
@@ -82,6 +101,8 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
         previews.forEach((url) => URL.revokeObjectURL(url));
         setPendingFiles([]);
         setPreviews([]);
+        setAttempted(false);
+        setFieldErrors(null);
     };
 
     const handleClose = () => {
@@ -145,24 +166,32 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
 
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label htmlFor="post-title">Title</Label>
+                        <Label htmlFor="post-title">Title <span className="text-destructive">*</span></Label>
                         <Input
                             id="post-title"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(e) => { setTitle(e.target.value); if (attempted) validate({ title: e.target.value, content, city, state }); }}
                             placeholder="Give your post a title"
+                            className={fieldErrors?.title ? "border-destructive" : ""}
                         />
+                        {fieldErrors?.title?._errors[0] && (
+                            <p className="text-xs text-destructive">{fieldErrors.title._errors[0]}</p>
+                        )}
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="post-content">Content</Label>
+                        <Label htmlFor="post-content">Content <span className="text-destructive">*</span></Label>
                         <Textarea
                             id="post-content"
                             value={content}
-                            onChange={(e) => setContent(e.target.value)}
+                            onChange={(e) => { setContent(e.target.value); if (attempted) validate({ title, content: e.target.value, city, state }); }}
                             placeholder="Share your project update, renovation tips, or flip story..."
                             rows={4}
+                            className={fieldErrors?.content ? "border-destructive" : ""}
                         />
+                        {fieldErrors?.content?._errors[0] && (
+                            <p className="text-xs text-destructive">{fieldErrors.content._errors[0]}</p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -171,7 +200,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             <Input
                                 id="post-city"
                                 value={city}
-                                onChange={(e) => setCity(e.target.value)}
+                                onChange={(e) => { setCity(e.target.value); if (attempted) validate({ title, content, city: e.target.value, state }); }}
                                 placeholder="San Diego"
                             />
                         </div>
@@ -180,10 +209,14 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             <Input
                                 id="post-state"
                                 value={state}
-                                onChange={(e) => setState(e.target.value)}
+                                onChange={(e) => { setState(e.target.value); if (attempted) validate({ title, content, city, state: e.target.value }); }}
                                 placeholder="CA"
                                 maxLength={2}
+                                className={fieldErrors?.state ? "border-destructive" : ""}
                             />
+                            {fieldErrors?.state?._errors[0] && (
+                                <p className="text-xs text-destructive">{fieldErrors.state._errors[0]}</p>
+                            )}
                         </div>
                     </div>
 
@@ -315,8 +348,11 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             Cancel
                         </Button>
                         <Button
-                            onClick={() => mutation.mutate()}
-                            disabled={!title.trim() || !content.trim() || mutation.isPending}
+                            onClick={() => {
+                                setAttempted(true);
+                                if (validate({ title, content, city, state })) mutation.mutate();
+                            }}
+                            disabled={mutation.isPending}
                         >
                             {mutation.isPending ? "Posting..." : "Post"}
                         </Button>

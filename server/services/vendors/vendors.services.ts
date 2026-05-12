@@ -1,6 +1,7 @@
 import { db } from "server/storage";
 import { vendors, vendorCategories, categories } from "@database/schemas/vendors.schema";
 import { eq, inArray } from "drizzle-orm";
+import type { VendorInput, UpdateVendorInput } from "@database/validation/vendors.validation";
 
 async function fetchCategoriesForVendors(vendorIds: string[]) {
     if (vendorIds.length === 0) return new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
@@ -87,4 +88,87 @@ export async function getById(id: string) {
         ...rows[0],
         categories: categoryMap.get(rows[0].id) ?? [],
     };
+}
+
+// ── Create vendor ──────────────────────────────────────────────────────────────
+
+export async function create(input: VendorInput) {
+    const { categoryIds, ...fields } = input;
+
+    const [vendor] = await db
+        .insert(vendors)
+        .values({
+            name:        fields.name.trim(),
+            description: fields.description?.trim() || null,
+            address:     fields.address?.trim()     || null,
+            city:        fields.city?.trim()         || null,
+            state:       fields.state?.trim().toUpperCase() || null,
+            zipCode:     fields.zipCode?.trim()      || null,
+            phone:       fields.phone?.trim()        || null,
+            website:     fields.website?.trim()      || null,
+        })
+        .returning();
+
+    await db.insert(vendorCategories).values(
+        categoryIds.map((categoryId) => ({ vendorId: vendor.id, categoryId }))
+    );
+
+    const categoryMap = await fetchCategoriesForVendors([vendor.id]);
+    console.log(`[vendorsService.create] Vendor created: id=${vendor.id}`);
+    return { ...vendor, categories: categoryMap.get(vendor.id) ?? [] };
+}
+
+// ── Update vendor ──────────────────────────────────────────────────────────────
+
+export async function update(id: string, input: UpdateVendorInput) {
+    const { categoryIds, ...fields } = input;
+
+    const [existing] = await db
+        .select({ id: vendors.id })
+        .from(vendors)
+        .where(eq(vendors.id, id))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+
+    const [updated] = await db
+        .update(vendors)
+        .set({
+            updatedAt: new Date(),
+            ...(fields.name        !== undefined ? { name:        fields.name.trim() }                       : {}),
+            ...(fields.description !== undefined ? { description: fields.description?.trim() || null }       : {}),
+            ...(fields.address     !== undefined ? { address:     fields.address?.trim()     || null }       : {}),
+            ...(fields.city        !== undefined ? { city:        fields.city?.trim()         || null }       : {}),
+            ...(fields.state       !== undefined ? { state:       fields.state?.trim().toUpperCase() || null }: {}),
+            ...(fields.zipCode     !== undefined ? { zipCode:     fields.zipCode?.trim()      || null }       : {}),
+            ...(fields.phone       !== undefined ? { phone:       fields.phone?.trim()        || null }       : {}),
+            ...(fields.website     !== undefined ? { website:     fields.website?.trim()      || null }       : {}),
+        })
+        .where(eq(vendors.id, id))
+        .returning();
+
+    await db.delete(vendorCategories).where(eq(vendorCategories.vendorId, id));
+    await db.insert(vendorCategories).values(
+        categoryIds.map((categoryId) => ({ vendorId: id, categoryId }))
+    );
+
+    const categoryMap = await fetchCategoriesForVendors([updated.id]);
+    console.log(`[vendorsService.update] Vendor updated: id=${id}`);
+    return { ...updated, categories: categoryMap.get(updated.id) ?? [] };
+}
+
+// ── Delete vendor ──────────────────────────────────────────────────────────────
+
+export async function remove(id: string) {
+    const [existing] = await db
+        .select({ id: vendors.id })
+        .from(vendors)
+        .where(eq(vendors.id, id))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+
+    await db.delete(vendors).where(eq(vendors.id, id));
+    console.log(`[vendorsService.remove] Vendor deleted: id=${id}`);
+    return { id };
 }

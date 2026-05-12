@@ -1,34 +1,81 @@
 import {
     Hammer, Wrench, Zap, House, Thermometer, LayoutDashboard,
     Handshake, Paintbrush, Layers, TreePine, Tag,
+    Microwave, Briefcase, Compass, Milestone, Bath, Wind,
+    Award, Medal, Badge, Archive, Building2, Package,
+    Table2, CreditCard, Hash, LayoutGrid, Palette, DoorOpen,
+    PenTool, Settings, Landmark, ShoppingBag, Pencil, Flame,
+    Anchor, Warehouse, Mountain, CloudRain, ClipboardCheck,
+    ShieldCheck, Sparkles, Scale, Nut, ShieldAlert, Truck,
+    Pen, ClipboardList, Camera, Waves, Key, Scan, Grid3x3,
+    Droplets, Sofa, ArrowUpDown, Ruler, Bug, Scroll, AppWindow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Category } from "@/types/vendors";
 
 const ICON_MAP: Record<string, LucideIcon> = {
-    "hammer": Hammer,
-    "wrench": Wrench,
-    "zap": Zap,
-    "house": House,
-    "thermometer": Thermometer,
+    // Existing
+    "hammer":           Hammer,
+    "wrench":           Wrench,
+    "zap":              Zap,
+    "house":            House,
+    "thermometer":      Thermometer,
     "layout-dashboard": LayoutDashboard,
-    "handshake": Handshake,
-    "paintbrush": Paintbrush,
-    "layers": Layers,
-    "tree-pine": TreePine,
-};
+    "handshake":        Handshake,
+    "paintbrush":       Paintbrush,
+    "layers":           Layers,
+    "tree-pine":        TreePine,
 
-const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-    "general-contractor": "Full-service renovation & rehab",
-    "plumber": "Plumbing installation & repair",
-    "electrician": "Electrical work & wiring",
-    "roofer": "Roof replacement & repair",
-    "hvac": "Heating, ventilation & air conditioning",
-    "home-stager": "Professional staging & design",
-    "wholesaler": "Off-market deal sourcing",
-    "painter": "Interior & exterior painting",
-    "flooring": "Hardwood, tile & carpet installation",
-    "landscaping": "Outdoor design & maintenance",
+    // New
+    "microwave":        Microwave,
+    "briefcase":        Briefcase,
+    "compass":          Compass,
+    "road":             Milestone,
+    "bath":             Bath,
+    "wind":             Wind,
+    "award":            Award,
+    "medal":            Medal,
+    "badge":            Badge,
+    "archive":          Archive,
+    "building-2":       Building2,
+    "package":          Package,
+    "table-2":          Table2,
+    "credit-card":      CreditCard,
+    "hash":             Hash,
+    "layout-grid":      LayoutGrid,
+    "palette":          Palette,
+    "door-open":        DoorOpen,
+    "pen-tool":         PenTool,
+    "settings":         Settings,
+    "landmark":         Landmark,
+    "shopping-bag":     ShoppingBag,
+    "pencil":           Pencil,
+    "flame":            Flame,
+    "anchor":           Anchor,
+    "warehouse":        Warehouse,
+    "mountain":         Mountain,
+    "cloud-rain":       CloudRain,
+    "clipboard-check":  ClipboardCheck,
+    "shield-check":     ShieldCheck,
+    "sparkles":         Sparkles,
+    "scale":            Scale,
+    "nut":              Nut,
+    "shield-alert":     ShieldAlert,
+    "truck":            Truck,
+    "pen":              Pen,
+    "clipboard-list":   ClipboardList,
+    "camera":           Camera,
+    "waves":            Waves,
+    "key":              Key,
+    "scan":             Scan,
+    "grid-3x3":         Grid3x3,
+    "droplets":         Droplets,
+    "sofa":             Sofa,
+    "arrow-up-down":    ArrowUpDown,
+    "ruler":            Ruler,
+    "bug":              Bug,
+    "scroll":           Scroll,
+    "app-window":       AppWindow,
 };
 
 type CategoryCardProps = {
@@ -38,7 +85,6 @@ type CategoryCardProps = {
 
 export function CategoryCard({ category, onClick }: CategoryCardProps) {
     const Icon = ICON_MAP[category.iconName] ?? Tag;
-    const description = category.description ?? CATEGORY_DESCRIPTIONS[category.slug] ?? "";
 
     return (
         <button
@@ -58,8 +104,8 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
                     {category.vendorCount}
                 </span>
             </div>
-            {description && (
-                <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+            {category.description && (
+                <p className="text-xs text-muted-foreground leading-relaxed">{category.description}</p>
             )}
         </button>
     );

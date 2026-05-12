@@ -1,9 +1,12 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { CategoryCard } from "./CategoryCard";
 import { VendorCard } from "./VendorCard";
+import { AddVendorDialog } from "./AddVendorDialog";
 import { fetchCategories, fetchVendors } from "@/api/vendors.api";
+import { useAuth } from "@/hooks/use-auth";
 import type { Category, Vendor } from "@/types/vendors";
 import type { VendorNavView, Breadcrumb } from "@/hooks/useVendorNav";
 
@@ -26,6 +29,10 @@ export function BrowseByCategory({
     onSelectVendor,
     onGoBack,
 }: BrowseByCategoryProps) {
+    const [showAddVendor, setShowAddVendor] = useState(false);
+    const { isAdmin, isOwner } = useAuth();
+    const isPrivileged = isAdmin || isOwner;
+
     const { data: categories, isLoading: categoriesLoading } = useQuery({
         queryKey: ["categories"],
         queryFn: fetchCategories,
@@ -40,20 +47,33 @@ export function BrowseByCategory({
     });
 
     return (
+        <>
         <div className="flex flex-col h-full">
             {/* Panel header */}
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                    <h2 className="font-semibold text-foreground">Browse by Category</h2>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onGoBack}
-                        className={`h-7 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground ${view !== "vendor-list" ? "invisible pointer-events-none" : ""}`}
-                    >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                        Back
-                    </Button>
+                <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-center gap-2">
+                        <h2 className="font-semibold text-foreground">Browse by Category</h2>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onGoBack}
+                            className={`h-7 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground ${view !== "vendor-list" ? "invisible pointer-events-none" : ""}`}
+                        >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            Back
+                        </Button>
+                    </div>
+                    {isPrivileged && (
+                        <Button
+                            size="sm"
+                            onClick={() => setShowAddVendor(true)}
+                            className="h-7 gap-1 text-xs"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Vendor
+                        </Button>
+                    )}
                 </div>
 
                 {/* Breadcrumbs */}
@@ -116,5 +136,12 @@ export function BrowseByCategory({
                 )}
             </div>
         </div>
+
+        <AddVendorDialog
+            open={showAddVendor}
+            onClose={() => setShowAddVendor(false)}
+            initialCategoryId={view === "vendor-list" ? selectedCategory?.id : undefined}
+        />
+        </>
     );
 }

@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/queryClient";
 import type { Category, Vendor, Post, CreatePostInput } from "@/types/vendors";
+import type { VendorInput, UpdateVendorInput } from "@database/validation/vendors.validation";
 
 export async function fetchCategories(): Promise<Category[]> {
     const res = await apiRequest("GET", "/api/categories");
@@ -67,4 +68,20 @@ export async function uploadPostImage(postId: string, file: File): Promise<{ id:
 
 export async function deletePostImage(postId: string, imageId: number): Promise<void> {
     await apiRequest("DELETE", `/api/posts/${postId}/images/${imageId}`);
+}
+
+export async function createVendor(input: VendorInput): Promise<Vendor> {
+    const res = await apiRequest("POST", "/api/vendors", input);
+    const json = await res.json();
+    return json.vendor;
+}
+
+export async function updateVendor(vendorId: string, input: UpdateVendorInput): Promise<Vendor> {
+    const res = await apiRequest("PUT", `/api/vendors/${vendorId}`, input);
+    const json = await res.json();
+    return json.vendor;
+}
+
+export async function deleteVendor(vendorId: string): Promise<void> {
+    await apiRequest("DELETE", `/api/vendors/${vendorId}`);
 }
