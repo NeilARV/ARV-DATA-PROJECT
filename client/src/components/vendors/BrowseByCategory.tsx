@@ -76,13 +76,13 @@ export function BrowseByCategory({
             <div className="flex-1 overflow-y-auto p-4">
                 {view === "categories" && (
                     categoriesLoading ? (
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                             {(categories ?? []).map((cat) => (
                                 <CategoryCard key={cat.id} category={cat} onClick={onSelectCategory} />
                             ))}
@@ -92,8 +92,8 @@ export function BrowseByCategory({
 
                 {view === "vendor-list" && (
                     vendorsLoading ? (
-                        <div className="grid grid-cols-3 gap-3">
-                            {Array.from({ length: 4 }).map((_, i) => (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                            {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />
                             ))}
                         </div>
@@ -102,7 +102,7 @@ export function BrowseByCategory({
                             <p className="text-sm text-muted-foreground">No vendors in this category yet.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                             {vendors.map((vendor) => (
                                 <VendorCard
                                     key={vendor.id}

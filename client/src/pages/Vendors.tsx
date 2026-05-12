@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
@@ -23,6 +24,7 @@ import { useAuth } from "@/hooks/use-auth";
 function VendorsContent() {
     const nav = useVendorNav();
     const [, setLocation] = useLocation();
+    const [mobileTab, setMobileTab] = useState<"feed" | "browse">("browse");
     const {
         isLoading: isLoadingUser,
         isAuthenticated: isUserAuthenticated,
@@ -77,11 +79,43 @@ function VendorsContent() {
     return (
         <div className="h-screen flex flex-col">
             <Header />
-            <div className="flex-1 flex overflow-hidden">
-                <div className="w-[calc(30%-100px)] h-full border-r border-border flex flex-col overflow-hidden">
+
+            {/* Mobile tab bar — hidden on md+ */}
+            <div className="md:hidden flex-shrink-0 flex border-b border-border bg-background">
+                <button
+                    onClick={() => setMobileTab("browse")}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        mobileTab === "browse"
+                            ? "text-primary border-b-2 border-primary -mb-px"
+                            : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                    Browse
+                </button>
+                <button
+                    onClick={() => setMobileTab("feed")}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        mobileTab === "feed"
+                            ? "text-primary border-b-2 border-primary -mb-px"
+                            : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                    Activity Feed
+                </button>
+            </div>
+
+            <div className="flex-1 flex overflow-hidden min-h-0">
+                {/* Activity Feed — full-width on mobile (tab-controlled), fixed sidebar on md+ */}
+                <div className={`h-full flex-col overflow-hidden border-border ${
+                    mobileTab === "feed" ? "flex flex-1" : "hidden"
+                } md:flex md:flex-none md:w-72 lg:w-80 xl:w-96 2xl:w-[480px] md:border-r`}>
                     <ActivityFeed postFilters={nav.postFilters} />
                 </div>
-                <div className="flex-1 h-full flex flex-col overflow-hidden">
+
+                {/* Browse — full-width on mobile (tab-controlled), fills remaining space on md+ */}
+                <div className={`h-full flex-col overflow-hidden flex-1 ${
+                    mobileTab === "browse" ? "flex" : "hidden"
+                } md:flex`}>
                     <BrowseByCategory
                         view={nav.view}
                         selectedCategory={nav.selectedCategory}

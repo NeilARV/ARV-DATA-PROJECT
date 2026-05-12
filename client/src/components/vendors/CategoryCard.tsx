@@ -42,7 +42,7 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
 
     return (
         <button
-            className="w-full text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors cursor-pointer"
+            className="w-full min-w-0 text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors cursor-pointer"
             onClick={() => onClick(category)}
         >
             <div className="flex items-start justify-between mb-2">

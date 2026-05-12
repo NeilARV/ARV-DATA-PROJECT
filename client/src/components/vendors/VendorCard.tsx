@@ -14,7 +14,7 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
 
     return (
         <div
-            className={`p-4 bg-card border rounded-xl transition-colors cursor-pointer ${
+            className={`p-4 min-w-0 bg-card border rounded-xl transition-colors cursor-pointer ${
                 isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
             }`}
             onClick={() => onClick(vendor)}
