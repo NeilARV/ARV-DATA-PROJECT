@@ -12,7 +12,7 @@ import {
 } from "@database/schemas/vendors.schema";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { eq, desc, and, inArray, count } from "drizzle-orm";
-import { supabase, storageBucket, storagePathFromUrl } from "server/lib/supabase";
+import { getSupabase, storageBucket, storagePathFromUrl } from "server/lib/supabase";
 
 export class PostServiceError extends Error {
     constructor(public statusCode: number, message: string) {
@@ -415,7 +415,7 @@ export async function deletePost(id: string, callerId: string) {
     if (images.length > 0) {
         const paths = images.map((img) => storagePathFromUrl(img.imageUrl)).filter(Boolean) as string[];
         if (paths.length > 0) {
-            await supabase.storage.from(storageBucket).remove(paths);
+            await getSupabase().storage.from(storageBucket).remove(paths);
         }
     }
 
@@ -458,13 +458,13 @@ export async function uploadPostImage(
     const ext = mimetype === "image/png" ? "png" : "jpg";
     const storagePath = `posts/${postId}/${crypto.randomUUID()}.${ext}`;
 
-    const { error } = await supabase.storage
+    const { error } = await getSupabase().storage
         .from(storageBucket)
         .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
 
     if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-    const { data: { publicUrl } } = supabase.storage.from(storageBucket).getPublicUrl(storagePath);
+    const { data: { publicUrl } } = getSupabase().storage.from(storageBucket).getPublicUrl(storagePath);
 
     const [image] = await db
         .insert(postImages)
@@ -498,7 +498,7 @@ export async function deletePostImage(imageId: number, callerId: string) {
 
     const storagePath = storagePathFromUrl(image.imageUrl);
     if (storagePath) {
-        await supabase.storage.from(storageBucket).remove([storagePath]);
+        await getSupabase().storage.from(storageBucket).remove([storagePath]);
     }
 
     await db.delete(postImages).where(eq(postImages.id, imageId));
