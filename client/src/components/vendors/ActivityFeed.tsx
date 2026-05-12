@@ -41,6 +41,8 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
         ? "Filtered by category"
         : null;
 
+    const isEmpty = !isLoading && (!posts || posts.length === 0);
+
     return (
         <div className="flex flex-col h-full">
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
@@ -52,7 +54,7 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
                     </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5 h-4">
-                    {filterLabel ?? ""}
+                    {"See recent project activity"}
                 </p>
             </div>
 
@@ -61,17 +63,11 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
                     Array.from({ length: 3 }).map((_, i) => (
                         <div key={i} className="h-52 bg-muted rounded-xl animate-pulse" />
                     ))
-                ) : !posts || posts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-40 text-center">
-                        <p className="text-sm text-muted-foreground">No posts yet.</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Be the first to share a project update.
-                        </p>
-                    </div>
                 ) : (
-                    posts.map((post) => <PostCard key={post.id} post={post} />)
+                    posts!.map((post) => <PostCard key={post.id} post={post} />)
                 )}
             </div>
+
 
             <CreatePostDialog
                 open={showCreateDialog}
