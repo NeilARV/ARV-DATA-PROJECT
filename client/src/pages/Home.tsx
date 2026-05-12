@@ -9,8 +9,6 @@ import DealView from "@/components/views/DealView";
 import PropertyDetailPanel from "@/components/property/PropertyDetailPanel";
 import PropertyModalContent from "@/components/property/PropertyModal";
 import AppDialog from "@/components/modals/Dialog";
-import LoginContent from "@/components/modals/Login";
-import SignupContent from "@/components/modals/Signup";
 import LeaderboardContent from "@/components/modals/Leaderboard";
 import InfoContent from "@/components/modals/Info";
 import { useDialogs } from "@/hooks/useDialogs";
@@ -28,7 +26,7 @@ function HomeContent() {
   const { view, sidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
-  const { dialog, openDialog, closeDialog, isForced, forcedDialogActive, headerDialogHandlers } = useDialogs();
+  const { dialog, openDialog, closeDialog, isForced } = useDialogs();
   const { user } = useAuth();
   const { property, setProperty } = useProperty();
 
@@ -65,14 +63,7 @@ function HomeContent() {
 
   return (
     <div className="h-screen flex flex-col">
-      <Header
-        county={filters.county}
-        onLoginClick={headerDialogHandlers.onLoginClick}
-        onSignupClick={headerDialogHandlers.onSignupClick}
-        onLeaderboardClick={headerDialogHandlers.onLeaderboardClick}
-        onDealsClick={headerDialogHandlers.onDealsClick}
-        forcedDialogActive={forcedDialogActive}
-      />
+      <Header county={filters.county} />
 
       {/* CSS grid: col 1 = sidebar (375px), col 2 = content (1fr).
           Row 1 height is auto — FilterHeader and "Investor Profiles" title share
@@ -115,7 +106,7 @@ function HomeContent() {
       </div>{/* end grid */}
 
       <AppDialog
-        open={dialog !== null}
+        open={dialog?.type === "leaderboard" || dialog?.type === "info" || dialog?.type === "property" || dialog?.type === "deals"}
         onClose={() => {
           if (dialog?.type === "property") setProperty(null);
           closeDialog();
@@ -133,18 +124,6 @@ function HomeContent() {
             : "sm:max-w-md"
         }
       >
-        {dialog?.type === "login" && (
-          <LoginContent
-            onSuccess={closeDialog}
-            onSwitchToSignup={() => openDialog({ type: "signup", forced: isForced })}
-          />
-        )}
-        {dialog?.type === "signup" && (
-          <SignupContent
-            onSuccess={closeDialog}
-            onSwitchToLogin={() => openDialog({ type: "login", forced: isForced })}
-          />
-        )}
         {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
         {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
         {dialog?.type === "property" && (

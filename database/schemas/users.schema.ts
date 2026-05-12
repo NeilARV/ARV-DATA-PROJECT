@@ -51,6 +51,7 @@ export const users = pgTable("users", {
   subscriptionId: integer("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
   county: text("county").default("San Diego"),
   state: varchar("state", { length: 2 }).default("CA"),
+  profileImageUrl: text("profile_image_url"),
 }, (t) => [
   unique("users_id_uuid_unique").on(t.id),
 ]);

@@ -2,7 +2,7 @@ import { createApp } from "../../server/app";
 import { MemoryStore } from "express-session";
 import { beforeAll, afterAll, beforeEach } from "vitest";
 import type { Express } from "express";
-import { seedTestUser, deleteTestUser, removeAllRoles } from "./db";
+import { seedTestUser, deleteTestUser, removeAllRoles, removeSubscription } from "./db";
 
 // Returns a fully configured Express app for use in tests.
 // Uses an in-memory session store and a test middleware that reads the
@@ -43,6 +43,7 @@ export function setupIntegrationUsers(actingUserId: string, targetUserId: string
 
     beforeEach(async () => {
         await removeAllRoles(actingUserId);
+        await removeSubscription(actingUserId);
     });
 
     return { getApp: () => app };

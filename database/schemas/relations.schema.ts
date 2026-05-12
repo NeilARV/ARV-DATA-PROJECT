@@ -2,6 +2,19 @@ import { relations } from "drizzle-orm";
 import { properties } from "./properties.schema";
 import { companies, companyMsas } from "./companies.schema";
 import { msas } from "./msas.schema";
+import { users } from "./users.schema";
+import {
+    categories,
+    vendors,
+    vendorCategories,
+    posts,
+    postCategories,
+    postImages,
+    postLikes,
+    postComments,
+    postVendorTags,
+    postUserTags,
+} from "./vendors.schema";
 import {
   addresses,
   structures,
@@ -170,4 +183,120 @@ export const propertyTransactionsRelations = relations(propertyTransactions, ({ 
     references: [companies.id],
     relationName: "transactionSeller",
   }),
+}));
+
+// ─── Community Relations ───────────────────────────────────────────────────────
+
+export const usersRelations = relations(users, ({ many }) => ({
+    posts: many(posts),
+    postLikes: many(postLikes),
+    postComments: many(postComments),
+    postUserTags: many(postUserTags),
+    vendors: many(vendors),
+}));
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+    vendorCategories: many(vendorCategories),
+    postCategories: many(postCategories),
+}));
+
+export const vendorsRelations = relations(vendors, ({ one, many }) => ({
+    user: one(users, {
+        fields: [vendors.userId],
+        references: [users.id],
+    }),
+    vendorCategories: many(vendorCategories),
+    postVendorTags: many(postVendorTags),
+}));
+
+export const vendorCategoriesRelations = relations(vendorCategories, ({ one }) => ({
+    vendor: one(vendors, {
+        fields: [vendorCategories.vendorId],
+        references: [vendors.id],
+    }),
+    category: one(categories, {
+        fields: [vendorCategories.categoryId],
+        references: [categories.id],
+    }),
+}));
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+    user: one(users, {
+        fields: [posts.userId],
+        references: [users.id],
+    }),
+    postCategories: many(postCategories),
+    postImages: many(postImages),
+    postLikes: many(postLikes),
+    postComments: many(postComments),
+    postVendorTags: many(postVendorTags),
+    postUserTags: many(postUserTags),
+}));
+
+export const postCategoriesRelations = relations(postCategories, ({ one }) => ({
+    post: one(posts, {
+        fields: [postCategories.postId],
+        references: [posts.id],
+    }),
+    category: one(categories, {
+        fields: [postCategories.categoryId],
+        references: [categories.id],
+    }),
+}));
+
+export const postImagesRelations = relations(postImages, ({ one }) => ({
+    post: one(posts, {
+        fields: [postImages.postId],
+        references: [posts.id],
+    }),
+}));
+
+export const postLikesRelations = relations(postLikes, ({ one }) => ({
+    user: one(users, {
+        fields: [postLikes.userId],
+        references: [users.id],
+    }),
+    post: one(posts, {
+        fields: [postLikes.postId],
+        references: [posts.id],
+    }),
+}));
+
+export const postCommentsRelations = relations(postComments, ({ one, many }) => ({
+    post: one(posts, {
+        fields: [postComments.postId],
+        references: [posts.id],
+    }),
+    user: one(users, {
+        fields: [postComments.userId],
+        references: [users.id],
+    }),
+    parentComment: one(postComments, {
+        fields: [postComments.parentCommentId],
+        references: [postComments.id],
+        relationName: "commentReplies",
+    }),
+    replies: many(postComments, { relationName: "commentReplies" }),
+}));
+
+export const postVendorTagsRelations = relations(postVendorTags, ({ one }) => ({
+    post: one(posts, {
+        fields: [postVendorTags.postId],
+        references: [posts.id],
+    }),
+    vendor: one(vendors, {
+        fields: [postVendorTags.vendorId],
+        references: [vendors.id],
+    }),
+}));
+
+export const postUserTagsRelations = relations(postUserTags, ({ one }) => ({
+    post: one(posts, {
+        fields: [postUserTags.postId],
+        references: [posts.id],
+    }),
+    taggedUser: one(users, {
+        fields: [postUserTags.taggedUserId],
+        references: [users.id],
+    }),
 }));

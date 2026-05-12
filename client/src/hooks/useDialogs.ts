@@ -1,10 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
+import React from "react";
 import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 
-/**
- * Discriminated union of every dialog the app can show.
- * Add new variants here as the app grows.
- */
 export type DialogState =
   | null
   | { type: "login"; forced: boolean }
@@ -15,17 +12,11 @@ export type DialogState =
   | { type: "deals" };
 
 export interface UseDialogsResult {
-  /** Current dialog state — null means no dialog is open */
   dialog: DialogState;
-  /** Open a dialog by passing a DialogState value */
   openDialog: (d: NonNullable<DialogState>) => void;
-  /** Close the active dialog */
   closeDialog: () => void;
-  /** Whether the active dialog is forced (cannot be dismissed by the user) */
   isForced: boolean;
-  /** True when a forced auth dialog just activated — use to close other modals */
   forcedDialogActive: boolean;
-  /** Handlers wired to Header buttons */
   headerDialogHandlers: {
     onLoginClick: () => void;
     onSignupClick: () => void;
@@ -34,17 +25,13 @@ export interface UseDialogsResult {
   };
 }
 
-/**
- * Tracks a single active dialog using a discriminated-union state.
- * Only one dialog can be open at a time; switching types swaps the content.
- */
-export function useDialogs(): UseDialogsResult {
-  const [dialog, setDialog] = useState<DialogState>(null);
+const DialogsContext = createContext<UseDialogsResult | null>(null);
 
+function useDialogsState(): UseDialogsResult {
+  const [dialog, setDialog] = useState<DialogState>(null);
   const { isAuthenticated } = useAuth();
   const { shouldShowSignup, isForced: promptIsForced, dismissPrompt } = useSignupPrompt();
 
-  // Auto-show signup prompt when triggered
   useEffect(() => {
     if (shouldShowSignup && !isAuthenticated) {
       setDialog({ type: "signup", forced: promptIsForced });
@@ -52,7 +39,6 @@ export function useDialogs(): UseDialogsResult {
   }, [shouldShowSignup, isAuthenticated, promptIsForced]);
 
   const closeDialog = () => {
-    // Dismiss the signup prompt whenever a signup dialog closes (manual or after success)
     if (dialog?.type === "signup") {
       dismissPrompt();
     }
@@ -82,4 +68,15 @@ export function useDialogs(): UseDialogsResult {
       onDealsClick: () => setDialog({ type: "deals" }),
     },
   };
+}
+
+export function DialogsProvider({ children }: { children: React.ReactNode }) {
+  const value = useDialogsState();
+  return React.createElement(DialogsContext.Provider, { value }, children);
+}
+
+export function useDialogs(): UseDialogsResult {
+  const ctx = useContext(DialogsContext);
+  if (!ctx) throw new Error("useDialogs must be used within DialogsProvider");
+  return ctx;
 }
