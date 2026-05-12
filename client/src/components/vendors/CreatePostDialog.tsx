@@ -72,7 +72,13 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                 vendorIds:   selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
             });
             if (pendingFiles.length > 0) {
-                await Promise.all(pendingFiles.map((file) => uploadPostImage(post.id, file)));
+                const results = await Promise.allSettled(
+                    pendingFiles.map((file) => uploadPostImage(post.id, file))
+                );
+                const failed = results.filter((r) => r.status === "rejected");
+                if (failed.length > 0) {
+                    throw new Error(`Post created, but ${failed.length} image(s) failed to upload. Check your Supabase storage configuration.`);
+                }
             }
             return post;
         },
@@ -82,10 +88,11 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
             resetForm();
             onClose();
         },
-        onError: () => {
+        onError: (err: unknown) => {
+            const message = err instanceof Error ? err.message : "Failed to create post.";
             toast({
                 title: "Error",
-                description: "Failed to create post. Make sure you have the required access.",
+                description: message,
                 variant: "destructive",
             });
         },

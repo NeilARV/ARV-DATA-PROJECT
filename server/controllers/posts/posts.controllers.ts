@@ -130,6 +130,8 @@ export async function uploadPostImageController(req: MulterRequest, res: Respons
             return;
         }
 
+        console.log(`[upload] postId=${req.params.postId} size=${req.file.size} mime=${req.file.mimetype}`);
+
         const image = await PostsServices.uploadPostImage(
             req.params.postId,
             callerId,
@@ -139,6 +141,7 @@ export async function uploadPostImageController(req: MulterRequest, res: Respons
 
         res.status(201).json({ message: "Image uploaded", image });
     } catch (err) {
+        console.error("[upload] Failed:", err instanceof Error ? err.message : err);
         handleServiceError(res, err, "Error uploading image");
     }
 }

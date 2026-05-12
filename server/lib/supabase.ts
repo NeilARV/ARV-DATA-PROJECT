@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import ws from "ws";
 
 export const storageBucket = process.env.SUPABASE_STORAGE_BUCKET ?? "post-images-dev";
 
@@ -11,7 +12,10 @@ export function getSupabase(): SupabaseClient {
     if (!url || !key) {
         throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set");
     }
-    _client = createClient(url, key);
+    _client = createClient(url, key, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        realtime: { transport: ws as any },
+    });
     return _client;
 }
 
