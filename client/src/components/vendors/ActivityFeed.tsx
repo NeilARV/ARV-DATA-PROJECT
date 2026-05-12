@@ -46,16 +46,18 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
     return (
         <div className="flex flex-col h-full">
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
-                <div className="flex items-center justify-between">
-                    <h2 className="font-semibold text-foreground">Activity Feed</h2>
-                    <Button size="sm" onClick={handleNewPost} className="h-7 gap-1 text-xs">
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                        <div className="h-7 flex items-center">
+                            <h2 className="font-semibold text-foreground">Activity Feed</h2>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">See recent project activity</p>
+                    </div>
+                    <Button size="sm" onClick={handleNewPost} className="h-7 gap-1 text-xs flex-shrink-0">
                         <Plus className="w-3.5 h-3.5" />
                         New Post
                     </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5 h-4">
-                    {"See recent project activity"}
-                </p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
