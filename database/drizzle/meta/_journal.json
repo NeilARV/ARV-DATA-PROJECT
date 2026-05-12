@@ -43,6 +43,13 @@
       "when": 1778098916984,
       "tag": "0005_last_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778610946192,
+      "tag": "0006_windy_luminals",
+      "breakpoints": true
     }
   ]
 }
