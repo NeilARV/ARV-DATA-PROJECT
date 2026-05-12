@@ -1,14 +1,16 @@
-import { useState, useMemo } from "react";
-import { X } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { X, ImagePlus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { updatePost, fetchCategories, fetchVendors } from "@/api/vendors.api";
+import { updatePost, fetchCategories, fetchVendors, uploadPostImage, deletePostImage } from "@/api/vendors.api";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from "@/types/vendors";
+
+const MAX_IMAGES = 5;
 
 type EditPostDialogProps = {
     open: boolean;
@@ -27,8 +29,15 @@ export function EditPostDialog({ open, onClose, post }: EditPostDialogProps) {
     const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>(
         post.vendorTags.map((v) => v.id)
     );
+    const [imagesToDelete, setImagesToDelete] = useState<number[]>([]);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const queryClient = useQueryClient();
     const { toast } = useToast();
+
+    const existingImages = post.images.filter((img) => !imagesToDelete.includes(img.id));
+    const totalImages = existingImages.length + pendingFiles.length;
 
     const { data: categoriesData } = useQuery({
         queryKey: ["categories"],
@@ -52,18 +61,24 @@ export function EditPostDialog({ open, onClose, post }: EditPostDialogProps) {
     }, [post.vendorTags, vendorsData]);
 
     const mutation = useMutation({
-        mutationFn: () =>
-            updatePost(post.id, {
+        mutationFn: async () => {
+            await updatePost(post.id, {
                 title,
                 content,
                 city: city.trim() || undefined,
                 state: state.trim() || undefined,
                 categoryIds: selectedCategoryIds,
                 vendorIds: selectedVendorIds,
-            }),
+            });
+            await Promise.all([
+                ...imagesToDelete.map((id) => deletePostImage(post.id, id)),
+                ...pendingFiles.map((file) => uploadPostImage(post.id, file)),
+            ]);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["posts"] });
             toast({ title: "Post updated", description: "Your post has been saved." });
+            previews.forEach((url) => URL.revokeObjectURL(url));
             onClose();
         },
         onError: () => {
@@ -77,7 +92,26 @@ export function EditPostDialog({ open, onClose, post }: EditPostDialogProps) {
 
     const handleClose = () => {
         if (mutation.isPending) return;
+        previews.forEach((url) => URL.revokeObjectURL(url));
+        setPendingFiles([]);
+        setPreviews([]);
+        setImagesToDelete([]);
         onClose();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
+        const slots = MAX_IMAGES - totalImages;
+        const toAdd = files.slice(0, slots);
+        setPendingFiles((prev) => [...prev, ...toAdd]);
+        setPreviews((prev) => [...prev, ...toAdd.map((f) => URL.createObjectURL(f))]);
+        e.target.value = "";
+    };
+
+    const removePending = (index: number) => {
+        URL.revokeObjectURL(previews[index]);
+        setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+        setPreviews((prev) => prev.filter((_, i) => i !== index));
     };
 
     const addCategory = (id: number) => {
@@ -160,6 +194,59 @@ export function EditPostDialog({ open, onClose, post }: EditPostDialogProps) {
                                 maxLength={2}
                             />
                         </div>
+                    </div>
+
+                    {/* Photos */}
+                    <div className="space-y-1.5">
+                        <Label>Photos</Label>
+                        {(existingImages.length > 0 || previews.length > 0) && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {existingImages.map((img) => (
+                                    <div key={img.id} className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                                        <img src={img.imageUrl} alt="" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setImagesToDelete((prev) => [...prev, img.id])}
+                                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition-colors"
+                                        >
+                                            <X className="w-2.5 h-2.5 text-white" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {previews.map((src, i) => (
+                                    <div key={`new-${i}`} className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => removePending(i)}
+                                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition-colors"
+                                        >
+                                            <X className="w-2.5 h-2.5 text-white" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {totalImages < MAX_IMAGES && (
+                            <>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border rounded-md px-3 py-2 w-full justify-center"
+                                >
+                                    <ImagePlus className="w-3.5 h-3.5" />
+                                    Add photos ({totalImages}/{MAX_IMAGES})
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     {/* Categories */}

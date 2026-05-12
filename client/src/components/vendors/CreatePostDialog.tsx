@@ -1,13 +1,15 @@
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, useRef } from "react";
+import { X, ImagePlus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPost, fetchCategories, fetchVendors } from "@/api/vendors.api";
+import { createPost, fetchCategories, fetchVendors, uploadPostImage } from "@/api/vendors.api";
 import { useToast } from "@/hooks/use-toast";
+
+const MAX_IMAGES = 5;
 
 type CreatePostDialogProps = {
     open: boolean;
@@ -21,6 +23,9 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
     const [state, setState] = useState("");
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
     const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
@@ -38,24 +43,24 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
     });
 
     const mutation = useMutation({
-        mutationFn: () =>
-            createPost({
+        mutationFn: async () => {
+            const post = await createPost({
                 title,
                 content,
                 city: city.trim() || undefined,
                 state: state.trim() || undefined,
                 categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined,
                 vendorIds: selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
-            }),
+            });
+            if (pendingFiles.length > 0) {
+                await Promise.all(pendingFiles.map((file) => uploadPostImage(post.id, file)));
+            }
+            return post;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["posts"] });
             toast({ title: "Post created", description: "Your post has been shared with the community." });
-            setTitle("");
-            setContent("");
-            setCity("");
-            setState("");
-            setSelectedCategoryIds([]);
-            setSelectedVendorIds([]);
+            resetForm();
             onClose();
         },
         onError: () => {
@@ -67,9 +72,37 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
         },
     });
 
+    const resetForm = () => {
+        setTitle("");
+        setContent("");
+        setCity("");
+        setState("");
+        setSelectedCategoryIds([]);
+        setSelectedVendorIds([]);
+        previews.forEach((url) => URL.revokeObjectURL(url));
+        setPendingFiles([]);
+        setPreviews([]);
+    };
+
     const handleClose = () => {
         if (mutation.isPending) return;
+        resetForm();
         onClose();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
+        const slots = MAX_IMAGES - pendingFiles.length;
+        const toAdd = files.slice(0, slots);
+        setPendingFiles((prev) => [...prev, ...toAdd]);
+        setPreviews((prev) => [...prev, ...toAdd.map((f) => URL.createObjectURL(f))]);
+        e.target.value = "";
+    };
+
+    const removeFile = (index: number) => {
+        URL.revokeObjectURL(previews[index]);
+        setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+        setPreviews((prev) => prev.filter((_, i) => i !== index));
     };
 
     const addCategory = (id: number) => {
@@ -79,7 +112,6 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
     const removeCategory = (id: number) => {
         const remaining = selectedCategoryIds.filter((c) => c !== id);
         setSelectedCategoryIds(remaining);
-        // Drop vendors that no longer belong to any remaining selected category
         if (vendorsData) {
             setSelectedVendorIds((prev) =>
                 prev.filter((vendorId) => {
@@ -155,6 +187,47 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                         </div>
                     </div>
 
+                    {/* Photos */}
+                    <div className="space-y-1.5">
+                        <Label>Photos</Label>
+                        {previews.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {previews.map((src, i) => (
+                                    <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFile(i)}
+                                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition-colors"
+                                        >
+                                            <X className="w-2.5 h-2.5 text-white" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {pendingFiles.length < MAX_IMAGES && (
+                            <>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png"
+                                    multiple
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border rounded-md px-3 py-2 w-full justify-center"
+                                >
+                                    <ImagePlus className="w-3.5 h-3.5" />
+                                    Add photos ({pendingFiles.length}/{MAX_IMAGES})
+                                </button>
+                            </>
+                        )}
+                    </div>
+
                     {/* Categories */}
                     <div className="space-y-1.5">
                         <Label>Categories</Label>
@@ -194,7 +267,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                         )}
                     </div>
 
-                    {/* Vendors — only shown once at least one category is selected */}
+                    {/* Vendors */}
                     {selectedCategoryIds.length > 0 && (
                         <div className="space-y-1.5">
                             <Label>Vendors</Label>

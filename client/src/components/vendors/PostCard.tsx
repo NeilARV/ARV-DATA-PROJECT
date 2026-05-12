@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { User, MapPin, Image as ImageIcon, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { User, MapPin, MoreVertical, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deletePost } from "@/api/vendors.api";
@@ -38,6 +38,7 @@ export function PostCard({ post }: PostCardProps) {
     const [showMenu, setShowMenu] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [imageIndex, setImageIndex] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -139,10 +140,41 @@ export function PostCard({ post }: PostCardProps) {
                     <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{post.content}</p>
                 </div>
 
-                {/* Image placeholder */}
-                <div className="w-full h-28 bg-muted rounded-lg flex items-center justify-center">
-                    <ImageIcon className="w-5 h-5 text-muted-foreground/50" />
-                </div>
+                {/* Images */}
+                {post.images.length > 0 && (
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden bg-muted">
+                        <img
+                            src={post.images[imageIndex].imageUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                        />
+                        {post.images.length > 1 && (
+                            <>
+                                <button
+                                    onClick={() => setImageIndex((i) => (i - 1 + post.images.length) % post.images.length)}
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
+                                >
+                                    <ChevronLeft className="w-4 h-4 text-white" />
+                                </button>
+                                <button
+                                    onClick={() => setImageIndex((i) => (i + 1) % post.images.length)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
+                                >
+                                    <ChevronRight className="w-4 h-4 text-white" />
+                                </button>
+                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                                    {post.images.map((_, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setImageIndex(i)}
+                                            className={`w-1.5 h-1.5 rounded-full transition-colors ${i === imageIndex ? "bg-white" : "bg-white/50"}`}
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 {/* Vendor tags (plain text, below image) */}
                 {post.vendorTags.length > 0 && (

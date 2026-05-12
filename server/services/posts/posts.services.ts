@@ -2,6 +2,7 @@ import { db } from "server/storage";
 import {
     posts,
     postCategories,
+    postImages,
     postLikes,
     postComments,
     postVendorTags,
@@ -10,7 +11,8 @@ import {
     vendors,
 } from "@database/schemas/vendors.schema";
 import { users, userRoles, roles } from "@database/schemas/users.schema";
-import { eq, desc, and, inArray, count, isNull } from "drizzle-orm";
+import { eq, desc, and, inArray, count } from "drizzle-orm";
+import { supabase, storageBucket, storagePathFromUrl } from "server/lib/supabase";
 
 export class PostServiceError extends Error {
     constructor(public statusCode: number, message: string) {
@@ -104,6 +106,27 @@ async function fetchUserTagsForPosts(postIds: string[]): Promise<Map<string, { i
     return map;
 }
 
+async function fetchImagesForPosts(postIds: string[]): Promise<Map<string, { id: number; imageUrl: string; displayOrder: number }[]>> {
+    if (postIds.length === 0) return new Map();
+    const rows = await db
+        .select({
+            postId:       postImages.postId,
+            id:           postImages.id,
+            imageUrl:     postImages.imageUrl,
+            displayOrder: postImages.displayOrder,
+        })
+        .from(postImages)
+        .where(inArray(postImages.postId, postIds))
+        .orderBy(postImages.displayOrder);
+
+    const map = new Map<string, { id: number; imageUrl: string; displayOrder: number }[]>();
+    for (const row of rows) {
+        if (!map.has(row.postId)) map.set(row.postId, []);
+        map.get(row.postId)!.push({ id: row.id, imageUrl: row.imageUrl, displayOrder: row.displayOrder });
+    }
+    return map;
+}
+
 // Check whether the caller has admin or owner role
 async function callerIsPrivileged(callerId: string): Promise<boolean> {
     const rows = await db
@@ -187,11 +210,12 @@ export async function getPosts(filters: GetPostsFilters) {
     if (rows.length === 0) return [];
 
     const postIds = rows.map((p) => p.id);
-    const [likeCounts, commentCounts, categoryMap, vendorTagMap] = await Promise.all([
+    const [likeCounts, commentCounts, categoryMap, vendorTagMap, imageMap] = await Promise.all([
         fetchLikeCounts(postIds),
         fetchCommentCounts(postIds),
         fetchCategoriesForPosts(postIds),
         fetchVendorTagsForPosts(postIds),
+        fetchImagesForPosts(postIds),
     ]);
 
     return rows.map((post) => ({
@@ -200,6 +224,7 @@ export async function getPosts(filters: GetPostsFilters) {
         commentCount: commentCounts.get(post.id) ?? 0,
         categories:   categoryMap.get(post.id)   ?? [],
         vendorTags:   vendorTagMap.get(post.id)  ?? [],
+        images:       imageMap.get(post.id)       ?? [],
     }));
 }
 
@@ -228,12 +253,13 @@ export async function getPostById(id: string) {
     if (rows.length === 0) return null;
 
     const postIds = [rows[0].id];
-    const [likeCounts, commentCounts, categoryMap, vendorTagMap, userTagMap] = await Promise.all([
+    const [likeCounts, commentCounts, categoryMap, vendorTagMap, userTagMap, imageMap] = await Promise.all([
         fetchLikeCounts(postIds),
         fetchCommentCounts(postIds),
         fetchCategoriesForPosts(postIds),
         fetchVendorTagsForPosts(postIds),
         fetchUserTagsForPosts(postIds),
+        fetchImagesForPosts(postIds),
     ]);
 
     return {
@@ -243,6 +269,7 @@ export async function getPostById(id: string) {
         categories:   categoryMap.get(rows[0].id)   ?? [],
         vendorTags:   vendorTagMap.get(rows[0].id)  ?? [],
         userTags:     userTagMap.get(rows[0].id)    ?? [],
+        images:       imageMap.get(rows[0].id)      ?? [],
     };
 }
 
@@ -379,8 +406,101 @@ export async function deletePost(id: string, callerId: string) {
         throw new PostServiceError(403, "You can only delete your own posts");
     }
 
+    // Remove images from Supabase storage before the DB cascade deletes the rows
+    const images = await db
+        .select({ imageUrl: postImages.imageUrl })
+        .from(postImages)
+        .where(eq(postImages.postId, id));
+
+    if (images.length > 0) {
+        const paths = images.map((img) => storagePathFromUrl(img.imageUrl)).filter(Boolean) as string[];
+        if (paths.length > 0) {
+            await supabase.storage.from(storageBucket).remove(paths);
+        }
+    }
+
     await db.delete(posts).where(eq(posts.id, id));
 
     console.log(`[postsService.deletePost] Post deleted: id=${id}`);
     return { id: existing.id };
+}
+
+// ── Upload image ───────────────────────────────────────────────────────────────
+
+const MAX_IMAGES_PER_POST = 5;
+
+export async function uploadPostImage(
+    postId: string,
+    callerId: string,
+    buffer: Buffer,
+    mimetype: string,
+) {
+    const [existing] = await db
+        .select({ id: posts.id, userId: posts.userId })
+        .from(posts)
+        .where(eq(posts.id, postId))
+        .limit(1);
+
+    if (!existing) throw new PostServiceError(404, "Post not found");
+    if (existing.userId !== callerId && !(await callerIsPrivileged(callerId))) {
+        throw new PostServiceError(403, "You can only add images to your own posts");
+    }
+
+    const [{ total }] = await db
+        .select({ total: count() })
+        .from(postImages)
+        .where(eq(postImages.postId, postId));
+
+    if (total >= MAX_IMAGES_PER_POST) {
+        throw new PostServiceError(400, `Posts can have at most ${MAX_IMAGES_PER_POST} images`);
+    }
+
+    const ext = mimetype === "image/png" ? "png" : "jpg";
+    const storagePath = `posts/${postId}/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await supabase.storage
+        .from(storageBucket)
+        .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
+
+    if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+    const { data: { publicUrl } } = supabase.storage.from(storageBucket).getPublicUrl(storagePath);
+
+    const [image] = await db
+        .insert(postImages)
+        .values({ postId, imageUrl: publicUrl, displayOrder: total + 1 })
+        .returning();
+
+    return image;
+}
+
+// ── Delete image ───────────────────────────────────────────────────────────────
+
+export async function deletePostImage(imageId: number, callerId: string) {
+    const [image] = await db
+        .select({ id: postImages.id, postId: postImages.postId, imageUrl: postImages.imageUrl })
+        .from(postImages)
+        .where(eq(postImages.id, imageId))
+        .limit(1);
+
+    if (!image) throw new PostServiceError(404, "Image not found");
+
+    const [post] = await db
+        .select({ userId: posts.userId })
+        .from(posts)
+        .where(eq(posts.id, image.postId))
+        .limit(1);
+
+    if (!post) throw new PostServiceError(404, "Post not found");
+    if (post.userId !== callerId && !(await callerIsPrivileged(callerId))) {
+        throw new PostServiceError(403, "You can only delete images from your own posts");
+    }
+
+    const storagePath = storagePathFromUrl(image.imageUrl);
+    if (storagePath) {
+        await supabase.storage.from(storageBucket).remove([storagePath]);
+    }
+
+    await db.delete(postImages).where(eq(postImages.id, imageId));
+    return { id: imageId };
 }

@@ -20,6 +20,12 @@ export type Vendor = {
     categories: { id: number; name: string; slug: string; iconName: string }[];
 };
 
+export type PostImage = {
+    id: number;
+    imageUrl: string;
+    displayOrder: number;
+};
+
 export type Post = {
     id: string;
     title: string;
@@ -37,6 +43,7 @@ export type Post = {
     categories: { id: number; name: string; slug: string; iconName: string }[];
     vendorTags: { id: string; name: string }[];
     userTags?: { id: string; firstName: string; lastName: string }[];
+    images: PostImage[];
 };
 
 export type CreatePostInput = {

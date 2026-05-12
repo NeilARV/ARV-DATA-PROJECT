@@ -48,3 +48,23 @@ export async function updatePost(
 export async function deletePost(postId: string): Promise<void> {
     await apiRequest("DELETE", `/api/posts/${postId}`);
 }
+
+export async function uploadPostImage(postId: string, file: File): Promise<{ id: number; imageUrl: string; displayOrder: number }> {
+    const formData = new FormData();
+    formData.append("image", file);
+    const res = await fetch(`/api/posts/${postId}/images`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+    }
+    const json = await res.json();
+    return json.image;
+}
+
+export async function deletePostImage(postId: string, imageId: number): Promise<void> {
+    await apiRequest("DELETE", `/api/posts/${postId}/images/${imageId}`);
+}

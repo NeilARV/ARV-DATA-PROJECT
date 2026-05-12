@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { MulterRequest } from "server/middleware/multerTypes";
 import { PostsServices, PostServiceError } from "server/services/posts";
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
@@ -116,5 +117,46 @@ export async function deletePostController(req: Request, res: Response): Promise
         res.json({ message: "Post deleted successfully", id: result.id });
     } catch (err) {
         handleServiceError(res, err, "Error deleting post");
+    }
+}
+
+// ── POST /api/posts/:postId/images ─────────────────────────────────────────────
+export async function uploadPostImageController(req: MulterRequest, res: Response): Promise<void> {
+    try {
+        const callerId = req.session.userId!;
+
+        if (!req.file) {
+            res.status(400).json({ message: "No file provided" });
+            return;
+        }
+
+        const image = await PostsServices.uploadPostImage(
+            req.params.postId,
+            callerId,
+            req.file.buffer,
+            req.file.mimetype,
+        );
+
+        res.status(201).json({ message: "Image uploaded", image });
+    } catch (err) {
+        handleServiceError(res, err, "Error uploading image");
+    }
+}
+
+// ── DELETE /api/posts/:postId/images/:imageId ──────────────────────────────────
+export async function deletePostImageController(req: Request, res: Response): Promise<void> {
+    try {
+        const callerId = req.session.userId!;
+        const imageId = parseInt(req.params.imageId, 10);
+
+        if (isNaN(imageId)) {
+            res.status(400).json({ message: "Invalid imageId" });
+            return;
+        }
+
+        const result = await PostsServices.deletePostImage(imageId, callerId);
+        res.json({ message: "Image deleted", id: result.id });
+    } catch (err) {
+        handleServiceError(res, err, "Error deleting image");
     }
 }
