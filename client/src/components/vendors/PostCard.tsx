@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
 import { EditPostDialog } from "./EditPostDialog";
+import { ImageLightbox } from "./ImageLightbox";
 import type { Post } from "@/types/vendors";
 
 function formatTimeAgo(dateStr: string): string {
@@ -39,6 +40,7 @@ export function PostCard({ post }: PostCardProps) {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [imageIndex, setImageIndex] = useState(0);
+    const [lightboxOpen, setLightboxOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -142,7 +144,10 @@ export function PostCard({ post }: PostCardProps) {
 
                 {/* Images */}
                 {post.images.length > 0 && (
-                    <div className="relative w-full h-48 rounded-lg overflow-hidden bg-muted">
+                    <div
+                        className="relative w-full h-48 rounded-lg overflow-hidden bg-muted cursor-pointer"
+                        onClick={() => setLightboxOpen(true)}
+                    >
                         <img
                             src={post.images[imageIndex].imageUrl}
                             alt=""
@@ -151,13 +156,13 @@ export function PostCard({ post }: PostCardProps) {
                         {post.images.length > 1 && (
                             <>
                                 <button
-                                    onClick={() => setImageIndex((i) => (i - 1 + post.images.length) % post.images.length)}
+                                    onClick={(e) => { e.stopPropagation(); setImageIndex((i) => (i - 1 + post.images.length) % post.images.length); }}
                                     className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
                                 >
                                     <ChevronLeft className="w-4 h-4 text-white" />
                                 </button>
                                 <button
-                                    onClick={() => setImageIndex((i) => (i + 1) % post.images.length)}
+                                    onClick={(e) => { e.stopPropagation(); setImageIndex((i) => (i + 1) % post.images.length); }}
                                     className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
                                 >
                                     <ChevronRight className="w-4 h-4 text-white" />
@@ -166,7 +171,7 @@ export function PostCard({ post }: PostCardProps) {
                                     {post.images.map((_, i) => (
                                         <button
                                             key={i}
-                                            onClick={() => setImageIndex(i)}
+                                            onClick={(e) => { e.stopPropagation(); setImageIndex(i); }}
                                             className={`w-1.5 h-1.5 rounded-full transition-colors ${i === imageIndex ? "bg-white" : "bg-white/50"}`}
                                         />
                                     ))}
@@ -214,6 +219,15 @@ export function PostCard({ post }: PostCardProps) {
                     onConfirm={() => deleteMutation.mutate()}
                 />
             </AppDialog>
+
+            {/* Image lightbox */}
+            {lightboxOpen && post.images.length > 0 && (
+                <ImageLightbox
+                    images={post.images}
+                    initialIndex={imageIndex}
+                    onClose={() => setLightboxOpen(false)}
+                />
+            )}
         </>
     );
 }
