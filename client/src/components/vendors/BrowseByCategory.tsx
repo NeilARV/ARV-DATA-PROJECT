@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -8,26 +8,26 @@ import { AddVendorDialog } from "./AddVendorDialog";
 import { fetchCategories, fetchVendors } from "@/api/vendors.api";
 import { useAuth } from "@/hooks/use-auth";
 import type { Category, Vendor } from "@/types/vendors";
-import type { VendorNavView, Breadcrumb } from "@/hooks/useVendorNav";
+import type { VendorNavView } from "@/hooks/useVendorNav";
 
 type BrowseByCategoryProps = {
     view: VendorNavView;
-    selectedCategory: Category | null;
-    selectedVendor: Vendor | null;
-    breadcrumbs: Breadcrumb[];
+    categoryId: number | null;
+    vendorId: string | null;
     onSelectCategory: (category: Category) => void;
     onSelectVendor: (vendor: Vendor) => void;
     onGoBack: () => void;
+    onReset: () => void;
 };
 
 export function BrowseByCategory({
     view,
-    selectedCategory,
-    selectedVendor,
-    breadcrumbs,
+    categoryId,
+    vendorId,
     onSelectCategory,
     onSelectVendor,
     onGoBack,
+    onReset,
 }: BrowseByCategoryProps) {
     const [showAddVendor, setShowAddVendor] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -43,10 +43,23 @@ export function BrowseByCategory({
         staleTime: 5 * 60 * 1000,
     });
 
+    const selectedCategory = useMemo(
+        () => (categoryId !== null ? (categories ?? []).find((c) => c.id === categoryId) ?? null : null),
+        [categoryId, categories]
+    );
+
+    const breadcrumbs = useMemo(() => {
+        const crumbs: { label: string; onClick: () => void }[] = [{ label: "Categories", onClick: onReset }];
+        if (selectedCategory) {
+            crumbs.push({ label: selectedCategory.name, onClick: () => onSelectCategory(selectedCategory) });
+        }
+        return crumbs;
+    }, [selectedCategory, onReset, onSelectCategory]);
+
     const { data: vendors, isLoading: vendorsLoading } = useQuery({
-        queryKey: ["vendors", selectedCategory?.id],
-        queryFn: () => fetchVendors([selectedCategory!.id]),
-        enabled: view === "vendor-list" && selectedCategory !== null && !isSearching,
+        queryKey: ["vendors", categoryId],
+        queryFn: () => fetchVendors([categoryId!]),
+        enabled: view === "vendor-list" && categoryId !== null && !isSearching,
         staleTime: 5 * 60 * 1000,
     });
 
@@ -234,7 +247,7 @@ export function BrowseByCategory({
                                             <VendorCard
                                                 key={vendor.id}
                                                 vendor={vendor}
-                                                isSelected={selectedVendor?.id === vendor.id}
+                                                isSelected={vendorId === vendor.id}
                                                 onClick={(v) => { setSearchQuery(""); onSelectVendor(v); }}
                                             />
                                         ))}
@@ -280,7 +293,7 @@ export function BrowseByCategory({
                                 <VendorCard
                                     key={vendor.id}
                                     vendor={vendor}
-                                    isSelected={selectedVendor?.id === vendor.id}
+                                    isSelected={vendorId === vendor.id}
                                     onClick={onSelectVendor}
                                 />
                             ))}

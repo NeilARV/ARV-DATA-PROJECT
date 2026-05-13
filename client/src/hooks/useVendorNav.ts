@@ -1,12 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
-import type { Category, Vendor } from "@/types/vendors";
+import { useMemo, useCallback } from "react";
+import { useLocation, useSearch } from "wouter";
 
 export type VendorNavView = "categories" | "vendor-list";
-
-export type Breadcrumb = {
-    label: string;
-    onClick: () => void;
-};
 
 export type PostFilters = {
     categoryId?: number;
@@ -14,60 +9,55 @@ export type PostFilters = {
 };
 
 export function useVendorNav() {
-    const [view, setView] = useState<VendorNavView>("categories");
-    const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-    const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+    const [, setLocation] = useLocation();
+    const search = useSearch();
+    const params = new URLSearchParams(search);
+
+    const rawCategory = params.get("category");
+    const rawVendor = params.get("vendor");
+
+    const categoryId = rawCategory !== null ? Number(rawCategory) : null;
+    const vendorId = categoryId !== null ? (rawVendor ?? null) : null;
+    const view: VendorNavView = categoryId !== null ? "vendor-list" : "categories";
 
     const reset = useCallback(() => {
-        setView("categories");
-        setSelectedCategory(null);
-        setSelectedVendor(null);
-    }, []);
+        setLocation("/vendors");
+    }, [setLocation]);
 
-    const selectCategory = useCallback((category: Category) => {
-        setSelectedCategory(category);
-        setSelectedVendor(null);
-        setView("vendor-list");
-    }, []);
+    const selectCategory = useCallback((id: number) => {
+        setLocation(`/vendors?category=${id}`);
+    }, [setLocation]);
 
-    const selectVendor = useCallback((vendor: Vendor) => {
-        setSelectedVendor((prev) => (prev?.id === vendor.id ? null : vendor));
-    }, []);
+    const selectVendor = useCallback((id: string) => {
+        if (categoryId === null) return;
+        if (id === vendorId) {
+            setLocation(`/vendors?category=${categoryId}`);
+        } else {
+            setLocation(`/vendors?category=${categoryId}&vendor=${id}`);
+        }
+    }, [setLocation, categoryId, vendorId]);
 
     const goBack = useCallback(() => {
-        setSelectedVendor((prev) => {
-            if (prev) return null;
-            setView("categories");
-            setSelectedCategory(null);
-            return null;
-        });
-    }, []);
+        if (vendorId) {
+            setLocation(`/vendors?category=${categoryId}`);
+        } else if (categoryId !== null) {
+            setLocation("/vendors");
+        }
+    }, [setLocation, categoryId, vendorId]);
 
     const postFilters: PostFilters = useMemo(() => ({
-        categoryId: selectedVendor ? undefined : selectedCategory?.id,
-        vendorId: selectedVendor?.id,
-    }), [selectedVendor, selectedCategory]);
-
-    const breadcrumbs: Breadcrumb[] = useMemo(() => {
-        const crumbs: Breadcrumb[] = [{ label: "Categories", onClick: reset }];
-        if (selectedCategory) {
-            crumbs.push({
-                label: selectedCategory.name,
-                onClick: () => setSelectedVendor(null),
-            });
-        }
-        return crumbs;
-    }, [selectedCategory, reset]);
+        categoryId: vendorId ? undefined : categoryId ?? undefined,
+        vendorId: vendorId ?? undefined,
+    }), [categoryId, vendorId]);
 
     return {
         view,
-        selectedCategory,
-        selectedVendor,
+        categoryId,
+        vendorId,
         selectCategory,
         selectVendor,
         goBack,
         reset,
         postFilters,
-        breadcrumbs,
     };
 }

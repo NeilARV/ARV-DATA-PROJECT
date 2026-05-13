@@ -118,12 +118,12 @@ function VendorsContent() {
                 } md:flex`}>
                     <BrowseByCategory
                         view={nav.view}
-                        selectedCategory={nav.selectedCategory}
-                        selectedVendor={nav.selectedVendor}
-                        breadcrumbs={nav.breadcrumbs}
-                        onSelectCategory={nav.selectCategory}
-                        onSelectVendor={nav.selectVendor}
+                        categoryId={nav.categoryId}
+                        vendorId={nav.vendorId}
+                        onSelectCategory={(cat) => nav.selectCategory(cat.id)}
+                        onSelectVendor={(vendor) => nav.selectVendor(vendor.id)}
                         onGoBack={nav.goBack}
+                        onReset={nav.reset}
                     />
                 </div>
             </div>
