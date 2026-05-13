@@ -290,6 +290,7 @@ export function usePostEditor({
             isBold: !!ctx.editor?.isActive("bold"),
             isItalic: !!ctx.editor?.isActive("italic"),
             isUnderline: !!ctx.editor?.isActive("underline"),
+            hasContent: (ctx.editor?.getText().trim().length ?? 0) > 0,
         }),
     });
 
