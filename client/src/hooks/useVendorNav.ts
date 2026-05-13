@@ -16,7 +16,8 @@ export function useVendorNav() {
     const rawCategory = params.get("category");
     const rawVendor = params.get("vendor");
 
-    const categoryId = rawCategory !== null ? Number(rawCategory) : null;
+    const parsedCategory = rawCategory !== null ? Number(rawCategory) : null;
+    const categoryId = parsedCategory !== null && !isNaN(parsedCategory) ? parsedCategory : null;
     const vendorId = categoryId !== null ? (rawVendor ?? null) : null;
     const view: VendorNavView = categoryId !== null ? "vendor-list" : "categories";
 
