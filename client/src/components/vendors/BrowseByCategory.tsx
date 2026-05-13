@@ -72,20 +72,20 @@ export function BrowseByCategory({
 
     const searchInput = (
         <div className="relative w-full max-w-xs md:max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search categories & vendors..."
-                className="w-full h-8 pl-7 pr-6 text-xs bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                className="w-full h-9 pl-9 pr-7 text-sm bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
             />
             {searchQuery && (
                 <button
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                    <X className="w-3 h-3" />
+                    <X className="w-4 h-4" />
                 </button>
             )}
         </div>
@@ -97,23 +97,25 @@ export function BrowseByCategory({
             {/* Panel header */}
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
 
-                {/* Desktop: single items-center row — title+breadcrumbs left, search center, button right */}
+                {/* Desktop: back button + stacked title/breadcrumbs left, search center, add vendor right */}
                 <div className="hidden sm:flex items-center gap-3">
-                    {/* Left: title + breadcrumbs stacked */}
+                    {/* Back button — only rendered when navigated into a category */}
+                    {view === "vendor-list" && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onGoBack}
+                            className="h-9 px-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground flex-shrink-0"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                            Back
+                        </Button>
+                    )}
+
+                    {/* Title + breadcrumbs stacked, left-aligned */}
                     <div className="flex-shrink-0">
-                        <div className="h-7 flex items-center gap-2">
-                            <h2 className="font-semibold text-foreground">Browse by Category</h2>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={onGoBack}
-                                className={`h-7 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground ${view !== "vendor-list" ? "invisible pointer-events-none" : ""}`}
-                            >
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                                Back
-                            </Button>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5 min-h-[16px]">
+                        <h2 className="font-semibold text-lg text-foreground">Browse by Category</h2>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 min-h-[16px]">
                             {!isSearching && breadcrumbs.map((crumb, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                     {i > 0 && <ChevronRight className="w-3 h-3" />}
@@ -138,9 +140,9 @@ export function BrowseByCategory({
                         <Button
                             size="sm"
                             onClick={() => setShowAddVendor(true)}
-                            className="h-7 gap-1 text-xs flex-shrink-0"
+                            className="h-9 gap-1.5 text-sm flex-shrink-0"
                         >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-4 h-4" />
                             Add Vendor
                         </Button>
                     )}
@@ -148,32 +150,34 @@ export function BrowseByCategory({
 
                 {/* Mobile: title row, breadcrumbs, then search below */}
                 <div className="sm:hidden">
-                    <div className="h-7 flex items-center justify-between mb-0.5">
+                    <div className="h-9 flex items-center justify-between mb-0.5">
                         <div className="flex items-center gap-2">
-                            <h2 className="font-semibold text-foreground">Browse by Category</h2>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={onGoBack}
-                                className={`h-7 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground ${view !== "vendor-list" ? "invisible pointer-events-none" : ""}`}
-                            >
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                                Back
-                            </Button>
+                            {view === "vendor-list" && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={onGoBack}
+                                    className="h-9 px-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Back
+                                </Button>
+                            )}
+                            <h2 className="font-semibold text-lg text-foreground">Browse by Category</h2>
                         </div>
                         {isPrivileged && (
                             <Button
                                 size="sm"
                                 onClick={() => setShowAddVendor(true)}
-                                className="h-7 gap-1 text-xs"
+                                className="h-9 gap-1.5 text-sm"
                             >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-4 h-4" />
                                 Add Vendor
                             </Button>
                         )}
                     </div>
                     {!isSearching && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
                             {breadcrumbs.map((crumb, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                     {i > 0 && <ChevronRight className="w-3 h-3" />}
