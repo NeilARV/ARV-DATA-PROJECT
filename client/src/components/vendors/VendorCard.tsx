@@ -67,16 +67,16 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                 onClick={() => onClick(vendor)}
             >
                 {/* Logo + name/description row */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                     <div className="p-3 bg-primary/10 rounded-lg flex-shrink-0">
-                        <CircleUser className="w-6 h-6 text-primary" />
+                        <CircleUser className="w-4 h-4 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-base text-foreground leading-tight">
                             {vendor.name}
                         </h3>
                         {vendor.description && (
-                            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-1">
                                 {vendor.description}
                             </p>
                         )}

@@ -186,7 +186,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
         const canSubmit = !mutation.isPending && (editor?.getText().trim() ?? "").length > 0;
 
         const toolbarBtn = (active: boolean) =>
-            `p-1.5 rounded transition-colors ${active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`;
+            `p-1.5 md:p-2 rounded transition-colors ${active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`;
 
         const innerContent = (
             <div className="rounded-lg border border-input bg-background focus-within:border-ring focus-within:ring-1 focus-within:ring-ring transition-colors">
@@ -237,7 +237,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                         className={toolbarBtn(editorState?.isBold ?? false)}
                         title="Bold"
                     >
-                        <span className="text-xs font-bold leading-none">B</span>
+                        <span className="text-xs md:text-sm font-bold leading-none">B</span>
                     </button>
                     <button
                         type="button"
@@ -245,7 +245,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                         className={toolbarBtn(editorState?.isItalic ?? false)}
                         title="Italic"
                     >
-                        <span className="text-xs italic leading-none">I</span>
+                        <span className="text-xs md:text-sm italic leading-none">I</span>
                     </button>
                     <button
                         type="button"
@@ -253,10 +253,10 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                         className={toolbarBtn(editorState?.isUnderline ?? false)}
                         title="Underline"
                     >
-                        <span className="text-xs underline leading-none">U</span>
+                        <span className="text-xs md:text-sm underline leading-none">U</span>
                     </button>
 
-                    <div className="w-px h-3.5 bg-border mx-1 flex-shrink-0" />
+                    <div className="w-px h-3.5 md:h-4 bg-border mx-1 flex-shrink-0" />
 
                     <button
                         ref={linkBtnRef}
@@ -290,13 +290,13 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                         className={toolbarBtn((editorState?.isLink ?? false) || showLinkInput)}
                         title={editorState?.isLink ? "Edit link" : "Add link"}
                     >
-                        <Link2 className="w-3.5 h-3.5" />
+                        <Link2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     </button>
 
-                    <div className="w-px h-3.5 bg-border mx-1 flex-shrink-0" />
+                    <div className="w-px h-3.5 md:h-4 bg-border mx-1 flex-shrink-0" />
 
                     <select
-                        className="font-size-select text-xs text-foreground bg-background border-0 cursor-pointer focus:outline-none py-1 pl-1 pr-0 rounded"
+                        className="font-size-select text-xs md:text-sm text-foreground bg-background border-0 cursor-pointer focus:outline-none py-1 pl-1 pr-0 rounded"
                         value={editorState?.fontSize ?? "14"}
                         onChange={(e) => {
                             if (e.target.value === "14") {
@@ -327,10 +327,10 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                className="p-1.5 md:p-2 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                                 title="Attach images (jpeg, png)"
                             >
-                                <ImagePlus className="w-3.5 h-3.5" />
+                                <ImagePlus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             </button>
                         </>
                     )}
@@ -340,7 +340,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                             size="sm"
                             onClick={() => mutation.mutate()}
                             disabled={!canSubmit}
-                            className="h-7 text-xs px-3 ml-1.5"
+                            className="h-7 md:h-8 text-xs md:text-sm px-3 ml-1.5"
                         >
                             {mutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Post"}
                         </Button>
@@ -472,7 +472,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
         }
 
         return (
-            <div className="flex-shrink-0 border-t border-border bg-background">
+            <div className="flex-shrink-0 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
                 <div className="m-3">
                     {innerContent}
                 </div>

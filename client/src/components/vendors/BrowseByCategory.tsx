@@ -214,7 +214,7 @@ export function BrowseByCategory({
                 {/* Search results */}
                 {isSearching && (
                     allVendorsLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
                             ))}
@@ -230,7 +230,7 @@ export function BrowseByCategory({
                                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                                         Categories ({filteredCategories.length})
                                     </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                                         {filteredCategories.map((cat) => (
                                             <CategoryCard key={cat.id} category={cat} onClick={(cat) => { setSearchQuery(""); onSelectCategory(cat); }} />
                                         ))}
@@ -242,7 +242,7 @@ export function BrowseByCategory({
                                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                                         Vendors ({filteredVendors.length})
                                     </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                                         {filteredVendors.map((vendor) => (
                                             <VendorCard
                                                 key={vendor.id}
@@ -261,13 +261,13 @@ export function BrowseByCategory({
                 {/* Normal category browse */}
                 {!isSearching && view === "categories" && (
                     categoriesLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                             {(categories ?? []).map((cat) => (
                                 <CategoryCard key={cat.id} category={cat} onClick={onSelectCategory} />
                             ))}
@@ -278,7 +278,7 @@ export function BrowseByCategory({
                 {/* Normal vendor list */}
                 {!isSearching && view === "vendor-list" && (
                     vendorsLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />
                             ))}
@@ -288,7 +288,7 @@ export function BrowseByCategory({
                             <p className="text-sm text-muted-foreground">No vendors in this category yet.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
                             {vendors.map((vendor) => (
                                 <VendorCard
                                     key={vendor.id}
