@@ -407,3 +407,29 @@ select.font-size-select option {
 .post-content u {
   text-decoration: underline;
 }
+
+.post-content a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.post-content a:hover {
+  opacity: 0.8;
+}
+
+/* Prevent long URLs from causing horizontal overflow */
+.post-content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Links inside the editor */
+.post-composer-editor.ProseMirror a,
+.edit-post-editor.ProseMirror a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}

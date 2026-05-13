@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import { EditorContent } from "@tiptap/react";
-import { ImagePlus, X, Loader2 } from "lucide-react";
+import { ImagePlus, X, Loader2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createPost, updatePost, uploadPostImage, deletePostImage } from "@/api/vendors.api";
@@ -32,10 +32,69 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
         const [pendingFiles, setPendingFiles] = useState<File[]>([]);
         const [previews, setPreviews] = useState<string[]>([]);
         const [imagesToDelete, setImagesToDelete] = useState<number[]>([]);
+        const [showLinkInput, setShowLinkInput] = useState(false);
+        const [isEditingLink, setIsEditingLink] = useState(false);
+        const [linkUrl, setLinkUrl] = useState("");
+        const [linkText, setLinkText] = useState("");
+        const [linkAnchorRect, setLinkAnchorRect] = useState<DOMRect | null>(null);
+        const linkUrlInputRef = useRef<HTMLInputElement>(null);
+        const linkBtnRef = useRef<HTMLButtonElement>(null);
+        const linkPortalRef = useRef<HTMLDivElement>(null);
 
         const { editor, editorState, dropdown } = usePostEditor(
             post ? { content: post.content, deps: [post.id] } : undefined
         );
+
+        useEffect(() => {
+            if (!showLinkInput) return;
+            setTimeout(() => linkUrlInputRef.current?.focus(), 0);
+            const handleClickOutside = (e: MouseEvent) => {
+                if (
+                    linkBtnRef.current?.contains(e.target as Node) ||
+                    linkPortalRef.current?.contains(e.target as Node)
+                ) return;
+                setShowLinkInput(false);
+                setIsEditingLink(false);
+                setLinkUrl("");
+                setLinkText("");
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, [showLinkInput]);
+
+        const closeLinkDialog = () => {
+            setShowLinkInput(false);
+            setIsEditingLink(false);
+            setLinkUrl("");
+            setLinkText("");
+        };
+
+        const applyLink = () => {
+            const url = linkUrl.trim();
+            if (!url || !editor) return;
+            const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+            const { from, to, empty } = editor.state.selection;
+            const originalText = empty ? "" : editor.state.doc.textBetween(from, to);
+            const newText = linkText.trim() || originalText;
+
+            if (!newText) { closeLinkDialog(); return; }
+
+            const exitLink = ({ tr, state }: { tr: any; state: any }) => {
+                tr.removeStoredMark(state.schema.marks.link);
+                return true;
+            };
+
+            if (!empty && newText === originalText) {
+                // Text unchanged — just set the link and collapse cursor to after
+                editor.chain().focus().setLink({ href }).setTextSelection(to).command(exitLink).run();
+            } else {
+                // Insert linked text (replaces selection if any)
+                const safe = newText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                editor.chain().focus().deleteSelection().insertContent(`<a href="${href}">${safe}</a>`).command(exitLink).run();
+            }
+            closeLinkDialog();
+        };
 
         const existingImages = (post?.images ?? []).filter((img) => !imagesToDelete.includes(img.id));
         const totalImages = existingImages.length + pendingFiles.length;
@@ -124,7 +183,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
             setPreviews((prev) => prev.filter((_, i) => i !== index));
         };
 
-        const canSubmit = !mutation.isPending && (editorState?.hasContent ?? false);
+        const canSubmit = !mutation.isPending && (editor?.getText().trim() ?? "").length > 0;
 
         const toolbarBtn = (active: boolean) =>
             `p-1.5 rounded transition-colors ${active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`;
@@ -199,6 +258,43 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
 
                     <div className="w-px h-3.5 bg-border mx-1 flex-shrink-0" />
 
+                    <button
+                        ref={linkBtnRef}
+                        type="button"
+                        onMouseDown={(e) => {
+                            e.preventDefault();
+                            if (!editor) return;
+                            if (showLinkInput) { closeLinkDialog(); return; }
+                            if (editorState?.isLink) {
+                                // Expand selection to full link, pre-fill text + URL
+                                editor.chain().focus().extendMarkRange("link").run();
+                                const { from, to } = editor.state.selection;
+                                const currentText = editor.state.doc.textBetween(from, to);
+                                const currentHref = editor.getAttributes("link").href ?? "";
+                                const coords = editor.view.coordsAtPos(from);
+                                setLinkText(currentText);
+                                setLinkUrl(currentHref);
+                                setLinkAnchorRect(new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top));
+                                setIsEditingLink(true);
+                            } else {
+                                const { from, empty } = editor.state.selection;
+                                const selectedText = empty ? "" : editor.state.doc.textBetween(from, editor.state.selection.to);
+                                const coords = editor.view.coordsAtPos(from);
+                                setLinkText(selectedText);
+                                setLinkUrl("");
+                                setLinkAnchorRect(new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top));
+                                setIsEditingLink(false);
+                            }
+                            setShowLinkInput(true);
+                        }}
+                        className={toolbarBtn((editorState?.isLink ?? false) || showLinkInput)}
+                        title={editorState?.isLink ? "Edit link" : "Add link"}
+                    >
+                        <Link2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <div className="w-px h-3.5 bg-border mx-1 flex-shrink-0" />
+
                     <select
                         className="font-size-select text-xs text-foreground bg-background border-0 cursor-pointer focus:outline-none py-1 pl-1 pr-0 rounded"
                         value={editorState?.fontSize ?? "14"}
@@ -253,10 +349,86 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
             </div>
         );
 
+        const linkPortal = showLinkInput && linkAnchorRect && createPortal(
+            <div
+                ref={linkPortalRef}
+                className="fixed z-[99999] bg-background border border-border rounded-lg shadow-lg overflow-hidden py-1"
+                style={{
+                    bottom: window.innerHeight - linkAnchorRect.top + 6,
+                    left: Math.max(8, Math.min(linkAnchorRect.left, window.innerWidth - 296)),
+                    width: 288,
+                }}
+            >
+                <div className="flex flex-col gap-2 px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5 py-1.5 focus-within:border-ring focus-within:ring-1 focus-within:ring-ring transition-colors">
+                        <input
+                            type="text"
+                            value={linkText}
+                            onChange={(e) => setLinkText(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); linkUrlInputRef.current?.focus(); }
+                                if (e.key === "Escape") { e.preventDefault(); closeLinkDialog(); }
+                            }}
+                            placeholder="Text"
+                            className="flex-1 text-sm bg-transparent outline-none text-foreground placeholder:text-muted-foreground min-w-0"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 rounded-md border border-input bg-background px-2.5 py-1.5 focus-within:border-ring focus-within:ring-1 focus-within:ring-ring transition-colors">
+                        <Link2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <input
+                            ref={linkUrlInputRef}
+                            type="text"
+                            value={linkUrl}
+                            onChange={(e) => setLinkUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); applyLink(); }
+                                if (e.key === "Escape") { e.preventDefault(); closeLinkDialog(); }
+                            }}
+                            placeholder="Paste or type a URL…"
+                            className="flex-1 text-sm bg-transparent outline-none text-foreground placeholder:text-muted-foreground min-w-0"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between pt-0.5">
+                        {isEditingLink ? (
+                            <button
+                                type="button"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+                                    closeLinkDialog();
+                                }}
+                                className="text-xs text-destructive hover:opacity-70 transition-opacity"
+                            >
+                                Remove link
+                            </button>
+                        ) : <span />}
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); closeLinkDialog(); }}
+                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); applyLink(); }}
+                                disabled={!linkUrl.trim()}
+                                className="text-xs font-medium text-primary hover:opacity-70 transition-opacity disabled:opacity-40"
+                            >
+                                Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>,
+            document.body,
+        );
+
         const dropdownPortal = dropdown && dropdown.items.length > 0 && createPortal(
             <div
                 className="fixed z-[99999] bg-background border border-border rounded-lg shadow-lg overflow-hidden py-1"
-                    data-mention-dropdown="true"
+                data-mention-dropdown="true"
                 style={{
                     bottom: window.innerHeight - dropdown.rect.top + 6,
                     left: Math.max(8, Math.min(dropdown.rect.left, window.innerWidth - 252)),
@@ -293,6 +465,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
             return (
                 <>
                     {innerContent}
+                    {linkPortal}
                     {dropdownPortal}
                 </>
             );
@@ -303,6 +476,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
                 <div className="m-3">
                     {innerContent}
                 </div>
+                {linkPortal}
                 {dropdownPortal}
             </div>
         );
