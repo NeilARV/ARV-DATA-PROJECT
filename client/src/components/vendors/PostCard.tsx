@@ -121,26 +121,12 @@ export function PostCard({ post }: PostCardProps) {
                         )}
                     </div>
                 </div>
-
-                {/* Title + category tags */}
-                <div>
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-semibold text-sm text-foreground leading-snug">{post.title}</h3>
-                        {post.categories.length > 0 && (
-                            <>
-                                <span className="text-border text-xs">|</span>
-                                <div className="flex flex-wrap gap-1">
-                                    {post.categories.map((cat) => (
-                                        <Badge key={cat.id} variant="secondary" className="text-xs px-1.5 py-0">
-                                            {cat.name}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{post.content}</p>
-                </div>
+                
+                {/* Formatted content */}
+                <div
+                    className="text-sm text-foreground leading-relaxed post-content"
+                    dangerouslySetInnerHTML={{ __html: post.content }}
+                />
 
                 {/* Images */}
                 {post.images.length > 0 && (
@@ -181,18 +167,6 @@ export function PostCard({ post }: PostCardProps) {
                     </div>
                 )}
 
-                {/* Vendor tags (plain text, below image) */}
-                {post.vendorTags.length > 0 && (
-                    <div className="flex flex-wrap gap-y-1">
-                        {post.vendorTags.map((vendor, i) => (
-                            <span key={vendor.id} className="flex items-center text-xs text-primary">
-                                {i > 0 && <span className="mx-2 text-muted-foreground">|</span>}
-                                {vendor.name}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
             </div>
 
             {/* Edit dialog */}
@@ -206,7 +180,6 @@ export function PostCard({ post }: PostCardProps) {
             <AppDialog
                 open={showDeleteDialog}
                 onClose={() => setShowDeleteDialog(false)}
-                hideOverlay
             >
                 <ConfirmationContent
                     title="Delete Post"

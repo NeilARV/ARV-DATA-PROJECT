@@ -286,3 +286,124 @@
     inset: -1px;
   }
 }
+
+/* ─── Font size select ────────────────────────────────────────── */
+
+/* Ensure the native option dropdown uses explicit colors in all themes */
+select.font-size-select option {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* ─── TipTap / Post Composer ──────────────────────────────────── */
+
+/* Editor placeholder (Placeholder extension) */
+.post-composer-editor.ProseMirror p.is-editor-empty:first-child::before,
+.edit-post-editor.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Remove default margins inside the editor so spacing is controlled by padding */
+.post-composer-editor.ProseMirror > *,
+.edit-post-editor.ProseMirror > * {
+  margin: 0;
+}
+
+.post-composer-editor.ProseMirror > * + *,
+.edit-post-editor.ProseMirror > * + * {
+  margin-top: 0.35em;
+}
+
+/* Lists inside editor */
+.post-composer-editor.ProseMirror ul,
+.edit-post-editor.ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.25em;
+}
+
+.post-composer-editor.ProseMirror ol,
+.edit-post-editor.ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.25em;
+}
+
+/* Mention chips inside the editor */
+.ProseMirror span[data-type="vendorMention"],
+.ProseMirror .mention-vendor {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ProseMirror span[data-type="categoryMention"],
+.ProseMirror .mention-category {
+  color: hsl(var(--secondary-foreground));
+  background: hsl(var(--secondary));
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Mention chips in post content (PostCard) */
+.post-content span[data-type="vendorMention"],
+.post-content .mention-vendor {
+  color: hsl(var(--primary));
+  font-weight: 500;
+}
+
+.post-content span[data-type="categoryMention"],
+.post-content .mention-category {
+  color: hsl(var(--secondary-foreground));
+  background: hsl(var(--secondary));
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Prose formatting for post content in PostCard */
+.post-content p {
+  margin: 0;
+}
+
+.post-content p + p,
+.post-content p + ul,
+.post-content p + ol,
+.post-content ul + p,
+.post-content ol + p {
+  margin-top: 0.45em;
+}
+
+.post-content ul {
+  list-style-type: disc;
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.post-content ol {
+  list-style-type: decimal;
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.post-content li + li {
+  margin-top: 0.15em;
+}
+
+.post-content strong {
+  font-weight: 600;
+}
+
+.post-content em {
+  font-style: italic;
+}
+
+.post-content u {
+  text-decoration: underline;
+}

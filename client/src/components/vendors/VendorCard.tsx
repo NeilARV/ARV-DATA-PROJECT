@@ -156,7 +156,7 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
             />
 
             {/* Delete confirmation */}
-            <AppDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} hideOverlay>
+            <AppDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)}>
                 <ConfirmationContent
                     title="Delete Vendor"
                     description={`Are you sure you want to delete "${vendor.name}"? This cannot be undone.`}
