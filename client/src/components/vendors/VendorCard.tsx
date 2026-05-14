@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Phone, Globe, MoreVertical, Pencil, Trash2, CircleUser } from "lucide-react";
+import { MapPin, Phone, Globe, MoreVertical, Pencil, Trash2, CircleUser, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { deleteVendor } from "@/api/vendors.api";
+import { deleteVendor, toggleVendorRecommend } from "@/api/vendors.api";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
@@ -56,6 +56,18 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
         },
     });
 
+    const recommendMutation = useMutation({
+        mutationFn: () => toggleVendorRecommend(vendor.id),
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            queryClient.invalidateQueries({ queryKey: ["vendors-recommended"] });
+            toast({ title: data.isRecommended ? "Added to recommended" : "Removed from recommended" });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to update recommendation.", variant: "destructive" });
+        },
+    });
+
     const hasContactInfo = locationLine1 || locationLine2 || vendor.phone || vendor.website;
 
     return (
@@ -90,13 +102,20 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                                 <MoreVertical className="w-3.5 h-3.5" />
                             </button>
                             {showMenu && (
-                                <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg z-10">
+                                <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-10">
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2"
                                         onClick={(e) => { e.stopPropagation(); setShowEditDialog(true); setShowMenu(false); }}
                                     >
                                         <Pencil className="w-3.5 h-3.5" />
                                         Edit Vendor
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2"
+                                        onClick={(e) => { e.stopPropagation(); recommendMutation.mutate(); setShowMenu(false); }}
+                                    >
+                                        <Trophy className="w-3.5 h-3.5" />
+                                        {vendor.isRecommended ? "Remove from Recommended" : "Add to Recommended"}
                                     </button>
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted text-destructive flex items-center gap-2"

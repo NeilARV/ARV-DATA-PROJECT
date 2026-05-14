@@ -8,11 +8,13 @@ const adminOrOwner = requireRole(["admin", "owner"]);
 
 // Public reads
 router.get("/", VendorsController.getAllVendorsHandler);
+router.get("/recommended", VendorsController.getRecommendedVendorsHandler);
 router.get("/:vendorId", VendorsController.getVendorByIdHandler);
 
 // Admin / owner writes
 router.post("/", adminOrOwner, VendorsController.createVendorHandler);
 router.put("/:vendorId", adminOrOwner, VendorsController.updateVendorHandler);
+router.put("/:vendorId/recommend", adminOrOwner, VendorsController.toggleRecommendHandler);
 router.delete("/:vendorId", adminOrOwner, VendorsController.deleteVendorHandler);
 
 export default router;

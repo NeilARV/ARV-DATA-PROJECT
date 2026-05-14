@@ -628,4 +628,12 @@ FROM pg_indexes
 WHERE schemaname = 'public' 
 ORDER BY tablename, indexname;
 
+-- ============================================================================
+-- MIGRATIONS
+-- ============================================================================
+
+-- Add is_recommended column to vendors table
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS is_recommended BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_vendors_is_recommended ON vendors(is_recommended);
+
 -- End of schema

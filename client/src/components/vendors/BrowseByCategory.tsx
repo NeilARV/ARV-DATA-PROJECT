@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CategoryCard } from "./CategoryCard";
 import { VendorCard } from "./VendorCard";
 import { AddVendorDialog } from "./AddVendorDialog";
+import { RecommendedVendors } from "./RecommendedVendors";
 import { fetchCategories, fetchVendors } from "@/api/vendors.api";
 import { useAuth } from "@/hooks/use-auth";
 import type { Category, Vendor } from "@/types/vendors";
@@ -111,7 +112,7 @@ export function BrowseByCategory({
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
 
                 {/* Desktop: back button + stacked title/breadcrumbs left, search center, add vendor right */}
-                <div className="hidden sm:flex items-center gap-3">
+                <div className="hidden sm:flex items-center gap-4">
                     {/* Back button — only rendered when navigated into a category */}
                     {view === "vendor-list" && (
                         <Button
@@ -127,8 +128,8 @@ export function BrowseByCategory({
 
                     {/* Title + breadcrumbs stacked, left-aligned */}
                     <div className="flex-shrink-0">
-                        <h2 className="font-semibold text-lg text-foreground">Browse by Category</h2>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 min-h-[16px]">
+                        <h2 className="font-semibold text-lg text-foreground">Browse Vendors</h2>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 min-h-5">
                             {!isSearching && breadcrumbs.map((crumb, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                     {i > 0 && <ChevronRight className="w-3 h-3" />}
@@ -176,7 +177,7 @@ export function BrowseByCategory({
                                     Back
                                 </Button>
                             )}
-                            <h2 className="font-semibold text-lg text-foreground">Browse by Category</h2>
+                            <h2 className="font-semibold text-lg text-foreground">Browse Vendors</h2>
                         </div>
                         {isPrivileged && (
                             <Button
@@ -189,32 +190,36 @@ export function BrowseByCategory({
                             </Button>
                         )}
                     </div>
-                    {!isSearching && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
-                            {breadcrumbs.map((crumb, i) => (
-                                <span key={i} className="flex items-center gap-1">
-                                    {i > 0 && <ChevronRight className="w-3 h-3" />}
-                                    <button
-                                        onClick={crumb.onClick}
-                                        className={i === breadcrumbs.length - 1 ? "text-foreground font-medium" : "hover:text-foreground transition-colors"}
-                                    >
-                                        {crumb.label}
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
+                    <div className={`flex items-center gap-1 text-sm text-muted-foreground mb-2 ${isSearching ? "invisible" : ""}`}>
+                        {breadcrumbs.map((crumb, i) => (
+                            <span key={i} className="flex items-center gap-1">
+                                {i > 0 && <ChevronRight className="w-3 h-3" />}
+                                <button
+                                    onClick={crumb.onClick}
+                                    className={i === breadcrumbs.length - 1 ? "text-foreground font-medium" : "hover:text-foreground transition-colors"}
+                                >
+                                    {crumb.label}
+                                </button>
+                            </span>
+                        ))}
+                    </div>
                     <div className="mt-2 flex justify-center">{searchInput}</div>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-5">
+
+                {/* Recommended vendors — always visible */}
+                <RecommendedVendors
+                    selectedVendorId={vendorId}
+                    onSelectVendor={onSelectVendor}
+                />
 
                 {/* Search results */}
                 {isSearching && (
                     allVendorsLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
                             ))}
@@ -230,7 +235,7 @@ export function BrowseByCategory({
                                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                                         Categories ({filteredCategories.length})
                                     </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                                         {filteredCategories.map((cat) => (
                                             <CategoryCard key={cat.id} category={cat} onClick={(cat) => { setSearchQuery(""); onSelectCategory(cat); }} />
                                         ))}
@@ -242,7 +247,7 @@ export function BrowseByCategory({
                                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                                         Vendors ({filteredVendors.length})
                                     </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                                         {filteredVendors.map((vendor) => (
                                             <VendorCard
                                                 key={vendor.id}
@@ -261,16 +266,21 @@ export function BrowseByCategory({
                 {/* Normal category browse */}
                 {!isSearching && view === "categories" && (
                     categoriesLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
-                            {(categories ?? []).map((cat) => (
-                                <CategoryCard key={cat.id} category={cat} onClick={onSelectCategory} />
-                            ))}
+                        <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                Categories ({(categories ?? []).length})
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                {(categories ?? []).map((cat) => (
+                                    <CategoryCard key={cat.id} category={cat} onClick={onSelectCategory} />
+                                ))}
+                            </div>
                         </div>
                     )
                 )}
@@ -278,7 +288,7 @@ export function BrowseByCategory({
                 {/* Normal vendor list */}
                 {!isSearching && view === "vendor-list" && (
                     vendorsLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />
                             ))}
@@ -288,15 +298,20 @@ export function BrowseByCategory({
                             <p className="text-sm text-muted-foreground">No vendors in this category yet.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
-                            {vendors.map((vendor) => (
-                                <VendorCard
-                                    key={vendor.id}
-                                    vendor={vendor}
-                                    isSelected={vendorId === vendor.id}
-                                    onClick={onSelectVendor}
-                                />
-                            ))}
+                        <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                Vendors ({vendors.length})
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                {vendors.map((vendor) => (
+                                    <VendorCard
+                                        key={vendor.id}
+                                        vendor={vendor}
+                                        isSelected={vendorId === vendor.id}
+                                        onClick={onSelectVendor}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     )
                 )}
