@@ -20,14 +20,14 @@ const selectClass =
     "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground cursor-pointer";
 
 export function AddVendorDialog({ open, onClose, initialCategoryId }: AddVendorDialogProps) {
-    const [name, setName]               = useState("");
+    const [name, setName] = useState("");
     const [description, setDescription] = useState("");
-    const [address, setAddress]         = useState("");
-    const [city, setCity]               = useState("");
-    const [state, setState]             = useState("");
-    const [zipCode, setZipCode]         = useState("");
-    const [phone, setPhone]             = useState("");
-    const [website, setWebsite]         = useState("");
+    const [address, setAddress] = useState("");
+    const [city, setCity] = useState("");
+    const [state, setState] = useState("");
+    const [zipCode, setZipCode] = useState("");
+    const [phone, setPhone] = useState("");
+    const [website, setWebsite] = useState("");
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
         initialCategoryId ? [initialCategoryId] : []
     );
@@ -46,12 +46,12 @@ export function AddVendorDialog({ open, onClose, initialCategoryId }: AddVendorD
             createVendor({
                 name,
                 description: description.trim() || null,
-                address:     address.trim()     || null,
-                city:        city.trim()         || null,
-                state:       state.trim()        || null,
-                zipCode:     zipCode.trim()      || null,
-                phone:       phone.trim()        || null,
-                website:     website.trim()      || null,
+                address: address.trim() || null,
+                city: city.trim() || null,
+                state: state.trim() || null,
+                zipCode: zipCode.trim() || null,
+                phone: phone.trim() || null,
+                website: website.trim() || null,
                 categoryIds: selectedCategoryIds,
             }),
         onSuccess: () => {
