@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
 import { EditVendorDialog } from "./EditVendorDialog";
+import { VendorPhotoGallery } from "./VendorPhotoGallery";
 import type { Vendor } from "@/types/vendors";
 
 type VendorDetailProps = {
@@ -72,7 +73,7 @@ export function VendorDetail({ vendor, onDeleted }: VendorDetailProps) {
     return (
         <>
             {/* Banner placeholder */}
-            <div className="h-32 bg-muted flex-shrink-0" />
+            <div className="h-48 bg-muted flex-shrink-0" />
 
             {/* Profile section */}
             <div className="px-6 pb-6">
@@ -169,6 +170,8 @@ export function VendorDetail({ vendor, onDeleted }: VendorDetailProps) {
                     </div>
                 )}
             </div>
+
+            <VendorPhotoGallery vendorId={vendor.id} />
 
             <EditVendorDialog
                 open={showEditDialog}
