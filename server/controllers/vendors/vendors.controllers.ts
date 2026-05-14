@@ -66,6 +66,29 @@ export async function updateVendorHandler(req: Request, res: Response) {
     }
 }
 
+// ── GET /api/vendors/recommended ──────────────────────────────────────────────
+export async function getRecommendedVendorsHandler(req: Request, res: Response) {
+    try {
+        const result = await VendorsServices.getRecommended();
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("Error fetching recommended vendors:", error);
+        return res.status(500).json({ message: "Error fetching recommended vendors" });
+    }
+}
+
+// ── PUT /api/vendors/:vendorId/recommend ───────────────────────────────────────
+export async function toggleRecommendHandler(req: Request, res: Response) {
+    try {
+        const result = await VendorsServices.toggleRecommend(req.params.vendorId);
+        return res.status(200).json(result);
+    } catch (error: any) {
+        if (error?.statusCode === 404) return res.status(404).json({ message: "Vendor not found" });
+        console.error("Error toggling vendor recommendation:", error);
+        return res.status(500).json({ message: "Error toggling vendor recommendation" });
+    }
+}
+
 // ── DELETE /api/vendors/:vendorId ──────────────────────────────────────────────
 export async function deleteVendorHandler(req: Request, res: Response) {
     try {

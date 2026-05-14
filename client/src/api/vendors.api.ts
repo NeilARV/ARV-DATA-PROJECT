@@ -85,3 +85,13 @@ export async function updateVendor(vendorId: string, input: UpdateVendorInput): 
 export async function deleteVendor(vendorId: string): Promise<void> {
     await apiRequest("DELETE", `/api/vendors/${vendorId}`);
 }
+
+export async function fetchRecommendedVendors(): Promise<Vendor[]> {
+    const res = await apiRequest("GET", "/api/vendors/recommended");
+    return res.json();
+}
+
+export async function toggleVendorRecommend(vendorId: string): Promise<{ id: string; isRecommended: boolean }> {
+    const res = await apiRequest("PUT", `/api/vendors/${vendorId}/recommend`);
+    return res.json();
+}

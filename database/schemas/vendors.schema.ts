@@ -5,6 +5,7 @@ import {
     text,
     integer,
     serial,
+    boolean,
     timestamp,
     primaryKey,
     index,
@@ -35,6 +36,7 @@ export const vendors = pgTable("vendors", {
     phone: text("phone"),
     website: text("website"),
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    isRecommended: boolean("is_recommended").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -17,6 +17,7 @@ export type Vendor = {
     zipCode: string | null;
     phone: string | null;
     website: string | null;
+    isRecommended: boolean;
     categories: { id: number; name: string; slug: string; iconName: string }[];
 };
 

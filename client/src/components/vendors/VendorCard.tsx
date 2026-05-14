@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Phone, Globe, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MapPin, Phone, Globe, MoreVertical, Pencil, Trash2, CircleUser, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { deleteVendor } from "@/api/vendors.api";
+import { deleteVendor, toggleVendorRecommend } from "@/api/vendors.api";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
@@ -23,8 +23,8 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
     const { isAdmin, isOwner } = useAuth();
     const isPrivileged = isAdmin || isOwner;
 
-    const [showMenu, setShowMenu]               = useState(false);
-    const [showEditDialog, setShowEditDialog]   = useState(false);
+    const [showMenu, setShowMenu]                 = useState(false);
+    const [showEditDialog, setShowEditDialog]     = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +56,20 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
         },
     });
 
+    const recommendMutation = useMutation({
+        mutationFn: () => toggleVendorRecommend(vendor.id),
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            queryClient.invalidateQueries({ queryKey: ["vendors-recommended"] });
+            toast({ title: data.isRecommended ? "Added to recommended" : "Removed from recommended" });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to update recommendation.", variant: "destructive" });
+        },
+    });
+
+    const hasContactInfo = locationLine1 || locationLine2 || vendor.phone || vendor.website;
+
     return (
         <>
             <div
@@ -64,13 +78,23 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                 }`}
                 onClick={() => onClick(vendor)}
             >
-                {/* Name row with optional 3-dot menu */}
-                <div className="flex items-start justify-between gap-2 mb-1">
-                    <h3 className="font-semibold text-base text-foreground leading-tight">
-                        {vendor.name}
-                    </h3>
+                {/* Logo + name/description row */}
+                <div className="flex items-start gap-3">
+                    <div className="p-3 bg-primary/10 rounded-lg flex-shrink-0">
+                        <CircleUser className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-base text-foreground leading-tight">
+                            {vendor.name}
+                        </h3>
+                        {vendor.description && (
+                            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-1">
+                                {vendor.description}
+                            </p>
+                        )}
+                    </div>
                     {isPrivileged && (
-                        <div className="relative flex-shrink-0" ref={menuRef}>
+                        <div className="relative flex-shrink-0 self-start" ref={menuRef}>
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
                                 className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground"
@@ -78,13 +102,20 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                                 <MoreVertical className="w-3.5 h-3.5" />
                             </button>
                             {showMenu && (
-                                <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg z-10">
+                                <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-10">
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2"
                                         onClick={(e) => { e.stopPropagation(); setShowEditDialog(true); setShowMenu(false); }}
                                     >
                                         <Pencil className="w-3.5 h-3.5" />
                                         Edit Vendor
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2"
+                                        onClick={(e) => { e.stopPropagation(); recommendMutation.mutate(); setShowMenu(false); }}
+                                    >
+                                        <Trophy className="w-3.5 h-3.5" />
+                                        {vendor.isRecommended ? "Remove from Recommended" : "Add to Recommended"}
                                     </button>
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted text-destructive flex items-center gap-2"
@@ -99,46 +130,44 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                     )}
                 </div>
 
-                {vendor.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                        {vendor.description}
-                    </p>
+                {/* Contact info */}
+                {hasContactInfo && (
+                    <div className="space-y-1 mt-3">
+                        {(locationLine1 || locationLine2) && (
+                            <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                                <span className="leading-relaxed">
+                                    {locationLine1 && <span className="block">{locationLine1}</span>}
+                                    {locationLine2 && <span className="block">{locationLine2}</span>}
+                                </span>
+                            </div>
+                        )}
+                        {vendor.phone && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Phone className="w-3 h-3 flex-shrink-0" />
+                                <span>{vendor.phone}</span>
+                            </div>
+                        )}
+                        {vendor.website && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Globe className="w-3 h-3 flex-shrink-0" />
+                                <a
+                                    href={vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="truncate hover:text-primary transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {vendor.website.replace(/^https?:\/\//, "")}
+                                </a>
+                            </div>
+                        )}
+                    </div>
                 )}
 
-                <div className="space-y-1 mt-4 mb-3">
-                    {(locationLine1 || locationLine2) && (
-                        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                            <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                            <span className="leading-relaxed">
-                                {locationLine1 && <span className="block">{locationLine1}</span>}
-                                {locationLine2 && <span className="block">{locationLine2}</span>}
-                            </span>
-                        </div>
-                    )}
-                    {vendor.phone && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Phone className="w-3 h-3 flex-shrink-0" />
-                            <span>{vendor.phone}</span>
-                        </div>
-                    )}
-                    {vendor.website && (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Globe className="w-3 h-3 flex-shrink-0" />
-                            <a
-                                href={vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="truncate hover:text-primary transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {vendor.website.replace(/^https?:\/\//, "")}
-                            </a>
-                        </div>
-                    )}
-                </div>
-
+                {/* Category badges */}
                 {vendor.categories.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1 mt-3">
                         {vendor.categories.map((cat) => (
                             <Badge key={cat.id} variant="secondary" className="text-xs px-1.5 py-0">
                                 {cat.name}
@@ -148,14 +177,12 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                 )}
             </div>
 
-            {/* Edit dialog */}
             <EditVendorDialog
                 open={showEditDialog}
                 onClose={() => setShowEditDialog(false)}
                 vendor={vendor}
             />
 
-            {/* Delete confirmation */}
             <AppDialog open={showDeleteDialog} onClose={() => setShowDeleteDialog(false)}>
                 <ConfirmationContent
                     title="Delete Vendor"

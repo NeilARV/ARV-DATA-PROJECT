@@ -36,6 +36,7 @@ const VENDOR_COLUMNS = {
     zipCode: vendors.zipCode,
     phone: vendors.phone,
     website: vendors.website,
+    isRecommended: vendors.isRecommended,
 };
 
 export async function getAll(categoryIds?: number[]) {
@@ -155,6 +156,43 @@ export async function update(id: string, input: UpdateVendorInput) {
     const categoryMap = await fetchCategoriesForVendors([updated.id]);
     console.log(`[vendorsService.update] Vendor updated: id=${id}`);
     return { ...updated, categories: categoryMap.get(updated.id) ?? [] };
+}
+
+// ── Recommended vendors ────────────────────────────────────────────────────────
+
+export async function getRecommended() {
+    const rows = await db
+        .select(VENDOR_COLUMNS)
+        .from(vendors)
+        .where(eq(vendors.isRecommended, true))
+        .orderBy(vendors.name);
+
+    if (rows.length === 0) return [];
+
+    const categoryMap = await fetchCategoriesForVendors(rows.map((v) => v.id));
+    return rows.map((vendor) => ({
+        ...vendor,
+        categories: categoryMap.get(vendor.id) ?? [],
+    }));
+}
+
+export async function toggleRecommend(id: string) {
+    const [existing] = await db
+        .select({ id: vendors.id, isRecommended: vendors.isRecommended })
+        .from(vendors)
+        .where(eq(vendors.id, id))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+
+    const [updated] = await db
+        .update(vendors)
+        .set({ isRecommended: !existing.isRecommended, updatedAt: new Date() })
+        .where(eq(vendors.id, id))
+        .returning();
+
+    console.log(`[vendorsService.toggleRecommend] Vendor ${id} isRecommended=${updated.isRecommended}`);
+    return { id: updated.id, isRecommended: updated.isRecommended };
 }
 
 // ── Delete vendor ──────────────────────────────────────────────────────────────

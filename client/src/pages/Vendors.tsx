@@ -77,7 +77,7 @@ function VendorsContent() {
     }
 
     return (
-        <div className="h-screen flex flex-col">
+        <div className="h-dvh flex flex-col">
             <Header />
 
             {/* Mobile tab bar — hidden on md+ */}
@@ -108,7 +108,7 @@ function VendorsContent() {
                 {/* Activity Feed — full-width on mobile (tab-controlled), fixed sidebar on md+ */}
                 <div className={`h-full flex-col overflow-hidden border-border ${
                     mobileTab === "feed" ? "flex flex-1" : "hidden"
-                } md:flex md:flex-none md:w-72 lg:w-80 xl:w-96 2xl:w-[480px] md:border-r`}>
+                } md:flex md:flex-none w-[480px] md:border-r`}>
                     <ActivityFeed postFilters={nav.postFilters} />
                 </div>
 
@@ -118,12 +118,12 @@ function VendorsContent() {
                 } md:flex`}>
                     <BrowseByCategory
                         view={nav.view}
-                        selectedCategory={nav.selectedCategory}
-                        selectedVendor={nav.selectedVendor}
-                        breadcrumbs={nav.breadcrumbs}
-                        onSelectCategory={nav.selectCategory}
-                        onSelectVendor={nav.selectVendor}
+                        categoryId={nav.categoryId}
+                        vendorId={nav.vendorId}
+                        onSelectCategory={(cat) => nav.selectCategory(cat.id)}
+                        onSelectVendor={(vendor) => nav.selectVendor(vendor.id)}
                         onGoBack={nav.goBack}
+                        onReset={nav.reset}
                     />
                 </div>
             </div>

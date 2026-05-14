@@ -2,6 +2,7 @@ import { useRef, useReducer, useCallback, useEffect, useMemo } from "react";
 import { useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Extension, mergeAttributes } from "@tiptap/core";
 import Mention from "@tiptap/extension-mention";
@@ -271,6 +272,15 @@ export function usePostEditor({
         extensions: [
             StarterKit,
             Underline,
+            Link.configure({
+                autolink: true,
+                linkOnPaste: true,
+                openOnClick: false,
+                HTMLAttributes: {
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                },
+            }),
             TextStyle,
             FontSize,
             Placeholder.configure({ placeholder }),

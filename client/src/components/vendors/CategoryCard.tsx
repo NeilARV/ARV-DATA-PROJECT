@@ -91,22 +91,24 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
             className="w-full min-w-0 text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors cursor-pointer"
             onClick={() => onClick(category)}
         >
-            <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
-                        <Icon className="w-5 h-5 text-primary" />
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="p-3 bg-primary/10 rounded-lg flex-shrink-0">
+                        <Icon className="w-4 h-4 text-primary" />
                     </div>
-                    <span className="font-semibold text-base text-foreground leading-tight">
-                        {category.name}
-                    </span>
+                    <div className="min-w-0">
+                        <span className="font-semibold text-base text-foreground leading-tight block">
+                            {category.name}
+                        </span>
+                        {category.description && (
+                            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">{category.description}</p>
+                        )}
+                    </div>
                 </div>
-                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
+                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
                     {category.vendorCount}
                 </span>
             </div>
-            {category.description && (
-                <p className="text-xs text-muted-foreground leading-relaxed">{category.description}</p>
-            )}
         </button>
     );
 }

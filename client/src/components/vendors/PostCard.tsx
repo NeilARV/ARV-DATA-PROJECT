@@ -31,10 +31,11 @@ type PostCardProps = {
 
 export function PostCard({ post }: PostCardProps) {
     const location = [post.city, post.state].filter(Boolean).join(", ");
-    const { user } = useAuth();
+    const { user, isAdmin, isOwner: isPrivilegedRole } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const isOwner = !!user && user.id === post.userId;
+    const isPostAuthor = !!user && user.id === post.userId;
+    const canModify = isPostAuthor || isAdmin || isPrivilegedRole;
 
     const [showMenu, setShowMenu] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
@@ -91,7 +92,7 @@ export function PostCard({ post }: PostCardProps) {
 
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                         <span className="text-xs text-muted-foreground">{formatTimeAgo(post.createdAt)}</span>
-                        {isOwner && (
+                        {canModify && (
                             <div className="relative" ref={menuRef}>
                                 <button
                                     onClick={() => setShowMenu((v) => !v)}
