@@ -183,7 +183,7 @@ export const PostComposer = forwardRef<PostComposerHandle, PostComposerProps>(
             setPreviews((prev) => prev.filter((_, i) => i !== index));
         };
 
-        const canSubmit = !mutation.isPending && (editor?.getText().trim() ?? "").length > 0;
+        const canSubmit = !mutation.isPending && (editorState?.hasContent ?? false);
 
         const toolbarBtn = (active: boolean) =>
             `p-1.5 md:p-2 rounded transition-colors ${active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`;
