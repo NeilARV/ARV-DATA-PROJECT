@@ -357,6 +357,11 @@ select.font-size-select option {
 .post-content .mention-vendor {
   color: hsl(var(--primary));
   font-weight: 500;
+  cursor: pointer;
+}
+.post-content span[data-type="vendorMention"]:hover,
+.post-content .mention-vendor:hover {
+  text-decoration: underline;
 }
 
 .post-content span[data-type="categoryMention"],
@@ -365,6 +370,11 @@ select.font-size-select option {
   background: hsl(var(--secondary));
   border-radius: 3px;
   padding: 0 2px;
+  cursor: pointer;
+}
+.post-content span[data-type="categoryMention"]:hover,
+.post-content .mention-category:hover {
+  background: hsl(var(--accent));
 }
 
 /* Prose formatting for post content in PostCard */

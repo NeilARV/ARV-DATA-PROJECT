@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 import { User, MapPin, MoreVertical, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +32,7 @@ type PostCardProps = {
 
 export function PostCard({ post }: PostCardProps) {
     const location = [post.city, post.state].filter(Boolean).join(", ");
+    const [, setLocation] = useLocation();
     const { user, isAdmin, isOwner: isPrivilegedRole } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -127,6 +129,18 @@ export function PostCard({ post }: PostCardProps) {
                 <div
                     className="text-sm text-foreground leading-relaxed post-content"
                     dangerouslySetInnerHTML={{ __html: post.content }}
+                    onClick={(e) => {
+                        const mention = (e.target as HTMLElement).closest<HTMLElement>("[data-type]");
+                        if (!mention) return;
+                        const id = mention.dataset.id;
+                        if (!id) return;
+                        e.stopPropagation();
+                        if (mention.dataset.type === "vendorMention") {
+                            setLocation(`/vendors?vendor=${id}`);
+                        } else if (mention.dataset.type === "categoryMention") {
+                            setLocation(`/vendors?category=${id}`);
+                        }
+                    }}
                 />
 
                 {/* Images */}
