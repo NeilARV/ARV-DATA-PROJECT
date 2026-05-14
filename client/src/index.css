@@ -375,6 +375,7 @@ select.font-size-select option {
 .post-content span[data-type="categoryMention"]:hover,
 .post-content .mention-category:hover {
   background: hsl(var(--accent));
+  text-decoration: underline;
 }
 
 /* Prose formatting for post content in PostCard */
