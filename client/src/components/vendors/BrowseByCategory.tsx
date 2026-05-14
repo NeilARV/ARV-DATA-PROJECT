@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { CategoryCard } from "./CategoryCard";
 import { VendorCard } from "./VendorCard";
+import { VendorDetail } from "./VendorDetail";
 import { AddVendorDialog } from "./AddVendorDialog";
 import { RecommendedVendors } from "./RecommendedVendors";
-import { fetchCategories, fetchVendors } from "@/api/vendors.api";
+import { fetchCategories, fetchVendor, fetchVendors } from "@/api/vendors.api";
 import { useAuth } from "@/hooks/use-auth";
 import type { Category, Vendor } from "@/types/vendors";
 import type { VendorNavView } from "@/hooks/useVendorNav";
@@ -49,13 +50,23 @@ export function BrowseByCategory({
         [categoryId, categories]
     );
 
+    const { data: selectedVendor, isLoading: selectedVendorLoading } = useQuery({
+        queryKey: ["vendor", vendorId],
+        queryFn: () => fetchVendor(vendorId!),
+        enabled: view === "vendor-detail" && vendorId !== null,
+        staleTime: 5 * 60 * 1000,
+    });
+
     const breadcrumbs = useMemo(() => {
         const crumbs: { label: string; onClick: () => void }[] = [{ label: "Categories", onClick: onReset }];
         if (selectedCategory) {
             crumbs.push({ label: selectedCategory.name, onClick: () => onSelectCategory(selectedCategory) });
         }
+        if (view === "vendor-detail" && selectedVendor) {
+            crumbs.push({ label: selectedVendor.name, onClick: () => {} });
+        }
         return crumbs;
-    }, [selectedCategory, onReset, onSelectCategory]);
+    }, [selectedCategory, onReset, onSelectCategory, view, selectedVendor]);
 
     const { data: vendors, isLoading: vendorsLoading } = useQuery({
         queryKey: ["vendors", categoryId],
@@ -113,8 +124,8 @@ export function BrowseByCategory({
 
                 {/* Desktop: back button + stacked title/breadcrumbs left, search center, add vendor right */}
                 <div className="hidden sm:flex items-center gap-4">
-                    {/* Back button — only rendered when navigated into a category */}
-                    {view === "vendor-list" && (
+                    {/* Back button — rendered when navigated into a category or vendor */}
+                    {(view === "vendor-list" || view === "vendor-detail") && (
                         <Button
                             variant="ghost"
                             size="sm"
@@ -130,7 +141,7 @@ export function BrowseByCategory({
                     <div className="flex-shrink-0">
                         <h2 className="font-semibold text-lg text-foreground">Browse Vendors</h2>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 min-h-5">
-                            {!isSearching && breadcrumbs.map((crumb, i) => (
+                            {breadcrumbs.map((crumb, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                     {i > 0 && <ChevronRight className="w-3 h-3" />}
                                     <button
@@ -166,7 +177,7 @@ export function BrowseByCategory({
                 <div className="sm:hidden">
                     <div className="h-9 flex items-center justify-between mb-0.5">
                         <div className="flex items-center gap-2">
-                            {view === "vendor-list" && (
+                            {(view === "vendor-list" || view === "vendor-detail") && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -190,7 +201,7 @@ export function BrowseByCategory({
                             </Button>
                         )}
                     </div>
-                    <div className={`flex items-center gap-1 text-sm text-muted-foreground mb-2 ${isSearching ? "invisible" : ""}`}>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
                         {breadcrumbs.map((crumb, i) => (
                             <span key={i} className="flex items-center gap-1">
                                 {i > 0 && <ChevronRight className="w-3 h-3" />}
@@ -208,15 +219,30 @@ export function BrowseByCategory({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className={`flex-1 overflow-y-auto ${view !== "vendor-detail" || isSearching ? "p-5" : ""}`}>
 
-                {/* Recommended vendors — always visible */}
-                <RecommendedVendors
-                    selectedVendorId={vendorId}
-                    onSelectVendor={onSelectVendor}
-                />
+                {/* Vendor detail view — search takes priority */}
+                {view === "vendor-detail" && !isSearching && (
+                    selectedVendorLoading ? (
+                        <div className="p-5 space-y-4">
+                            <div className="h-32 bg-muted rounded-xl animate-pulse" />
+                            <div className="h-6 w-48 bg-muted rounded animate-pulse" />
+                            <div className="h-4 w-64 bg-muted rounded animate-pulse" />
+                        </div>
+                    ) : selectedVendor ? (
+                        <VendorDetail vendor={selectedVendor} onDeleted={onGoBack} />
+                    ) : null
+                )}
 
-                {/* Search results */}
+                {/* Recommended vendors — hidden in vendor-detail */}
+                {view !== "vendor-detail" && (
+                    <RecommendedVendors
+                        selectedVendorId={vendorId}
+                        onSelectVendor={(v) => { setSearchQuery(""); onSelectVendor(v); }}
+                    />
+                )}
+
+                {/* Search results — always shown when searching, regardless of view */}
                 {isSearching && (
                     allVendorsLoading ? (
                         <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
@@ -264,7 +290,7 @@ export function BrowseByCategory({
                 )}
 
                 {/* Normal category browse */}
-                {!isSearching && view === "categories" && (
+                {view === "categories" && !isSearching && (
                     categoriesLoading ? (
                         <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                             {Array.from({ length: 6 }).map((_, i) => (
@@ -286,7 +312,7 @@ export function BrowseByCategory({
                 )}
 
                 {/* Normal vendor list */}
-                {!isSearching && view === "vendor-list" && (
+                {view === "vendor-list" && !isSearching && (
                     vendorsLoading ? (
                         <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                             {Array.from({ length: 6 }).map((_, i) => (

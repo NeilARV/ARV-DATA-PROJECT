@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 
-export type VendorNavView = "categories" | "vendor-list";
+export type VendorNavView = "categories" | "vendor-list" | "vendor-detail";
 
 export type PostFilters = {
     categoryId?: number;
@@ -18,8 +18,12 @@ export function useVendorNav() {
 
     const parsedCategory = rawCategory !== null ? Number(rawCategory) : null;
     const categoryId = parsedCategory !== null && !isNaN(parsedCategory) ? parsedCategory : null;
-    const vendorId = categoryId !== null ? (rawVendor ?? null) : null;
-    const view: VendorNavView = categoryId !== null ? "vendor-list" : "categories";
+    const vendorId = rawVendor ?? null;
+    const view: VendorNavView = vendorId !== null
+        ? "vendor-detail"
+        : categoryId !== null
+        ? "vendor-list"
+        : "categories";
 
     const reset = useCallback(() => {
         setLocation("/vendors");
@@ -30,18 +34,17 @@ export function useVendorNav() {
     }, [setLocation]);
 
     const selectVendor = useCallback((id: string) => {
-        if (categoryId === null) return;
-        if (id === vendorId) {
-            setLocation(`/vendors?category=${categoryId}`);
-        } else {
+        if (categoryId !== null) {
             setLocation(`/vendors?category=${categoryId}&vendor=${id}`);
+        } else {
+            setLocation(`/vendors?vendor=${id}`);
         }
-    }, [setLocation, categoryId, vendorId]);
+    }, [setLocation, categoryId]);
 
     const goBack = useCallback(() => {
-        if (vendorId) {
+        if (vendorId && categoryId !== null) {
             setLocation(`/vendors?category=${categoryId}`);
-        } else if (categoryId !== null) {
+        } else {
             setLocation("/vendors");
         }
     }, [setLocation, categoryId, vendorId]);

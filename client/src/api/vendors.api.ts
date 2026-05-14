@@ -7,6 +7,11 @@ export async function fetchCategories(): Promise<Category[]> {
     return res.json();
 }
 
+export async function fetchVendor(vendorId: string): Promise<Vendor> {
+    const res = await apiRequest("GET", `/api/vendors/${vendorId}`);
+    return res.json();
+}
+
 export async function fetchVendors(categoryIds?: number[]): Promise<Vendor[]> {
     const url = categoryIds && categoryIds.length > 0
         ? `/api/vendors?categoryIds=${categoryIds.join(",")}`
