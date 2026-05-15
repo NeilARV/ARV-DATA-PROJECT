@@ -146,13 +146,19 @@ export function PostCard({ post }: PostCardProps) {
                 {/* Images */}
                 {post.images.length > 0 && (
                     <div
-                        className="relative w-full h-48 rounded-lg overflow-hidden bg-muted cursor-pointer"
+                        className="relative w-full h-56 rounded-lg overflow-hidden bg-muted cursor-pointer"
                         onClick={() => setLightboxOpen(true)}
                     >
                         <img
                             src={post.images[imageIndex].imageUrl}
                             alt=""
-                            className="w-full h-full object-cover"
+                            className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70 pointer-events-none"
+                            aria-hidden="true"
+                        />
+                        <img
+                            src={post.images[imageIndex].imageUrl}
+                            alt=""
+                            className="relative w-full h-full object-contain"
                         />
                         {post.images.length > 1 && (
                             <>
