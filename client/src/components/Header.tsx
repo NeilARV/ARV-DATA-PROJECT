@@ -96,7 +96,7 @@ export default function Header({
       if (trimmedQuery.length < 2) {
         setSuggestions([]);
         setShowSuggestions(false);
-        return;
+        return; 
       }
 
       try {
@@ -442,7 +442,7 @@ export default function Header({
           </div>
 
           <Button
-            variant={location === "/" && view === "deals" ? "default" : "outline"}
+            variant={location === "/deals" ? "default" : "outline"}
             size="sm"
             onClick={() => {
               if (!isAuthenticated) {
@@ -451,8 +451,7 @@ export default function Header({
                 return;
               }
               requireSubscription(() => {
-                setLocation("/");
-                setView("deals");
+                setLocation("/deals");
               });
             }}
             data-testid="button-deals"
@@ -470,6 +469,16 @@ export default function Header({
             <Store className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Vendors</span>
           </Button>
+
+          {/* <Button
+            variant={location === "/deals" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setLocation("/deals")}
+            data-testid="button-deals-page"
+          >
+            <Handshake className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Deals 2</span>
+          </Button> */}
         </div>
       </div>
 

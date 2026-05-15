@@ -1,0 +1,191 @@
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2 } from "lucide-react";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { dealFormSchema } from "@database/inserts/deals.insert";
+import type { DealFormValues } from "@database/inserts/deals.insert";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/use-auth";
+import AppDialog from "@/components/modals/Dialog";
+import ContactContent from "@/components/modals/Contact";
+import DealFormFields, { ADD_DEAL_TYPES } from "@/components/deals/DealFormFields";
+
+type AddDealDialogProps = {
+    open: boolean;
+    onClose: () => void;
+};
+
+export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
+    const { toast } = useToast();
+    const { user } = useAuth();
+    const [showContact, setShowContact] = useState(false);
+    const [links, setLinks] = useState<string[]>([]);
+
+    const form = useForm<DealFormValues>({
+        resolver: zodResolver(dealFormSchema),
+        defaultValues: {
+            address:           "",
+            city:              "",
+            state:             "",
+            zipCode:           "",
+            price:             undefined,
+            potentialARV:      undefined,
+            closeOfEscrow:     undefined,
+            dealType:          "agent",
+            beds:              undefined,
+            baths:             undefined,
+            sqft:              undefined,
+            propertyType:      undefined,
+            notes:             "",
+            sendNotifications: true,
+        },
+    });
+
+    const addressValue = useWatch({ control: form.control, name: "address" });
+    const hasFullAddress = typeof addressValue === "string" && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
+
+    const postDeal = useMutation({
+        mutationFn: async (data: DealFormValues) => {
+            const res = await apiRequest("POST", "/api/deals", {
+                address:           data.address?.trim() || undefined,
+                city:              data.city,
+                state:             data.state,
+                zipCode:           data.zipCode,
+                userId:            user?.id,
+                dealType:          data.dealType,
+                price:             data.price,
+                potentialARV:      data.potentialARV,
+                closeOfEscrow:     data.closeOfEscrow,
+                beds:              data.beds,
+                baths:             data.baths,
+                sqft:              data.sqft,
+                propertyType:      data.propertyType,
+                notes:             data.notes?.trim() || undefined,
+                sendNotifications: data.sendNotifications,
+                links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
+            });
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({ title: "Deal Posted", description: "Your deal has been added to the feed." });
+            queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
+            form.reset();
+            setLinks([]);
+            onClose();
+        },
+        onError: (err: any) => {
+            const is403 = typeof err?.message === "string" && err.message.startsWith("403:");
+            if (is403) {
+                toast({
+                    title: "Upgrade Required",
+                    description: "Upgrade your account to access this feature.",
+                    variant: "destructive",
+                    action: (
+                        <ToastAction altText="Contact us" onClick={() => setShowContact(true)}>
+                            Contact Us
+                        </ToastAction>
+                    ),
+                });
+            } else {
+                toast({ title: "Error", description: err.message || "Failed to post deal", variant: "destructive" });
+            }
+        },
+    });
+
+    const handleClose = () => {
+        if (postDeal.isPending) return;
+        form.reset();
+        setLinks([]);
+        onClose();
+    };
+
+    return (
+        <>
+            <AppDialog open={open} onClose={handleClose} className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Post a Deal</DialogTitle>
+                </DialogHeader>
+
+                <Form {...form}>
+                    <form
+                        onSubmit={form.handleSubmit((d) => postDeal.mutate(d))}
+                        className="space-y-4 mt-2"
+                    >
+                        <DealFormFields
+                            control={form.control}
+                            dealTypes={ADD_DEAL_TYPES}
+                            hasFullAddress={hasFullAddress}
+                            links={links}
+                            onLinksChange={setLinks}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="sendNotifications"
+                            render={({ field }) => (
+                                <FormItem className="flex items-center gap-2 space-y-0">
+                                    <FormControl>
+                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                    </FormControl>
+                                    <FormLabel className="font-normal cursor-pointer">
+                                        Send notification email
+                                    </FormLabel>
+                                </FormItem>
+                            )}
+                        />
+
+                        <div className="flex gap-2 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={handleClose}
+                                disabled={postDeal.isPending}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                className="flex-1"
+                                disabled={postDeal.isPending || !user?.id}
+                            >
+                                {postDeal.isPending ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Posting...
+                                    </>
+                                ) : (
+                                    "Post Deal"
+                                )}
+                            </Button>
+                        </div>
+                    </form>
+                </Form>
+            </AppDialog>
+
+            <AppDialog hideOverlay open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
+                {showContact && (
+                    <ContactContent
+                        onClose={() => setShowContact(false)}
+                        onSuccess={() => {
+                            toast({ title: "Request Received", description: "We will get back to you shortly." });
+                        }}
+                        defaultSubject="Upgrade Account"
+                        defaultFirstName={user?.firstName}
+                        defaultLastName={user?.lastName}
+                        defaultEmail={user?.email}
+                        defaultPhone={user?.phone}
+                        defaultMessage="I would like to upgrade my account to access the deal feature."
+                    />
+                )}
+            </AppDialog>
+        </>
+    );
+}
