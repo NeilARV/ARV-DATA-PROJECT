@@ -73,7 +73,7 @@ export function VendorDetail({ vendor, onDeleted }: VendorDetailProps) {
     return (
         <>
             {/* Banner */}
-            <div className="w-full max-h-48 bg-muted flex-shrink-0 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-48 bg-muted flex-shrink-0 flex items-center justify-center overflow-hidden">
                 {vendor.headerUrl && (
                     <img src={vendor.headerUrl} alt="" className="w-full h-auto max-h-48 object-contain block" />
                 )}

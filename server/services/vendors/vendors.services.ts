@@ -294,9 +294,20 @@ export async function removeImage(id: string, imageType: "logo" | "header") {
     const existing = await requireVendorExists(id);
 
     const oldUrl = imageType === "logo" ? existing.logoUrl : existing.headerUrl;
+    console.log(`[vendorsService.removeImage] imageType=${imageType} oldUrl=${oldUrl} bucket=${vendorStorageBucket}`);
+
+    console.log(`[OLD URL]: ${oldUrl}`)
+    
     if (oldUrl) {
         const oldPath = storagePathFromUrl(oldUrl, vendorStorageBucket);
-        if (oldPath) await getSupabase().storage.from(vendorStorageBucket).remove([oldPath]);
+        console.log(`[vendorsService.removeImage] extracted path=${oldPath}`);
+        if (oldPath) {
+            const { data, error } = await getSupabase().storage.from(vendorStorageBucket).remove([oldPath]);
+            console.log(`[vendorsService.removeImage] storage remove data:`, JSON.stringify(data));
+            if (error) console.error(`[vendorsService.removeImage] storage remove error:`, JSON.stringify(error));
+        } else {
+            console.warn(`[vendorsService.removeImage] could not extract path from url — file NOT removed from storage`);
+        }
     }
 
     const column = imageType === "logo" ? { logoUrl: null } : { headerUrl: null };

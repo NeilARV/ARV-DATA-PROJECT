@@ -15,6 +15,10 @@ export function getSupabase(): SupabaseClient {
         throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set");
     }
     _client = createClient(url, key, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         realtime: { transport: ws as any },
     });
@@ -23,7 +27,8 @@ export function getSupabase(): SupabaseClient {
 
 /** Extract the storage path from a full Supabase public URL. */
 export function storagePathFromUrl(imageUrl: string, bucket: string = storageBucket): string | null {
+    const clean = imageUrl.split("?")[0];
     const marker = `/storage/v1/object/public/${bucket}/`;
-    const idx = imageUrl.indexOf(marker);
-    return idx !== -1 ? imageUrl.slice(idx + marker.length) : null;
+    const idx = clean.indexOf(marker);
+    return idx !== -1 ? clean.slice(idx + marker.length) : null;
 }
