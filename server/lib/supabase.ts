@@ -3,6 +3,8 @@ import ws from "ws";
 
 export const storageBucket = process.env.SUPABASE_STORAGE_BUCKET ?? "post-images-dev";
 
+export const vendorStorageBucket = process.env.SUPABASE_VENDOR_STORAGE_BUCKET ?? "vendor-images-dev"
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
@@ -20,8 +22,8 @@ export function getSupabase(): SupabaseClient {
 }
 
 /** Extract the storage path from a full Supabase public URL. */
-export function storagePathFromUrl(imageUrl: string): string | null {
-    const marker = `/storage/v1/object/public/${storageBucket}/`;
+export function storagePathFromUrl(imageUrl: string, bucket: string = storageBucket): string | null {
+    const marker = `/storage/v1/object/public/${bucket}/`;
     const idx = imageUrl.indexOf(marker);
     return idx !== -1 ? imageUrl.slice(idx + marker.length) : null;
 }

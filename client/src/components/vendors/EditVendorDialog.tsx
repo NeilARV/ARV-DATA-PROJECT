@@ -1,12 +1,19 @@
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useRef, useState } from "react";
+import { X, Upload, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { updateVendor, fetchCategories } from "@/api/vendors.api";
+import {
+    updateVendor,
+    fetchCategories,
+    uploadVendorLogo,
+    removeVendorLogo,
+    uploadVendorHeader,
+    removeVendorHeader,
+} from "@/api/vendors.api";
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { Vendor } from "@/types/vendors";
@@ -20,6 +27,87 @@ type EditVendorDialogProps = {
 const selectClass =
     "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground cursor-pointer";
 
+type ImageFieldProps = {
+    label: string;
+    currentUrl: string | null;
+    aspectClass: string;
+    onUpload: (file: File) => void;
+    onRemove: () => void;
+    isUploading: boolean;
+    isRemoving: boolean;
+};
+
+function ImageField({ label, currentUrl, aspectClass, onUpload, onRemove, isUploading, isRemoving }: ImageFieldProps) {
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            onUpload(file);
+            e.target.value = "";
+        }
+    };
+
+    return (
+        <div className="space-y-1.5">
+            <Label>{label}</Label>
+            <div className={`relative w-full ${aspectClass} rounded-lg overflow-hidden bg-muted border border-border`}>
+                {currentUrl ? (
+                    <>
+                        <img src={currentUrl} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity bg-black/40">
+                            <button
+                                type="button"
+                                onClick={() => inputRef.current?.click()}
+                                disabled={isUploading || isRemoving}
+                                className="p-1.5 rounded-md bg-background/90 hover:bg-background transition-colors"
+                            >
+                                <Upload className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onRemove}
+                                disabled={isUploading || isRemoving}
+                                className="p-1.5 rounded-md bg-background/90 hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                        {(isUploading || isRemoving) && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <span className="text-xs text-white">{isUploading ? "Uploading…" : "Removing…"}</span>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => inputRef.current?.click()}
+                        disabled={isUploading}
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                        {isUploading ? (
+                            <span className="text-xs">Uploading…</span>
+                        ) : (
+                            <>
+                                <Upload className="w-4 h-4" />
+                                <span className="text-xs">Upload {label}</span>
+                            </>
+                        )}
+                    </button>
+                )}
+            </div>
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png"
+                className="hidden"
+                onChange={handleFileChange}
+            />
+        </div>
+    );
+}
+
 export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProps) {
     const [name, setName]               = useState(vendor.name);
     const [description, setDescription] = useState(vendor.description ?? "");
@@ -32,6 +120,10 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
         vendor.categories.map((c) => c.id)
     );
+
+    // Local image URL state — updated immediately after upload/remove so UI reflects changes
+    const [logoUrl, setLogoUrl]     = useState<string | null>(vendor.logoUrl);
+    const [headerUrl, setHeaderUrl] = useState<string | null>(vendor.headerUrl);
 
     const queryClient = useQueryClient();
     const { toast }   = useToast();
@@ -67,8 +159,66 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
         },
     });
 
+    const logoUploadMutation = useMutation({
+        mutationFn: (file: File) => uploadVendorLogo(vendor.id, file),
+        onSuccess: (data) => {
+            setLogoUrl(data.logoUrl);
+            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
+            toast({ title: "Logo uploaded" });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to upload logo.", variant: "destructive" });
+        },
+    });
+
+    const logoRemoveMutation = useMutation({
+        mutationFn: () => removeVendorLogo(vendor.id),
+        onSuccess: () => {
+            setLogoUrl(null);
+            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
+            toast({ title: "Logo removed" });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to remove logo.", variant: "destructive" });
+        },
+    });
+
+    const headerUploadMutation = useMutation({
+        mutationFn: (file: File) => uploadVendorHeader(vendor.id, file),
+        onSuccess: (data) => {
+            setHeaderUrl(data.headerUrl);
+            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
+            toast({ title: "Header uploaded" });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to upload header.", variant: "destructive" });
+        },
+    });
+
+    const headerRemoveMutation = useMutation({
+        mutationFn: () => removeVendorHeader(vendor.id),
+        onSuccess: () => {
+            setHeaderUrl(null);
+            queryClient.invalidateQueries({ queryKey: ["vendors"] });
+            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
+            toast({ title: "Header removed" });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to remove header.", variant: "destructive" });
+        },
+    });
+
+    const anyImagePending =
+        logoUploadMutation.isPending   ||
+        logoRemoveMutation.isPending   ||
+        headerUploadMutation.isPending ||
+        headerRemoveMutation.isPending;
+
     const handleClose = () => {
-        if (mutation.isPending) return;
+        if (mutation.isPending || anyImagePending) return;
         onClose();
     };
 
@@ -88,6 +238,28 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    {/* Header image */}
+                    <ImageField
+                        label="Header Image"
+                        currentUrl={headerUrl}
+                        aspectClass="aspect-[3/1]"
+                        onUpload={(file) => headerUploadMutation.mutate(file)}
+                        onRemove={() => headerRemoveMutation.mutate()}
+                        isUploading={headerUploadMutation.isPending}
+                        isRemoving={headerRemoveMutation.isPending}
+                    />
+
+                    {/* Logo image */}
+                    <ImageField
+                        label="Logo"
+                        currentUrl={logoUrl}
+                        aspectClass="aspect-square max-w-[120px]"
+                        onUpload={(file) => logoUploadMutation.mutate(file)}
+                        onRemove={() => logoRemoveMutation.mutate()}
+                        isUploading={logoUploadMutation.isPending}
+                        isRemoving={logoRemoveMutation.isPending}
+                    />
+
                     {/* Name */}
                     <div className="space-y-1.5">
                         <Label htmlFor="ev-name">Name <span className="text-destructive">*</span></Label>
@@ -166,12 +338,12 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
-                        <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+                        <Button variant="outline" onClick={handleClose} disabled={mutation.isPending || anyImagePending}>
                             Cancel
                         </Button>
                         <Button
                             onClick={() => mutation.mutate()}
-                            disabled={!name.trim() || selectedCategoryIds.length === 0 || mutation.isPending}
+                            disabled={!name.trim() || selectedCategoryIds.length === 0 || mutation.isPending || anyImagePending}
                         >
                             {mutation.isPending ? "Saving..." : "Save"}
                         </Button>

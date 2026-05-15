@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { MulterRequest } from "server/middleware/multerTypes";
 import { VendorsServices } from "server/services/vendors";
 import { vendorInputSchema, updateVendorSchema } from "@database/validation/vendors.validation";
 
@@ -98,5 +99,59 @@ export async function deleteVendorHandler(req: Request, res: Response) {
         if (error?.statusCode === 404) return res.status(404).json({ message: "Vendor not found" });
         console.error("Error deleting vendor:", error);
         return res.status(500).json({ message: "Error deleting vendor" });
+    }
+}
+
+// ── POST /api/vendors/:vendorId/logo ───────────────────────────────────────────
+export async function uploadVendorLogoHandler(req: MulterRequest, res: Response) {
+    if (!req.file) return res.status(400).json({ message: "No file provided" });
+    try {
+        const result = await VendorsServices.uploadImage(
+            req.params.vendorId, "logo", req.file.buffer, req.file.mimetype,
+        );
+        return res.status(200).json({ message: "Logo uploaded", logoUrl: result.logoUrl });
+    } catch (error: any) {
+        if (error?.statusCode === 404) return res.status(404).json({ message: "Vendor not found" });
+        console.error("Error uploading vendor logo:", error);
+        return res.status(500).json({ message: "Error uploading logo" });
+    }
+}
+
+// ── DELETE /api/vendors/:vendorId/logo ─────────────────────────────────────────
+export async function removeVendorLogoHandler(req: Request, res: Response) {
+    try {
+        await VendorsServices.removeImage(req.params.vendorId, "logo");
+        return res.status(200).json({ message: "Logo removed" });
+    } catch (error: any) {
+        if (error?.statusCode === 404) return res.status(404).json({ message: "Vendor not found" });
+        console.error("Error removing vendor logo:", error);
+        return res.status(500).json({ message: "Error removing logo" });
+    }
+}
+
+// ── POST /api/vendors/:vendorId/header ─────────────────────────────────────────
+export async function uploadVendorHeaderHandler(req: MulterRequest, res: Response) {
+    if (!req.file) return res.status(400).json({ message: "No file provided" });
+    try {
+        const result = await VendorsServices.uploadImage(
+            req.params.vendorId, "header", req.file.buffer, req.file.mimetype,
+        );
+        return res.status(200).json({ message: "Header uploaded", headerUrl: result.headerUrl });
+    } catch (error: any) {
+        if (error?.statusCode === 404) return res.status(404).json({ message: "Vendor not found" });
+        console.error("Error uploading vendor header:", error);
+        return res.status(500).json({ message: "Error uploading header" });
+    }
+}
+
+// ── DELETE /api/vendors/:vendorId/header ───────────────────────────────────────
+export async function removeVendorHeaderHandler(req: Request, res: Response) {
+    try {
+        await VendorsServices.removeImage(req.params.vendorId, "header");
+        return res.status(200).json({ message: "Header removed" });
+    } catch (error: any) {
+        if (error?.statusCode === 404) return res.status(404).json({ message: "Vendor not found" });
+        console.error("Error removing vendor header:", error);
+        return res.status(500).json({ message: "Error removing header" });
     }
 }

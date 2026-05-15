@@ -1,7 +1,9 @@
+import crypto from "crypto";
 import { db } from "server/storage";
 import { vendors, vendorCategories, categories } from "@database/schemas/vendors.schema";
 import { eq, inArray } from "drizzle-orm";
 import type { VendorInput, UpdateVendorInput } from "@database/validation/vendors.validation";
+import { getSupabase, vendorStorageBucket, storagePathFromUrl } from "server/lib/supabase";
 
 async function fetchCategoriesForVendors(vendorIds: string[]) {
     if (vendorIds.length === 0) return new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
@@ -36,6 +38,8 @@ const VENDOR_COLUMNS = {
     zipCode: vendors.zipCode,
     phone: vendors.phone,
     website: vendors.website,
+    logoUrl: vendors.logoUrl,
+    headerUrl: vendors.headerUrl,
     isRecommended: vendors.isRecommended,
 };
 
@@ -77,6 +81,8 @@ export async function getById(id: string) {
             zipCode: vendors.zipCode,
             phone: vendors.phone,
             website: vendors.website,
+            logoUrl: vendors.logoUrl,
+            headerUrl: vendors.headerUrl,
         })
         .from(vendors)
         .where(eq(vendors.id, id))
@@ -199,14 +205,103 @@ export async function toggleRecommend(id: string) {
 
 export async function remove(id: string) {
     const [existing] = await db
-        .select({ id: vendors.id })
+        .select({ id: vendors.id, logoUrl: vendors.logoUrl, headerUrl: vendors.headerUrl })
         .from(vendors)
         .where(eq(vendors.id, id))
         .limit(1);
 
     if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
 
+    const pathsToDelete: string[] = [];
+    if (existing.logoUrl) {
+        const p = storagePathFromUrl(existing.logoUrl, vendorStorageBucket);
+        if (p) pathsToDelete.push(p);
+    }
+    if (existing.headerUrl) {
+        const p = storagePathFromUrl(existing.headerUrl, vendorStorageBucket);
+        if (p) pathsToDelete.push(p);
+    }
+    if (pathsToDelete.length > 0) {
+        await getSupabase().storage.from(vendorStorageBucket).remove(pathsToDelete);
+    }
+
     await db.delete(vendors).where(eq(vendors.id, id));
     console.log(`[vendorsService.remove] Vendor deleted: id=${id}`);
+    return { id };
+}
+
+// ── Vendor image helpers ───────────────────────────────────────────────────────
+
+async function requireVendorExists(id: string) {
+    const [existing] = await db
+        .select({ id: vendors.id, logoUrl: vendors.logoUrl, headerUrl: vendors.headerUrl })
+        .from(vendors)
+        .where(eq(vendors.id, id))
+        .limit(1);
+    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+    return existing;
+}
+
+export async function uploadImage(
+    id: string,
+    imageType: "logo" | "header",
+    buffer: Buffer,
+    mimetype: string,
+) {
+    const existing = await requireVendorExists(id);
+
+    const ext = mimetype === "image/png" ? "png" : "jpg";
+    const storagePath = `${imageType}s/${id}/${imageType}.${ext}`;
+
+    // Remove old image from storage if it exists
+    const oldUrl = imageType === "logo" ? existing.logoUrl : existing.headerUrl;
+    if (oldUrl) {
+        const oldPath = storagePathFromUrl(oldUrl, vendorStorageBucket);
+        if (oldPath) await getSupabase().storage.from(vendorStorageBucket).remove([oldPath]);
+    }
+
+    console.log(`[vendorsService.uploadImage] bucket=${vendorStorageBucket} path=${storagePath} mime=${mimetype}`);
+
+    const { error } = await getSupabase().storage
+        .from(vendorStorageBucket)
+        .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
+
+    if (error) {
+        console.error(`[vendorsService.uploadImage] Supabase error:`, JSON.stringify(error));
+        throw new Error(`Storage upload failed: ${error.message}`);
+    }
+
+    const { data: { publicUrl } } = getSupabase().storage
+        .from(vendorStorageBucket)
+        .getPublicUrl(storagePath);
+
+    // Bust cache by appending a timestamp query param
+    const urlWithBust = `${publicUrl}?t=${crypto.randomUUID()}`;
+
+    const column = imageType === "logo" ? { logoUrl: urlWithBust } : { headerUrl: urlWithBust };
+    const [updated] = await db
+        .update(vendors)
+        .set({ ...column, updatedAt: new Date() })
+        .where(eq(vendors.id, id))
+        .returning();
+
+    const key = imageType === "logo" ? "logoUrl" : "headerUrl";
+    console.log(`[vendorsService.uploadImage] ${imageType} uploaded for vendor id=${id}`);
+    return { id: updated.id, [key]: urlWithBust };
+}
+
+export async function removeImage(id: string, imageType: "logo" | "header") {
+    const existing = await requireVendorExists(id);
+
+    const oldUrl = imageType === "logo" ? existing.logoUrl : existing.headerUrl;
+    if (oldUrl) {
+        const oldPath = storagePathFromUrl(oldUrl, vendorStorageBucket);
+        if (oldPath) await getSupabase().storage.from(vendorStorageBucket).remove([oldPath]);
+    }
+
+    const column = imageType === "logo" ? { logoUrl: null } : { headerUrl: null };
+    await db.update(vendors).set({ ...column, updatedAt: new Date() }).where(eq(vendors.id, id));
+
+    console.log(`[vendorsService.removeImage] ${imageType} removed for vendor id=${id}`);
     return { id };
 }

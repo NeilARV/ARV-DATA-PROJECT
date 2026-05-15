@@ -80,8 +80,12 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
             >
                 {/* Logo + name/description row */}
                 <div className="flex items-start gap-3">
-                    <div className="p-3 bg-primary/10 rounded-lg flex-shrink-0">
-                        <CircleUser className="w-4 h-4 text-primary" />
+                    <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
+                        {vendor.logoUrl ? (
+                            <img src={vendor.logoUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <CircleUser className="w-4 h-4 text-primary" />
+                        )}
                     </div>
                     <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-base text-foreground leading-tight">

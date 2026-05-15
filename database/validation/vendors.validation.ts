@@ -14,11 +14,16 @@ export const vendorInputSchema = z.object({
         .min(1, "At least one category is required"),
 });
 
+export const uploadVendorImageSchema = z.object({
+    imageType: z.enum(["logo", "header"]),
+});
+
 export const updateVendorSchema = vendorInputSchema.partial().extend({
     categoryIds: z
         .array(z.number().int().positive())
         .min(1, "At least one category is required"),
 });
 
-export type VendorInput       = z.infer<typeof vendorInputSchema>;
-export type UpdateVendorInput = z.infer<typeof updateVendorSchema>;
+export type VendorInput            = z.infer<typeof vendorInputSchema>;
+export type UpdateVendorInput      = z.infer<typeof updateVendorSchema>;
+export type UploadVendorImageInput = z.infer<typeof uploadVendorImageSchema>;

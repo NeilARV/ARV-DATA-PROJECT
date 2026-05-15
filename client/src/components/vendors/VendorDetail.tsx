@@ -72,15 +72,23 @@ export function VendorDetail({ vendor, onDeleted }: VendorDetailProps) {
 
     return (
         <>
-            {/* Banner placeholder */}
-            <div className="h-48 bg-muted flex-shrink-0" />
+            {/* Banner */}
+            <div className="w-full max-h-48 bg-muted flex-shrink-0 flex items-center justify-center overflow-hidden">
+                {vendor.headerUrl && (
+                    <img src={vendor.headerUrl} alt="" className="w-full h-auto max-h-48 object-contain block" />
+                )}
+            </div>
 
             {/* Profile section */}
             <div className="px-6 pb-6">
                 {/* Avatar + menu row */}
                 <div className="flex items-end justify-between -mt-8 mb-4">
-                    <div className="p-4 bg-primary/10 border-4 border-background rounded-2xl flex-shrink-0">
-                        <CircleUser className="w-12 h-12 text-primary" />
+                    <div className="w-20 h-20 border-4 border-background rounded-2xl flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
+                        {vendor.logoUrl ? (
+                            <img src={vendor.logoUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <CircleUser className="w-12 h-12 text-primary" />
+                        )}
                     </div>
                     {isPrivileged && (
                         <div className="relative mb-1" ref={menuRef}>

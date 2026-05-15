@@ -100,3 +100,41 @@ export async function toggleVendorRecommend(vendorId: string): Promise<{ id: str
     const res = await apiRequest("PUT", `/api/vendors/${vendorId}/recommend`);
     return res.json();
 }
+
+export async function uploadVendorLogo(vendorId: string, file: File): Promise<{ logoUrl: string }> {
+    const formData = new FormData();
+    formData.append("image", file);
+    const res = await fetch(`/api/vendors/${vendorId}/logo`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+}
+
+export async function removeVendorLogo(vendorId: string): Promise<void> {
+    await apiRequest("DELETE", `/api/vendors/${vendorId}/logo`);
+}
+
+export async function uploadVendorHeader(vendorId: string, file: File): Promise<{ headerUrl: string }> {
+    const formData = new FormData();
+    formData.append("image", file);
+    const res = await fetch(`/api/vendors/${vendorId}/header`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+}
+
+export async function removeVendorHeader(vendorId: string): Promise<void> {
+    await apiRequest("DELETE", `/api/vendors/${vendorId}/header`);
+}
