@@ -5,7 +5,7 @@ import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers } from "server/services/postmark/email.services";
-import { eq, desc, and, inArray, gte, isNotNull } from "drizzle-orm";
+import { eq, desc, and, inArray, gte, isNotNull, ilike, SQL } from "drizzle-orm";
 import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, propertyTransactions, addresses } from "@database/schemas/properties.schema";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
@@ -183,10 +183,12 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 type GetDealsFilters = {
     userId?: string;
     msaName?: string;
+    city?: string;
+    zipCode?: string;
 }
 
 export async function getDeals(filters: GetDealsFilters) {
-    const { userId: filterUserId, msaName: filterMsaName } = filters;
+    const { userId: filterUserId, msaName: filterMsaName, city: filterCity, zipCode: filterZipCode } = filters;
 
     let filterMsaId: number | undefined;
     if (filterMsaName) {
@@ -203,12 +205,12 @@ export async function getDeals(filters: GetDealsFilters) {
         filterMsaId = msaRow.id;
     }
 
-    const msaCondition = filterMsaId !== undefined ? eq(deals.msaId, filterMsaId) : undefined;
-    const whereClause = filterUserId && msaCondition
-        ? and(eq(deals.userId, filterUserId), msaCondition)
-        : filterUserId
-        ? eq(deals.userId, filterUserId)
-        : msaCondition;
+    const conditions: SQL[] = [];
+    if (filterUserId)              conditions.push(eq(deals.userId, filterUserId));
+    if (filterMsaId !== undefined) conditions.push(eq(deals.msaId, filterMsaId));
+    if (filterCity)                conditions.push(ilike(deals.city, filterCity));
+    if (filterZipCode)             conditions.push(eq(deals.zipCode, filterZipCode));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const results = await db
         .select({
@@ -244,8 +246,10 @@ export async function getDeals(filters: GetDealsFilters) {
 
     console.log(
         `[dealsService.getDeals] ${results.length} deals returned` +
-        `${filterUserId ? ` (userId=${filterUserId})` : ""}` +
-        `${filterMsaName ? ` (msaName=${filterMsaName})` : ""}`
+        `${filterUserId  ? ` (userId=${filterUserId})`   : ""}` +
+        `${filterMsaName ? ` (msaName=${filterMsaName})` : ""}` +
+        `${filterCity    ? ` (city=${filterCity})`       : ""}` +
+        `${filterZipCode ? ` (zipCode=${filterZipCode})` : ""}`
     );
 
     // Batch-fetch top buyers for each unique zip code

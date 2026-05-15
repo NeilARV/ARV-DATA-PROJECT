@@ -18,16 +18,12 @@ export default function DealsColumn({
 }: DealsColumnProps) {
     return (
         <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${borderRight ? "border-r border-border" : ""}`}>
-            {/* Sticky column header */}
-            <div className="px-6 py-4 flex-shrink-0 border-b border-border bg-background">
-                <h3 className="text-base font-semibold text-foreground">
-                    {title}
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">({count})</span>
-                </h3>
-            </div>
-
             {/* Independently scrolling body */}
             <div className="flex-1 overflow-y-auto p-6 min-h-0">
+                <h3 className="text-base font-semibold text-foreground mb-4">
+                    {title}
+                    <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground">({count})</span>
+                </h3>
                 {isEmpty ? (
                     <DealsEmptyState size="sm" message={`No ${title.toLowerCase()}`} />
                 ) : (

@@ -7,9 +7,7 @@ import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { useFilters } from "@/hooks/useFilters";
 import { useRequireSubscription } from "@/hooks/useRequireSubscription";
-import { getMsaNameFromCounty } from "@/lib/county";
 import { formatAddress } from "@shared/utils/formatAddress";
 import DealsHeader from "@/components/deals/DealsHeader";
 import DealsGrid from "@/components/deals/DealsGrid";
@@ -17,10 +15,10 @@ import DealsEmptyState from "@/components/deals/DealsEmptyState";
 import AddDealDialog from "@/components/deals/AddDealDialog";
 import EditDealDialog from "@/components/deals/EditDealDialog";
 import DeleteDealDialog from "@/components/deals/DeleteDealDialog";
+import { useDealsNav } from "@/hooks/useDealsNav";
 
 export default function DealsPageContent() {
     const [showAddDeal, setShowAddDeal] = useState(false);
-    const [tab, setTab] = useState<DealTab>("all");
     const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
     const [contactDeal, setContactDeal] = useState<Deal | null>(null);
     const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
@@ -29,23 +27,31 @@ export default function DealsPageContent() {
     const { toast } = useToast();
     const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
     const { requireSubscription, ContactDialog } = useRequireSubscription();
-    const { filters } = useFilters();
+    const { tab, locationFilter, setTab, setLocationFilter } = useDealsNav();
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;
-    const msaName = getMsaNameFromCounty(filters.county ?? "San Diego") ?? "San Diego-Chula Vista-Carlsbad, CA";
 
+    // Build the query URL based on active tab and location filter
     const queryUrl = (() => {
         const params = new URLSearchParams();
+
         if (tab === "mine" && user?.id) {
             params.set("userId", user.id);
-        } else {
-            params.set("msaName", msaName);
         }
+
+        if (locationFilter?.type === "msa") {
+            params.set("msaName", locationFilter.value);
+        } else if (locationFilter?.type === "city") {
+            params.set("city", locationFilter.value);
+        } else if (locationFilter?.type === "zip") {
+            params.set("zipCode", locationFilter.value);
+        }
+
         return `/api/deals?${params.toString()}`;
     })();
 
     const { data: deals = [], isLoading } = useQuery<Deal[]>({
-        queryKey: ["/api/deals", tab === "mine" ? user?.id : null, tab === "mine" ? null : msaName],
+        queryKey: ["/api/deals", queryUrl],
         staleTime: 0,
         queryFn: async () => {
             const res = await apiRequest("GET", queryUrl);
@@ -83,12 +89,13 @@ export default function DealsPageContent() {
         <div className="h-full flex flex-col overflow-hidden">
             <DealsHeader
                 tab={tab}
-                msaName={msaName}
+                deals={deals}
+                locationFilter={locationFilter}
                 onTabChange={setTab}
                 onAddDeal={handleAddDeal}
+                onLocationFilterChange={setLocationFilter}
             />
 
-            {/* Content — loading and empty states fill the space; data view uses independent column scrolling */}
             {isLoading ? (
                 <div className="flex-1 flex items-center justify-center">
                     <div className="flex flex-col items-center gap-3">
@@ -100,9 +107,11 @@ export default function DealsPageContent() {
                 <div className="flex-1 flex items-center justify-center">
                     <DealsEmptyState
                         size="lg"
-                        message={tab === "mine" ? "No deals posted yet" : "No deals yet"}
+                        message={tab === "mine" ? "No deals posted yet" : "No deals found"}
                         subMessage={
-                            tab === "mine"
+                            locationFilter
+                                ? `No deals match the selected location. Try a different filter.`
+                                : tab === "mine"
                                 ? "Your posted deals will appear here."
                                 : "Be the first to post a deal to the feed."
                         }

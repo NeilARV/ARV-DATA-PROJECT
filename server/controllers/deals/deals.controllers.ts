@@ -24,8 +24,10 @@ export async function getDealsController(req: Request, res: Response): Promise<v
     try {
         const userId  = typeof req.query.userId  === "string" ? req.query.userId  : undefined;
         const msaName = typeof req.query.msaName === "string" ? req.query.msaName : undefined;
+        const city    = typeof req.query.city    === "string" ? req.query.city    : undefined;
+        const zipCode = typeof req.query.zipCode === "string" ? req.query.zipCode : undefined;
 
-        const results = await getDeals({ userId, msaName });
+        const results = await getDeals({ userId, msaName, city, zipCode });
         res.json(results);
     } catch (err) {
         handleServiceError(res, err, "Error fetching deals");
