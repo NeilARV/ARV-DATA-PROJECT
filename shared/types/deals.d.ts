@@ -14,6 +14,9 @@ type Deal = DealProperty & {
     msaId: number;
     msaName?: string | null;
     userEmail?: string | null;
+    userFirstName?: string | null;
+    userLastName?: string | null;
+    userPhone?: string | null;
     userId: string;
     topBuyers: TopBuyer[];
     links: { url: string; domain: string }[];

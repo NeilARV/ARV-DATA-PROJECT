@@ -92,6 +92,7 @@ export default function DealView() {
         canEdit={user?.id === deal.userId || isAdmin || isOwner}
         canRequestContact={canManageDeals || !isOwnerOfDeal}
         isOwner={isOwnerOfDealForTopBuyers}
+        canViewPoster={isAdmin || isOwner}
         onDelete={() => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
         onEdit={() => setEditDeal({ ...deal, links: deal.links.map((l) => l.url) })}
         onRequestInfo={() => setContactDeal(deal)}

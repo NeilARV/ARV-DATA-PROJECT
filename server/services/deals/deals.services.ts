@@ -232,6 +232,9 @@ export async function getDeals(filters: GetDealsFilters) {
             dealType:     deals.type,
             userId:       deals.userId,
             userEmail:    users.email,
+            userFirstName: users.firstName,
+            userLastName:  users.lastName,
+            userPhone:     users.phone,
         })
         .from(deals)
         .leftJoin(msas, eq(deals.msaId, msas.id))

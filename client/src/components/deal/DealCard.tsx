@@ -20,6 +20,7 @@ import {
     ChevronDown,
     ChevronUp,
     ExternalLink,
+    User,
 } from "lucide-react";
 import { formatAddress } from "@shared/utils/formatAddress";
 
@@ -29,6 +30,7 @@ type DealCardProps = {
     canEdit: boolean;
     canRequestContact: boolean;
     isOwner: boolean;
+    canViewPoster: boolean;
     onDelete: () => void;
     onEdit: () => void;
     onRequestInfo: () => void;
@@ -41,6 +43,7 @@ export default function DealCard({
     canEdit,
     canRequestContact,
     isOwner,
+    canViewPoster,
     onDelete,
     onEdit,
     onRequestInfo,
@@ -200,6 +203,25 @@ export default function DealCard({
                     <span className="text-sm text-muted-foreground">Posted</span>
                     <span className="text-sm font-medium text-foreground">{postedAt}</span>
                 </div>
+
+                {canViewPoster && (
+                    <div className="flex flex-col gap-1">
+                        <span className="text-sm text-muted-foreground">Posted By (Admin Only)</span>
+                        <div className="flex items-center gap-1.5 text-sm flex-wrap">
+                            <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                            {[
+                                [deal.userFirstName, deal.userLastName].filter(Boolean).join(" ") || "Unknown",
+                                deal.userEmail,
+                                deal.userPhone,
+                            ].filter(Boolean).map((item, i, arr) => (
+                                <span key={i} className="flex items-center gap-1.5">
+                                    <span className="font-medium text-foreground">{item}</span>
+                                    {i < arr.length - 1 && <span className="text-muted-foreground">|</span>}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {expanded && (
                     <>
