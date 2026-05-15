@@ -1,6 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-import { requireSub } from "server/middleware/requireSub";
 import { requireAuth } from "server/middleware/requireAuth";
 import {
     getPostsController,
@@ -31,7 +30,7 @@ router.get("/", getPostsController);
 router.get("/:postId", getPostByIdController);
 
 // pro/premium subscription required; all team roles bypass
-router.post("/", requireSub(["pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }), createPostController);
+router.post("/", requireAuth, createPostController);
 
 // Auth required; ownership enforced in service (admin/owner can override)
 router.put("/:postId", requireAuth, updatePostController);

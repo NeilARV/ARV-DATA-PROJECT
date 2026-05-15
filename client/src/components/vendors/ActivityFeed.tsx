@@ -3,16 +3,24 @@ import { PostCard } from "./PostCard";
 import { PostComposer } from "./PostComposer";
 import { fetchPosts } from "@/api/vendors.api";
 import type { PostFilters } from "@/hooks/useVendorNav";
+import { useAuth } from "@/hooks/use-auth";
+import { useDialogs } from "@/hooks/useDialogs";
+import { LogIn } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ActivityFeedProps = {
     postFilters: PostFilters;
 };
 
 export function ActivityFeed({ postFilters }: ActivityFeedProps) {
+    const { isAuthenticated } = useAuth();
+    const { openDialog } = useDialogs();
+
     const { data: posts, isLoading } = useQuery({
         queryKey: ["posts", postFilters],
         queryFn: () => fetchPosts(postFilters),
         staleTime: 60 * 1000,
+        enabled: isAuthenticated,
     });
 
     const filterLabel = postFilters.vendorId
@@ -32,17 +40,43 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
                 </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 min-h-0">
-                {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="h-52 bg-muted rounded-xl animate-pulse" />
-                    ))
-                ) : (
-                    posts!.map((post) => <PostCard key={post.id} post={post} />)
-                )}
-            </div>
-
-            <PostComposer />
+            {!isAuthenticated ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center">
+                    <LogIn className="w-8 h-8 text-muted-foreground" />
+                    <div className="space-y-1">
+                        <p className="font-medium text-foreground">Please log in to view posts</p>
+                        <p className="text-sm text-muted-foreground">Sign in or create an account to see activity from vendors.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDialog({ type: "login", forced: false })}
+                        >
+                            Log In
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => openDialog({ type: "signup", forced: false })}
+                        >
+                            Sign Up
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <div className="flex-1 overflow-y-auto p-5 space-y-3 min-h-0">
+                        {isLoading ? (
+                            Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="h-52 bg-muted rounded-xl animate-pulse" />
+                            ))
+                        ) : (
+                            posts!.map((post) => <PostCard key={post.id} post={post} />)
+                        )}
+                    </div>
+                    <PostComposer />
+                </>
+            )}
         </div>
     );
 }
