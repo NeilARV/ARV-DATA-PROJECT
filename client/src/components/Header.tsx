@@ -470,6 +470,16 @@ export default function Header({
             <Store className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Vendors</span>
           </Button>
+
+          <Button
+            variant={location === "/deals" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setLocation("/deals")}
+            data-testid="button-deals-page"
+          >
+            <Handshake className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">Deals 2</span>
+          </Button>
         </div>
       </div>
 

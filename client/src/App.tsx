@@ -8,6 +8,7 @@ import Admin from "@/pages/Admin";
 import Profile from "@/pages/Profile";
 import Analytics from "@/pages/Analytics";
 import Vendors from "@/pages/Vendors";
+import Deals from "@/pages/Deals";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { ViewProvider } from "@/hooks/useView";
@@ -51,6 +52,7 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/vendors" component={Vendors} />
+      <Route path="/deals" component={Deals} />
       <Route component={NotFound} />
     </Switch>
   );
