@@ -103,7 +103,7 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                                 onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
                                 className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground"
                             >
-                                <MoreVertical className="w-3.5 h-3.5" />
+                                <MoreVertical className="w-4 h-4" />
                             </button>
                             {showMenu && (
                                 <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-10">

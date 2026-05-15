@@ -95,12 +95,12 @@ export function PostCard({ post }: PostCardProps) {
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                         <span className="text-xs text-muted-foreground">{formatTimeAgo(post.createdAt)}</span>
                         {canModify && (
-                            <div className="relative" ref={menuRef}>
+                            <div className="relative inline-flex items-center" ref={menuRef}>
                                 <button
                                     onClick={() => setShowMenu((v) => !v)}
                                     className="p-0.5 rounded hover:bg-accent transition-colors text-muted-foreground ml-1"
                                 >
-                                    <MoreVertical className="w-3.5 h-3.5" />
+                                    <MoreVertical className="w-4 h-4" />
                                 </button>
                                 {showMenu && (
                                     <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg z-10">
