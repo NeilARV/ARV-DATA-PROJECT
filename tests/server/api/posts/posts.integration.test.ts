@@ -16,7 +16,6 @@ let seededPostId: string;
 beforeAll(async () => {
     const db = getTestDb();
 
-    // POST_OWNER_ID needs a role to pass requireSub on POST (used later).
     await assignRole(POST_OWNER_ID, "member");
 
     // Seed one post so PUT/DELETE permission tests have a target.
@@ -45,7 +44,7 @@ describe("GET /api/posts/:postId", () => {
     });
 });
 
-// ── POST /api/posts — subscription / role required ────────────────────────
+// ── POST /api/posts — login required; no subscription/role restriction ────
 
 describe("POST /api/posts", () => {
     it("returns 401 when unauthenticated", async () => {
@@ -55,21 +54,21 @@ describe("POST /api/posts", () => {
         expect(res.status).toBe(401);
     });
 
-    it("returns 403 when caller has no role or subscription", async () => {
+    it("returns 201 when caller has no role or subscription", async () => {
         const res = await request(getApp())
             .post("/api/posts")
             .set("x-test-user-id", ACTING_USER_ID)
             .send({ title: "t", content: "c" });
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 
-    it("returns 403 when caller has basic subscription", async () => {
+    it("returns 201 when caller has basic subscription", async () => {
         await assignSubscription(ACTING_USER_ID, "basic");
         const res = await request(getApp())
             .post("/api/posts")
             .set("x-test-user-id", ACTING_USER_ID)
             .send({ title: "t", content: "c" });
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 
     it("returns 201 when caller has pro subscription", async () => {
