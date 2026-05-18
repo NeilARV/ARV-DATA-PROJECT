@@ -465,7 +465,9 @@ export async function sendDealNotification(
             const sqft         = deal.sqft         != null ? deal.sqft.toLocaleString("en-US")         : null;
             const price          = deal.price          ? Number(deal.price).toLocaleString("en-US")          : null;
             const potentialARV   = deal.potentialARV   ? Number(deal.potentialARV).toLocaleString("en-US")   : null;
-            const closeOfEscrow  = deal.closeOfEscrow  ? Number(deal.closeOfEscrow).toLocaleString("en-US")  : null;
+            const closeOfEscrow  = deal.closeOfEscrow
+                ? (() => { const [y, m, d] = deal.closeOfEscrow!.split("-"); return `${m}/${d}/${y}`; })()
+                : null;
 
             const specsParts: string[] = [];
             if (beds  != null) specsParts.push(`${beds} bd`);

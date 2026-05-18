@@ -1,4 +1,4 @@
-import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, date, primaryKey } from "drizzle-orm/pg-core";
 import { users } from "./users.schema";
 import { msas } from "./msas.schema";
 
@@ -31,7 +31,7 @@ export const deals = pgTable("deals", {
   sqft:         integer("sqft"),
   propertyType: varchar("property_type", { length: 100 }),
   notes:        text("notes"),
-  closeOfEscrow: decimal("close_of_escrow", { precision: 15, scale: 2 }),
+  closeOfEscrow: date("close_of_escrow"),
 });
 
 export const dealLinks = pgTable(

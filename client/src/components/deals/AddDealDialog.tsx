@@ -62,7 +62,9 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 dealType:          data.dealType,
                 price:             data.price,
                 potentialARV:      data.potentialARV,
-                closeOfEscrow:     data.closeOfEscrow,
+                closeOfEscrow:     data.closeOfEscrow
+                                       ? (() => { const [m, d, y] = data.closeOfEscrow!.split("/"); return `${y}-${m}-${d}`; })()
+                                       : undefined,
                 beds:              data.beds,
                 baths:             data.baths,
                 sqft:              data.sqft,

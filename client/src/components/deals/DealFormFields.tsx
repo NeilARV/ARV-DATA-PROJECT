@@ -41,6 +41,13 @@ export const EDIT_DEAL_TYPES = [
     { value: "sold",      label: "Sold Deal" },
 ];
 
+function maskDateInput(raw: string): string {
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 function isValidUrl(url: string): boolean {
     try { new URL(url); return true; } catch { return false; }
 }
@@ -171,11 +178,11 @@ export default function DealFormFields({
                         <FormControl>
                             <Input
                                 {...field}
-                                type="number"
-                                min={1}
-                                placeholder="500000"
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="MM/DD/YYYY"
                                 value={field.value ?? ""}
-                                onChange={(e) => field.onChange(e.target.value)}
+                                onChange={(e) => field.onChange(maskDateInput(e.target.value))}
                             />
                         </FormControl>
                         <FormMessage />

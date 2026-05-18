@@ -37,7 +37,9 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
             sqft:          deal.sqft         ?? undefined,
             propertyType:  deal.propertyType ?? undefined,
             potentialARV:  deal.potentialARV  ? Number(deal.potentialARV)  : undefined,
-            closeOfEscrow: deal.closeOfEscrow ? Number(deal.closeOfEscrow) : undefined,
+            closeOfEscrow: deal.closeOfEscrow
+                               ? (() => { const [y, m, d] = deal.closeOfEscrow!.split("-"); return `${m}/${d}/${y}`; })()
+                               : undefined,
             notes:         deal.notes        ?? "",
         },
     });
@@ -59,7 +61,9 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                 sqft:          data.sqft         ?? null,
                 propertyType:  data.propertyType ?? null,
                 potentialARV:  data.potentialARV  ?? null,
-                closeOfEscrow: data.closeOfEscrow ?? null,
+                closeOfEscrow: data.closeOfEscrow
+                                   ? (() => { const [m, d, y] = data.closeOfEscrow!.split("/"); return `${y}-${m}-${d}`; })()
+                                   : null,
                 notes:         data.notes?.trim() || null,
                 links:         links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
             });

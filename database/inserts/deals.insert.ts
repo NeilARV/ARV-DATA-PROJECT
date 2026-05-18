@@ -22,7 +22,7 @@ export const dealFormSchema = z
     notes:             z.string().max(1000, "Notes must be 1000 characters or fewer").optional(),
     closeOfEscrow:     z.preprocess(
                          (v) => (v === "" || v == null ? undefined : v),
-                         z.coerce.number().positive("Close of escrow must be greater than 0").optional()
+                         z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/, "Enter a valid date (MM/DD/YYYY)").optional()
                        ),
     sendNotifications: z.boolean().default(true),
   })
