@@ -38,6 +38,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
             price:             undefined,
             potentialARV:      undefined,
             closeOfEscrow:     undefined,
+            estimatedBudget:   undefined,
             dealType:          "agent",
             beds:              undefined,
             baths:             undefined,
@@ -65,6 +66,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 closeOfEscrow:     data.closeOfEscrow
                                        ? (() => { const [m, d, y] = data.closeOfEscrow!.split("/"); return `${y}-${m}-${d}`; })()
                                        : undefined,
+                estimatedBudget:   data.estimatedBudget ?? undefined,
                 beds:              data.beds,
                 baths:             data.baths,
                 sqft:              data.sqft,

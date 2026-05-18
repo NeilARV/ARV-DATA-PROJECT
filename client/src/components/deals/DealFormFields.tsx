@@ -192,6 +192,28 @@ export default function DealFormFields({
 
             <FormField
                 control={control}
+                name="estimatedBudget"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Estimated Budget <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormControl>
+                            <Input
+                                {...field}
+                                type="number"
+                                min={1}
+                                step={1}
+                                placeholder="75000"
+                                value={field.value ?? ""}
+                                onChange={(e) => field.onChange(e.target.value)}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <FormField
+                control={control}
                 name="dealType"
                 render={({ field }) => (
                     <FormItem>

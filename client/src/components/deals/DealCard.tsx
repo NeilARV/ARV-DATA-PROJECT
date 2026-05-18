@@ -78,7 +78,8 @@ export default function DealCard({
 
     const price         = deal.price         ? Number(deal.price)         : null;
     const potentialARV  = deal.potentialARV   ? Number(deal.potentialARV)  : null;
-    const closeOfEscrow = deal.closeOfEscrow ?? null;
+    const closeOfEscrow    = deal.closeOfEscrow    ?? null;
+    const estimatedBudget  = deal.estimatedBudget  != null ? Number(deal.estimatedBudget) : null;
     const beds          = deal.beds           ? Number(deal.beds)           : null;
     const baths         = deal.baths || null;
     const sqft          = deal.sqft           ? Number(deal.sqft)           : null;
@@ -207,6 +208,13 @@ export default function DealCard({
                             <span className="text-xs text-muted-foreground">Close of Escrow</span>
                             {closeOfEscrow
                                 ? <span className="text-xl font-bold text-foreground">{formatEscrowDate(closeOfEscrow)}</span>
+                                : <span className="text-xl font-bold text-muted-foreground">—</span>
+                            }
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xs text-muted-foreground">Est. Budget</span>
+                            {estimatedBudget !== null && estimatedBudget > 0
+                                ? <span className="text-xl font-bold text-foreground">${estimatedBudget.toLocaleString()}</span>
                                 : <span className="text-xl font-bold text-muted-foreground">—</span>
                             }
                         </div>

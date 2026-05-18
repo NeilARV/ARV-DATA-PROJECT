@@ -4,7 +4,7 @@ import { users, userRoles, roles } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
-import { sendTemplateToUsers } from "server/services/postmark/email.services";
+import { sendTemplateToUsers, getWhitelistRecipientsForMsa } from "server/services/postmark/email.services";
 import { eq, desc, and, inArray, gte, isNotNull, ilike, SQL } from "drizzle-orm";
 import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, propertyTransactions, addresses } from "@database/schemas/properties.schema";
@@ -223,8 +223,9 @@ export async function getDeals(filters: GetDealsFilters) {
             zipCode:      deals.zipCode,
             price:         deals.price,
             potentialARV:  deals.potentialARV,
-            closeOfEscrow: deals.closeOfEscrow,
-            beds:          deals.beds,
+            closeOfEscrow:   deals.closeOfEscrow,
+            estimatedBudget: deals.estimatedBudget,
+            beds:            deals.beds,
             baths:        deals.baths,
             sqft:         deals.sqft,
             propertyType: deals.propertyType,
@@ -308,7 +309,7 @@ export async function getDeals(filters: GetDealsFilters) {
 // ── POST deal ──────────────────────────────────────────────────────────────────
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, beds, baths, sqft, propertyType, notes, links } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, links } = input;
 
     const addressStr     = typeof address === "string" ? address.trim() : "";
     const hasAddress     = addressStr.length > 0;
@@ -375,8 +376,9 @@ export async function createDeal(input: CreateDealInput) {
             zipCode:       String(zipCode).trim(),
             price:         price != null ? String(price) : null,
             potentialARV:  potentialARV  != null ? String(potentialARV)  : null,
-            closeOfEscrow: closeOfEscrow != null ? String(closeOfEscrow) : null,
-            beds:          resolvedBeds,
+            closeOfEscrow:   closeOfEscrow != null ? String(closeOfEscrow) : null,
+            estimatedBudget: estimatedBudget != null ? Number(estimatedBudget) : null,
+            beds:            resolvedBeds,
             baths:         resolvedBaths != null ? String(resolvedBaths) : null,
             sqft:          resolvedSqft,
             propertyType:  normalizePropertyType(resolvedPropertyType),
@@ -408,7 +410,8 @@ type DealNotificationData = {
     sqft: number | null;
     price: string | null;
     potentialARV: string | null;
-    closeOfEscrow: string | null;
+    closeOfEscrow:   string | null;
+    estimatedBudget: number | null;
     propertyType: string | null;
     type: DealType;
     sfrPropertyId: number | null;
@@ -468,6 +471,7 @@ export async function sendDealNotification(
             const closeOfEscrow  = deal.closeOfEscrow
                 ? (() => { const [y, m, d] = deal.closeOfEscrow!.split("-"); return `${m}/${d}/${y}`; })()
                 : null;
+            const estimatedBudget = deal.estimatedBudget != null ? deal.estimatedBudget.toLocaleString("en-US") : null;
 
             const specsParts: string[] = [];
             if (beds  != null) specsParts.push(`${beds} bd`);
@@ -502,8 +506,15 @@ export async function sendDealNotification(
                 }
             }
 
+            // ── Whitelist recipients ──────────────────────────────────────────────
+            const whitelistRecipients = await getWhitelistRecipientsForMsa(msaId);
+            // ─────────────────────────────────────────────────────────────────────
+
             const { sent, failed } = await sendTemplateToUsers({
-                recipients: uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+                recipients: [
+                    ...uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+                    ...whitelistRecipients,
+                ],
                 templateAlias: template,
                 templateModelForRecipient: () => ({
                     // Each block is an object so badge vars are in direct context (no scope chain needed)
@@ -517,6 +528,7 @@ export async function sendDealNotification(
                     price:            price,
                     potential_arv:    potentialARV,
                     close_of_escrow:  closeOfEscrow,
+                    estimated_budget: estimatedBudget,
                     property_type:    deal.propertyType ?? null,
                     notes:            deal.notes ?? null,
                     county:           county,
@@ -529,7 +541,7 @@ export async function sendDealNotification(
             });
 
             console.log(
-                `${label} New-deal emails sent: ${sent}/${uniqueUsers.length}` +
+                `${label} New-deal emails sent: ${sent}/${uniqueUsers.length + whitelistRecipients.length}` +
                 `${failed.length > 0 ? ` (failed: ${failed.join(", ")})` : ""}`
             );
         }
@@ -572,7 +584,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, beds, baths, sqft, propertyType, notes, links } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, links } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -618,7 +630,8 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
             price:        price        !== undefined ? (price != null ? String(price) : null) : undefined,
             potentialARV:  potentialARV  !== undefined ? (potentialARV  != null ? String(potentialARV)  : null) : undefined,
-            closeOfEscrow: closeOfEscrow !== undefined ? (closeOfEscrow != null ? String(closeOfEscrow) : null) : undefined,
+            closeOfEscrow:   closeOfEscrow   !== undefined ? (closeOfEscrow   != null ? String(closeOfEscrow)          : null) : undefined,
+            estimatedBudget: estimatedBudget !== undefined ? (estimatedBudget != null ? Number(estimatedBudget)         : null) : undefined,
             type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
             beds:         incomingFullAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
             baths:        incomingFullAddress ? (resolvedBaths != null ? String(resolvedBaths) : null) : (baths !== undefined ? (baths != null ? String(baths) : null) : undefined),

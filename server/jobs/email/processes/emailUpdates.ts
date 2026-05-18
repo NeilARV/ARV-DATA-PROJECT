@@ -1,5 +1,5 @@
 import { db } from "server/storage";
-import { users, emailSubscriptionList } from "@database/schemas/users.schema";
+import { users } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, structures } from "@database/schemas/properties.schema";
 import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
@@ -7,8 +7,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
 import {
   sendTemplateToUsers,
-  getRmEmailsByUserIds,
-  getRmEmailsByRmIds,
+  getWhitelistRecipientsForMsa,
 } from "server/services/postmark/email.services";
 import { formatAddress } from "@shared/utils/formatAddress";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
@@ -125,72 +124,19 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return true;
     });
 
-    // User subscriptions take priority over whitelist: only use email_whitelist for addresses that are NOT in the users table at all.
-    // (If someone is both a user and on whitelist, we only send based on their user MSA subscriptions, never whitelist.)
-    // Exclude in SQL so we don't rely on in-memory normalization; any email that exists in users is skipped for whitelist.
-    const whitelistRows = await db
-      .select({
-        email: emailSubscriptionList.email,
-        relationshipManagerId: emailSubscriptionList.relationshipManagerId,
-      })
-      .from(emailSubscriptionList)
-      .innerJoin(msas, eq(emailSubscriptionList.msa, msas.id))
-      .where(
-        and(
-          eq(msas.name, msaName),
-          sql`NOT EXISTS (
-            SELECT 1 FROM users
-            WHERE LOWER(TRIM(users.email)) = LOWER(TRIM(${emailSubscriptionList.email}))
-          )`
-        )
-      );
+    // Resolve MSA ID for whitelist lookup
+    const [msaRow] = await db.select({ id: msas.id }).from(msas).where(eq(msas.name, msaName)).limit(1);
 
-    const whitelistOnly = whitelistRows;
+    // ── Whitelist recipients ──────────────────────────────────────────────
+    const whitelistRecipients = msaRow
+      ? await getWhitelistRecipientsForMsa(msaRow.id)
+      : [];
+    // ─────────────────────────────────────────────────────────────────────
 
-    // Unified recipient list: users first, then whitelist-only (no double-send)
-    type Recipient = {
-      email: string;
-      firstName: string;
-      source: "user";
-      userId: string;
-      relationshipManagerId?: string | null;
-    } | {
-      email: string;
-      firstName: string;
-      source: "whitelist";
-      relationshipManagerId: string | null;
-    };
-    const recipients: Recipient[] = [
-      ...uniqueUsers.map((u) => ({
-        email: u.email,
-        firstName: u.firstName ?? "there",
-        source: "user" as const,
-        userId: u.id,
-        relationshipManagerId: undefined as string | null | undefined,
-      })),
-      ...whitelistOnly.map((w) => ({
-        email: w.email ?? "",
-        firstName: "there",
-        source: "whitelist" as const,
-        relationshipManagerId: w.relationshipManagerId ?? null,
-      })),
-    ];
-
-    if (recipients.length === 0) {
+    if (uniqueUsers.length === 0 && whitelistRecipients.length === 0) {
       console.log(`[EMAIL ${msaName}]: No users or whitelist recipients for this MSA`);
       return;
     }
-
-    const recipientUserIds = uniqueUsers.map((u) => u.id);
-
-    // Resolve RM emails for user recipients and whitelist recipients
-    const rmEmailByUserId = await getRmEmailsByUserIds(recipientUserIds);
-    console.log(`[EMAIL ${msaName}]: Found ${rmEmailByUserId.size} recipient(s) with a relationship manager`);
-
-    const whitelistRmIds = Array.from(
-      new Set(whitelistOnly.map((w) => w.relationshipManagerId).filter((id): id is string => Boolean(id)))
-    );
-    const rmEmailByRmId = await getRmEmailsByRmIds(whitelistRmIds);
 
     // Fetch a pool of recent properties (by recording date).
     // Excludes: sold, vacant land, and any property already in sent_property_ids (previously sent or skipped).
@@ -346,22 +292,16 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       return;
     }
 
-    // Build recipient list with pre-resolved RM emails for sendTemplateToUsers
+    // Build recipient list for sendTemplateToUsers
     const firstNameByEmail = new Map<string, string>();
-    const emailRecipients = recipients.map((recipient) => {
-      const rmEmail =
-        recipient.source === "user"
-          ? rmEmailByUserId.get(recipient.userId)
-          : recipient.relationshipManagerId
-            ? rmEmailByRmId.get(recipient.relationshipManagerId)
-            : undefined;
-      firstNameByEmail.set(recipient.email, recipient.firstName);
-      return {
-        email: recipient.email,
-        userId: recipient.source === "user" ? recipient.userId : undefined,
-        rmEmail,
-      };
-    });
+    for (const u of uniqueUsers) {
+      firstNameByEmail.set(u.email, u.firstName ?? "there");
+    }
+
+    const emailRecipients = [
+      ...uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
+      ...whitelistRecipients,
+    ];
 
     const { sent: sentCount, failed: failedRecipients } = await sendTemplateToUsers({
       recipients: emailRecipients,
@@ -385,7 +325,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
       );
     }
 
-    console.log(`[EMAIL ${msaName}]: Sent ${sentCount}/${recipients.length} email(s)${sentCount > 0 ? ", updated sync state" : ""}`);
+    console.log(`[EMAIL ${msaName}]: Sent ${sentCount}/${emailRecipients.length} email(s)${sentCount > 0 ? ", updated sync state" : ""}`);
   } catch (error) {
     console.error(`[EMAIL ${msaName}]: Error -`, error);
     throw error;

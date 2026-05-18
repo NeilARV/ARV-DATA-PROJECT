@@ -40,6 +40,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
             closeOfEscrow: deal.closeOfEscrow
                                ? (() => { const [y, m, d] = deal.closeOfEscrow!.split("-"); return `${m}/${d}/${y}`; })()
                                : undefined,
+            estimatedBudget:   deal.estimatedBudget ?? undefined,
             notes:         deal.notes        ?? "",
         },
     });
@@ -64,6 +65,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                 closeOfEscrow: data.closeOfEscrow
                                    ? (() => { const [m, d, y] = data.closeOfEscrow!.split("/"); return `${y}-${m}-${d}`; })()
                                    : null,
+                estimatedBudget:   data.estimatedBudget ?? null,
                 notes:         data.notes?.trim() || null,
                 links:         links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
             });
