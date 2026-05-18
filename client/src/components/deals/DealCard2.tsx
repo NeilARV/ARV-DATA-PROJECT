@@ -111,7 +111,7 @@ export default function DealCard2({
                 onClick={() => hasExpandableContent && onToggle()}
             >
                 {/* Street view image — full-width banner below 500px, fixed sidebar above */}
-                <div className="h-44 min-[850px]:h-auto w-full min-[850px]:w-56 shrink-0 min-[850px]:self-stretch bg-muted relative">
+                <div className="h-64 min-[850px]:h-auto w-full min-[850px]:w-56 shrink-0 min-[850px]:self-stretch bg-muted relative">
                     {imageLoading ? (
                         <Loader2 className="absolute inset-0 m-auto w-5 h-5 animate-spin text-muted-foreground/40" />
                     ) : imageUrl ? (

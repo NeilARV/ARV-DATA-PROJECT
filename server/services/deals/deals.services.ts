@@ -18,6 +18,18 @@ export class DealServiceError extends Error {
     }
 }
 
+// ── Email helpers ──────────────────────────────────────────────────────────────
+function timeAgoEmail(date: Date): string {
+    const diff = Date.now() - date.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return `${Math.floor(days / 30)}mo ago`;
+}
+
 // ── Deal type display helpers ──────────────────────────────────────────────────
 function getDealTypeMeta(type: "wholesale" | "agent" | "sold"): { label: string; color: string } {
     switch (type) {
@@ -351,15 +363,17 @@ export async function createDeal(input: CreateDealInput) {
     let resolvedPropertyType:  string | null = propertyType ?? null;
 
     if (hasFullAddress) {
-        const sfr = await resolvePropertyDetails(
-            addressStr, city, state, zipCode, label
-        );
-        if (sfr.beds !== null || sfr.baths !== null) {
-            resolvedSfrPropertyId = sfr.sfrPropertyId;
-            resolvedBeds          = sfr.beds;
-            resolvedBaths         = sfr.baths;
-            resolvedSqft          = sfr.sqft;
-            resolvedPropertyType  = sfr.propertyType;
+        try {
+            const sfr = await resolvePropertyDetails(addressStr, city, state, zipCode, label);
+            if (sfr.beds !== null || sfr.baths !== null) {
+                resolvedSfrPropertyId = sfr.sfrPropertyId;
+                resolvedBeds          = sfr.beds;
+                resolvedBaths         = sfr.baths;
+                resolvedSqft          = sfr.sqft;
+                resolvedPropertyType  = sfr.propertyType;
+            }
+        } catch (err) {
+            console.warn(`${label} SFR lookup failed, continuing with user-provided values:`, err instanceof Error ? err.message : err);
         }
     }
 
@@ -518,12 +532,13 @@ export async function sendDealNotification(
                 templateAlias: template,
                 templateModelForRecipient: () => ({
                     // Each block is an object so badge vars are in direct context (no scope chain needed)
-                    image_block:    streetViewUrl ? { url: streetViewUrl, deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
-                    no_image_block: !streetViewUrl ? { deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
+                    image_block:      streetViewUrl ? { url: streetViewUrl, deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
+                    no_image_block:   !streetViewUrl ? { deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
                     address:          deal.address || "Undisclosed Address",
                     city:             deal.city    ?? "",
                     state:            deal.state   ?? "",
                     zipcode:          deal.zipCode ?? "",
+                    time_ago:         timeAgoEmail(deal.createdAt),
                     specs_line:       specsLine,
                     price:            price,
                     potential_arv:    potentialARV,
@@ -535,7 +550,7 @@ export async function sendDealNotification(
                     cta_url:          "https://data.arvfinance.com/",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
-                    is_sold:           isSold,
+                    is_sold:          isSold,
                 }),
                 logPrefix: label,
             });
@@ -608,12 +623,16 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     let resolvedPropertyType: string | null = propertyType ?? null;
 
     if (incomingFullAddress) {
-        const sfr = await resolvePropertyDetails(incomingAddress!, mergedCity, mergedState, mergedZip, label);
-        if (sfr.beds !== null || sfr.baths !== null) {
-            resolvedBeds         = sfr.beds;
-            resolvedBaths        = sfr.baths;
-            resolvedSqft         = sfr.sqft;
-            resolvedPropertyType = sfr.propertyType;
+        try {
+            const sfr = await resolvePropertyDetails(incomingAddress!, mergedCity, mergedState, mergedZip, label);
+            if (sfr.beds !== null || sfr.baths !== null) {
+                resolvedBeds         = sfr.beds;
+                resolvedBaths        = sfr.baths;
+                resolvedSqft         = sfr.sqft;
+                resolvedPropertyType = sfr.propertyType;
+            }
+        } catch (err) {
+            console.warn(`${label} SFR lookup failed, continuing with user-provided values:`, err instanceof Error ? err.message : err);
         }
     }
 

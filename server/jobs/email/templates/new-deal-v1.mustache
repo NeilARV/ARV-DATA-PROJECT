@@ -37,11 +37,10 @@
                 <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e6; border-radius:6px; overflow:hidden;">
                   <tr>
 
-                    <!-- Left: Image column — background fills any space below the 200px image -->
+                    <!-- Left: Image column -->
                     <td width="200" valign="top" style="width:200px; min-width:200px; vertical-align:top; background-color:#e8edf0;">
 
                       {{#image_block}}
-                      <!-- Street view image with badge overlay -->
                       <!--[if gte mso 9]>
                       <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;" src="{{url}}" />
                       <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:200px;height:200px;">
@@ -52,7 +51,7 @@
                         <tr>
                           <td height="200" valign="top" style="padding:10px;">
                             <span style="display:inline-block; background-color:{{deal_type_color}}; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; white-space:nowrap;">
-                              {{deal_type_label}} Deal
+                              {{deal_type_label}}
                             </span>
                           </td>
                         </tr>
@@ -64,7 +63,6 @@
                       {{/image_block}}
 
                       {{#no_image_block}}
-                      <!-- Placeholder when no image -->
                       <table width="200" cellpadding="0" cellspacing="0" style="background-color:#e8edf0; width:200px;" role="presentation">
                         <tr>
                           <td height="200" valign="top" style="padding:10px;">
@@ -81,30 +79,32 @@
                     <!-- Right: Property details -->
                     <td valign="top" style="padding:16px 18px; vertical-align:top;">
 
-                      <!-- Address -->
-                      <p style="margin:0; font-size:15px; font-weight:700; color:#1a1a1a; line-height:1.3;">
-                        {{address}}
-                      </p>
-                      <p style="margin:3px 0 0; font-size:13px; color:#777777;">
-                        {{city}}, {{state}} {{zipcode}}
-                      </p>
+                      <!-- Address row with time ago -->
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="vertical-align:top;">
+                            <p style="margin:0; font-size:15px; font-weight:700; color:#1a1a1a; line-height:1.3;">{{address}}</p>
+                          </td>
+                          <td align="right" style="vertical-align:top; white-space:nowrap; padding-left:8px;">
+                            <p style="margin:0; font-size:11px; color:#aaaaaa;">{{time_ago}}</p>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- City / State / Zip -->
+                      <p style="margin:3px 0 0; font-size:13px; color:#777777;">{{city}}, {{state}} {{zipcode}}</p>
 
                       <!-- Beds / Baths / Sqft -->
                       {{#specs_line}}
-                      <p style="margin:12px 0 0; font-size:13px; color:#333333;">{{.}}</p>
+                      <p style="margin:10px 0 0; font-size:13px; color:#333333;">{{.}}</p>
                       {{/specs_line}}
 
-                      <!-- Property Type -->
-                      {{#property_type}}
-                      <p style="margin:4px 0 0; font-size:13px; color:#999999;">{{.}}</p>
-                      {{/property_type}}
-
-                      <!-- Financial details -->
-                      <table cellpadding="0" cellspacing="0" style="margin-top:12px;">
+                      <!-- Financial details — 2×2 grid -->
+                      <table cellpadding="0" cellspacing="0" style="margin-top:14px; width:100%;">
                         <tr valign="top">
 
-                          <!-- Sold / Purchase Price -->
-                          <td style="padding-right:16px;">
+                          <!-- Purchase Price -->
+                          <td style="padding-right:16px; padding-bottom:12px; width:50%;">
                             <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
                               {{^is_sold}}Purchase Price{{/is_sold}}{{#is_sold}}Sold Price{{/is_sold}}
                             </p>
@@ -112,35 +112,46 @@
                               <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
                             {{/price}}
                             {{^price}}
-                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">-</p>
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#999999; white-space:nowrap;">—</p>
                             {{/price}}
                           </td>
 
                           <!-- Potential ARV -->
-                          <td style="padding-right:16px;">
-                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
-                              Potential ARV
-                            </p>
+                          <td style="padding-right:8px; padding-bottom:12px; width:50%;">
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Potential ARV</p>
                             {{#potential_arv}}
                               <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#2e7d32; white-space:nowrap;">${{.}}</p>
                             {{/potential_arv}}
                             {{^potential_arv}}
-                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">-</p>
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#999999; white-space:nowrap;">—</p>
                             {{/potential_arv}}
                           </td>
 
-                          <!-- Close of Escrow -->
-                          <td style="padding-right:16px;">
-                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">
-                              Close of Escrow
-                            </p>
-                            {{#close_of_escrow}}
+                        </tr>
+                        <tr valign="top">
+
+                          <!-- Est. Budget -->
+                          <td style="padding-right:16px; width:50%;">
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Est. Budget</p>
+                            {{#estimated_budget}}
                               <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">${{.}}</p>
+                            {{/estimated_budget}}
+                            {{^estimated_budget}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#999999; white-space:nowrap;">—</p>
+                            {{/estimated_budget}}
+                          </td>
+
+                          <!-- Close of Escrow -->
+                          <td style="padding-right:8px; width:50%;">
+                            <p style="margin:0; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Close of Escrow</p>
+                            {{#close_of_escrow}}
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">{{.}}</p>
                             {{/close_of_escrow}}
                             {{^close_of_escrow}}
-                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#1a1a1a; white-space:nowrap;">-</p>
+                              <p style="margin:2px 0 0; font-size:15px; font-weight:700; color:#999999; white-space:nowrap;">—</p>
                             {{/close_of_escrow}}
                           </td>
+
                         </tr>
                       </table>
 
@@ -179,7 +190,7 @@
             <tr>
               <td style="padding:16px; text-align:center; color:#999; font-size:12px; border-top:1px solid #eeeeee;">
                 You're receiving this email because you subscribed to deal alerts.<br />
-                © {{year}} {{company_name}}
+                &#169; {{year}} {{company_name}}
               </td>
             </tr>
 
