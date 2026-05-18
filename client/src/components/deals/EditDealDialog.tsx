@@ -22,6 +22,7 @@ type EditDealDialogProps = {
 export default function EditDealDialog({ deal, open, onClose }: EditDealDialogProps) {
     const { toast } = useToast();
     const [links, setLinks] = useState<string[]>(deal.links ?? []);
+    const [photosUrl, setPhotosUrl] = useState(deal.photosUrl ?? "");
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealFormSchema),
@@ -67,6 +68,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                    : null,
                 estimatedBudget:   data.estimatedBudget ?? null,
                 notes:         data.notes?.trim() || null,
+                photosUrl:     photosUrl.trim() || null,
                 links:         links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
             });
             return res.json();
@@ -103,6 +105,8 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         hasFullAddress={hasFullAddress}
                         links={links}
                         onLinksChange={setLinks}
+                        photosUrl={photosUrl}
+                        onPhotosUrlChange={setPhotosUrl}
                     />
 
                     <div className="flex gap-2 pt-2">

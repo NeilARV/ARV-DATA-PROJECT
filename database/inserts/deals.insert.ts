@@ -29,6 +29,10 @@ export const dealFormSchema = z
                          z.coerce.number({ invalid_type_error: "Estimated budget must be a number" }).int().positive("Estimated budget must be greater than 0").optional()
                        ),
     sendNotifications: z.boolean().default(true),
+    photosUrl:         z.preprocess(
+                         (v) => (v === "" || v == null ? undefined : v),
+                         z.string().url("Please enter a valid URL").optional()
+                       ),
   })
   .superRefine((data, ctx) => {
     const hasFullAddress =

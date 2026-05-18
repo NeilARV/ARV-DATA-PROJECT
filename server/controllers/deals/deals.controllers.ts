@@ -41,7 +41,7 @@ export async function createDealController(req: Request, res: Response): Promise
             address, city, state, zipCode,
             userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
-            notes, sendNotifications, links,
+            notes, photosUrl, sendNotifications, links,
         } = req.body;
 
         // Input validation (format, not business logic)
@@ -69,7 +69,7 @@ export async function createDealController(req: Request, res: Response): Promise
             address, city, state, zipCode,
             userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
-            notes, sendNotifications, links,
+            notes, photosUrl, sendNotifications, links,
         });
 
         res.status(201).json({ message: "Deal posted successfully", deal });
@@ -100,14 +100,14 @@ export async function updateDealController(req: Request, res: Response): Promise
             address, city, state, zipCode,
             dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
-            notes, links,
+            notes, photosUrl, links,
         } = req.body;
 
         const updated = await updateDeal(id, callerId, {
             address, city, state, zipCode,
             dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
-            notes, links,
+            notes, photosUrl, links,
         });
 
         const { previousType, ...dealForResponse } = updated;

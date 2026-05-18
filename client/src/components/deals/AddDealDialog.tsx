@@ -27,6 +27,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
     const { user } = useAuth();
     const [showContact, setShowContact] = useState(false);
     const [links, setLinks] = useState<string[]>([]);
+    const [photosUrl, setPhotosUrl] = useState("");
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealFormSchema),
@@ -72,6 +73,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 sqft:              data.sqft,
                 propertyType:      data.propertyType,
                 notes:             data.notes?.trim() || undefined,
+                photosUrl:         photosUrl.trim() || undefined,
                 sendNotifications: data.sendNotifications,
                 links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
             });
@@ -82,6 +84,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
             queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
             form.reset();
             setLinks([]);
+            setPhotosUrl("");
             onClose();
         },
         onError: (err: any) => {
@@ -107,6 +110,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
         if (postDeal.isPending) return;
         form.reset();
         setLinks([]);
+        setPhotosUrl("");
         onClose();
     };
 
@@ -128,6 +132,8 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                             hasFullAddress={hasFullAddress}
                             links={links}
                             onLinksChange={setLinks}
+                            photosUrl={photosUrl}
+                            onPhotosUrlChange={setPhotosUrl}
                         />
 
                         <FormField

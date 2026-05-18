@@ -33,6 +33,7 @@ export const deals = pgTable("deals", {
   notes:        text("notes"),
   closeOfEscrow:    date("close_of_escrow"),
   estimatedBudget:  integer("estimated_budget"),
+  photosUrl:        text("photos_url"),
 });
 
 export const dealLinks = pgTable(

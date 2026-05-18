@@ -18,6 +18,7 @@ import {
     Pencil,
     Trophy,
     ExternalLink,
+    Images,
     User,
     ChevronDown,
     ChevronUp,
@@ -98,7 +99,7 @@ export default function DealCard2({
     const sqft            = deal.sqft             ? Number(deal.sqft)             : null;
 
     const typeStyle            = DEAL_TYPE_STYLES[deal.dealType] ?? DEAL_TYPE_STYLES.agent;
-    const hasExpandableContent = !!(deal.notes || (deal.links && deal.links.length > 0) || canRequestContact || isOwner);
+    const hasExpandableContent = !!(deal.notes || deal.photosUrl || (deal.links && deal.links.length > 0) || canRequestContact || isOwner);
 
     return (
         <div className={`rounded-xl border bg-card overflow-hidden flex flex-col transition-colors ${
@@ -265,6 +266,20 @@ export default function DealCard2({
                         <div>
                             <p className="text-xs text-muted-foreground mb-1">Notes</p>
                             <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
+                        </div>
+                    )}
+                    {deal.photosUrl && (
+                        <div>
+                            <p className="text-xs text-muted-foreground mb-1.5">Photos</p>
+                            <a
+                                href={deal.photosUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md border border-border bg-muted hover:bg-accent transition-colors"
+                            >
+                                <Images className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                View Photos
+                            </a>
                         </div>
                     )}
                     {deal.links && deal.links.length > 0 && (

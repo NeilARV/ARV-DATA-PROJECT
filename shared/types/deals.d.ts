@@ -20,6 +20,7 @@ type Deal = DealProperty & {
     userId: string;
     topBuyers: TopBuyer[];
     links: { url: string; domain: string }[];
+    photosUrl?: string | null;
 
     // Fields that may be null in the database
     sfrPropertyId?: number | null;
@@ -42,6 +43,7 @@ type DealProperty = {
     sqft?: number;
     propertyType?: string;
     notes?: string;
+    photosUrl?: string | null;
 }
 
 type DealToEdit = DealProperty & {

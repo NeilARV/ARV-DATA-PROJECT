@@ -58,6 +58,8 @@ type DealFormFieldsProps = {
     hasFullAddress: boolean;
     links: string[];
     onLinksChange: (links: string[]) => void;
+    photosUrl: string;
+    onPhotosUrlChange: (url: string) => void;
 };
 
 export default function DealFormFields({
@@ -66,6 +68,8 @@ export default function DealFormFields({
     hasFullAddress,
     links,
     onLinksChange,
+    photosUrl,
+    onPhotosUrlChange,
 }: DealFormFieldsProps) {
     return (
         <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
@@ -355,6 +359,21 @@ export default function DealFormFields({
                     </FormItem>
                 )}
             />
+
+            <div className="space-y-2">
+                <label className="text-sm font-medium leading-none">
+                    Photo Album URL <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Input
+                    value={photosUrl}
+                    onChange={(e) => onPhotosUrlChange(e.target.value)}
+                    placeholder="https://photos.example.com/album"
+                    className={photosUrl.length > 0 && !isValidUrl(photosUrl) ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {photosUrl.length > 0 && !isValidUrl(photosUrl) && (
+                    <p className="text-xs text-destructive">Please enter a valid URL</p>
+                )}
+            </div>
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
