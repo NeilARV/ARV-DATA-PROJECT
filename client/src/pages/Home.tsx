@@ -5,7 +5,6 @@ import CompanyDirectory from "@/components/CompanyDirectory";
 import PropertyMap from "@/components/property/PropertyMap";
 import GridView from "@/components/views/GridView";
 import TableView from "@/components/views/TableView";
-import DealView from "@/components/views/DealView";
 import PropertyDetailPanel from "@/components/property/PropertyDetailPanel";
 import PropertyModalContent from "@/components/property/PropertyModal";
 import AppDialog from "@/components/modals/Dialog";
@@ -85,9 +84,7 @@ function HomeContent() {
 
         {/* [row 2, col 2] Content views */}
         <div className="overflow-hidden flex min-h-0">
-          {view === "deals" ? (
-            <DealView />
-          ) : view === "map" ? (
+          {view === "map" ? (
             <>
               <PropertyDetailPanel />
               <div className="flex-1">
