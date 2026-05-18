@@ -17,7 +17,7 @@ export default function DealsColumn({
     borderRight = false,
 }: DealsColumnProps) {
     return (
-        <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${borderRight ? "border-r border-border" : ""}`}>
+        <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${borderRight ? "2xl:border-r border-border" : ""}`}>
             {/* Independently scrolling body */}
             <div className="flex-1 overflow-y-auto p-6 min-h-0">
                 <h3 className="text-base font-semibold text-foreground mb-4">

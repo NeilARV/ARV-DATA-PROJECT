@@ -107,18 +107,18 @@ export default function DealCard2({
 
             {/* ── Main body — click anywhere to expand ─────────────────────── */}
             <div
-                className={hasExpandableContent ? "flex cursor-pointer select-none" : "flex"}
+                className={hasExpandableContent ? "flex flex-col min-[850px]:flex-row cursor-pointer select-none" : "flex flex-col min-[850px]:flex-row"}
                 onClick={() => hasExpandableContent && onToggle()}
             >
-                {/* Street view image — fixed width, stretches to card height */}
-                <div className="w-56 shrink-0 self-stretch bg-muted relative overflow-hidden">
+                {/* Street view image — full-width banner below 500px, fixed sidebar above */}
+                <div className="h-44 min-[850px]:h-auto w-full min-[850px]:w-56 shrink-0 min-[850px]:self-stretch bg-muted relative">
                     {imageLoading ? (
                         <Loader2 className="absolute inset-0 m-auto w-5 h-5 animate-spin text-muted-foreground/40" />
                     ) : imageUrl ? (
                         <img
                             src={imageUrl}
                             alt={deal.address ?? ""}
-                            className="absolute inset-0 w-full h-full object-cover"
+                            className="absolute inset-0 w-full h-full object-cover block"
                         />
                     ) : (
                         <Handshake className="absolute inset-0 m-auto w-8 h-8 text-muted-foreground/30" />
@@ -133,7 +133,7 @@ export default function DealCard2({
                 </div>
 
                 {/* ── Right content ─────────────────────────────────────────── */}
-                <div className="flex-1 min-w-0 px-5 pt-4 pb-2 flex flex-col gap-3">
+                <div className="flex-1 min-w-0 px-4 min-[850px]:px-5 pt-4 pb-2 flex flex-col gap-3">
 
                     {/* Address row + time ago + 3-dot menu */}
                     <div className="flex items-start justify-between gap-2">
@@ -147,7 +147,7 @@ export default function DealCard2({
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
                             {canRequestContact && (
-                                <Button variant="outline" size="sm" onClick={onRequestInfo} className="gap-1.5 mr-1.5">
+                                <Button variant="outline" size="sm" onClick={onRequestInfo} className="hidden min-[850px]:inline-flex gap-1.5 mr-1.5">
                                     <Phone className="w-3.5 h-3.5" />
                                     Request More Info
                                 </Button>
@@ -214,9 +214,8 @@ export default function DealCard2({
                         </div>
                     )}
 
-                    {/* Financials — 2×2 grid */}
-
-                    <div className="grid grid-cols-3 gap-x-6 gap-y-3 w-3/4">
+                    {/* Financials */}
+                    <div className="grid grid-cols-2 min-[850px]:grid-cols-3 gap-x-6 gap-y-3 w-full min-[850px]:w-3/4">
                         <div className="flex flex-col">
                             <span className="text-xs lg:text-sm text-muted-foreground">Purchase Price</span>
                             {price !== null && price > 0
@@ -232,16 +231,16 @@ export default function DealCard2({
                             }
                         </div>
                         <div className="flex flex-col">
-                            <span className="deal-card-label">Close of Escrow</span>
-                            {closeOfEscrow
-                                ? <span className="text-lg font-bold text-foreground">{formatEscrowDate(closeOfEscrow)}</span>
+                            <span className="deal-card-label">Est. Budget</span>
+                            {estimatedBudget !== null && estimatedBudget > 0
+                                ? <span className="text-lg font-bold text-foreground">${estimatedBudget.toLocaleString()}</span>
                                 : <span className="text-lg font-bold text-muted-foreground">—</span>
                             }
                         </div>
                         <div className="flex flex-col">
-                            <span className="deal-card-label">Est. Budget</span>
-                            {estimatedBudget !== null && estimatedBudget > 0
-                                ? <span className="text-lg font-bold text-foreground">${estimatedBudget.toLocaleString()}</span>
+                            <span className="deal-card-label">Close of Escrow</span>
+                            {closeOfEscrow
+                                ? <span className="text-lg font-bold text-foreground">{formatEscrowDate(closeOfEscrow)}</span>
                                 : <span className="text-lg font-bold text-muted-foreground">—</span>
                             }
                         </div>
@@ -288,7 +287,16 @@ export default function DealCard2({
                         </div>
                     )}
                     {(canRequestContact || isOwner) && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3 flex-wrap">
+                            {canRequestContact && (
+                                <div className="min-[850px]:hidden">
+                                    <p className="text-xs text-muted-foreground mb-1.5">Contact</p>
+                                    <Button variant="outline" size="sm" onClick={onRequestInfo} className="gap-1.5">
+                                        <Phone className="w-3.5 h-3.5" />
+                                        Request More Info
+                                    </Button>
+                                </div>
+                            )}
                             {isOwner && (
                                 <div>
                                     <p className="text-xs text-muted-foreground mb-1.5">Actions</p>
