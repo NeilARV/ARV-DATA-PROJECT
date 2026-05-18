@@ -1,4 +1,5 @@
-import DealCard from "@/components/deals/DealCard";
+import { useState } from "react";
+import DealCard from "@/components/deals/DealCard2";
 import DealsColumn from "@/components/deals/DealsColumn";
 
 type DealsGridProps = {
@@ -28,6 +29,12 @@ export default function DealsGrid({
     onRequestInfo,
     onTopBuyers,
 }: DealsGridProps) {
+    const [selectedDealId, setSelectedDealId] = useState<number | null>(null);
+
+    const handleToggle = (dealId: number) => {
+        setSelectedDealId((prev) => (prev === dealId ? null : dealId));
+    };
+
     const renderCard = (deal: Deal) => {
         const isOwnerOfDeal = canAccessApp && userId === deal.userId;
         const isOwnerOfDealForTopBuyers = userId === deal.userId;
@@ -40,6 +47,8 @@ export default function DealsGrid({
                 canRequestContact={canManageDeals || !isOwnerOfDeal}
                 isOwner={isOwnerOfDealForTopBuyers}
                 canViewPoster={isAdmin || isOwner}
+                expanded={selectedDealId === deal.id}
+                onToggle={() => handleToggle(deal.id)}
                 onDelete={() => onDelete(deal)}
                 onEdit={() => onEdit(deal)}
                 onRequestInfo={() => onRequestInfo(deal)}

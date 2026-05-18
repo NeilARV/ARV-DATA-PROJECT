@@ -1,6 +1,9 @@
+@import "./styles/components.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 
 /* LIGHT MODE */
 :root {

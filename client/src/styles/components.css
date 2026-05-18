@@ -1,0 +1,5 @@
+@layer components {
+  .deal-card-label {
+    @apply text-xs lg:text-sm text-muted-foreground;
+  }
+}
