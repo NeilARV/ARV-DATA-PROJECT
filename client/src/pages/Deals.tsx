@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import { MapProvider } from "@/hooks/useMap";
@@ -7,11 +7,18 @@ import { CompaniesProvider } from "@/hooks/useCompanies";
 import { PropertiesProvider } from "@/hooks/useProperties";
 import { PropertyProvider } from "@/hooks/useProperty";
 import { useAuth } from "@/hooks/use-auth";
+import { useDialogs } from "@/hooks/useDialogs";
 import DealsPageContent from "@/components/deals/DealsPageContent";
 
 function DealsInner() {
-    const [, setLocation] = useLocation();
     const { isLoading, isAuthenticated } = useAuth();
+    const { openDialog } = useDialogs();
+
+    useEffect(() => {
+        if (!isLoading && !isAuthenticated) {
+            openDialog({ type: "login", forced: false });
+        }
+    }, [isLoading, isAuthenticated]);
 
     if (isLoading) {
         return (
@@ -19,11 +26,6 @@ function DealsInner() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
         );
-    }
-
-    if (!isAuthenticated) {
-        setLocation("/");
-        return null;
     }
 
     return (
