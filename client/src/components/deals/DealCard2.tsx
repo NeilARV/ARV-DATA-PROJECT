@@ -142,14 +142,14 @@ export default function DealCard2({
                             <p className="font-semibold text-base leading-tight truncate text-foreground">
                                 {formatAddress(deal.address) ?? "Undisclosed Address"}
                             </p>
-                            <p className="text-sm text-muted-foreground truncate mt-0.5">
+                            <p className="deal-card-address mt-0.5">
                                 {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
                             </p>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
                             {canRequestContact && (
                                 <div onClick={(e) => e.stopPropagation()}>
-                                    <Button variant="outline" size="base" onClick={onRequestInfo} className="hidden min-[850px]:inline-flex gap-1.5 mr-1.5">
+                                    <Button variant="default" size="base" onClick={onRequestInfo} className="hidden min-[850px]:inline-flex gap-1.5 mr-1.5">
                                         <Phone className="deal-card-sub-icon" />
                                         Request More Info
                                     </Button>

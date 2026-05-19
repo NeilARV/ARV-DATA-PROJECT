@@ -536,7 +536,7 @@ export async function sendDealNotification(
                     property_type:    deal.propertyType ?? null,
                     notes:            deal.notes ?? null,
                     county:           county,
-                    cta_url:          "https://data.arvfinance.com/",
+                    cta_url:          "https://data.arvfinance.com/deals",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
                     is_sold:          isSold,
