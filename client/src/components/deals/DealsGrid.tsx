@@ -50,7 +50,7 @@ export default function DealsGrid({
                 deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
                 canDelete={canManageDeals || isOwnerOfDeal}
                 canEdit={userId === deal.userId || isAdmin || isOwner}
-                canRequestContact={deal.dealType === "sold" || canManageDeals || !isOwnerOfDeal}
+                canRequestContact={deal.dealType !== "sold" && !isOwnerOfDeal}
                 isOwner={isOwnerOfDealForTopBuyers}
                 canViewPoster={isAdmin || isOwner}
                 expanded={selectedDealId === deal.id}
