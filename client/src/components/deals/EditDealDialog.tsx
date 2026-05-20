@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
-import { Form } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { dealFormSchema } from "@database/inserts/deals.insert";
@@ -43,6 +44,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                : undefined,
             estimatedBudget:   deal.estimatedBudget ?? undefined,
             notes:         deal.notes        ?? "",
+            sendNotifications: false,
         },
     });
 
@@ -69,7 +71,8 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                 estimatedBudget:   data.estimatedBudget ?? null,
                 notes:         data.notes?.trim() || null,
                 photosUrl:     photosUrl.trim() || null,
-                links:         links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
+                links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
+                sendNotifications: data.sendNotifications,
             });
             return res.json();
         },
@@ -107,6 +110,21 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         onLinksChange={setLinks}
                         photosUrl={photosUrl}
                         onPhotosUrlChange={setPhotosUrl}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name="sendNotifications"
+                        render={({ field }) => (
+                            <FormItem className="flex items-center gap-2 space-y-0">
+                                <FormControl>
+                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                                <FormLabel className="font-normal cursor-pointer">
+                                    Send notification email
+                                </FormLabel>
+                            </FormItem>
+                        )}
                     />
 
                     <div className="flex gap-2 pt-2">

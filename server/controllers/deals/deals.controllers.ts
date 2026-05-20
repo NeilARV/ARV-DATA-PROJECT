@@ -75,7 +75,7 @@ export async function createDealController(req: Request, res: Response): Promise
         res.status(201).json({ message: "Deal posted successfully", deal });
 
         // Fire-and-forget notification after response is sent
-        sendDealNotification(deal, msaId, userId, sendNotifications === true);
+        sendDealNotification(deal, msaId, userId, sendNotifications === true, "new");
     } catch (err) {
         handleServiceError(res, err, "Error posting deal");
     }
@@ -100,7 +100,7 @@ export async function updateDealController(req: Request, res: Response): Promise
             address, city, state, zipCode,
             dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
-            notes, photosUrl, links,
+            notes, photosUrl, links, sendNotifications,
         } = req.body;
 
         const updated = await updateDeal(id, callerId, {
@@ -110,12 +110,18 @@ export async function updateDealController(req: Request, res: Response): Promise
             notes, photosUrl, links,
         });
 
-        const { previousType, ...dealForResponse } = updated;
+        const { previousType, previousPrice, ...dealForResponse } = updated;
         res.json({ message: "Deal updated successfully", deal: dealForResponse });
 
-        // Fire-and-forget: notify subscribers when a deal transitions to sold
+        // Fire-and-forget: sold transition takes priority; otherwise notify on price change
         if (previousType !== "sold" && updated.type === "sold" && updated.msaId) {
-            sendDealNotification(updated, updated.msaId, callerId, true, true);
+            sendDealNotification(updated, updated.msaId, callerId, sendNotifications === true, "sold");
+        } else if (
+            price !== undefined &&
+            updated.msaId &&
+            String(previousPrice ?? "") !== String(updated.price ?? "")
+        ) {
+            sendDealNotification(updated, updated.msaId, callerId, sendNotifications === true, "price_update", previousPrice);
         }
     } catch (err) {
         handleServiceError(res, err, "Error updating deal");

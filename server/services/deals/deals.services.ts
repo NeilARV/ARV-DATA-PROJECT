@@ -427,7 +427,8 @@ export async function sendDealNotification(
     msaId: number,
     posterUserId: string,
     sendNotifications: boolean,
-    isSold: boolean = false,
+    notificationType: "new" | "sold" | "price_update" = "new",
+    previousPrice?: string | null,
 ): Promise<void> {
     const label = "[dealsService.sendDealNotification]";
     try {
@@ -452,7 +453,11 @@ export async function sendDealNotification(
             return true;
         });
 
-        const template = process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
+        const template = notificationType === "sold"
+            ? process.env.POSTMARK_DEAL_SOLD_TEMPLATE_ALIAS
+            : notificationType === "price_update"
+            ? process.env.POSTMARK_DEAL_UPDATED_TEMPLATE_ALIAS
+            : process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
         // TEMP OVERRIDE — notifications disabled until ready to enable
         const shouldNotify = sendNotifications === true && !!template
 
@@ -530,6 +535,7 @@ export async function sendDealNotification(
                     zipcode:          deal.zipCode ?? "",
                     specs_line:       specsLine,
                     price:            price,
+                    previous_price:   previousPrice ? Number(previousPrice).toLocaleString("en-US") : null,
                     potential_arv:    potentialARV,
                     close_of_escrow:  closeOfEscrow,
                     estimated_budget: estimatedBudget,
@@ -539,7 +545,6 @@ export async function sendDealNotification(
                     cta_url:          "https://data.arvfinance.com/deals",
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
-                    is_sold:          isSold,
                 }),
                 logPrefix: label,
             });
@@ -583,7 +588,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     }
 
     const [current] = await db
-        .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode, type: deals.type })
+        .select({ city: deals.city, state: deals.state, zipCode: deals.zipCode, type: deals.type, price: deals.price })
         .from(deals)
         .where(eq(deals.id, id))
         .limit(1);
@@ -663,7 +668,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     }
 
     console.log(`${label} Deal updated: id=${id}`);
-    return { ...updated, links: validLinks, previousType: current.type };
+    return { ...updated, links: validLinks, previousType: current.type, previousPrice: current.price };
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────
