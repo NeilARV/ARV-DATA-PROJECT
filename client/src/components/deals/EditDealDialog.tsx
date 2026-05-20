@@ -44,7 +44,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                : undefined,
             estimatedBudget:   deal.estimatedBudget ?? undefined,
             notes:         deal.notes        ?? "",
-            sendNotifications: false,
+            sendNotifications: true,
         },
     });
 
