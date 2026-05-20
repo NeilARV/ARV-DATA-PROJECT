@@ -24,6 +24,6 @@
   }
 
   .deal-card-address {
-    @apply text-sm text-gray-300/80 truncate;
+    @apply text-sm lg:text-base text-gray-300/80 truncate;
   }
 }

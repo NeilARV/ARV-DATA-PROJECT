@@ -138,7 +138,7 @@ export default function DealCard2({
                     {/* Address row + time ago + 3-dot menu */}
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <p className="font-semibold text-base leading-tight truncate text-foreground">
+                            <p className="font-semibold text-base lg:text-lg leading-tight truncate text-foreground">
                                 {formatAddress(deal.address) ?? "Undisclosed Address"}
                             </p>
                             <p className="deal-card-address mt-0.5">
