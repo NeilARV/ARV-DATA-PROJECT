@@ -2,6 +2,20 @@ import { z } from "zod";
 
 const SUBSCRIPTION_TIERS = ["basic", "pro", "premium"] as const;
 
+const DATA_APP_STATUS_VALUES = ["in-renovation", "on-market", "wholesale", "sold"] as const;
+const DEAL_TYPE_VALUES = ["wholesale", "agent", "sold"] as const;
+
+export const updateNotificationPreferencesSchema = z.object({
+    dataAppEnabled: z.boolean().optional(),
+    dealNotificationsEnabled: z.boolean().optional(),
+    vendorNotificationsEnabled: z.boolean().optional(),
+    analyticsEnabled: z.boolean().optional(),
+    dataAppStatusFilter: z.array(z.enum(DATA_APP_STATUS_VALUES)).optional(),
+    dealTypeFilter: z.array(z.enum(DEAL_TYPE_VALUES)).optional(),
+}).strict();
+
+export type UpdateNotificationPreferences = z.infer<typeof updateNotificationPreferencesSchema>;
+
 export const adminPatchUserSchema = z.object({
   subscriptionTier: z.enum(SUBSCRIPTION_TIERS).nullable().optional(),
   accountTypes: z.array(z.string().min(1)).optional(),

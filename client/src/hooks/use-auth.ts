@@ -10,6 +10,21 @@ export interface RelationshipManager {
   phone: string | null;
 }
 
+export type DataAppStatus = "in-renovation" | "on-market" | "wholesale" | "sold";
+export type DealTypeFilter = "wholesale" | "agent" | "sold";
+
+export interface NotificationPreferences {
+  userId: string;
+  dataAppEnabled: boolean;
+  dealNotificationsEnabled: boolean;
+  vendorNotificationsEnabled: boolean;
+  analyticsEnabled: boolean;
+  dataAppStatusFilter: DataAppStatus[];
+  dealTypeFilter: DealTypeFilter[];
+  createdAt: string;
+  updatedAt: string | null;
+}
+
 export interface AuthUser {
   id: string;
   firstName: string;
@@ -23,6 +38,7 @@ export interface AuthUser {
   state?: string | null;
   msaSubscriptions?: string[];
   relationshipManager?: RelationshipManager | null;
+  notificationPreferences?: NotificationPreferences | null;
 }
 
 /** Admin status from GET /api/admin/status (role-based: admin, owner, or relationship-manager can access panel). */

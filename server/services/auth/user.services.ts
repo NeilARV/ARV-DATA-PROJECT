@@ -1,7 +1,8 @@
-import { users, userRelationshipManagers, userRoles, roles } from "@database/schemas/users.schema";
+import { users, userRelationshipManagers, userRoles, roles, userNotificationPreferences } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
 import { eq, sql, inArray, and } from "drizzle-orm";
+import type { UpdateNotificationPreferences } from "@database/updates";
 import bcrypt from "bcrypt";
 
 
@@ -208,4 +209,37 @@ export async function getUserMsaSubscriptionNames(userId: string): Promise<strin
         .innerJoin(msas, eq(userMsaSubscriptions.msaId, msas.id))
         .where(eq(userMsaSubscriptions.userId, userId));
     return rows.map((r) => r.name);
+}
+
+/**
+ * Returns the user's notification preferences row, or null if none exists yet.
+ */
+export async function getUserNotificationPreferences(userId: string) {
+    const [prefs] = await db
+        .select()
+        .from(userNotificationPreferences)
+        .where(eq(userNotificationPreferences.userId, userId))
+        .limit(1);
+    return prefs ?? null;
+}
+
+/**
+ * Creates or updates the user's notification preferences row (upsert).
+ */
+export async function upsertUserNotificationPreferences(userId: string, data: UpdateNotificationPreferences) {
+    const [result] = await db
+        .insert(userNotificationPreferences)
+        .values({
+            userId,
+            ...data,
+        })
+        .onConflictDoUpdate({
+            target: userNotificationPreferences.userId,
+            set: {
+                ...data,
+                updatedAt: sql`now()`,
+            },
+        })
+        .returning();
+    return result;
 }

@@ -100,6 +100,30 @@ export const userAccountTypes = pgTable("user_account_types", {
   (t) => [primaryKey({ columns: [t.userId, t.accountTypeId] })]
 );
 
+// Per-user notification preferences (one row per user; created on first save)
+export const userNotificationPreferences = pgTable("user_notification_preferences", {
+    userId: uuid("user_id")
+        .primaryKey()
+        .references(() => users.id, { onDelete: "cascade" }),
+
+    // Per-app toggles
+    dataAppEnabled: boolean("data_app_enabled").notNull().default(true),
+    dealNotificationsEnabled: boolean("deal_notifications_enabled").notNull().default(true),
+    vendorNotificationsEnabled: boolean("vendor_notifications_enabled").notNull().default(false),
+    analyticsEnabled: boolean("analytics_enabled").notNull().default(false),
+
+    // Data App: which property statuses to include ('in-renovation' | 'on-market' | 'wholesale' | 'sold')
+    // Empty array = all statuses
+    dataAppStatusFilter: text("data_app_status_filter").array().notNull().default([]),
+
+    // Deals: which deal types to receive ('wholesale' | 'agent' | 'sold')
+    // Empty array = all types
+    dealTypeFilter: text("deal_type_filter").array().notNull().default([]),
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // User–relationship manager assignment (many-to-many)
 export const userRelationshipManagers = pgTable("user_relationship_managers", {
     userId: uuid("user_id")

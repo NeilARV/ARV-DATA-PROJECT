@@ -1,0 +1,393 @@
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Edit, Save, X } from "lucide-react";
+import { MSA } from "@/constants/filters.constants";
+import type { AuthUser, NotificationPreferences, DataAppStatus, DealTypeFilter } from "@/hooks/use-auth";
+
+const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "updatedAt"> = {
+    dataAppEnabled: true,
+    dealNotificationsEnabled: true,
+    vendorNotificationsEnabled: false,
+    analyticsEnabled: false,
+    dataAppStatusFilter: [],
+    dealTypeFilter: [],
+};
+
+const DATA_APP_STATUS_OPTIONS: { value: DataAppStatus; label: string }[] = [
+    { value: "in-renovation", label: "Renovating" },
+    { value: "on-market", label: "On Market" },
+    { value: "wholesale", label: "Wholesale" },
+    { value: "sold", label: "Sold" },
+];
+
+const DEAL_TYPE_OPTIONS: { value: DealTypeFilter; label: string }[] = [
+    { value: "wholesale", label: "Wholesale" },
+    { value: "agent", label: "Agent" },
+    { value: "sold", label: "Sold" },
+];
+
+interface Props {
+    user: AuthUser;
+}
+
+export default function NotificationPreferencesPanel({ user }: Props) {
+    const { toast } = useToast();
+
+    const resolvedPrefs = user.notificationPreferences ?? DEFAULT_PREFS;
+
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Master toggle + MSA subscriptions (go via PATCH /api/auth/me)
+    const [masterEnabled, setMasterEnabled] = useState(user.notifications ?? true);
+    const [msaSubscriptions, setMsaSubscriptions] = useState<string[]>(user.msaSubscriptions ?? []);
+
+    // Per-app toggles and filters (go via PATCH /api/auth/me/notifications)
+    const [prefs, setPrefs] = useState({
+        dataAppEnabled: resolvedPrefs.dataAppEnabled,
+        dealNotificationsEnabled: resolvedPrefs.dealNotificationsEnabled,
+        vendorNotificationsEnabled: resolvedPrefs.vendorNotificationsEnabled,
+        analyticsEnabled: resolvedPrefs.analyticsEnabled,
+        dataAppStatusFilter: [...resolvedPrefs.dataAppStatusFilter] as DataAppStatus[],
+        dealTypeFilter: [...resolvedPrefs.dealTypeFilter] as DealTypeFilter[],
+    });
+
+    function resetToSaved() {
+        setMasterEnabled(user.notifications ?? true);
+        setMsaSubscriptions(user.msaSubscriptions ?? []);
+        setPrefs({
+            dataAppEnabled: resolvedPrefs.dataAppEnabled,
+            dealNotificationsEnabled: resolvedPrefs.dealNotificationsEnabled,
+            vendorNotificationsEnabled: resolvedPrefs.vendorNotificationsEnabled,
+            analyticsEnabled: resolvedPrefs.analyticsEnabled,
+            dataAppStatusFilter: [...resolvedPrefs.dataAppStatusFilter] as DataAppStatus[],
+            dealTypeFilter: [...resolvedPrefs.dealTypeFilter] as DealTypeFilter[],
+        });
+        setIsEditing(false);
+    }
+
+    function toggleStatusFilter(value: DataAppStatus) {
+        setPrefs((prev) => ({
+            ...prev,
+            dataAppStatusFilter: prev.dataAppStatusFilter.includes(value)
+                ? prev.dataAppStatusFilter.filter((v) => v !== value)
+                : [...prev.dataAppStatusFilter, value],
+        }));
+    }
+
+    function toggleDealTypeFilter(value: DealTypeFilter) {
+        setPrefs((prev) => ({
+            ...prev,
+            dealTypeFilter: prev.dealTypeFilter.includes(value)
+                ? prev.dealTypeFilter.filter((v) => v !== value)
+                : [...prev.dealTypeFilter, value],
+        }));
+    }
+
+    async function handleSave() {
+        setIsSaving(true);
+        try {
+            // Always update both: master/MSA and app preferences
+            const [profileRes, prefsRes] = await Promise.all([
+                apiRequest("PATCH", "/api/auth/me", {
+                    notifications: masterEnabled,
+                    msaSubscriptions,
+                }),
+                apiRequest("PATCH", "/api/auth/me/notifications", prefs),
+            ]);
+
+            if (!profileRes.ok || !prefsRes.ok) {
+                throw new Error("Save failed");
+            }
+
+            const [profileData, prefsData] = await Promise.all([
+                profileRes.json(),
+                prefsRes.json(),
+            ]);
+
+            if (profileData.success && prefsData.success) {
+                queryClient.setQueryData(["/api/auth/me"], (old: { user: AuthUser } | undefined) => ({
+                    user: {
+                        ...(old?.user ?? {}),
+                        ...profileData.user,
+                        notificationPreferences: prefsData.preferences,
+                        msaSubscriptions,
+                    },
+                }));
+                toast({
+                    title: "Notification Preferences Saved",
+                    description: "Your notification settings have been updated.",
+                });
+                setIsEditing(false);
+            } else {
+                throw new Error("Unexpected response");
+            }
+        } catch {
+            toast({
+                title: "Error",
+                description: "Failed to save notification preferences. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
+    const displayMaster = isEditing ? masterEnabled : (user.notifications ?? true);
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div>
+                    <CardTitle>Notification Preferences</CardTitle>
+                    <CardDescription>
+                        Control which email feeds you receive and for which markets.
+                    </CardDescription>
+                </div>
+                {!isEditing && (
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                    </Button>
+                )}
+            </CardHeader>
+            <CardContent className="space-y-6">
+
+                {/* ── Master toggle ── */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium">Email Notifications</p>
+                        <p className="text-xs text-muted-foreground">
+                            Master switch — disabling this stops all email feeds regardless of app settings below.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={isEditing ? masterEnabled : displayMaster}
+                        disabled={!isEditing}
+                        onCheckedChange={(checked) => isEditing && setMasterEnabled(checked)}
+                    />
+                </div>
+
+                {displayMaster && (
+                    <>
+                        <div className="border-t pt-6 space-y-6">
+
+                            {/* ── Data App ── */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">Data App Updates</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Daily property update emails for your subscribed markets.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={isEditing ? prefs.dataAppEnabled : resolvedPrefs.dataAppEnabled}
+                                        disabled={!isEditing}
+                                        onCheckedChange={(checked) =>
+                                            isEditing && setPrefs((p) => ({ ...p, dataAppEnabled: checked }))
+                                        }
+                                    />
+                                </div>
+                                {(isEditing ? prefs.dataAppEnabled : resolvedPrefs.dataAppEnabled) && (
+                                    <div className="ml-1 space-y-2">
+                                        <p className="text-xs text-muted-foreground">
+                                            Property statuses to include{" "}
+                                            <span className="italic">(empty = all statuses)</span>
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {DATA_APP_STATUS_OPTIONS.map(({ value, label }) => (
+                                                <div key={value} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`data-status-${value}`}
+                                                        checked={
+                                                            isEditing
+                                                                ? prefs.dataAppStatusFilter.includes(value)
+                                                                : resolvedPrefs.dataAppStatusFilter.includes(value)
+                                                        }
+                                                        disabled={!isEditing}
+                                                        onCheckedChange={() =>
+                                                            isEditing && toggleStatusFilter(value)
+                                                        }
+                                                    />
+                                                    <label
+                                                        htmlFor={`data-status-${value}`}
+                                                        className={`text-sm ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                                    >
+                                                        {label}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── Deal Notifications ── */}
+                            <div className="space-y-3 border-t pt-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">Deal Notifications</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Receive an email when a new deal is posted to your markets.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={isEditing ? prefs.dealNotificationsEnabled : resolvedPrefs.dealNotificationsEnabled}
+                                        disabled={!isEditing}
+                                        onCheckedChange={(checked) =>
+                                            isEditing && setPrefs((p) => ({ ...p, dealNotificationsEnabled: checked }))
+                                        }
+                                    />
+                                </div>
+                                {(isEditing ? prefs.dealNotificationsEnabled : resolvedPrefs.dealNotificationsEnabled) && (
+                                    <div className="ml-1 space-y-2">
+                                        <p className="text-xs text-muted-foreground">
+                                            Deal types to include{" "}
+                                            <span className="italic">(empty = all types)</span>
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {DEAL_TYPE_OPTIONS.map(({ value, label }) => (
+                                                <div key={value} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`deal-type-${value}`}
+                                                        checked={
+                                                            isEditing
+                                                                ? prefs.dealTypeFilter.includes(value)
+                                                                : resolvedPrefs.dealTypeFilter.includes(value)
+                                                        }
+                                                        disabled={!isEditing}
+                                                        onCheckedChange={() =>
+                                                            isEditing && toggleDealTypeFilter(value)
+                                                        }
+                                                    />
+                                                    <label
+                                                        htmlFor={`deal-type-${value}`}
+                                                        className={`text-sm ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                                    >
+                                                        {label}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── Vendor Notifications ── */}
+                            <div className="border-t pt-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">
+                                            Vendor Notifications{" "}
+                                            <span className="text-xs text-muted-foreground font-normal">(coming soon)</span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Notifications for new vendors and community posts.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={isEditing ? prefs.vendorNotificationsEnabled : resolvedPrefs.vendorNotificationsEnabled}
+                                        disabled={!isEditing}
+                                        onCheckedChange={(checked) =>
+                                            isEditing && setPrefs((p) => ({ ...p, vendorNotificationsEnabled: checked }))
+                                        }
+                                    />
+                                </div>
+                            </div>
+
+                            {/* ── Analytics Reports ── */}
+                            <div className="border-t pt-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">
+                                            Analytics Reports{" "}
+                                            <span className="text-xs text-muted-foreground font-normal">(coming soon)</span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Periodic market summary reports for your subscribed markets.
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={isEditing ? prefs.analyticsEnabled : resolvedPrefs.analyticsEnabled}
+                                        disabled={!isEditing}
+                                        onCheckedChange={(checked) =>
+                                            isEditing && setPrefs((p) => ({ ...p, analyticsEnabled: checked }))
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── Location Subscriptions ── */}
+                        <div className="space-y-4 border-t pt-6">
+                            <div>
+                                <CardTitle className="text-lg">Location Subscriptions</CardTitle>
+                                <CardDescription>
+                                    Select the MSAs you want to receive notifications for. Applies to all active email feeds above.
+                                </CardDescription>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {MSA.map((msaName) => (
+                                    <div key={msaName} className="flex items-center gap-2">
+                                        <Checkbox
+                                            id={`msa-${msaName}`}
+                                            checked={
+                                                isEditing
+                                                    ? msaSubscriptions.includes(msaName)
+                                                    : (user.msaSubscriptions ?? []).includes(msaName)
+                                            }
+                                            disabled={!isEditing}
+                                            onCheckedChange={(checked) => {
+                                                if (!isEditing) return;
+                                                setMsaSubscriptions((prev) =>
+                                                    checked
+                                                        ? [...prev, msaName]
+                                                        : prev.filter((m) => m !== msaName)
+                                                );
+                                            }}
+                                        />
+                                        <label
+                                            htmlFor={`msa-${msaName}`}
+                                            className={`text-sm font-medium leading-none ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                        >
+                                            {msaName}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {isEditing && (
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                        <Button
+                            variant="outline"
+                            onClick={resetToSaved}
+                            disabled={isSaving}
+                        >
+                            <X className="w-4 h-4 mr-2" />
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSave} disabled={isSaving}>
+                            <Save className="w-4 h-4 mr-2" />
+                            {isSaving ? "Saving..." : "Save"}
+                        </Button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}

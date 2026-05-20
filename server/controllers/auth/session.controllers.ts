@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { loginSchema } from "@database/validation/users.validation";
-import { updateUserProfileSchema } from "@database/updates";
+import { updateUserProfileSchema, updateNotificationPreferencesSchema } from "@database/updates";
 import { SessionServices, UserServices } from "server/services/auth";
 
 export async function login(req: Request, res: Response, next: NextFunction):Promise<void> {
@@ -75,12 +75,13 @@ export async function me(req: Request, res: Response, next: NextFunction):Promis
             return;
         }
 
-        const [msaSubscriptions, relationshipManager] = await Promise.all([
+        const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
             UserServices.getUserMsaSubscriptionNames(user.id),
             UserServices.getRelationshipManagerForUser(user.id),
+            UserServices.getUserNotificationPreferences(user.id),
         ]);
         const { passwordHash: _, ...userWithoutPassword } = user;
-        res.json({ user: { ...userWithoutPassword, msaSubscriptions, relationshipManager } });
+        res.json({ user: { ...userWithoutPassword, msaSubscriptions, relationshipManager, notificationPreferences } });
 
     } catch (error) {
         console.error("Error fetching current user:", error);
@@ -125,18 +126,47 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
             return;
         }
 
-        const [msaSubscriptions, relationshipManager] = await Promise.all([
+        const [msaSubscriptions, relationshipManager, notificationPreferences] = await Promise.all([
             UserServices.getUserMsaSubscriptionNames(updatedUser.id),
             UserServices.getRelationshipManagerForUser(updatedUser.id),
+            UserServices.getUserNotificationPreferences(updatedUser.id),
         ]);
         const { passwordHash: _, ...userWithoutPassword } = updatedUser;
         res.json({
             success: true,
-            user: { ...userWithoutPassword, msaSubscriptions, relationshipManager },
+            user: { ...userWithoutPassword, msaSubscriptions, relationshipManager, notificationPreferences },
         });
 
     } catch (error) {
         console.error("Error updating profile:", error);
         res.status(500).json({ message: "Error updating profile" });
+    }
+}
+
+export async function updateNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        if (!req.session.userId) {
+            res.status(401).json({ message: "Unauthorized" });
+            return;
+        }
+
+        const validation = updateNotificationPreferencesSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({
+                message: "Invalid notification preferences",
+                errors: validation.error.errors,
+            });
+            return;
+        }
+
+        const preferences = await UserServices.upsertUserNotificationPreferences(
+            req.session.userId,
+            validation.data,
+        );
+
+        res.json({ success: true, preferences });
+    } catch (error) {
+        console.error("Error updating notification preferences:", error);
+        res.status(500).json({ message: "Error updating notification preferences" });
     }
 }
