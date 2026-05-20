@@ -107,11 +107,11 @@ export default function DealCard2({
 
             {/* ── Main body — click anywhere to expand ─────────────────────── */}
             <div
-                className={hasExpandableContent ? "flex flex-col min-[850px]:flex-row cursor-pointer select-none" : "flex flex-col min-[850px]:flex-row"}
+                className={hasExpandableContent ? "flex flex-col md:flex-row cursor-pointer select-none" : "flex flex-col md:flex-row"}
                 onClick={() => hasExpandableContent && onToggle()}
             >
                 {/* Street view image — full-width banner below 500px, fixed sidebar above */}
-                <div className="h-64 min-[850px]:h-auto w-full min-[850px]:w-56 shrink-0 min-[850px]:self-stretch bg-muted relative">
+                <div className="h-64 md:h-auto w-full md:w-56 shrink-0 md:self-stretch bg-muted relative">
                     {imageLoading ? (
                         <Loader2 className="absolute inset-0 m-auto w-5 h-5 animate-spin text-muted-foreground/40" />
                     ) : imageUrl ? (
@@ -133,12 +133,12 @@ export default function DealCard2({
                 </div>
 
                 {/* ── Right content ─────────────────────────────────────────── */}
-                <div className="flex-1 min-w-0 px-4 min-[850px]:px-5 pt-4 pb-2 flex flex-col gap-3">
+                <div className="flex-1 min-w-0 px-4 md:px-5 pt-4 pb-2 flex flex-col gap-3">
 
                     {/* Address row + time ago + 3-dot menu */}
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <p className="font-semibold text-base leading-tight truncate text-foreground">
+                            <p className="font-semibold text-base lg:text-lg leading-tight truncate text-foreground">
                                 {formatAddress(deal.address) ?? "Undisclosed Address"}
                             </p>
                             <p className="deal-card-address mt-0.5">
@@ -151,7 +151,7 @@ export default function DealCard2({
                             </span>
                             {canRequestContact && (
                                 <div onClick={(e) => e.stopPropagation()}>
-                                    <Button variant="default" size="base" onClick={onRequestInfo} className="hidden min-[850px]:inline-flex gap-1.5 mr-1.5">
+                                    <Button variant="default" size="base" onClick={onRequestInfo} className="hidden md:inline-flex gap-1.5 mr-1.5">
                                         <Phone className="deal-card-sub-icon" />
                                         Request More Info
                                     </Button>
@@ -217,7 +217,7 @@ export default function DealCard2({
                     )}
 
                     {/* Financials */}
-                    <div className="grid grid-cols-2 min-[850px]:grid-cols-3 gap-x-6 gap-y-3 w-full min-[850px]:w-3/4">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full md:w-3/4">
                         <div className="flex flex-col">
                             <span className="deal-card-label">Purchase Price</span>
                             {price !== null && price > 0
@@ -305,7 +305,7 @@ export default function DealCard2({
                     {(canRequestContact || isOwner) && (
                         <div className="flex items-center gap-3 flex-wrap">
                             {canRequestContact && (
-                                <div className="min-[850px]:hidden">
+                                <div className="md:hidden">
                                     <p className="deal-card-label mb-1.5">Contact</p>
                                     <button
                                         onClick={onRequestInfo}
