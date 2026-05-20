@@ -45,15 +45,14 @@ function formatEscrowDate(dateStr: string): string {
     return `${m}/${d}/${y}`;
 }
 
-function timeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    return `${Math.floor(days / 30)}mo ago`;
+function formatDatePosted(dateStr: string): string {
+    const posted = new Date(dateStr);
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    if (posted < oneYearAgo) {
+        return posted.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+    return posted.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 const DEAL_TYPE_STYLES: Record<string, { bg: string; label: string }> = {
@@ -147,6 +146,9 @@ export default function DealCard2({
                             </p>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
+                            <span className="text-xs lg:text-sm text-muted-foreground whitespace-nowrap pr-4">
+                                {formatDatePosted(deal.createdAt)}
+                            </span>
                             {canRequestContact && (
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <Button variant="default" size="base" onClick={onRequestInfo} className="hidden min-[850px]:inline-flex gap-1.5 mr-1.5">
@@ -155,9 +157,6 @@ export default function DealCard2({
                                     </Button>
                                 </div>
                             )}
-                            <span className="text-xs text-muted-foreground whitespace-nowrap pr-1">
-                                {timeAgo(deal.createdAt)}
-                            </span>
                             {(canEdit || canDelete) && (
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <DropdownMenu>
