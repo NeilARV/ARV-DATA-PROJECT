@@ -41,6 +41,11 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             state: normalizedState,
         });
 
+        await UserServices.upsertUserNotificationPreferences(newUser.id, {
+            dataAppStatusFilter: ['in-renovation', 'on-market', 'wholesale', 'sold'],
+            dealTypeFilter: ['wholesale', 'agent', 'sold'],
+        });
+
         if (normalizedCounty) {
             const msaName = getMsaNameFromCounty(normalizedCounty);
             if (msaName) {

@@ -1,6 +1,6 @@
 import { db } from "server/storage";
 import { deals, dealLinks } from "@database/schemas/deals.schema";
-import { users, userRoles, roles } from "@database/schemas/users.schema";
+import { users, userRoles, roles, userNotificationPreferences } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
@@ -433,12 +433,18 @@ export async function sendDealNotification(
     const label = "[dealsService.sendDealNotification]";
     try {
         const subscribedUsers = await db
-            .select({ id: users.id, email: users.email })
+            .select({
+                id: users.id,
+                email: users.email,
+                dealTypeFilter: userNotificationPreferences.dealTypeFilter,
+            })
             .from(users)
             .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
+            .innerJoin(userNotificationPreferences, eq(users.id, userNotificationPreferences.userId))
             .where(and(
                 eq(userMsaSubscriptions.msaId, msaId),
                 eq(users.notifications, true),
+                eq(userNotificationPreferences.dealNotificationsEnabled, true),
             ));
 
         if (subscribedUsers.length === 0) {
@@ -450,6 +456,9 @@ export async function sendDealNotification(
         const uniqueUsers = subscribedUsers.filter((u) => {
             if (seen.has(u.id)) return false;
             seen.add(u.id);
+            // Deal type filter: empty = all types; non-empty = must include this deal's type
+            const typeFilter = (u.dealTypeFilter ?? []) as string[];
+            if (typeFilter.length > 0 && !typeFilter.includes(deal.type)) return false;
             return true;
         });
 

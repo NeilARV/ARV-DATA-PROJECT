@@ -15,6 +15,9 @@ router.get("/me", Session.me);
 // Update current user profile
 router.patch("/me", Session.updateProfile);
 
+// Update current user notification preferences
+router.patch("/me/notifications", Session.updateNotifications);
+
 // User signup
 router.post("/signup", Registration.signup);
 
