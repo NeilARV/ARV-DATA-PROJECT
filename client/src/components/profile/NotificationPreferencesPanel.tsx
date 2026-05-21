@@ -24,10 +24,10 @@ const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "upd
     dealTypeFilter: [],
 };
 
-const DEAL_TYPE_OPTIONS: { value: DealTypeFilter; label: string }[] = [
-    { value: "wholesale", label: "Wholesale" },
-    { value: "agent", label: "Agent" },
-    { value: "sold", label: "Sold" },
+const DEAL_TYPE_OPTIONS: { value: DealTypeFilter; label: string; description: string }[] = [
+    { value: "wholesale", label: "Wholesale", description: "All wholesale deals" },
+    { value: "agent", label: "Agent", description: "Off-market agent deals" },
+    { value: "sold", label: "Sold", description: "All sold deals" },
 ];
 
 interface Props {
@@ -132,7 +132,7 @@ export default function NotificationPreferencesPanel({ user }: Props) {
         <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4">
                 <div>
-                    <CardTitle>Notification Preferences</CardTitle>
+                    <CardTitle>Email Notification Preferences</CardTitle>
                     <CardDescription>
                         Control which email feeds you receive and for which markets.
                     </CardDescription>
@@ -149,9 +149,13 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                 {/* ── Master toggle ── */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="profile-notification-label">Email Notifications</p>
+                        <p className="profile-notification-label">Turn {displayMaster ? "Off" : "On"} All Email Notifications</p>
                         <p className="profile-notification-value">
-                            Master switch — disabling this stops all email feeds regardless of app settings below.
+                            {
+                                displayMaster ? 
+                                "Disabling this stops all email feeds regardless of app settings below." :
+                                "Enabling this turns on all email feeds regardless of app settings below."
+                            }
                         </p>
                     </div>
                     <Switch
@@ -169,9 +173,9 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="profile-notification-label">Data App Updates</p>
+                                        <p className="profile-notification-label">Daily Transaction Emails</p>
                                         <p className="profile-notification-value">
-                                            Daily property update emails for your subscribed markets.
+                                            Track all sales in your market every day
                                         </p>
                                     </div>
                                     <Switch
@@ -188,9 +192,9 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="space-y-3 border-t pt-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="profile-notification-label">Deal Notifications</p>
+                                        <p className="profile-notification-label">Wholesale Deal Notifications</p>
                                         <p className="profile-notification-value">
-                                            Receive an email when a new deal is posted to your markets.
+                                            Exclusive deals direct to your inbox for ARV clients only
                                         </p>
                                     </div>
                                     <Switch
@@ -203,27 +207,32 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                 </div>
                                 {(isEditing ? prefs.dealNotificationsEnabled : resolvedPrefs.dealNotificationsEnabled) && (
                                     <div className="ml-1 space-y-2">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {DEAL_TYPE_OPTIONS.map(({ value, label }) => (
-                                                <div key={value} className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`deal-type-${value}`}
-                                                        checked={
-                                                            isEditing
-                                                                ? prefs.dealTypeFilter.includes(value)
-                                                                : resolvedPrefs.dealTypeFilter.includes(value)
-                                                        }
-                                                        disabled={!isEditing}
-                                                        onCheckedChange={() =>
-                                                            isEditing && toggleDealTypeFilter(value)
-                                                        }
-                                                    />
-                                                    <label
-                                                        htmlFor={`deal-type-${value}`}
-                                                        className={`profile-notification-value text-foreground ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
-                                                    >
-                                                        {label}
-                                                    </label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {DEAL_TYPE_OPTIONS.map(({ value, label, description }) => (
+                                                <div key={value}>
+                                                    <div className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={`deal-type-${value}`}
+                                                            checked={
+                                                                isEditing
+                                                                    ? prefs.dealTypeFilter.includes(value)
+                                                                    : resolvedPrefs.dealTypeFilter.includes(value)
+                                                            }
+                                                            disabled={!isEditing}
+                                                            onCheckedChange={() =>
+                                                                isEditing && toggleDealTypeFilter(value)
+                                                            }
+                                                        />
+                                                        <label
+                                                            htmlFor={`deal-type-${value}`}
+                                                            className={`profile-notification-value text-foreground ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                                        >
+                                                            {label}
+                                                        </label>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground mt-1 ml-6">
+                                                        {description}
+                                                    </p>
                                                 </div>
                                             ))}
                                         </div>
