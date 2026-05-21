@@ -127,7 +127,7 @@ export default function Profile() {
             {!isEditing && (
               <Button
                 variant="outline"
-                size="sm"
+                size="base"
                 onClick={() => setIsEditing(true)}
               >
                 <Edit className="w-4 h-4 mr-2" />

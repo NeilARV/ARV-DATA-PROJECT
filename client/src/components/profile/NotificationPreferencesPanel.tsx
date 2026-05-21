@@ -138,7 +138,7 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                     </CardDescription>
                 </div>
                 {!isEditing && (
-                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                    <Button variant="outline" size="base" onClick={() => setIsEditing(true)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit
                     </Button>
