@@ -192,16 +192,18 @@ function pickPropertiesFromCache(
     cache: Map<string, string | null>,
     statusFilter: string[],
     count: number
-): PropertyForTemplate[] {
-    const result: PropertyForTemplate[] = [];
+): { templates: PropertyForTemplate[]; pickedIds: string[] } {
+    const templates: PropertyForTemplate[] = [];
+    const pickedIds: string[] = [];
     for (const p of candidates) {
-        if (result.length >= count) break;
+        if (templates.length >= count) break;
         if (!matchesStatusFilter(p.statuses ?? [], statusFilter)) continue;
         const url = cache.get(p.propertyId);
         if (!url) continue;
-        result.push(buildPropertyForTemplate(p, url));
+        templates.push(buildPropertyForTemplate(p, url));
+        pickedIds.push(p.propertyId);
     }
-    return result;
+    return { templates, pickedIds };
 }
 
 /**
@@ -305,35 +307,34 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         }
 
         // Pre-cache Street View availability for all candidates in one pass.
-        // All evaluated property IDs are marked in sent_property_ids regardless of outcome.
+        // Properties with no Street View are marked sent immediately — they can never be shown.
+        // Properties with Street View are only marked sent if they end up in at least one email.
         const streetViewCache = new Map<string, string | null>();
+        const noStreetViewIds: string[] = [];
         for (const p of candidateProperties) {
             const rawAddress = p.address ?? "Unknown";
             const rawCity = p.city ?? "Unknown";
             const rawState = p.state ?? "N/A";
             const url = await getStreetViewUrlIfAvailable(p.sfrPropertyId, rawAddress, rawCity, rawState);
             streetViewCache.set(p.propertyId, url);
+            if (!url) noStreetViewIds.push(p.propertyId);
         }
-
-        // Mark all candidates as processed (prevents re-evaluation on future runs)
-        const allCandidateIds = candidateProperties.map((p) => p.propertyId);
-        await db
-            .insert(sentPropertyIdsTable)
-            .values(allCandidateIds.map((id) => ({ propertyId: id })))
-            .onConflictDoNothing();
 
         // Build per-user property sets
         const userPropertiesMap = new Map<string, PropertyForTemplate[]>(); // email → properties
+        const sentPropertyIdSet = new Set<string>(noStreetViewIds);
         let emailsSent = 0;
 
         for (const u of uniqueUsers) {
             const filter = (u.dataAppStatusFilter ?? []) as string[];
-            const userProperties = pickPropertiesFromCache(
+            const { templates: userProperties, pickedIds } = pickPropertiesFromCache(
                 candidateProperties,
                 streetViewCache,
                 filter,
                 PROPERTY_COUNT_TARGET,
             );
+
+            for (const id of pickedIds) sentPropertyIdSet.add(id);
 
             if (userProperties.length === 0) {
                 console.log(`[EMAIL ${msaName}]: Skipping ${u.email} — no properties match their status filter`);
@@ -345,16 +346,33 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         }
 
         // Whitelist recipients get the unfiltered set (first 3 with Street View, any status)
-        const defaultProperties = pickPropertiesFromCache(
+        const { templates: defaultProperties, pickedIds: defaultPickedIds } = pickPropertiesFromCache(
             candidateProperties,
             streetViewCache,
             [],
             PROPERTY_COUNT_TARGET,
         );
+        for (const id of defaultPickedIds) sentPropertyIdSet.add(id);
 
         if (emailsSent === 0 && (whitelistRecipients.length === 0 || defaultProperties.length === 0)) {
             console.log(`[EMAIL ${msaName}]: No properties with Street View images found, skipping send`);
+            // Still mark no-Street-View properties so they're not re-evaluated on future runs
+            if (noStreetViewIds.length > 0) {
+                await db
+                    .insert(sentPropertyIdsTable)
+                    .values(noStreetViewIds.map((id) => ({ propertyId: id })))
+                    .onConflictDoNothing();
+            }
             return;
+        }
+
+        // Mark only the properties that were actually sent (or have no Street View).
+        // Properties with Street View that matched no user's filter stay available for future runs.
+        if (sentPropertyIdSet.size > 0) {
+            await db
+                .insert(sentPropertyIdsTable)
+                .values(Array.from(sentPropertyIdSet).map((id) => ({ propertyId: id })))
+                .onConflictDoNothing();
         }
 
         // Build recipient list — only include users who have a personalized property set
