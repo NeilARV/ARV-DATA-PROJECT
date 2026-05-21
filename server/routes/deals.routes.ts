@@ -5,6 +5,7 @@ import {
     createDealController,
     updateDealController,
     deleteDealController,
+    requestDealInfoController,
 } from "server/controllers/deals/deals.controllers";
 
 const router = Router();
@@ -20,5 +21,8 @@ router.patch("/:id", requireSub(["pro", "premium"], { bypassRoles: ["admin", "ow
 
 // DELETE /api/deals/:id — delete own deal or any deal (pro/premium or team member)
 router.delete("/:id", requireSub(["pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }), deleteDealController);
+
+// POST /api/deals/:id/request-info — send deal details to the requester's RM
+router.post("/:id/request-info", requestDealInfoController);
 
 export default router;

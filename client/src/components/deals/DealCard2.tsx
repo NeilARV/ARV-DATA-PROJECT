@@ -33,6 +33,7 @@ type DealCardProps = {
     isOwner: boolean;
     canViewPoster: boolean;
     expanded: boolean;
+    isRequestingInfo?: boolean;
     onToggle: () => void;
     onDelete: () => void;
     onEdit: () => void;
@@ -69,6 +70,7 @@ export default function DealCard2({
     isOwner,
     canViewPoster,
     expanded,
+    isRequestingInfo = false,
     onToggle,
     onDelete,
     onEdit,
@@ -151,8 +153,11 @@ export default function DealCard2({
                             </span>
                             {canRequestContact && (
                                 <div onClick={(e) => e.stopPropagation()}>
-                                    <Button variant="default" size="base" onClick={onRequestInfo} className="hidden md:inline-flex gap-1.5 mr-1.5">
-                                        <Phone className="deal-card-sub-icon" />
+                                    <Button variant="default" size="base" onClick={onRequestInfo} disabled={isRequestingInfo} className="hidden md:inline-flex gap-1.5 mr-1.5">
+                                        {isRequestingInfo
+                                            ? <Loader2 className="deal-card-sub-icon animate-spin" />
+                                            : <Phone className="deal-card-sub-icon" />
+                                        }
                                         Request More Info
                                     </Button>
                                 </div>
@@ -309,10 +314,13 @@ export default function DealCard2({
                                     <p className="deal-card-label mb-1.5">Contact</p>
                                     <button
                                         onClick={onRequestInfo}
-                                        rel="noopener noreferrer"
-                                        className="deal-card-link"
+                                        disabled={isRequestingInfo}
+                                        className="deal-card-link disabled:opacity-50"
                                     >
-                                        <Phone className="deal-card-sub-icon" />
+                                        {isRequestingInfo
+                                            ? <Loader2 className="deal-card-sub-icon animate-spin" />
+                                            : <Phone className="deal-card-sub-icon" />
+                                        }
                                         Request More Info
                                     </button>
                                 </div>

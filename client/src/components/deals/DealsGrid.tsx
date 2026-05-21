@@ -11,6 +11,7 @@ type DealsGridProps = {
     isOwner: boolean;
     isRelationshipManager: boolean;
     userId: string | undefined;
+    requestingInfoDealId?: number;
     onDelete: (deal: Deal) => void;
     onEdit: (deal: Deal) => void;
     onRequestInfo: (deal: Deal) => void;
@@ -26,6 +27,7 @@ export default function DealsGrid({
     isOwner,
     isRelationshipManager,
     userId,
+    requestingInfoDealId,
     onDelete,
     onEdit,
     onRequestInfo,
@@ -56,6 +58,7 @@ export default function DealsGrid({
                 isOwner={isOwnerOfDealForTopBuyers}
                 canViewPoster={isAdmin || isOwner || isRelationshipManager}
                 expanded={selectedDealId === deal.id}
+                isRequestingInfo={requestingInfoDealId === deal.id}
                 onToggle={() => handleToggle(deal.id)}
                 onDelete={() => onDelete(deal)}
                 onEdit={() => onEdit(deal)}

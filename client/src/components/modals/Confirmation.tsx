@@ -35,6 +35,7 @@ export default function ConfirmationContent({
           className="flex-1"
           disabled={isLoading}
           data-testid="button-confirm-cancel"
+          size="base"
         >
           {cancelText}
         </Button>
@@ -44,6 +45,7 @@ export default function ConfirmationContent({
           className="flex-1"
           disabled={isLoading}
           data-testid="button-confirm-ok"
+          size="base"
         >
           {isLoading ? (
             <>

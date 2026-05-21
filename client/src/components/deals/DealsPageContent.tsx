@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppDialog from "@/components/modals/Dialog";
-import ContactContent from "@/components/modals/Contact";
 import BestBuyersContent from "@/components/modals/BestBuyers";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -15,12 +14,13 @@ import DealsEmptyState from "@/components/deals/DealsEmptyState";
 import AddDealDialog from "@/components/deals/AddDealDialog";
 import EditDealDialog from "@/components/deals/EditDealDialog";
 import DeleteDealDialog from "@/components/deals/DeleteDealDialog";
+import RequestDealInfoDialog from "@/components/deals/RequestDealInfoDialog";
 import { useDealsNav } from "@/hooks/useDealsNav";
 
 export default function DealsPageContent() {
     const [showAddDeal, setShowAddDeal] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
-    const [contactDeal, setContactDeal] = useState<Deal | null>(null);
+    const [confirmRequestDeal, setConfirmRequestDeal] = useState<Deal | null>(null);
     const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
     const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
 
@@ -72,6 +72,20 @@ export default function DealsPageContent() {
         onError: (err: any) => {
             toast({ title: "Error", description: err.message || "Failed to delete deal", variant: "destructive" });
             setDeleteConfirm(null);
+        },
+    });
+
+    const requestDealInfo = useMutation({
+        mutationFn: async (dealId: number) => {
+            const res = await apiRequest("POST", `/api/deals/${dealId}/request-info`);
+            return res.json();
+        },
+        onSuccess: () => {
+            setConfirmRequestDeal(null);
+            toast({ title: "Request Sent", description: "Your relationship manager has been notified." });
+        },
+        onError: () => {
+            toast({ title: "Error", description: "Failed to send request. Please try again.", variant: "destructive" });
         },
     });
 
@@ -130,7 +144,8 @@ export default function DealsPageContent() {
                         userId={user?.id}
                         onDelete={(deal) => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
                         onEdit={(deal) => setEditDeal({ ...deal, links: deal.links.map((l) => l.url) })}
-                        onRequestInfo={(deal) => setContactDeal(deal)}
+                        requestingInfoDealId={requestDealInfo.isPending ? requestDealInfo.variables : undefined}
+                        onRequestInfo={(deal) => setConfirmRequestDeal(deal)}
                         onTopBuyers={(deal) => setBestBuyersDeal(deal)}
                     />
                 </div>
@@ -155,22 +170,17 @@ export default function DealsPageContent() {
                 onConfirm={() => deleteConfirm && deleteDeal.mutate(deleteConfirm.dealId)}
             />
 
-            <AppDialog open={!!contactDeal} onClose={() => setContactDeal(null)} className="max-w-lg">
-                {contactDeal && (
-                    <ContactContent
-                        onClose={() => setContactDeal(null)}
-                        onSuccess={() => {
-                            toast({ title: "Request Received", description: "We will get back to you shortly." });
-                        }}
-                        defaultSubject="Request Contact Information"
-                        defaultFirstName={user?.firstName}
-                        defaultLastName={user?.lastName}
-                        defaultEmail={user?.email}
-                        defaultPhone={user?.phone}
-                        defaultMessage={`I would like to request contact information for ${[formatAddress(contactDeal.address), formatAddress(contactDeal.city), contactDeal.state, contactDeal.zipCode].filter(Boolean).join(", ")} posted on ${new Date(contactDeal.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`}
-                    />
-                )}
-            </AppDialog>
+            <RequestDealInfoDialog
+                open={!!confirmRequestDeal}
+                address={
+                    formatAddress(confirmRequestDeal?.address) ??
+                    [formatAddress(confirmRequestDeal?.city), confirmRequestDeal?.state].filter(Boolean).join(", ") ??
+                    "this property"
+                }
+                isLoading={requestDealInfo.isPending}
+                onClose={() => setConfirmRequestDeal(null)}
+                onConfirm={() => confirmRequestDeal && requestDealInfo.mutate(confirmRequestDeal.id)}
+            />
 
             <AppDialog open={!!bestBuyersDeal} onClose={() => setBestBuyersDeal(null)} className="max-w-md">
                 {bestBuyersDeal && (

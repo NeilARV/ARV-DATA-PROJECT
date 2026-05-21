@@ -4,6 +4,7 @@ import {
     createDeal,
     updateDeal,
     deleteDeal,
+    requestDealInfo,
     sendDealNotification,
     DealServiceError,
 } from "server/services/deals/deals.services";
@@ -125,6 +126,28 @@ export async function updateDealController(req: Request, res: Response): Promise
         }
     } catch (err) {
         handleServiceError(res, err, "Error updating deal");
+    }
+}
+
+// ── POST /api/deals/:id/request-info ──────────────────────────────────────────
+export async function requestDealInfoController(req: Request, res: Response): Promise<void> {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            res.status(400).json({ message: "Invalid deal id" });
+            return;
+        }
+
+        const callerId = req.session?.userId;
+        if (!callerId) {
+            res.status(401).json({ message: "Not authenticated" });
+            return;
+        }
+
+        await requestDealInfo(id, callerId);
+        res.json({ message: "Request sent successfully" });
+    } catch (err) {
+        handleServiceError(res, err, "Error sending deal info request");
     }
 }
 
