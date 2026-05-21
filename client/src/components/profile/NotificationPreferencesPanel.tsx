@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Edit, Save, X } from "lucide-react";
 import { MSA } from "@/constants/filters.constants";
-import type { AuthUser, NotificationPreferences, DataAppStatus, DealTypeFilter } from "@/hooks/use-auth";
+import type { AuthUser, NotificationPreferences, DealTypeFilter } from "@/hooks/use-auth";
 
 const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "updatedAt"> = {
     dataAppEnabled: true,
@@ -23,12 +23,6 @@ const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "upd
     dataAppStatusFilter: [],
     dealTypeFilter: [],
 };
-
-const DATA_APP_STATUS_OPTIONS: { value: DataAppStatus; label: string }[] = [
-    { value: "in-renovation", label: "Renovating" },
-    { value: "wholesale", label: "Wholesale" },
-    { value: "sold", label: "Sold" },
-];
 
 const DEAL_TYPE_OPTIONS: { value: DealTypeFilter; label: string }[] = [
     { value: "wholesale", label: "Wholesale" },
@@ -58,7 +52,6 @@ export default function NotificationPreferencesPanel({ user }: Props) {
         dealNotificationsEnabled: resolvedPrefs.dealNotificationsEnabled,
         vendorNotificationsEnabled: resolvedPrefs.vendorNotificationsEnabled,
         analyticsEnabled: resolvedPrefs.analyticsEnabled,
-        dataAppStatusFilter: [...resolvedPrefs.dataAppStatusFilter] as DataAppStatus[],
         dealTypeFilter: [...resolvedPrefs.dealTypeFilter] as DealTypeFilter[],
     });
 
@@ -70,19 +63,9 @@ export default function NotificationPreferencesPanel({ user }: Props) {
             dealNotificationsEnabled: resolvedPrefs.dealNotificationsEnabled,
             vendorNotificationsEnabled: resolvedPrefs.vendorNotificationsEnabled,
             analyticsEnabled: resolvedPrefs.analyticsEnabled,
-            dataAppStatusFilter: [...resolvedPrefs.dataAppStatusFilter] as DataAppStatus[],
             dealTypeFilter: [...resolvedPrefs.dealTypeFilter] as DealTypeFilter[],
         });
         setIsEditing(false);
-    }
-
-    function toggleStatusFilter(value: DataAppStatus) {
-        setPrefs((prev) => ({
-            ...prev,
-            dataAppStatusFilter: prev.dataAppStatusFilter.includes(value)
-                ? prev.dataAppStatusFilter.filter((v) => v !== value)
-                : [...prev.dataAppStatusFilter, value],
-        }));
     }
 
     function toggleDealTypeFilter(value: DealTypeFilter) {
@@ -199,38 +182,6 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                         }
                                     />
                                 </div>
-                                {(isEditing ? prefs.dataAppEnabled : resolvedPrefs.dataAppEnabled) && (
-                                    <div className="ml-1 space-y-2">
-                                        <p className="text-xs text-muted-foreground">
-                                            Property statuses to include{" "}
-                                            <span className="italic">(empty = all statuses)</span>
-                                        </p>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {DATA_APP_STATUS_OPTIONS.map(({ value, label }) => (
-                                                <div key={value} className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`data-status-${value}`}
-                                                        checked={
-                                                            isEditing
-                                                                ? prefs.dataAppStatusFilter.includes(value)
-                                                                : resolvedPrefs.dataAppStatusFilter.includes(value)
-                                                        }
-                                                        disabled={!isEditing}
-                                                        onCheckedChange={() =>
-                                                            isEditing && toggleStatusFilter(value)
-                                                        }
-                                                    />
-                                                    <label
-                                                        htmlFor={`data-status-${value}`}
-                                                        className={`text-sm ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
-                                                    >
-                                                        {label}
-                                                    </label>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             {/* ── Deal Notifications ── */}

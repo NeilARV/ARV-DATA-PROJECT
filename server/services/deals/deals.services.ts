@@ -5,7 +5,7 @@ import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
 import { normalizePropertyType } from "server/utils/normalization";
 import { sendTemplateToUsers, getWhitelistRecipientsForMsa } from "server/services/postmark/email.services";
-import { eq, desc, and, inArray, gte, isNotNull, ilike, isNull, or, SQL } from "drizzle-orm";
+import { eq, desc, and, inArray, gte, isNotNull, ilike, SQL } from "drizzle-orm";
 import { companies, companyContacts } from "@database/schemas/companies.schema";
 import { properties, propertyTransactions, addresses } from "@database/schemas/properties.schema";
 import { getStreetviewImage } from "server/services/properties/streetview.services";
@@ -440,14 +440,11 @@ export async function sendDealNotification(
             })
             .from(users)
             .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
-            .leftJoin(userNotificationPreferences, eq(users.id, userNotificationPreferences.userId))
+            .innerJoin(userNotificationPreferences, eq(users.id, userNotificationPreferences.userId))
             .where(and(
                 eq(userMsaSubscriptions.msaId, msaId),
                 eq(users.notifications, true),
-                or(
-                    isNull(userNotificationPreferences.dealNotificationsEnabled),
-                    eq(userNotificationPreferences.dealNotificationsEnabled, true),
-                ),
+                eq(userNotificationPreferences.dealNotificationsEnabled, true),
             ));
 
         if (subscribedUsers.length === 0) {
