@@ -20,6 +20,7 @@ export const dealFormSchema = z
                          z.coerce.number().positive("ARV must be greater than 0").optional()
                        ),
     notes:             z.string().max(1000, "Notes must be 1000 characters or fewer").optional(),
+    adminNotes:        z.string().max(1000, "Admin notes must be 1000 characters or fewer").optional(),
     closeOfEscrow:     z.preprocess(
                          (v) => (v === "" || v == null ? undefined : v),
                          z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/, "Enter a valid date (MM/DD/YYYY)").optional()

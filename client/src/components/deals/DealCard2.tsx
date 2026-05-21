@@ -336,21 +336,29 @@ export default function DealCard2({
                 </div>
             )}
 
-            {/* ── Admin: Posted by footer ───────────────────────────────────── */}
+            {/* ── Admin: Posted by + internal notes footer ─────────────────── */}
             {canViewPoster && (
-                <div className="border-t border-border px-5 py-2 flex items-center gap-1.5 text-sm flex-wrap">
-                    <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                    <span className="deal-card-label">Posted by:</span>
-                    {[
-                        [deal.userFirstName, deal.userLastName].filter(Boolean).join(" ") || "Unknown",
-                        deal.userEmail,
-                        deal.userPhone,
-                    ].filter(Boolean).map((item, i, arr) => (
-                        <span key={i} className="flex items-center gap-1.5">
-                            <span className="font-medium text-foreground">{item}</span>
-                            {i < arr.length - 1 && <span className="text-muted-foreground">|</span>}
-                        </span>
-                    ))}
+                <div className="border-t border-border px-5 py-2 flex flex-col gap-1.5 text-sm">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                        <span className="deal-card-label">Posted by:</span>
+                        {[
+                            [deal.userFirstName, deal.userLastName].filter(Boolean).join(" ") || "Unknown",
+                            deal.userEmail,
+                            deal.userPhone,
+                        ].filter(Boolean).map((item, i, arr) => (
+                            <span key={i} className="flex items-center gap-1.5">
+                                <span className="font-medium text-foreground">{item}</span>
+                                {i < arr.length - 1 && <span className="text-muted-foreground">|</span>}
+                            </span>
+                        ))}
+                    </div>
+                    {deal.adminNotes && (
+                        <div className="flex items-start gap-1.5">
+                            <span className="deal-card-label shrink-0">Internal Note:</span>
+                            <span className="text-foreground leading-snug">{deal.adminNotes}</span>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

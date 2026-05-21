@@ -230,6 +230,7 @@ export async function getDeals(filters: GetDealsFilters) {
             sqft:         deals.sqft,
             propertyType: deals.propertyType,
             notes:        deals.notes,
+            adminNotes:   deals.adminNotes,
             photosUrl:    deals.photosUrl,
             msaId:        deals.msaId,
             msaName:      msas.name,
@@ -310,7 +311,7 @@ export async function getDeals(filters: GetDealsFilters) {
 // ── POST deal ──────────────────────────────────────────────────────────────────
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, photosUrl, links } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links } = input;
 
     const addressStr     = typeof address === "string" ? address.trim() : "";
     const hasAddress     = addressStr.length > 0;
@@ -386,6 +387,7 @@ export async function createDeal(input: CreateDealInput) {
             sqft:          resolvedSqft,
             propertyType:  normalizePropertyType(resolvedPropertyType),
             notes:         notes ?? null,
+            adminNotes:    adminNotes ?? null,
             photosUrl:     photosUrl ?? null,
         })
         .returning();
@@ -602,7 +604,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, photosUrl, links } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -661,8 +663,9 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             propertyType: incomingFullAddress
                 ? normalizePropertyType(resolvedPropertyType)
                 : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
-            notes:        notes     !== undefined ? (notes     ?? null) : undefined,
-            photosUrl:    photosUrl !== undefined ? (photosUrl ?? null) : undefined,
+            notes:        notes      !== undefined ? (notes      ?? null) : undefined,
+            adminNotes:   adminNotes !== undefined ? (adminNotes ?? null) : undefined,
+            photosUrl:    photosUrl  !== undefined ? (photosUrl  ?? null) : undefined,
         })
         .where(eq(deals.id, id))
         .returning();

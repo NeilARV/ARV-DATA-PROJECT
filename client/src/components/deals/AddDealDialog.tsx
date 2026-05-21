@@ -13,6 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
+import { Textarea } from "@/components/ui/textarea";
 import AppDialog from "@/components/modals/Dialog";
 import ContactContent from "@/components/modals/Contact";
 import DealFormFields, { ADD_DEAL_TYPES } from "@/components/deals/DealFormFields";
@@ -24,7 +25,8 @@ type AddDealDialogProps = {
 
 export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
     const { toast } = useToast();
-    const { user } = useAuth();
+    const { user, isAdmin, isOwner } = useAuth();
+    const canEditAdminNotes = isAdmin || isOwner;
     const [showContact, setShowContact] = useState(false);
     const [links, setLinks] = useState<string[]>([]);
     const [photosUrl, setPhotosUrl] = useState("");
@@ -46,6 +48,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
             sqft:              undefined,
             propertyType:      undefined,
             notes:             "",
+            adminNotes:        "",
             sendNotifications: true,
         },
     });
@@ -73,6 +76,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 sqft:              data.sqft,
                 propertyType:      data.propertyType,
                 notes:             data.notes?.trim() || undefined,
+                adminNotes:        data.adminNotes?.trim() || undefined,
                 photosUrl:         photosUrl.trim() || undefined,
                 sendNotifications: data.sendNotifications,
                 links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
@@ -135,6 +139,28 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                             photosUrl={photosUrl}
                             onPhotosUrlChange={setPhotosUrl}
                         />
+
+                        {canEditAdminNotes && (
+                            <FormField
+                                control={form.control}
+                                name="adminNotes"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                                            Internal Note (admin only)
+                                        </FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                {...field}
+                                                placeholder="Internal notes visible only to admins and owners..."
+                                                className="resize-none text-sm"
+                                                rows={2}
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        )}
 
                         <FormField
                             control={form.control}

@@ -11,6 +11,8 @@ import { dealFormSchema } from "@database/inserts/deals.insert";
 import type { DealFormValues } from "@database/inserts/deals.insert";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { Textarea } from "@/components/ui/textarea";
 import AppDialog from "@/components/modals/Dialog";
 import DealFormFields, { EDIT_DEAL_TYPES } from "@/components/deals/DealFormFields";
 
@@ -22,6 +24,8 @@ type EditDealDialogProps = {
 
 export default function EditDealDialog({ deal, open, onClose }: EditDealDialogProps) {
     const { toast } = useToast();
+    const { isAdmin, isOwner } = useAuth();
+    const canEditAdminNotes = isAdmin || isOwner;
     const [links, setLinks] = useState<string[]>(deal.links ?? []);
     const [photosUrl, setPhotosUrl] = useState(deal.photosUrl ?? "");
 
@@ -44,6 +48,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                : undefined,
             estimatedBudget:   deal.estimatedBudget ?? undefined,
             notes:         deal.notes        ?? "",
+            adminNotes:    deal.adminNotes    ?? "",
             sendNotifications: true,
         },
     });
@@ -70,6 +75,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                    : null,
                 estimatedBudget:   data.estimatedBudget ?? null,
                 notes:         data.notes?.trim() || null,
+                adminNotes:    data.adminNotes?.trim() || null,
                 photosUrl:     photosUrl.trim() || null,
                 links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
                 sendNotifications: data.sendNotifications,
@@ -111,6 +117,28 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         photosUrl={photosUrl}
                         onPhotosUrlChange={setPhotosUrl}
                     />
+
+                    {canEditAdminNotes && (
+                        <FormField
+                            control={form.control}
+                            name="adminNotes"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                                        Internal Note (admin only)
+                                    </FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            {...field}
+                                            placeholder="Internal notes visible only to admins and owners..."
+                                            className="resize-none text-sm"
+                                            rows={2}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    )}
 
                     <FormField
                         control={form.control}

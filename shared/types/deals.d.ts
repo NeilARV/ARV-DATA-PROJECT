@@ -21,6 +21,7 @@ type Deal = DealProperty & {
     topBuyers: TopBuyer[];
     links: { url: string; domain: string }[];
     photosUrl?: string | null;
+    adminNotes?: string | null;
 
     // Fields that may be null in the database
     sfrPropertyId?: number | null;
@@ -49,6 +50,7 @@ type DealProperty = {
 type DealToEdit = DealProperty & {
     id: number;
     links?: string[];
+    adminNotes?: string | null;
 }
 
 // Input for POST /api/deals
@@ -56,9 +58,11 @@ type CreateDealInput = DealProperty & {
     userId: string;
     sendNotifications?: boolean;
     links?: string[];
+    adminNotes?: string | null;
 }
 
 // Input for PATCH /api/deals/:id (all fields optional except identity)
 type UpdateDealInput = DealProperty & {
     links?: string[];
+    adminNotes?: string | null;
 }

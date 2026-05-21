@@ -31,6 +31,7 @@ export const deals = pgTable("deals", {
   sqft:         integer("sqft"),
   propertyType: varchar("property_type", { length: 100 }),
   notes:        text("notes"),
+  adminNotes:   text("admin_notes"),
   closeOfEscrow:    date("close_of_escrow"),
   estimatedBudget:  integer("estimated_budget"),
   photosUrl:        text("photos_url"),

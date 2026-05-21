@@ -126,6 +126,7 @@ export default function DealsPageContent() {
                         canAccessApp={!!canAccessApp}
                         isAdmin={!!isAdmin}
                         isOwner={!!isOwner}
+                        isRelationshipManager={!!isRelationshipManager}
                         userId={user?.id}
                         onDelete={(deal) => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
                         onEdit={(deal) => setEditDeal({ ...deal, links: deal.links.map((l) => l.url) })}
