@@ -41,6 +41,8 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             state: normalizedState,
         });
 
+        await UserServices.upsertUserNotificationPreferences(newUser.id, {});
+
         if (normalizedCounty) {
             const msaName = getMsaNameFromCounty(normalizedCounty);
             if (msaName) {

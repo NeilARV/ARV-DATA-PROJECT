@@ -252,6 +252,126 @@ Dedicated endpoint: `PATCH /api/auth/me/notifications`
 | Deal type filter | Added — `dealTypeFilter: text[]` with values `'wholesale' \| 'agent' \| 'sold'` |
 | Analytics as 4th app | Added — `analyticsEnabled` boolean, no filter column until content is defined |
 | Vendor/Analytics filter columns | Deferred — do not add filter array columns until email content and filter values are defined |
+| Auto-create preferences on signup | Yes — `user_notification_preferences` row created immediately in `signup` controller after `createUser()`, with all defaults. Eliminates LEFT JOIN null-handling in email jobs. Existing users backfilled via SQL (`database/insert-preferences.sql`). |
+| Geographic subscription granularity | County-within-MSA hybrid — users subscribe to counties, grouped under MSAs in the UI. Single email per MSA per user; per-county filtering applied during property selection within the MSA job. See details below. |
+| Scalable recipient resolution | RecipientResolver pattern — shared function that resolves eligible recipients + their filter context (MSA subscriptions, county filter, app toggles) for any MSA job. Email jobs call it instead of duplicating subscriber queries. Implemented when county-within-MSA schema lands. |
+
+---
+
+---
+
+## Auto-Create Preferences on Signup
+
+### Decision
+A `user_notification_preferences` row is created immediately after `createUser()` in `registration.controllers.ts`, using default values. No lazy creation.
+
+### Why
+- Email jobs can use simple `INNER JOIN` instead of `LEFT JOIN + OR(isNull(...), eq(..., true))`
+- Guarantees all users have a preferences row — consistent query behavior regardless of when the user signed up
+- Avoids a category of bugs where a user with no prefs row silently receives emails they never configured (or is silently excluded)
+
+### Implementation
+- `server/controllers/auth/registration.controllers.ts`: after `createUser()`, call `UserServices.upsertUserNotificationPreferences(newUser.id, {})` with no fields — the DB defaults apply
+- `database/insert-preferences.sql`: one-time SQL to backfill existing users with no preferences row
+
+### Backfill SQL (`database/insert-preferences.sql`)
+```sql
+INSERT INTO user_notification_preferences (
+    user_id,
+    data_app_enabled,
+    deal_notifications_enabled,
+    vendor_notifications_enabled,
+    analytics_enabled,
+    data_app_status_filter,
+    deal_type_filter,
+    created_at,
+    updated_at
+)
+SELECT
+    id,
+    true,
+    true,
+    false,
+    false,
+    ARRAY[]::text[],
+    ARRAY[]::text[],
+    now(),
+    now()
+FROM users
+WHERE id NOT IN (SELECT user_id FROM user_notification_preferences);
+```
+
+---
+
+## County-within-MSA Subscription Model
+
+### Decision
+Users subscribe to counties, not raw MSAs. Counties are grouped under their parent MSA in the UI. The backend sends one email per MSA per user, but property selection filters by the user's subscribed counties within that MSA.
+
+### Why
+- An MSA like "Los Angeles" spans multiple counties (LA, Orange, Riverside, San Bernardino, Ventura). A user interested only in Orange County should not receive Riverside properties.
+- Keeps cron job architecture simple: one job per MSA, one email per user per job run. No per-county jobs.
+- Gives users meaningful control without exploding the number of subscription combinations.
+
+### UI Behavior (Profile Page — planned)
+1. User clicks to subscribe to an MSA (e.g., "Los Angeles")
+2. A county checklist expands beneath it showing all counties in that MSA (all pre-checked)
+3. User can deselect individual counties to exclude them
+4. If the user deselects all counties, they are effectively unsubscribed from that MSA
+
+### Data Model (planned — not yet implemented)
+Add a `counties` column to `user_msa_subscriptions`:
+
+```ts
+// Schema addition (NOT YET IMPLEMENTED)
+counties: text("counties").array().notNull().default([]),
+// Empty array = all counties in the MSA (backward-compatible default)
+```
+
+Static MSA → county mapping lives in `client/src/constants/filters.constants.ts` (already exists as `COUNTIES`). Same mapping used server-side for filtering.
+
+### Email Job Behavior (planned)
+1. MSA cron runs (e.g., San Diego at 7:00 AM)
+2. Fetch candidate pool for the MSA (unchanged)
+3. For each user subscribed to this MSA:
+   - If `counties` is empty → include all properties (backward-compatible)
+   - If `counties` is non-empty → filter candidate pool to only properties in user's subscribed counties
+   - Apply existing status filter (`dataAppStatusFilter`) after county filter
+   - If 0 properties remain → skip user (no email)
+
+### Status (Not yet implemented)
+County-within-MSA requires schema migration, a static MSA → county map server-side, UI changes to the subscription section, and updates to email job property selection. These are tracked as Phase 2 work.
+
+---
+
+## RecipientResolver Pattern (Planned)
+
+### Decision
+Build a shared `resolveRecipients(msaId)` function that returns the list of eligible recipients + their full filter context for a given MSA. Email jobs call this instead of duplicating subscriber queries.
+
+### Why
+- `emailUpdates.ts`, future `analyticsJob.ts`, and future `vendorJob.ts` all need the same subscriber resolution logic (master toggle, app toggle, MSA subscription, county filter). Duplicating this query in each job is fragile.
+- A single resolver function is the correct abstraction boundary.
+
+### Planned Shape
+```ts
+interface RecipientContext {
+    userId: string;
+    email: string;
+    firstName: string;
+    counties: string[];           // empty = all counties
+    dataAppStatusFilter: string[]; // empty = all statuses
+    dealTypeFilter: string[];      // empty = all types
+    // extend as new apps are added
+}
+
+async function resolveDataAppRecipients(msaId: string): Promise<RecipientContext[]>
+async function resolveDealRecipients(msaId: string): Promise<RecipientContext[]>
+// etc.
+```
+
+### Status (Not yet implemented)
+Will be implemented alongside the county-within-MSA schema changes in Phase 2.
 
 ---
 
