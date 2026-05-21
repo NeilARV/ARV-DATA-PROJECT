@@ -1,4 +1,5 @@
 @import "./styles/deal.components.css";
+@import "./styles/profile.components.css";
 
 @tailwind base;
 @tailwind components;

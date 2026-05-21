@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import NotificationPreferencesPanel from "@/components/profile/NotificationPreferencesPanel";
+import { RMCard } from "@/components/profile/RMCard";
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
 const STATE_DEFAULT_COUNTY: Record<string, string> = {
@@ -138,7 +139,7 @@ export default function Profile() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="profile-field-label">
                     First Name
                   </label>
                   <Input
@@ -165,7 +166,7 @@ export default function Profile() {
                   )}
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="profile-field-label">
                     Last Name
                   </label>
                   <Input
@@ -192,7 +193,7 @@ export default function Profile() {
                   )}
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="profile-field-label">
                     Email
                   </label>
                   <Input
@@ -219,7 +220,7 @@ export default function Profile() {
                   )}
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="profile-field-label">
                     Phone
                   </label>
                   <Input
@@ -257,29 +258,29 @@ export default function Profile() {
                   )}
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="profile-field-label">
                     Account Level
                   </label>
-                  <p className="text-base font-medium mt-1">
+                  <p className="profile-field-value mt-1">
                     {subscription
                       ? subscription.charAt(0).toUpperCase() + subscription.slice(1)
                       : "Free"}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">
+                  <label className="profile-field-label">
                     Member Since
                   </label>
-                  <p className="text-base font-medium mt-1">
+                  <p className="profile-field-value mt-1">
                     {format(new Date(user.createdAt), "MMMM d, yyyy 'at' h:mm a")}
                   </p>
                 </div>
                 {role && (
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">
+                    <label className="profile-field-label">
                       ARV Role
                     </label>
-                    <p className="text-base font-medium mt-1">
+                    <p className="profile-field-value mt-1">
                       {role === "relationship-manager"
                         ? "Relationship Manager"
                         : role.charAt(0).toUpperCase() + role.slice(1)}
@@ -298,7 +299,7 @@ export default function Profile() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">County</label>
+                    <label className="profile-field-label">County</label>
                     {isEditing ? (
                       <Select
                         value={formData.county}
@@ -316,11 +317,11 @@ export default function Profile() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-base font-medium mt-1">{user.county ?? "—"}</p>
+                      <p className="profile-field-value mt-1">{user.county ?? "—"}</p>
                     )}
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">State</label>
+                    <label className="profile-field-label">State</label>
                     {isEditing ? (
                       <Select
                         value={formData.state}
@@ -339,7 +340,7 @@ export default function Profile() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-base font-medium mt-1">{user.state ?? "—"}</p>
+                      <p className="profile-field-value mt-1">{user.state ?? "—"}</p>
                     )}
                   </div>
                 </div>
@@ -450,43 +451,9 @@ export default function Profile() {
 
         {/* ── Relationship Manager ── */}
         {user.relationshipManager && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Relationship Manager</CardTitle>
-              <CardDescription>
-                Contact your relationship manager for support or questions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg border bg-muted/30 p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs text-muted-foreground">First Name</span>
-                  <p className="font-medium">{user.relationshipManager.firstName}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Last Name</span>
-                  <p className="font-medium">{user.relationshipManager.lastName}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Email</span>
-                  <p className="font-medium text-primary">
-                    {user.relationshipManager.email}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Phone</span>
-                  <p className="font-medium">
-                    {user.relationshipManager.phone
-                      ? (user.relationshipManager.phone.includes("(")
-                          ? user.relationshipManager.phone
-                          : formatPhoneNumber(user.relationshipManager.phone))
-                      : "—"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <RMCard { ...user.relationshipManager } />
         )}
+
       </div>
     </div>
   );
