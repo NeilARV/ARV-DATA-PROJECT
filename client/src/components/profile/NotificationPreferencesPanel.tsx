@@ -149,8 +149,8 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                 {/* ── Master toggle ── */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-sm font-medium">Email Notifications</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="profile-notification-label">Email Notifications</p>
+                        <p className="profile-notification-value">
                             Master switch — disabling this stops all email feeds regardless of app settings below.
                         </p>
                     </div>
@@ -169,8 +169,8 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium">Data App Updates</p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="profile-notification-label">Data App Updates</p>
+                                        <p className="profile-notification-value">
                                             Daily property update emails for your subscribed markets.
                                         </p>
                                     </div>
@@ -188,8 +188,8 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="space-y-3 border-t pt-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium">Deal Notifications</p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="profile-notification-label">Deal Notifications</p>
+                                        <p className="profile-notification-value">
                                             Receive an email when a new deal is posted to your markets.
                                         </p>
                                     </div>
@@ -203,10 +203,6 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                 </div>
                                 {(isEditing ? prefs.dealNotificationsEnabled : resolvedPrefs.dealNotificationsEnabled) && (
                                     <div className="ml-1 space-y-2">
-                                        <p className="text-xs text-muted-foreground">
-                                            Deal types to include{" "}
-                                            <span className="italic">(empty = all types)</span>
-                                        </p>
                                         <div className="grid grid-cols-3 gap-2">
                                             {DEAL_TYPE_OPTIONS.map(({ value, label }) => (
                                                 <div key={value} className="flex items-center gap-2">
@@ -224,7 +220,7 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                                     />
                                                     <label
                                                         htmlFor={`deal-type-${value}`}
-                                                        className={`text-sm ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                                        className={`profile-notification-value text-foreground ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
                                                     >
                                                         {label}
                                                     </label>
@@ -239,11 +235,11 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="border-t pt-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium">
+                                        <p className="profile-notification-label">
                                             Vendor Notifications{" "}
-                                            <span className="text-xs text-muted-foreground font-normal">(coming soon)</span>
+                                            <span className="text-xs lg:text-sm text-muted-foreground font-normal">(coming soon)</span>
                                         </p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="profile-notification-value">
                                             Notifications for new vendors and community posts.
                                         </p>
                                     </div>
@@ -261,11 +257,11 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="border-t pt-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium">
+                                        <p className="profile-notification-label">
                                             Analytics Reports{" "}
-                                            <span className="text-xs text-muted-foreground font-normal">(coming soon)</span>
+                                            <span className="text-xs lg:text-sm text-muted-foreground font-normal">(coming soon)</span>
                                         </p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="profile-notification-value">
                                             Periodic market summary reports for your subscribed markets.
                                         </p>
                                     </div>
@@ -283,7 +279,7 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                         {/* ── Location Subscriptions ── */}
                         <div className="space-y-4 border-t pt-6">
                             <div>
-                                <CardTitle className="text-lg">Location Subscriptions</CardTitle>
+                                <CardTitle>Location Subscriptions</CardTitle>
                                 <CardDescription>
                                     Select the MSAs you want to receive notifications for. Applies to all active email feeds above.
                                 </CardDescription>
@@ -310,7 +306,7 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                         />
                                         <label
                                             htmlFor={`msa-${msaName}`}
-                                            className={`text-sm font-medium leading-none ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                            className={`profile-notification-label font-medium leading-none ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
                                         >
                                             {msaName}
                                         </label>

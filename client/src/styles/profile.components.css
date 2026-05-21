@@ -1,10 +1,10 @@
 @layer components {
     .profile-field-label {
-        @apply text-sm font-medium text-muted-foreground;
+        @apply text-sm lg:text-base font-medium text-muted-foreground;
     }
 
     .profile-field-value {
-        @apply text-base font-medium;
+        @apply text-base lg:text-lg font-medium;
     }
 
     .profile-rm-label {
@@ -12,7 +12,7 @@
     }
 
     .profile-rm-value {
-        @apply font-medium text-base lg:text-lg;
+        @apply text-base lg:text-lg font-medium;
     }
 
     .profile-card-sub-title {
@@ -21,5 +21,13 @@
 
     .profile-card-title {
         @apply text-xl lg:text-2xl font-semibold leading-none tracking-tight;
+    }
+
+    .profile-notification-label {
+        @apply text-base lg:text-lg text-foreground;
+    }
+
+    .profile-notification-value {
+        @apply text-sm lg:text-base text-muted-foreground;
     }
 }
