@@ -1,202 +1,172 @@
-# Email Notification Settings — Planning Document
+# Email Notification Settings
 
 ## Overview
 
-This document outlines the plan to give users granular control over which emails they receive, from which apps, and for which geographic markets. The system is built around two independent axes of control:
+Users have granular control over which email feeds they receive and for which markets. The system is built on two independent axes:
 
-- **MSA subscriptions** ("where") — which Metropolitan Statistical Areas the user wants to hear about
-- **App subscriptions** ("what type") — which of the four email feeds the user is subscribed to
+- **MSA subscriptions** ("where") — which Metropolitan Statistical Areas the user wants to hear about. MSA is the subscription unit.
+- **App subscriptions** ("what type") — which of the four email feeds the user is subscribed to.
 
-The intersection of both determines what a user receives. A user subscribed to **San Diego** and **Deals** gets deal notifications for San Diego. Subscribe them to **Vendors** too and they get vendor notifications for San Diego as well. Unsubscribe from San Diego and neither fires for that market, even if both app toggles are on.
+The intersection of both determines what a user receives. A user subscribed to **San Diego** and **Deals** gets deal notifications for San Diego. Subscribe them to **Vendors** too and they get vendor notifications for San Diego. Unsubscribe from San Diego and neither fires for that market, even if both app toggles remain on.
 
-There are four known email apps: **Data App**, **Deals**, **Vendors**, and **Analytics**. Each has its own trigger mechanism, email content, and — where applicable — its own set of status-based filters.
+> **Preferred market vs MSA subscriptions**: These are two different things. The "preferred market" (county + state) selected at signup and on the Profile page is a *browsing preference* — it controls what data the app shows by default. MSA subscriptions control what emails fire. At signup, the county selection is automatically mapped to the corresponding MSA to seed the user's first subscription. Users manage their MSA subscriptions directly from the Profile page.
 
 ---
 
-## Current State
+## Architecture
 
-### What exists today
-- `users.notifications` — single boolean; global master toggle (on/off for everything)
-- `user_msa_subscriptions` — stores which MSAs a user is subscribed to (presence/absence only, no app-level settings)
-- `sent_property_ids` — global per-MSA deduplication: prevents the same property from being emailed twice to anyone in that MSA
-- Daily emails fire at fixed cron times per MSA (`server/jobs/index.ts`); all users subscribed to that MSA receive the same 3 properties
-- Deal notifications fire on every deal creation via `sendDealNotification()` in `deals.services.ts`; currently checks only `users.notifications` and MSA subscription — no per-app filtering
-- No vendor or analytics notifications yet
+### Master Kill-Switch
 
-### Key limitations of the current design
-1. One toggle controls everything — disabling notifications blocks all feeds
-2. No app-level toggles — can't opt out of deals while keeping Data App emails
-3. No status filtering — users receive all property statuses (wholesale, sold, on-market, in-renovation)
-4. No deal type filtering — users receive all deal types (wholesale, agent, sold)
-5. No analytics emails exist yet
-6. No vendor/post notifications yet
-7. Email delivery time is hardcoded per MSA cron; users cannot choose when they receive it
+`users.notifications` remains the **master kill-switch**. If `notifications = false`, nothing sends regardless of individual app toggles. This preserves the original single-toggle behavior for users who want to opt out of all email entirely.
+
+### Per-App Toggles (user_notification_preferences)
+
+One row per user. Stores global notification preferences that apply across all MSA subscriptions.
+
+```ts
+userNotificationPreferences = {
+  userId: uuid (PK → users.id CASCADE)
+
+  // Per-app toggles
+  dataAppEnabled: boolean (default true)
+  dealNotificationsEnabled: boolean (default true)
+  vendorNotificationsEnabled: boolean (default false)
+  analyticsEnabled: boolean (default false)
+
+  // Data App filter: 'in-renovation' | 'on-market' | 'wholesale' | 'sold'
+  // Empty array = all statuses
+  dataAppStatusFilter: text[] (default [])
+
+  // Deals filter: 'wholesale' | 'agent' | 'sold'
+  // Empty array = all deal types
+  dealTypeFilter: text[] (default [])
+
+  createdAt, updatedAt
+}
+```
+
+### Send-Time Logic
+
+All four conditions must be true for an email to be sent:
+
+1. **MSA subscription present** — `user_msa_subscriptions` has a row for this user + MSA
+2. **Master toggle on** — `users.notifications = true`
+3. **App toggle on** — e.g. `dataAppEnabled = true`
+4. **Content passes filter** — if a filter is configured and non-empty, the content type must be in the filter
+
+Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per-user after candidate content is fetched.
 
 ---
 
 ## Four Email Apps
 
 ### 1. Data App — Daily Property Updates
-- **Trigger**: Scheduled cron job (runs once per MSA per day at a fixed server time)
-- **Content**: 3 most recent properties with Street View images for the MSA
+
+- **Trigger**: Scheduled cron job (once per MSA per day at a fixed server time — see `server/jobs/index.ts`)
+- **Content**: Up to 3 most recent properties with Street View images for the MSA
 - **Recipients**: All users subscribed to that MSA with `dataAppEnabled = true` and master notifications on
-- **Status filter**: `dataAppStatusFilter: text[]`
+- **Status filter** (`dataAppStatusFilter: text[]`):
   - Values: `'in-renovation' | 'on-market' | 'wholesale' | 'sold'`
-  - Empty array = all statuses (default behavior)
+  - Empty array = all statuses (default)
   - If filter is non-empty and 0 properties match → skip user that day (no fallback)
-- **Frequency**: Fixed daily per MSA cron. No per-user frequency control in V1.
+- **Whitelist recipients**: `email_subscription_list` entries for the MSA also receive the unfiltered default set
 
 ### 2. Deals — Deal Notifications
+
 - **Trigger**: Event-driven — fires when a deal is posted to an MSA the user is subscribed to
 - **Content**: Single deal card (address, price, specs, type)
 - **Recipients**: All users subscribed to that MSA with `dealNotificationsEnabled = true` and master notifications on; the poster is excluded
-- **Deal type filter**: `dealTypeFilter: text[]`
-  - Values: `'wholesale' | 'agent' | 'sold'` (matches `dealTypeEnum` in `deals.schema.ts`)
-  - Empty array = receive all deal types (default behavior)
+- **Deal type filter** (`dealTypeFilter: text[]`):
+  - Values: `'wholesale' | 'agent' | 'sold'`
+  - Empty array = receive all deal types (default)
   - `sold` is a first-class filter value — users opt in to sold notifications explicitly
-  - Filter logic: if filter is non-empty and deal type is NOT in filter → skip user
-- **Frequency**: Event-driven per deal creation. No batching in V1.
+  - If filter is non-empty and deal type is NOT in filter → skip user
+- **Whitelist recipients**: `email_subscription_list` entries for the MSA also receive all deal notifications
 
 ### 3. Vendors / Posts — Vendor & Community Notifications
+
 - **Trigger**: TBD — likely event-driven (new vendor added, new post published)
-- **Content**: TBD
-- **Recipients**: All users subscribed to matching MSA with `vendorNotificationsEnabled = true` and master notifications on
-- **Status/type filter**: TBD — vendor/post content doesn't map to property statuses. Filter values and behavior to be defined when vendor email content is specified. **Do not add a filter column until this is resolved** (see Open Questions).
-- **Frequency**: TBD
+- **Toggle**: `vendorNotificationsEnabled` (stored, UI wired up — no job fires yet)
+- **Filter columns**: Deferred — do not add filter columns until vendor email content and filter values are defined
 
 ### 4. Analytics — Market Summary Reports
+
 - **Trigger**: TBD — likely a scheduled cron job (weekly or monthly per MSA)
-- **Content**: TBD — expected to be a market summary report (price trends, volume, ARV activity) for the user's subscribed MSAs
-- **Recipients**: All users subscribed to matching MSA with `analyticsEnabled = true` and master notifications on
-- **Status/type filter**: TBD — it is unclear whether market summary reports have meaningful per-status filtering. **Do not add a filter column until Analytics email content is defined** (see Open Questions).
-- **Frequency**: TBD (weekly or monthly)
+- **Toggle**: `analyticsEnabled` (stored, UI wired up — no job fires yet)
+- **Filter columns**: Deferred — do not add filter columns until analytics email content and filter values are defined
 
 ---
 
-## Proposed Database Schema Changes
+## Implementation Details
 
-### New Table: `user_notification_preferences`
-One row per user. Stores global notification preferences that apply across all MSA subscriptions.
+### Auto-Create Preferences on Signup
 
-```ts
-export const userNotificationPreferences = pgTable("user_notification_preferences", {
-  userId: uuid("user_id")
-    .primaryKey()
-    .references(() => users.id, { onDelete: "cascade" }),
+`user_notification_preferences` row is created immediately after `createUser()` in `registration.controllers.ts`, using all DB defaults. No lazy creation.
 
-  // Per-app toggles (replaces users.notifications long-term)
-  dataAppEnabled: boolean("data_app_enabled").notNull().default(true),
-  dealNotificationsEnabled: boolean("deal_notifications_enabled").notNull().default(true),
-  vendorNotificationsEnabled: boolean("vendor_notifications_enabled").notNull().default(false),
-  analyticsEnabled: boolean("analytics_enabled").notNull().default(false),
+This allows email jobs to use `INNER JOIN` instead of `LEFT JOIN + OR(isNull(...), eq(..., true))`. Existing users without a preferences row are backfilled via `database/insert-preferences.sql`.
 
-  // Data App: which property statuses to include in emails
-  // Values: array of 'in-renovation' | 'on-market' | 'wholesale' | 'sold'
-  // Empty array = all statuses (default behavior)
-  dataAppStatusFilter: text("data_app_status_filter").array().notNull().default([]),
+### Data App Per-User Filtering
 
-  // Deals: which deal types to receive notifications for
-  // Values: array of 'wholesale' | 'agent' | 'sold'
-  // Empty array = all types (default behavior)
-  dealTypeFilter: text("deal_type_filter").array().notNull().default([]),
+`emailUpdates.ts` fetches an expanded candidate pool (up to 30 properties), pre-caches Street View availability for all candidates in a single pass, then for each user:
 
-  // Vendor and Analytics filters: deferred — no columns added until content and filter
-  // values are defined (see Open Questions #3 and #4).
+1. Filters the candidate pool to their `dataAppStatusFilter` (or all statuses if empty)
+2. Picks the first 3 with cached Street View images
+3. If 0 match their filter — skips user, no email sent
+4. Builds and sends their personalized email
 
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+All evaluated property IDs are marked in `sent_property_ids` regardless of outcome. `sent_property_ids` is currently global per MSA (V1 limitation — see Open Questions).
+
+### Deal Type Filtering
+
+In `sendDealNotification` (`deals.services.ts`):
+
+1. Master toggle + `dealNotificationsEnabled` checked at the DB query level
+2. After deduplication (poster excluded), `dealTypeFilter` applied per user in memory
+3. Empty filter → include user (receives all deal types)
+4. Non-empty filter, deal type NOT in filter → skip user
+
+---
+
+## API
+
+### `PATCH /api/auth/me/notifications`
+
+Updates the user's `user_notification_preferences` row (upsert).
+
+**Accepts:**
+```json
+{
+  "dataAppEnabled": boolean,
+  "dealNotificationsEnabled": boolean,
+  "vendorNotificationsEnabled": boolean,
+  "analyticsEnabled": boolean,
+  "dataAppStatusFilter": ["in-renovation", "wholesale", ...],
+  "dealTypeFilter": ["wholesale", "agent", "sold"]
+}
 ```
 
-### `user_msa_subscriptions` — No Changes
-MSA subscriptions stay in their existing junction table. `user_notification_preferences` is one row per user and cannot model many-to-many MSA relationships. The existing table is correctly structured.
+All fields are optional. Validated by `updateNotificationPreferencesSchema` in `database/updates/users.update.ts`.
 
-### `users.notifications` — Master Kill-Switch
-`users.notifications` remains the **master kill-switch**. If `notifications = false`, nothing sends regardless of individual app toggles. This preserves existing behavior for users who have explicitly disabled all notifications.
+**Returns:** `{ success: true, preferences: NotificationPreferences }`
 
-**Migration strategy for new users:**
-1. When a user first saves preferences, create a `user_notification_preferences` row
-2. Use `users.notifications` as the master gate at send time (check first, then check per-app toggle)
-3. Deprecate `users.notifications` in a future cleanup pass once all users have preference rows and the UI reflects the new model
+### `PATCH /api/auth/me`
 
----
+Handles master toggle + MSA subscriptions (among other profile fields).
 
-## How Each Control Works
-
-### MSA × App Model
-The two axes are evaluated independently and ANDed together at send time:
-
-1. **Is the user subscribed to this MSA?** (`user_msa_subscriptions` — presence check)
-2. **Is the master toggle on?** (`users.notifications = true`)
-3. **Is the app toggle on?** (e.g. `dataAppEnabled = true`)
-4. **Does the content pass the user's filter?** (if a filter is configured)
-
-All four must be true for an email to be sent. Steps 1–3 are checked in order; step 4 only applies to apps that have filters defined.
-
-### Master Kill-Switch
-`users.notifications = false` → skip the user entirely. No per-app checks needed.
-`users.notifications = true` → proceed to per-app toggle checks.
-
-### App Toggles
-Simple boolean per app. Checked after the master kill-switch passes.
-
-- In `emailUpdates.ts`: check `dataAppEnabled` before queuing a user for an email.
-- In `deals.services.ts > sendDealNotification`: check `dealNotificationsEnabled` before including a user.
-- Analytics and Vendors: check their respective toggle when those jobs are implemented.
-
-### Data App Status Filter
-Stored as `dataAppStatusFilter: text[]`. Empty array = all statuses (default).
-
-Current `emailUpdates.ts` fetches a single candidate pool and sends the same 3 properties to everyone. With per-user status filtering, users may get different property sets from the same candidate pool. This requires a refactor:
-
-**New flow:**
-1. Fetch an expanded candidate pool (increase `CANDIDATE_POOL_SIZE`) — include all active statuses, no per-user filtering at the DB level
-2. Pre-check Street View availability and cache results in memory for the duration of the job (`Map<propertyId, imageUrl | null>`)
-3. For each user:
-   a. Filter the candidate pool to their preferred statuses (or all if filter is empty)
-   b. Pick the first 3 with cached Street View images
-   c. If 0 properties match their filter — **skip, do not send** (no fallback)
-   d. Build and send their personalized email
-4. Mark all properties that were checked in `sent_property_ids`
-
-**Known limitation**: `sent_property_ids` is currently global per MSA. A wholesale property sent to wholesale-only users gets marked as sent, preventing it from being included for a sold-only user. Acceptable for V1. V2 will migrate to per-user sent tracking if needed.
-
-### Deal Type Filter
-Stored as `dealTypeFilter: text[]`. Empty array = all types (default).
-
-In `sendDealNotification`:
-1. After the master kill-switch and `dealNotificationsEnabled` checks pass
-2. Check if the deal's type is in the user's `dealTypeFilter`
-3. If filter is empty → include user (receives all deal types)
-4. If filter is non-empty and deal type is NOT in filter → skip user
-5. If filter is non-empty and deal type IS in filter → send notification
-
-The `sold` type is a first-class filter value. Users who want sold notifications opt in to `sold` explicitly. Users who only want `['wholesale']` will not receive sold notifications.
-
-### Analytics Toggle (V1 — toggle only)
-In V1, the `analyticsEnabled` toggle is wired up in the UI and stored in `user_notification_preferences`, but no analytics email job exists yet. When the analytics cron job is built, it will check this toggle. No filter values are defined until analytics email content is specified.
-
-### Vendor Toggle (V1 — toggle only)
-Same as Analytics. The `vendorNotificationsEnabled` toggle is stored, but no vendor notification job fires yet. Filter values are deferred until vendor email content is specified.
-
-### MSA Subscriptions
-No changes. Users manage which MSAs they subscribe to via checkboxes in the Profile page, backed by `user_msa_subscriptions`. All notification app preferences are global and apply to every MSA subscription.
+**Relevant fields:**
+- `notifications: boolean` — master kill-switch
+- `msaSubscriptions: string[]` — replaces the user's full MSA subscription list by name
 
 ---
 
-## UI Plan
+## UI — Profile Page
 
-### Profile Page Changes
-The current Profile page has:
-- Email Notifications: single checkbox (on/off)
-- Location Subscriptions: MSA checkboxes (shown only when notifications are on)
-
-Replace the single checkbox section with a new **"Notification Preferences"** panel. Suggested layout:
+The `NotificationPreferencesPanel` component (`client/src/components/profile/NotificationPreferencesPanel.tsx`) renders:
 
 ```
 Notification Preferences
 │
-├── [master toggle] Enable email notifications
+├── [master toggle] Email Notifications
 │   (when off, hides all sub-sections below)
 │
 ├── Data App Updates
@@ -206,226 +176,113 @@ Notification Preferences
 │       (empty = all statuses)
 │
 ├── Deal Notifications
-│   ├── [toggle] Receive deal notifications when new deals are posted to your MSAs
+│   ├── [toggle] Receive deal notifications
 │   └── Deal Types (shown only when Deal Notifications enabled):
 │       [checkboxes: Wholesale | Agent | Sold]
 │       (empty = all types)
 │
 ├── Vendor Notifications
-│   └── [toggle] Receive vendor & community post notifications (coming soon)
-│       (no filter UI in V1 — filter values TBD)
+│   └── [toggle] (coming soon — no filter UI yet)
 │
 └── Analytics Reports
-    └── [toggle] Receive market analytics reports (coming soon)
-        (no filter UI in V1 — filter values TBD)
+    └── [toggle] (coming soon — no filter UI yet)
 
 Location Subscriptions
-└── [MSA checkboxes — unchanged, shown when master toggle is on]
+└── [MSA checkboxes — shown when master toggle is on]
 ```
 
-The `components/profile/` directory should hold isolated components:
-- `NotificationPreferencesPanel.tsx`
-- `MsaSubscriptionsPanel.tsx`
-- `AccountInfoPanel.tsx`
-- `RelationshipManagerPanel.tsx`
-
-### API
-Dedicated endpoint: `PATCH /api/auth/me/notifications`
-- Cleaner validation scope, separate from profile updates
-- Accepts: `dataAppEnabled`, `dealNotificationsEnabled`, `vendorNotificationsEnabled`, `analyticsEnabled`, `dataAppStatusFilter`, `dealTypeFilter`
-- Returns the updated preferences row
-- Note: `analyticsStatusFilter` and `vendorStatusFilter` are **not** accepted until those filter values are defined
+The panel makes two parallel API calls on save:
+- `PATCH /api/auth/me` for master toggle + MSA subscriptions
+- `PATCH /api/auth/me/notifications` for per-app toggles and filters
 
 ---
 
-## Resolved Decisions
+## Files
 
-| Question | Decision |
+| File | Role |
 |---|---|
-| `users.notifications` role | Master kill-switch — if false, nothing sends regardless of per-app toggles |
-| MSA × App model | Global app toggles apply to all subscribed MSAs. Not per-MSA per-app. |
-| Data app frequency control | Removed from V1 — emails remain fixed daily per MSA cron |
-| Status filter with 0 results | Skip user that day — no fallback to all statuses |
-| Deal notification frequency | On/off only — event-driven notifications don't batch in V1 |
-| Endpoint location | New dedicated `PATCH /api/auth/me/notifications` |
-| MSA subscription location | Stays in `user_msa_subscriptions` junction table — correct architecture |
-| Deal type filter | Added — `dealTypeFilter: text[]` with values `'wholesale' \| 'agent' \| 'sold'` |
-| Analytics as 4th app | Added — `analyticsEnabled` boolean, no filter column until content is defined |
-| Vendor/Analytics filter columns | Deferred — do not add filter array columns until email content and filter values are defined |
-| Auto-create preferences on signup | Yes — `user_notification_preferences` row created immediately in `signup` controller after `createUser()`, with all defaults. Eliminates LEFT JOIN null-handling in email jobs. Existing users backfilled via SQL (`database/insert-preferences.sql`). |
-| Geographic subscription granularity | County-within-MSA hybrid — users subscribe to counties, grouped under MSAs in the UI. Single email per MSA per user; per-county filtering applied during property selection within the MSA job. See details below. |
-| Scalable recipient resolution | RecipientResolver pattern — shared function that resolves eligible recipients + their filter context (MSA subscriptions, county filter, app toggles) for any MSA job. Email jobs call it instead of duplicating subscriber queries. Implemented when county-within-MSA schema lands. |
-
----
-
----
-
-## Auto-Create Preferences on Signup
-
-### Decision
-A `user_notification_preferences` row is created immediately after `createUser()` in `registration.controllers.ts`, using default values. No lazy creation.
-
-### Why
-- Email jobs can use simple `INNER JOIN` instead of `LEFT JOIN + OR(isNull(...), eq(..., true))`
-- Guarantees all users have a preferences row — consistent query behavior regardless of when the user signed up
-- Avoids a category of bugs where a user with no prefs row silently receives emails they never configured (or is silently excluded)
-
-### Implementation
-- `server/controllers/auth/registration.controllers.ts`: after `createUser()`, call `UserServices.upsertUserNotificationPreferences(newUser.id, {})` with no fields — the DB defaults apply
-- `database/insert-preferences.sql`: one-time SQL to backfill existing users with no preferences row
-
-### Backfill SQL (`database/insert-preferences.sql`)
-```sql
-INSERT INTO user_notification_preferences (
-    user_id,
-    data_app_enabled,
-    deal_notifications_enabled,
-    vendor_notifications_enabled,
-    analytics_enabled,
-    data_app_status_filter,
-    deal_type_filter,
-    created_at,
-    updated_at
-)
-SELECT
-    id,
-    true,
-    true,
-    false,
-    false,
-    ARRAY[]::text[],
-    ARRAY[]::text[],
-    now(),
-    now()
-FROM users
-WHERE id NOT IN (SELECT user_id FROM user_notification_preferences);
-```
-
----
-
-## County-within-MSA Subscription Model
-
-### Decision
-Users subscribe to counties, not raw MSAs. Counties are grouped under their parent MSA in the UI. The backend sends one email per MSA per user, but property selection filters by the user's subscribed counties within that MSA.
-
-### Why
-- An MSA like "Los Angeles" spans multiple counties (LA, Orange, Riverside, San Bernardino, Ventura). A user interested only in Orange County should not receive Riverside properties.
-- Keeps cron job architecture simple: one job per MSA, one email per user per job run. No per-county jobs.
-- Gives users meaningful control without exploding the number of subscription combinations.
-
-### UI Behavior (Profile Page — planned)
-1. User clicks to subscribe to an MSA (e.g., "Los Angeles")
-2. A county checklist expands beneath it showing all counties in that MSA (all pre-checked)
-3. User can deselect individual counties to exclude them
-4. If the user deselects all counties, they are effectively unsubscribed from that MSA
-
-### Data Model (planned — not yet implemented)
-Add a `counties` column to `user_msa_subscriptions`:
-
-```ts
-// Schema addition (NOT YET IMPLEMENTED)
-counties: text("counties").array().notNull().default([]),
-// Empty array = all counties in the MSA (backward-compatible default)
-```
-
-Static MSA → county mapping lives in `client/src/constants/filters.constants.ts` (already exists as `COUNTIES`). Same mapping used server-side for filtering.
-
-### Email Job Behavior (planned)
-1. MSA cron runs (e.g., San Diego at 7:00 AM)
-2. Fetch candidate pool for the MSA (unchanged)
-3. For each user subscribed to this MSA:
-   - If `counties` is empty → include all properties (backward-compatible)
-   - If `counties` is non-empty → filter candidate pool to only properties in user's subscribed counties
-   - Apply existing status filter (`dataAppStatusFilter`) after county filter
-   - If 0 properties remain → skip user (no email)
-
-### Status (Not yet implemented)
-County-within-MSA requires schema migration, a static MSA → county map server-side, UI changes to the subscription section, and updates to email job property selection. These are tracked as Phase 2 work.
-
----
-
-## RecipientResolver Pattern (Planned)
-
-### Decision
-Build a shared `resolveRecipients(msaId)` function that returns the list of eligible recipients + their full filter context for a given MSA. Email jobs call this instead of duplicating subscriber queries.
-
-### Why
-- `emailUpdates.ts`, future `analyticsJob.ts`, and future `vendorJob.ts` all need the same subscriber resolution logic (master toggle, app toggle, MSA subscription, county filter). Duplicating this query in each job is fragile.
-- A single resolver function is the correct abstraction boundary.
-
-### Planned Shape
-```ts
-interface RecipientContext {
-    userId: string;
-    email: string;
-    firstName: string;
-    counties: string[];           // empty = all counties
-    dataAppStatusFilter: string[]; // empty = all statuses
-    dealTypeFilter: string[];      // empty = all types
-    // extend as new apps are added
-}
-
-async function resolveDataAppRecipients(msaId: string): Promise<RecipientContext[]>
-async function resolveDealRecipients(msaId: string): Promise<RecipientContext[]>
-// etc.
-```
-
-### Status (Not yet implemented)
-Will be implemented alongside the county-within-MSA schema changes in Phase 2.
+| `database/schemas/users.schema.ts` | `userNotificationPreferences` table definition |
+| `database/updates/users.update.ts` | `updateNotificationPreferencesSchema` Zod validation |
+| `database/insert-preferences.sql` | One-time SQL backfill for existing users |
+| `server/services/auth/user.services.ts` | `getUserNotificationPreferences`, `upsertUserNotificationPreferences` |
+| `server/controllers/auth/session.controllers.ts` | `updateNotifications` handler (`PATCH /api/auth/me/notifications`) |
+| `server/controllers/auth/registration.controllers.ts` | Auto-creates prefs row on signup |
+| `server/routes/auth.routes.ts` | Route: `PATCH /me/notifications` |
+| `server/jobs/email/processes/emailUpdates.ts` | Data App per-user status filtering |
+| `server/services/deals/deals.services.ts` | Deal notification `dealNotificationsEnabled` + `dealTypeFilter` |
+| `client/src/hooks/use-auth.ts` | `AuthUser`, `NotificationPreferences`, `DataAppStatus`, `DealTypeFilter` types |
+| `client/src/components/profile/NotificationPreferencesPanel.tsx` | Profile page preferences UI |
+| `client/src/pages/Profile.tsx` | Renders `NotificationPreferencesPanel` |
 
 ---
 
 ## Open Questions
 
-1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. V1 assumption: whitelist recipients receive all emails they're listed for, unchanged. App toggles do not apply to whitelist entries.
+1. **`emailSubscriptionList` table** (whitelist for non-user recipients): These records have no notification preferences. Current behavior: whitelist recipients receive all emails they're listed for, unchanged. App toggles do not apply to whitelist entries.
 
-2. **Per-user sent property tracking (V2)**: `sent_property_ids` is global per MSA. A wholesale property sent to User A (wholesale filter) gets marked sent globally — User B (wholesale filter, subscribed later) won't see it. Acceptable for V1.
+2. **Per-user sent property tracking (V2)**: `sent_property_ids` is global per MSA. A wholesale property sent to a wholesale-only user gets marked sent globally — a sold-only user subscribed later won't see it. Acceptable for V1.
 
-3. **Analytics email content and filter values**: What does an analytics email contain — price trend charts, volume summaries, ARV deal counts? Does the user need to filter by property status, deal type, or something else entirely? **This must be defined before implementing the analytics email job or adding a filter column to the schema.**
+3. **Analytics email content and filter values**: What does an analytics email contain? This must be defined before implementing the analytics email job or adding a filter column to the schema.
 
-4. **Vendor/Post email content and filter values**: What triggers a vendor notification — a new vendor profile added, a new community post published, or both? Are these separate notification types (vendor vs. post) or one combined feed? Does the filter apply to vendor category (e.g., "only notify me for General Contractor vendors")? **Define before implementing vendor notifications or adding filter columns.**
-
----
-
-## Phased Implementation Plan
-
-### Phase 1 — Foundation (current focus)
-- [ ] Create `user_notification_preferences` table schema + migration (includes `analyticsEnabled`)
-- [ ] Write data migration: populate `user_notification_preferences` rows from existing `users.notifications`
-- [ ] Extend Zod validation for new notification preference fields
-- [ ] Add service functions for reading/writing notification preferences
-- [ ] Add `PATCH /api/auth/me/notifications` endpoint (accepts all 4 app toggles + 2 filter arrays)
-- [ ] Refactor `emailUpdates.ts`: per-user status filtering + skip-if-no-match
-- [ ] Update `sendDealNotification` in `deals.services.ts` to check `dealNotificationsEnabled` + `dealTypeFilter`
-- [ ] Build `components/profile/NotificationPreferencesPanel.tsx` and related components
-- [ ] Update `Profile.tsx` to use the new panel components
-
-### Phase 2 — Polish
-- [ ] Per-user sent property tracking (replace/extend `sent_property_ids`)
-- [ ] Deal notification daily digest (batch multiple deals into one email per day)
-- [ ] Per-MSA notification preferences (if demand arises)
-
-### Phase 3 — Analytics & Vendor Emails
-- [ ] Define analytics email content, cadence, and filter values (answer Open Question #3)
-- [ ] Build analytics cron job + email template
-- [ ] Enable `analyticsEnabled` filter UI in the profile panel
-- [ ] Define vendor/post notification trigger and content (answer Open Question #4)
-- [ ] Build vendor notification trigger in posts/vendors services
-- [ ] Enable `vendorNotificationsEnabled` filter UI in the profile panel
-- [ ] Define and add filter columns for both apps once values are known
+4. **Vendor/Post email content and filter values**: What triggers a vendor notification — new vendor profile, new community post, or both? Filter values must be defined before adding filter columns.
 
 ---
 
-## Files That Will Change in Phase 1
+## Planned: RecipientResolver Pattern (Phase 2)
 
-| File | Change |
-|---|---|
-| `database/schemas/users.schema.ts` | Add `userNotificationPreferences` table (4 app toggles + 2 filter arrays) |
-| `database/updates/users.update.ts` | Add Zod schema for notification preferences |
-| `server/services/users/users.services.ts` | Add preference read/write functions |
-| `server/controllers/auth/session.controllers.ts` | Add `PATCH /api/auth/me/notifications` handler |
-| `server/routes/auth/auth.routes.ts` | Register new notifications route |
-| `server/jobs/email/processes/emailUpdates.ts` | Per-user status filtering, skip-if-no-match |
-| `server/services/deals/deals.services.ts` | Check `dealNotificationsEnabled` + `dealTypeFilter` |
-| `client/src/pages/Profile.tsx` | Refactor to use isolated panel components |
-| `client/src/components/profile/` | New directory — panel components |
+Build a shared `resolveRecipients` module at `server/services/email/recipientResolver.ts`. Each email app gets its own resolver function that returns eligible recipients + their filter context for a given MSA. Email jobs call the resolver and focus only on content building and sending.
+
+**Why**: `emailUpdates.ts`, `deals.services.ts`, future `analyticsJob.ts`, and future `vendorJob.ts` all need the same subscriber resolution logic: master toggle check, app toggle check, MSA subscription presence. Duplicating this JOIN across each job creates drift.
+
+**Planned shape:**
+```ts
+interface RecipientContext {
+    userId: string;
+    email: string;
+    firstName: string;
+    rmEmail?: string;
+    dataAppStatusFilter: string[];
+    dealTypeFilter: string[];
+}
+
+async function resolveDataAppRecipients(msaId: number): Promise<RecipientContext[]>
+async function resolveDealRecipients(msaId: number): Promise<RecipientContext[]>
+async function resolveVendorRecipients(msaId: number): Promise<RecipientContext[]>
+async function resolveAnalyticsRecipients(msaId: number): Promise<RecipientContext[]>
+```
+
+**Status**: Phase 2. Will be implemented when a second email app type is ready to ship, to avoid building the abstraction before there's a second real consumer.
+
+---
+
+## Changelog
+
+### Patch 1 — Signup Auto-Create + Backfill SQL
+*Resolved design question: whether to lazily create notification preferences or guarantee a row at signup.*
+
+- Added `user_notification_preferences` table to `database/schemas/users.schema.ts` with 4 app toggles (`dataAppEnabled`, `dealNotificationsEnabled`, `vendorNotificationsEnabled`, `analyticsEnabled`) and 2 filter arrays (`dataAppStatusFilter`, `dealTypeFilter`)
+- `registration.controllers.ts` — after `createUser()`, immediately calls `upsertUserNotificationPreferences(newUser.id, {})` with no fields so DB defaults apply
+- `database/insert-preferences.sql` — one-time SQL backfill query (idempotent) for existing users with no preferences row
+- Decision: guarantees all users have a preferences row, eliminates LEFT JOIN null-handling in email jobs, avoids silent include/exclude bugs for users without rows
+
+### Patch 2 — MSA Subscription Model Decision
+*Resolved design question: MSA vs county vs hybrid for email subscriptions.*
+
+- Decision: **MSA is the subscription unit**. Users subscribe to entire MSAs (Denver, Miami, San Diego, LA, SF, Port St. Lucie, Seattle, Tampa). No county-level filtering within an MSA in V1.
+- Rationale: cron jobs already run per-MSA; county-within-MSA adds significant query complexity for unclear user benefit given the small active MSA set; users never need to know what an MSA is — they pick their county at signup and the registration controller maps it to the MSA automatically
+- "Preferred market" (county + state) remains a separate browsing preference — it sets the default view in the app and is not the same as email subscriptions
+- `user_msa_subscriptions` table stays unchanged — no county column needed
+- County-within-MSA approach was considered and rejected for V1; can be revisited in V2 if demand arises
+
+### Patch 3 — Phase 1 Full Implementation
+*All foundation components built and wired together.*
+
+- **Zod schema** — `updateNotificationPreferencesSchema` added to `database/updates/users.update.ts`; validates all 4 toggles + 2 filter arrays; strict mode (no extra fields)
+- **Service functions** — `getUserNotificationPreferences` and `upsertUserNotificationPreferences` added to `server/services/auth/user.services.ts`
+- **API endpoint** — `PATCH /api/auth/me/notifications` added to `server/routes/auth.routes.ts`; handler `updateNotifications` in `session.controllers.ts`
+- **`emailUpdates.ts` refactor** — expanded candidate pool (30 properties), Street View pre-cached in one pass, per-user status filter applied in memory, skip-if-no-match behavior
+- **`sendDealNotification` update** — `dealNotificationsEnabled` and `dealTypeFilter` checks added; `sold` treated as a first-class opt-in filter value
+- **`NotificationPreferencesPanel.tsx`** — new component under `client/src/components/profile/`; renders master toggle, per-app toggles + filter checkboxes, MSA subscription checkboxes; two parallel PATCH calls on save
+- **`Profile.tsx`** — replaced inline notification checkbox with `<NotificationPreferencesPanel user={user} />`
+- **`use-auth.ts`** — added `NotificationPreferences`, `DataAppStatus`, `DealTypeFilter` types; `AuthUser` extended with `msaSubscriptions` and `notificationPreferences` fields
+- `GET /api/auth/me` — extended to include `msaSubscriptions` (array of MSA names) and `notificationPreferences` in the response alongside the existing user object
