@@ -15,8 +15,8 @@ SELECT
     true,
     false,
     false,
-    ARRAY[]::text[],
-    ARRAY[]::text[],
+    ARRAY['in-renovation', 'on-market', 'wholesale', 'sold']::text[],
+    ARRAY['wholesale', 'agent', 'sold']::text[],
     now(),
     now()
 FROM users
