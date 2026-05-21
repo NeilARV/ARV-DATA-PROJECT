@@ -26,7 +26,6 @@ const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "upd
 
 const DATA_APP_STATUS_OPTIONS: { value: DataAppStatus; label: string }[] = [
     { value: "in-renovation", label: "Renovating" },
-    { value: "on-market", label: "On Market" },
     { value: "wholesale", label: "Wholesale" },
     { value: "sold", label: "Sold" },
 ];

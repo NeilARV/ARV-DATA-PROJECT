@@ -4,7 +4,7 @@ import { userNotificationPreferences } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { properties, addresses, structures } from "@database/schemas/properties.schema";
 import { sentPropertyIds as sentPropertyIdsTable } from "@database/schemas/sync.schema";
-import { eq, and, sql, or, isNull } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { StreetviewServices } from "server/services/properties";
 import {
     sendTemplateToUsers,
@@ -222,15 +222,12 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
             .from(users)
             .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
             .innerJoin(msas, eq(userMsaSubscriptions.msaId, msas.id))
-            .leftJoin(userNotificationPreferences, eq(users.id, userNotificationPreferences.userId))
+            .innerJoin(userNotificationPreferences, eq(users.id, userNotificationPreferences.userId))
             .where(
                 and(
                     eq(msas.name, msaName),
                     eq(users.notifications, true),
-                    or(
-                        isNull(userNotificationPreferences.dataAppEnabled),
-                        eq(userNotificationPreferences.dataAppEnabled, true),
-                    ),
+                    eq(userNotificationPreferences.dataAppEnabled, true),
                 )
             );
 
