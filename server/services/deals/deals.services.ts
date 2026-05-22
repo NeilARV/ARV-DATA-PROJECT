@@ -885,7 +885,42 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         ReplyTo:  displayEmail,
     });
 
-    console.log(`${label} Sent: dealId=${dealId}, requester=${requesterId}, to=${recipientEmail}`);
+    console.log(`${label} Sent to RM/default: dealId=${dealId}, requester=${requesterId}, to=${recipientEmail}`);
+
+    // Also notify the original deal poster
+    if (dealRow.posterEmail && dealRow.posterEmail !== recipientEmail) {
+        const posterHtmlBody = [
+            `<p style="margin:0 0 16px;font-size:14px"><strong>${requesterName || displayEmail}</strong> has requested more information about your deal at <strong>${addressLabel}</strong>.</p>`,
+            `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
+            section("Requester Contact", [
+                row("Name",  requesterName || null),
+                row("Email", displayEmail),
+                row("Phone", displayPhone),
+            ].join("")),
+            ...(displayMessage ? [section("Message", displayMessage.replace(/\n/g, "<br />"))] : []),
+        ].join("\n");
+
+        const posterTextLines = [
+            `${requesterName || displayEmail} has requested more information about your deal at ${addressLabel}.`,
+            "",
+            "REQUESTER CONTACT",
+            requesterName             || null,
+            displayEmail,
+            displayPhone              || null,
+            displayMessage ? `\nMESSAGE\n${displayMessage}` : null,
+        ].filter((l): l is string => l != null).join("\n");
+
+        await sendPlainEmail({
+            From:     fromAddress,
+            To:       dealRow.posterEmail,
+            Subject:  `[Deal Interest] ${addressLabel} — ${requesterName}`,
+            HtmlBody: posterHtmlBody,
+            TextBody: posterTextLines,
+            ReplyTo:  displayEmail,
+        });
+
+        console.log(`${label} Sent to poster: dealId=${dealId}, poster=${dealRow.posterEmail}`);
+    }
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────
