@@ -712,7 +712,15 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
 }
 
 // ── REQUEST deal info — single-click email to RM ──────────────────────────────
-export async function requestDealInfo(dealId: number, requesterId: string): Promise<void> {
+type RequestInfoOverrides = {
+    firstName?: string;
+    lastName?:  string;
+    email?:     string;
+    phone?:     string;
+    message?:   string;
+};
+
+export async function requestDealInfo(dealId: number, requesterId: string, overrides?: RequestInfoOverrides): Promise<void> {
     const label = "[dealsService.requestDealInfo]";
 
     const [dealRow] = await db
@@ -787,7 +795,13 @@ export async function requestDealInfo(dealId: number, requesterId: string): Prom
     const closeOfEscrow  = fmtDate(dealRow.closeOfEscrow);
     const baths          = dealRow.baths != null ? parseFloat(dealRow.baths) : null;
     const sqft           = dealRow.sqft  != null ? dealRow.sqft.toLocaleString("en-US") : null;
-    const requesterName  = [requester.firstName, requester.lastName].filter(Boolean).join(" ");
+    const displayFirstName = overrides?.firstName?.trim() || requester.firstName;
+    const displayLastName  = overrides?.lastName?.trim()  || requester.lastName;
+    const displayEmail     = overrides?.email?.trim()     || requester.email;
+    const displayPhone     = overrides?.phone?.trim()     || requester.phone || null;
+    const displayMessage   = overrides?.message?.trim()   || null;
+
+    const requesterName  = [displayFirstName, displayLastName].filter(Boolean).join(" ");
     const posterName     = [dealRow.posterFirstName, dealRow.posterLastName].filter(Boolean).join(" ");
 
     // ── HTML helpers ───────────────────────────────────────────────────────────
@@ -801,7 +815,7 @@ export async function requestDealInfo(dealId: number, requesterId: string): Prom
             : "";
 
     const htmlBody = [
-        `<p style="margin:0 0 16px;font-size:14px"><strong>Requested by:</strong> ${requesterName}${requesterName ? " | " : ""}${requester.email}${requester.phone ? ` | ${requester.phone}` : ""}</p>`,
+        `<p style="margin:0 0 16px;font-size:14px"><strong>Requested by:</strong> ${requesterName}${requesterName ? " | " : ""}${displayEmail}${displayPhone ? ` | ${displayPhone}` : ""}</p>`,
         `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
         section("Property", [
             row("Address",       dealRow.address ?? "Undisclosed"),
@@ -823,6 +837,7 @@ export async function requestDealInfo(dealId: number, requesterId: string): Prom
             row("Email", dealRow.posterEmail),
             row("Phone", dealRow.posterPhone),
         ].join("")),
+        ...(displayMessage ? [section("Message from Requester", displayMessage.replace(/\n/g, "<br />"))] : []),
         ...(dealRow.notes      ? [section("Notes",                dealRow.notes.replace(/\n/g, "<br />"))] : []),
         ...(dealRow.adminNotes ? [section("Internal Note (Shadow)", dealRow.adminNotes.replace(/\n/g, "<br />"))] : []),
         ...(dealRow.photosUrl  ? [section("Photos", `<tr><td><a href="${dealRow.photosUrl}" style="color:#5BC8DC">${dealRow.photosUrl}</a></td></tr>`)] : []),
@@ -830,7 +845,7 @@ export async function requestDealInfo(dealId: number, requesterId: string): Prom
     ].join("\n");
 
     const textLines = [
-        `Requested by: ${requesterName} | ${requester.email}${requester.phone ? ` | ${requester.phone}` : ""}`,
+        `Requested by: ${requesterName} | ${displayEmail}${displayPhone ? ` | ${displayPhone}` : ""}`,
         "",
         "PROPERTY",
         `Address:      ${dealRow.address ?? "Undisclosed"}`,
@@ -851,6 +866,7 @@ export async function requestDealInfo(dealId: number, requesterId: string): Prom
         posterName             || null,
         dealRow.posterEmail    ?? null,
         dealRow.posterPhone    ?? null,
+        displayMessage ? `\nMESSAGE FROM REQUESTER\n${displayMessage}` : null,
         dealRow.notes      ? `\nNOTES\n${dealRow.notes}` : null,
         dealRow.adminNotes ? `\nINTERNAL NOTE\n${dealRow.adminNotes}` : null,
         links.length > 0   ? `\nCOMPARABLE LINKS\n${links.map((l) => l.url).join("\n")}` : null,
@@ -866,7 +882,7 @@ export async function requestDealInfo(dealId: number, requesterId: string): Prom
         Subject:  `[Deal Info Request] ${addressLabel} — ${requesterName}`,
         HtmlBody: htmlBody,
         TextBody: textLines,
-        ReplyTo:  requester.email,
+        ReplyTo:  displayEmail,
     });
 
     console.log(`${label} Sent: dealId=${dealId}, requester=${requesterId}, to=${recipientEmail}`);

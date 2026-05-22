@@ -1,16 +1,19 @@
 import AppDialog from "@/components/modals/Dialog";
-import ConfirmationContent from "@/components/modals/Confirmation";
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import RequestDealInfoForm from "@/components/deals/RequestDealInfoForm";
+import type { RequestInfoFormValues } from "@/components/deals/requestDealInfo.schema";
+import type { AuthUser } from "@/hooks/use-auth";
 
 type RequestDealInfoDialogProps = {
     open: boolean;
     address: string;
     isLoading: boolean;
     succeeded: boolean;
+    user: AuthUser | null;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: (data: RequestInfoFormValues) => void;
 };
 
 export default function RequestDealInfoDialog({
@@ -18,11 +21,12 @@ export default function RequestDealInfoDialog({
     address,
     isLoading,
     succeeded,
+    user,
     onClose,
     onConfirm,
 }: RequestDealInfoDialogProps) {
     return (
-        <AppDialog open={open} onClose={onClose} className="max-w-sm sm:max-w-lg lg:max-w-xl">
+        <AppDialog open={open} onClose={onClose} className="sm:max-w-lg">
             {succeeded ? (
                 <>
                     <DialogHeader>
@@ -33,19 +37,19 @@ export default function RequestDealInfoDialog({
                             A member of our team will reach out to you shortly with more details regarding {address}.
                         </DialogDescription>
                     </DialogHeader>
-                    <Button variant="outline" onClick={onClose} className="w-full" size="lg">
-                        Close
-                    </Button>
+                    <div className="pt-4">
+                        <Button variant="outline" onClick={onClose} className="w-full" size="base">
+                            Close
+                        </Button>
+                    </div>
                 </>
             ) : (
-                <ConfirmationContent
-                    onClose={onClose}
-                    onConfirm={onConfirm}
-                    title="Request More Info"
-                    description={`Request more information about ${address}?`}
-                    confirmText="Send Request"
-                    cancelText="Cancel"
+                <RequestDealInfoForm
+                    address={address}
+                    user={user}
                     isLoading={isLoading}
+                    onClose={onClose}
+                    onSubmit={onConfirm}
                 />
             )}
         </AppDialog>

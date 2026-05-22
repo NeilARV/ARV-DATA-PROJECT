@@ -16,6 +16,7 @@ import EditDealDialog from "@/components/deals/EditDealDialog";
 import DeleteDealDialog from "@/components/deals/DeleteDealDialog";
 import RequestDealInfoDialog from "@/components/deals/RequestDealInfoDialog";
 import { useDealsNav } from "@/hooks/useDealsNav";
+import type { RequestInfoFormValues } from "@/components/deals/requestDealInfo.schema";
 
 export default function DealsPageContent() {
     const [showAddDeal, setShowAddDeal] = useState(false);
@@ -103,8 +104,8 @@ export default function DealsPageContent() {
     });
 
     const requestDealInfo = useMutation({
-        mutationFn: async (dealId: number) => {
-            const res = await apiRequest("POST", `/api/deals/${dealId}/request-info`);
+        mutationFn: async ({ dealId, ...body }: { dealId: number } & RequestInfoFormValues) => {
+            const res = await apiRequest("POST", `/api/deals/${dealId}/request-info`, body);
             return res.json();
         },
         onSuccess: () => {
@@ -173,7 +174,7 @@ export default function DealsPageContent() {
                         onToggleDeal={setDealId}
                         onDelete={(deal) => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
                         onEdit={(deal) => setEditDeal({ ...deal, links: deal.links.map((l) => l.url) })}
-                        requestingInfoDealId={requestDealInfo.isPending ? requestDealInfo.variables : undefined}
+                        requestingInfoDealId={requestDealInfo.isPending ? requestDealInfo.variables?.dealId : undefined}
                         onRequestInfo={(deal) => setConfirmRequestDeal(deal)}
                         onTopBuyers={(deal) => setBestBuyersDeal(deal)}
                     />
@@ -208,8 +209,9 @@ export default function DealsPageContent() {
                 }
                 isLoading={requestDealInfo.isPending}
                 succeeded={requestInfoSucceeded}
+                user={user}
                 onClose={() => { setConfirmRequestDeal(null); setRequestInfoSucceeded(false); }}
-                onConfirm={() => confirmRequestDeal && requestDealInfo.mutate(confirmRequestDeal.id)}
+                onConfirm={(formData) => confirmRequestDeal && requestDealInfo.mutate({ dealId: confirmRequestDeal.id, ...formData })}
             />
 
             <AppDialog open={!!bestBuyersDeal} onClose={() => setBestBuyersDeal(null)} className="max-w-md">

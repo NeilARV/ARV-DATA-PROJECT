@@ -166,7 +166,8 @@ export async function requestDealInfoController(req: Request, res: Response): Pr
             return;
         }
 
-        await requestDealInfo(id, callerId);
+        const { firstName, lastName, email, phone, message } = req.body ?? {};
+        await requestDealInfo(id, callerId, { firstName, lastName, email, phone, message });
         res.json({ message: "Request sent successfully" });
     } catch (err) {
         handleServiceError(res, err, "Error sending deal info request");
