@@ -3,7 +3,7 @@ import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/di
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import RequestDealInfoForm from "@/components/deals/RequestDealInfoForm";
-import type { RequestInfoFormValues } from "@/components/deals/requestDealInfo.schema";
+import type { RequestDealInfoFormValues } from "@database/validation/deals.validation";
 import type { AuthUser } from "@/hooks/use-auth";
 
 type RequestDealInfoDialogProps = {
@@ -13,7 +13,7 @@ type RequestDealInfoDialogProps = {
     succeeded: boolean;
     user: AuthUser | null;
     onClose: () => void;
-    onConfirm: (data: RequestInfoFormValues) => void;
+    onConfirm: (data: RequestDealInfoFormValues) => void;
 };
 
 export default function RequestDealInfoDialog({

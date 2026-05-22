@@ -16,7 +16,7 @@ import EditDealDialog from "@/components/deals/EditDealDialog";
 import DeleteDealDialog from "@/components/deals/DeleteDealDialog";
 import RequestDealInfoDialog from "@/components/deals/RequestDealInfoDialog";
 import { useDealsNav } from "@/hooks/useDealsNav";
-import type { RequestInfoFormValues } from "@/components/deals/requestDealInfo.schema";
+import type { RequestDealInfoFormValues } from "@database/validation/deals.validation";
 
 export default function DealsPageContent() {
     const [showAddDeal, setShowAddDeal] = useState(false);
@@ -104,7 +104,7 @@ export default function DealsPageContent() {
     });
 
     const requestDealInfo = useMutation({
-        mutationFn: async ({ dealId, ...body }: { dealId: number } & RequestInfoFormValues) => {
+        mutationFn: async ({ dealId, ...body }: { dealId: number } & RequestDealInfoFormValues) => {
             const res = await apiRequest("POST", `/api/deals/${dealId}/request-info`, body);
             return res.json();
         },

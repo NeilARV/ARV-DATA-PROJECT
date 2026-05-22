@@ -8,14 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { AuthUser } from "@/hooks/use-auth";
-import { requestInfoSchema, type RequestInfoFormValues } from "@/components/deals/requestDealInfo.schema";
+import { requestDealInfoSchema, type RequestDealInfoFormValues } from "@database/validation/deals.validation";
 
 type RequestDealInfoFormProps = {
     address: string;
     user: AuthUser | null;
     isLoading: boolean;
     onClose: () => void;
-    onSubmit: (data: RequestInfoFormValues) => void;
+    onSubmit: (data: RequestDealInfoFormValues) => void;
 };
 
 export default function RequestDealInfoForm({
@@ -25,8 +25,8 @@ export default function RequestDealInfoForm({
     onClose,
     onSubmit,
 }: RequestDealInfoFormProps) {
-    const form = useForm<RequestInfoFormValues>({
-        resolver: zodResolver(requestInfoSchema),
+    const form = useForm<RequestDealInfoFormValues>({
+        resolver: zodResolver(requestDealInfoSchema),
         defaultValues: {
             firstName: user?.firstName ?? "",
             lastName:  user?.lastName  ?? "",
@@ -107,7 +107,7 @@ export default function RequestDealInfoForm({
                             name="phone"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Phone</FormLabel>
+                                    <FormLabel>Phone <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
                                     <FormControl>
                                         <Input type="tel" placeholder="Phone number" {...field} />
                                     </FormControl>

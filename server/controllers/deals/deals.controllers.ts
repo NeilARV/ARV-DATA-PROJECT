@@ -9,6 +9,7 @@ import {
     sendDealNotification,
     DealServiceError,
 } from "server/services/deals/deals.services";
+import { requestDealInfoSchema } from "@database/validation/deals.validation";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -166,8 +167,12 @@ export async function requestDealInfoController(req: Request, res: Response): Pr
             return;
         }
 
-        const { firstName, lastName, email, phone, message } = req.body ?? {};
-        await requestDealInfo(id, callerId, { firstName, lastName, email, phone, message });
+        const parsed = requestDealInfoSchema.safeParse(req.body ?? {});
+        if (!parsed.success) {
+            res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
+            return;
+        }
+        await requestDealInfo(id, callerId, parsed.data);
         res.json({ message: "Request sent successfully" });
     } catch (err) {
         handleServiceError(res, err, "Error sending deal info request");
