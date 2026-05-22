@@ -10,7 +10,7 @@ function buildDealsUrl(tab: DealTab, filter: LocationFilter | null, dealId?: num
     if (filter) {
         params.set("filterType", filter.type);
         params.set("filterValue", filter.value);
-        if (filter.type === "county") params.set("filterState", filter.state);
+        if (filter.type === "county" || filter.type === "city") params.set("filterState", filter.state);
     }
     if (dealId != null) params.set("dealId", String(dealId));
     const qs = params.toString();
@@ -26,7 +26,10 @@ function parseFilter(params: URLSearchParams): LocationFilter | null {
         return { type: "county", value, state };
     }
     if (type === "msa")  return { type: "msa", value };
-    if (type === "city") return { type: "city", value };
+    if (type === "city") {
+        const state = params.get("filterState") ?? "";
+        return { type: "city", value, state };
+    }
     if (type === "zip")  return { type: "zip", value };
     return null;
 }

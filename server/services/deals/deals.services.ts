@@ -193,11 +193,12 @@ type GetDealsFilters = {
     userId?: string;
     msaName?: string;
     city?: string;
+    state?: string;
     zipCode?: string;
 }
 
 export async function getDeals(filters: GetDealsFilters) {
-    const { id: filterId, userId: filterUserId, msaName: filterMsaName, city: filterCity, zipCode: filterZipCode } = filters;
+    const { id: filterId, userId: filterUserId, msaName: filterMsaName, city: filterCity, state: filterState, zipCode: filterZipCode } = filters;
 
     let filterMsaId: number | undefined;
     if (filterMsaName) {
@@ -219,6 +220,7 @@ export async function getDeals(filters: GetDealsFilters) {
     if (filterUserId)              conditions.push(eq(deals.userId, filterUserId));
     if (filterMsaId !== undefined) conditions.push(eq(deals.msaId, filterMsaId));
     if (filterCity)                conditions.push(ilike(deals.city, filterCity));
+    if (filterState)               conditions.push(eq(deals.state, filterState.toUpperCase()));
     if (filterZipCode)             conditions.push(eq(deals.zipCode, filterZipCode));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

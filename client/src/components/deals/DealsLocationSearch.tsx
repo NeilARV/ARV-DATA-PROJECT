@@ -5,7 +5,7 @@ import { COUNTIES, MSA } from "@/constants/filters.constants";
 export type LocationFilter =
     | { type: "county"; value: string; state: string }
     | { type: "msa";    value: string }
-    | { type: "city";   value: string }
+    | { type: "city";   value: string; state: string }
     | { type: "zip";    value: string };
 
 // Returns the primary city name from a full MSA string
@@ -17,7 +17,7 @@ export function msaShortName(msa: string): string {
 export function filterToInputText(filter: LocationFilter): string {
     if (filter.type === "county") return `${filter.value} County, ${filter.state}`;
     if (filter.type === "msa")    return `${msaShortName(filter.value)} MSA`;
-    if (filter.type === "city")   return filter.value;
+    if (filter.type === "city")   return `${filter.value}, ${filter.state}`;
     if (filter.type === "zip")    return filter.value;
     return "";
 }
@@ -123,7 +123,7 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
                 kind: "city",
                 label: c.city,
                 sublabel: c.state,
-                filter: { type: "city", value: c.city },
+                filter: { type: "city", value: c.city, state: c.state },
             });
         }
 

@@ -47,6 +47,7 @@ export default function DealsPageContent() {
             params.set("msaName", locationFilter.value);
         } else if (locationFilter?.type === "city") {
             params.set("city", locationFilter.value);
+            params.set("state", locationFilter.state);
         } else if (locationFilter?.type === "zip") {
             params.set("zipCode", locationFilter.value);
         }
