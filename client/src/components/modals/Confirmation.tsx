@@ -28,14 +28,14 @@ export default function ConfirmationContent({
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
 
-      <div className="flex gap-2 pt-4">
+      <div className="flex gap-2">
         <Button
           variant="outline"
           onClick={onClose}
           className="flex-1"
           disabled={isLoading}
           data-testid="button-confirm-cancel"
-          size="base"
+          size="lg"
         >
           {cancelText}
         </Button>
@@ -45,7 +45,7 @@ export default function ConfirmationContent({
           className="flex-1"
           disabled={isLoading}
           data-testid="button-confirm-ok"
-          size="base"
+          size="lg"
         >
           {isLoading ? (
             <>

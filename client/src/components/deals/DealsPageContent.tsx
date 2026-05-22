@@ -21,6 +21,7 @@ export default function DealsPageContent() {
     const [showAddDeal, setShowAddDeal] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<{ dealId: number; address: string } | null>(null);
     const [confirmRequestDeal, setConfirmRequestDeal] = useState<Deal | null>(null);
+    const [requestInfoSucceeded, setRequestInfoSucceeded] = useState(false);
     const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
     const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
 
@@ -107,8 +108,7 @@ export default function DealsPageContent() {
             return res.json();
         },
         onSuccess: () => {
-            setConfirmRequestDeal(null);
-            toast({ title: "Request Sent", description: "Your relationship manager has been notified." });
+            setRequestInfoSucceeded(true);
         },
         onError: () => {
             toast({ title: "Error", description: "Failed to send request. Please try again.", variant: "destructive" });
@@ -207,7 +207,8 @@ export default function DealsPageContent() {
                     "this property"
                 }
                 isLoading={requestDealInfo.isPending}
-                onClose={() => setConfirmRequestDeal(null)}
+                succeeded={requestInfoSucceeded}
+                onClose={() => { setConfirmRequestDeal(null); setRequestInfoSucceeded(false); }}
                 onConfirm={() => confirmRequestDeal && requestDealInfo.mutate(confirmRequestDeal.id)}
             />
 
