@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireSub } from "server/middleware/requireSub";
 import {
     getDealsController,
+    getDealByIdController,
     createDealController,
     updateDealController,
     deleteDealController,
@@ -12,6 +13,9 @@ const router = Router();
 
 // GET /api/deals — fetch deals; filter by ?userId= or ?msaName=
 router.get("/", getDealsController);
+
+// GET /api/deals/:id — fetch a single deal by id
+router.get("/:id", getDealByIdController);
 
 // POST /api/deals — create a deal (pro/premium subscription, or team member bypass)
 router.post("/", requireSub(["pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] }), createDealController);

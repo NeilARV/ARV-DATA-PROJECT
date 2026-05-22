@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DealCard from "@/components/deals/DealCard2";
 import DealsColumn from "@/components/deals/DealsColumn";
 
@@ -11,7 +11,10 @@ type DealsGridProps = {
     isOwner: boolean;
     isRelationshipManager: boolean;
     userId: string | undefined;
+    expandedDealId: number | null;
+    pinnedDealId: number | null;
     requestingInfoDealId?: number;
+    onToggleDeal: (id: number | null) => void;
     onDelete: (deal: Deal) => void;
     onEdit: (deal: Deal) => void;
     onRequestInfo: (deal: Deal) => void;
@@ -27,44 +30,61 @@ export default function DealsGrid({
     isOwner,
     isRelationshipManager,
     userId,
+    expandedDealId,
+    pinnedDealId,
     requestingInfoDealId,
+    onToggleDeal,
     onDelete,
     onEdit,
     onRequestInfo,
     onTopBuyers,
 }: DealsGridProps) {
-    const [selectedDealId, setSelectedDealId] = useState<number | null>(null);
     const [mobileColumn, setMobileColumn] = useState<"new" | "sold">("new");
 
+    const totalDeals = newDeals.length + soldDeals.length;
+
+    // Auto-scroll to and expand the linked deal when data loads or dealId changes
+    useEffect(() => {
+        if (!expandedDealId || totalDeals === 0) return;
+        const inSold = soldDeals.some((d) => d.id === expandedDealId);
+        setMobileColumn(inSold ? "sold" : "new");
+        requestAnimationFrame(() => {
+            const el = document.getElementById(`deal-${expandedDealId}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+    }, [expandedDealId, totalDeals]);
+
     const handleToggle = (dealId: number) => {
-        setSelectedDealId((prev) => (prev === dealId ? null : dealId));
+        onToggleDeal(expandedDealId === dealId ? null : dealId);
     };
 
     const switchMobileColumn = (col: "new" | "sold") => {
         setMobileColumn(col);
-        setSelectedDealId(null);
+        onToggleDeal(null);
     };
 
     const renderCard = (deal: Deal) => {
         const isOwnerOfDeal = canAccessApp && userId === deal.userId;
         const isOwnerOfDealForTopBuyers = userId === deal.userId;
         return (
-            <DealCard
-                key={deal.id}
-                deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
-                canDelete={canManageDeals || isOwnerOfDeal}
-                canEdit={userId === deal.userId || isAdmin || isOwner}
-                canRequestContact={deal.dealType !== "sold" && !isOwnerOfDeal}
-                isOwner={isOwnerOfDealForTopBuyers}
-                canViewPoster={isAdmin || isOwner || isRelationshipManager}
-                expanded={selectedDealId === deal.id}
-                isRequestingInfo={requestingInfoDealId === deal.id}
-                onToggle={() => handleToggle(deal.id)}
-                onDelete={() => onDelete(deal)}
-                onEdit={() => onEdit(deal)}
-                onRequestInfo={() => onRequestInfo(deal)}
-                onTopBuyers={() => onTopBuyers(deal)}
-            />
+            <div key={deal.id} id={`deal-${deal.id}`}>
+                <DealCard
+                    deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
+                    canDelete={canManageDeals || isOwnerOfDeal}
+                    canEdit={userId === deal.userId || isAdmin || isOwner}
+                    canRequestContact={deal.dealType !== "sold" && !isOwnerOfDeal}
+                    isOwner={isOwnerOfDealForTopBuyers}
+                    canViewPoster={isAdmin || isOwner || isRelationshipManager}
+                    expanded={expandedDealId === deal.id}
+                    isPinned={pinnedDealId === deal.id}
+                    isRequestingInfo={requestingInfoDealId === deal.id}
+                    onToggle={() => handleToggle(deal.id)}
+                    onDelete={() => onDelete(deal)}
+                    onEdit={() => onEdit(deal)}
+                    onRequestInfo={() => onRequestInfo(deal)}
+                    onTopBuyers={() => onTopBuyers(deal)}
+                />
+            </div>
         );
     };
 

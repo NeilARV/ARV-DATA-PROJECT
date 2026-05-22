@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppDialog from "@/components/modals/Dialog";
 import BestBuyersContent from "@/components/modals/BestBuyers";
@@ -27,7 +27,7 @@ export default function DealsPageContent() {
     const { toast } = useToast();
     const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
     const { requireSubscription, ContactDialog } = useRequireSubscription();
-    const { tab, locationFilter, setTab, setLocationFilter } = useDealsNav();
+    const { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId } = useDealsNav();
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;
 
@@ -59,6 +59,28 @@ export default function DealsPageContent() {
         },
     });
 
+    // Secondary fetch for a linked deal that may not be in the current filtered list
+    const dealInList = dealId !== null && deals.some((d) => d.id === dealId);
+    const { data: pinnedDeal = null } = useQuery<Deal | null>({
+        queryKey: ["/api/deals", "single", dealId],
+        enabled: dealId !== null && !isLoading && !dealInList,
+        staleTime: 30_000,
+        retry: false,
+        queryFn: async () => {
+            const res = await apiRequest("GET", `/api/deals/${dealId}`);
+            if (!res.ok) return null;
+            return res.json() as Promise<Deal>;
+        },
+    });
+
+    // Prepend the pinned deal at the top of its column if it's not already in the filtered list
+    const dealsWithPinned = useMemo(() => {
+        if (!pinnedDeal || dealInList) return deals;
+        return [pinnedDeal, ...deals];
+    }, [deals, pinnedDeal, dealInList]);
+
+    const pinnedDealId = pinnedDeal && !dealInList ? dealId : null;
+
     const deleteDeal = useMutation({
         mutationFn: async (dealId: number) => {
             const res = await apiRequest("DELETE", `/api/deals/${dealId}`);
@@ -89,8 +111,8 @@ export default function DealsPageContent() {
         },
     });
 
-    const newDeals = deals.filter((d) => d.dealType !== "sold");
-    const soldDeals = deals.filter((d) => d.dealType === "sold");
+    const newDeals = dealsWithPinned.filter((d) => d.dealType !== "sold");
+    const soldDeals = dealsWithPinned.filter((d) => d.dealType === "sold");
 
     const handleAddDeal = () =>
         requireSubscription(() => setShowAddDeal(true), {
@@ -117,7 +139,7 @@ export default function DealsPageContent() {
                         <p className="text-muted-foreground">Loading deals...</p>
                     </div>
                 </div>
-            ) : deals.length === 0 ? (
+            ) : dealsWithPinned.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
                     <DealsEmptyState
                         size="lg"
@@ -142,6 +164,9 @@ export default function DealsPageContent() {
                         isOwner={!!isOwner}
                         isRelationshipManager={!!isRelationshipManager}
                         userId={user?.id}
+                        expandedDealId={dealId}
+                        pinnedDealId={pinnedDealId}
+                        onToggleDeal={setDealId}
                         onDelete={(deal) => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
                         onEdit={(deal) => setEditDeal({ ...deal, links: deal.links.map((l) => l.url) })}
                         requestingInfoDealId={requestDealInfo.isPending ? requestDealInfo.variables : undefined}

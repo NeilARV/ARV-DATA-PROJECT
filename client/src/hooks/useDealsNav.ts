@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { getMsaNameFromCounty } from "@/lib/county";
 import type { LocationFilter } from "@/components/deals/DealsLocationSearch";
 
-function buildDealsUrl(tab: DealTab, filter: LocationFilter | null): string {
+function buildDealsUrl(tab: DealTab, filter: LocationFilter | null, dealId?: number | null): string {
     const params = new URLSearchParams();
     if (tab === "mine") params.set("tab", "mine");
     if (filter) {
@@ -16,6 +16,7 @@ function buildDealsUrl(tab: DealTab, filter: LocationFilter | null): string {
             params.set("filterState", filter.state);
         }
     }
+    if (dealId != null) params.set("dealId", String(dealId));
     const qs = params.toString();
     return qs ? `/deals?${qs}` : "/deals";
 }
@@ -47,6 +48,9 @@ export function useDealsNav() {
     const locationFilter = parseFilter(params);
     const hasExplicitFilter = params.has("filterType");
 
+    const rawDealId = params.get("dealId");
+    const dealId: number | null = rawDealId ? Number(rawDealId) || null : null;
+
     // On first load when no filter is set, default to user's county
     useEffect(() => {
         if (defaultApplied.current) return;
@@ -68,16 +72,24 @@ export function useDealsNav() {
             county: user.county,
             state: user.state ?? "",
         };
-        setLocation(buildDealsUrl(tab, filter), { replace: true });
-    }, [user?.county, user?.state, hasExplicitFilter, tab, setLocation]);
+        setLocation(buildDealsUrl(tab, filter, dealId), { replace: true });
+    }, [user?.county, user?.state, hasExplicitFilter, tab, dealId, setLocation]);
 
     const setTab = useCallback((newTab: DealTab) => {
-        setLocation(buildDealsUrl(newTab, locationFilter));
-    }, [setLocation, locationFilter]);
+        setLocation(buildDealsUrl(newTab, locationFilter, dealId));
+    }, [setLocation, locationFilter, dealId]);
 
     const setLocationFilter = useCallback((filter: LocationFilter | null) => {
-        setLocation(buildDealsUrl(tab, filter));
-    }, [setLocation, tab]);
+        setLocation(buildDealsUrl(tab, filter, dealId));
+    }, [setLocation, tab, dealId]);
 
-    return { tab, locationFilter, setTab, setLocationFilter };
+    const setDealId = useCallback((id: number | null) => {
+        const p = new URLSearchParams(search);
+        if (id !== null) p.set("dealId", String(id));
+        else p.delete("dealId");
+        const qs = p.toString();
+        setLocation(qs ? `/deals?${qs}` : "/deals");
+    }, [search, setLocation]);
+
+    return { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId };
 }

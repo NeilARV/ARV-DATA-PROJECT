@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import {
     getDeals,
+    getDealById,
     createDeal,
     updateDeal,
     deleteDeal,
@@ -32,6 +33,25 @@ export async function getDealsController(req: Request, res: Response): Promise<v
         res.json(results);
     } catch (err) {
         handleServiceError(res, err, "Error fetching deals");
+    }
+}
+
+// ── GET /api/deals/:id ─────────────────────────────────────────────────────────
+export async function getDealByIdController(req: Request, res: Response): Promise<void> {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            res.status(400).json({ message: "Invalid deal id" });
+            return;
+        }
+        const deal = await getDealById(id);
+        if (!deal) {
+            res.status(404).json({ message: "Deal not found" });
+            return;
+        }
+        res.json(deal);
+    } catch (err) {
+        handleServiceError(res, err, "Error fetching deal");
     }
 }
 

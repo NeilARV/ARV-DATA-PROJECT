@@ -189,6 +189,7 @@ async function getTopBuyersByZipCode(zipCode: string): Promise<TopBuyer[]> {
 
 // ── GET deals ──────────────────────────────────────────────────────────────────
 type GetDealsFilters = {
+    id?: number;
     userId?: string;
     msaName?: string;
     city?: string;
@@ -196,7 +197,7 @@ type GetDealsFilters = {
 }
 
 export async function getDeals(filters: GetDealsFilters) {
-    const { userId: filterUserId, msaName: filterMsaName, city: filterCity, zipCode: filterZipCode } = filters;
+    const { id: filterId, userId: filterUserId, msaName: filterMsaName, city: filterCity, zipCode: filterZipCode } = filters;
 
     let filterMsaId: number | undefined;
     if (filterMsaName) {
@@ -214,6 +215,7 @@ export async function getDeals(filters: GetDealsFilters) {
     }
 
     const conditions: SQL[] = [];
+    if (filterId !== undefined)    conditions.push(eq(deals.id, filterId));
     if (filterUserId)              conditions.push(eq(deals.userId, filterUserId));
     if (filterMsaId !== undefined) conditions.push(eq(deals.msaId, filterMsaId));
     if (filterCity)                conditions.push(ilike(deals.city, filterCity));
@@ -314,6 +316,12 @@ export async function getDeals(filters: GetDealsFilters) {
             }
         })
     );
+}
+
+// ── GET single deal by id ──────────────────────────────────────────────────────
+export async function getDealById(id: number) {
+    const results = await getDeals({ id });
+    return results[0] ?? null;
 }
 
 // ── POST deal ──────────────────────────────────────────────────────────────────

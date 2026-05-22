@@ -21,7 +21,8 @@ import {
     Images,
     User,
     ChevronDown,
-    ChevronsUp
+    ChevronsUp,
+    Link2,
 } from "lucide-react";
 import { formatAddress } from "@shared/utils/formatAddress";
 
@@ -33,6 +34,7 @@ type DealCardProps = {
     isOwner: boolean;
     canViewPoster: boolean;
     expanded: boolean;
+    isPinned?: boolean;
     isRequestingInfo?: boolean;
     onToggle: () => void;
     onDelete: () => void;
@@ -70,6 +72,7 @@ export default function DealCard2({
     isOwner,
     canViewPoster,
     expanded,
+    isPinned = false,
     isRequestingInfo = false,
     onToggle,
     onDelete,
@@ -148,6 +151,12 @@ export default function DealCard2({
                             </p>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
+                            {isPinned && (
+                                <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground shrink-0 mr-1.5">
+                                    <Link2 className="w-2.5 h-2.5" />
+                                    Linked
+                                </span>
+                            )}
                             <span className="text-xs lg:text-sm text-muted-foreground whitespace-nowrap pr-4">
                                 {formatDatePosted(deal.createdAt)}
                             </span>
