@@ -3,6 +3,7 @@ import { deals, dealLinks } from "@database/schemas/deals.schema";
 import { users, userRoles, roles, userNotificationPreferences } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { resolveMsaId } from "server/utils/resolveMsa";
+import { resolveCountyFromZip } from "server/utils/resolveCounty";
 import { normalizePropertyType } from "server/utils/normalization";
 import {
     sendPlainEmail,
@@ -192,13 +193,14 @@ type GetDealsFilters = {
     id?: number;
     userId?: string;
     msaName?: string;
+    county?: string;
     city?: string;
     state?: string;
     zipCode?: string;
 }
 
 export async function getDeals(filters: GetDealsFilters) {
-    const { id: filterId, userId: filterUserId, msaName: filterMsaName, city: filterCity, state: filterState, zipCode: filterZipCode } = filters;
+    const { id: filterId, userId: filterUserId, msaName: filterMsaName, county: filterCounty, city: filterCity, state: filterState, zipCode: filterZipCode } = filters;
 
     let filterMsaId: number | undefined;
     if (filterMsaName) {
@@ -219,6 +221,7 @@ export async function getDeals(filters: GetDealsFilters) {
     if (filterId !== undefined)    conditions.push(eq(deals.id, filterId));
     if (filterUserId)              conditions.push(eq(deals.userId, filterUserId));
     if (filterMsaId !== undefined) conditions.push(eq(deals.msaId, filterMsaId));
+    if (filterCounty)              conditions.push(ilike(deals.county, filterCounty));
     if (filterCity)                conditions.push(ilike(deals.city, filterCity));
     if (filterState)               conditions.push(eq(deals.state, filterState.toUpperCase()));
     if (filterZipCode)             conditions.push(eq(deals.zipCode, filterZipCode));
@@ -246,6 +249,7 @@ export async function getDeals(filters: GetDealsFilters) {
             photosUrl:    deals.photosUrl,
             msaId:        deals.msaId,
             msaName:      msas.name,
+            county:       deals.county,
             dealType:     deals.type,
             userId:       deals.userId,
             userEmail:    users.email,
@@ -364,6 +368,8 @@ export async function createDeal(input: CreateDealInput) {
         );
     }
 
+    const county = await resolveCountyFromZip(zipCode, city, state);
+
     let resolvedSfrPropertyId: number | null = null;
     let resolvedBeds:          number | null = beds  != null ? Number(beds)  : null;
     let resolvedBaths:         number | null = baths != null ? Number(baths) : null;
@@ -396,6 +402,7 @@ export async function createDeal(input: CreateDealInput) {
             city:          city.trim(),
             state:         state.toUpperCase().trim(),
             zipCode:       String(zipCode).trim(),
+            county:        county,
             price:         price != null ? String(price) : null,
             potentialARV:  potentialARV  != null ? String(potentialARV)  : null,
             closeOfEscrow:   closeOfEscrow != null ? String(closeOfEscrow) : null,
@@ -637,6 +644,8 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         );
     }
 
+    const updatedCounty = await resolveCountyFromZip(mergedZip, mergedCity, mergedState);
+
     const incomingAddress    = (address !== undefined && address !== null) ? String(address).trim() : null;
     const incomingFullAddress = incomingAddress ? isFullStreetAddress(incomingAddress) : false;
 
@@ -666,6 +675,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .set({
             updatedAt:    new Date(),
             msaId:        newMsaId,
+            county:       updatedCounty,
             address:      address      !== undefined ? (incomingAddress || null) : undefined,
             city:         city         !== undefined ? mergedCity   : undefined,
             state:        state        !== undefined ? mergedState  : undefined,

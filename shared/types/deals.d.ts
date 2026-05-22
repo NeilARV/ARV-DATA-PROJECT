@@ -13,6 +13,7 @@ type Deal = DealProperty & {
     createdAt: string;
     msaId: number;
     msaName?: string | null;
+    county?: string | null;
     userEmail?: string | null;
     userFirstName?: string | null;
     userLastName?: string | null;
