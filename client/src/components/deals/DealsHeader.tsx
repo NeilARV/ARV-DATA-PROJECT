@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus } from "lucide-react";
-import DealsLocationSearch from "@/components/deals/DealsLocationSearch";
+import DealsLocationSearch, { msaShortName } from "@/components/deals/DealsLocationSearch";
 import type { LocationFilter } from "@/components/deals/DealsLocationSearch";
 
 type DealsHeaderProps = {
@@ -23,9 +23,10 @@ export default function DealsHeader({
 }: DealsHeaderProps) {
     const title = tab === "mine"
         ? "Your Deal Feed"
-        : locationFilter?.type === "msa"  ? `${locationFilter.county} County Deals`
-        : locationFilter?.type === "city" ? `${locationFilter.label} Deals`
-        : locationFilter?.type === "zip"  ? `Zip ${locationFilter.label} Deals`
+        : locationFilter?.type === "county" ? `${locationFilter.value} County Deals`
+        : locationFilter?.type === "msa"    ? `${msaShortName(locationFilter.value)} MSA Deals`
+        : locationFilter?.type === "city"   ? `${locationFilter.value} Deals`
+        : locationFilter?.type === "zip"    ? `Zip ${locationFilter.value} Deals`
         : "All Deals";
 
     const subtitle = tab === "mine"

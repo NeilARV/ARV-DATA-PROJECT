@@ -10,11 +10,7 @@ function buildDealsUrl(tab: DealTab, filter: LocationFilter | null, dealId?: num
     if (filter) {
         params.set("filterType", filter.type);
         params.set("filterValue", filter.value);
-        params.set("filterLabel", filter.label);
-        if (filter.type === "msa") {
-            params.set("filterCounty", filter.county);
-            params.set("filterState", filter.state);
-        }
+        if (filter.type === "county") params.set("filterState", filter.state);
     }
     if (dealId != null) params.set("dealId", String(dealId));
     const qs = params.toString();
@@ -24,15 +20,14 @@ function buildDealsUrl(tab: DealTab, filter: LocationFilter | null, dealId?: num
 function parseFilter(params: URLSearchParams): LocationFilter | null {
     const type = params.get("filterType");
     const value = params.get("filterValue");
-    const label = params.get("filterLabel");
-    if (!type || !value || !label) return null;
-    if (type === "msa") {
-        const county = params.get("filterCounty") ?? "";
+    if (!type || !value) return null;
+    if (type === "county") {
         const state = params.get("filterState") ?? "";
-        return { type: "msa", value, label, county, state };
+        return { type: "county", value, state };
     }
-    if (type === "city") return { type: "city", value, label };
-    if (type === "zip")  return { type: "zip",  value, label };
+    if (type === "msa")  return { type: "msa", value };
+    if (type === "city") return { type: "city", value };
+    if (type === "zip")  return { type: "zip", value };
     return null;
 }
 
@@ -66,10 +61,8 @@ export function useDealsNav() {
         }
         defaultApplied.current = true;
         const filter: LocationFilter = {
-            type: "msa",
-            value: msaName,
-            label: `${user.county} County, ${user.state ?? ""}`,
-            county: user.county,
+            type: "county",
+            value: user.county,
             state: user.state ?? "",
         };
         setLocation(buildDealsUrl(tab, filter, dealId), { replace: true });

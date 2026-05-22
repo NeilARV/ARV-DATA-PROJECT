@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useRequireSubscription } from "@/hooks/useRequireSubscription";
 import { formatAddress } from "@shared/utils/formatAddress";
+import { getMsaNameFromCounty } from "@/lib/county";
 import DealsHeader from "@/components/deals/DealsHeader";
 import DealsGrid from "@/components/deals/DealsGrid";
 import DealsEmptyState from "@/components/deals/DealsEmptyState";
@@ -39,7 +40,10 @@ export default function DealsPageContent() {
             params.set("userId", user.id);
         }
 
-        if (locationFilter?.type === "msa") {
+        if (locationFilter?.type === "county") {
+            const msaName = getMsaNameFromCounty(locationFilter.value);
+            if (msaName) params.set("msaName", msaName);
+        } else if (locationFilter?.type === "msa") {
             params.set("msaName", locationFilter.value);
         } else if (locationFilter?.type === "city") {
             params.set("city", locationFilter.value);
