@@ -279,7 +279,7 @@ export default function DealCard2({
                 <div className="border-t border-border px-5 py-4 flex flex-col gap-4">
                     <div>
                         <p className="deal-card-label">Notes</p>
-                        <p className="text-sm text-foreground leading-relaxed">
+                        <p className="text-sm lg:text-base text-foreground leading-relaxed">
                             {deal.notes || <span className="text-foreground">No notes available.</span>}
                         </p>
                     </div>
