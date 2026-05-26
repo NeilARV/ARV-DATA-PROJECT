@@ -370,9 +370,9 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                   onClick={() => handleCompanyClick(listCompany)}
                   data-testid={`card-company-${listCompany.id}`}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
                     {/* Col 1: Rank (fixed small width) */}
-                    <div className="flex-shrink-0 w-5 flex items-start justify-center pt-0.5">
+                    <div className="flex-shrink-0 w-5 flex items-center justify-center">
                       {ranking != null && (
                         ranking <= 3 ? (
                           <span
@@ -453,7 +453,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     </div>
 
                     {/* Col 4: Chevron (fixed small width) */}
-                    <div className="flex-shrink-0 flex items-start pt-0.5">
+                    <div className="flex-shrink-0 flex items-center">
                       {isExpanded ? (
                         <ChevronUp className="w-4 h-4 text-muted-foreground" />
                       ) : (
