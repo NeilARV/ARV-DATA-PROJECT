@@ -42,7 +42,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         });
 
         await UserServices.upsertUserNotificationPreferences(newUser.id, {
-            dataAppStatusFilter: ['in-renovation', 'on-market', 'wholesale', 'sold'],
+            dataAppStatusFilter: ['in-renovation', 'wholesale'],
             dealTypeFilter: ['wholesale', 'agent', 'sold'],
         });
 

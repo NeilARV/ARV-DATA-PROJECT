@@ -27,7 +27,6 @@ const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "upd
 const DEAL_TYPE_OPTIONS: { value: DealTypeFilter; label: string; description: string }[] = [
     { value: "wholesale", label: "Wholesale", description: "All wholesale deals" },
     { value: "agent", label: "Agent", description: "Off-market agent deals" },
-    { value: "sold", label: "Sold", description: "All sold deals" },
 ];
 
 interface Props {
