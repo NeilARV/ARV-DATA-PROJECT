@@ -53,6 +53,7 @@ export interface SendPlainEmailParams {
   HtmlBody: string;
   TextBody?: string;
   ReplyTo?: string;
+  Cc?: string;
 }
 
 // Sends a single plain email (no template) via Postmark

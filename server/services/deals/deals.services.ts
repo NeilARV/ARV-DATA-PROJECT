@@ -769,12 +769,6 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
 
     if (!dealRow) throw new DealServiceError(404, "Deal not found");
 
-    const links = await db
-        .select({ url: dealLinks.url, domain: dealLinks.domain })
-        .from(dealLinks)
-        .where(eq(dealLinks.dealId, dealId))
-        .orderBy(dealLinks.sortOrder);
-
     const [requester] = await db
         .select({ email: users.email, firstName: users.firstName, lastName: users.lastName, phone: users.phone })
         .from(users)
@@ -783,41 +777,30 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
 
     if (!requester) throw new DealServiceError(401, "Requester not found");
 
+    if (!dealRow.posterEmail) {
+        console.warn(`${label} Poster has no email — skipping notification: dealId=${dealId}`);
+        return;
+    }
+
     const DEFAULT_CONTACT = process.env.DEFAULT_CONTACT_RECIPIENT || "justin@arvfinance.com";
-    let recipientEmail = DEFAULT_CONTACT;
     let fromAddress = getDefaultFromEmail();
 
     const rmMap = await getRmEmailsByUserIds([requesterId]);
     const rmEmail = rmMap.get(requesterId);
     if (rmEmail) {
-        recipientEmail = rmEmail;
         const senders = await getConfirmedSenders();
         fromAddress = resolveFromAddress(senders, rmEmail);
     }
 
-    // ── Format display values ──────────────────────────────────────────────────
-    const DEAL_TYPE_LABELS: Record<string, string> = { wholesale: "Wholesale", sold: "Sold", agent: "Agent" };
-    const fmt = (n: string | null | undefined) => (n ? `$${Number(n).toLocaleString("en-US")}` : null);
-    const fmtDate = (d: string | null | undefined) => {
-        if (!d) return null;
-        const [y, m, day] = d.split("-");
-        return `${m}/${day}/${y}`;
-    };
+    const ccAddress = rmEmail ?? DEFAULT_CONTACT;
 
-    const price          = fmt(dealRow.price);
-    const potentialARV   = fmt(dealRow.potentialARV);
-    const estimatedBudget = dealRow.estimatedBudget != null ? `$${Number(dealRow.estimatedBudget).toLocaleString("en-US")}` : null;
-    const closeOfEscrow  = fmtDate(dealRow.closeOfEscrow);
-    const baths          = dealRow.baths != null ? parseFloat(dealRow.baths) : null;
-    const sqft           = dealRow.sqft  != null ? dealRow.sqft.toLocaleString("en-US") : null;
     const displayFirstName = overrides?.firstName?.trim() || requester.firstName;
     const displayLastName  = overrides?.lastName?.trim()  || requester.lastName;
     const displayEmail     = overrides?.email?.trim()     || requester.email;
     const displayPhone     = overrides?.phone?.trim()     || requester.phone || null;
     const displayMessage   = overrides?.message?.trim()   || null;
 
-    const requesterName  = [displayFirstName, displayLastName].filter(Boolean).join(" ");
-    const posterName     = [dealRow.posterFirstName, dealRow.posterLastName].filter(Boolean).join(" ");
+    const requesterName = [displayFirstName, displayLastName].filter(Boolean).join(" ");
 
     // ── HTML helpers ───────────────────────────────────────────────────────────
     const row = (lbl: string, val: string | number | null | undefined): string =>
@@ -829,113 +812,44 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
             ? `<h3 style="margin:20px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#888;border-bottom:1px solid #eee;padding-bottom:4px">${title}</h3><table style="border-collapse:collapse;font-size:14px;width:100%">${rows}</table>`
             : "";
 
-    const htmlBody = [
-        `<p style="margin:0 0 16px;font-size:14px"><strong>Requested by:</strong> ${requesterName}${requesterName ? " | " : ""}${displayEmail}${displayPhone ? ` | ${displayPhone}` : ""}</p>`,
-        `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
-        section("Property", [
-            row("Address",       dealRow.address ?? "Undisclosed"),
-            row("Location",      [dealRow.city, dealRow.state, dealRow.zipCode].filter(Boolean).join(", ")),
-            row("Deal Type",     DEAL_TYPE_LABELS[dealRow.type] ?? dealRow.type),
-            row("Property Type", dealRow.propertyType),
-            row("Beds",          dealRow.beds),
-            row("Baths",         baths),
-            row("Sqft",          sqft),
-        ].join("")),
-        section("Financials", [
-            row("Purchase Price",  price),
-            row("Potential ARV",   potentialARV),
-            row("Est. Budget",     estimatedBudget),
-            row("Close of Escrow", closeOfEscrow),
-        ].join("")),
-        section("Posted By", [
-            row("Name",  posterName || null),
-            row("Email", dealRow.posterEmail),
-            row("Phone", dealRow.posterPhone),
-        ].join("")),
-        ...(displayMessage ? [section("Message from Requester", displayMessage.replace(/\n/g, "<br />"))] : []),
-        ...(dealRow.notes      ? [section("Notes",                dealRow.notes.replace(/\n/g, "<br />"))] : []),
-        ...(dealRow.adminNotes ? [section("Internal Note (Shadow)", dealRow.adminNotes.replace(/\n/g, "<br />"))] : []),
-        ...(dealRow.photosUrl  ? [section("Photos", `<tr><td><a href="${dealRow.photosUrl}" style="color:#5BC8DC">${dealRow.photosUrl}</a></td></tr>`)] : []),
-        ...(links.length > 0   ? [section("Comparable Sale Links", links.map((l) => `<tr><td style="padding:2px 0"><a href="${l.url}" style="color:#5BC8DC">${l.domain}</a></td></tr>`).join(""))] : []),
-    ].join("\n");
-
-    const textLines = [
-        `Requested by: ${requesterName} | ${displayEmail}${displayPhone ? ` | ${displayPhone}` : ""}`,
-        "",
-        "PROPERTY",
-        `Address:      ${dealRow.address ?? "Undisclosed"}`,
-        `Location:     ${[dealRow.city, dealRow.state, dealRow.zipCode].filter(Boolean).join(", ")}`,
-        `Deal Type:    ${DEAL_TYPE_LABELS[dealRow.type] ?? dealRow.type}`,
-        dealRow.propertyType ? `Property Type: ${dealRow.propertyType}` : null,
-        dealRow.beds  != null ? `Beds:  ${dealRow.beds}` : null,
-        baths         != null ? `Baths: ${baths}` : null,
-        sqft                  ? `Sqft:  ${sqft}` : null,
-        "",
-        "FINANCIALS",
-        price          ? `Purchase Price:  ${price}` : null,
-        potentialARV   ? `Potential ARV:   ${potentialARV}` : null,
-        estimatedBudget ? `Est. Budget:    ${estimatedBudget}` : null,
-        closeOfEscrow  ? `Close of Escrow: ${closeOfEscrow}` : null,
-        "",
-        "POSTED BY",
-        posterName             || null,
-        dealRow.posterEmail    ?? null,
-        dealRow.posterPhone    ?? null,
-        displayMessage ? `\nMESSAGE FROM REQUESTER\n${displayMessage}` : null,
-        dealRow.notes      ? `\nNOTES\n${dealRow.notes}` : null,
-        dealRow.adminNotes ? `\nINTERNAL NOTE\n${dealRow.adminNotes}` : null,
-        links.length > 0   ? `\nCOMPARABLE LINKS\n${links.map((l) => l.url).join("\n")}` : null,
-    ].filter((l): l is string => l != null).join("\n");
-
     const addressLabel = dealRow.address
         ? `${dealRow.address}, ${[dealRow.city, dealRow.state].filter(Boolean).join(", ")}`
         : [dealRow.city, dealRow.state].filter(Boolean).join(", ");
 
+    const posterHtmlBody = [
+        `<p style="margin:0 0 16px;font-size:14px"><strong>${requesterName || displayEmail}</strong> has requested more information about your deal at <strong>${addressLabel}</strong>.</p>`,
+        `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
+        section("Requester Contact", [
+            row("Name",  requesterName || null),
+            row("Email", displayEmail),
+            row("Phone", displayPhone),
+        ].join("")),
+        ...(displayMessage ? [section("Message", displayMessage.replace(/\n/g, "<br />"))] : []),
+    ].join("\n");
+
+    const posterTextLines = [
+        `${requesterName || displayEmail} has requested more information about your deal at ${addressLabel}.`,
+        "",
+        "REQUESTER CONTACT",
+        requesterName  || null,
+        displayEmail,
+        displayPhone   || null,
+        displayMessage ? `\nMESSAGE\n${displayMessage}` : null,
+    ].filter((l): l is string => l != null).join("\n");
+
+    const cc = ccAddress !== dealRow.posterEmail ? ccAddress : undefined;
+
     await sendPlainEmail({
         From:     fromAddress,
-        To:       recipientEmail,
-        Subject:  `[Deal Info Request] ${addressLabel} — ${requesterName}`,
-        HtmlBody: htmlBody,
-        TextBody: textLines,
+        To:       dealRow.posterEmail,
+        Subject:  `[Deal Interest] ${addressLabel} — ${requesterName}`,
+        HtmlBody: posterHtmlBody,
+        TextBody: posterTextLines,
         ReplyTo:  displayEmail,
+        Cc:       cc,
     });
 
-    console.log(`${label} Sent to RM/default: dealId=${dealId}, requester=${requesterId}, to=${recipientEmail}`);
-
-    // Also notify the original deal poster
-    if (dealRow.posterEmail && dealRow.posterEmail !== recipientEmail) {
-        const posterHtmlBody = [
-            `<p style="margin:0 0 16px;font-size:14px"><strong>${requesterName || displayEmail}</strong> has requested more information about your deal at <strong>${addressLabel}</strong>.</p>`,
-            `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
-            section("Requester Contact", [
-                row("Name",  requesterName || null),
-                row("Email", displayEmail),
-                row("Phone", displayPhone),
-            ].join("")),
-            ...(displayMessage ? [section("Message", displayMessage.replace(/\n/g, "<br />"))] : []),
-        ].join("\n");
-
-        const posterTextLines = [
-            `${requesterName || displayEmail} has requested more information about your deal at ${addressLabel}.`,
-            "",
-            "REQUESTER CONTACT",
-            requesterName             || null,
-            displayEmail,
-            displayPhone              || null,
-            displayMessage ? `\nMESSAGE\n${displayMessage}` : null,
-        ].filter((l): l is string => l != null).join("\n");
-
-        await sendPlainEmail({
-            From:     fromAddress,
-            To:       dealRow.posterEmail,
-            Subject:  `[Deal Interest] ${addressLabel} — ${requesterName}`,
-            HtmlBody: posterHtmlBody,
-            TextBody: posterTextLines,
-            ReplyTo:  displayEmail,
-        });
-
-        console.log(`${label} Sent to poster: dealId=${dealId}, poster=${dealRow.posterEmail}`);
-    }
+    console.log(`${label} Sent to poster: dealId=${dealId}, poster=${dealRow.posterEmail}${cc ? `, cc=${cc}` : ""}`);
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────
