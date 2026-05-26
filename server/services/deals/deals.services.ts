@@ -506,7 +506,7 @@ export async function sendDealNotification(
                 .from(msas)
                 .where(eq(msas.id, msaId))
                 .limit(1);
-            const county = deal.city ?? msaRow?.name ?? "your area";
+            const county = deal.county ?? msaRow?.name ?? "your area";
 
             const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
 
@@ -559,11 +559,14 @@ export async function sendDealNotification(
 
             const APP_BASE_URL_DEALS = (() => { const u = process.env.APP_URL || "https://data.arvfinance.com"; return /^https?:\/\//i.test(u) ? u : `http://${u}`; })();
             const dealUrlParams = new URLSearchParams({ dealId: String(deal.id) });
-            if (deal.county) {
+            if (deal.county && deal.state) {
                 dealUrlParams.set("filterType", "county");
                 dealUrlParams.set("filterValue", deal.county);
+                dealUrlParams.set("filterState", deal.state);
+            } else if (msaRow?.name) {
+                dealUrlParams.set("filterType", "msa");
+                dealUrlParams.set("filterValue", msaRow.name);
             }
-            if (deal.state) dealUrlParams.set("filterState", deal.state);
             const dealUrl = `${APP_BASE_URL_DEALS}/deals?${dealUrlParams.toString()}`;
 
             const { sent, failed } = await sendTemplateToUsers({
