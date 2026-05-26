@@ -319,12 +319,23 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
             return;
         }
 
+        // Exclude properties priced above $4,000,000
+        const filteredCandidates = candidateProperties.filter((p) => {
+            const price = p.price != null ? parseFloat(p.price) : null;
+            return price == null || price <= 4_000_000;
+        });
+
+        if (filteredCandidates.length === 0) {
+            console.log(`[EMAIL ${msaName}]: No candidates remain after price filter, skipping send`);
+            return;
+        }
+
         // Pre-cache Street View availability for all candidates in one pass.
         // Properties with no Street View are marked sent immediately — they can never be shown.
         // Properties with Street View are only marked sent if they end up in at least one email.
         const streetViewCache = new Map<string, string | null>();
         const noStreetViewIds: string[] = [];
-        for (const p of candidateProperties) {
+        for (const p of filteredCandidates) {
             const rawAddress = p.address ?? "Unknown";
             const rawCity = p.city ?? "Unknown";
             const rawState = p.state ?? "N/A";
@@ -341,7 +352,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
         for (const u of uniqueUsers) {
             const filter = (u.dataAppStatusFilter ?? []) as string[];
             const { templates: userProperties, pickedIds } = pickPropertiesFromCache(
-                candidateProperties,
+                filteredCandidates,
                 streetViewCache,
                 filter,
                 PROPERTY_COUNT_TARGET,
@@ -360,7 +371,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
 
         // Whitelist recipients get the unfiltered set (first 3 with Street View, any status)
         const { templates: defaultProperties, pickedIds: defaultPickedIds } = pickPropertiesFromCache(
-            candidateProperties,
+            filteredCandidates,
             streetViewCache,
             [],
             PROPERTY_COUNT_TARGET,
