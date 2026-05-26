@@ -24,7 +24,7 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
-import UploadContent from "@/components/modals/Upload";
+import { UploadPropertyDialog } from "@/components/admin/UploadPropertyDialog";
 // import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
 import UsersTab from "@/components/admin/UsersTab";
 import EmailListTab from "@/components/admin/EmailListTab";
@@ -197,7 +197,7 @@ export default function Admin() {
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
       >
         {uploadDialogOpen && (
-          <UploadContent
+          <UploadPropertyDialog
             onClose={() => setUploadDialogOpen(false)}
             onSuccess={() => {
               queryClient.invalidateQueries({

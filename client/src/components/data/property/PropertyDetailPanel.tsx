@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
-import UpdatePropertyContent from "@/components/modals/UpdateProperty";
+import { UpdatePropertyDialog } from "./UpdatePropertyDialog";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
 import { useDeleteProperty } from "@/hooks/properties/useDeleteProperty";
@@ -59,7 +59,7 @@ export default function PropertyDetailPanel() {
       {/* Edit Dialog */}
       <AppDialog open={showEditDialog} onClose={() => setShowEditDialog(false)} className="max-w-md">
         {showEditDialog && (
-          <UpdatePropertyContent
+          <UpdatePropertyDialog
             onClose={() => setShowEditDialog(false)}
             propertyId={property.id}
             initialData={{

@@ -8,7 +8,7 @@ interface InfoContentProps {
   onClose: () => void;
 }
 
-export default function InfoContent({ onClose }: InfoContentProps) {
+export function InfoDialog({ onClose }: InfoContentProps) {
   const { user } = useAuth();
   const rm = user?.relationshipManager;
 

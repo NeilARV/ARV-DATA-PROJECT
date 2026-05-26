@@ -404,7 +404,7 @@ function TxDisplayCard({ tx, onDelete }: { tx: TxRow; onDelete?: () => void }) {
 
 // ─── Main component ────────────────────────────────────────────────────────
 
-export default function UpdatePropertyContent({
+export function UpdatePropertyDialog({
   onClose,
   propertyId,
   initialData,

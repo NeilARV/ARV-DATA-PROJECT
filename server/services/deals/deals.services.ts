@@ -431,11 +431,13 @@ export async function createDeal(input: CreateDealInput) {
 
 // ── POST deal — background notification (fire and forget) ──────────────────────
 type DealNotificationData = {
+    id: number;
     createdAt: Date;
     address: string | null;
     city: string | null;
     state: string | null;
     zipCode: string | null;
+    county: string | null;
     beds: number | null;
     baths: string | null;
     sqft: number | null;
@@ -504,7 +506,7 @@ export async function sendDealNotification(
                 .from(msas)
                 .where(eq(msas.id, msaId))
                 .limit(1);
-            const county = deal.city ?? msaRow?.name ?? "your area";
+            const county = deal.county ?? msaRow?.name ?? "your area";
 
             const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
 
@@ -527,7 +529,7 @@ export async function sendDealNotification(
             // Resolve absolute street view URL (email clients cannot follow relative paths)
             let streetViewUrl: string | null = null;
             if (deal.address && deal.city && deal.state) {
-                const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
+                const APP_BASE_URL = (() => { const u = process.env.APP_URL || "https://data.arvfinance.com"; return /^https?:\/\//i.test(u) ? u : `http://${u}`; })();
                 const params = new URLSearchParams({
                     address: deal.address,
                     city:    deal.city,
@@ -555,6 +557,18 @@ export async function sendDealNotification(
             const whitelistRecipients = await getWhitelistRecipientsForMsa(msaId);
             // ─────────────────────────────────────────────────────────────────────
 
+            const APP_BASE_URL_DEALS = (() => { const u = process.env.APP_URL || "https://data.arvfinance.com"; return /^https?:\/\//i.test(u) ? u : `http://${u}`; })();
+            const dealUrlParams = new URLSearchParams({ dealId: String(deal.id) });
+            if (deal.county && deal.state) {
+                dealUrlParams.set("filterType", "county");
+                dealUrlParams.set("filterValue", deal.county);
+                dealUrlParams.set("filterState", deal.state);
+            } else if (msaRow?.name) {
+                dealUrlParams.set("filterType", "msa");
+                dealUrlParams.set("filterValue", msaRow.name);
+            }
+            const dealUrl = `${APP_BASE_URL_DEALS}/deals?${dealUrlParams.toString()}`;
+
             const { sent, failed } = await sendTemplateToUsers({
                 recipients: [
                     ...uniqueUsers.map((u) => ({ email: u.email, userId: u.id })),
@@ -578,7 +592,8 @@ export async function sendDealNotification(
                     property_type:    deal.propertyType ?? null,
                     notes:            deal.notes ?? null,
                     county:           county,
-                    cta_url:          "https://data.arvfinance.com/deals",
+                    deal_url:         dealUrl,
+                    cta_url:          `${APP_BASE_URL_DEALS}/deals`,
                     year:             new Date().getFullYear(),
                     company_name:     "ARV Finance",
                 }),

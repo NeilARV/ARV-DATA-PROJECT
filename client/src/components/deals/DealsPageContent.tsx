@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppDialog from "@/components/modals/Dialog";
-import BestBuyersContent from "@/components/modals/BestBuyers";
+import { BestBuyersDialog } from "./BestBuyersDialog";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -216,7 +216,7 @@ export default function DealsPageContent() {
 
             <AppDialog open={!!bestBuyersDeal} onClose={() => setBestBuyersDeal(null)} className="max-w-md">
                 {bestBuyersDeal && (
-                    <BestBuyersContent
+                    <BestBuyersDialog
                         buyers={bestBuyersDeal.topBuyers}
                         address={bestBuyersDeal.address}
                         city={bestBuyersDeal.city}

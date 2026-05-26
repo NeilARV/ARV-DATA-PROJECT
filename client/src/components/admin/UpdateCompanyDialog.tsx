@@ -29,7 +29,7 @@ import { UpdateDialogProps } from "@/types/general";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
-import AddContactContent from "@/components/modals/AddContact";
+import { AddContactDialog } from "./AddContactDialog";
 
 type UpdateContentProps = Omit<UpdateDialogProps, "open" | "onClose"> & {
   onClose: () => void;
@@ -100,7 +100,7 @@ function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
   );
 }
 
-export default function UpdateContent({
+export function UpdateCompanyDialog({
   onClose,
   companyId,
   initialData,
@@ -298,7 +298,7 @@ export default function UpdateContent({
         className="max-w-md"
       >
         {companyId && (showAddContact || editContact) && (
-          <AddContactContent
+          <AddContactDialog
             companyId={companyId}
             contact={editContact}
             onClose={() => {

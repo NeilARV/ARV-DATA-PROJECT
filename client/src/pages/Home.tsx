@@ -1,38 +1,85 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
+import { useSearch } from "wouter";
 import Header from "@/components/Header";
-import FilterHeader from "@/components/FilterHeader";
-import CompanyDirectory from "@/components/CompanyDirectory";
-import PropertyMap from "@/components/property/PropertyMap";
-import GridView from "@/components/views/GridView";
-import TableView from "@/components/views/TableView";
-import PropertyDetailPanel from "@/components/property/PropertyDetailPanel";
-import PropertyModalContent from "@/components/property/PropertyModal";
+import FilterHeader from "@/components/data/FilterHeader";
+import CompanyDirectory from "@/components/data/CompanyDirectory";
+import PropertyMap from "@/components/data/property/PropertyMap";
+import GridView from "@/components/data/views/GridView";
+import TableView from "@/components/data/views/TableView";
+import PropertyDetailPanel from "@/components/data/property/PropertyDetailPanel";
+import PropertyModalContent from "@/components/data/property/PropertyModal";
 import AppDialog from "@/components/modals/Dialog";
-import LeaderboardContent from "@/components/modals/Leaderboard";
-import InfoContent from "@/components/modals/Info";
-import { useDialogs } from "@/hooks/useDialogs";
+import { InfoDialog } from "@/components/data/InfoDialog";
+import { LeaderboardDialog } from "@/components/data/LeaderboardDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import type { MapPin } from "@/types/property";
 import { useView } from "@/hooks/useView";
+import { useDataNav } from "@/hooks/useDataNav";
 import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 
 function HomeContent() {
-  const { filters } = useFilters();
+  const { filters, setFilters } = useFilters();
   const { view, sidebarView } = useView();
-  const { loadCompanies, companySelectionInProgressRef } = useCompanies();
+  const { loadCompanies, companySelectionInProgressRef, company, handleCompanyClick } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
-  const { dialog, openDialog, closeDialog, isForced } = useDialogs();
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [showProperty, setShowProperty] = useState(false);
   const { user } = useAuth();
-  const { property, setProperty } = useProperty();
+  const { property, setProperty, fetchProperty } = useProperty();
+  const nav = useDataNav();
+
+  const initializedRef = useRef(false);
+
+  // On mount: sync URL county → filters, and load property/company from URL params
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    // Sync URL county to filters if different from default
+    const urlCounty = nav.county;
+    if (urlCounty && urlCounty !== filters.county) {
+      setFilters((f) => ({ ...f, county: urlCounty, zipCode: "", city: undefined }));
+    }
+
+    // Load property from URL param
+    if (nav.propertyId) {
+      fetchProperty(nav.propertyId);
+    }
+
+    // Load company from URL param
+    if (nav.companyId) {
+      handleCompanyClick("", nav.companyId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep URL county in sync when nav.county changes (e.g. user default applied by useDataNav)
+  useEffect(() => {
+    const urlCounty = nav.county;
+    if (urlCounty && urlCounty !== filters.county) {
+      setFilters((f) => ({ ...f, county: urlCounty, zipCode: "", city: undefined }));
+    }
+  }, [nav.county]);
+
+  // Sync selected property → URL param
+  useEffect(() => {
+    nav.setPropertyId(property?.id ?? null);
+  }, [property?.id]);
+
+  // Sync selected company → URL param
+  useEffect(() => {
+    nav.setCompanyId(company?.id ?? null);
+  }, [company?.id]);
 
   // Open the property modal whenever a property is selected in table/grid views
   useEffect(() => {
     if (property !== null && (view === "table" || view === "grid" || view === "buyers-feed" || view === "wholesale")) {
-      openDialog({ type: "property" });
+      setShowProperty(true);
     }
   }, [property, view]);
 
@@ -103,38 +150,39 @@ function HomeContent() {
       </div>{/* end grid */}
 
       <AppDialog
-        open={dialog?.type === "leaderboard" || dialog?.type === "info" || dialog?.type === "property" || dialog?.type === "deals"}
-        onClose={() => {
-          if (dialog?.type === "property") setProperty(null);
-          closeDialog();
-        }}
-        forced={isForced}
-        className={
-          dialog?.type === "leaderboard"
-            ? "max-w-3xl max-h-[80vh] overflow-y-auto"
-            : dialog?.type === "property"
-            ? "max-w-2xl max-h-[90vh] overflow-y-auto"
-            : dialog?.type === "deals"
-            ? "max-w-lg max-h-[85vh] !flex flex-col [&>button]:hidden"
-            : dialog?.type === "info"
-            ? "max-w-sm"
-            : "sm:max-w-md"
-        }
+        open={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+        className="max-w-3xl max-h-[80vh] overflow-y-auto"
       >
-        {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
-        {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
-        {dialog?.type === "property" && (
-          <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
-        )}
+        <LeaderboardDialog onClose={() => setShowLeaderboard(false)} />
+      </AppDialog>
+
+      <AppDialog
+        open={showInfo}
+        onClose={() => setShowInfo(false)}
+        className="max-w-sm"
+      >
+        {user?.relationshipManager && <InfoDialog onClose={() => setShowInfo(false)} />}
+      </AppDialog>
+
+      <AppDialog
+        open={showProperty}
+        onClose={() => { setProperty(null); setShowProperty(false); }}
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <PropertyModalContent onClose={() => { setProperty(null); setShowProperty(false); }} />
       </AppDialog>
     </div>
   );
 }
 
 export default function Home() {
+  const search = useSearch();
+  const urlCounty = new URLSearchParams(search).get("county") ?? undefined;
+
   return (
     <MapProvider>
-      <FiltersProvider>
+      <FiltersProvider defaultOverrides={{ county: urlCounty }}>
         <CompaniesProvider>
           <PropertiesProvider>
             <PropertyProvider>
