@@ -103,10 +103,10 @@ export default function DealCard2({
     const sqft            = deal.sqft             ? Number(deal.sqft)             : null;
 
     const typeStyle            = DEAL_TYPE_STYLES[deal.dealType] ?? DEAL_TYPE_STYLES.agent;
-    const hasExpandableContent = !!(deal.notes || deal.photosUrl || (deal.links && deal.links.length > 0) || canRequestContact || isOwner);
+    const hasExpandableContent = true; // notes section always renders in expanded view
 
     return (
-        <div className={`rounded-xl border bg-card overflow-hidden flex flex-col transition-colors ${
+        <div className={`rounded-xl border-2 bg-card overflow-hidden flex flex-col transition-colors ${
             expanded ? "border-primary" : "border-border hover:border-primary"
         }`}>
 
@@ -277,12 +277,12 @@ export default function DealCard2({
             {/* ── Expanded section — full width, no image gap ───────────────── */}
             {expanded && hasExpandableContent && (
                 <div className="border-t border-border px-5 py-4 flex flex-col gap-4">
-                    {deal.notes && (
-                        <div>
-                            <p className="deal-card-label">Notes</p>
-                            <p className="text-sm text-foreground leading-relaxed">{deal.notes}</p>
-                        </div>
-                    )}
+                    <div>
+                        <p className="deal-card-label">Notes</p>
+                        <p className="text-sm text-foreground leading-relaxed">
+                            {deal.notes || <span className="text-foreground">No notes available.</span>}
+                        </p>
+                    </div>
                     {deal.photosUrl && (
                         <div>
                             <p className="deal-card-label mb-1.5">Photos</p>

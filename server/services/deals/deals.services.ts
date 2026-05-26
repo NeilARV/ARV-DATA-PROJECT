@@ -757,6 +757,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
             notes:           deals.notes,
             adminNotes:      deals.adminNotes,
             photosUrl:       deals.photosUrl,
+            county:          deals.county,
             posterEmail:     users.email,
             posterFirstName: users.firstName,
             posterLastName:  users.lastName,
@@ -816,6 +817,15 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         ? `${dealRow.address}, ${[dealRow.city, dealRow.state].filter(Boolean).join(", ")}`
         : [dealRow.city, dealRow.state].filter(Boolean).join(", ");
 
+    const APP_BASE_URL = (() => { const u = process.env.APP_URL || "https://data.arvfinance.com"; return /^https?:\/\//i.test(u) ? u : `http://${u}`; })();
+    const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
+    if (dealRow.county && dealRow.state) {
+        dealUrlParams.set("filterType", "county");
+        dealUrlParams.set("filterValue", dealRow.county);
+        dealUrlParams.set("filterState", dealRow.state);
+    }
+    const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
+
     const posterHtmlBody = [
         `<p style="margin:0 0 16px;font-size:14px"><strong>${requesterName || displayEmail}</strong> has requested more information about your deal at <strong>${addressLabel}</strong>.</p>`,
         `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
@@ -825,6 +835,8 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
             row("Phone", displayPhone),
         ].join("")),
         ...(displayMessage ? [section("Message", displayMessage.replace(/\n/g, "<br />"))] : []),
+        `<hr style="border:none;border-top:1px solid #eee;margin:16px 0 12px" />`,
+        `<p style="margin:0"><a href="${dealUrl}" style="color:#5BC8DC;text-decoration:none;font-size:15px;font-weight:600">View Deal →</a></p>`,
     ].join("\n");
 
     const posterTextLines = [
@@ -835,6 +847,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         displayEmail,
         displayPhone   || null,
         displayMessage ? `\nMESSAGE\n${displayMessage}` : null,
+        `\nView Deal: ${dealUrl}`,
     ].filter((l): l is string => l != null).join("\n");
 
     const cc = ccAddress !== dealRow.posterEmail ? ccAddress : undefined;

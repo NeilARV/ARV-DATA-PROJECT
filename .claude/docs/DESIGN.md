@@ -121,6 +121,7 @@ Hover on primary buttons uses `hover:brightness-90`. Active uses `active:brightn
 | Token | Light HSL | Dark HSL | Used For |
 |---|---|---|---|
 | `border` | `220 13% 91%` | `220 13% 18%` | Default borders on all elements |
+| `border-2` | `2px` | `2px` | Selected/active card border (e.g. expanded deal card) |
 | `input` | `220 13% 80%` | `220 13% 28%` | Input field borders |
 | `ring` | `192 67% 65%` | `192 67% 65%` | Focus ring (same as primary) |
 | `destructive` | `0 84% 42%` | `0 84% 42%` | Delete, error, warning states |
