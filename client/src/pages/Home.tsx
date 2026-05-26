@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import { useSearch } from "wouter";
 import Header from "@/components/Header";
 import FilterHeader from "@/components/data/FilterHeader";
@@ -9,9 +9,8 @@ import TableView from "@/components/data/views/TableView";
 import PropertyDetailPanel from "@/components/data/property/PropertyDetailPanel";
 import PropertyModalContent from "@/components/data/property/PropertyModal";
 import AppDialog from "@/components/modals/Dialog";
-import LeaderboardContent from "@/components/modals/Leaderboard";
-import InfoContent from "@/components/modals/Info";
-import { useDialogs } from "@/hooks/useDialogs";
+import { InfoDialog } from "@/components/data/InfoDialog";
+import { LeaderboardDialog } from "@/components/data/LeaderboardDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import type { MapPin } from "@/types/property";
@@ -27,7 +26,9 @@ function HomeContent() {
   const { view, sidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef, company, handleCompanyClick } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
-  const { dialog, openDialog, closeDialog, isForced } = useDialogs();
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [showProperty, setShowProperty] = useState(false);
   const { user } = useAuth();
   const { property, setProperty, fetchProperty } = useProperty();
   const nav = useDataNav();
@@ -78,7 +79,7 @@ function HomeContent() {
   // Open the property modal whenever a property is selected in table/grid views
   useEffect(() => {
     if (property !== null && (view === "table" || view === "grid" || view === "buyers-feed" || view === "wholesale")) {
-      openDialog({ type: "property" });
+      setShowProperty(true);
     }
   }, [property, view]);
 
@@ -149,29 +150,27 @@ function HomeContent() {
       </div>{/* end grid */}
 
       <AppDialog
-        open={dialog?.type === "leaderboard" || dialog?.type === "info" || dialog?.type === "property" || dialog?.type === "deals"}
-        onClose={() => {
-          if (dialog?.type === "property") setProperty(null);
-          closeDialog();
-        }}
-        forced={isForced}
-        className={
-          dialog?.type === "leaderboard"
-            ? "max-w-3xl max-h-[80vh] overflow-y-auto"
-            : dialog?.type === "property"
-            ? "max-w-2xl max-h-[90vh] overflow-y-auto"
-            : dialog?.type === "deals"
-            ? "max-w-lg max-h-[85vh] !flex flex-col [&>button]:hidden"
-            : dialog?.type === "info"
-            ? "max-w-sm"
-            : "sm:max-w-md"
-        }
+        open={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+        className="max-w-3xl max-h-[80vh] overflow-y-auto"
       >
-        {dialog?.type === "leaderboard" && <LeaderboardContent onClose={closeDialog} />}
-        {dialog?.type === "info" && user?.relationshipManager && <InfoContent onClose={closeDialog} />}
-        {dialog?.type === "property" && (
-          <PropertyModalContent onClose={() => { setProperty(null); closeDialog(); }} />
-        )}
+        <LeaderboardDialog onClose={() => setShowLeaderboard(false)} />
+      </AppDialog>
+
+      <AppDialog
+        open={showInfo}
+        onClose={() => setShowInfo(false)}
+        className="max-w-sm"
+      >
+        {user?.relationshipManager && <InfoDialog onClose={() => setShowInfo(false)} />}
+      </AppDialog>
+
+      <AppDialog
+        open={showProperty}
+        onClose={() => { setProperty(null); setShowProperty(false); }}
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <PropertyModalContent onClose={() => { setProperty(null); setShowProperty(false); }} />
       </AppDialog>
     </div>
   );

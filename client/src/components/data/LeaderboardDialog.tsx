@@ -16,7 +16,7 @@ interface LeaderboardContentProps {
   onClose: () => void;
 }
 
-export default function LeaderboardContent({ onClose }: LeaderboardContentProps) {
+export function LeaderboardDialog({ onClose }: LeaderboardContentProps) {
   const { filters, setFilters } = useFilters();
   const { setCompany, handleCompanyClick } = useCompanies();
   const { setProperty } = useProperty();

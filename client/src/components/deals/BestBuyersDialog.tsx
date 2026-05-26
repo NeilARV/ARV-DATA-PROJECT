@@ -27,7 +27,7 @@ function borderAccentClass(rank: number) {
     : "border-l-amber-700";
 }
 
-export default function BestBuyersContent({
+export function BestBuyersDialog({
   buyers,
   address,
   city,

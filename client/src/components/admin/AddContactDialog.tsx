@@ -28,7 +28,7 @@ interface AddContactContentProps {
   onSuccess: (contact: CompanyContact, mode: "add" | "edit") => void;
 }
 
-export default function AddContactContent({
+export function AddContactDialog({
   companyId,
   contact,
   onClose,

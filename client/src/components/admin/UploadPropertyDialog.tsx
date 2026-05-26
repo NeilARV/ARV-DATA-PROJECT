@@ -23,7 +23,7 @@ type UploadContentProps = Omit<UploadDialogProps, "open" | "onClose"> & {
   onClose: () => void;
 };
 
-export default function UploadContent({ onClose, onSuccess }: UploadContentProps) {
+export function UploadPropertyDialog({ onClose, onSuccess }: UploadContentProps) {
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

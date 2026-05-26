@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { X, Building2, Mail, User, Search, ChevronDown, ChevronUp, Trophy, Home, TrendingUp, Pencil, Copy, Check, Phone, Eye, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import AppDialog from "@/components/modals/Dialog";
-import UpdateContent from "@/components/modals/Update";
+import { UpdateCompanyDialog } from "../admin/UpdateCompanyDialog";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
 import {
@@ -746,7 +746,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
       >
         {updateDialogOpen && (
-          <UpdateContent
+          <UpdateCompanyDialog
             onClose={() => {
               setUpdateDialogOpen(false);
               setEditDialogCompanyId(null);

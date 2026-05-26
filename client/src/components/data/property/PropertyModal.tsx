@@ -6,7 +6,7 @@ import { useDeleteProperty } from "@/hooks/properties/useDeleteProperty";
 import { PropertyContent } from "./PropertyContent";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
-import UpdatePropertyContent from "@/components/modals/UpdateProperty";
+import { UpdatePropertyDialog } from "./UpdatePropertyDialog";
 
 interface PropertyModalContentProps {
   onClose: () => void;
@@ -48,7 +48,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
         onClose={() => setShowEditDialog(false)}
         className="max-w-md z-[10001]"
       >
-        <UpdatePropertyContent
+        <UpdatePropertyDialog
           onClose={() => setShowEditDialog(false)}
           propertyId={property.id}
           initialData={{

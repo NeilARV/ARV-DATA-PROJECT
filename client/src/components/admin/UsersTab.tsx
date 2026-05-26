@@ -28,7 +28,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
-import EditUserContent from "@/components/modals/EditUser";
+import EditUserContent from "@/components/admin/EditUser";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import type { AdminUser, AccountTypeOption, RelationshipManager, UsersTabProps } from "@/types/admin";
 

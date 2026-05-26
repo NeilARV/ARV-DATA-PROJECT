@@ -5,11 +5,7 @@ import { useAuth, useSignupPrompt } from "@/hooks/use-auth";
 export type DialogState =
   | null
   | { type: "login"; forced: boolean }
-  | { type: "signup"; forced: boolean }
-  | { type: "leaderboard" }
-  | { type: "info" }
-  | { type: "property" }
-  | { type: "deals" };
+  | { type: "signup"; forced: boolean };
 
 export interface UseDialogsResult {
   dialog: DialogState;
@@ -20,8 +16,6 @@ export interface UseDialogsResult {
   headerDialogHandlers: {
     onLoginClick: () => void;
     onSignupClick: () => void;
-    onLeaderboardClick: () => void;
-    onDealsClick: () => void;
   };
 }
 
@@ -64,8 +58,6 @@ function useDialogsState(): UseDialogsResult {
     headerDialogHandlers: {
       onLoginClick: () => setDialog({ type: "login", forced: false }),
       onSignupClick: () => setDialog({ type: "signup", forced: false }),
-      onLeaderboardClick: () => setDialog({ type: "leaderboard" }),
-      onDealsClick: () => setDialog({ type: "deals" }),
     },
   };
 }
