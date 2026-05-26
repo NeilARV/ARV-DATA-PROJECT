@@ -46,13 +46,12 @@ export function ViewProvider({children}: ViewProviderProps) {
 
     const setView = useCallback((newView: View) => {
         setViewState(newView);
-        if (isHome) {
-            const p = new URLSearchParams(search);
-            if (newView === DEFAULT_VIEW) p.delete("view");
-            else p.set("view", newView);
-            const qs = p.toString();
-            setLocation(qs ? `/?${qs}` : "/");
-        }
+        // Preserve existing search params only when already on home; otherwise start fresh
+        const p = new URLSearchParams(isHome ? search : "");
+        if (newView === DEFAULT_VIEW) p.delete("view");
+        else p.set("view", newView);
+        const qs = p.toString();
+        setLocation(qs ? `/?${qs}` : "/");
     }, [isHome, search, setLocation]);
 
     const value = {

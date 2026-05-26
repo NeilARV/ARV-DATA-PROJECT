@@ -224,7 +224,6 @@ export default function Header({
 
   const onBuyersFeedClick = () => {
     requireSubscription(() => {
-      setLocation("/");
       setProperty(null);
       setFilters((prev) => ({ ...prev, statusFilters: BUYERS_FEED_STATUS_FILTERS }));
       setView("buyers-feed");
@@ -234,7 +233,6 @@ export default function Header({
 
   const onWholesaleClick = () => {
     requireSubscription(() => {
-      setLocation("/");
       setProperty(null);
       setFilters((prev) => ({ ...prev, statusFilters: WHOLESALE_VIEW_STATUS_FILTERS }));
       setView("wholesale");
@@ -244,7 +242,6 @@ export default function Header({
 
   const onTableViewClick = () => {
     requireSubscription(() => {
-      setLocation("/");
       setProperty(null);
       setView("table");
     });
@@ -384,7 +381,6 @@ export default function Header({
               variant={location === "/" && view === "map" ? "default" : "ghost"}
               size="sm"
               onClick={() => {
-                setLocation("/");
                 setView("map");
                 const county = filters?.county ?? "San Diego";
                 const center = getCountyCenter(county) ?? getDefaultMapCenter();
@@ -422,7 +418,7 @@ export default function Header({
                     <button
                       className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                       data-testid="button-view-grid"
-                      onClick={() => { requireSubscription(() => { setLocation("/"); setView("grid"); if (!company) clearFilters(); }); setShowMoreMenu(false); }}
+                      onClick={() => { requireSubscription(() => { setView("grid"); if (!company) clearFilters(); }); setShowMoreMenu(false); }}
                     >
                       <Grid3x3 className="w-4 h-4" />
                       Grid
