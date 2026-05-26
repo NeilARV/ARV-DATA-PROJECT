@@ -1,4 +1,4 @@
-import PropertyCard from "@/components/property/PropertyCard";
+import PropertyCard from "@/components/data/property/PropertyCard";
 import {
   Select,
   SelectContent,

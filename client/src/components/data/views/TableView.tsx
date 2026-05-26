@@ -1,4 +1,4 @@
-import PropertyTable from "@/components/property/PropertyTable";
+import PropertyTable from "@/components/data/property/PropertyTable";
 import { Loader2 } from "lucide-react";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
