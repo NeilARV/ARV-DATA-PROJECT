@@ -35,6 +35,7 @@ import { useProperty } from "@/hooks/useProperty";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
 import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { useDataNav } from "@/hooks/useDataNav";
 
 // Profile data for known companies
 const companyProfiles: Record<string, {
@@ -68,6 +69,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const { isAdmin, isOwner } = useAuth();
   const { requireSubscription, ContactDialog } = useRequireSubscription();
   const { view, setView } = useView();
+  const nav = useDataNav();
   const {
     company,
     setCompany,
@@ -222,6 +224,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         companySelectionInProgressRef.current = true;
         setCompany(next);
         setProperty(null);
+        nav.setCompanyId(next.id);
       });
       return;
     } else {
@@ -242,6 +245,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         dateRange: "60d",
       });
       setCompany(null);
+      nav.setCompanyId(null);
       // If directory was opened via wholesaler/panel/modal click, we may have skipped the initial load; load now so list isn't empty
       if (companies.length === 0) {
         loadCompanies();
@@ -458,10 +462,10 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     </div>
                   </div>
                 </Card>
-                
+
                 {/* Expandable Profile Section */}
                 {isExpanded && (
-                  <div 
+                  <div
                     className="mt-1 mb-2 ml-4 p-3 bg-muted/50 rounded-md border border-border space-y-3"
                     onClick={(e) => e.stopPropagation()}
                     data-testid={`profile-${listCompany.id}`}
@@ -469,7 +473,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Investor Profile
                     </div>
-                    
+
                     {/* Properties Owned */}
                     <div className="flex items-center gap-2">
                       <Home className="w-4 h-4 text-primary" />
@@ -478,7 +482,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         <span className="text-muted-foreground"> Properties Owned</span>
                       </span>
                     </div>
-                    
+
                     {/* YTD Properties Sold */}
                     <div className="flex items-center gap-2">
                       <Home className="w-4 h-4 text-primary" />
@@ -491,7 +495,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         )}
                       </span>
                     </div>
-                    
+
                     {/* Market Ranking */}
                     <div className="flex items-center gap-2">
                       <Trophy className="w-4 h-4 text-primary" />
@@ -500,7 +504,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         <span className="font-bold text-primary">{ranking != null ? `#${ranking}` : "—"}</span>
                       </span>
                     </div>
-                    
+
                     {/* Principal - use profile override, or fall back to company contact name */}
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-primary" />
@@ -511,7 +515,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         </span>
                       </span>
                     </div>
-                    
+
                     {/* Company Email */}
                     {listCompany.contactEmail && (
                       <div className="flex items-center gap-2">
@@ -521,7 +525,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         </span>
                       </div>
                     )}
-                    
+
                     {/* Company Phone */}
                     {listCompany.phoneNumber && (
                       <div className="flex items-center gap-2">
@@ -531,7 +535,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         </span>
                       </div>
                     )}
-                    
+
                     {/* Acquisitions Associate */}
                     {profile?.acquisitionsAssociate && (
                       <div className="space-y-1">
@@ -556,14 +560,14 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         )}
                       </div>
                     )}
-                    
+
                     {/* 90-Day Acquisition Activity (from property_transactions API) */}
                     <div className="space-y-2 pt-2 border-t border-border">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-primary" />
                         <span className="text-sm font-medium text-foreground">90-Day Acquisition Activity</span>
                       </div>
-                      
+
                       {expandedCompanyDetail?.acquisition90DayTotal !== undefined ? (
                         <>
                           <div className="flex items-center gap-4 text-sm">
@@ -580,7 +584,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                               </span>
                             </div>
                           </div>
-                          
+
                           {expandedCompanyDetail.acquisition90DayTotal > 0 &&
                           expandedCompanyDetail.acquisition90DayByMonth?.length ? (
                             <div className="h-20 w-full">
@@ -627,7 +631,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                         <div className="text-xs text-muted-foreground italic">Loading...</div>
                       )}
                     </div>
-                    
+
                     {/* View Properties — visible to all users */}
                     <div className="pt-3 border-t border-border">
                       <Button

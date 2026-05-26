@@ -1,7 +1,8 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
+import { useSearch } from "wouter";
 import Header from "@/components/Header";
-import FilterHeader from "@/components/FilterHeader";
-import CompanyDirectory from "@/components/CompanyDirectory";
+import FilterHeader from "@/components/data/FilterHeader";
+import CompanyDirectory from "@/components/data/CompanyDirectory";
 import PropertyMap from "@/components/property/PropertyMap";
 import GridView from "@/components/views/GridView";
 import TableView from "@/components/views/TableView";
@@ -15,19 +16,64 @@ import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
 import type { MapPin } from "@/types/property";
 import { useView } from "@/hooks/useView";
+import { useDataNav } from "@/hooks/useDataNav";
 import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
 
 function HomeContent() {
-  const { filters } = useFilters();
+  const { filters, setFilters } = useFilters();
   const { view, sidebarView } = useView();
-  const { loadCompanies, companySelectionInProgressRef } = useCompanies();
+  const { loadCompanies, companySelectionInProgressRef, company, handleCompanyClick } = useCompanies();
   const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
   const { dialog, openDialog, closeDialog, isForced } = useDialogs();
   const { user } = useAuth();
-  const { property, setProperty } = useProperty();
+  const { property, setProperty, fetchProperty } = useProperty();
+  const nav = useDataNav();
+
+  const initializedRef = useRef(false);
+
+  // On mount: sync URL county → filters, and load property/company from URL params
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    // Sync URL county to filters if different from default
+    const urlCounty = nav.county;
+    if (urlCounty && urlCounty !== filters.county) {
+      setFilters((f) => ({ ...f, county: urlCounty, zipCode: "", city: undefined }));
+    }
+
+    // Load property from URL param
+    if (nav.propertyId) {
+      fetchProperty(nav.propertyId);
+    }
+
+    // Load company from URL param
+    if (nav.companyId) {
+      handleCompanyClick("", nav.companyId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep URL county in sync when nav.county changes (e.g. user default applied by useDataNav)
+  useEffect(() => {
+    const urlCounty = nav.county;
+    if (urlCounty && urlCounty !== filters.county) {
+      setFilters((f) => ({ ...f, county: urlCounty, zipCode: "", city: undefined }));
+    }
+  }, [nav.county]);
+
+  // Sync selected property → URL param
+  useEffect(() => {
+    nav.setPropertyId(property?.id ?? null);
+  }, [property?.id]);
+
+  // Sync selected company → URL param
+  useEffect(() => {
+    nav.setCompanyId(company?.id ?? null);
+  }, [company?.id]);
 
   // Open the property modal whenever a property is selected in table/grid views
   useEffect(() => {
@@ -132,9 +178,12 @@ function HomeContent() {
 }
 
 export default function Home() {
+  const search = useSearch();
+  const urlCounty = new URLSearchParams(search).get("county") ?? undefined;
+
   return (
     <MapProvider>
-      <FiltersProvider>
+      <FiltersProvider defaultOverrides={{ county: urlCounty }}>
         <CompaniesProvider>
           <PropertiesProvider>
             <PropertyProvider>

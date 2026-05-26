@@ -28,7 +28,7 @@ import {
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
-import { useAuth } from "@/hooks/use-auth";
+import { useDataNav } from "@/hooks/useDataNav";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 
 // ---- Price helper ----
@@ -48,8 +48,7 @@ export default function FilterHeader({
 }: FilterHeaderProps) {
     const { filters, setFilters, hasActiveFilters } = useFilters();
     const { setCompany } = useCompanies();
-    const { user } = useAuth();
-    const hasInitializedFromUser = useRef(false);
+    const nav = useDataNav();
 
     // Local display state (synced from context)
     const [priceRange, setPriceRange] = useState<[number, number]>([
@@ -76,16 +75,6 @@ export default function FilterHeader({
     const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
     const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
     const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
-
-    // Apply user's county/state preference once per mount, when auth data first arrives
-    useEffect(() => {
-        if (hasInitializedFromUser.current) return;
-        if (!user) return;
-        hasInitializedFromUser.current = true;
-        if (user.county && user.state) {
-            setFilters((f) => ({ ...f, county: user.county!, zipCode: "", city: undefined }));
-        }
-    }, [user]);
 
     // Close zip dropdown when clicking outside the wrapper
     useEffect(() => {
@@ -148,7 +137,7 @@ export default function FilterHeader({
                 cityMap.set(normalized, (cityMap.get(normalized) ?? 0) + z.count);
             }
         });
-        
+
         return Array.from(cityMap.entries())
             .map(([city, count]) => ({ city, count }))
             .sort((a, b) => b.count - a.count);
@@ -174,11 +163,11 @@ export default function FilterHeader({
         setZipInput(value);
         if (value.length > 0) {
             const lower = value.toLowerCase();
-            
+
             const zipMatches = sortedZipCodes
                 .filter((z) => z.zipCode.startsWith(value) || z.city?.toLowerCase().includes(lower))
                 .slice(0, 10);
-            
+
                 const cityMatches = citiesWithCounts
                 .filter((c) => {
                     const normalized = c.city.startsWith("San Diego") ? "San Diego" : c.city;
@@ -223,6 +212,7 @@ export default function FilterHeader({
         setCountyOpen(false);
         setCompany(null);
         setFilters((f) => ({ ...f, county: countyObj.county, zipCode: "", city: undefined }));
+        nav.setCounty(countyObj.county);
     };
 
     const handleStateChange = (newState: string) => {
@@ -237,6 +227,7 @@ export default function FilterHeader({
             setCountySearch(first.county);
             setCompany(null);
             setFilters((f) => ({ ...f, county: first.county, zipCode: "", city: undefined }));
+            nav.setCounty(first.county);
         }
     };
 
