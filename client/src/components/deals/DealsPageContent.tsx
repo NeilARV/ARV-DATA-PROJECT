@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import AppDialog from "@/components/modals/Dialog";
-import { BestBuyersDialog } from "./BEstBuyersDialog";
+import { BestBuyersDialog } from "./BestBuyersDialog";
 import { Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
