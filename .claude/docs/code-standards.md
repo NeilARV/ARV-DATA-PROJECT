@@ -247,6 +247,25 @@ export async function createUser(email: string, password: string, role: string) 
 
 ## 7. React Components
 
+### File Naming
+
+Component files use **PascalCase** and match the name of the component they export:
+
+```
+UserContactForm.tsx   → export function UserContactForm(...)
+PropertyCard.tsx      → export function PropertyCard(...)
+NotificationPreferencesPanel.tsx → export function NotificationPreferencesPanel(...)
+```
+
+Util files use **camelCase** and match the same name of the component they export:
+
+```
+formatPhoneNumber.ts → export function formatPhoneNumber(...) 
+merge.ts --> export function merge(...)
+```
+
+One component per file. The file name and the exported function name must be identical.
+
 ### Structure
 
 Use **function declarations** with `export` for feature components:
