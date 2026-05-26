@@ -10,7 +10,7 @@
         <td align="center">
           <!-- Email Container -->
           <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:40px 0; border-radius:6px; overflow:hidden;">
-            
+
             <!-- Header -->
             <tr>
               <td style="background-color:#69C9E1; padding:24px; text-align:center;">
@@ -41,7 +41,7 @@
             {{#each properties}}
             <tr>
               <td style="border:1px solid #e6e6e6; border-radius:4px; overflow:hidden;">
-                
+
                 <!-- Property Image with Status Tags -->
                 <!--[if gte mso 9]>
                 <v:image xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="border:0;display:inline-block;width:552px;height:350px;" src="{{image_url}}" />
@@ -98,10 +98,10 @@
                 </v:textbox>
                 </v:rect>
                 <![endif]-->
-            
+
                 <!-- Property Details -->
                 <div style="padding:16px; font-family:Arial, Helvetica, sans-serif;">
-                
+
                   <!-- Row 1: Price + Date Sold -->
                   <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                     <tr>
@@ -119,16 +119,16 @@
                       </td>
                     </tr>
                   </table>
-                
+
                   <!-- Address -->
                   <p style="margin:14px 0 0; font-size:16px; font-weight:600; color:#222;">
                     {{address}}
                   </p>
-                
+
                   <p style="margin:4px 0 0; font-size:14px; color:#777;">
                     {{city}}, {{state}} {{zipcode}}
                   </p>
-                
+
                   <!-- Beds / Baths / Sqft -->
                   <table cellpadding="0" cellspacing="0" role="presentation" style="margin-top:14px;">
                     <tr>
@@ -143,12 +143,12 @@
                       </td>
                     </tr>
                   </table>
-                
+
                   <!-- Property Type -->
                   <p style="margin:10px 0 0; font-size:13px; color:#999;">
                     {{property_type}}
                   </p>
-                
+
                 <!-- Buyer & Seller: one section per field (no nesting) so {{.}} works -->
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:16px; border-top:1px solid #eeeeee;">
                   <tr>
@@ -205,13 +205,17 @@
                   </tr>
                 </table>
 
-                
+                <!-- View Property Link -->
+                <p style="margin:16px 0 0; font-size:14px;">
+                  <a href="{{property_url}}" style="color:#69C9E1; text-decoration:none; font-weight:600;">View Property &rarr;</a>
+                </p>
+
                 </div>
 
-            
+
               </td>
             </tr>
-            
+
             <tr><td height="16"></td></tr>
             {{/each}}
 

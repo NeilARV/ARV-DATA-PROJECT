@@ -19,7 +19,11 @@ const PROPERTY_COUNT_TARGET = 3;
 const CANDIDATE_POOL_SIZE = 30;
 
 const STREETVIEW_SIZE = "600x400";
-const APP_BASE_URL = process.env.APP_URL || "https://data.arvfinance.com";
+function normalizeBaseUrl(raw: string | undefined): string {
+    const url = raw || "https://data.arvfinance.com";
+    return /^https?:\/\//i.test(url) ? url : `http://${url}`;
+}
+const APP_BASE_URL = normalizeBaseUrl(process.env.APP_URL);
 
 // Status tag styles — match PropertyCard.tsx (and PropertyMap map ping colors)
 const STATUS_TAG_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -100,6 +104,7 @@ type PropertyRow = {
     city: string | null;
     state: string | null;
     zipCode: string | null;
+    county: string | null;
     price: string | null;
     saleDate: string | null;
     recordingDate: string | null;
@@ -133,6 +138,7 @@ type PropertyForTemplate = {
     sqft: string;
     property_type: string;
     image_url: string;
+    property_url: string;
     status_tags: { label: string; bg: string; text: string }[];
     buyer_company_name: string | null;
     buyer_contact_name: string | null;
@@ -150,6 +156,11 @@ function buildPropertyForTemplate(p: PropertyRow, image_url: string): PropertyFo
     const rawCity = p.city ?? "Unknown";
     const state = p.state ?? "N/A";
 
+    const countyParam = (p.county ?? "").trim();
+    const propertyUrlParams = new URLSearchParams({ property: p.propertyId });
+    if (countyParam) propertyUrlParams.set("county", countyParam);
+    const property_url = `${APP_BASE_URL}/?${propertyUrlParams.toString()}`;
+
     return {
         address: formatAddress(p.address) ?? rawAddress,
         city: formatAddress(p.city) ?? rawCity,
@@ -162,6 +173,7 @@ function buildPropertyForTemplate(p: PropertyRow, image_url: string): PropertyFo
         sqft: p.livingAreaSqft != null ? p.livingAreaSqft.toLocaleString("en-US") : "—",
         property_type: (p.propertyType ?? "").trim() || "—",
         image_url,
+        property_url,
         status_tags: getStatusTags(p.statuses ?? []).map((tag) => ({
             label: tag.label,
             bg: tag.bg,
@@ -260,6 +272,7 @@ export async function sendEmailUpdatesForMsa(msaName: string, city: string, stat
                 city: addresses.city,
                 state: addresses.state,
                 zipCode: addresses.zipCode,
+                county: addresses.county,
                 price: sql<string | null>`(SELECT pt.sale_price FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
                 saleDate: sql<string | null>`(SELECT pt.sale_date FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,
                 recordingDate: sql<string | null>`(SELECT pt.recording_date FROM property_transactions pt WHERE pt.property_id = ${properties.id} AND LOWER(TRIM(pt.transaction_type)) = 'arms length' ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1)`,

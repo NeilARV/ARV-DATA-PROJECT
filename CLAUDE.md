@@ -89,10 +89,12 @@ The following environment variables are required or used by the application. **N
 
 ## Coding Style
 
+> **Full coding standards reference**: `.claude/docs/code-standards.md` — the authoritative source for all coding conventions (naming, file organization, component structure, route/controller/service patterns, error handling, formatting, and more). Apply these standards when adding or updating any code.
+
 - **Indentation**: 4 spaces (no tabs)
 - **TypeScript**: Strict mode; avoid `any`
 - **Modules**: ES modules throughout; path aliases: `@/*` (client), `@shared/*`, `@database/*`
-- **Exports**: Default exports for pages and route modules; named exports for UI components and utilities
+- **Exports**: Default exports for pages; named exports for components, hooks, controllers, services, and utilities
 
 ### Destructuring Spacing
 - **Object destructuring** (custom hooks / context): include a space after `{` and before `}`
