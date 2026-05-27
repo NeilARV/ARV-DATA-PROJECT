@@ -1,4 +1,4 @@
-import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, date, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, date, primaryKey, boolean } from "drizzle-orm/pg-core";
 import { users } from "./users.schema";
 import { msas } from "./msas.schema";
 
@@ -36,6 +36,10 @@ export const deals = pgTable("deals", {
   closeOfEscrow:    date("close_of_escrow"),
   estimatedBudget:  integer("estimated_budget"),
   photosUrl:        text("photos_url"),
+
+  // Admin / RM-only fields
+  isArvExclusive:   boolean("is_arv_exclusive").notNull().default(false),
+  onBehalfOfEmail:  text("on_behalf_of_email"),
 });
 
 export const dealLinks = pgTable(

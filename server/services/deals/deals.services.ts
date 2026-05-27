@@ -244,18 +244,20 @@ export async function getDeals(filters: GetDealsFilters) {
             baths:        deals.baths,
             sqft:         deals.sqft,
             propertyType: deals.propertyType,
-            notes:        deals.notes,
-            adminNotes:   deals.adminNotes,
-            photosUrl:    deals.photosUrl,
-            msaId:        deals.msaId,
-            msaName:      msas.name,
-            county:       deals.county,
-            dealType:     deals.type,
-            userId:       deals.userId,
-            userEmail:    users.email,
-            userFirstName: users.firstName,
-            userLastName:  users.lastName,
-            userPhone:     users.phone,
+            notes:           deals.notes,
+            adminNotes:      deals.adminNotes,
+            photosUrl:       deals.photosUrl,
+            isArvExclusive:  deals.isArvExclusive,
+            onBehalfOfEmail: deals.onBehalfOfEmail,
+            msaId:           deals.msaId,
+            msaName:         msas.name,
+            county:          deals.county,
+            dealType:        deals.type,
+            userId:          deals.userId,
+            userEmail:       users.email,
+            userFirstName:   users.firstName,
+            userLastName:    users.lastName,
+            userPhone:       users.phone,
         })
         .from(deals)
         .leftJoin(msas, eq(deals.msaId, msas.id))
@@ -333,7 +335,7 @@ export async function getDealById(id: number) {
 // ── POST deal ──────────────────────────────────────────────────────────────────
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links, isArvExclusive, onBehalfOfEmail } = input;
 
     const addressStr     = typeof address === "string" ? address.trim() : "";
     const hasAddress     = addressStr.length > 0;
@@ -411,9 +413,11 @@ export async function createDeal(input: CreateDealInput) {
             baths:         resolvedBaths != null ? String(resolvedBaths) : null,
             sqft:          resolvedSqft,
             propertyType:  normalizePropertyType(resolvedPropertyType),
-            notes:         notes ?? null,
-            adminNotes:    adminNotes ?? null,
-            photosUrl:     photosUrl ?? null,
+            notes:           notes ?? null,
+            adminNotes:      adminNotes ?? null,
+            photosUrl:       photosUrl ?? null,
+            isArvExclusive:  isArvExclusive ?? false,
+            onBehalfOfEmail: onBehalfOfEmail ?? null,
         })
         .returning();
 
@@ -449,6 +453,7 @@ type DealNotificationData = {
     type: DealType;
     sfrPropertyId: number | null;
     notes: string | null;
+    isArvExclusive: boolean;
 }
 
 export async function sendDealNotification(
@@ -577,8 +582,14 @@ export async function sendDealNotification(
                 templateAlias: template,
                 templateModelForRecipient: () => ({
                     // Each block is an object so badge vars are in direct context (no scope chain needed)
-                    image_block:      streetViewUrl ? { url: streetViewUrl, deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
-                    no_image_block:   !streetViewUrl ? { deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor } : null,
+                    // is_arv_exclusive must live inside each block object — Postmark resolves
+                    // {{#is_arv_exclusive}} from the current block context, not the top level.
+                    image_block:    streetViewUrl
+                        ? { url: streetViewUrl, deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor, is_arv_exclusive: deal.isArvExclusive || null }
+                        : null,
+                    no_image_block: !streetViewUrl
+                        ? { deal_type_label: dealTypeLabel, deal_type_color: dealTypeColor, is_arv_exclusive: deal.isArvExclusive || null }
+                        : null,
                     address:          deal.address || "Undisclosed Address",
                     city:             deal.city    ?? "",
                     state:            deal.state   ?? "",
@@ -644,7 +655,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links, isArvExclusive, onBehalfOfEmail } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -706,9 +717,11 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             propertyType: incomingFullAddress
                 ? normalizePropertyType(resolvedPropertyType)
                 : (propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined),
-            notes:        notes      !== undefined ? (notes      ?? null) : undefined,
-            adminNotes:   adminNotes !== undefined ? (adminNotes ?? null) : undefined,
-            photosUrl:    photosUrl  !== undefined ? (photosUrl  ?? null) : undefined,
+            notes:           notes           !== undefined ? (notes           ?? null) : undefined,
+            adminNotes:      adminNotes      !== undefined ? (adminNotes      ?? null) : undefined,
+            photosUrl:       photosUrl       !== undefined ? (photosUrl       ?? null) : undefined,
+            isArvExclusive:  isArvExclusive  !== undefined ? isArvExclusive              : undefined,
+            onBehalfOfEmail: onBehalfOfEmail !== undefined ? (onBehalfOfEmail ?? null)   : undefined,
         })
         .where(eq(deals.id, id))
         .returning();
@@ -758,6 +771,8 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
             adminNotes:      deals.adminNotes,
             photosUrl:       deals.photosUrl,
             county:          deals.county,
+            onBehalfOfEmail: deals.onBehalfOfEmail,
+            posterUserId:    deals.userId,
             posterEmail:     users.email,
             posterFirstName: users.firstName,
             posterLastName:  users.lastName,
@@ -778,22 +793,43 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
 
     if (!requester) throw new DealServiceError(401, "Requester not found");
 
-    if (!dealRow.posterEmail) {
-        console.warn(`${label} Poster has no email — skipping notification: dealId=${dealId}`);
-        return;
-    }
-
     const DEFAULT_CONTACT = process.env.DEFAULT_CONTACT_RECIPIENT || "justin@arvfinance.com";
-    let fromAddress = getDefaultFromEmail();
 
-    const rmMap = await getRmEmailsByUserIds([requesterId]);
-    const rmEmail = rmMap.get(requesterId);
-    if (rmEmail) {
+    // Resolve requester's RM — used for the From address regardless of routing mode
+    let fromAddress = getDefaultFromEmail();
+    const requesterRmMap = await getRmEmailsByUserIds([requesterId]);
+    const requesterRmEmail = requesterRmMap.get(requesterId);
+    if (requesterRmEmail) {
         const senders = await getConfirmedSenders();
-        fromAddress = resolveFromAddress(senders, rmEmail);
+        fromAddress = resolveFromAddress(senders, requesterRmEmail);
     }
 
-    const ccAddress = rmEmail ?? DEFAULT_CONTACT;
+    // ── Routing: on-behalf-of vs. direct poster ────────────────────────────────
+    // When the deal was posted on behalf of a client (onBehalfOfEmail set):
+    //   To  = client email (the person the deal belongs to)
+    //   CC  = poster's RM (they manage that client relationship)
+    // Otherwise (normal flow):
+    //   To  = poster's email
+    //   CC  = requester's RM (or default contact)
+    let toAddress: string;
+    let ccAddress: string;
+
+    if (dealRow.onBehalfOfEmail) {
+        toAddress = dealRow.onBehalfOfEmail;
+        // Resolve the poster's RM for CC
+        const posterRmMap = await getRmEmailsByUserIds([dealRow.posterUserId]);
+        const posterRmEmail = posterRmMap.get(dealRow.posterUserId);
+        ccAddress = posterRmEmail ?? DEFAULT_CONTACT;
+        console.log(`${label} On-behalf-of routing: to=${toAddress}, cc=${ccAddress}`);
+    } else {
+        if (!dealRow.posterEmail) {
+            console.warn(`${label} Poster has no email — skipping notification: dealId=${dealId}`);
+            return;
+        }
+        toAddress = dealRow.posterEmail;
+        ccAddress = requesterRmEmail ?? DEFAULT_CONTACT;
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     const displayFirstName = overrides?.firstName?.trim() || requester.firstName;
     const displayLastName  = overrides?.lastName?.trim()  || requester.lastName;
@@ -850,11 +886,11 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         `\nView Deal: ${dealUrl}`,
     ].filter((l): l is string => l != null).join("\n");
 
-    const cc = ccAddress !== dealRow.posterEmail ? ccAddress : undefined;
+    const cc = ccAddress !== toAddress ? ccAddress : undefined;
 
     await sendPlainEmail({
         From:     fromAddress,
-        To:       dealRow.posterEmail,
+        To:       toAddress,
         Subject:  `[Deal Interest] ${addressLabel} — ${requesterName}`,
         HtmlBody: posterHtmlBody,
         TextBody: posterTextLines,
@@ -862,7 +898,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         Cc:       cc,
     });
 
-    console.log(`${label} Sent to poster: dealId=${dealId}, poster=${dealRow.posterEmail}${cc ? `, cc=${cc}` : ""}`);
+    console.log(`${label} Sent request-info: dealId=${dealId}, to=${toAddress}${cc ? `, cc=${cc}` : ""}`);
 }
 
 // ── DELETE deal ────────────────────────────────────────────────────────────────

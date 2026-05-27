@@ -10,8 +10,27 @@ import {
     DealServiceError,
 } from "server/services/deals/deals.services";
 import { requestDealInfoSchema } from "@database/validation/deals.validation";
+import { db } from "server/storage";
+import { userRoles, roles } from "@database/schemas/users.schema";
+import { eq, inArray, and } from "drizzle-orm";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const PRIVILEGED_DEAL_ROLES = ["admin", "owner", "relationship-manager"] as const;
+
+/** Returns true if the given userId holds at least one privileged deal role. */
+async function callerIsPrivileged(userId: string): Promise<boolean> {
+    const rows = await db
+        .select({ roleName: roles.name })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(and(
+            eq(userRoles.userId, userId),
+            inArray(roles.name, [...PRIVILEGED_DEAL_ROLES]),
+        ))
+        .limit(1);
+    return rows.length > 0;
+}
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
     if (err instanceof DealServiceError) {
@@ -66,6 +85,7 @@ export async function createDealController(req: Request, res: Response): Promise
             userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, sendNotifications, links,
+            isArvExclusive, onBehalfOfEmail,
         } = req.body;
 
         // Input validation (format, not business logic)
@@ -89,11 +109,18 @@ export async function createDealController(req: Request, res: Response): Promise
             return;
         }
 
+        // Strip admin-only fields if the caller does not hold a privileged role
+        const privileged = await callerIsPrivileged(userId);
+        const resolvedIsArvExclusive  = privileged ? (isArvExclusive  ?? false) : false;
+        const resolvedOnBehalfOfEmail = privileged ? (onBehalfOfEmail ?? null)  : null;
+
         const { deal, msaId } = await createDeal({
             address, city, state, zipCode,
             userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, sendNotifications, links,
+            isArvExclusive:  resolvedIsArvExclusive,
+            onBehalfOfEmail: resolvedOnBehalfOfEmail,
         });
 
         res.status(201).json({ message: "Deal posted successfully", deal });
@@ -125,13 +152,19 @@ export async function updateDealController(req: Request, res: Response): Promise
             dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, links, sendNotifications,
+            isArvExclusive, onBehalfOfEmail,
         } = req.body;
+
+        // Strip admin-only fields if the caller does not hold a privileged role
+        const privileged = await callerIsPrivileged(callerId);
 
         const updated = await updateDeal(id, callerId, {
             address, city, state, zipCode,
             dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, links,
+            isArvExclusive:  privileged ? isArvExclusive  : undefined,
+            onBehalfOfEmail: privileged ? onBehalfOfEmail : undefined,
         });
 
         const { previousType, previousPrice, ...dealForResponse } = updated;

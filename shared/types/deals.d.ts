@@ -28,6 +28,9 @@ type Deal = DealProperty & {
     sfrPropertyId?: number | null;
     streetViewUrl?: string | null;
 
+    // Admin / RM-only fields
+    isArvExclusive: boolean;
+    onBehalfOfEmail?: string | null;
 }
 
 type DealProperty = {
@@ -52,6 +55,8 @@ type DealToEdit = DealProperty & {
     id: number;
     links?: string[];
     adminNotes?: string | null;
+    isArvExclusive?: boolean;
+    onBehalfOfEmail?: string | null;
 }
 
 // Input for POST /api/deals
@@ -60,10 +65,14 @@ type CreateDealInput = DealProperty & {
     sendNotifications?: boolean;
     links?: string[];
     adminNotes?: string | null;
+    isArvExclusive?: boolean;
+    onBehalfOfEmail?: string | null;
 }
 
 // Input for PATCH /api/deals/:id (all fields optional except identity)
 type UpdateDealInput = DealProperty & {
     links?: string[];
     adminNotes?: string | null;
+    isArvExclusive?: boolean;
+    onBehalfOfEmail?: string | null;
 }
