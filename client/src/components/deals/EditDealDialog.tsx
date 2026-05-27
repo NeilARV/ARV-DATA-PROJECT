@@ -98,7 +98,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
     };
 
     return (
-        <AppDialog open={open} onClose={handleClose} className="sm:max-w-lg">
+        <AppDialog open={open} onClose={handleClose} className="max-w-[350px] sm:max-w-lg lg:max-w-2xl">
             <DialogHeader>
                 <DialogTitle>Edit Deal</DialogTitle>
             </DialogHeader>

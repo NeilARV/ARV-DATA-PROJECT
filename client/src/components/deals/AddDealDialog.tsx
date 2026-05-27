@@ -120,7 +120,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
 
     return (
         <>
-            <AppDialog open={open} onClose={handleClose} className="sm:max-w-lg">
+            <AppDialog open={open} onClose={handleClose} className="max-w-[350px] sm:max-w-lg lg:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Post a Deal</DialogTitle>
                 </DialogHeader>
