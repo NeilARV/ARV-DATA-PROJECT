@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, ReactNode, useContext, useState, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import { SidebarView, View } from "@/types/options";
 
@@ -28,24 +28,11 @@ export function ViewProvider({children}: ViewProviderProps) {
     const search = useSearch();
     const isHome = location === "/";
 
-    const [view, setViewState] = useState<View>(() =>
-        isHome ? (parseViewParam(search) ?? DEFAULT_VIEW) : DEFAULT_VIEW
-    );
+    // Derive view directly from the URL — no state copy, no sync effect, no extra render cycle
+    const view: View = isHome ? (parseViewParam(search) ?? DEFAULT_VIEW) : DEFAULT_VIEW;
     const [sidebarView, setSidebarView] = useState<SidebarView>("directory");
 
-    // Sync URL view param → state when on home page (handles deep-links and browser back/forward)
-    useEffect(() => {
-        if (!isHome) return;
-        const urlView = parseViewParam(search);
-        if (urlView && urlView !== view) {
-            setViewState(urlView);
-        } else if (!urlView && view !== DEFAULT_VIEW) {
-            setViewState(DEFAULT_VIEW);
-        }
-    }, [isHome, search]);
-
     const setView = useCallback((newView: View) => {
-        setViewState(newView);
         // Preserve existing search params only when already on home; otherwise start fresh
         const p = new URLSearchParams(isHome ? search : "");
         if (newView === DEFAULT_VIEW) p.delete("view");
