@@ -146,71 +146,6 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                             onPhotosUrlChange={setPhotosUrl}
                         />
 
-                        {canEditAdminNotes && (
-                            <FormField
-                                control={form.control}
-                                name="adminNotes"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-                                            Internal Note (admin only)
-                                        </FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                {...field}
-                                                placeholder="Internal notes visible only to admins and owners..."
-                                                className="resize-none text-sm"
-                                                rows={2}
-                                            />
-                                        </FormControl>
-                                    </FormItem>
-                                )}
-                            />
-                        )}
-
-                        {canEditPrivilegedFields && (
-                            <>
-                                <FormField
-                                    control={form.control}
-                                    name="onBehalfOfEmail"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-                                                On Behalf Of (admin only)
-                                            </FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    {...field}
-                                                    type="email"
-                                                    placeholder="client@example.com"
-                                                    value={field.value ?? ""}
-                                                />
-                                            </FormControl>
-                                            <p className="text-xs text-muted-foreground">
-                                                Client email — receives contact requests instead of the poster
-                                            </p>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="isArvExclusive"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center gap-2 space-y-0">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                            </FormControl>
-                                            <FormLabel className="font-normal cursor-pointer">
-                                                ARV Exclusive deal
-                                            </FormLabel>
-                                        </FormItem>
-                                    )}
-                                />
-                            </>
-                        )}
-
                         <FormField
                             control={form.control}
                             name="sendNotifications"
@@ -225,6 +160,78 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                                 </FormItem>
                             )}
                         />
+
+                        {(canEditAdminNotes || canEditPrivilegedFields) && (
+                            <div className="space-y-4 pt-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                                        Admin Only
+                                    </span>
+                                    <div className="flex-1 h-px bg-border" />
+                                </div>
+
+                                {canEditAdminNotes && (
+                                    <FormField
+                                        control={form.control}
+                                        name="adminNotes"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Internal Note</FormLabel>
+                                                <FormControl>
+                                                    <Textarea
+                                                        {...field}
+                                                        placeholder="Internal notes visible only to admins and owners..."
+                                                        className="resize-none text-sm"
+                                                        rows={2}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+
+                                {canEditPrivilegedFields && (
+                                    <>
+                                        <FormField
+                                            control={form.control}
+                                            name="onBehalfOfEmail"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>On Behalf Of</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            {...field}
+                                                            type="email"
+                                                            placeholder="client@example.com"
+                                                            value={field.value ?? ""}
+                                                        />
+                                                    </FormControl>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Client email — receives contact requests instead of the poster
+                                                    </p>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <FormField
+                                            control={form.control}
+                                            name="isArvExclusive"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                                    </FormControl>
+                                                    <FormLabel className="font-normal cursor-pointer">
+                                                        ARV Exclusive deal
+                                                    </FormLabel>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </>
+                                )}
+                            </div>
+                        )}
 
                         <div className="flex gap-2 pt-2">
                             <Button

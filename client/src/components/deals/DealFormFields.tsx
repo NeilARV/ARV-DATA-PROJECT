@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,6 +72,15 @@ export default function DealFormFields({
     photosUrl,
     onPhotosUrlChange,
 }: DealFormFieldsProps) {
+    const linksEndRef = useRef<HTMLDivElement>(null);
+
+    function handleAddLink() {
+        onLinksChange([...links, ""]);
+        requestAnimationFrame(() => {
+            linksEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+    }
+
     return (
         <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
 
@@ -361,21 +371,6 @@ export default function DealFormFields({
             />
 
             <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">
-                    Photo Album URL <span className="text-muted-foreground font-normal">(optional)</span>
-                </label>
-                <Input
-                    value={photosUrl}
-                    onChange={(e) => onPhotosUrlChange(e.target.value)}
-                    placeholder="https://photos.example.com/album"
-                    className={photosUrl.length > 0 && !isValidUrl(photosUrl) ? "border-destructive focus-visible:ring-destructive" : ""}
-                />
-                {photosUrl.length > 0 && !isValidUrl(photosUrl) && (
-                    <p className="text-xs text-destructive">Please enter a valid URL</p>
-                )}
-            </div>
-
-            <div className="space-y-2">
                 <div className="flex items-center justify-between">
                     <label className="text-sm font-medium leading-none">
                         Comparable Sale Links <span className="text-muted-foreground font-normal">(optional, max 3)</span>
@@ -385,7 +380,7 @@ export default function DealFormFields({
                         variant="ghost"
                         size="sm"
                         className="h-7 gap-1 text-xs px-2"
-                        onClick={() => onLinksChange([...links, ""])}
+                        onClick={handleAddLink}
                         disabled={links.length >= 3}
                     >
                         <Plus className="w-3.5 h-3.5" />
@@ -411,6 +406,22 @@ export default function DealFormFields({
                         </Button>
                     </div>
                 ))}
+                <div ref={linksEndRef} />
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-sm font-medium leading-none">
+                    Photo Album URL <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Input
+                    value={photosUrl}
+                    onChange={(e) => onPhotosUrlChange(e.target.value)}
+                    placeholder="https://photos.example.com/album"
+                    className={photosUrl.length > 0 && !isValidUrl(photosUrl) ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {photosUrl.length > 0 && !isValidUrl(photosUrl) && (
+                    <p className="text-xs text-destructive">Please enter a valid URL</p>
+                )}
             </div>
 
         </div>
