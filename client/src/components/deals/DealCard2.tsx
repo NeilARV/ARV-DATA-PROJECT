@@ -116,7 +116,7 @@ export default function DealCard2({
                 onClick={() => hasExpandableContent && onToggle()}
             >
                 {/* Street view image — full-width banner below 500px, fixed sidebar above */}
-                <div className="h-64 md:h-auto w-full md:w-56 shrink-0 md:self-stretch bg-muted relative">
+                <div className="h-64 md:h-auto w-full md:w-64 shrink-0 md:self-stretch bg-muted relative">
                     {imageLoading ? (
                         <Loader2 className="absolute inset-0 m-auto w-5 h-5 animate-spin text-muted-foreground/40" />
                     ) : imageUrl ? (
@@ -128,13 +128,20 @@ export default function DealCard2({
                     ) : (
                         <Handshake className="absolute inset-0 m-auto w-8 h-8 text-muted-foreground/30" />
                     )}
-                    {/* Deal type badge */}
-                    <span
-                        className="absolute top-2 left-2 text-[11px] font-semibold px-2 py-0.5 rounded shadow-sm"
-                        style={{ backgroundColor: typeStyle.bg, color: "#fff" }}
-                    >
-                        {typeStyle.label}
-                    </span>
+                    {/* Badges: ARV Exclusive (left) + deal type (right), both left-aligned */}
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                        {deal.isArvExclusive && (
+                            <span className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm" style={{ backgroundColor: "#ffffff", color: "#000000" }}>
+                                ★ ARV Exclusive
+                            </span>
+                        )}
+                        <span
+                            className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm"
+                            style={{ backgroundColor: typeStyle.bg, color: "#fff" }}
+                        >
+                            {typeStyle.label}
+                        </span>
+                    </div>
                 </div>
 
                 {/* ── Right content ─────────────────────────────────────────── */}
@@ -355,7 +362,7 @@ export default function DealCard2({
 
             {/* ── Admin: Posted by + internal notes footer ─────────────────── */}
             {canViewPoster && (
-                <div className="border-t border-border px-5 py-2 flex flex-col gap-1.5 text-sm">
+                <div className="border-t border-border px-5 py-3 flex flex-col gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                         <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                         <span className="deal-card-label">Posted by:</span>
@@ -365,15 +372,21 @@ export default function DealCard2({
                             deal.userPhone,
                         ].filter(Boolean).map((item, i, arr) => (
                             <span key={i} className="flex items-center gap-1.5">
-                                <span className="font-medium text-foreground">{item}</span>
+                                <span className="text-sm lg:text-base text-foreground">{item}</span>
                                 {i < arr.length - 1 && <span className="text-muted-foreground">|</span>}
                             </span>
                         ))}
                     </div>
+                    {deal.onBehalfOfEmail && (
+                        <div className="flex items-center gap-1.5">
+                            <span className="deal-card-label shrink-0">On Behalf Of:</span>
+                            <span className="text-sm lg:text-base text-foreground">{deal.onBehalfOfEmail}</span>
+                        </div>
+                    )}
                     {deal.adminNotes && (
-                        <div className="flex items-start gap-1.5">
+                        <div className="flex items-center gap-1.5">
                             <span className="deal-card-label shrink-0">Internal Note:</span>
-                            <span className="text-foreground leading-snug">{deal.adminNotes}</span>
+                            <span className="text-sm lg:text-base text-foreground">{deal.adminNotes}</span>
                         </div>
                     )}
                 </div>

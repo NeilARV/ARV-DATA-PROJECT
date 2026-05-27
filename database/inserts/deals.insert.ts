@@ -34,6 +34,13 @@ export const dealFormSchema = z
                          (v) => (v === "" || v == null ? undefined : v),
                          z.string().url("Please enter a valid URL").optional()
                        ),
+
+    // Admin / RM-only fields (stripped server-side for unprivileged callers)
+    isArvExclusive:    z.boolean().default(false),
+    onBehalfOfEmail:   z.preprocess(
+                         (v) => (v === "" || v == null ? undefined : v),
+                         z.string().email("Invalid email address").optional()
+                       ),
   })
   .superRefine((data, ctx) => {
     const hasFullAddress =
