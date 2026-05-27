@@ -98,7 +98,7 @@ export function startScheduledJobs() {
     // =========================================================================
     // Email Jobs by MSA
     // =========================================================================
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV === "production") {
         // EST
         cron.schedule("0 6 * * *", sendMiamiEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("5 6 * * *", sendTampaEmail, { timezone: "America/Los_Angeles"})
@@ -108,7 +108,7 @@ export function startScheduledJobs() {
         cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
 
         // PST
-        cron.schedule("6 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("0 9 * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("5 9 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("15 9 * * *", sendSeattleEmail, { timezone: "America/Los_Angeles" })
