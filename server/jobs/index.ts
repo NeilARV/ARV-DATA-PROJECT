@@ -108,7 +108,7 @@ export function startScheduledJobs() {
         cron.schedule("0 8 * * *", sendDenverEmail, { timezone: "America/Los_Angeles" })
 
         // PST
-        cron.schedule("58 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
+        cron.schedule("6 * * * *", sendSanDiegoEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("5 9 * * *", sendLosAngelesEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("10 9 * * *", sendSanFranciscoEmail, { timezone: "America/Los_Angeles" })
         cron.schedule("15 9 * * *", sendSeattleEmail, { timezone: "America/Los_Angeles" })

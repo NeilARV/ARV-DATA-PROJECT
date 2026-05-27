@@ -158,8 +158,10 @@ function buildPropertyForTemplate(p: PropertyRow, image_url: string): PropertyFo
 
     const countyParam = (p.county ?? "").trim();
     const propertyUrlParams = new URLSearchParams({ property: p.propertyId });
+    const viewParams = "view=grid"
+
     if (countyParam) propertyUrlParams.set("county", countyParam);
-    const property_url = `${APP_BASE_URL}/?${propertyUrlParams.toString()}`;
+    const property_url = `${APP_BASE_URL}/?view=grid&${propertyUrlParams.toString()}`;
 
     return {
         address: formatAddress(p.address) ?? rawAddress,
