@@ -198,7 +198,12 @@ function matchesStatusFilter(statuses: string[], filter: string[]): boolean {
     return filter.some((f) => normalized.includes(f));
 }
 
-/** Picks the first up to `count` entries from `candidates` whose Street View URL is in the cache. */
+/**
+ * Picks up to `count` entries from `candidates` whose Street View URL is in the cache,
+ * prioritizing ARV-funded properties first. If there are enough ARV-funded candidates to
+ * fill all slots, only ARV-funded properties are included. Otherwise ARV-funded slots are
+ * filled first and the remainder comes from non-ARV-funded candidates.
+ */
 function pickPropertiesFromCache(
     candidates: PropertyRow[],
     cache: Map<string, string | null>,
@@ -207,14 +212,28 @@ function pickPropertiesFromCache(
 ): { templates: PropertyForTemplate[]; pickedIds: string[] } {
     const templates: PropertyForTemplate[] = [];
     const pickedIds: string[] = [];
+
+    // Collect all eligible candidates (match status filter + have a Street View URL)
+    const eligible: PropertyRow[] = [];
     for (const p of candidates) {
-        if (templates.length >= count) break;
         if (!matchesStatusFilter(p.statuses ?? [], statusFilter)) continue;
         const url = cache.get(p.propertyId);
         if (!url) continue;
+        eligible.push(p);
+    }
+
+    // ARV-funded properties take priority; non-ARV-funded fill any remaining slots
+    const arvFunded = eligible.filter((p) => p.isARVFunded);
+    const nonArvFunded = eligible.filter((p) => !p.isARVFunded);
+    const prioritized = [...arvFunded, ...nonArvFunded];
+
+    for (const p of prioritized) {
+        if (templates.length >= count) break;
+        const url = cache.get(p.propertyId)!;
         templates.push(buildPropertyForTemplate(p, url));
         pickedIds.push(p.propertyId);
     }
+
     return { templates, pickedIds };
 }
 
