@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { msas } from "@database/schemas/msas.schema";
 import { fetchQueue } from "./processes/fetch-queue";
-import { markProcessing, markComplete, markFailed } from "./processes/mark-queue";
+import { markProcessing, markComplete, markFailed, resetStaleProcessing } from "./processes/mark-queue";
 
 import { batchLookup } from "./processes/batch-lookup";
 import { getTransactions } from "./processes/get-transactions";
@@ -92,6 +92,14 @@ export async function runConsumer(): Promise<void> {
     console.log(`${label} Consumer run started`);
     const startedAt = Date.now();
 
+    // ── Recovery: reset any rows orphaned in 'processing' from a prior crashed run ──
+    // Any row still in 'processing' after 60 minutes was never completed — reset to
+    // 'pending' so it gets picked up on this run. Uses enqueuedAt as a staleness proxy.
+    const staleReset = await resetStaleProcessing(60);
+    if (staleReset > 0) {
+        console.log(`${label} Recovered ${staleReset} stale 'processing' row(s) → reset to 'pending'`);
+    }
+
     const msaList = await db.select().from(msas);
     if (msaList.length === 0) {
         console.log(`${label} No MSAs in database, nothing to consume`);
@@ -167,6 +175,27 @@ export async function runConsumer(): Promise<void> {
                     totals.propertiesProcessed += rows.length;
                     totals.propertiesFailed += rows.length;
                     continue;
+                }
+
+                // ── Partial NOT_FOUND: some properties came back but others didn't ──────
+                // Properties missing from mergedProperties were silently dropped by batchLookup
+                // (address couldn't be matched or the API returned no result for them).
+                // Mark them failed individually so they don't get silently marked 'complete'
+                // at the end of the batch without ever having been inserted.
+                const foundSfrPropertyIds = new Set(
+                    mergedProperties.map(mp =>
+                        Number((mp.property as Record<string, unknown>).property_id ?? 0)
+                    )
+                );
+                const partialNotFoundIds = rows
+                    .map(r => r.sfrPropertyId)
+                    .filter(id => !foundSfrPropertyIds.has(id));
+                if (partialNotFoundIds.length > 0) {
+                    await markFailed(msa.id, partialNotFoundIds, "NOT_FOUND in batch property lookup");
+                    console.warn(
+                        `${msaLabel} Batch ${batchNum}: ${partialNotFoundIds.length} of ${rows.length} properties NOT_FOUND in batch lookup — marked failed`
+                    );
+                    totals.propertiesFailed += partialNotFoundIds.length;
                 }
 
                 // ── Step 2: Get transaction history (/properties/transactions) ─
@@ -257,7 +286,14 @@ export async function runConsumer(): Promise<void> {
                 await updateArvClientCompanies(propertiesToInsertWithArv, msa.name);
 
                 // ── Mark complete only for properties that were not individually failed ──
-                const failedSfrIds = new Set<number>([...newConstructionSfrIds, ...unresolvedSfrIds]);
+                // partialNotFoundIds: dropped silently by batchLookup (never inserted)
+                // newConstructionSfrIds: excluded at Step 3
+                // unresolvedSfrIds: excluded at Step 8
+                const failedSfrIds = new Set<number>([
+                    ...partialNotFoundIds,
+                    ...newConstructionSfrIds,
+                    ...unresolvedSfrIds,
+                ]);
                 const idsToComplete = allPropertyIds.filter(id => !failedSfrIds.has(id));
                 await markComplete(msa.id, idsToComplete);
 

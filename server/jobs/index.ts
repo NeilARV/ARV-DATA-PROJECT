@@ -88,7 +88,7 @@ export function startScheduledJobs() {
         cron.schedule("*/30 5-22 * * *", runConsumer, {
             timezone: "America/Los_Angeles"
         })
-        // cron.schedule("31 * * * *", runConsumer, {
+        // cron.schedule("28 * * * *", runConsumer, {
         //     timezone: "America/Los_Angeles"
         // })
     } else {

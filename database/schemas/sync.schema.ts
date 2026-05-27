@@ -4,7 +4,7 @@ import { properties } from "./properties.schema";
 
 export const marketScanQueue = pgTable("market_scan_queue", {
   id: uuid("id").defaultRandom().primaryKey(),
-  sfrMarketId: integer("sfr_market_id").unique().notNull(),
+  sfrMarketId: bigint("sfr_market_id", { mode: "number" }).unique().notNull(),
   sfrPropertyId: bigint("sfr_property_id", { mode: "number" }).notNull(),
   address: text("address"),
   city: text("city"),

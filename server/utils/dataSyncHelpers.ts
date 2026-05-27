@@ -60,6 +60,34 @@ function isTrust(name: string | null | undefined, ownershipCode: string | null |
     return trustPatterns.some(pattern => pattern.test(name));
 }
 
+/**
+ * Known institutional / corporate SFR operators whose names don't contain
+ * standard corporate suffixes (LLC, INC, CORP, etc.) but are definitively
+ * corporate entities. Checked case-insensitively via normalized lowercase.
+ *
+ * Add new entries here when a known operator is being missed by pattern matching.
+ * Use the exact lowercase name as SFR returns it (trimmed).
+ */
+const KNOWN_CORPORATE_NAMES: ReadonlySet<string> = new Set([
+    // iBuyers
+    "opendoor",
+    // Institutional SFR operators
+    "starwood",
+    "first key homes",
+    "firstkey homes",
+    "conrex",
+    "progress residential",
+    "invitation homes",
+    "main street renewal",
+    "divvy homes",
+    "tricon residential",
+    "american homes 4 rent",
+    "amh",
+    "mynd",
+    "roofstock",
+    "waypoint homes",
+]);
+
 // Helper function to check if a name/entity is a flipping company (corporate but not trust)
 export function isFlippingCompany(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
     if (!name) return false;
@@ -69,11 +97,17 @@ export function isFlippingCompany(name: string | null | undefined, ownershipCode
         return false;
     }
 
+    // Fast path: known institutional operators whose names don't match standard patterns
+    if (KNOWN_CORPORATE_NAMES.has(name.trim().toLowerCase())) {
+        return true;
+    }
+
     // Valid corporate patterns
     const corporatePatterns = [
         /\bLLC\b/i,
         /\bINC\b/i,
-        /\bCORP\b/i,
+        /\bCORPS?\b/i,           // CORP, CORPS
+        /\bCORPORATION\b/i,      // CORPORATION (not caught by \bCORP\b word boundary)
         /\bLTD\b/i,
         /\bLP\b/i,
         /\bPROPERTIES\b/i,
@@ -81,7 +115,8 @@ export function isFlippingCompany(name: string | null | undefined, ownershipCode
         /\bCAPITAL\b/i,
         /\bVENTURES?\b/i,
         /\bHOLDINGS?\b/i,
-        /\bREALTY\b/i
+        /\bREALTY\b/i,
+        /\bENTERPRISES?\b/i,     // ENTERPRISE, ENTERPRISES
     ];
 
     return corporatePatterns.some(pattern => pattern.test(name));
