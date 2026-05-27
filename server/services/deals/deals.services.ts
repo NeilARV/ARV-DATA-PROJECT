@@ -873,6 +873,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         ...(displayMessage ? [section("Message", displayMessage.replace(/\n/g, "<br />"))] : []),
         `<hr style="border:none;border-top:1px solid #eee;margin:16px 0 12px" />`,
         `<p style="margin:0"><a href="${dealUrl}" style="color:#5BC8DC;text-decoration:none;font-size:15px;font-weight:600">View Deal →</a></p>`,
+        `<p style="margin:12px 0 0;font-size:13px;color:#888">Reply to this email to respond directly to ${requesterName || displayEmail}.</p>`,
     ].join("\n");
 
     const posterTextLines = [
@@ -884,6 +885,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         displayPhone   || null,
         displayMessage ? `\nMESSAGE\n${displayMessage}` : null,
         `\nView Deal: ${dealUrl}`,
+        `\nReply to this email to respond directly to ${requesterName || displayEmail}.`,
     ].filter((l): l is string => l != null).join("\n");
 
     const cc = ccAddress !== toAddress ? ccAddress : undefined;
