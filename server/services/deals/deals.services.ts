@@ -888,7 +888,10 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         `\nReply to this email to respond directly to ${requesterName || displayEmail}.`,
     ].filter((l): l is string => l != null).join("\n");
 
-    const cc = ccAddress !== toAddress ? ccAddress : undefined;
+    const ccCandidates = [ccAddress, displayEmail]
+        .filter((addr): addr is string => Boolean(addr) && addr !== toAddress);
+    const ccList = Array.from(new Set(ccCandidates));
+    const cc = ccList.length > 0 ? ccList.join(", ") : undefined;
 
     await sendPlainEmail({
         From:     fromAddress,
