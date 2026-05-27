@@ -112,7 +112,7 @@ The following environment variables are required or used by the application. **N
 
 ## Design Style Guide
 
-> **Full design reference**: `.claude/docs/DESIGN.md` — the authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states).
+> **Full design reference**: `.claude/docs/design.md` — the authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states).
 
 Style and design tokens live in `tailwind.config.ts` and `client/src/index.css`.
 
@@ -260,8 +260,12 @@ Each folder under `tests/server/api/` maps to a broad API resource category. Wit
 
 ### References
 - `.claude/docs` contains feature design guides and docs that explain the goals of the feauture and the plan to integrate it
-- `VENDORS.md` contains the system specifications and design documentation for our new vendor page feature integration
-- `DESIGN.md` contains the UI design documentation for our entire application (css, tailwind, components, etc.)
+- `vendors.md` contains the system specifications and design documentation for our new vendor page feature integration
+- `design.md` contains the UI design documentation for our entire application (css, tailwind, components, etc.)
+- `code-standards.md` contains the authoritative reference for coding conventions across the entire codebase that all new code and code reviews should be held against
+
+This document is the authoritative reference for coding conventions across the entire codebase. All new code and code reviews should be held against these standards. When in doubt, follow the patterns already established in the codebase rather than inventing new ones.
+
 
 ---
 
