@@ -1,7 +1,7 @@
 import { db } from "server/storage";
 import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
 import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { eq, sql, and, or } from "drizzle-orm";
+import { eq, sql, and, or, inArray } from "drizzle-orm";
 import { resolveDateRange } from "server/utils/resolveDateRange";
 
 export interface ZipCount {
@@ -9,20 +9,31 @@ export interface ZipCount {
     count: number;
 }
 
+/**
+ * Returns property counts grouped by zip code for the given filters.
+ *
+ * Two-phase approach (mirrors maps.services.ts):
+ *   Phase 1 — resolve qualifying property IDs with a lean filter query so that
+ *              correlated EXISTS subqueries only run against the county-filtered set.
+ *   Phase 2 — aggregate zip counts from addresses using inArray on qualifying IDs;
+ *              avoids per-row EXISTS scans across the full properties table.
+ */
 export async function getZipCounts(
     county?: string,
     statusFilter?: string | string[],
     dateRange?: string,
     companyId?: string,
 ): Promise<ZipCount[]> {
-    const conditions = [];
-
     const companyIdTrimmed = companyId?.trim() ?? "";
     const hasCompanyFilter = companyIdTrimmed !== "";
+    const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
+
+    // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
+    const idConditions = [];
 
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
-        conditions.push(
+        idConditions.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
                 sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
@@ -34,7 +45,7 @@ export async function getZipCounts(
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
             const normalizedStatuses = statusArray.map(s => s.trim().toLowerCase());
-            conditions.push(
+            idConditions.push(
                 sql`EXISTS (
                     SELECT 1 FROM property_statuses ps
                     JOIN statuses s ON s.id = ps.status_id
@@ -45,20 +56,8 @@ export async function getZipCounts(
         }
     }
 
-    if (hasCompanyFilter) {
-        conditions.push(
-            sql`EXISTS (
-                SELECT 1 FROM property_transactions pt
-                WHERE pt.property_id = ${properties.id}
-                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-            )`
-        );
-    }
-
-    const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
     if (resolvedRange) {
-        conditions.push(
+        idConditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_transactions pt
                 WHERE pt.property_id = ${properties.id}
@@ -69,20 +68,44 @@ export async function getZipCounts(
         );
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    if (hasCompanyFilter) {
+        idConditions.push(
+            sql`EXISTS (
+                SELECT 1 FROM property_transactions pt
+                WHERE pt.property_id = ${properties.id}
+                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+            )`
+        );
+    }
 
-    const query = db
+    const idWhereClause = idConditions.length > 0 ? and(...idConditions) : undefined;
+
+    const baseIdQuery = db
+        .select({ id: properties.id })
+        .from(properties)
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId));
+
+    const idRows: Array<{ id: string }> = await (idWhereClause
+        ? (baseIdQuery as any).where(idWhereClause)
+        : baseIdQuery
+    ).execute();
+
+    const qualifyingIds = idRows.map(r => r.id);
+
+    if (qualifyingIds.length === 0) return [];
+
+    // ── Phase 2: Aggregate zip counts for qualifying IDs only ─────────────────
+    // Single GROUP BY on addresses scoped to qualifying IDs — no correlated subqueries.
+    const results = await db
         .select({
             zipCode: addresses.zipCode,
-            count: sql<number>`COUNT(DISTINCT ${properties.id})`,
+            count: sql<number>`COUNT(*)`,
         })
-        .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-        .groupBy(addresses.zipCode);
-
-    const results = whereClause
-        ? await (query as any).where(whereClause).execute()
-        : await query.execute();
+        .from(addresses)
+        .where(inArray(addresses.propertyId, qualifyingIds))
+        .groupBy(addresses.zipCode)
+        .execute();
 
     return results
         .filter((r: any) => r.zipCode && r.zipCode.trim() !== "")
