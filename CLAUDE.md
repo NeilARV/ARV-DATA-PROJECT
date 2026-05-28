@@ -88,184 +88,25 @@ The following environment variables are required or used by the application. **N
 ---
 
 ## Coding Style
-
-> **Full coding standards reference**: `.claude/docs/code-standards.md` — the authoritative source for all coding conventions (naming, file organization, component structure, route/controller/service patterns, error handling, formatting, and more). Apply these standards when adding or updating any code.
-
-- **Indentation**: 4 spaces (no tabs)
-- **TypeScript**: Strict mode; avoid `any`
-- **Modules**: ES modules throughout; path aliases: `@/*` (client), `@shared/*`, `@database/*`
-- **Exports**: Default exports for pages; named exports for components, hooks, controllers, services, and utilities
-
-### Destructuring Spacing
-- **Object destructuring** (custom hooks / context): include a space after `{` and before `}`
-  ```ts
-  const { filters, setFilters } = useFilters();
-  const { user, setUser } = useAuth();
-  ```
-- **Array destructuring** (React state, etc.): no spaces inside `[` and `]`
-  ```ts
-  const [count, setCount] = useState(0);
-  const [open, setOpen] = useState(false);
-  ```
+> **Full reference**: `.claude/docs/code-standards.md` — authoritative source for all coding conventions (naming, file organization, component structure, route/controller/service patterns, error handling, formatting, and more). Apply these standards when adding or updating any code.
 
 ---
 
-## Design Style Guide
-
-> **Full design reference**: `.claude/docs/design.md` — the authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states).
-
-Style and design tokens live in `tailwind.config.ts` and `client/src/index.css`.
-
-### Colors
-
-**Brand / Primary**
-| Token | HSL | Approx Hex | Used For |
-|---|---|---|---|
-| `primary` | `192 67% 65%` | `#5BC8DC` | Main CTAs, buttons, links, focus rings, active sidebar states |
-| `primary-foreground` | `0 0% 100%` | `#FFFFFF` | Text/icons on primary backgrounds |
-
-**Backgrounds & Surfaces**
-| Token | Light HSL | Dark HSL | Used For |
-|---|---|---|---|
-| `background` | `0 0% 100%` | `220 13% 9%` | Page-level background |
-| `card` | `0 0% 98%` | `220 13% 11%` | Card/panel surfaces |
-| `sidebar` | `220 9% 96%` | `220 13% 13%` | Sidebar background |
-| `popover` | `0 0% 96%` | `220 13% 15%` | Dropdowns, tooltips |
-
-**Text / Foreground**
-| Token | Light HSL | Dark HSL | Used For |
-|---|---|---|---|
-| `foreground` | `220 9% 15%` | `220 9% 98%` | Primary body text |
-| `muted-foreground` | `220 9% 40%` | `220 9% 65%` | Placeholder text, descriptions, secondary labels |
-
-**Interactive / Semantic**
-| Token | HSL | Used For |
-|---|---|---|
-| `secondary` | `220 14% 93%` (light) | Secondary/ghost buttons, alternative CTAs |
-| `muted` | `220 13% 95%` (light) | Disabled backgrounds |
-| `accent` | `220 14% 95%` (light) | Hover/selected states on items |
-| `destructive` | `0 84% 42%` | Delete buttons, error alerts, warnings |
-| `ring` | `192 67% 65%` | Focus ring (same as primary) |
-| `input` | `220 13% 80%` (light) | Input field borders |
-| `border` | `220 13% 91%` (light) | Default borders everywhere |
-
-**Status Colors**
-| Token | Hex | Used For |
-|---|---|---|
-| Status Online | `#22C55E` | Green dot indicators |
-| Status Away | `#F59E0B` | Yellow/amber dot indicators |
-| Status Busy | `#EF4444` | Red dot indicators |
-| Status Offline | `#9CA3AF` | Gray dot indicators |
-
-**Financial / Data**
-| Token | Hex | Used For |
-|---|---|---|
-| Spread Positive | `#22C55E` | Positive P&L, gains |
-| Spread Negative | `#FF0000` | Negative P&L, losses |
-
-**Chart Colors**
-| Token | Light HSL | Used For |
-|---|---|---|
-| `chart-1` | `192 67% 65%` | Primary chart series (matches brand primary) |
-| `chart-2` | `142 76% 36%` | Secondary series, positive indicators |
-| `chart-3` | `262 83% 48%` | Tertiary series |
-| `chart-4` | `32 95% 44%` | Quaternary series |
-| `chart-5` | `340 82% 52%` | Quinary series |
-
-### Border Radius
-| Token | Value | Used For |
-|---|---|---|
-| `sm` | `3px` | Checkbox, tight UI elements |
-| `md` | `6px` | Buttons, inputs, badges, selects, tooltips |
-| `lg` | `9px` | Dialogs, alerts, larger containers |
-| `xl` | `12px` | Cards |
-
-### Typography
-**Font Family**: `Inter` (Google Fonts, weights 300–700) → fallback `sans-serif`
-
-| Role | Size | Weight | Used For |
-|---|---|---|---|
-| Card Title | `24px` | 600 | Large card headings |
-| Dialog Title | `18px` | 600 | Modal titles |
-| Button / Label | `14px` | 500 | Button text, form labels |
-| Body | `16px` | 400 | General content |
-| Badge / Caption | `12px` | 600 | Small status badges |
-| Description | `14px` | 400 | Card descriptions, dialog subtext |
-| Input | `16px` mobile → `14px` desktop | 400 | Form inputs |
-
-Placeholder text always uses `muted-foreground`.
-
-### Elevation System
-Shadows are disabled (opacity 0) — depth is expressed through background overlays:
-
-| Class | Effect | Used On |
-|---|---|---|
-| `hover-elevate` | Subtle bg tint on hover (~3–4% opacity) | Buttons, badges, list items |
-| `active-elevate-2` | Stronger tint on press (~8–9% opacity) | Pressed buttons |
-| `toggle-elevate` | Background tint for toggleable items | Sidebar items, toggles |
-
-### Interaction States
-All interactive elements share these consistent patterns:
-- **Focus**: `ring-2 ring-ring ring-offset-2` (teal/primary color)
-- **Disabled**: `opacity-50 pointer-events-none`
-- **Placeholder**: `text-muted-foreground`
-- **Checked/Active**: `bg-primary text-primary-foreground`
-
-### Dark Mode
-Full dark mode support via CSS variables. The `dark` class on `<html>` swaps all tokens.
-- Backgrounds darken significantly
-- Foregrounds flip light
-- Primary teal stays the same across both modes
-- Chart colors get slightly lighter for readability
+## Design
+> **Full reference**: `.claude/docs/design.md` — authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states). Style tokens live in `tailwind.config.ts` and `client/src/index.css`.
 
 ---
 
 ## Testing
+> **Full reference**: `.claude/docs/testing.md` — read this before writing any test. For new API routes, the access-control and validation integration tests described there are mandatory.
 
-### Framework
-- **Vitest** — test runner for both server and (future) client tests
-- `npm run test` — single run, unit tests (CI)
-- `npm run test:watch` — interactive watch mode
-- `npm run test:integration` — single run, integration tests (uses `vitest.integration.config.ts`)
-- `npm run test:all` — run unit + integration tests sequentially
+---
 
-### Folder Structure
-```
-tests/
-├── client/                        # Frontend tests (structure reserved; not yet populated)
-└── server/
-    └── api/                       # API route tests, grouped by resource
-        ├── auth/
-        ├── admin/
-        ├── users/
-        │   ├── users.test.ts          # Routes directly under /api/users (e.g. GET /api/users, DELETE /api/users/:userId)
-        │   └── subscriptions.test.ts  # Sub-resource routes (e.g. GET /api/users/:userId/subscription-tier)
-        ├── properties/
-        ├── companies/
-        ├── geocoding/
-        ├── deals/
-        └── contact/
-```
-
-### File Naming Convention
-Each folder under `tests/server/api/` maps to a broad API resource category. Within a folder:
-- The **primary file** (e.g. `users.test.ts`) covers routes that are a single level deep under the resource (e.g. `GET /api/users`, `DELETE /api/users/:userId`)
-- **Sub-resource files** (e.g. `subscriptions.test.ts`) cover routes that nest deeper under that resource (e.g. `GET /api/users/:userId/subscription-tier`)
-
-### Writing Tests
-- Tests are TypeScript and live under `tests/` at the project root
-- Use Vitest's `describe` / `it` / `expect` API
-- Group related routes under a `describe` block matching the route pattern
-- Test both success responses and expected error cases (400, 401, 403, 404, etc.)
-
-### References
-- `.claude/docs` contains feature design guides and docs that explain the goals of the feauture and the plan to integrate it
-- `vendors.md` contains the system specifications and design documentation for our new vendor page feature integration
-- `design.md` contains the UI design documentation for our entire application (css, tailwind, components, etc.)
-- `code-standards.md` contains the authoritative reference for coding conventions across the entire codebase that all new code and code reviews should be held against
-
-This document is the authoritative reference for coding conventions across the entire codebase. All new code and code reviews should be held against these standards. When in doubt, follow the patterns already established in the codebase rather than inventing new ones.
-
+## References
+- `.claude/docs/code-standards.md` — coding conventions for the entire codebase
+- `.claude/docs/design.md` — UI design system (colors, typography, components, dark mode)
+- `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
+- `.claude/docs/data.md` — data pipeline feature design and integration notes
 
 ---
 

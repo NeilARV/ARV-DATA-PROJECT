@@ -93,6 +93,24 @@ to your Neon test branch. The app reads this file automatically via
   - `<resource>.integration.test.ts` — routes at `/api/<resource>` and `/api/<resource>/:id`
   - `<sub-resource>.integration.test.ts` — routes nested deeper (e.g. `/api/<resource>/:id/sub`)
 
+### Folder Structure
+```
+tests/
+├── client/                        # Frontend tests (structure reserved; not yet populated)
+└── server/
+    └── api/                       # API route tests, grouped by resource
+        ├── auth/
+        ├── admin/
+        ├── users/
+        │   ├── users.test.ts          # Routes directly under /api/users (e.g. GET /api/users, DELETE /api/users/:userId)
+        │   └── subscriptions.test.ts  # Sub-resource routes (e.g. GET /api/users/:userId/subscription-tier)
+        ├── properties/
+        ├── companies/
+        ├── geocoding/
+        ├── deals/
+        └── contact/
+```
+
 ### Test naming
 ```
 METHOD /route — <role/tier> — <expected outcome>
