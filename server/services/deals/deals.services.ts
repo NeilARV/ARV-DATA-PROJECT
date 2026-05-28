@@ -839,10 +839,6 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
 
     const requesterName = [displayFirstName, displayLastName].filter(Boolean).join(" ");
 
-    const addressLabel = dealRow.address
-        ? `${dealRow.address}, ${[dealRow.city, dealRow.state].filter(Boolean).join(", ")}`
-        : [dealRow.city, dealRow.state].filter(Boolean).join(", ");
-
     const APP_BASE_URL = (() => { const u = process.env.APP_URL || "https://data.arvfinance.com"; return /^https?:\/\//i.test(u) ? u : `http://${u}`; })();
     const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
     if (dealRow.county && dealRow.state) {
@@ -867,14 +863,16 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         Cc:            cc,
         TemplateAlias: inquiryTemplateAlias,
         TemplateModel: {
-            requesterName:  requesterName || null,
-            requesterEmail: displayEmail,
-            requesterPhone: displayPhone || null,
-            message:        displayMessage || null,
-            address:        addressLabel,
-            dealUrl:        dealUrl,
-            year:           new Date().getFullYear(),
-            companyName:    "ARV Finance",
+            requester_name:  requesterName || null,
+            requester_email: displayEmail,
+            requester_phone: displayPhone || null,
+            message:         displayMessage || null,
+            address:         dealRow.address || "Undisclosed Address",
+            city:            dealRow.city    ?? "",
+            state:           dealRow.state   ?? "",
+            deal_url:        dealUrl,
+            year:            new Date().getFullYear(),
+            company_name:    "ARV Finance",
         },
     });
 

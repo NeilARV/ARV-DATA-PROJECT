@@ -21,7 +21,7 @@
             <tr>
               <td style="padding:28px 32px 20px; color:#333333; text-align:center;">
                 <p style="margin:0; font-size:16px; line-height:1.6;">
-                  <strong>{{requesterName}}</strong> has requested more information about your deal at <strong>{{address}}</strong>.
+                  <strong>{{requester_name}}</strong> has requested more information about your deal at <strong>{{address}}, {{city}}, {{state}}</strong>.
                 </p>
               </td>
             </tr>
@@ -34,24 +34,24 @@
                     <td style="padding:18px 20px;">
                       <p style="margin:0 0 14px; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Requester Contact</p>
                       <table cellpadding="0" cellspacing="0" style="font-size:14px; width:100%;">
-                        {{#requesterName}}
+                        {{#requester_name}}
                         <tr>
                           <td style="padding:4px 16px 4px 0; color:#999999; white-space:nowrap; vertical-align:top; width:60px;"><strong>Name</strong></td>
-                          <td style="padding:4px 0; color:#1a1a1a;">{{requesterName}}</td>
+                          <td style="padding:4px 0; color:#1a1a1a;">{{requester_name}}</td>
                         </tr>
-                        {{/requesterName}}
+                        {{/requester_name}}
                         <tr>
                           <td style="padding:4px 16px 4px 0; color:#999999; white-space:nowrap; vertical-align:top; width:60px;"><strong>Email</strong></td>
                           <td style="padding:4px 0; color:#1a1a1a;">
-                            <a href="mailto:{{requesterEmail}}" style="color:#69C9E1; text-decoration:none;">{{requesterEmail}}</a>
+                            <a href="mailto:{{requester_email}}" style="color:#69C9E1; text-decoration:none;">{{requester_email}}</a>
                           </td>
                         </tr>
-                        {{#requesterPhone}}
+                        {{#requester_phone}}
                         <tr>
                           <td style="padding:4px 16px 4px 0; color:#999999; white-space:nowrap; vertical-align:top; width:60px;"><strong>Phone</strong></td>
-                          <td style="padding:4px 0; color:#1a1a1a;">{{requesterPhone}}</td>
+                          <td style="padding:4px 0; color:#1a1a1a;">{{requester_phone}}</td>
                         </tr>
-                        {{/requesterPhone}}
+                        {{/requester_phone}}
                       </table>
                     </td>
                   </tr>
@@ -78,7 +78,7 @@
             <!-- CTA Button -->
             <tr>
               <td align="center" style="padding:8px 32px 28px;">
-                <a href="{{dealUrl}}" style="background-color:#69C9E1; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:4px; font-size:16px; font-weight:bold; display:inline-block;">
+                <a href="{{deal_url}}" style="background-color:#69C9E1; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:4px; font-size:16px; font-weight:bold; display:inline-block;">
                   View Deal
                 </a>
               </td>
@@ -87,7 +87,7 @@
             <!-- Reply note -->
             <tr>
               <td style="padding:0 32px 32px; text-align:center;">
-                <p style="margin:0; font-size:13px; color:#999999;">Reply to this email to respond directly to {{requesterName}}.</p>
+                <p style="margin:0; font-size:13px; color:#999999;">Reply to this email to respond directly to {{requester_name}}.</p>
               </td>
             </tr>
 
@@ -95,7 +95,7 @@
             <tr>
               <td style="padding:16px; text-align:center; color:#999; font-size:12px; border-top:1px solid #eeeeee;">
                 You're receiving this email because someone inquired about your deal.<br />
-                &#169; {{year}} {{companyName}}
+                &#169; {{year}} {{company_name}}
               </td>
             </tr>
 
