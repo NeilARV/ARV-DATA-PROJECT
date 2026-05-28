@@ -54,13 +54,22 @@ The following environment variables are required or used by the application. **N
 
 ## Apps
 
-The application is organized as three distinct feature areas that function like separate apps, all sharing the same auth, providers, and backend:
+The application is organized as three distinct feature areas that function like separate apps, all sharing the some code like auth, providers, and backend.
 
-- **Data** (`/` — Home page) — Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database. Full details in `.claude/docs/data.md`.
+### Data
+Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database. You MUST reference this document when working on the data side of the application.
 
-- **Deals** (`/deals`) — Deal marketplace. Users post wholesale, agent, and sold deals; other investors browse, filter by location, and request contact info. Subscription-gated for deal creation. Full details in `.claude/docs/deals.md`.
+> **Full reference**: `.claude/docs/data.md` | `/` | `data.services.ts`, `data.controllers.ts`, `data.routes.ts`
 
-- **Vendors** (`/vendors`) — Community hub. Two-panel layout: an activity feed for community posts (with rich text + vendor/category mentions) and a vendor directory organized by trade category. Full details in `.claude/docs/vendors.md`.
+### Deals
+Deal marketplace. Users post wholesale, agent, and sold deals; other investors browse, filter by location, and request contact info. Subscription-gated for deal creation. You MUST reference this document when working on the deals side of the application.
+
+> **Full reference**: `.claude/docs/deals.md` | `/deals` | `deals.services.ts`, `deals.controllers.ts`, `deals.routes.ts`
+
+### Vendors
+Community hub. Two-panel layout: an activity feed for community posts (with rich text + vendor/category mentions) and a vendor directory organized by trade category. You MUST reference this document when working on the vendors side of the application.
+
+> **Full reference**: `.claude/docs/vendors.md` | `/vendors` | `vendors.services.ts`, `vendors.controllers.ts`, `vendors.routes.ts`
 
 ---
 
