@@ -863,6 +863,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
         Cc:            cc,
         TemplateAlias: inquiryTemplateAlias,
         TemplateModel: {
+            poster_name:     [dealRow.posterFirstName, dealRow.posterLastName].filter(Boolean).join(" ") || null,
             requester_name:  requesterName || null,
             requester_email: displayEmail,
             requester_phone: displayPhone || null,
