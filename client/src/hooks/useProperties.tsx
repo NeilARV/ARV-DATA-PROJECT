@@ -68,7 +68,7 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
             page: propertiesPage,
             limit: view === "table" ? "20" : "10",
             hasDateSold,
-        }),
+        }, { company, sortBy }),
         // Intentionally uses company?.id (not company object) — same reason as the reset effect above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [filters, company?.id, propertiesPage, sortBy, view, hasDateSold]
@@ -182,6 +182,8 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
         matchesFiltersForProperty(
             property,
             zipCodeList,
+            filters,
+            company,
         )
     );
 

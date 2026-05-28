@@ -1,9 +1,8 @@
 import { MAX_PRICE } from "@/constants/filters.constants";
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { useCompanies } from "@/hooks/useCompanies";
-import { useFilters } from "@/hooks/useFilters";
 import type { PropertyFilters } from "@/types/filters";
 import type { MapPin, Property } from "@/types/property";
+import type { CompanyContactWithCounts } from "@/types/companies";
 
 
 export type ZipCodeListEntry = { zip: string; city: string };
@@ -235,11 +234,9 @@ export function matchesCompanyForProperty(
 export function matchesFiltersForPin(
   pin: MapPin,
   zipCodeList: ZipCodeListEntry[],
+  filters: PropertyFilters,
+  company: CompanyContactWithCounts | null,
 ): boolean {
-
-  const { company } = useCompanies();
-  const { filters } = useFilters();
-
   if (!matchesCompanyForPin(pin, company?.id ?? null, company?.companyName ?? null))
     return false;
   if (!matchesPrice(pin, filters)) return false;
@@ -255,11 +252,9 @@ export function matchesFiltersForPin(
 export function matchesFiltersForProperty(
   property: Property,
   zipCodeList: ZipCodeListEntry[],
+  filters: PropertyFilters,
+  company: CompanyContactWithCounts | null,
 ): boolean {
-
-  const { company } = useCompanies();
-  const { filters } = useFilters();
-
   if (!matchesCompanyForProperty(property, company?.id ?? null, company?.companyName ?? null))
     return false;
   if (!matchesPrice(property, filters)) return false;

@@ -2,8 +2,7 @@ import { MAX_PRICE } from "@/constants/filters.constants";
 import type { PropertyFilters } from "@/types/filters";
 import type { SortOption } from "@/types/options";
 import { getEffectiveStatusFilters } from "@/lib/propertyFilters";
-import { useCompanies } from "@/hooks/useCompanies";
-import { useFilters } from "@/hooks/useFilters";
+import type { CompanyContactWithCounts } from "@/types/companies";
 
 export type BuildPropertyQueryParamsOptions = {
   /** When true, only county and status filters are included (for map pins endpoint). */
@@ -14,6 +13,11 @@ export type BuildPropertyQueryParamsOptions = {
   limit: string;
 };
 
+export type BuildPropertyQueryParamsContext = {
+  company: CompanyContactWithCounts | null;
+  sortBy: SortOption;
+};
+
 /**
  * Builds query string for properties API from filters and options.
  * Returns "" when no params, or "?key=value&..." when there are params.
@@ -22,7 +26,8 @@ export type BuildPropertyQueryParamsOptions = {
  */
 export function buildPropertyQueryParams(
   filters: PropertyFilters,
-  options: BuildPropertyQueryParamsOptions
+  options: BuildPropertyQueryParamsOptions,
+  context: BuildPropertyQueryParamsContext
 ): string {
   const {
     forMapPins = false,
@@ -31,8 +36,7 @@ export function buildPropertyQueryParams(
     limit,
   } = options;
 
-  const { company } = useCompanies();
-  const { sortBy } = useFilters();
+  const { company, sortBy } = context;
 
   const params = new URLSearchParams();
 

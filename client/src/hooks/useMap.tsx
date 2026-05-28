@@ -84,7 +84,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
 
   const { setMapCenter, setMapZoom } = ctx;
   const { company, companySelectionInProgressRef } = useCompanies();
-  const { filters } = useFilters();
+  const { filters, sortBy } = useFilters();
   const { view } = useView();
 
   const fetchMapPins = options?.fetchMapPins === true;
@@ -96,7 +96,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
       forMapPins: true,
       page: 1,
       limit: "10",
-    });
+    }, { company, sortBy });
     return `/api/properties/map${queryString}`;
   }, [fetchMapPins, filters.county, filters.statusFilters, company?.id, filters.dateRange]);
 
@@ -119,7 +119,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
   const filteredMapPins = useMemo(() => {
     if (!fetchMapPins) return [];
     return mapPins.filter((pin) =>
-      matchesFiltersForPin(pin, zipCodeList)
+      matchesFiltersForPin(pin, zipCodeList, filters, company)
     );
   }, [fetchMapPins, mapPins, filters, company, zipCodeList]);
 
