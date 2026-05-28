@@ -112,5 +112,18 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 
 ---
 
+## Requirements ##
+1. You must refer to `.claude/docs/data.md` when working on the data side of the application
+2. You must refer to `.claude/docs/deals.md` when working on the deals side of the application
+3. You must refer to `.claude/docs/vendors.md` when working on the vendors side of the application
+4. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`. 
+5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`. 
+6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md`.
+7. After writing or modifying any code or logic, read `.claude/docs/testing.md`.
+7. Before writing or running ANY test, read `.claude/docs/testing.md`.
+8. After adding or modifying ANY code or feature, read `.claude/docs/agent-updater.md`.
+
+---
+
 ## Verification
 Before completing any task, run: `npm run check`
