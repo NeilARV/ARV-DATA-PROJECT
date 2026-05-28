@@ -7,10 +7,6 @@ import { useFilters } from "./useFilters";
 import { useView } from "./useView";
 import type { Property } from "@/types/property";
 
-// Needed for zip code list
-import { getStateFromCounty, countyNameToKey } from "@/lib/county";
-import { SAN_DIEGO_MSA_ZIP_CODES, LOS_ANGELES_MSA_ZIP_CODES, DENVER_MSA_ZIP_CODES, SAN_FRANCISCO_MSA_ZIP_CODES, MIAMI_MSA_ZIP_CODES, PORT_ST_LUCIE_MSA_ZIP_CODES } from "@/constants/filters.constants";
-import { matchesFiltersForProperty } from "@/lib/propertyFilters";
 
 export type PropertiesResponse = {
     properties: Property[];
@@ -140,55 +136,9 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
             setStableCompanyPropertyCount(0);
         }
     }, [company]);
-    
-    
-        // Get the appropriate zip code list based on state and county filter
-    const zipCodeList = useMemo(() => {
-        const countyName = filters.county ?? 'San Diego';
-        const state = getStateFromCounty(countyName);
-        const countyKey = countyNameToKey(countyName);
-    
-        // Get the appropriate MSA zip codes object based on state
-        let msaZipCodes: Record<string, Array<{ zip: string; city: string }>>;
-        if (state === "CA") {
-          if (countyName === "Los Angeles" || countyName === "Orange") {
-            msaZipCodes = LOS_ANGELES_MSA_ZIP_CODES;
-          } else if (countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo") {
-            msaZipCodes = SAN_FRANCISCO_MSA_ZIP_CODES;
-          } else {
-            msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-          }
-        } else if (state === "CO") {
-          msaZipCodes = DENVER_MSA_ZIP_CODES;
-        } else if (state === "FL") {
-          if (countyName === "St. Lucie" || countyName === "Martin") {
-            msaZipCodes = PORT_ST_LUCIE_MSA_ZIP_CODES;
-          } else {
-            msaZipCodes = MIAMI_MSA_ZIP_CODES;
-          }
-        } else {
-          msaZipCodes = SAN_DIEGO_MSA_ZIP_CODES;
-        }
-    
-        // Get the zip codes for the specific county
-        const countyZipCodes = msaZipCodes[countyKey];
-        
-        // Return the array or empty array if county not found
-        return Array.isArray(countyZipCodes) ? countyZipCodes : [];
-    }, [filters.county]);
-
-        // Filter full properties for grid/table views
-        const filteredProperties = allProperties.filter((property) =>
-        matchesFiltersForProperty(
-            property,
-            zipCodeList,
-            filters,
-            company,
-        )
-    );
 
     const value = {
-        properties: filteredProperties,
+        properties: allProperties,
         propertiesHasMore,
         isLoadingMoreProperties,
         loadMorePropertiesRef,
