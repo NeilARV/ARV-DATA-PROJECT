@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import { useSearch } from "wouter";
+import { Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import FilterHeader from "@/components/data/FilterHeader";
 import CompanyDirectory from "@/components/data/CompanyDirectory";
@@ -178,11 +179,26 @@ function HomeContent() {
 
 export default function Home() {
   const search = useSearch();
+  const { user, isLoading: authLoading } = useAuth();
   const urlCounty = new URLSearchParams(search).get("county") ?? undefined;
+
+  // When the URL has no county yet (fresh visit), hold rendering until auth
+  // resolves so FiltersProvider initializes with the user's actual county.
+  // This eliminates the double-fetch that occurs when useDataNav later pushes
+  // ?county=UserCounty and triggers a setFilters → re-fetch cycle.
+  if (authLoading && !urlCounty) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const defaultCounty = urlCounty ?? user?.county ?? "San Diego";
 
   return (
     <MapProvider>
-      <FiltersProvider defaultOverrides={{ county: urlCounty }}>
+      <FiltersProvider defaultOverrides={{ county: defaultCounty }}>
         <CompaniesProvider>
           <PropertiesProvider>
             <PropertyProvider>
