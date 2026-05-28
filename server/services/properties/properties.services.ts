@@ -27,11 +27,12 @@ export interface GetPropertiesFilters {
     limit?: string;
     sortBy?: string;
     search?: string; // Full-text search across address, city, state, zip
+    skipCount?: string; // When "true" on page > 1, skips the COUNT query — client uses cached total
 }
 
 export interface GetPropertiesResult {
     properties: any[];
-    total: number;
+    total: number | null; // null when skipCount=true; client uses its cached stablePropertyCount
     hasMore: boolean;
     page: number;
     limit: number;
@@ -121,11 +122,29 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         limit,
         sortBy,
         search,
+        skipCount,
     } = filters;
 
     const pageNum = page ? Math.max(1, parseInt(page.toString(), 10)) : 1;
     const limitNum = limit ? Math.max(1, parseInt(limit.toString(), 10)) : 10;
     const offset = (pageNum - 1) * limitNum;
+
+    // Pre-aggregate the most recent Arms Length tx per property once.
+    // Replaces all per-row correlated subqueries for ORDER BY and date-range WHERE.
+    //   maxRecordingDate  → used for date-range filtering (matches existing MAX() behavior)
+    //   recentRecordingDate → recording_date of the tx with the lowest sort_order (most recent)
+    //   recentSalePrice   → sale_price of the same tx, cast to REAL
+    const alSummary = db
+        .select({
+            propertyId: propertyTransactions.propertyId,
+            maxRecordingDate: sql<string | null>`MAX(${propertyTransactions.recordingDate})`.as("max_recording_date"),
+            recentRecordingDate: sql<string | null>`(array_agg(${propertyTransactions.recordingDate} ORDER BY COALESCE(${propertyTransactions.sortOrder}, 999999) ASC))[1]`.as("recent_recording_date"),
+            recentSalePrice: sql<number | null>`(array_agg(CAST(${propertyTransactions.salePrice} AS REAL) ORDER BY COALESCE(${propertyTransactions.sortOrder}, 999999) ASC))[1]`.as("recent_sale_price"),
+        })
+        .from(propertyTransactions)
+        .where(sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`)
+        .groupBy(propertyTransactions.propertyId)
+        .as("al_summary");
 
     const conditions = [];
 
@@ -274,55 +293,47 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         );
     }
 
-    // Date range: filter by most recent Arms Length recording_date.
+    // Date range: filter by most recent Arms Length recording_date via alSummary join.
     // Skipped when a company is selected — show all transactions regardless of date.
-    if (dateRange && !hasCompanyFilter) {
-        const range = resolveDateRange(dateRange);
-        if (range) {
-            conditions.push(
-                sql`(
-                    SELECT MAX(pt.recording_date)
-                    FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                ) >= ${range.dateMin}::date`
-            );
-            conditions.push(
-                sql`(
-                    SELECT MAX(pt.recording_date)
-                    FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                ) <= ${range.dateMax}::date`
-            );
-        }
+    const resolvedDateRange = (dateRange && !hasCompanyFilter) ? resolveDateRange(dateRange) ?? null : null;
+    if (resolvedDateRange) {
+        conditions.push(sql`${alSummary.maxRecordingDate} >= ${resolvedDateRange.dateMin}::date`);
+        conditions.push(sql`${alSummary.maxRecordingDate} <= ${resolvedDateRange.dateMax}::date`);
     }
 
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
-    // Count query — no company joins needed; price filter still uses lastSales
-    let countQuery = db.select({ count: sql<number>`count(DISTINCT ${properties.id})` }).from(properties);
-    countQuery = countQuery.leftJoin(addresses, eq(properties.id, addresses.propertyId)) as any;
-    if (bedrooms || bathrooms) {
-        countQuery = countQuery.leftJoin(structures, eq(properties.id, structures.propertyId)) as any;
+    // Skip COUNT on pages after the first — the client caches the total from page 1.
+    let total: number | null = null;
+    if (skipCount !== "true" || pageNum === 1) {
+        let countQuery = db.select({ count: sql<number>`count(DISTINCT ${properties.id})` }).from(properties);
+        countQuery = countQuery.leftJoin(addresses, eq(properties.id, addresses.propertyId)) as any;
+        if (bedrooms || bathrooms) {
+            countQuery = countQuery.leftJoin(structures, eq(properties.id, structures.propertyId)) as any;
+        }
+        if (minPrice || maxPrice) {
+            countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId)) as any;
+        }
+        // alSummary join required when date range conditions reference it
+        if (resolvedDateRange) {
+            countQuery = (countQuery as any).leftJoin(alSummary, eq(properties.id, alSummary.propertyId));
+        }
+        if (whereClause) {
+            countQuery = countQuery.where(whereClause) as any;
+        }
+        const [totalResult] = await countQuery.execute();
+        total = Number(totalResult?.count || 0);
     }
-    if (minPrice || maxPrice) {
-        countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId)) as any;
-    }
-    if (whereClause) {
-        countQuery = countQuery.where(whereClause) as any;
-    }
-    const [totalResult] = await countQuery.execute();
-    const total = Number(totalResult?.count || 0);
 
-    // Step 1: Get the ordered page of property IDs
-    // Sort using property_transactions correlated subqueries so ordering reflects tx data.
+    // Step 1: Get the ordered page of property IDs.
+    // alSummary is joined once; its columns drive ORDER BY instead of per-row correlated subqueries.
     let idQuery = db
         .select({ id: properties.id })
         .from(properties)
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
-        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
+        .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
+        .leftJoin(alSummary, eq(properties.id, alSummary.propertyId));
 
     if (whereClause) {
         idQuery = idQuery.where(whereClause) as any;
@@ -331,93 +342,34 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const sortByValue = sortBy?.toString() || "recently-sold";
     switch (sortByValue) {
         case "recently-sold":
+        default:
             idQuery = idQuery.orderBy(
-                sql`CASE WHEN (
-                    SELECT pt.recording_date FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                ) IS NULL THEN 1 ELSE 0 END`,
-                sql`(
-                    SELECT pt.recording_date FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                ) DESC`,
+                sql`CASE WHEN ${alSummary.recentRecordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`${alSummary.recentRecordingDate} DESC`,
                 properties.id
             ) as any;
             break;
         case "days-held":
             idQuery = idQuery.orderBy(
-                sql`CASE WHEN (
-                    SELECT pt.recording_date FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                ) IS NULL THEN 1 ELSE 0 END`,
-                sql`(
-                    SELECT pt.recording_date FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                ) ASC`,
+                sql`CASE WHEN ${alSummary.recentRecordingDate} IS NULL THEN 1 ELSE 0 END`,
+                sql`${alSummary.recentRecordingDate} ASC`,
                 properties.id
             ) as any;
             break;
         case "price-high-low":
             idQuery = idQuery.orderBy(
-                sql`CASE WHEN COALESCE(
-                    (SELECT CAST(pt.sale_price AS REAL) FROM property_transactions pt
-                     WHERE pt.property_id = ${properties.id}
-                     AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1),
-                    CAST(${lastSales.price} AS REAL)
-                ) IS NULL THEN 1 ELSE 0 END`,
-                sql`COALESCE(
-                    (SELECT CAST(pt.sale_price AS REAL) FROM property_transactions pt
-                     WHERE pt.property_id = ${properties.id}
-                     AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1),
-                    CAST(${lastSales.price} AS REAL)
-                ) DESC`,
+                sql`CASE WHEN COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) IS NULL THEN 1 ELSE 0 END`,
+                sql`COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) DESC`,
                 properties.id
             ) as any;
             break;
         case "price-low-high":
             idQuery = idQuery.orderBy(
-                sql`CASE WHEN COALESCE(
-                    (SELECT CAST(pt.sale_price AS REAL) FROM property_transactions pt
-                     WHERE pt.property_id = ${properties.id}
-                     AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1),
-                    CAST(${lastSales.price} AS REAL)
-                ) IS NULL THEN 1 ELSE 0 END`,
-                sql`COALESCE(
-                    (SELECT CAST(pt.sale_price AS REAL) FROM property_transactions pt
-                     WHERE pt.property_id = ${properties.id}
-                     AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                     ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1),
-                    CAST(${lastSales.price} AS REAL)
-                ) ASC`,
+                sql`CASE WHEN COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) IS NULL THEN 1 ELSE 0 END`,
+                sql`COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) ASC`,
                 properties.id
             ) as any;
             break;
-        default:
-            idQuery = idQuery.orderBy(
-                sql`CASE WHEN (
-                    SELECT pt.recording_date FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                ) IS NULL THEN 1 ELSE 0 END`,
-                sql`(
-                    SELECT pt.recording_date FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                ) DESC`,
-                properties.id
-            ) as any;
     }
 
     const idRows = await idQuery.limit(limitNum + 1).offset(offset).execute();
@@ -426,7 +378,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const idsForPage = hasMore ? pageIds.slice(0, limitNum) : pageIds;
 
     if (idsForPage.length === 0) {
-        return { properties: [], total, hasMore: false, page: pageNum, limit: limitNum };
+        return { properties: [], total: total ?? 0, hasMore: false, page: pageNum, limit: limitNum };
     }
 
     // Fetch statuses for this page

@@ -10,7 +10,7 @@ import type { Property } from "@/types/property";
 
 export type PropertiesResponse = {
     properties: Property[];
-    total: number;
+    total: number | null; // null when server skips COUNT (page > 1); use stablePropertyCount instead
     hasMore: boolean;
 };
 
@@ -59,12 +59,19 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
         setIsLoadingMoreProperties(false);
     }, [filters, sortBy, company?.id, view]);
 
-    const propertiesQueryParam = useMemo(() =>
-        buildPropertyQueryParams(filters, {
+    const propertiesQueryParam = useMemo(() => {
+        const base = buildPropertyQueryParams(filters, {
             page: propertiesPage,
             limit: view === "table" ? "20" : "10",
             hasDateSold,
-        }, { company, sortBy }),
+        }, { company, sortBy });
+        // Skip COUNT query on pages after the first — we already have the total cached
+        if (propertiesPage > 1) {
+            const sep = base.includes("?") ? "&" : "?";
+            return `${base}${sep}skipCount=true`;
+        }
+        return base;
+    },
         // Intentionally uses company?.id (not company object) — same reason as the reset effect above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [filters, company?.id, propertiesPage, sortBy, view, hasDateSold]
@@ -122,9 +129,10 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
         deps: [allProperties.length],
     });
 
-    // Stable counts: avoid flashing "0" during loading; update only when we have data.
+    // Stable counts: avoid flashing "0" during loading; update only when we have a real total.
+    // null means server skipped COUNT (page > 1) — keep the existing cached count in that case.
     useEffect(() => {
-        if (view !== "map" && propertiesResponse?.total !== undefined && !isLoading) {
+        if (view !== "map" && propertiesResponse?.total != null && !isLoading) {
             setStablePropertyCount(propertiesResponse.total);
         }
     }, [view, propertiesResponse?.total, isLoading]);

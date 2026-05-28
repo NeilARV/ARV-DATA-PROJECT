@@ -73,6 +73,13 @@ Community hub. Two-panel layout: an activity feed for community posts (with rich
 
 ---
 
+## Access Control
+Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`. It is the single source of truth for what each route requires. The three files that implement access control are `server/middleware/requireAuth.ts`, `server/middleware/requireRole.ts`, and `client/src/hooks/use-auth.ts`.
+
+> **Full reference**: `.claude/docs/access-control.md` — canonical route permission tables, middleware behavior, status code contract, and guidance for writing access-control tests.
+
+---
+
 ## Coding Style
 Before adding or modifying ANY code, read `.claude/docs/code-standards.md` and follow it. This is the authoritative source for naming, file organization, component structure, route/controller/service patterns, and error handling.
 
@@ -95,6 +102,7 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 ---
 
 ## References
+- `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
 - `.claude/docs/design.md` — UI design system (colors, typography, components, dark mode)
 - `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
