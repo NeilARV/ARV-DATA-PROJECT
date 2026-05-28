@@ -6,7 +6,7 @@ import { resolveMsaId } from "server/utils/resolveMsa";
 import { resolveCountyFromZip } from "server/utils/resolveCounty";
 import { normalizePropertyType } from "server/utils/normalization";
 import {
-    sendPlainEmail,
+    sendEmailWithTemplate,
     getDefaultFromEmail,
     getConfirmedSenders,
     getRmEmailsByUserIds,
@@ -839,16 +839,6 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
 
     const requesterName = [displayFirstName, displayLastName].filter(Boolean).join(" ");
 
-    // ── HTML helpers ───────────────────────────────────────────────────────────
-    const row = (lbl: string, val: string | number | null | undefined): string =>
-        val != null && val !== ""
-            ? `<tr><td style="padding:3px 16px 3px 0;color:#666;white-space:nowrap;vertical-align:top"><strong>${lbl}</strong></td><td style="padding:3px 0;color:#111">${val}</td></tr>`
-            : "";
-    const section = (title: string, rows: string): string =>
-        rows.trim()
-            ? `<h3 style="margin:20px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#888;border-bottom:1px solid #eee;padding-bottom:4px">${title}</h3><table style="border-collapse:collapse;font-size:14px;width:100%">${rows}</table>`
-            : "";
-
     const addressLabel = dealRow.address
         ? `${dealRow.address}, ${[dealRow.city, dealRow.state].filter(Boolean).join(", ")}`
         : [dealRow.city, dealRow.state].filter(Boolean).join(", ");
@@ -862,45 +852,30 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
     }
     const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
 
-    const posterHtmlBody = [
-        `<p style="margin:0 0 16px;font-size:14px"><strong>${requesterName || displayEmail}</strong> has requested more information about your deal at <strong>${addressLabel}</strong>.</p>`,
-        `<hr style="border:none;border-top:1px solid #eee;margin:0 0 4px" />`,
-        section("Requester Contact", [
-            row("Name",  requesterName || null),
-            row("Email", displayEmail),
-            row("Phone", displayPhone),
-        ].join("")),
-        ...(displayMessage ? [section("Message", displayMessage.replace(/\n/g, "<br />"))] : []),
-        `<hr style="border:none;border-top:1px solid #eee;margin:16px 0 12px" />`,
-        `<p style="margin:0"><a href="${dealUrl}" style="color:#5BC8DC;text-decoration:none;font-size:15px;font-weight:600">View Deal →</a></p>`,
-        `<p style="margin:12px 0 0;font-size:13px;color:#888">Reply to this email to respond directly to ${requesterName || displayEmail}.</p>`,
-    ].join("\n");
-
-    const posterTextLines = [
-        `${requesterName || displayEmail} has requested more information about your deal at ${addressLabel}.`,
-        "",
-        "REQUESTER CONTACT",
-        requesterName  || null,
-        displayEmail,
-        displayPhone   || null,
-        displayMessage ? `\nMESSAGE\n${displayMessage}` : null,
-        `\nView Deal: ${dealUrl}`,
-        `\nReply to this email to respond directly to ${requesterName || displayEmail}.`,
-    ].filter((l): l is string => l != null).join("\n");
-
     const ccCandidates = [ccAddress, displayEmail]
         .filter((addr): addr is string => Boolean(addr) && addr !== toAddress);
     const ccList = Array.from(new Set(ccCandidates));
     const cc = ccList.length > 0 ? ccList.join(", ") : undefined;
 
-    await sendPlainEmail({
-        From:     fromAddress,
-        To:       toAddress,
-        Subject:  `[Deal Interest] ${addressLabel} — ${requesterName}`,
-        HtmlBody: posterHtmlBody,
-        TextBody: posterTextLines,
-        ReplyTo:  displayEmail,
-        Cc:       cc,
+    const inquiryTemplateAlias = process.env.POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS;
+    if (!inquiryTemplateAlias) throw new Error("POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS is not set");
+
+    await sendEmailWithTemplate({
+        From:          fromAddress,
+        To:            toAddress,
+        ReplyTo:       displayEmail,
+        Cc:            cc,
+        TemplateAlias: inquiryTemplateAlias,
+        TemplateModel: {
+            requesterName:  requesterName || null,
+            requesterEmail: displayEmail,
+            requesterPhone: displayPhone || null,
+            message:        displayMessage || null,
+            address:        addressLabel,
+            dealUrl:        dealUrl,
+            year:           new Date().getFullYear(),
+            companyName:    "ARV Finance",
+        },
     });
 
     console.log(`${label} Sent request-info: dealId=${dealId}, to=${toAddress}${cc ? `, cc=${cc}` : ""}`);

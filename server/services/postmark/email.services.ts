@@ -36,6 +36,8 @@ export interface SendEmailWithTemplateParams {
   To: string;
   TemplateAlias: string;
   TemplateModel: Record<string, unknown>;
+  ReplyTo?: string;
+  Cc?: string;
 }
 
 // Sends a single email using a Postmark template
