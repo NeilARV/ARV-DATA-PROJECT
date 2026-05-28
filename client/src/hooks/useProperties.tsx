@@ -89,6 +89,7 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
             return res.json();
         },
         enabled: view !== "map",
+        staleTime: 5 * 60 * 1000,
     });
 
     const totalProperties = useMemo(() => {

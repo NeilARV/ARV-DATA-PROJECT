@@ -72,6 +72,9 @@ export const addresses = pgTable("addresses", {
   censusBlock: varchar("census_block", { length: 20 }),
 }, (t) => [
   index("idx_addresses_county_lower").on(sql`lower(trim(${t.county}))`),
+  // Covering index for Phase 2 zip-counts query: avoids heap fetch for zip_code
+  // when scanning by property_id IN (...qualifying IDs...).
+  index("idx_addresses_property_zip").on(t.propertyId, t.zipCode),
 ]);
 
 // Assessments
@@ -290,4 +293,7 @@ export const propertyTransactions = pgTable("property_transactions", {
   index("idx_pt_buyer_date").on(t.buyerId, t.recordingDate),
   // Partial index: fast lookup of the most recent transaction per buyer
   index("idx_pt_buyer_sort1").on(t.buyerId).where(sql`${t.sortOrder} = 1`),
+  // Mirrors idx_pt_property_buyer_date for the seller side of company-filter EXISTS
+  // (buyer_id OR seller_id): without this the seller half falls back to a scan.
+  index("idx_pt_property_seller").on(t.propertyId, t.sellerId),
 ]);

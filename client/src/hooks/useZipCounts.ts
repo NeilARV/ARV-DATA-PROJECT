@@ -27,6 +27,7 @@ export function useZipCounts(): ZipCount[] {
             return res.json();
         },
         enabled: !!url,
+        staleTime: 5 * 60 * 1000,
     });
 
     return data;

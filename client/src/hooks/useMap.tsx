@@ -108,6 +108,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
       return res.json();
     },
     enabled: fetchMapPins && !!mapPinsQueryUrl && view === "map",
+    staleTime: 5 * 60 * 1000,
   });
 
   // Zip code list for filtering pins
