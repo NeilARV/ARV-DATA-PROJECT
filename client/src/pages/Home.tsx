@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearch } from "wouter";
 import { Loader2 } from "lucide-react";
 import Header from "@/components/Header";
@@ -14,19 +14,19 @@ import { InfoDialog } from "@/components/data/InfoDialog";
 import { LeaderboardDialog } from "@/components/data/LeaderboardDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { FiltersProvider, useFilters } from "@/hooks/useFilters";
-import type { MapPin } from "@/types/property";
 import { useView } from "@/hooks/useView";
 import { useDataNav } from "@/hooks/useDataNav";
 import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
+import { useZipCounts } from "@/hooks/useZipCounts";
 
 function HomeContent() {
   const { filters, setFilters } = useFilters();
   const { view, sidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef, company, handleCompanyClick } = useCompanies();
-  const { mapPins = [] } = useGeoMap({ fetchMapPins: true });
+  const zipCodesWithCounts = useZipCounts();
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showProperty, setShowProperty] = useState(false);
@@ -93,20 +93,6 @@ function HomeContent() {
   }, [filters.county, loadCompanies, companySelectionInProgressRef]);
 
 
-  // Calculate zip codes with property counts
-  // Use map pins in map view, full properties in grid/table views
-  const zipCodesWithCounts = useMemo(() => {
-    const dataSource = mapPins
-    const counts: Record<string, number> = {};
-    dataSource.forEach(p => {
-      const zipCode = (p as MapPin).zipcode
-      counts[zipCode] = (counts[zipCode] || 0) + 1;
-    });
-    return Object.entries(counts).map(([zipCode, count]) => ({
-      zipCode,
-      count
-    }));
-  }, [mapPins, view]);
 
   return (
     <div className="h-screen flex flex-col">

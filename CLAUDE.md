@@ -65,17 +65,21 @@ The application is organized as three distinct feature areas that function like 
 ---
 
 ## Coding Style
+Before adding or modifying ANY code, read `.claude/docs/code-standards.md` and follow it. This is the authoritative source for naming, file organization, component structure, route/controller/service patterns, and error handling.
+
 > **Full reference**: `.claude/docs/code-standards.md` — authoritative source for all coding conventions (naming, file organization, component structure, route/controller/service patterns, error handling, formatting, and more). Apply these standards when adding or updating any code.
 
 ---
 
 ## Design
+Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md` first and stay within its tokens and conventions.
+
 > **Full reference**: `.claude/docs/design.md` — authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states). Style tokens live in `tailwind.config.ts` and `client/src/index.css`.
 
 ---
 
 ## Testing
-After adding or modifying ANY code, read `.claude/docs/testing.md` and follow it.
+Before writing or running ANY test, read `.claude/docs/testing.md`. For new API routes, the access-control and validation integration tests described there are mandatory.
 
 > **Full reference**: `.claude/docs/testing.md` — read this before writing any test. For new API routes, the access-control and validation integration tests described there are mandatory.
 

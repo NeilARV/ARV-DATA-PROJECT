@@ -457,7 +457,26 @@ These changes have been decided but not yet implemented:
 
 ---
 
+## Important Instruction
+WHen updating or modifying any frontend UI code, look for repeat CSS that can be defined as a tailwind component like in `client/src/deal.components.css`. If found, then create this component. If it does not logically fit in any of the existing file names, then you MUST tell me and ask me if I want to create a new file. Suggest a name, but you MUST request a name suggestion from me and get a finalized response to confirm file name and creationg.
+
+1. If repeat css is found then create the tailwind component using @apply
+2. If no file exists that inferences the location of the css component then you MUST inform me and ask to create a new file.
+3. If I give you permission to create a new file, you MUST ask me what to name it
+
+### Rules
+1. A css component is considered repeat if it is seen 2 or more times
+2. If a css component can belong to multiple style files, then it should go in `client/src/index.css`
+3. When naming a css component, make sure that the component is named with the file name (ie. `deal-title` would be titles in the deal page and would be put in the `deal.components.css` file)
+
+### Example:
+You modify or update a componet on `client/src/pages/Vendors.tsx` and notice the same css (ie. `w-fill mx-auto h-8 grid grid-cols-1`). There is no existing place for vendor specific css so you will request a to create a file. Then at this point await my instruction and go from there.
+
+---
+
 ## File Reference
+
+
 
 | File | Purpose |
 |---|---|

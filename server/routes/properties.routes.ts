@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "server/middleware/requireRole";
-import { MapsController, StreetviewController, PropertiesController, PropertyController, PropertyTransactionsController } from "server/controllers/properties";
+import { MapsController, ZipCountsController, StreetviewController, PropertiesController, PropertyController, PropertyTransactionsController } from "server/controllers/properties";
 
 const router = Router();
 
@@ -12,6 +12,9 @@ router.post("/", requireRole(["admin", "owner"]), PropertyController.postPropert
 
 // Get property data needed to display map pins (latitude, longitude, city, state, etc.)
 router.get("/map", MapsController.getMapData);
+
+// Get property counts grouped by zip code (lightweight; used for zip filter dropdown on all views)
+router.get("/zip-counts", ZipCountsController.getZipCounts);
 
 // Create suggestions when searching for properties
 router.get("/suggestions", PropertyController.getPropertySuggestionsHandler);
