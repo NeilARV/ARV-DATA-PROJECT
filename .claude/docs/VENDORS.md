@@ -1,371 +1,208 @@
-# Vendors & Community Feature — Design Document
+# Vendors App — Overview & Reference
 
-## Overview
+## What It Is
+The Vendors page is a two-panel community hub for renovation and real estate professionals. The left panel (480px) is an **Activity Feed** — a stream of community posts about renovation projects, flips, and property work. The right panel fills the remaining width with a **Browse by Category** vendor directory. On mobile, the two panels are tab-switched ("Browse" / "Activity Feed").
 
-A new **Vendors** page that serves as a community hub for renovation professionals. Users can browse vendors by trade category, post about their renovation and flipping projects, tag vendors and collaborators, and discover new service providers. The goal is to build a lightweight social platform layered on top of the existing ARV Data application — giving the community a place to share project work while surfacing the vendors who made it happen.
-
----
-
-## Goals
-
-- Let users post about renovation projects, staging jobs, flips, and anything related to real estate investment
-- Allow users to browse vendors (contractors, plumbers, roofers, HVAC, etc.) organized by trade category
-- Connect posts to vendors via tagging so users can discover vendors through real project work
-- Build a foundation that can grow into a richer social feature over time (profiles, followers, ratings, etc.)
+The feature serves two goals simultaneously:
+1. Give users a place to discover vendors (contractors, plumbers, HVAC, etc.) organized by trade category
+2. Let the community share project work, tag the vendors and categories involved, and surface those vendors naturally through real activity
 
 ---
 
-## Technical Challenges
+## Page Entry Point
+`client/src/pages/Vendors.tsx` — wraps `VendorsContent` in 5 context providers:
+`MapProvider → FiltersProvider → CompaniesProvider → PropertiesProvider → PropertyProvider`
 
-### 1. Route Namespace
-The existing API lives entirely under `/api/*` (e.g. `/api/properties`, `/api/companies`). Adding vendor and post routes to the same flat namespace risks collision and makes the API harder to reason about as the app grows.
-
-**Decision:** Keep all existing data routes as-is (no rename). New routes get their own namespaces: `/api/vendors/*`, `/api/posts/*`, `/api/categories`. This avoids breaking every frontend fetch call while still achieving clear separation for new features.
-
-### 2. Image Storage
-No object storage is currently configured. Profile images for users and project images for posts require a storage solution. NeonDB is Postgres-only and does not provide file/object storage.
-
-**Decision:** Defer image upload support entirely. Use styled placeholder `div` elements in the UI where images will eventually appear. When storage is ready (Supabase Storage is the leading candidate), swap placeholders for `<img>` tags — no structural UI changes needed.
-
-### 3. Database Separation
-The new community feature adds 10 new tables that are logically separate from the property data pipeline. They should not be mixed into existing schema files.
-
-**Decision:** All new tables live in `database/schemas/vendors.schema.ts`. Relations are appended to the existing `relations.schema.ts` under a clearly marked section header.
+These providers are inherited from the rest of the app and not specific to Vendors — the page participates in the shared provider tree.
 
 ---
 
-## Architecture Decisions
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| Route structure | Keep `/api/*` as-is, add `/api/vendors/*` and `/api/posts/*` | Zero regression risk, clean namespace for new feature |
-| Image storage | Deferred — placeholder UI | Avoids blocking feature work on infrastructure setup |
-| Storage provider (future) | Supabase Storage | Simple API, generous free tier, no additional cloud account required |
-| Categories | Shared `categories` table for both vendors and posts | Single source of truth; filtering posts and vendors by same category creates natural connections |
-| Post categories | Many-to-many (`post_categories` junction) | A project can span multiple trades (e.g. Roofing + HVAC) |
-| Vendor entry | Manual via Neon SQL console (no create/update API) | Keeps scope tight for initial launch; no public vendor submission needed yet |
-| Migration strategy | Switch from `db:push` to `db:generate` + `db:migrate` | Production apps benefit from auditable migration history; feature branch is the right moment to make the switch |
-
----
-
-## Database Schema
-
-All new tables live in `database/schemas/vendors.schema.ts`. The existing `users` table gains one new nullable column.
-
-### New Tables
+## Component Tree
 
 ```
-categories
-  id            serial PK
-  name          text unique not null
-  slug          varchar(100) unique not null
-  description   text
-  icon_name     varchar(100) not null        -- maps to Lucide icon name on frontend
-  created_at    timestamptz
-  updated_at    timestamptz
-
-vendors
-  id            uuid PK
-  name          text not null
-  description   text
-  address       text
-  city          text
-  state         varchar(2)
-  zip_code      varchar(10)
-  phone         text
-  website       text
-  user_id       uuid → users.id (nullable, set null on delete)
-  created_at    timestamptz
-  updated_at    timestamptz
-
-vendor_categories                            -- many-to-many
-  vendor_id     uuid → vendors.id (cascade)
-  category_id   int  → categories.id (cascade)
-  created_at    timestamptz
-  PK (vendor_id, category_id)
-
-posts
-  id            uuid PK
-  user_id       uuid → users.id (cascade)
-  title         text not null
-  content       text not null
-  address       text
-  city          text
-  state         varchar(2)
-  created_at    timestamptz
-  updated_at    timestamptz
-
-post_categories                              -- many-to-many
-  post_id       uuid → posts.id (cascade)
-  category_id   int  → categories.id (cascade)
-  created_at    timestamptz
-  PK (post_id, category_id)
-
-post_images                                  -- placeholder until storage configured
-  id            serial PK
-  post_id       uuid → posts.id (cascade)
-  image_url     text not null
-  display_order int default 1
-  created_at    timestamptz
-
-post_likes                                   -- one like per user per post
-  user_id       uuid → users.id (cascade)
-  post_id       uuid → posts.id (cascade)
-  created_at    timestamptz
-  PK (user_id, post_id)
-
-post_comments                                -- threaded via parent_comment_id
-  id                uuid PK
-  post_id           uuid → posts.id (cascade)
-  user_id           uuid → users.id (cascade)
-  parent_comment_id uuid → post_comments.id (nullable, cascade)
-  content           text not null
-  created_at        timestamptz
-  updated_at        timestamptz
-
-post_vendor_tags                             -- vendors tagged in a post
-  post_id       uuid → posts.id (cascade)
-  vendor_id     uuid → vendors.id (cascade)
-  created_at    timestamptz
-  PK (post_id, vendor_id)
-
-post_user_tags                               -- users tagged as collaborators in a post
-  post_id           uuid → posts.id (cascade)
-  tagged_user_id    uuid → users.id (cascade)
-  created_at        timestamptz
-  PK (post_id, tagged_user_id)
+VendorsContent
+├── Header
+├── Mobile Tab Bar (Browse / Activity Feed)
+├── ActivityFeed (left panel, 480px)
+│   ├── PostCard (repeating)
+│   │   ├── Author + avatar + timestamp
+│   │   ├── Formatted HTML content (vendor/category mentions are clickable)
+│   │   ├── Image carousel (up to 5 images, ChevronLeft/Right, dot indicators)
+│   │   ├── Edit/Delete menu (post author, admin, or owner only)
+│   │   └── ImageLightbox (full-screen image preview)
+│   └── PostComposer (auth required)
+│       ├── TipTap rich text editor
+│       │   ├── Formatting toolbar (Bold, Italic, Underline, Link, Font Size)
+│       │   └── Mentions: @vendor → vendorMention, #category → categoryMention
+│       ├── Image upload area (max 5 JPEG/PNG)
+│       └── Post button
+└── BrowseByCategory (right panel, flex-1)
+    ├── Header with search, breadcrumbs, Add Vendor button (admin/owner)
+    ├── RecommendedVendors section (isRecommended=true vendors)
+    ├── View states (driven by useVendorNav):
+    │   ├── categories — CategoryCard grid (all categories)
+    │   ├── vendor-list — VendorCard grid (vendors in selected category)
+    │   ├── vendor-detail — VendorDetail panel (full vendor profile)
+    │   └── search — mixed CategoryCard + VendorCard results
+    └── VendorDetail
+        ├── Header image + logo
+        ├── Name, description, contact info (address, phone, website)
+        ├── Category badges
+        ├── VendorPhotoGallery (post images featuring this vendor)
+        ├── EditVendorDialog (admin/owner)
+        └── DeleteConfirmation (admin/owner)
 ```
-
-### Existing Table Changes
-
-```
-users
-  + profile_image_url   text (nullable)     -- added for future profile image support
-```
-
-### Seeded Categories
-
-| Name | Slug | Icon |
-|---|---|---|
-| General Contractor | general-contractor | hammer |
-| Plumber | plumber | wrench |
-| Electrician | electrician | zap |
-| Roofer | roofer | house |
-| HVAC | hvac | thermometer |
-| Home Stager | home-stager | layout-dashboard |
-| Wholesaler | wholesaler | handshake |
-| Painter | painter | paintbrush |
-| Flooring | flooring | layers |
-| Landscaping | landscaping | tree-pine |
-
-Icon names are stored as Lucide kebab-case strings in the DB. The frontend maps them to Lucide components dynamically.
 
 ---
 
-## API Routes
+## State Management
 
-### Unchanged (existing data app routes stay as-is)
-All existing `/api/properties`, `/api/companies`, `/api/geocoding`, `/api/deals`, `/api/admin` routes are untouched.
+### `useVendorNav` (URL-driven navigation)
+Central hook for the vendor page. Manages view state via URL params to support browser back/forward.
 
-### Shared Routes (no change)
-| Method | Route | Purpose |
+```
+State:
+  view: "categories" | "vendor-list" | "vendor-detail"
+  categoryId: number | null     ← ?category={id}
+  vendorId: string | null       ← ?vendor={id}
+  postFilters: { categoryId?, vendorId? }  ← passed to ActivityFeed
+
+Actions:
+  selectCategory(id)   → sets view="vendor-list", clears vendorId, updates URL
+  selectVendor(id)     → sets view="vendor-detail", updates URL
+  goBack()             → vendor selected → clear vendor; at categories → no-op
+  reset()              → full reset, clears URL params
+```
+
+URL pattern: `/vendors?category=5&vendor=abc-123`
+
+### Post editor state
+Managed by `usePostEditor` hook inside `PostComposer`. Handles TipTap editor instance, mention extraction, image files, and submit state.
+
+---
+
+## API Surface
+
+All calls use the `apiRequest()` wrapper with cookie-based auth.
+
+### Categories
+| Method | Route | Description |
 |---|---|---|
-| POST | `/api/auth/login` | Login |
-| POST | `/api/auth/logout` | Logout |
-| POST | `/api/auth/register` | Register |
-| GET | `/api/auth/me` | Current session user |
-| GET | `/api/users` | List users (admin) |
-| DELETE | `/api/users/:userId` | Delete user (admin) |
-| GET | `/api/users/:userId/subscription-tier` | Get subscription tier |
-| POST | `/api/contact` | Contact form submission |
-
-### New — Categories
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/api/categories` | All categories (feeds left panel cards) |
+| GET | `/api/categories` | All categories with vendor counts |
 | GET | `/api/categories/:id/vendors` | Vendors in a given category |
 
-### New — Vendors
-| Method | Route | Purpose |
+### Vendors
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/vendors` | Public | All vendors; accepts `?categoryIds=` |
+| GET | `/api/vendors/recommended` | Public | Vendors with `isRecommended=true` |
+| GET | `/api/vendors/:id` | Public | Single vendor with categories |
+| POST | `/api/vendors` | Admin/Owner | Create vendor |
+| PUT | `/api/vendors/:id` | Admin/Owner | Update vendor |
+| DELETE | `/api/vendors/:id` | Admin/Owner | Delete vendor |
+| PUT | `/api/vendors/:id/recommend` | Admin/Owner | Toggle `isRecommended` |
+| POST | `/api/vendors/:id/logo` | Admin/Owner | Upload logo (FormData) |
+| DELETE | `/api/vendors/:id/logo` | Admin/Owner | Remove logo |
+| POST | `/api/vendors/:id/header` | Admin/Owner | Upload header image (FormData) |
+| DELETE | `/api/vendors/:id/header` | Admin/Owner | Remove header image |
+
+### Posts
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/posts` | Public | Feed; accepts `?categoryId=`, `?vendorId=`, `?page=`, `?limit=` |
+| POST | `/api/posts` | Auth required | Create post |
+| PUT | `/api/posts/:id` | Author/Admin/Owner | Update post |
+| DELETE | `/api/posts/:id` | Author/Admin/Owner | Delete post |
+| POST | `/api/posts/:id/images` | Author | Upload image (FormData, max 5) |
+| DELETE | `/api/posts/:id/images/:imageId` | Author/Admin/Owner | Delete image |
+
+---
+
+## Backend
+
+### Services
+- `server/services/vendors/vendors.services.ts` — CRUD, category mapping, Supabase image upload/delete
+- `server/services/posts/posts.services.ts` — post CRUD, mention parsing, batch enrichment (likes, comments, images, tags), ownership checks
+- `server/services/categories/categories.services.ts` — category list with vendor count aggregates
+
+### Key service behavior
+- `createPost` / `updatePost` parse vendor and category mentions out of TipTap HTML content and rebuild junction table records on every save
+- Post enrichment (`getPosts`) fetches likes, comment counts, images, vendor tags, and user tags in parallel batch queries — never N+1
+- `getAll` for vendors deduplicates results when filtering by multiple categories (a vendor in both categories appears once)
+- Vendor and post image uploads go to Supabase Storage; the URL is stored in the DB. Deleting a vendor cleans up Supabase images
+
+---
+
+## Database Schema (`database/schemas/vendors.schema.ts`)
+
+| Table | Key Columns | Notes |
 |---|---|---|
-| GET | `/api/vendors` | List vendors, optional `?categoryId=` filter |
-| GET | `/api/vendors/:id` | Single vendor with categories |
+| `categories` | id, name, slug, iconName, description | Shared by vendors and posts |
+| `vendors` | id (uuid), name, logoUrl, headerUrl, isRecommended, userId (nullable FK) | Vendors don't require a registered account |
+| `vendor_categories` | (vendorId, categoryId) | Many-to-many junction |
+| `posts` | id (uuid), userId, title, content (HTML), address, city, state | Content stores TipTap HTML including mention marks |
+| `post_categories` | (postId, categoryId) | Rebuilt on every post save |
+| `post_images` | id, postId, imageUrl, displayOrder | Max 5 per post |
+| `post_likes` | (userId, postId) | One like per user per post |
+| `post_comments` | id, postId, userId, parentCommentId (nullable) | One level of threading |
+| `post_vendor_tags` | (postId, vendorId) | Rebuilt on every post save from @mentions |
+| `post_user_tags` | (postId, taggedUserId) | Rebuilt on every post save from @user mentions |
 
-No create/update/delete routes — vendors are entered directly via the Neon SQL console.
-
-### New — Posts
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/api/posts` | Paginated post feed. Accepts `?categoryId=`, `?vendorId=`, `?userId=`, `?page=`, `?limit=` |
-| POST | `/api/posts` | Create a post (auth required) |
-| GET | `/api/posts/:id` | Single post with comments and tags |
-| PUT | `/api/posts/:id` | Update post (owner only) |
-| DELETE | `/api/posts/:id` | Delete post (owner or admin) |
-| POST | `/api/posts/:id/likes` | Like a post (auth required, idempotent) |
-| DELETE | `/api/posts/:id/likes` | Unlike a post (auth required) |
-| GET | `/api/posts/:id/comments` | Threaded comments for a post |
-| POST | `/api/posts/:id/comments` | Add comment, optional `parent_comment_id` for replies (auth required) |
-| PUT | `/api/posts/:id/comments/:commentId` | Edit comment (owner only) |
-| DELETE | `/api/posts/:id/comments/:commentId` | Delete comment (owner or admin) |
+Deleting a vendor or post cascades to all related junction and child records.
 
 ---
 
-## UI Design
+## Access Control
 
-### Layout
-The Vendors page reuses the existing `Header.tsx`. Below the header is a **two-panel split layout**:
-
-- **Left panel (1/3 width):** Navigation — categories, vendor list, or vendor detail
-- **Right panel (2/3 width):** Post feed — filtered based on left panel selection
-
-### Left Panel — View States
-
-**Default (categories view)**
-Category cards in a grid. Each card shows:
-- Lucide icon mapped from `icon_name`
-- Category name (e.g. "General Contractor")
-- Short description (e.g. "Full-service renovation & rehab")
-
-Clicking a category card navigates to the vendor list view for that category.
-
-**Vendor List view**
-A list of vendor cards for the selected category. Each card shows:
-- Vendor name
-- Description
-- City, state
-- Category badges
-
-Clicking a vendor filters the right panel post feed to posts tagged with that vendor.
-
-**Navigation: Back button + breadcrumbs**
-
-Breadcrumbs appear above the left panel content whenever the user is deeper than the default view:
-
-| State | Breadcrumbs |
-|---|---|
-| Categories (default) | *(none)* |
-| Category selected | `← Back` &nbsp;&nbsp; `Categories` |
-| Vendor selected | `← Back` &nbsp;&nbsp; `Categories > {Category Name} Vendors` |
-
-Each breadcrumb segment is clickable and navigates back to the view it represents.
-
-### Right Panel — Post Feed
-
-- **Default:** All posts, newest first
-- **Category selected:** Posts filtered to that category
-- **Vendor selected:** Posts filtered to posts tagged with that vendor
-- **No results:** "No Posts Available" empty state
-
-Post cards show: title, author name, date, content preview, category badges, vendor tags, like count, comment count, and a placeholder image slot (styled `div` with `ImageIcon` until storage is wired up).
-
-A "New Post" button lives in the right panel header, auth-gated. Opens a `CreatePostDialog` with:
-- Title (required)
-- Content (required)
-- Address / City / State (optional)
-- Multi-select categories
-- Vendor tag search
-- User tag search
-- Image placeholder section with "Image upload coming soon" label
+| Action | Anyone | Authenticated | Admin / Owner |
+|---|---|---|---|
+| Browse vendors and categories | ✓ | ✓ | ✓ |
+| Read posts / activity feed | ✓ | ✓ | ✓ |
+| Create post | — | ✓ | ✓ |
+| Edit own post | — | ✓ (own) | ✓ (any) |
+| Delete own post | — | ✓ (own) | ✓ (any) |
+| Create / edit / delete vendor | — | — | ✓ |
+| Upload vendor logo / header | — | — | ✓ |
+| Toggle vendor recommended | — | — | ✓ |
 
 ---
 
-## Frontend State Management
+## Current State
 
-### `useVendorNav` Hook
-Central hook for the vendor page. Prevents prop drilling across the left/right panels.
+### Fully implemented
+- Vendor CRUD with logo and header image upload (Supabase)
+- Vendor category tagging (many-to-many)
+- Recommended vendors section
+- Post creation with TipTap rich text editor
+- `@vendor` and `#category` mention autocomplete in editor
+- Post images (up to 5 per post, Supabase)
+- Post edit and delete with ownership enforcement
+- Activity feed filtering by selected category or vendor
+- Vendor photo gallery (images from posts tagged with the vendor)
+- Mobile-responsive two-panel layout with tab switching
+- Search across categories and vendors in the browse panel
+- Breadcrumb navigation with URL-driven state
 
-**State:**
-```ts
-view:              'categories' | 'vendor-list'
-selectedCategory:  Category | null
-selectedVendor:    Vendor | null
-```
-
-**Derived (computed, not stored):**
-```ts
-breadcrumbs: { label: string; action: () => void }[]
-```
-
-**Actions:**
-```ts
-selectCategory(category: Category)    // sets view='vendor-list', clears selectedVendor
-selectVendor(vendor: Vendor)          // sets selectedVendor, view stays 'vendor-list'
-goBack()                              // if vendor selected: clear vendor; else: reset to categories
-navigateToBreadcrumb(index: number)   // jump to a specific breadcrumb level
-reset()                               // full reset to default state
-```
-
-### Supporting Hooks
-| Hook | Purpose |
-|---|---|
-| `useCategories()` | Fetch all categories for the left panel cards |
-| `useVendors(categoryId?)` | Fetch vendors, re-fetches when categoryId changes |
-| `usePosts(filters)` | Fetch posts with `{ categoryId?, vendorId? }` composition |
+### Implemented in schema/backend, not yet surfaced in UI
+- Post likes (count fetched and returned, but no like button rendered in PostCard)
+- Post comments (schema exists, comment count fetched, but no comment thread UI in PostCard)
+- User tagging (`@user` mentions, postUserTags table exists, but autocomplete not wired in editor)
+- Infinite scroll (pagination API supports it; UI currently uses query invalidation on new posts)
 
 ---
 
-## Implementation Plan (Commit-by-Commit)
+## Key Files
 
-### Phase 1 — Database Foundation
-| Commit | Work |
+| Layer | Path |
 |---|---|
-| 1 | Add all new Drizzle schemas (`vendors.schema.ts`), update `users.schema.ts` with `profile_image_url`, update `relations.schema.ts`, run `db:generate` + `db:migrate` |
-| 2 | Add categories to `seed.ts`, run `db:seed` |
-
-### Phase 2 — Backend: Categories & Vendors
-| Commit | Work |
-|---|---|
-| 3 | `GET /api/categories` and `GET /api/categories/:categoryId/vendors` |
-| 4 | `GET /api/vendors` and `GET /api/vendors/:categoryId` |
-
-### Phase 3 — Backend: Posts
-| Commit | Work |
-|---|---|
-| 5 | Posts CRUD — `GET`, `POST`, `GET /:postId`, `PUT /:postId`, `DELETE /:postId` |
-| 6 | Post interactions — likes and comments endpoints |
-| 7 | API route tests for vendors and posts |
-
-### Phase 4 — Frontend Foundation
-| Commit | Work |
-|---|---|
-| 8 | `/vendors` route in Wouter + Header nav link + two-panel page shell |
-| 9 | TypeScript types for `Category`, `Vendor`, `Post`, `PostComment` |
-| 10 | `useVendorNav`, `useCategories`, `useVendors`, `usePosts` hooks |
-
-### Phase 5 — Frontend: Left Panel
-| Commit | Work |
-|---|---|
-| 11 | `CategoryCard` component + left panel default (categories grid) |
-| 12 | `VendorCard` component + vendor list view + `Breadcrumb` component + back button |
-
-### Phase 6 — Frontend: Right Panel
-| Commit | Work |
-|---|---|
-| 13 | `PostCard` component (with image placeholder slot) + `PostFeed` + "No Posts Available" empty state |
-| 14 | Wire `useVendorNav` state into `PostFeed` for reactive filtering |
-
-### Phase 7 — Post Creation & Interactions
-| Commit | Work |
-|---|---|
-| 15 | `CreatePostDialog` — form with title, content, address, category multi-select, vendor/user tag search |
-| 16 | Like button (optimistic update) + `CommentSection` with threaded reply support |
-
-### Phase 8 — Polish & Ship
-| Commit | Work |
-|---|---|
-| 17 | Responsive layout audit, mobile stacking behavior, all empty states reviewed |
-| 18 | `npm run check` clean pass, remove debug logs, verify `data-testid` coverage |
-| 19 | Merge to main |
-
----
-
-## Future Considerations (Out of Scope for V1)
-
-- Image upload via Supabase Storage (profile images + post images)
-- Vendor claim flow — let a registered user link their account to a vendor profile
-- Vendor ratings / reviews
-- Post search
-- User profile pages showing their posts
-- Follower / following system
-- Vendor create/edit UI (currently admin-only via Neon console)
-- Admin-managed category list UI
+| Page | `client/src/pages/Vendors.tsx` |
+| API client | `client/src/api/vendors.api.ts` |
+| Components | `client/src/components/vendors/` (14 files) |
+| Nav hook | `client/src/hooks/useVendorNav.ts` |
+| Post editor hook | `client/src/hooks/usePostEditor.ts` |
+| Types | `client/src/types/vendors.d.ts` |
+| Routes | `server/routes/vendors.routes.ts`, `posts.routes.ts`, `categories.routes.ts` |
+| Controllers | `server/controllers/vendors/`, `server/controllers/posts/`, `server/controllers/categories/` |
+| Services | `server/services/vendors/`, `server/services/posts/`, `server/services/categories/` |
+| Schema | `database/schemas/vendors.schema.ts` |
+| Validation | `database/validation/vendors.validation.ts` |

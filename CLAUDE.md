@@ -28,41 +28,6 @@ Express + Vite full-stack app for ARV (After Repair Value) / real estate finance
 
 ---
 
-## Data Pipeline
-
-The data pipeline is a core part of the application. It syncs property transaction data from an external SFR (Single Family Rental) API into the local database, organized by MSA (Metropolitan Statistical Area).
-
-### Entry Point
-`runConsumer()` — the main consumer job that orchestrates the full pipeline. It reads pending rows from the `market_scan_queue` table in batches, processes them through a multi-step pipeline, and marks rows complete or failed.
-
-### Pipeline Steps (per batch)
-1. **`fetchQueue`** — Pulls a batch of pending rows from `market_scan_queue` for a given MSA (capped at `MAX_PROPERTIES_PER_MSA` unique properties per run)
-2. **`markProcessing`** — Marks the fetched rows as `processing` to prevent duplicate processing in concurrent runs
-3. **`batchLookup`** — Calls `/properties/batch` on the SFR API to enrich raw queue records with full property details
-4. **`getTransactions`** — Calls `/properties/transactions` on the SFR API for each property to retrieve its full transaction history
-5. **`cleanTransactions`** — Parses transaction data to extract company names and county associations
-6. **`insertCompanies`** — Upserts buyer/seller companies into the `companies` table and associates them with the MSA
-7. **`resolvePropertyIds`** — Looks up `buyer_id` and `seller_id` foreign keys by resolving company names against the `companies` table
-8. **`resolveStatuses`** — Determines each property's status: `on-market`, `in-renovation`, `sold`, or `wholesale`
-9. **`cleanBeforeInsert`** — Final normalization pass (county, property_type, etc.) before DB insert
-10. **`resolveArvFunded`** — Annotates each property with `is_arv_funded` based on lender patterns in the transaction history
-11. **`insertProperties`** — Upserts properties and all child records (transactions, statuses, associations) into the database
-12. **`updateArvClientCompanies`** — Marks companies as ARV clients based on their resolved transaction involvement
-13. **`markComplete` / `markFailed`** — Updates queue row status; failed rows stay in the queue for manual review and are not retried automatically
-
-### Key Behaviors
-- Properties flagged as **New Construction** (via transaction type) are excluded and marked failed with reason `"Property is New Construction"`
-- Properties where **status cannot be resolved** are excluded and marked failed with reason `"Couldn't Resolve Status"`
-- A failed batch does **not** abort the rest of the MSA — errors are caught per-batch and processing continues
-- `MAX_PROPERTIES_PER_MSA` controls throughput (currently 5); each property makes ~2 external API calls
-
-### Relevant Files
-- `server/jobs/consumer.ts` — Main consumer orchestrator
-- `server/jobs/processes/` — Individual pipeline step functions
-- `database/schemas/msas.schema.ts` — MSA table schema
-
----
-
 ## Environment Variables
 
 The following environment variables are required or used by the application. **Never read, commit, or expose `.env` files.**
@@ -87,6 +52,18 @@ The following environment variables are required or used by the application. **N
 
 ---
 
+## Apps
+
+The application is organized as three distinct feature areas that function like separate apps, all sharing the same auth, providers, and backend:
+
+- **Data** (`/` — Home page) — Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database. Full details in `.claude/docs/data.md`.
+
+- **Deals** (`/deals`) — Deal marketplace. Users post wholesale, agent, and sold deals; other investors browse, filter by location, and request contact info. Subscription-gated for deal creation. Full details in `.claude/docs/deals.md`.
+
+- **Vendors** (`/vendors`) — Community hub. Two-panel layout: an activity feed for community posts (with rich text + vendor/category mentions) and a vendor directory organized by trade category. Full details in `.claude/docs/vendors.md`.
+
+---
+
 ## Coding Style
 > **Full reference**: `.claude/docs/code-standards.md` — authoritative source for all coding conventions (naming, file organization, component structure, route/controller/service patterns, error handling, formatting, and more). Apply these standards when adding or updating any code.
 
@@ -98,6 +75,8 @@ The following environment variables are required or used by the application. **N
 ---
 
 ## Testing
+After adding or modifying ANY code, read `.claude/docs/testing.md` and follow it.
+
 > **Full reference**: `.claude/docs/testing.md` — read this before writing any test. For new API routes, the access-control and validation integration tests described there are mandatory.
 
 ---
@@ -106,7 +85,9 @@ The following environment variables are required or used by the application. **N
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
 - `.claude/docs/design.md` — UI design system (colors, typography, components, dark mode)
 - `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
-- `.claude/docs/data.md` — data pipeline feature design and integration notes
+- `.claude/docs/data.md` — Data app overview (property intelligence, map, company directory, SFR pipeline)
+- `.claude/docs/deals.md` — Deals app overview (deal marketplace, subscription gate, email notifications)
+- `.claude/docs/vendors.md` — Vendors app overview (vendor directory, community posts, mentions)
 
 ---
 
