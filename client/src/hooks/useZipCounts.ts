@@ -6,7 +6,8 @@ import { useFilters } from "./useFilters";
 
 export type ZipCount = { zipCode: string; count: number };
 
-export function useZipCounts(): ZipCount[] {
+export function useZipCounts(options?: { enabled?: boolean }): ZipCount[] {
+    const fetchEnabled = options?.enabled ?? true;
     const { company } = useCompanies();
     const { filters, sortBy } = useFilters();
 
@@ -26,7 +27,7 @@ export function useZipCounts(): ZipCount[] {
             if (!res.ok) throw new Error(`Failed to fetch zip counts: ${res.status}`);
             return res.json();
         },
-        enabled: !!url,
+        enabled: !!url && fetchEnabled,
         staleTime: 5 * 60 * 1000,
     });
 

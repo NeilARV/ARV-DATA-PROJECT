@@ -20,13 +20,11 @@ import { PropertiesProvider } from "@/hooks/useProperties";
 import { CompaniesProvider, useCompanies } from "@/hooks/useCompanies";
 import { MapProvider, useGeoMap } from "@/hooks/useMap";
 import { PropertyProvider, useProperty } from "@/hooks/useProperty";
-import { useZipCounts } from "@/hooks/useZipCounts";
 
 function HomeContent() {
   const { filters, setFilters } = useFilters();
   const { view, sidebarView } = useView();
   const { loadCompanies, companySelectionInProgressRef, company, handleCompanyClick } = useCompanies();
-  const zipCodesWithCounts = useZipCounts();
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showProperty, setShowProperty] = useState(false);
@@ -109,7 +107,7 @@ function HomeContent() {
         </div>
 
         {/* [row 1, col 2] FilterHeader */}
-        <FilterHeader zipCodesWithCounts={zipCodesWithCounts} />
+        <FilterHeader />
 
         {/* [row 2, col 1] Company Directory */}
         <div className="border-r border-border overflow-hidden flex flex-col">

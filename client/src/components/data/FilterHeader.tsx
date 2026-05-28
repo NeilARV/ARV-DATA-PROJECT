@@ -29,6 +29,7 @@ import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertySta
 import { useFilters } from "@/hooks/useFilters";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useDataNav } from "@/hooks/useDataNav";
+import { useZipCounts } from "@/hooks/useZipCounts";
 import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
 
 // ---- Price helper ----
@@ -38,17 +39,22 @@ function formatPrice(val: number): string {
     return `$${val}`;
 }
 
-// ---- Props ----
-export interface FilterHeaderProps {
-    zipCodesWithCounts?: ZipCodeWithCount[];
-}
-
-export default function FilterHeader({
-    zipCodesWithCounts = [],
-}: FilterHeaderProps) {
+export default function FilterHeader() {
     const { filters, setFilters, hasActiveFilters } = useFilters();
     const { setCompany } = useCompanies();
     const nav = useDataNav();
+
+    // Zip counts are only needed when the user opens the zip/city autocomplete.
+    // Defer the fetch until first interaction to avoid competing with map pins
+    // and properties on initial page load.
+    const [zipCountsEnabled, setZipCountsEnabled] = useState(false);
+    const zipCodesWithCounts = useZipCounts({ enabled: zipCountsEnabled });
+    // Tracks whether the zip input is currently focused so the data-arrival
+    // effect can open the dropdown when the fetch completes after first focus.
+    const zipFocusedRef = useRef(false);
+    // Detects the 0 → N transition in sortedZipCodes so the arrival effect
+    // only does real work once per fetch, not on every keystroke.
+    const prevZipDataLenRef = useRef(0);
 
     // Local display state (synced from context)
     const [priceRange, setPriceRange] = useState<[number, number]>([
@@ -82,6 +88,7 @@ export default function FilterHeader({
         const handleMouseDown = (e: MouseEvent) => {
             if (zipWrapperRef.current && !zipWrapperRef.current.contains(e.target as Node)) {
                 setZipOpen(false);
+                zipFocusedRef.current = false;
             }
         };
         document.addEventListener('mousedown', handleMouseDown);
@@ -141,6 +148,35 @@ export default function FilterHeader({
         return Array.from(cityMap.entries())
             .map(([city, count]) => ({ city, count }))
             .sort((a, b) => b.count - a.count);
+    }, [sortedZipCodes]);
+
+    // When zip counts arrive after the user has already focused the input,
+    // populate suggestions and open the dropdown (handles the race where the
+    // fetch completes after the focus handler ran against an empty dataset).
+    useEffect(() => {
+        const prevLen = prevZipDataLenRef.current;
+        prevZipDataLenRef.current = sortedZipCodes.length;
+        if (prevLen > 0 || sortedZipCodes.length === 0 || !zipFocusedRef.current) return;
+        if (zipInput.length > 0) {
+            const lower = zipInput.toLowerCase();
+            const zipMatches = sortedZipCodes
+                .filter(z => z.zipCode.startsWith(zipInput) || z.city?.toLowerCase().includes(lower))
+                .slice(0, 10);
+            const cityMatches = citiesWithCounts
+                .filter(c => {
+                    const n = c.city.startsWith("San Diego") ? "San Diego" : c.city;
+                    return n.toLowerCase().includes(lower);
+                })
+                .slice(0, 10);
+            setFilteredZipCodes(zipMatches);
+            setFilteredCities(cityMatches);
+            setZipOpen(zipMatches.length > 0 || cityMatches.length > 0);
+        } else {
+            setFilteredZipCodes(sortedZipCodes.slice(0, 10));
+            setFilteredCities(citiesWithCounts.slice(0, 10));
+            setZipOpen(true);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sortedZipCodes]);
 
     // ---- Handlers ----
@@ -423,6 +459,8 @@ export default function FilterHeader({
                         value={zipInput}
                         onChange={(e) => handleZipInputChange(e.target.value)}
                         onFocus={() => {
+                            zipFocusedRef.current = true;
+                            setZipCountsEnabled(true);
                             if (sortedZipCodes.length > 0 || citiesWithCounts.length > 0) {
                                 setFilteredZipCodes(sortedZipCodes.slice(0, 10));
                                 setFilteredCities(citiesWithCounts.slice(0, 10));
@@ -430,6 +468,8 @@ export default function FilterHeader({
                             }
                         }}
                         onClick={() => {
+                            zipFocusedRef.current = true;
+                            setZipCountsEnabled(true);
                             if (!zipOpen && (sortedZipCodes.length > 0 || citiesWithCounts.length > 0)) {
                                 setFilteredZipCodes(sortedZipCodes.slice(0, 10));
                                 setFilteredCities(citiesWithCounts.slice(0, 10));
