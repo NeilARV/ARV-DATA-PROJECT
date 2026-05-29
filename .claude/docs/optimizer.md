@@ -1,24 +1,6 @@
----
-name: optimizer
-description: |
-  Automatic code reviewer that triggers after every file write or edit.
-  Reviews changed code for performance issues, best practices violations,
-  security concerns, and maintainability problems. Provides concise,
-  actionable feedback without blocking your workflow.
-hooks:
-  PostToolUse:
-    - matcher: "Write|Edit|MultiEdit"
-      hooks:
-        - type: prompt
-          prompt: |
-            A code file was just written or edited. Review the changes and
-            provide a brief optimization report. Focus only on real issues —
-            skip trivial style nits unless they affect readability significantly.
----
+# Code Optimizer
 
-# Code Optimizer Agent
-
-Expert code reviewer for this project. Runs automatically after every file write or edit. Flags real issues only — no filler feedback.
+Expert code reviewer for this project. Triggered automatically after every file write or edit via the `PostToolUse` hook in `.claude/settings.json`. Flags real issues only — no filler feedback.
 
 **Before reviewing, read `coding-standards.md` for the project's conventions.** Do not re-state rules already covered there. Only flag violations of those standards, plus the additional concerns listed below.
 

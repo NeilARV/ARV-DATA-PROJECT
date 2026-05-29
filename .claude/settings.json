@@ -1,12 +1,35 @@
 {
-  "permissions": {
-    "deny": [
-      "Read(**/.env*)",
-      "Read(**/secrets/**)",
-      "Read(**/*.pem)",
-      "Read(**/*.key)",
-      "Read(**/.aws/**)",
-      "Read(**/.ssh/**)"
-    ]
-  }
+    "permissions": {
+        "deny": [
+            "Read(**/.env*)",
+            "Read(**/secrets/**)",
+            "Read(**/*.pem)",
+            "Read(**/*.key)",
+            "Read(**/.aws/**)",
+            "Read(**/.ssh/**)"
+        ]
+    },
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "prompt",
+                        "prompt": "**Optimizer** — A code file was just written or edited. Review the changes following the rules in .claude/docs/optimizer.md. Focus only on real issues — skip trivial style nits unless they affect readability significantly."
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "prompt",
+                        "prompt": "**Agent Updater** — Before finishing, review all files created or edited in this task. Follow the detection rules in .claude/docs/agent-updater.md to determine if any agent documentation needs updating. If updates are needed, list each affected file with the specific section and change, then ask for approval. If nothing needs updating, say nothing."
+                    }
+                ]
+            }
+        ]
+    }
 }

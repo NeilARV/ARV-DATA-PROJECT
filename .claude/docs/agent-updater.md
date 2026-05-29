@@ -1,25 +1,6 @@
----
-name: agent-updater
-description: |
-  Detects when code changes may have made agent documentation stale.
-  Runs once at the end of each task, reviews what changed, and proposes
-  updates to affected agent files. Never modifies agent files without
-  explicit user approval.
-hooks:
-  Stop:
-    - hooks:
-        - type: prompt
-          prompt: |
-            Before finishing, review all files created or edited in this task.
-            Determine if any changes affect the accuracy of the agent documentation
-            listed in agent-updater.md. If so, list the affected agent files and
-            what specifically needs updating. Ask for approval before making changes.
-            If nothing needs updating, say nothing — do not mention this check.
----
-
 # Agent Updater
 
-Detects when code changes make agent documentation stale. Runs automatically at the end of each task via a `Stop` hook. **Never updates agent files without explicit user approval.**
+Detects when code changes make agent documentation stale. Triggered automatically at the end of each task via the `Stop` hook in `.claude/settings.json`. **Never updates agent files without explicit user approval.**
 
 ---
 
@@ -29,7 +10,7 @@ Detects when code changes make agent documentation stale. Runs automatically at 
 |---|---|---|
 | `CLAUDE.md` | Base | Top-level project instructions, file references, global rules |
 | `.claude/docs/access-control.md` | Auth | Route permission tables, middleware chains, role/tier rules |
-| `.claude/docs/code-standards.md` | Standards | Naming, file structure, patterns, conventions |
+| `.claude/docs/coding-standards.md` | Standards | Naming, file structure, patterns, conventions |
 | `.claude/docs/testing.md` | Workflow | Test structure, helpers, mandatory baseline, naming |
 | `.claude/docs/optimizer.md` | Workflow | Auto-review checklists, output format |
 | `.claude/docs/design.md` | Design | Tokens, colors, typography, spacing, component styles |
