@@ -13,11 +13,12 @@ Component-level utility classes live in `client/src/styles/deal.components.css`.
 |---|---|---|
 | `sm` | 640px | Rarely used — avoid unless truly needed |
 | `md` | 768px | Mobile → tablet transition |
+| `tablet` | 850px | Deal card layout shifts, financial grid columns |
 | `lg` | 1024px | Primary desktop breakpoint for most layout changes |
 | `xl` | 1280px | Wide desktop |
 | `2xl` | 1536px | Large/ultrawide (rarely needed) |
 
-**Rule**: Default to `lg:` as the primary responsive breakpoint. Use `md:` for layout shifts that need to happen at the tablet/768px threshold (e.g. deal card stacking). Avoid stacking multiple responsive variants on the same property — if `sm:`, `md:`, and `lg:` are all on one element, simplify.
+**Rule**: Default to `lg:` as the primary responsive breakpoint. Use `tablet:` for deal card layout shifts at the 850px threshold. Use `md:` for other layout shifts at 768px. Avoid stacking multiple responsive variants on the same property — if `sm:`, `md:`, and `lg:` are all on one element, simplify.
 
 ---
 
@@ -114,7 +115,7 @@ Hover on primary buttons uses `hover:brightness-90`. Active uses `active:brightn
 | `card-foreground` | `220 9% 15%` | `220 9% 98%` | same | same | Text inside cards |
 | `muted-foreground` | `220 9% 40%` | `220 9% 72%` | `#5D6576` | `#AAB2BF` | Secondary labels, placeholder text, descriptions |
 
-> **Note on dark `muted-foreground`**: The value `220 9% 72%` (`#AAB2BF`) is the intended target. The original codebase used `65%` lightness which rendered too dim. The `deal.components.css` file used `text-gray-300/80` as a workaround — those usages should be updated to `text-muted-foreground` once `index.css` is updated.
+> **Note on dark `muted-foreground`**: This value was bumped from `65%` → `72%` lightness because the original rendered too dim for secondary labels. Always use `text-muted-foreground` — never hardcode gray values like `text-gray-300/80`.
 
 ### Interactive & Semantic
 
@@ -314,17 +315,17 @@ Padding: `px-2.5 py-0.5`
 
 Defined in `client/src/styles/deal.components.css`. These are `@layer components` classes for deal card elements specifically.
 
-| Class | Current Definition | Intended Role |
+| Class | Definition | Used For |
 |---|---|---|
-| `.deal-card-label` | `text-sm lg:text-base text-gray-300/80` | Field label above a value. **Target: `text-sm text-muted-foreground` (fixed, no lg: variant)** |
-| `.deal-card-value` | `text-lg lg:text-xl font-bold text-foreground` | Primary financial value. **Target: `text-lg font-bold text-foreground` (fixed)** |
-| `.deal-card-value-empty` | `text-xs lg:text-sm font-bold text-gray-300/80` | Placeholder dash when value is absent. **Target: `text-xs font-bold text-muted-foreground` (fixed)** |
-| `.deal-card-icon` | `w-4 h-4 lg:w-5 lg:h-5 text-gray-300/80` | Spec row icons (bed, bath, sqft). **Target: `w-4 h-4 text-muted-foreground` (fixed)** |
-| `.deal-card-sub-icon` | `w-3.5 h-3.5` | Icons inside link pills. Keep as-is. |
-| `.deal-card-address` | `text-sm lg:text-base text-gray-300/80 truncate` | City/state/zip line. **Target: `text-sm text-muted-foreground truncate` (fixed)** |
-| `.deal-card-link` | `inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md border border-border bg-muted hover:bg-accent-border transition-colors capitalize` | Photo/link pill buttons. Keep as-is. |
+| `.deal-card-label` | `text-sm text-muted-foreground` | Field label above a value |
+| `.deal-card-value` | `text-lg font-bold text-foreground` | Primary financial value |
+| `.deal-card-value-empty` | `text-xs font-bold text-muted-foreground` | Placeholder dash when value is absent |
+| `.deal-card-icon` | `w-4 h-4 text-muted-foreground` | Spec row icons (bed, bath, sqft) |
+| `.deal-card-sub-icon` | `w-3.5 h-3.5` | Icons inside link pills |
+| `.deal-card-address` | `text-sm text-muted-foreground truncate` | City/state/zip line |
+| `.deal-card-link` | `inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md border border-border bg-muted hover:bg-accent-border transition-colors capitalize` | Photo/link pill buttons |
 
-**Note**: All `text-gray-300/80` usages in this file are workarounds for the dark `muted-foreground` being too dim. Once `--muted-foreground` in dark mode is updated to `220 9% 72%`, these should be replaced with `text-muted-foreground`.
+No responsive size variants — all sizes are fixed. Always use `text-muted-foreground` for secondary text; never hardcode gray values.
 
 ---
 
@@ -428,7 +429,7 @@ The `dark` class on `<html>` swaps all CSS variable tokens. Key behavioral notes
 - Primary teal (`#5BC8DC`) is **identical** in both modes
 - All background tokens darken significantly (9%–15% lightness)
 - All foreground tokens flip to near-white (98% lightness)
-- `muted-foreground` in dark mode is `220 9% 72%` — lighter than the default `65%` to prevent secondary labels from appearing too dim
+- `muted-foreground` in dark mode is `220 9% 72%` — tuned for readability on dark backgrounds
 - Chart colors are lightened 5–20% in dark mode for readability
 - Elevation overlays use white-tinted rgba in dark mode (`rgba(255,255,255, .04/.09)`) vs black-tinted in light mode
 
@@ -443,17 +444,6 @@ Hardcoded in `DealCard2.tsx` — not tokenized. These are intentionally brand-sp
 | `wholesale` | `#9333EA` (purple) | "Wholesale" |
 | `sold` | `#FF0000` (red) | "Sold" |
 | `agent` | `#F97316` (orange) | "Agent" |
-
----
-
-## Pending Design Changes
-
-These changes have been decided but not yet implemented:
-
-1. **`--muted-foreground` dark mode**: Change from `220 9% 65%` → `220 9% 72%` in `index.css`
-2. **`tailwind.config.ts` breakpoints**: Add `tablet: '850px'` under `theme.extend.screens`
-3. **`deal.components.css`**: Remove all responsive size variants and `text-gray-300/80` references per the table in the Deal Card Utility Classes section above
-4. **`DealCard2.tsx`**: After (3), verify the `min-[850px]:` usage is replaced with `tablet:` prefix
 
 ---
 
@@ -475,8 +465,6 @@ You modify or update a componet on `client/src/pages/Vendors.tsx` and notice the
 ---
 
 ## File Reference
-
-
 
 | File | Purpose |
 |---|---|

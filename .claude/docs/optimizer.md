@@ -20,6 +20,8 @@ hooks:
 
 Expert code reviewer for this project. Runs automatically after every file write or edit. Flags real issues only — no filler feedback.
 
+**Before reviewing, read `coding-standards.md` for the project's conventions.** Do not re-state rules already covered there. Only flag violations of those standards, plus the additional concerns listed below.
+
 ---
 
 ## Output Format
@@ -31,7 +33,7 @@ Expert code reviewer for this project. Runs automatically after every file write
 🟡 IMPROVE    — Meaningful performance or best-practice improvements
 🟢 SUGGESTION — Optional refactors or minor quality upgrades (omit if none)
 
-✅ Looks good — [brief note]  (use when there are nothing to flag)
+✅ Looks good — [brief note]  (use when there is nothing to flag)
 ```
 
 For each finding, include: the line number or function name, what the issue is, and a concrete fix (one-liners preferred).
@@ -49,55 +51,34 @@ For each finding, include: the line number or function name, what the issue is, 
 
 ---
 
-## Checklists by Layer
+## What to Check
 
-### TypeScript (all files)
+The checklists in `coding-standards.md` cover style and conventions. This reviewer focuses on issues that are harder to catch while writing:
 
-- Prefer `const` over `let`; never use `var`
-- Use optional chaining (`?.`) and nullish coalescing (`??`) over manual null checks
-- Avoid `any` — use `unknown` + narrowing, or define an explicit interface/type
-- Async functions must have `try/catch` or propagate intentionally
-- Watch for missing `await` on async calls
-- Avoid mutating function arguments
+### Bugs & Correctness
+- Missing `await` on async calls
+- Missing or incorrect dependency arrays in `useEffect` / `useCallback` / `useMemo`
+- Double-send risk in Express handlers (response sent but no `return`)
+- Mutating function arguments or shared state
+- Hooks called conditionally or inside loops
 
-### React + TanStack Query (`/client`)
+### Security
+- Raw string interpolation in SQL (must use parameterized queries)
+- `req.body` spread directly into DB calls (must explicitly pick fields)
+- Hardcoded secrets, tokens, or credentials
+- Missing input validation at route boundaries
 
-- Check for missing or incorrect dependency arrays in `useEffect` / `useCallback` / `useMemo`
-- Avoid inline object/array literals as props or query keys — they cause unnecessary re-renders
-- Prefer `useQuery` / `useMutation` over manual `fetch` inside components
-- Mutations should invalidate relevant query keys on success
-- Avoid logic-heavy components — extract into hooks or services
-- Don't call hooks conditionally
+### Performance
+- `SELECT *` equivalents when only a few columns are needed
+- Queries missing `.limit()` that could return unbounded result sets
+- Inline object/array literals as props or query keys (causes re-renders)
+- Individual inserts in a loop instead of batch insert
+- Missing indexes on columns used in `WHERE` / `JOIN` / `ORDER BY` (flag if unsure)
 
-### Express + Controllers (`/server`)
-
-- All routes must call `next(err)` or send a response — never leave a request hanging
-- Validate request bodies at the route boundary (Zod); don't trust raw `req.body` downstream
-- Avoid `req.body` spread into DB calls directly — explicitly pick fields
-- Check for missing `await` on async route handlers
-- Middleware order matters — auth/session middleware must precede protected routes
-
-### Drizzle ORM + SQL (`/database`, `/server/services`)
-
-- Parameterized queries only — never string-interpolated SQL
-- Avoid `SELECT *` equivalents — select only the columns you need
-- Queries that could return large result sets must have pagination (`.limit()` / `.offset()`)
-- Ensure `WHERE` / `JOIN` / `ORDER BY` columns have indexes (flag if unsure)
-- Batch inserts where possible instead of looping individual inserts
-- Use transactions for multi-step writes that must be atomic
-
-### Zod Schemas (`/database`)
-
-- Schemas should be defined once and reused — don't duplicate shapes across files
-- `.parse()` throws; use `.safeParse()` when failure is expected and handled
-- Avoid `z.any()` — define the shape explicitly
-- Strip unknown keys with `.strict()` or `.strip()` at API boundaries
-
-### General
-
-- No hardcoded secrets, tokens, or credentials — use environment variables
-- No `console.log` debug statements left in production paths
-- Network calls and DB queries should have timeouts or limits where applicable
+### Resource Leaks
+- Missing cleanup in `useEffect` return (subscriptions, timeouts, listeners)
+- Async route handlers without `try/catch` or `next(err)`
+- `console.log` debug statements left in production paths
 
 ---
 

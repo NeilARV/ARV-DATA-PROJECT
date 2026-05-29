@@ -1,7 +1,7 @@
-import { users, userRelationshipManagers, userRoles, roles, userNotificationPreferences } from "@database/schemas/users.schema";
+import { users, userRelationshipManagers, userRoles, roles, userNotificationPreferences, emailSubscriptionList, subscriptions } from "@database/schemas/users.schema";
 import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
 import { db } from "server/storage";
-import { eq, sql, inArray, and } from "drizzle-orm";
+import { eq, sql, inArray, and, ilike } from "drizzle-orm";
 import type { UpdateNotificationPreferences } from "@database/updates";
 import bcrypt from "bcrypt";
 
@@ -14,11 +14,12 @@ interface SignupData {
     password: string;
     county?: string | null;
     state?: string | null;
+    subscriptionId?: number | null;
 }
 
 export async function createUser(data: SignupData) {
 
-    const { firstName, lastName, phone, email, password, county, state } = data
+    const { firstName, lastName, phone, email, password, county, state, subscriptionId } = data
 
     const passwordHash = await bcrypt.hash(password, 10)
 
@@ -33,6 +34,7 @@ export async function createUser(data: SignupData) {
             notifications: true,
             county: county || null,
             state: state || null,
+            subscriptionId: subscriptionId ?? null,
         })
         .returning()
 
@@ -221,6 +223,41 @@ export async function getUserNotificationPreferences(userId: string) {
         .where(eq(userNotificationPreferences.userId, userId))
         .limit(1);
     return prefs ?? null;
+}
+
+/**
+ * Returns the email_subscription_list row for a given email (case-insensitive), or null if not found.
+ */
+export async function checkEmailSubscriptionList(
+    email: string
+): Promise<typeof emailSubscriptionList.$inferSelect | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const [row] = await db
+        .select()
+        .from(emailSubscriptionList)
+        .where(sql`lower(trim(${emailSubscriptionList.email})) = ${normalizedEmail}`)
+        .limit(1);
+    return row ?? null;
+}
+
+/**
+ * Removes an entry from email_subscription_list by its id.
+ * Called after a user successfully signs up via that list.
+ */
+export async function removeEmailFromSubscriptionList(id: number): Promise<void> {
+    await db.delete(emailSubscriptionList).where(eq(emailSubscriptionList.id, id));
+}
+
+/**
+ * Returns the subscription id for a given tier name (e.g. "basic"), or null if not found.
+ */
+export async function getSubscriptionIdByName(name: string): Promise<number | null> {
+    const [row] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.name, name))
+        .limit(1);
+    return row?.id ?? null;
 }
 
 /**

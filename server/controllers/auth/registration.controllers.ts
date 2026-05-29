@@ -31,6 +31,11 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             return;
         }
 
+        const subscriptionListEntry = await UserServices.checkEmailSubscriptionList(email);
+        console.log('[signup] email lookup:', email.toLowerCase().trim(), '→ found:', !!subscriptionListEntry, subscriptionListEntry ? `(rm: ${subscriptionListEntry.relationshipManagerId ?? 'none'})` : '');
+
+        const subscriptionId: number | null = subscriptionListEntry ? 1 : null;
+
         const newUser = await UserServices.createUser({
             firstName,
             lastName,
@@ -39,7 +44,19 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             password,
             county: normalizedCounty,
             state: normalizedState,
+            subscriptionId,
         });
+        console.log('[signup] user created:', newUser.id, 'subscriptionId:', newUser.subscriptionId);
+
+        if (subscriptionListEntry?.relationshipManagerId) {
+            await UserServices.addUserRelationshipManager(newUser.id, subscriptionListEntry.relationshipManagerId);
+            console.log('[signup] linked RM:', subscriptionListEntry.relationshipManagerId);
+        }
+
+        if (subscriptionListEntry) {
+            await UserServices.removeEmailFromSubscriptionList(subscriptionListEntry.id);
+            console.log('[signup] removed from subscription list:', subscriptionListEntry.id);
+        }
 
         await UserServices.upsertUserNotificationPreferences(newUser.id, {
             dataAppStatusFilter: ['in-renovation', 'wholesale'],
