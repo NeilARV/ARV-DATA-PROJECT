@@ -10,23 +10,12 @@
         ]
     },
     "hooks": {
-        "PostToolUse": [
-            {
-                "matcher": "Write|Edit|MultiEdit",
-                "hooks": [
-                    {
-                        "type": "prompt",
-                        "prompt": "**Optimizer** — A code file was just written or edited. Review the changes following the rules in .claude/docs/optimizer.md. Focus only on real issues — skip trivial style nits unless they affect readability significantly."
-                    }
-                ]
-            }
-        ],
         "Stop": [
             {
                 "hooks": [
                     {
                         "type": "prompt",
-                        "prompt": "**Agent Updater** — Before finishing, review all files created or edited in this task. Follow the detection rules in .claude/docs/agent-updater.md to determine if any agent documentation needs updating. If updates are needed, list each affected file with the specific section and change, then ask for approval. If nothing needs updating, say nothing."
+                        "prompt": "Before finishing, do two things:\n\n1. **Code Review** — Review all files created or edited in this task following the rules in .claude/docs/optimizer.md. Begin with '🔍 Optimizer running...' then show findings. If everything looks clean, say '✅ Looks good' in one line.\n\n2. **Agent Update Check** — Follow the detection rules in .claude/docs/agent-updater.md to determine if any agent documentation needs updating. If updates are needed, begin with '📋 Agent Updater running...' then list findings and ask for approval. If nothing needs updating, say nothing about this step."
                     }
                 ]
             }

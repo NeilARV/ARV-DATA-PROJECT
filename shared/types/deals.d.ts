@@ -41,7 +41,7 @@ type DealProperty = {
     dealType: DealType;
     price?: number | string | null;
     potentialARV?: number | string | null;
-    closeOfEscrow?: string | null;
+    showingTime?: string | null;
     estimatedBudget?: number | null;
     beds?: number;
     baths?: number;

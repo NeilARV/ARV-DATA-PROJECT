@@ -101,6 +101,15 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 
 ---
 
+## Automated Hooks
+
+The following workflows run automatically via `.claude/settings.json` and do not need to be invoked manually:
+
+- **Code Optimizer** (`.claude/docs/optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Runs at the end of each task.
+- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Runs at the end of each task. Will ask for approval before modifying any agent files.
+
+---
+
 ## References
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
@@ -112,16 +121,14 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 
 ---
 
-## Requirements ##
+## Requirements
 1. You must refer to `.claude/docs/data.md` when working on the data side of the application
 2. You must refer to `.claude/docs/deals.md` when working on the deals side of the application
 3. You must refer to `.claude/docs/vendors.md` when working on the vendors side of the application
-4. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`. 
-5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`. 
-6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md`.
-7. After writing or modifying any code or logic, read `.claude/docs/testing.md`.
-7. Before writing or running ANY test, read `.claude/docs/testing.md`.
-8. After adding or modifying ANY code or feature, read `.claude/docs/agent-updater.md`.
+4. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`
+5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
+6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md`
+7. Before writing or running ANY test, read `.claude/docs/testing.md`
 
 ---
 

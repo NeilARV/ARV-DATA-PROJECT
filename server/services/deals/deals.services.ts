@@ -129,6 +129,19 @@ function extractDomain(url: string): string {
     }
 }
 
+function formatShowingTime(isoStr: string): string {
+    const normalized = isoStr.replace(" ", "T");
+    const [datePart, timePart] = normalized.split("T");
+    const [y, m, d] = datePart.split("-");
+    if (!timePart) return `${m}/${d}/${y}`;
+    const [hhStr, mmStr] = timePart.split(":");
+    let hh = parseInt(hhStr, 10);
+    const ampm = hh >= 12 ? "PM" : "AM";
+    if (hh > 12) hh -= 12;
+    if (hh === 0) hh = 12;
+    return `${m}/${d}/${y} at ${hh}:${mmStr} ${ampm}`;
+}
+
 function filterValidLinks(links: string[] | undefined): { url: string; domain: string }[] {
     return (links ?? [])
         .filter((u) => typeof u === "string" && isValidUrl(u.trim()))
@@ -238,7 +251,7 @@ export async function getDeals(filters: GetDealsFilters) {
             zipCode:      deals.zipCode,
             price:         deals.price,
             potentialARV:  deals.potentialARV,
-            closeOfEscrow:   deals.closeOfEscrow,
+            showingTime:     deals.showingTime,
             estimatedBudget: deals.estimatedBudget,
             beds:            deals.beds,
             baths:        deals.baths,
@@ -335,7 +348,7 @@ export async function getDealById(id: number) {
 // ── POST deal ──────────────────────────────────────────────────────────────────
 export async function createDeal(input: CreateDealInput) {
     const label = "[dealsService.createDeal]";
-    const { address, city, state, zipCode, userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links, isArvExclusive, onBehalfOfEmail } = input;
+    const { address, city, state, zipCode, userId, dealType, price, potentialARV, showingTime, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links, isArvExclusive, onBehalfOfEmail } = input;
 
     const addressStr     = typeof address === "string" ? address.trim() : "";
     const hasAddress     = addressStr.length > 0;
@@ -407,7 +420,7 @@ export async function createDeal(input: CreateDealInput) {
             county:        county,
             price:         price != null ? String(price) : null,
             potentialARV:  potentialARV  != null ? String(potentialARV)  : null,
-            closeOfEscrow:   closeOfEscrow != null ? String(closeOfEscrow) : null,
+            showingTime:     showingTime ?? null,
             estimatedBudget: estimatedBudget != null ? Number(estimatedBudget) : null,
             beds:            resolvedBeds,
             baths:         resolvedBaths != null ? String(resolvedBaths) : null,
@@ -447,7 +460,7 @@ type DealNotificationData = {
     sqft: number | null;
     price: string | null;
     potentialARV: string | null;
-    closeOfEscrow:   string | null;
+    showingTime:     string | null;
     estimatedBudget: number | null;
     propertyType: string | null;
     type: DealType;
@@ -520,8 +533,8 @@ export async function sendDealNotification(
             const sqft         = deal.sqft         != null ? deal.sqft.toLocaleString("en-US")         : null;
             const price          = deal.price          ? Number(deal.price).toLocaleString("en-US")          : null;
             const potentialARV   = deal.potentialARV   ? Number(deal.potentialARV).toLocaleString("en-US")   : null;
-            const closeOfEscrow  = deal.closeOfEscrow
-                ? (() => { const [y, m, d] = deal.closeOfEscrow!.split("-"); return `${m}/${d}/${y}`; })()
+            const showingTime = deal.showingTime
+                ? formatShowingTime(deal.showingTime)
                 : null;
             const estimatedBudget = deal.estimatedBudget != null ? deal.estimatedBudget.toLocaleString("en-US") : null;
 
@@ -598,7 +611,7 @@ export async function sendDealNotification(
                     price:            price,
                     previous_price:   previousPrice ? Number(previousPrice).toLocaleString("en-US") : null,
                     potential_arv:    potentialARV,
-                    close_of_escrow:  closeOfEscrow,
+                    showing_time:     showingTime,
                     estimated_budget: estimatedBudget,
                     property_type:    deal.propertyType ?? null,
                     notes:            deal.notes ?? null,
@@ -655,7 +668,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         .where(eq(deals.id, id))
         .limit(1);
 
-    const { address, city, state, zipCode, dealType, price, potentialARV, closeOfEscrow, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links, isArvExclusive, onBehalfOfEmail } = input;
+    const { address, city, state, zipCode, dealType, price, potentialARV, showingTime, estimatedBudget, beds, baths, sqft, propertyType, notes, adminNotes, photosUrl, links, isArvExclusive, onBehalfOfEmail } = input;
 
     const mergedCity  = (city    !== undefined ? String(city).trim()                : current.city)    ?? "";
     const mergedState = (state   !== undefined ? String(state).toUpperCase().trim() : current.state)   ?? "";
@@ -708,7 +721,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             zipCode:      zipCode      !== undefined ? mergedZip    : undefined,
             price:        price        !== undefined ? (price != null ? String(price) : null) : undefined,
             potentialARV:  potentialARV  !== undefined ? (potentialARV  != null ? String(potentialARV)  : null) : undefined,
-            closeOfEscrow:   closeOfEscrow   !== undefined ? (closeOfEscrow   != null ? String(closeOfEscrow)          : null) : undefined,
+            showingTime:     showingTime !== undefined ? (showingTime ?? null) : undefined,
             estimatedBudget: estimatedBudget !== undefined ? (estimatedBudget != null ? Number(estimatedBudget)         : null) : undefined,
             type:         dealType     !== undefined && validDealTypes.includes(dealType as typeof validDealTypes[number]) ? dealType as typeof validDealTypes[number] : undefined,
             beds:         incomingFullAddress ? resolvedBeds  : (beds  !== undefined ? (beds  != null ? Number(beds)  : null) : undefined),
@@ -761,7 +774,7 @@ export async function requestDealInfo(dealId: number, requesterId: string, overr
             type:            deals.type,
             price:           deals.price,
             potentialARV:    deals.potentialARV,
-            closeOfEscrow:   deals.closeOfEscrow,
+            showingTime:     deals.showingTime,
             estimatedBudget: deals.estimatedBudget,
             beds:            deals.beds,
             baths:           deals.baths,

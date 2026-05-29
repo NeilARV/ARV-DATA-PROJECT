@@ -42,7 +42,9 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
             zipCode:           "",
             price:             undefined,
             potentialARV:      undefined,
-            closeOfEscrow:     undefined,
+            showingDate:       undefined,
+            showingTimeStr:    undefined,
+            showingAmPm:       "AM" as const,
             estimatedBudget:   undefined,
             dealType:          "agent",
             beds:              undefined,
@@ -71,9 +73,15 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 dealType:          data.dealType,
                 price:             data.price,
                 potentialARV:      data.potentialARV,
-                closeOfEscrow:     data.closeOfEscrow
-                                       ? (() => { const [m, d, y] = data.closeOfEscrow!.split("/"); return `${y}-${m}-${d}`; })()
-                                       : undefined,
+                showingTime:       (() => {
+                                       if (!data.showingDate) return undefined;
+                                       const [m, d, y] = data.showingDate.split("/");
+                                       let hh = data.showingTimeStr ? parseInt(data.showingTimeStr.split(":")[0], 10) : 0;
+                                       const mm = data.showingTimeStr ? (data.showingTimeStr.split(":")[1] ?? "00") : "00";
+                                       if (data.showingAmPm === "PM" && hh < 12) hh += 12;
+                                       if (data.showingAmPm === "AM" && hh === 12) hh = 0;
+                                       return `${y}-${m}-${d}T${String(hh).padStart(2, "0")}:${mm}:00`;
+                                   })(),
                 estimatedBudget:   data.estimatedBudget ?? undefined,
                 beds:              data.beds,
                 baths:             data.baths,

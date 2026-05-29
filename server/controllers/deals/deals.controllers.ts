@@ -82,7 +82,7 @@ export async function createDealController(req: Request, res: Response): Promise
     try {
         const {
             address, city, state, zipCode,
-            userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
+            userId, dealType, price, potentialARV, showingTime, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, sendNotifications, links,
             isArvExclusive, onBehalfOfEmail,
@@ -116,7 +116,7 @@ export async function createDealController(req: Request, res: Response): Promise
 
         const { deal, msaId } = await createDeal({
             address, city, state, zipCode,
-            userId, dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
+            userId, dealType, price, potentialARV, showingTime, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, sendNotifications, links,
             isArvExclusive:  resolvedIsArvExclusive,
@@ -149,7 +149,7 @@ export async function updateDealController(req: Request, res: Response): Promise
 
         const {
             address, city, state, zipCode,
-            dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
+            dealType, price, potentialARV, showingTime, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, links, sendNotifications,
             isArvExclusive, onBehalfOfEmail,
@@ -160,7 +160,7 @@ export async function updateDealController(req: Request, res: Response): Promise
 
         const updated = await updateDeal(id, callerId, {
             address, city, state, zipCode,
-            dealType, price, potentialARV, closeOfEscrow, estimatedBudget,
+            dealType, price, potentialARV, showingTime, estimatedBudget,
             beds, baths, sqft, propertyType,
             notes, adminNotes, photosUrl, links,
             isArvExclusive:  privileged ? isArvExclusive  : undefined,

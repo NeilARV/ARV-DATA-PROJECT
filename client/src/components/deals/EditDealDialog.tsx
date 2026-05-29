@@ -45,9 +45,36 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
             sqft:          deal.sqft         ?? undefined,
             propertyType:  deal.propertyType ?? undefined,
             potentialARV:  deal.potentialARV  ? Number(deal.potentialARV)  : undefined,
-            closeOfEscrow: deal.closeOfEscrow
-                               ? (() => { const [y, m, d] = deal.closeOfEscrow!.split("-"); return `${m}/${d}/${y}`; })()
-                               : undefined,
+            showingDate:    (() => {
+                                if (!deal.showingTime) return undefined;
+                                const datePart = deal.showingTime.includes("T")
+                                    ? deal.showingTime.split("T")[0]
+                                    : deal.showingTime.split(" ")[0];
+                                const [y, m, d] = datePart.split("-");
+                                return `${m}/${d}/${y}`;
+                            })(),
+            showingTimeStr: (() => {
+                                if (!deal.showingTime) return undefined;
+                                const timePart = deal.showingTime.includes("T")
+                                    ? deal.showingTime.split("T")[1]
+                                    : deal.showingTime.split(" ")[1];
+                                if (!timePart) return undefined;
+                                const [hhStr, mmStr] = timePart.split(":");
+                                let hh = parseInt(hhStr, 10);
+                                if (hh > 12) hh -= 12;
+                                if (hh === 0) hh = 12;
+                                const mm = Math.floor(parseInt(mmStr ?? "0", 10) / 15) * 15;
+                                return `${hh}:${String(mm).padStart(2, "0")}`;
+                            })(),
+            showingAmPm:    (() => {
+                                if (!deal.showingTime) return "AM" as const;
+                                const timePart = deal.showingTime.includes("T")
+                                    ? deal.showingTime.split("T")[1]
+                                    : deal.showingTime.split(" ")[1];
+                                if (!timePart) return "AM" as const;
+                                const hh = parseInt(timePart.split(":")[0], 10);
+                                return (hh >= 12 ? "PM" : "AM") as "AM" | "PM";
+                            })(),
             estimatedBudget:   deal.estimatedBudget ?? undefined,
             notes:             deal.notes        ?? "",
             adminNotes:        deal.adminNotes    ?? "",
@@ -74,9 +101,15 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                 sqft:          data.sqft         ?? null,
                 propertyType:  data.propertyType ?? null,
                 potentialARV:  data.potentialARV  ?? null,
-                closeOfEscrow: data.closeOfEscrow
-                                   ? (() => { const [m, d, y] = data.closeOfEscrow!.split("/"); return `${y}-${m}-${d}`; })()
-                                   : null,
+                showingTime:   (() => {
+                                   if (!data.showingDate) return null;
+                                   const [m, d, y] = data.showingDate.split("/");
+                                   let hh = data.showingTimeStr ? parseInt(data.showingTimeStr.split(":")[0], 10) : 0;
+                                   const mm = data.showingTimeStr ? (data.showingTimeStr.split(":")[1] ?? "00") : "00";
+                                   if (data.showingAmPm === "PM" && hh < 12) hh += 12;
+                                   if (data.showingAmPm === "AM" && hh === 12) hh = 0;
+                                   return `${y}-${m}-${d}T${String(hh).padStart(2, "0")}:${mm}:00`;
+                               })(),
                 estimatedBudget:   data.estimatedBudget ?? null,
                 notes:             data.notes?.trim() || null,
                 adminNotes:        data.adminNotes?.trim() || null,

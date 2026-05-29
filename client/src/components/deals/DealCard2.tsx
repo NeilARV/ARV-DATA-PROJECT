@@ -43,9 +43,17 @@ type DealCardProps = {
     onTopBuyers: () => void;
 };
 
-function formatEscrowDate(dateStr: string): string {
-    const [y, m, d] = dateStr.split("-");
-    return `${m}/${d}/${y}`;
+function formatShowingTime(isoStr: string): string {
+    const normalized = isoStr.replace(" ", "T");
+    const [datePart, timePart] = normalized.split("T");
+    const [y, m, d] = datePart.split("-");
+    if (!timePart) return `${m}/${d}/${y}`;
+    const [hhStr, mmStr] = timePart.split(":");
+    let hh = parseInt(hhStr, 10);
+    const ampm = hh >= 12 ? "PM" : "AM";
+    if (hh > 12) hh -= 12;
+    if (hh === 0) hh = 12;
+    return `${m}/${d}/${y} at ${hh}:${mmStr} ${ampm}`;
 }
 
 function formatDatePosted(dateStr: string): string {
@@ -96,7 +104,7 @@ export default function DealCard2({
 
     const price           = deal.price           ? Number(deal.price)           : null;
     const potentialARV    = deal.potentialARV     ? Number(deal.potentialARV)    : null;
-    const closeOfEscrow   = deal.closeOfEscrow    ?? null;
+    const showingTime     = deal.showingTime ?? null;
     const estimatedBudget = deal.estimatedBudget  != null ? Number(deal.estimatedBudget) : null;
     const beds            = deal.beds             ? Number(deal.beds)             : null;
     const baths           = deal.baths || null;
@@ -261,9 +269,9 @@ export default function DealCard2({
                             }
                         </div>
                         <div className="flex flex-col">
-                            <span className="deal-card-label">Close of Escrow</span>
-                            {closeOfEscrow
-                                ? <span className="deal-card-value">{formatEscrowDate(closeOfEscrow)}</span>
+                            <span className="deal-card-label">Showing</span>
+                            {showingTime
+                                ? <span className="deal-card-value">{formatShowingTime(showingTime)}</span>
                                 : <span className="deal-card-value-empty">—</span>
                             }
                         </div>

@@ -170,7 +170,7 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 | propertyType | varchar(100) | Single Family, Townhouse, Condo, etc. |
 | notes | text | Free-form |
 | adminNotes | text | Internal only (admin/owner) |
-| closeOfEscrow | date | Stored YYYY-MM-DD |
+| showingTime | timestamp | Optional; stored as ISO datetime string (no timezone) |
 | estimatedBudget | int | |
 | photosUrl | text | Link to external photo album |
 | isArvExclusive | boolean | Default false; admin-set |
@@ -191,7 +191,7 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 `dealFormSchema` (Zod):
 - city, state (2 chars), zipCode required
 - dealType: `"wholesale" | "agent" | "sold"` (default `"agent"`; `"sold"` only available on edit)
-- closeOfEscrow: regex `MM/DD/YYYY` (converted to `YYYY-MM-DD` before DB insert)
+- showingDate: optional, regex `MM/DD/YYYY`; showingTimeStr: optional, regex `HH:MM`; showingAmPm: `"AM"|"PM"` (default `"AM"`) — three fields combined into ISO datetime string (`YYYY-MM-DDThh:mm:00`) before DB insert as `showingTime`
 - superRefine: if no full street address pattern, beds/baths/sqft/propertyType are required
 - links: URL-validated, max 3
 - adminNotes, onBehalfOfEmail, isArvExclusive: schema fields, stripped server-side for non-privileged callers

@@ -1,4 +1,4 @@
-import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, date, primaryKey, boolean } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, bigint, uuid, integer, timestamp, pgEnum, text, varchar, decimal, primaryKey, boolean } from "drizzle-orm/pg-core";
 import { users } from "./users.schema";
 import { msas } from "./msas.schema";
 
@@ -33,7 +33,7 @@ export const deals = pgTable("deals", {
   propertyType: varchar("property_type", { length: 100 }),
   notes:        text("notes"),
   adminNotes:   text("admin_notes"),
-  closeOfEscrow:    date("close_of_escrow"),
+  showingTime:      timestamp("showing_time", { mode: "string" }),
   estimatedBudget:  integer("estimated_budget"),
   photosUrl:        text("photos_url"),
 

@@ -21,10 +21,15 @@ export const dealFormSchema = z
                        ),
     notes:             z.string().max(1000, "Notes must be 1000 characters or fewer").optional(),
     adminNotes:        z.string().max(1000, "Admin notes must be 1000 characters or fewer").optional(),
-    closeOfEscrow:     z.preprocess(
+    showingDate:       z.preprocess(
                          (v) => (v === "" || v == null ? undefined : v),
                          z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/, "Enter a valid date (MM/DD/YYYY)").optional()
                        ),
+    showingTimeStr:    z.preprocess(
+                         (v) => (v === "" || v == null ? undefined : v),
+                         z.string().regex(/^\d{1,2}:\d{2}$/, "Enter a valid time (HH:MM)").optional()
+                       ),
+    showingAmPm:       z.enum(["AM", "PM"]).default("AM"),
     estimatedBudget:   z.preprocess(
                          (v) => (v === "" || v == null ? undefined : v),
                          z.coerce.number({ invalid_type_error: "Estimated budget must be a number" }).int().positive("Estimated budget must be greater than 0").optional()

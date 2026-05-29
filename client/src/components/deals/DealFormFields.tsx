@@ -49,6 +49,13 @@ function maskDateInput(raw: string): string {
     return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
+const TIME_OPTIONS = Array.from({ length: 12 }, (_, h) =>
+    [0, 15, 30, 45].map((m) => {
+        const val = `${h + 1}:${String(m).padStart(2, "0")}`;
+        return { value: val, label: val };
+    })
+).flat();
+
 function isValidUrl(url: string): boolean {
     try { new URL(url); return true; } catch { return false; }
 }
@@ -183,26 +190,67 @@ export default function DealFormFields({
                 )}
             />
 
-            <FormField
-                control={control}
-                name="closeOfEscrow"
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Close of Escrow <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
-                        <FormControl>
-                            <Input
-                                {...field}
-                                type="text"
-                                inputMode="numeric"
-                                placeholder="MM/DD/YYYY"
-                                value={field.value ?? ""}
-                                onChange={(e) => field.onChange(maskDateInput(e.target.value))}
-                            />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+                <FormField
+                    control={control}
+                    name="showingDate"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Showing Date <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                            <FormControl>
+                                <Input
+                                    {...field}
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="MM/DD/YYYY"
+                                    value={field.value ?? ""}
+                                    onChange={(e) => field.onChange(maskDateInput(e.target.value))}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={control}
+                    name="showingTimeStr"
+                    render={({ field: timeField }) => (
+                        <FormItem>
+                            <FormLabel>Showing Time <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                            <div className="flex gap-2">
+                                <Select value={timeField.value ?? ""} onValueChange={timeField.onChange}>
+                                    <FormControl>
+                                        <SelectTrigger className="flex-1">
+                                            <SelectValue placeholder="Select time" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="z-[10000]">
+                                        {TIME_OPTIONS.map((t) => (
+                                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormField
+                                    control={control}
+                                    name="showingAmPm"
+                                    render={({ field: ampmField }) => (
+                                        <Select value={ampmField.value} onValueChange={ampmField.onChange}>
+                                            <SelectTrigger className="w-20 shrink-0">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="z-[10000]">
+                                                <SelectItem value="AM">AM</SelectItem>
+                                                <SelectItem value="PM">PM</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
 
             <FormField
                 control={control}
