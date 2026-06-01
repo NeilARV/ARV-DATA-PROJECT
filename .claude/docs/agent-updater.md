@@ -9,6 +9,7 @@ Detects when code changes make agent documentation stale. Triggered automaticall
 | File | Type | What it documents |
 |---|---|---|
 | `CLAUDE.md` | Base | Top-level project instructions, file references, global rules |
+| `.claude/docs/api.md` | API | Complete route docs: paths, params, request/response shapes for all endpoints |
 | `.claude/docs/access-control.md` | Auth | Route permission tables, middleware chains, role/tier rules |
 | `.claude/docs/coding-standards.md` | Standards | Naming, file structure, patterns, conventions |
 | `.claude/docs/testing.md` | Workflow | Test structure, helpers, mandatory baseline, naming |
@@ -28,8 +29,9 @@ A change is **significant** and requires an agent update when it alters somethin
 
 ### Always triggers an update
 
-- **New or removed API route** → update `access-control.md` (permission table) + the relevant app file (`data.md`, `deals.md`, or `vendors.md`)
-- **Changed middleware on a route** (different `requireRole`, `requireSub`, or added/removed auth) → update `access-control.md`
+- **New or removed API route** → update `api.md` (full route entry) + `access-control.md` (permission table) + the relevant app file (`data.md`, `deals.md`, or `vendors.md`)
+- **Changed request shape, query params, or response shape on an existing route** → update `api.md`
+- **Changed middleware on a route** (different `requireRole`, `requireSub`, or added/removed auth) → update `access-control.md` and the auth notes in `api.md`
 - **New or removed database table/column** used by a feature → update the relevant app file's schema section
 - **New or changed component in a component tree** → update the relevant app file's component tree
 - **New or changed state/hook** (new context, new URL param, renamed hook) → update the relevant app file's state management section

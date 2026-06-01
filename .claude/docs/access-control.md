@@ -122,6 +122,8 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | PATCH | `/api/auth/me` | (public) | Session userId read from session if present |
 | PATCH | `/api/auth/me/notifications` | (public) | Session userId read from session if present |
 | POST | `/api/auth/signup` | (public) | |
+| POST | `/api/auth/me/avatar` | `requireAuth` | Upload or replace profile image (multipart/form-data) |
+| DELETE | `/api/auth/me/avatar` | `requireAuth` | Remove profile image |
 
 ---
 

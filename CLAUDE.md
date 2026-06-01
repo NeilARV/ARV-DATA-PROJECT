@@ -111,6 +111,7 @@ The following workflows run automatically via `.claude/settings.json` and do not
 ---
 
 ## References
+- `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params)
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
 - `.claude/docs/design.md` — UI design system (colors, typography, components, dark mode)

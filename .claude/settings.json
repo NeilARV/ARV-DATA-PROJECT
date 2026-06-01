@@ -20,7 +20,7 @@
                 "hooks": [
                     {
                         "type": "prompt",
-                        "prompt": "Before finishing, do two things:\n\n1. **Code Review** — Review all files created or edited in this task following the rules in .claude/docs/optimizer.md. Begin with '🔍 Optimizer running...' then show findings. If everything looks clean, say '✅ Looks good' in one line.\n\n2. **Agent Update Check** — Follow the detection rules in .claude/docs/agent-updater.md to determine if any agent documentation needs updating. If updates are needed, begin with '📋 Agent Updater running...' then list findings and ask for approval. If nothing needs updating, say nothing about this step."
+                        "prompt": "If no files were created or edited during this task, do nothing and end silently.\n\nOtherwise, do two things:\n\n1. **Code Review** — Review all files created or edited in this task following the rules in .claude/docs/optimizer.md. Begin with '🔍 Optimizer running...' then show findings. If everything looks clean, say '✅ Looks good' in one line.\n\n2. **Agent Update Check** — Follow the detection rules in .claude/docs/agent-updater.md to determine if any agent documentation needs updating. If updates are needed, begin with '📋 Agent Updater running...' then list findings and ask for approval. If nothing needs updating, say nothing about this step."
                     }
                 ]
             }
