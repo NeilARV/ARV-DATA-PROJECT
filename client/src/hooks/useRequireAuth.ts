@@ -12,10 +12,10 @@ export function useRequireAuth() {
         if (isLoading) return;
         if (!isAuthenticated) {
             toast({
-                title: "Sign up to continue",
-                description: "Create a free account to access this feature.",
+                title: "Sign in to continue",
+                description: "Log in or create an account to access this feature.",
             });
-            openDialog({ type: "signup" });
+            openDialog({ type: "login" });
             return;
         }
         action();
