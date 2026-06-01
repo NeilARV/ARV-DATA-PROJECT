@@ -35,6 +35,7 @@ import { useProperty } from "@/hooks/useProperty";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
 import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useDataNav } from "@/hooks/useDataNav";
 
 // Profile data for known companies
@@ -68,6 +69,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   );
   const { isAdmin, isOwner } = useAuth();
   const { requireSubscription, ContactDialog } = useRequireSubscription();
+  const { requireAuth } = useRequireAuth();
   const { view, setView } = useView();
   const nav = useDataNav();
   const {
@@ -220,11 +222,13 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
   const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
     const next = company?.id === clickedCompany.id ? null : clickedCompany;
     if (next) {
-      requireSubscription(() => {
-        companySelectionInProgressRef.current = true;
-        setCompany(next);
-        setProperty(null);
-        nav.setCompanyId(next.id);
+      requireAuth(() => {
+        requireSubscription(() => {
+          companySelectionInProgressRef.current = true;
+          setCompany(next);
+          setProperty(null);
+          nav.setCompanyId(next.id);
+        });
       });
       return;
     } else {

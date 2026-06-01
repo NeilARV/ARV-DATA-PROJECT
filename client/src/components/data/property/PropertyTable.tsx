@@ -14,6 +14,7 @@ import { formatAddress } from "@shared/utils/formatAddress";
 import type { PropertyTableProps } from "@/types/property";
 import type { SortColumn, SortDirection } from "@/types/options";
 import { useProperty } from "@/hooks/useProperty";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { formatCompanyName } from "@shared/utils/formatCompanyName";
 
 // Status dot colors match PropertyMap.tsx map ping colors
@@ -46,6 +47,7 @@ const getStreetName = (address?: string | null) => {
 export default function PropertyTable({ properties }: PropertyTableProps) {
 
   const { fetchProperty } = useProperty();
+  const { requireAuth } = useRequireAuth();
 
   const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -163,7 +165,7 @@ export default function PropertyTable({ properties }: PropertyTableProps) {
           {sortedProperties.map((property) => (
             <TableRow
               key={property.id}
-              onClick={() => fetchProperty(property.id)}
+              onClick={() => requireAuth(() => fetchProperty(property.id))}
               className="cursor-pointer hover-elevate"
               data-testid={`row-property-${property.id}`}
             >

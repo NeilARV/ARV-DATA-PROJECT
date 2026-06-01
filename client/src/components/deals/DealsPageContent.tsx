@@ -7,6 +7,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useRequireSubscription } from "@/hooks/useRequireSubscription";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { formatAddress } from "@shared/utils/formatAddress";
 import DealsHeader from "@/components/deals/DealsHeader";
 import DealsGrid from "@/components/deals/DealsGrid";
@@ -29,6 +30,7 @@ export default function DealsPageContent() {
     const { toast } = useToast();
     const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
     const { requireSubscription, ContactDialog } = useRequireSubscription();
+    const { requireAuth } = useRequireAuth();
     const { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId } = useDealsNav();
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;
@@ -120,11 +122,13 @@ export default function DealsPageContent() {
     const soldDeals = dealsWithPinned.filter((d) => d.dealType === "sold");
 
     const handleAddDeal = () =>
-        requireSubscription(() => setShowAddDeal(true), {
-            tiers: ["pro", "premium"],
-            subject: "Request Access",
-            message: "I would like to request access to post deals on the ARV data application",
-        });
+        requireAuth(() =>
+            requireSubscription(() => setShowAddDeal(true), {
+                tiers: ["pro", "premium"],
+                subject: "Request Access",
+                message: "I would like to request access to post deals on the ARV data application",
+            })
+        );
 
     return (
         <div className="h-full flex flex-col overflow-hidden">
@@ -132,7 +136,7 @@ export default function DealsPageContent() {
                 tab={tab}
                 deals={deals}
                 locationFilter={locationFilter}
-                onTabChange={setTab}
+                onTabChange={(t) => t === "mine" ? requireAuth(() => setTab(t)) : setTab(t)}
                 onAddDeal={handleAddDeal}
                 onLocationFilterChange={setLocationFilter}
             />

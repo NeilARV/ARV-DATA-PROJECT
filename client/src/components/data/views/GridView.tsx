@@ -13,6 +13,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useProperties } from "@/hooks/useProperties";
 import { useCompanies } from "@/hooks/useCompanies";
 import { useProperty } from "@/hooks/useProperty";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useMemo } from "react";
 
 export default function GridView({
@@ -23,6 +24,7 @@ export default function GridView({
   const { properties, totalProperties, propertiesHasMore, isLoading, isFetching, isLoadingMoreProperties, loadMorePropertiesRef, stablePropertyCount } = useProperties();
   const { fetchProperty, setProperty } = useProperty();
   const { company, setCompany } = useCompanies();
+  const { requireAuth } = useRequireAuth();
 
   // Show loader when initially loading and no properties yet
   const showInitialLoader = isLoading && properties.length === 0;
@@ -119,7 +121,7 @@ export default function GridView({
               <PropertyCard
                 key={property.id}
                 property={property}
-                onClick={() => fetchProperty(property.id)}
+                onClick={() => requireAuth(() => fetchProperty(property.id))}
               />
             ))}
           </div>
