@@ -179,7 +179,7 @@ export default function DealsPageContent() {
                         onDelete={(deal) => setDeleteConfirm({ dealId: deal.id, address: deal.address ?? "this deal" })}
                         onEdit={(deal) => setEditDeal({ ...deal, links: deal.links.map((l) => l.url) })}
                         requestingInfoDealId={requestDealInfo.isPending ? requestDealInfo.variables?.dealId : undefined}
-                        onRequestInfo={(deal) => setConfirmRequestDeal(deal)}
+                        onRequestInfo={(deal) => requireAuth(() => setConfirmRequestDeal(deal))}
                         onTopBuyers={(deal) => setBestBuyersDeal(deal)}
                     />
                 </div>
