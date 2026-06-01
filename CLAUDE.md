@@ -119,6 +119,7 @@ The following workflows run automatically via `.claude/settings.json` and do not
 - `.claude/docs/data.md` — Data app overview (property intelligence, map, company directory, SFR pipeline)
 - `.claude/docs/deals.md` — Deals app overview (deal marketplace, subscription gate, email notifications)
 - `.claude/docs/vendors.md` — Vendors app overview (vendor directory, community posts, mentions)
+- `.claude/docs/new-msa.md` — Documentation on how to add a new MSA to the application
 
 ---
 

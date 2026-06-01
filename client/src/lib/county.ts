@@ -9,6 +9,8 @@ import {
   SEATTLE_MSA_ZIP_CODES,
   TAMPA_MSA_ZIP_CODES
 } from "@/constants/filters.constants";
+import { COUNTY_TO_MSA } from "@shared/constants/countyToMsa";
+export { getMsaNameFromCounty } from "@shared/constants/countyToMsa";
 
 /** Default map center when county is not found (San Diego coordinates). */
 const DEFAULT_MAP_CENTER: [number, number] = [32.7157, -117.1611];
@@ -46,40 +48,6 @@ export function countyNameToKey(countyName: string): string {
  */
 export function getDefaultMapCenter(): [number, number] {
   return getCountyCenter("San Diego") ?? DEFAULT_MAP_CENTER;
-}
-
-const COUNTY_TO_MSA: Record<string, string> = {
-  "San Diego": "San Diego-Chula Vista-Carlsbad, CA",
-  "Los Angeles": "Los Angeles-Long Beach-Anaheim, CA",
-  "Orange": "Los Angeles-Long Beach-Anaheim, CA",
-  "Denver": "Denver-Aurora-Centennial, CO",
-  "Adams": "Denver-Aurora-Centennial, CO",
-  "Arapahoe": "Denver-Aurora-Centennial, CO",
-  "Broomfield": "Denver-Aurora-Centennial, CO",
-  "Jefferson": "Denver-Aurora-Centennial, CO",
-  "Douglas": "Denver-Aurora-Centennial, CO",
-  "Clear Creek": "Denver-Aurora-Centennial, CO",
-  "Gilpin": "Denver-Aurora-Centennial, CO",
-  "Elbert": "Denver-Aurora-Centennial, CO",
-  "Park": "Denver-Aurora-Centennial, CO",
-  "San Francisco": "San Francisco-Oakland-Fremont, CA",
-  "Alameda": "San Francisco-Oakland-Fremont, CA",
-  "Contra Costa": "San Francisco-Oakland-Fremont, CA",
-  "Marin": "San Francisco-Oakland-Fremont, CA",
-  "San Mateo": "San Francisco-Oakland-Fremont, CA",
-  "Miami-Dade": "Miami-Fort Lauderdale-West Palm Beach, FL",
-  "Broward": "Miami-Fort Lauderdale-West Palm Beach, FL",
-  "Palm Beach": "Miami-Fort Lauderdale-West Palm Beach, FL",
-  "St. Lucie": "Port St. Lucie, FL",
-  "Martin": "Port St. Lucie, FL",
-  "King": "Seattle-Tacoma-Bellevue, WA",
-  "Pierce": "Seattle-Tacoma-Bellevue, WA",
-  "Snohomish": "Seattle-Tacoma-Bellevue, WA",
-};
-
-/** Returns the MSA name for a given county, or undefined if not mapped. */
-export function getMsaNameFromCounty(countyName: string): string | undefined {
-  return COUNTY_TO_MSA[countyName];
 }
 
 /**

@@ -33,14 +33,9 @@ import { insertUserBySignUpSchema } from "@database/inserts";
 import { SignupFormData } from "@database/types";
 import ContactContent from "@/components/modals/Contact";
 import { COUNTIES } from "@/constants/filters.constants";
+import { STATE_DEFAULT_COUNTY } from "@shared/constants/stateDefaults";
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
-const STATE_DEFAULT_COUNTY: Record<string, string> = {
-  CA: "San Diego",
-  CO: "Denver",
-  FL: "Miami-Dade",
-  WA: "King",
-};
 
 interface SignupContentProps {
   onSuccess: () => void;

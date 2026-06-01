@@ -34,6 +34,18 @@ function zipToStaticMsaName(zip: string): string | null {
         return "Miami-Fort Lauderdale-West Palm Beach, FL";
     if (z >= 34945 && z <= 34997)
         return "Port St. Lucie, FL";
+    if (
+        (z >= 33503 && z <= 33694) || // Hillsborough (Tampa, Brandon, Lutz, Plant City)
+        (z >= 33700 && z <= 33786) || // Pinellas (St. Petersburg, Clearwater, Largo)
+        (z >= 34601 && z <= 34698)    // Hernando (Brooksville, Spring Hill) + Pasco 34xxx (New Port Richey, Wesley Chapel)
+    ) return "Tampa-St. Petersburg-Clearwater, FL";
+
+    // Washington
+    if (
+        (z >= 98001 && z <= 98199) || // King County (Seattle, Bellevue, Kent, Redmond)
+        (z >= 98201 && z <= 98296) || // Snohomish County (Everett, Lynnwood, Marysville)
+        (z >= 98301 && z <= 98580)    // Pierce County (Tacoma, Puyallup, Lakewood)
+    ) return "Seattle-Tacoma-Bellevue, WA";
 
     return null;
 }

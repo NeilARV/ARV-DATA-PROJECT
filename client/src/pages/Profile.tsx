@@ -17,6 +17,7 @@ import { ArrowLeft, Loader2, User, Edit, Save, X } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
 import { COUNTIES } from "@/constants/filters.constants";
+import { STATE_DEFAULT_COUNTY } from "@shared/constants/stateDefaults";
 import {
   Select,
   SelectContent,
@@ -29,12 +30,6 @@ import { RMCard } from "@/components/profile/RMCard";
 import { AvatarUpload } from "@/components/profile/AvatarUpload";
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
-const STATE_DEFAULT_COUNTY: Record<string, string> = {
-  CA: "San Diego",
-  CO: "Denver",
-  FL: "Miami-Dade",
-  WA: "King",
-};
 
 export default function Profile() {
   const [, setLocation] = useLocation();
