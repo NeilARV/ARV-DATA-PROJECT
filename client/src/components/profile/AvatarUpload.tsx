@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { User, Camera, Trash2, Loader2 } from "lucide-react";
+import { User, Camera, Trash2, Plus, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import AppDialog from "@/components/modals/Dialog";
+import ConfirmationContent from "@/components/modals/Confirmation";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,6 +17,7 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
@@ -33,6 +35,7 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
             return response.json() as Promise<{ profileImageUrl: string }>;
         },
         onSuccess: (data) => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
             queryClient.setQueryData(
                 ["/api/auth/me"],
                 (old: { user: Record<string, unknown> } | undefined) => ({
@@ -43,6 +46,7 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
             toast({ title: "Photo updated" });
         },
         onError: () => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
             setPreviewUrl(null);
             toast({ title: "Error", description: "Failed to upload photo.", variant: "destructive" });
         },
@@ -79,56 +83,81 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
     }
 
     return (
-        <div className="flex items-center gap-5">
-            <div className="relative flex-shrink-0">
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border">
-                    {displayUrl ? (
-                        <img
-                            src={displayUrl}
-                            alt="Profile"
-                            className="w-full h-full object-cover"
-                        />
-                    ) : (
-                        <User className="w-8 h-8 text-muted-foreground" />
-                    )}
-                </div>
+        <div className="flex items-center">
+            <div className="group relative w-28 h-28 rounded-full overflow-hidden bg-muted border border-border flex items-center justify-center cursor-pointer flex-shrink-0">
+                {/* Image or placeholder */}
+                {displayUrl ? (
+                    <img src={displayUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                    <User className="w-12 h-12 text-muted-foreground" />
+                )}
+
+                {/* Loading overlay */}
                 {isPending && (
-                    <div className="absolute inset-0 rounded-full bg-background/70 flex items-center justify-center">
-                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-white" />
+                    </div>
+                )}
+
+                {/* Hover overlay — hidden while loading */}
+                {!isPending && (
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        {displayUrl ? (
+                            <>
+                                <button
+                                    type="button"
+                                    title="Replace photo"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="p-2 rounded-full bg-white/20 hover:bg-white/35 text-white transition-colors"
+                                >
+                                    <Camera className="w-4 h-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Remove photo"
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="p-2 rounded-full bg-white/20 hover:bg-white/35 text-white transition-colors"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                title="Upload photo"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2 rounded-full bg-white/20 hover:bg-white/35 text-white transition-colors"
+                            >
+                                <Plus className="w-5 h-5" />
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
 
-            <div className="flex flex-col gap-2">
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    className="hidden"
-                    onChange={handleFileChange}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png"
+                className="hidden"
+                onChange={handleFileChange}
+            />
+
+            <AppDialog open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+                <ConfirmationContent
+                    title="Remove Profile Photo"
+                    description="Are you sure you want to remove your profile photo?"
+                    confirmText="Remove"
+                    cancelText="Cancel"
+                    variant="destructive"
+                    isLoading={removeMutation.isPending}
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={() => {
+                        removeMutation.mutate();
+                        setShowDeleteConfirm(false);
+                    }}
                 />
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() => fileInputRef.current?.click()}
-                >
-                    <Camera className="w-4 h-4 mr-2" />
-                    {displayUrl ? "Replace Photo" : "Upload Photo"}
-                </Button>
-                {displayUrl && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => removeMutation.mutate()}
-                        className="text-destructive hover:text-destructive"
-                    >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remove Photo
-                    </Button>
-                )}
-            </div>
+            </AppDialog>
         </div>
     );
 }
