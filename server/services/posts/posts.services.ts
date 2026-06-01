@@ -196,9 +196,10 @@ export async function getPosts(filters: GetPostsFilters) {
             state:         posts.state,
             createdAt:     posts.createdAt,
             updatedAt:     posts.updatedAt,
-            userId:        posts.userId,
-            authorFirstName: users.firstName,
-            authorLastName:  users.lastName,
+            userId:               posts.userId,
+            authorFirstName:      users.firstName,
+            authorLastName:       users.lastName,
+            authorProfileImageUrl: users.profileImageUrl,
         })
         .from(posts)
         .innerJoin(users, eq(users.id, posts.userId))
@@ -241,9 +242,10 @@ export async function getPostById(id: string) {
             state:           posts.state,
             createdAt:       posts.createdAt,
             updatedAt:       posts.updatedAt,
-            userId:          posts.userId,
-            authorFirstName: users.firstName,
-            authorLastName:  users.lastName,
+            userId:               posts.userId,
+            authorFirstName:      users.firstName,
+            authorLastName:       users.lastName,
+            authorProfileImageUrl: users.profileImageUrl,
         })
         .from(posts)
         .innerJoin(users, eq(users.id, posts.userId))

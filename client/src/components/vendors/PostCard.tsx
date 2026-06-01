@@ -76,8 +76,16 @@ export function PostCard({ post }: PostCardProps) {
                 {/* Author row */}
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                            <User className="w-4 h-4 text-muted-foreground" />
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {post.authorProfileImageUrl ? (
+                                <img
+                                    src={post.authorProfileImageUrl}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <User className="w-4 h-4 text-muted-foreground" />
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <span className="text-sm font-medium text-foreground leading-snug">

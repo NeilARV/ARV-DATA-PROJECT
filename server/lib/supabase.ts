@@ -5,6 +5,8 @@ export const storageBucket = process.env.SUPABASE_STORAGE_BUCKET ?? "post-images
 
 export const vendorStorageBucket = process.env.SUPABASE_VENDOR_STORAGE_BUCKET ?? "vendor-images-dev"
 
+export const userStorageBucket = process.env.SUPABASE_USER_STORAGE_BUCKET ?? "user-images-dev"
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {

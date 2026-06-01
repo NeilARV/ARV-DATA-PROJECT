@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import NotificationPreferencesPanel from "@/components/profile/NotificationPreferencesPanel";
 import { RMCard } from "@/components/profile/RMCard";
+import { AvatarUpload } from "@/components/profile/AvatarUpload";
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
 const STATE_DEFAULT_COUNTY: Record<string, string> = {
@@ -137,6 +138,12 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
+              {/* ── Profile Photo ── */}
+              <div className="pb-6 border-b">
+                <p className="profile-field-label mb-3">Profile Photo</p>
+                <AvatarUpload profileImageUrl={user.profileImageUrl} />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="profile-field-label">

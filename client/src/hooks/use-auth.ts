@@ -36,6 +36,7 @@ export interface AuthUser {
   createdAt: string;
   county?: string | null;
   state?: string | null;
+  profileImageUrl?: string | null;
   msaSubscriptions?: string[];
   relationshipManager?: RelationshipManager | null;
   notificationPreferences?: NotificationPreferences | null;

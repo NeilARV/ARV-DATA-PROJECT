@@ -4,6 +4,8 @@ import { db } from "server/storage";
 import { eq, sql, inArray, and, ilike } from "drizzle-orm";
 import type { UpdateNotificationPreferences } from "@database/updates";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { getSupabase, userStorageBucket, storagePathFromUrl } from "server/lib/supabase.js";
 
 
 interface SignupData {
@@ -279,4 +281,61 @@ export async function upsertUserNotificationPreferences(userId: string, data: Up
         })
         .returning();
     return result;
+}
+
+export async function uploadUserAvatar(userId: string, buffer: Buffer, mimetype: string): Promise<string> {
+    const [existing] = await db
+        .select({ profileImageUrl: users.profileImageUrl })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error("User not found"), { statusCode: 404 });
+
+    if (existing.profileImageUrl) {
+        const oldPath = storagePathFromUrl(existing.profileImageUrl, userStorageBucket);
+        if (oldPath) await getSupabase().storage.from(userStorageBucket).remove([oldPath]);
+    }
+
+    const ext = mimetype === "image/png" ? "png" : "jpg";
+    const storagePath = `avatars/${userId}/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await getSupabase().storage
+        .from(userStorageBucket)
+        .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
+
+    if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+    const { data: { publicUrl } } = getSupabase().storage
+        .from(userStorageBucket)
+        .getPublicUrl(storagePath);
+
+    const urlWithBust = `${publicUrl}?t=${Date.now()}`;
+
+    await db
+        .update(users)
+        .set({ profileImageUrl: urlWithBust, updatedAt: sql`now()` })
+        .where(eq(users.id, userId));
+
+    return urlWithBust;
+}
+
+export async function removeUserAvatar(userId: string): Promise<void> {
+    const [existing] = await db
+        .select({ profileImageUrl: users.profileImageUrl })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error("User not found"), { statusCode: 404 });
+
+    if (existing.profileImageUrl) {
+        const oldPath = storagePathFromUrl(existing.profileImageUrl, userStorageBucket);
+        if (oldPath) await getSupabase().storage.from(userStorageBucket).remove([oldPath]);
+    }
+
+    await db
+        .update(users)
+        .set({ profileImageUrl: null, updatedAt: sql`now()` })
+        .where(eq(users.id, userId));
 }

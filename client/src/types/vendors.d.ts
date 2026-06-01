@@ -41,6 +41,7 @@ export type Post = {
     userId: string;
     authorFirstName: string;
     authorLastName: string;
+    authorProfileImageUrl: string | null;
     likeCount: number;
     commentCount: number;
     categories: { id: number; name: string; slug: string; iconName: string }[];
