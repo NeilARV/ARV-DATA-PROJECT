@@ -45,7 +45,7 @@ export default function Header({
   county,
 }: HeaderProps) {
 
-  const { openDialog, forcedDialogActive } = useDialogs();
+  const { openDialog } = useDialogs();
   const { filters, setFilters, setSortBy, clearFilters } = useFilters();
   const { view, setView, setSidebarView } = useView();
   const { setProperty } = useProperty();
@@ -68,12 +68,7 @@ export default function Header({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const { requireSubscription, ContactDialog, setShowContact } = useRequireSubscription();
 
-  // Close contact dialog when a forced auth dialog activates
-  useEffect(() => {
-    if (forcedDialogActive) setShowContact(false);
-  }, [forcedDialogActive]);
-
-  const searchInputRef = useRef<HTMLInputElement>(null);
+const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -476,7 +471,7 @@ export default function Header({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openDialog({ type: "login", forced: false })}
+              onClick={() => openDialog({ type: "login" })}
               data-testid="button-login"
             >
               <LogIn className="w-4 h-4 mr-1" />
@@ -484,7 +479,7 @@ export default function Header({
             </Button>
             <Button
               size="sm"
-              onClick={() => openDialog({ type: "signup", forced: false })}
+              onClick={() => openDialog({ type: "signup" })}
               data-testid="button-signup"
             >
               Sign up

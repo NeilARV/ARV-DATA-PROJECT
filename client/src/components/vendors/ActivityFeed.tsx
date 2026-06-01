@@ -51,13 +51,13 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openDialog({ type: "login", forced: false })}
+                            onClick={() => openDialog({ type: "login" })}
                         >
                             Log In
                         </Button>
                         <Button
                             size="sm"
-                            onClick={() => openDialog({ type: "signup", forced: false })}
+                            onClick={() => openDialog({ type: "signup" })}
                         >
                             Sign Up
                         </Button>

@@ -1,5 +1,4 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export interface RelationshipManager {
@@ -136,52 +135,3 @@ export function useAuth() {
   };
 }
 
-const VIEW_LIMIT_REACHED_KEY = "view_limit_reached";
-let SIGNUP_DELAY_MS = 30000; // 30 seconds
-
-export function useSignupPrompt() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [shouldShowSignup, setShouldShowSignup] = useState(false);
-  const [isForced, setIsForced] = useState(false);
-
-  console.log("Is Authenticated: ", isAuthenticated)
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (isAuthenticated) {
-      setShouldShowSignup(false);
-      setIsForced(false);
-      return;
-    }
-
-    const viewLimitReached = sessionStorage.getItem(VIEW_LIMIT_REACHED_KEY);
-
-    if (viewLimitReached) {
-      SIGNUP_DELAY_MS = 0;
-    }
-
-    const timer = setTimeout(() => {
-      if (!isAuthenticated) {
-        setShouldShowSignup(true);
-        setIsForced(true); // After 1 minute, the prompt is forced
-        sessionStorage.setItem(VIEW_LIMIT_REACHED_KEY, "true");
-      }
-    }, SIGNUP_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, isLoading]);
-
-  const dismissPrompt = () => {
-    // Only allow dismissal if not forced
-    if (!isForced) {
-      setShouldShowSignup(false);
-      sessionStorage.setItem(VIEW_LIMIT_REACHED_KEY, "true");
-    }
-  };
-
-  return {
-    shouldShowSignup,
-    isForced,
-    dismissPrompt,
-  };
-}

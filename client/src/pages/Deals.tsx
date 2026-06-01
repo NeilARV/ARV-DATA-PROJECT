@@ -16,7 +16,7 @@ function DealsInner() {
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            openDialog({ type: "login", forced: false });
+            openDialog({ type: "login" });
         }
     }, [isLoading, isAuthenticated]);
 

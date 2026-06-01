@@ -18,26 +18,25 @@ import LoginContent from "@/components/modals/Login";
 import SignupContent from "@/components/modals/Signup";
 
 function GlobalDialogs() {
-  const { dialog, openDialog, closeDialog, isForced } = useDialogs();
+  const { dialog, openDialog, closeDialog } = useDialogs();
   const isAuthDialog = dialog?.type === "login" || dialog?.type === "signup";
 
   return (
     <AppDialog
       open={isAuthDialog}
       onClose={closeDialog}
-      forced={isForced}
       className="sm:max-w-md"
     >
       {dialog?.type === "login" && (
         <LoginContent
           onSuccess={closeDialog}
-          onSwitchToSignup={() => openDialog({ type: "signup", forced: isForced })}
+          onSwitchToSignup={() => openDialog({ type: "signup" })}
         />
       )}
       {dialog?.type === "signup" && (
         <SignupContent
           onSuccess={closeDialog}
-          onSwitchToLogin={() => openDialog({ type: "login", forced: isForced })}
+          onSwitchToLogin={() => openDialog({ type: "login" })}
         />
       )}
     </AppDialog>
