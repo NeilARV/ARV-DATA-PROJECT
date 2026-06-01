@@ -21,7 +21,15 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
         mutationFn: async (file: File) => {
             const formData = new FormData();
             formData.append("image", file);
-            const response = await apiRequest("POST", "/api/auth/me/avatar", formData);
+            const response = await fetch("/api/auth/me/avatar", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || response.statusText);
+            }
             return response.json() as Promise<{ profileImageUrl: string }>;
         },
         onSuccess: (data) => {
