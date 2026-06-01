@@ -30,7 +30,7 @@ import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
 import EditUserContent from "@/components/admin/EditUser";
 import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
-import type { AdminUser, AccountTypeOption, RelationshipManager, UsersTabProps } from "@/types/admin";
+import type { AdminUser, AccountTypeOption, RelationshipManager, UsersTabProps, UserListResponse } from "@/types/admin";
 
 function parseRoleApiError(error: unknown): string {
   let message = "Something went wrong";
@@ -58,10 +58,13 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
     userName: string;
   } | null>(null);
 
-  const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
+  const { data: usersResponse, isLoading: isLoadingUsers } = useQuery<UserListResponse>({
     queryKey: ["/api/users/?excludeDomain=arvfinance.com"],
     enabled: isAdmin,
   });
+
+  const users = usersResponse?.data;
+  const userCount = usersResponse?.count ?? 0;
 
   const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
     queryKey: ["/api/users/relationship-managers"],
@@ -100,7 +103,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Registered Users</CardTitle>
+        <CardTitle>Registered Users {userCount > 0 && <span className="text-muted-foreground font-normal text-base lg:text-lg">({userCount})</span>}</CardTitle>
         <CardDescription>
           View users who have signed up (excluding @arvfinance.com). Manage relationship manager assignments.
         </CardDescription>

@@ -69,3 +69,13 @@ export type EmailListTabProps = {
   isAdmin: boolean;
   canEditEntries?: boolean;
 }
+
+export type UserListResponse = {
+  data: AdminUser[];
+  count: number;
+}
+
+export type WhitelistResponse = {
+  data: WhitelistEntry[];
+  count: number;
+}

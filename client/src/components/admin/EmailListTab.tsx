@@ -33,7 +33,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import AppDialog from "@/components/modals/Dialog";
 import ConfirmationContent from "@/components/modals/Confirmation";
-import type { WhitelistEntry, RelationshipManager, EmailListTabProps } from "@/types/admin";
+import type { WhitelistEntry, RelationshipManager, EmailListTabProps, WhitelistResponse } from "@/types/admin";
 
 function parseApiError(error: unknown): string {
   let message = "Something went wrong";
@@ -65,10 +65,13 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
   const [removeRmConfirm, setRemoveRmConfirm] = useState<{id: number; email: string; msaName: string; managerName: string;} | null>(null);
   const [addRmConfirm, setAddRmConfirm] = useState<{id: number; email: string; msaName: string; relationshipManagerId: string; managerName: string;} | null>(null);
 
-  const { data: whitelist = [], isLoading } = useQuery<WhitelistEntry[]>({
+  const { data: whitelistResponse, isLoading } = useQuery<WhitelistResponse>({
     queryKey: ["/api/admin/whitelist"],
     enabled: isAdmin,
   });
+
+  const whitelist = whitelistResponse?.data ?? [];
+  const whitelistCount = whitelistResponse?.count ?? 0;
 
   const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
     queryKey: ["/api/users/relationship-managers"],
@@ -235,7 +238,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email Subscription List</CardTitle>
+        <CardTitle>Email Subscription List {whitelistCount > 0 && <span className="text-muted-foreground font-normal text-base lg:text-lg">({whitelistCount})</span>}</CardTitle>
         <CardDescription>
           Emails on this list will receieve buyers feed updates and deal notifications
         </CardDescription>
@@ -383,7 +386,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
           <div>
             <div className="mb-4">
               <p className="text-sm text-muted-foreground">
-                Total: {whitelist.length} email{whitelist.length === 1 ? "" : "s"}
+                Total: {whitelistCount} email{whitelistCount === 1 ? "" : "s"}
               </p>
             </div>
             <div className="border rounded-lg overflow-hidden">

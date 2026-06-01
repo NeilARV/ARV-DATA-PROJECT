@@ -96,7 +96,7 @@ export async function listUsersHandler(req: Request, res: Response) {
             accountTypes: accountTypesByUserId.get(u.id) ?? [],
         }));
 
-        return res.json(usersWithRoles);
+        return res.json({ data: usersWithRoles, count: usersWithRoles.length });
     } catch (error) {
         console.error("Error fetching users:", error);
         return res.status(500).json({ message: "Error fetching users" });

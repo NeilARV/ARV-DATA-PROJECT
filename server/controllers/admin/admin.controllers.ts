@@ -23,7 +23,7 @@ export async function checkAdminStatus(req: Request, res: Response) {
 export async function listWhitelist(req: Request, res: Response) {
     try {
         const rows = await AdminServices.getWhitelist();
-        return res.json(rows);
+        return res.json({ data: rows, count: rows.length });
     } catch (error) {
         console.error("Error fetching email whitelist:", error);
         return res.status(500).json({ message: "Error fetching email whitelist" });
