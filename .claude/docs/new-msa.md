@@ -10,13 +10,13 @@ Not every MSA addition needs the full pipeline. Use the table below to scope the
 
 | What you want to support | Steps required |
 |---|---|
-| **Deals only** (users can post/browse deals in the new market) | Steps 1–11 |
-| **Data app** (property intelligence, map pins, company directory) | Steps 1–12 |
-| **Email notifications** | Steps 1–12, then step 13 |
+| **Deals only** (users can post/browse deals in the new market) | Steps 1–12 |
+| **Data app** (property intelligence, map pins, company directory) | Steps 1–13 |
+| **Email notifications** | Steps 1–13, then step 14 |
 | **Vendors** | No MSA-specific steps — Vendors uses `COUNTIES`/`MSA` from `filters.constants.ts`, which is already covered by steps 3–5 |
-| **User market preference / signup / profile** | Steps 1–10 are sufficient; new state → also step 8 |
+| **User market preference / signup / profile** | Steps 1–11 are sufficient; new state → also step 8 |
 
-> **Deals without the Data pipeline**: Users can post and browse deals in the new MSA. The `resolveMsaId` function uses a three-tier lookup (zip → city/state DB match → static zip-prefix fallback in step 10). Add the static ranges in step 10 so Deals work immediately on launch, before any pipeline data exists.
+> **Deals without the Data pipeline**: Users can post and browse deals in the new MSA. Step 10 (`resolveCounty.ts`) ensures the `county` field is stamped on each deal. Step 11 (`resolveMsa.ts`) ensures the `msaId` is resolved even before any pipeline data exists. Both are required for Deals to function correctly.
 
 ---
 
@@ -203,7 +203,42 @@ const COUNTY_STATE_MAP: Record<string, string> = {
 
 ---
 
-### Step 10 — Add static zip-prefix fallback to `resolveMsa.ts`
+### Step 10 — Add zip→county and city→county mappings to `resolveCounty.ts`
+
+**File:** `server/utils/resolveCounty.ts`
+
+This file is what stamps the `county` field on a deal when it is created or edited. It has two lookup tables:
+
+- **`ZIP_COUNTY`** — flat `zip → county name` map (primary lookup)
+- **`CITY_STATE_COUNTY`** — `"city|state" → county name` fallback when the zip is missing
+
+Add every zip code from your `${MSA}_MSA_ZIP_CODES` constant (step 5) as an entry in `ZIP_COUNTY`, grouped by county:
+
+```ts
+// Riverside County, CA
+"92501":"Riverside","92502":"Riverside","92503":"Riverside",
+// ...all Riverside County zips...
+
+// San Bernardino County, CA
+"91701":"San Bernardino","91710":"San Bernardino",
+// ...all San Bernardino County zips...
+```
+
+Then add the major cities to `CITY_STATE_COUNTY`:
+
+```ts
+"riverside|ca":        "Riverside",
+"temecula|ca":         "Riverside",
+"san bernardino|ca":   "San Bernardino",
+"ontario|ca":          "San Bernardino",
+// ...etc...
+```
+
+> **This is the step most likely to be forgotten** — and the symptom is deals posting successfully but with `county = null`, making them invisible to county-level filters. The zip→county map must mirror the zip codes in your zip code constant (step 5). If a county is missing from this file, deals in that county will have no county set.
+
+---
+
+### Step 11 — Add static zip-prefix fallback to `resolveMsa.ts`
 
 **File:** `server/utils/resolveMsa.ts`
 
@@ -224,7 +259,7 @@ Look up the USPS zip code ranges for each county in the MSA. Group multiple band
 
 ---
 
-### Step 11 — Add to `MSA_STATE` (data pipeline state fallback)
+### Step 12 — Add to `MSA_STATE` (data pipeline state fallback)
 
 **File:** `server/jobs/data_v2/msa-states.ts`
 
@@ -239,7 +274,7 @@ export const MSA_STATE: Record<string, string> = {
 
 ---
 
-### Step 12 — Run the initial data backfill (Data app only)
+### Step 13 — Run the initial data backfill (Data app only)
 
 **File:** `server/jobs/data_v2/scan-window-init.ts`
 
@@ -262,7 +297,7 @@ const MODE: "test" | "full" = "test"; // change to "full" for production backfil
 
 ---
 
-### Step 13 — Create the email notification job
+### Step 14 — Create the email notification job
 
 **File:** `server/jobs/email/${city-slug}-email.ts` (new file)  
 **File:** `server/jobs/index.ts` (register the cron)
@@ -315,7 +350,7 @@ Add new MSAs at a 5-minute offset from the nearest existing market in the same t
 
 ---
 
-### Step 14 — Run the type check
+### Step 15 — Run the type check
 
 ```bash
 npm run check
@@ -339,6 +374,7 @@ SELECT * FROM msas WHERE name = 'Phoenix-Mesa-Chandler, AZ';
 | `shared/constants/countyToMsa.ts` | New county → MSA entries (single source of truth for both client and server) |
 | `shared/constants/stateDefaults.ts` | New state → default county entry (new states only) |
 | `server/utils/dataSyncHelpers.ts` | New county → state entries in `COUNTY_STATE_MAP` |
+| `server/utils/resolveCounty.ts` | New zip → county entries in `ZIP_COUNTY`, new city → county entries in `CITY_STATE_COUNTY` |
 | `server/utils/resolveMsa.ts` | New zip-prefix ranges in `zipToStaticMsaName` |
 | `server/jobs/data_v2/msa-states.ts` | New MSA → state entry in `MSA_STATE` |
 | `server/jobs/data_v2/scan-window-init.ts` | Temporary: set `MSA_NAME` and run backfill, then reset |
@@ -357,8 +393,8 @@ SELECT * FROM msas WHERE name = 'Phoenix-Mesa-Chandler, AZ';
 
 **The initial data backfill cannot run on production servers.** The SFR API bulk fetch for 0–180 days of an MSA is too heavy. It must be run locally with `DATABASE_URL` pointed at the production Neon database.
 
-**Deals work without the data pipeline.** Steps 1–11 are sufficient for Deals. The static zip-prefix fallback in step 10 ensures `resolveMsaId` can link a deal to the correct MSA even before any pipeline data exists in the DB.
+**Deals work without the data pipeline.** Steps 1–12 are sufficient for Deals. Step 10 (`resolveCounty.ts`) stamps the county on each deal; step 11 (`resolveMsa.ts`) links it to the correct MSA. Both must be done for deals to function correctly in the new market.
 
 **Vendors requires no MSA-specific changes.** The Vendors page has no MSA-gated features.
 
-**The email engine requires DB data.** `sendEmailUpdatesForMsa` queries `properties` for unsent candidates. It will silently skip (log a message and return) if no properties exist for the MSA yet. The email job is only meaningful after the data backfill in step 12 has run and the pipeline is filling data regularly.
+**The email engine requires DB data.** `sendEmailUpdatesForMsa` queries `properties` for unsent candidates. It will silently skip (log a message and return) if no properties exist for the MSA yet. The email job is only meaningful after the data backfill in step 13 has run and the pipeline is filling data regularly.

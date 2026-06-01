@@ -16,6 +16,7 @@ export const DATE_RANGE_OPTIONS = [
 export const MSA = [
     "San Diego-Chula Vista-Carlsbad, CA",
     "Los Angeles-Long Beach-Anaheim, CA",
+    "Riverside-San Bernardino-Ontario, CA",
     "Denver-Aurora-Centennial, CO",
     "San Francisco-Oakland-Fremont, CA",
     "Miami-Fort Lauderdale-West Palm Beach, FL",
@@ -1722,10 +1723,235 @@ export const TAMPA_MSA_ZIP_CODES = {
     ],
 };
 
+export const RIVERSIDE_MSA_ZIP_CODES = {
+
+    // Riverside County
+    riverside: [
+        // Banning
+        { zip: '92220', city: 'Banning' },
+        // Beaumont
+        { zip: '92223', city: 'Beaumont' },
+        // Blythe
+        { zip: '92225', city: 'Blythe' },
+        { zip: '92226', city: 'Blythe' },
+        // Canyon Lake
+        { zip: '92587', city: 'Canyon Lake' },
+        // Cathedral City
+        { zip: '92234', city: 'Cathedral City' },
+        // Coachella
+        { zip: '92236', city: 'Coachella' },
+        // Corona
+        { zip: '91719', city: 'Corona' },
+        { zip: '91720', city: 'Corona' },
+        { zip: '92877', city: 'Corona' },
+        { zip: '92878', city: 'Corona' },
+        { zip: '92879', city: 'Corona' },
+        { zip: '92881', city: 'Corona' },
+        { zip: '92882', city: 'Corona' },
+        { zip: '92883', city: 'Corona' },
+        // Desert Hot Springs
+        { zip: '92240', city: 'Desert Hot Springs' },
+        { zip: '92241', city: 'Desert Hot Springs' },
+        // Eastvale / Jurupa Valley
+        { zip: '91752', city: 'Eastvale' },
+        // Hemet
+        { zip: '92543', city: 'Hemet' },
+        { zip: '92544', city: 'Hemet' },
+        { zip: '92545', city: 'Hemet' },
+        { zip: '92546', city: 'Hemet' },
+        // Indian Wells
+        { zip: '92210', city: 'Indian Wells' },
+        // Indio
+        { zip: '92201', city: 'Indio' },
+        { zip: '92202', city: 'Indio' },
+        { zip: '92203', city: 'Indio' },
+        // La Quinta
+        { zip: '92247', city: 'La Quinta' },
+        { zip: '92248', city: 'La Quinta' },
+        { zip: '92253', city: 'La Quinta' },
+        // Lake Elsinore
+        { zip: '92530', city: 'Lake Elsinore' },
+        { zip: '92531', city: 'Lake Elsinore' },
+        { zip: '92532', city: 'Lake Elsinore' },
+        // Mecca
+        { zip: '92254', city: 'Mecca' },
+        // Menifee
+        { zip: '92584', city: 'Menifee' },
+        { zip: '92585', city: 'Menifee' },
+        { zip: '92586', city: 'Menifee' },
+        // Moreno Valley
+        { zip: '92551', city: 'Moreno Valley' },
+        { zip: '92552', city: 'Moreno Valley' },
+        { zip: '92553', city: 'Moreno Valley' },
+        { zip: '92554', city: 'Moreno Valley' },
+        { zip: '92555', city: 'Moreno Valley' },
+        { zip: '92557', city: 'Moreno Valley' },
+        // Murrieta
+        { zip: '92562', city: 'Murrieta' },
+        { zip: '92563', city: 'Murrieta' },
+        // Norco
+        { zip: '92860', city: 'Norco' },
+        // Palm Desert
+        { zip: '92211', city: 'Palm Desert' },
+        { zip: '92260', city: 'Palm Desert' },
+        // Palm Springs
+        { zip: '92262', city: 'Palm Springs' },
+        { zip: '92263', city: 'Palm Springs' },
+        { zip: '92264', city: 'Palm Springs' },
+        // Perris
+        { zip: '92570', city: 'Perris' },
+        { zip: '92571', city: 'Perris' },
+        { zip: '92572', city: 'Perris' },
+        // Rancho Mirage
+        { zip: '92270', city: 'Rancho Mirage' },
+        // Riverside
+        { zip: '92501', city: 'Riverside' },
+        { zip: '92502', city: 'Riverside' },
+        { zip: '92503', city: 'Riverside' },
+        { zip: '92504', city: 'Riverside' },
+        { zip: '92505', city: 'Riverside' },
+        { zip: '92506', city: 'Riverside' },
+        { zip: '92507', city: 'Riverside' },
+        { zip: '92508', city: 'Riverside' },
+        { zip: '92513', city: 'Riverside' },
+        { zip: '92514', city: 'Riverside' },
+        { zip: '92515', city: 'Riverside' },
+        { zip: '92516', city: 'Riverside' },
+        { zip: '92517', city: 'Riverside' },
+        { zip: '92518', city: 'Riverside' },
+        { zip: '92519', city: 'Riverside' },
+        { zip: '92521', city: 'Riverside' },
+        { zip: '92522', city: 'Riverside' },
+        // San Jacinto
+        { zip: '92581', city: 'San Jacinto' },
+        { zip: '92582', city: 'San Jacinto' },
+        { zip: '92583', city: 'San Jacinto' },
+        // Temecula
+        { zip: '92589', city: 'Temecula' },
+        { zip: '92590', city: 'Temecula' },
+        { zip: '92591', city: 'Temecula' },
+        { zip: '92592', city: 'Temecula' },
+        // Thermal
+        { zip: '92274', city: 'Thermal' },
+        // Thousand Palms
+        { zip: '92276', city: 'Thousand Palms' },
+        // Wildomar
+        { zip: '92595', city: 'Wildomar' },
+        // Winchester
+        { zip: '92596', city: 'Winchester' },
+    ],
+
+    // San Bernardino County
+    san_bernardino: [
+        // Adelanto
+        { zip: '92301', city: 'Adelanto' },
+        // Apple Valley
+        { zip: '92307', city: 'Apple Valley' },
+        { zip: '92308', city: 'Apple Valley' },
+        // Barstow
+        { zip: '92311', city: 'Barstow' },
+        { zip: '92312', city: 'Barstow' },
+        // Big Bear City
+        { zip: '92314', city: 'Big Bear City' },
+        // Big Bear Lake
+        { zip: '92315', city: 'Big Bear Lake' },
+        // Bloomington
+        { zip: '92316', city: 'Bloomington' },
+        // Chino
+        { zip: '91708', city: 'Chino' },
+        { zip: '91710', city: 'Chino' },
+        // Chino Hills
+        { zip: '91709', city: 'Chino Hills' },
+        // Colton
+        { zip: '92324', city: 'Colton' },
+        // Fontana
+        { zip: '92335', city: 'Fontana' },
+        { zip: '92336', city: 'Fontana' },
+        { zip: '92337', city: 'Fontana' },
+        // Grand Terrace
+        { zip: '92313', city: 'Grand Terrace' },
+        // Hesperia
+        { zip: '92344', city: 'Hesperia' },
+        { zip: '92345', city: 'Hesperia' },
+        { zip: '92347', city: 'Hesperia' },
+        // Highland
+        { zip: '92346', city: 'Highland' },
+        // Lake Arrowhead
+        { zip: '92352', city: 'Lake Arrowhead' },
+        // Loma Linda
+        { zip: '92354', city: 'Loma Linda' },
+        // Mentone
+        { zip: '92359', city: 'Mentone' },
+        // Montclair
+        { zip: '91763', city: 'Montclair' },
+        // Needles
+        { zip: '92363', city: 'Needles' },
+        // Ontario
+        { zip: '91758', city: 'Ontario' },
+        { zip: '91761', city: 'Ontario' },
+        { zip: '91762', city: 'Ontario' },
+        { zip: '91764', city: 'Ontario' },
+        // Rancho Cucamonga
+        { zip: '91701', city: 'Rancho Cucamonga' },
+        { zip: '91729', city: 'Rancho Cucamonga' },
+        { zip: '91730', city: 'Rancho Cucamonga' },
+        { zip: '91737', city: 'Rancho Cucamonga' },
+        { zip: '91739', city: 'Rancho Cucamonga' },
+        // Redlands
+        { zip: '92373', city: 'Redlands' },
+        { zip: '92374', city: 'Redlands' },
+        { zip: '92375', city: 'Redlands' },
+        // Rialto
+        { zip: '92376', city: 'Rialto' },
+        { zip: '92377', city: 'Rialto' },
+        // San Bernardino
+        { zip: '92401', city: 'San Bernardino' },
+        { zip: '92402', city: 'San Bernardino' },
+        { zip: '92403', city: 'San Bernardino' },
+        { zip: '92404', city: 'San Bernardino' },
+        { zip: '92405', city: 'San Bernardino' },
+        { zip: '92406', city: 'San Bernardino' },
+        { zip: '92407', city: 'San Bernardino' },
+        { zip: '92408', city: 'San Bernardino' },
+        { zip: '92410', city: 'San Bernardino' },
+        { zip: '92411', city: 'San Bernardino' },
+        { zip: '92412', city: 'San Bernardino' },
+        { zip: '92413', city: 'San Bernardino' },
+        { zip: '92415', city: 'San Bernardino' },
+        { zip: '92418', city: 'San Bernardino' },
+        { zip: '92423', city: 'San Bernardino' },
+        { zip: '92424', city: 'San Bernardino' },
+        { zip: '92427', city: 'San Bernardino' },
+        // Twentynine Palms
+        { zip: '92277', city: 'Twentynine Palms' },
+        { zip: '92278', city: 'Twentynine Palms' },
+        // Upland
+        { zip: '91784', city: 'Upland' },
+        { zip: '91785', city: 'Upland' },
+        { zip: '91786', city: 'Upland' },
+        // Victorville
+        { zip: '92392', city: 'Victorville' },
+        { zip: '92393', city: 'Victorville' },
+        { zip: '92394', city: 'Victorville' },
+        { zip: '92395', city: 'Victorville' },
+        // Wrightwood
+        { zip: '92397', city: 'Wrightwood' },
+        // Yucaipa
+        { zip: '92399', city: 'Yucaipa' },
+        // Yucca Valley
+        { zip: '92284', city: 'Yucca Valley' },
+        { zip: '92285', city: 'Yucca Valley' },
+    ],
+
+};
+
 export const COUNTIES = [
     { county: "San Diego", state: "CA", center: [32.7157, -117.1611] },
     { county: "Orange", state: "CA", center: [33.7879, -117.8531] },
     { county: "Los Angeles", state: "CA", center: [34.0522, -118.2437] },
+    // Riverside-San Bernardino-Ontario MSA
+    { county: "Riverside",      state: "CA", center: [33.9806, -117.3755] },
+    { county: "San Bernardino", state: "CA", center: [34.1083, -117.2898] },
   
     { county: "Denver", state: "CO", center: [39.7392, -104.9903] },
     { county: "Adams", state: "CO", center: [39.8743, -104.3310] },

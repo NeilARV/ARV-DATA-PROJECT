@@ -17,6 +17,7 @@ async function seed() {
     await db.insert(msas).values([
         { name: "San Diego-Chula Vista-Carlsbad, CA" },
         { name: "Los Angeles-Long Beach-Anaheim, CA" },
+        { name: "Riverside-San Bernardino-Ontario, CA" },
         { name: "Denver-Aurora-Centennial, CO" },
         { name: "San Francisco-Oakland-Fremont, CA" },
         { name: "Miami-Fort Lauderdale-West Palm Beach, FL" },

@@ -16,6 +16,9 @@ function zipToStaticMsaName(zip: string): string | null {
         return "San Diego-Chula Vista-Carlsbad, CA";
     if ((z >= 90001 && z <= 91899) || (z >= 92602 && z <= 92899))
         return "Los Angeles-Long Beach-Anaheim, CA";
+    // Riverside-San Bernardino-Ontario (Inland Empire) — ranges that don't overlap with SD or LA static ranges above
+    if (z >= 92201 && z <= 92599)
+        return "Riverside-San Bernardino-Ontario, CA";
     if (
         (z >= 94002 && z <= 94135) ||
         (z >= 94301 && z <= 94309) ||

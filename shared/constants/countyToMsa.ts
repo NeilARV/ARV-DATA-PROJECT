@@ -11,6 +11,10 @@ export const COUNTY_TO_MSA: Record<string, string> = {
     "Los Angeles":   "Los Angeles-Long Beach-Anaheim, CA",
     "Orange":        "Los Angeles-Long Beach-Anaheim, CA",
 
+    // Riverside-San Bernardino-Ontario MSA (CA)
+    "Riverside":       "Riverside-San Bernardino-Ontario, CA",
+    "San Bernardino":  "Riverside-San Bernardino-Ontario, CA",
+
     // Denver MSA (CO)
     "Denver":        "Denver-Aurora-Centennial, CO",
     "Adams":         "Denver-Aurora-Centennial, CO",

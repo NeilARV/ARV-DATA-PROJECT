@@ -2,6 +2,7 @@ import {
   COUNTIES,
   SAN_DIEGO_MSA_ZIP_CODES,
   LOS_ANGELES_MSA_ZIP_CODES,
+  RIVERSIDE_MSA_ZIP_CODES,
   DENVER_MSA_ZIP_CODES,
   SAN_FRANCISCO_MSA_ZIP_CODES,
   MIAMI_MSA_ZIP_CODES,
@@ -63,9 +64,11 @@ export function getZipCodesForCounty(countyName: string): { zip: string; city: s
     msaZipCodes =
       countyName === "Los Angeles" || countyName === "Orange"
         ? LOS_ANGELES_MSA_ZIP_CODES
-        : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
-          ? SAN_FRANCISCO_MSA_ZIP_CODES
-          : SAN_DIEGO_MSA_ZIP_CODES;
+        : countyName === "Riverside" || countyName === "San Bernardino"
+          ? RIVERSIDE_MSA_ZIP_CODES
+          : countyName === "San Francisco" || countyName === "Alameda" || countyName === "Contra Costa" || countyName === "Marin" || countyName === "San Mateo"
+            ? SAN_FRANCISCO_MSA_ZIP_CODES
+            : SAN_DIEGO_MSA_ZIP_CODES;
   } else if (state === "CO") {
     msaZipCodes = DENVER_MSA_ZIP_CODES;
   } else if (state === "FL") {

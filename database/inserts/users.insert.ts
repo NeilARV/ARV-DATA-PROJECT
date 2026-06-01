@@ -5,6 +5,7 @@ import { users, emailSubscriptionList } from "../schemas";
 const MSA_NAMES = [
   "San Diego-Chula Vista-Carlsbad, CA",
   "Los Angeles-Long Beach-Anaheim, CA",
+  "Riverside-San Bernardino-Ontario, CA",
   "Denver-Aurora-Centennial, CO",
   "San Francisco-Oakland-Fremont, CA",
   "Miami-Fort Lauderdale-West Palm Beach, FL",

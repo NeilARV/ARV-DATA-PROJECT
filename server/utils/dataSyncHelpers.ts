@@ -7,6 +7,8 @@ const COUNTY_STATE_MAP: Record<string, string> = {
     'San Diego': 'CA',
     'Orange': 'CA',
     'Los Angeles': 'CA',
+    'Riverside': 'CA',
+    'San Bernardino': 'CA',
     'San Francisco': 'CA',
     'Alameda': 'CA',
     'Contra Costa': 'CA',

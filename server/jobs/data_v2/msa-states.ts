@@ -7,6 +7,7 @@ export const MSA_STATE: Record<string, string> = {
     "Los Angeles-Long Beach-Anaheim, CA":        "CA",
     "Miami-Fort Lauderdale-West Palm Beach, FL": "FL",
     "Port St. Lucie, FL":                        "FL",
+    "Riverside-San Bernardino-Ontario, CA":      "CA",
     "San Diego-Chula Vista-Carlsbad, CA":        "CA",
     "San Francisco-Oakland-Fremont, CA":         "CA",
     "Seattle-Tacoma-Bellevue, WA":               "WA",
