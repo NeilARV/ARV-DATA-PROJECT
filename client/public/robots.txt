@@ -1,0 +1,7 @@
+User-agent: Googlebot
+Disallow: /admin
+Disallow: /vendors
+Disallow: /deals
+Disallow: /profile
+Disallow: /analytics
+Disallow: /
