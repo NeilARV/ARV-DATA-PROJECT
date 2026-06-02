@@ -105,7 +105,7 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 
 The following workflows run automatically via `.claude/settings.json` and do not need to be invoked manually:
 
-- **Code Optimizer** (`.claude/docs/optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Runs at the end of each task.
+- **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Runs at the end of each task.
 - **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Runs at the end of each task. Will ask for approval before modifying any agent files.
 
 ---
