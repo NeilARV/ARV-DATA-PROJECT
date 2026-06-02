@@ -104,7 +104,7 @@ function HomeContent() {
             <div className="flex-1 grid grid-cols-[375px_1fr] grid-rows-[auto_1fr] overflow-hidden min-h-0">
                 {/* [row 1, col 1] Sidebar title — height auto-tracks FilterHeader */}
                 <div className="flex items-center px-4 border-b border-r border-border bg-background">
-                    <h2 className="text-base font-semibold">Investor Profiles</h2>
+                    <h2 className="text-lg lg:text-xl font-semibold">Investor Profiles</h2>
                 </div>
 
                 {/* [row 1, col 2] FilterHeader */}
