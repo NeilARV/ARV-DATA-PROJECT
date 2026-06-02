@@ -96,7 +96,7 @@ function HomeContent() {
 
     return (
         <div className="h-screen flex flex-col">
-            <Header county={filters.county} />
+            <Header />
 
             {/* CSS grid: col 1 = sidebar (375px), col 2 = content (1fr).
           Row 1 height is auto — FilterHeader and "Investor Profiles" title share

@@ -18,11 +18,6 @@ export type UploadDialogProps = {
     onSuccess?: () => void;
 };
 
-export type HeaderProps = {
-    onSearch?: (query: string) => void;
-    county?: string;
-};
-
 export type PropertySuggestion = {
     id: string;
     address: string;

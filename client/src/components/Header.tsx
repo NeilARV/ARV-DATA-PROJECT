@@ -1,10 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
     Map,
     Grid3x3,
     Table2,
-    Search,
     Moon,
     Sun,
     Settings,
@@ -18,6 +16,7 @@ import {
     ChevronDown,
     Mail,
     Store,
+    X,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
@@ -25,8 +24,6 @@ import darkLogoUrl from '@assets/arv-data-logo-dark.png';
 import lightLogoUrl from '@assets/arv-data-logo-light.png';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { X } from 'lucide-react';
-import type { HeaderProps, PropertySuggestion } from '@/types/general';
 import { useView } from '@/hooks/useView';
 import { useFilters } from '@/hooks/useFilters';
 import { useRequireSubscription } from '@/hooks/useRequireSubscription';
@@ -35,12 +32,11 @@ import { BUYERS_FEED_STATUS_FILTERS } from '@/constants/propertyStatus.constants
 import { WHOLESALE_VIEW_STATUS_FILTERS } from '@/constants/propertyStatus.constants';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGeoMap } from '@/hooks/useMap';
-import { fetchPropertyById } from '@/api/properties.api';
-import { MAP_ZOOM_LOGO, MAP_ZOOM_PROPERTY, MAP_ZOOM_COUNTY } from '@/constants/map.constants';
+import { MAP_ZOOM_LOGO, MAP_ZOOM_COUNTY } from '@/constants/map.constants';
 import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
 import { useProperty } from '@/hooks/useProperty';
 
-export default function Header({ onSearch, county }: HeaderProps) {
+export default function Header() {
     const { openDialog } = useDialogs();
     const { filters, setFilters, setSortBy, clearFilters } = useFilters();
     const { view, setView, setSidebarView } = useView();
@@ -48,7 +44,6 @@ export default function Header({ onSearch, county }: HeaderProps) {
     const { setCompany, loadCompanies, company } = useCompanies();
     const { setMapCenter, setMapZoom } = useGeoMap();
 
-    const [searchQuery, setSearchQuery] = useState('');
     // Initialize isDark synchronously to avoid wrong logo on first render
     const [isDark, setIsDark] = useState(() => {
         // Check localStorage first (faster)
@@ -58,18 +53,14 @@ export default function Header({ onSearch, county }: HeaderProps) {
         // Fallback to checking DOM class list
         return document.documentElement.classList.contains('dark');
     });
-    const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const { requireSubscription, ContactDialog, setShowContact } = useRequireSubscription();
 
-    const searchInputRef = useRef<HTMLInputElement>(null);
-    const suggestionsRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const [location, setLocation] = useLocation();
-    const { user, isAuthenticated, canAccessAdminPanel, logout, canAccessApp } = useAuth();
+    const { user, isAuthenticated, canAccessAdminPanel, logout } = useAuth();
     const { toast } = useToast();
 
     // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -79,55 +70,6 @@ export default function Header({ onSearch, county }: HeaderProps) {
             setIsDark(isDarkMode);
         }
     }, [isDark]);
-
-    // Debounced API call for suggestions
-    useEffect(() => {
-        const fetchSuggestions = async () => {
-            const trimmedQuery = searchQuery.trim();
-            if (trimmedQuery.length < 2) {
-                setSuggestions([]);
-                setShowSuggestions(false);
-                return;
-            }
-
-            try {
-                const countyParam = county ? `&county=${encodeURIComponent(county)}` : '';
-                const response = await fetch(
-                    `/api/properties/suggestions?search=${encodeURIComponent(trimmedQuery)}${countyParam}`,
-                    { credentials: 'include' },
-                );
-                if (response.ok) {
-                    const data = await response.json();
-                    setSuggestions(data);
-                    setShowSuggestions(data.length > 0);
-                }
-            } catch (error) {
-                console.error('Error fetching suggestions:', error);
-                setSuggestions([]);
-                setShowSuggestions(false);
-            }
-        };
-
-        const timeoutId = setTimeout(fetchSuggestions, 300); // 300ms debounce
-        return () => clearTimeout(timeoutId);
-    }, [searchQuery, county]);
-
-    // Handle click outside to close suggestions
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                suggestionsRef.current &&
-                !suggestionsRef.current.contains(event.target as Node) &&
-                searchInputRef.current &&
-                !searchInputRef.current.contains(event.target as Node)
-            ) {
-                setShowSuggestions(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     // Handle click outside to close menu
     useEffect(() => {
@@ -164,29 +106,6 @@ export default function Header({ onSearch, county }: HeaderProps) {
         } else {
             document.documentElement.classList.remove('dark');
             localStorage.setItem('theme', 'light');
-        }
-    };
-
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        setShowSuggestions(false);
-        onSearch?.(searchQuery);
-        console.log('Search:', searchQuery);
-    };
-
-    const selectSuggestion = (suggestion: PropertySuggestion) => {
-        // Format the suggestion as a search query (e.g., "123 Main St, San Diego, CA 92101")
-        const formattedQuery = `${suggestion.address}, ${suggestion.city}, ${suggestion.state} ${suggestion.zipcode}`;
-        setSearchQuery(formattedQuery);
-        setShowSuggestions(false);
-
-        // If onPropertySelect is provided, fetch and open the property by ID
-        if (onPropertySelect) {
-            onPropertySelect(suggestion.id);
-            setSearchQuery('');
-        } else {
-            // Fallback to search if onPropertySelect is not provided
-            onSearch?.(formattedQuery);
         }
     };
 
@@ -244,20 +163,6 @@ export default function Header({ onSearch, county }: HeaderProps) {
         setMapZoom(MAP_ZOOM_LOGO);
     };
 
-    // Handle property selection by ID (for search suggestions)
-    const onPropertySelect = async (propertyId: string) => {
-        const property = await fetchPropertyById(propertyId);
-        if (property) {
-            setProperty(property);
-
-            // If on map view, center on the property if it has coordinates
-            if (view === 'map' && property.latitude && property.longitude) {
-                setMapCenter([property.latitude, property.longitude]);
-                setMapZoom(MAP_ZOOM_PROPERTY);
-            }
-        }
-    };
-
     return (
         <header
             className="h-16 border-b border-border bg-background flex items-center justify-between px-4 gap-4"
@@ -278,65 +183,6 @@ export default function Header({ onSearch, county }: HeaderProps) {
                     />
                     <h1 className="text-xl lg:text-2xl font-semibold hidden sm:block">ARV Data</h1>
                 </button>
-
-                <form onSubmit={handleSearch} className="flex-1 max-w-[350px] min-w-0">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            ref={searchInputRef}
-                            type="search"
-                            placeholder="Search by address"
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                if (e.target.value.trim().length >= 2) {
-                                    // Suggestions will show via useEffect
-                                } else {
-                                    setShowSuggestions(false);
-                                }
-                            }}
-                            onFocus={() => {
-                                if (suggestions.length > 0) {
-                                    setShowSuggestions(true);
-                                }
-                            }}
-                            className="pl-10"
-                            data-testid="input-search"
-                        />
-                        {searchQuery && (
-                            <X
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:cursor-pointer hover:text-foreground transition-colors z-10"
-                                onClick={() => {
-                                    setSearchQuery('');
-                                    setSuggestions([]);
-                                    setShowSuggestions(false);
-                                }}
-                            />
-                        )}
-                        {showSuggestions && suggestions.length > 0 && (
-                            <div
-                                ref={suggestionsRef}
-                                className="absolute z-[1001] w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto"
-                                data-testid="search-suggestions"
-                            >
-                                {suggestions.map((suggestion) => (
-                                    <div
-                                        key={suggestion.id}
-                                        className="px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                                        onClick={() => selectSuggestion(suggestion)}
-                                        data-testid={`suggestion-${suggestion.id}`}
-                                    >
-                                        <div className="font-medium">{suggestion.address}</div>
-                                        <div className="text-muted-foreground text-xs">
-                                            {suggestion.city}, {suggestion.state}{' '}
-                                            {suggestion.zipcode}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </form>
 
                 <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="flex items-center border border-border rounded-md">
