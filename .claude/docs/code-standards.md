@@ -772,49 +772,11 @@ for (const property of properties) { ... }
 
 ## 19. Formatting & Style
 
-### Indentation & Spacing
+Prettier handles all formatting automatically (see `.prettierrc`). Do not override or fight it — indentation, semicolons, quotes, trailing commas, print width, and line endings are all enforced there.
 
-- **4 spaces** per indentation level. No tabs.
-- No trailing whitespace.
-- Files end with a single newline.
+Additional conventions Prettier does not cover:
 
-### Line Length
-
-- Soft limit: 100 characters. Hard limit: 120 characters.
-- Break long chains and JSX attribute lists across multiple lines for readability.
-
-### Semicolons
-
-- Always use semicolons.
-
-### Quotes
-
-- Single quotes for TypeScript/JavaScript strings: `'hello'`.
-- Double quotes for JSX attribute strings: `className="flex items-center"`.
-
-### Trailing Commas
-
-- Use trailing commas in multi-line arrays, objects, function parameters, and destructuring patterns.
-
-```ts
-const user = {
-    id: "123",
-    email: "user@example.com",
-    role: "admin",
-};
-```
-
-### Object / Array Formatting
-
-- Short objects and arrays that fit on one line: keep on one line.
-- Once they exceed ~80 characters or contain 3+ properties, split to multi-line with trailing commas.
-
-### Type Assertion
-
-- Prefer type narrowing and type guards over `as` casts.
-- Never use `as any`. If you find yourself reaching for it, stop and properly type the thing.
-
-### ES Modules
-
+- Prefer type narrowing and type guards over `as` casts. Never use `as any`.
 - Use ES module syntax (`import`/`export`) everywhere. No `require()`.
 - Server files use `.js` extensions in import paths (TypeScript compiles to `.js`, Node requires it for ESM).
+- Short objects and arrays that fit on one line: keep on one line. Once they exceed ~80 characters or contain 3+ properties, split to multi-line.
