@@ -587,7 +587,10 @@ export async function sendDealNotification(
             return;
         }
 
-        const seen = new Set<string>([posterUserId]);
+        // neil@arvfinance.com receives notifications for his own postings; all other posters do not
+        const posterInSubscribers = subscribedUsers.find((u) => u.id === posterUserId);
+        const posterIsNeil = posterInSubscribers?.email?.toLowerCase() === 'neil@arvfinance.com';
+        const seen = new Set<string>(posterIsNeil ? [] : [posterUserId]);
         const uniqueUsers = subscribedUsers.filter((u) => {
             if (seen.has(u.id)) return false;
             seen.add(u.id);
