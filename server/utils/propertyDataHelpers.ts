@@ -1,12 +1,12 @@
 /**
  * Property Data Helpers
- * 
+ *
  * Helper functions for transforming SFR API property data to database schema format
  * and inserting property-related data. Used by both single property creation and batch sync.
  */
 
-import { db } from "server/storage";
-import { eq } from "drizzle-orm";
+import { db } from 'server/storage';
+import { eq } from 'drizzle-orm';
 import {
     addresses,
     structures,
@@ -19,14 +19,14 @@ import {
     preForeclosures,
     lastSales,
     currentSales,
-} from "@database/schemas/properties.schema";
+} from '@database/schemas/properties.schema';
 import {
     normalizeAddress,
     normalizeToTitleCase,
     normalizeSubdivision,
     trimCompanyName,
     normalizeDateToYMD,
-} from "./normalization";
+} from './normalization';
 
 // ============================================================================
 // TYPES
@@ -96,7 +96,7 @@ export interface SfrPropertyData {
         roof_material_type?: string | null;
         roof_style_type?: string | null;
         sewer_type?: string | null;
-        stories?: number | string;  // Can be number or string like "1 Story"
+        stories?: number | string; // Can be number or string like "1 Story"
         units_count?: number | null;
         water_type?: string | null;
         living_area_sqft?: number;
@@ -128,9 +128,9 @@ export interface SfrPropertyData {
     parcel?: {
         apn_original?: string;
         fips_code?: string;
-        frontage_ft?: number | string;  // Can be string like "730"
-        depth_ft?: number | string;     // Can be string like "1050"
-        area_acres?: number | string;   // Can be string like "0000000175"
+        frontage_ft?: number | string; // Can be string like "730"
+        depth_ft?: number | string; // Can be string like "1050"
+        area_acres?: number | string; // Can be string like "0000000175"
         area_sq_ft?: number;
         zoning?: string;
         county_land_use_code?: string;
@@ -185,8 +185,8 @@ interface SfrSaleData {
     mtg_amount?: number;
     mtg_type?: string;
     lender?: string;
-    mtg_interest_rate?: number | string;  // Can be string like " 00617"
-    mtg_term_months?: number | string;    // Can be string like "12"
+    mtg_interest_rate?: number | string; // Can be string like " 00617"
+    mtg_term_months?: number | string; // Can be string like "12"
 }
 
 interface SfrCurrentSaleData {
@@ -206,7 +206,11 @@ interface SfrCurrentSaleData {
 // These functions transform SFR API data to database record format
 // ============================================================================
 
-export function transformAddressData(propertyId: string, propertyData: SfrPropertyData, normalizedCounty: string | null) {
+export function transformAddressData(
+    propertyId: string,
+    propertyData: SfrPropertyData,
+    normalizedCounty: string | null,
+) {
     const addr = propertyData.address;
     if (!addr) return null;
 
@@ -245,9 +249,10 @@ export function transformStructureData(propertyId: string, propertyData: SfrProp
         effectiveYearBuilt: struct.effective_year_built || null,
         bedsCount: struct.beds_count || null,
         roomsCount: struct.rooms_count || null,
-        baths: struct.baths != null
-            ? String(Number(struct.baths) + (struct.partial_baths_count ?? 0) * 0.5)
-            : null,
+        baths:
+            struct.baths != null
+                ? String(Number(struct.baths) + (struct.partial_baths_count ?? 0) * 0.5)
+                : null,
         basementType: struct.basement_type || null,
         condition: struct.condition || null,
         constructionType: struct.construction_type || null,
@@ -278,10 +283,18 @@ export function transformAssessmentData(propertyId: string, propertyData: SfrPro
     return {
         propertyId,
         assessedYear: propertyData.assessed_year,
-        landValue: propertyData.assessments.land_value ? String(propertyData.assessments.land_value) : null,
-        improvementValue: propertyData.assessments.improvement_value ? String(propertyData.assessments.improvement_value) : null,
-        assessedValue: propertyData.assessments.assessed_value ? String(propertyData.assessments.assessed_value) : null,
-        marketValue: propertyData.assessments.market_value ? String(propertyData.assessments.market_value) : null,
+        landValue: propertyData.assessments.land_value
+            ? String(propertyData.assessments.land_value)
+            : null,
+        improvementValue: propertyData.assessments.improvement_value
+            ? String(propertyData.assessments.improvement_value)
+            : null,
+        assessedValue: propertyData.assessments.assessed_value
+            ? String(propertyData.assessments.assessed_value)
+            : null,
+        marketValue: propertyData.assessments.market_value
+            ? String(propertyData.assessments.market_value)
+            : null,
     };
 }
 
@@ -312,9 +325,13 @@ export function transformParcelData(propertyId: string, propertyData: SfrPropert
         propertyId,
         apnOriginal: propertyData.parcel.apn_original || null,
         fipsCode: propertyData.parcel.fips_code || null,
-        frontageFt: propertyData.parcel.frontage_ft != null ? String(propertyData.parcel.frontage_ft) : null,
+        frontageFt:
+            propertyData.parcel.frontage_ft != null
+                ? String(propertyData.parcel.frontage_ft)
+                : null,
         depthFt: propertyData.parcel.depth_ft != null ? String(propertyData.parcel.depth_ft) : null,
-        areaAcres: propertyData.parcel.area_acres != null ? String(propertyData.parcel.area_acres) : null,
+        areaAcres:
+            propertyData.parcel.area_acres != null ? String(propertyData.parcel.area_acres) : null,
         areaSqFt: propertyData.parcel.area_sq_ft || null,
         zoning: propertyData.parcel.zoning || null,
         countyLandUseCode: propertyData.parcel.county_land_use_code || null,
@@ -359,7 +376,9 @@ export function transformValuationData(propertyId: string, propertyData: SfrProp
         value: propertyData.valuation.value ? String(propertyData.valuation.value) : null,
         high: propertyData.valuation.high ? String(propertyData.valuation.high) : null,
         low: propertyData.valuation.low ? String(propertyData.valuation.low) : null,
-        forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation ? String(propertyData.valuation.forecast_standard_deviation) : null,
+        forecastStandardDeviation: propertyData.valuation.forecast_standard_deviation
+            ? String(propertyData.valuation.forecast_standard_deviation)
+            : null,
         valuationDate: propertyData.valuation.date || null,
     };
 }
@@ -397,21 +416,32 @@ export function transformLastSaleData(
     propertyId: string,
     propertyData: SfrPropertyData,
     recordingDateOverride?: string | null,
-    buyersMarket?: BuyersMarketSaleData | null
+    buyersMarket?: BuyersMarketSaleData | null,
 ) {
     const lastSale = propertyData.last_sale || propertyData.lastSale;
-    const useBuyersMarket = buyersMarket && (buyersMarket.saleDate !== undefined || buyersMarket.recordingDate !== undefined || buyersMarket.saleValue !== undefined);
+    const useBuyersMarket =
+        buyersMarket &&
+        (buyersMarket.saleDate !== undefined ||
+            buyersMarket.recordingDate !== undefined ||
+            buyersMarket.saleValue !== undefined);
     if (!lastSale && !useBuyersMarket) return null;
 
-    const saleDate = useBuyersMarket && buyersMarket!.saleDate !== undefined
-        ? normalizeDateToYMD(buyersMarket!.saleDate)
-        : (lastSale?.date ?? null);
-    const recordingDate = useBuyersMarket && buyersMarket!.recordingDate !== undefined
-        ? normalizeDateToYMD(buyersMarket!.recordingDate)
-        : (recordingDateOverride !== undefined ? recordingDateOverride : (lastSale?.recording_date ?? null));
-    const price = useBuyersMarket && buyersMarket!.saleValue != null
-        ? String(buyersMarket!.saleValue)
-        : (lastSale?.price ? String(lastSale.price) : null);
+    const saleDate =
+        useBuyersMarket && buyersMarket!.saleDate !== undefined
+            ? normalizeDateToYMD(buyersMarket!.saleDate)
+            : (lastSale?.date ?? null);
+    const recordingDate =
+        useBuyersMarket && buyersMarket!.recordingDate !== undefined
+            ? normalizeDateToYMD(buyersMarket!.recordingDate)
+            : recordingDateOverride !== undefined
+              ? recordingDateOverride
+              : (lastSale?.recording_date ?? null);
+    const price =
+        useBuyersMarket && buyersMarket!.saleValue != null
+            ? String(buyersMarket!.saleValue)
+            : lastSale?.price
+              ? String(lastSale.price)
+              : null;
 
     return {
         propertyId,
@@ -422,7 +452,8 @@ export function transformLastSaleData(
         mtgAmount: lastSale?.mtg_amount ? String(lastSale.mtg_amount) : null,
         mtgType: lastSale?.mtg_type ?? null,
         lender: lastSale?.lender ? trimCompanyName(lastSale.lender) : null,
-        mtgInterestRate: lastSale?.mtg_interest_rate != null ? String(lastSale.mtg_interest_rate) : null,
+        mtgInterestRate:
+            lastSale?.mtg_interest_rate != null ? String(lastSale.mtg_interest_rate) : null,
         mtgTermMonths: lastSale?.mtg_term_months != null ? String(lastSale.mtg_term_months) : null,
     };
 }
@@ -434,18 +465,26 @@ export function transformLastSaleData(
 export function transformCurrentSaleData(
     propertyId: string,
     propertyData: SfrPropertyData,
-    buyersMarket?: BuyersMarketSaleData | null
+    buyersMarket?: BuyersMarketSaleData | null,
 ) {
     const currentSale = propertyData.current_sale || propertyData.currentSale;
-    const useBuyersMarket = buyersMarket && (buyersMarket.buyerName !== undefined || buyersMarket.sellerName !== undefined);
+    const useBuyersMarket =
+        buyersMarket &&
+        (buyersMarket.buyerName !== undefined || buyersMarket.sellerName !== undefined);
     if (!currentSale && !useBuyersMarket) return null;
 
-    const buyer1 = useBuyersMarket && buyersMarket!.buyerName != null
-        ? trimCompanyName(buyersMarket!.buyerName)
-        : (currentSale ? trimCompanyName(currentSale.buyer_1 || currentSale.buyer1) : null);
-    const seller1 = useBuyersMarket && buyersMarket!.sellerName != null
-        ? trimCompanyName(buyersMarket!.sellerName)
-        : (currentSale ? trimCompanyName(currentSale.seller_1 || currentSale.seller1) : null);
+    const buyer1 =
+        useBuyersMarket && buyersMarket!.buyerName != null
+            ? trimCompanyName(buyersMarket!.buyerName)
+            : currentSale
+              ? trimCompanyName(currentSale.buyer_1 || currentSale.buyer1)
+              : null;
+    const seller1 =
+        useBuyersMarket && buyersMarket!.sellerName != null
+            ? trimCompanyName(buyersMarket!.sellerName)
+            : currentSale
+              ? trimCompanyName(currentSale.seller_1 || currentSale.seller1)
+              : null;
 
     return {
         propertyId,
@@ -481,7 +520,7 @@ export function transformAllPropertyData(
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
     recordingDateOverride?: string | null,
-    buyersMarketData?: BuyersMarketSaleData | null
+    buyersMarketData?: BuyersMarketSaleData | null,
 ): TransformedPropertyData {
     return {
         address: transformAddressData(propertyId, propertyData, normalizedCounty),
@@ -493,7 +532,12 @@ export function transformAllPropertyData(
         taxRecord: transformTaxRecordData(propertyId, propertyData),
         valuation: transformValuationData(propertyId, propertyData),
         preForeclosure: transformPreForeclosureData(propertyId, propertyData),
-        lastSale: transformLastSaleData(propertyId, propertyData, recordingDateOverride, buyersMarketData),
+        lastSale: transformLastSaleData(
+            propertyId,
+            propertyData,
+            recordingDateOverride,
+            buyersMarketData,
+        ),
         currentSale: transformCurrentSaleData(propertyId, propertyData, buyersMarketData),
     };
 }
@@ -514,9 +558,15 @@ export async function insertPropertyRelatedData(
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
     recordingDateOverride?: string | null,
-    buyersMarketData?: BuyersMarketSaleData | null
+    buyersMarketData?: BuyersMarketSaleData | null,
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
+    const data = transformAllPropertyData(
+        propertyId,
+        propertyData,
+        normalizedCounty,
+        recordingDateOverride,
+        buyersMarketData,
+    );
 
     // Insert each table's data if it exists
     if (data.address) {
@@ -599,9 +649,15 @@ export function collectPropertyData(
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
     recordingDateOverride?: string | null,
-    buyersMarketData?: BuyersMarketSaleData | null
+    buyersMarketData?: BuyersMarketSaleData | null,
 ): void {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
+    const data = transformAllPropertyData(
+        propertyId,
+        propertyData,
+        normalizedCounty,
+        recordingDateOverride,
+        buyersMarketData,
+    );
 
     if (data.address) collectors.addresses.push(data.address);
     if (data.structure) collectors.structures.push(data.structure);
@@ -670,33 +726,63 @@ export async function updatePropertyRelatedDataForExisting(
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
     recordingDateOverride?: string | null,
-    buyersMarketData?: BuyersMarketSaleData | null
+    buyersMarketData?: BuyersMarketSaleData | null,
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
+    const data = transformAllPropertyData(
+        propertyId,
+        propertyData,
+        normalizedCounty,
+        recordingDateOverride,
+        buyersMarketData,
+    );
 
     if (data.address) {
-        await db.update(addresses).set(omit(data.address, "propertyId")).where(eq(addresses.propertyId, propertyId));
+        await db
+            .update(addresses)
+            .set(omit(data.address, 'propertyId'))
+            .where(eq(addresses.propertyId, propertyId));
     }
     if (data.structure) {
-        await db.update(structures).set(omit(data.structure, "propertyId")).where(eq(structures.propertyId, propertyId));
+        await db
+            .update(structures)
+            .set(omit(data.structure, 'propertyId'))
+            .where(eq(structures.propertyId, propertyId));
     }
     if (data.exemption) {
-        await db.update(exemptions).set(omit(data.exemption, "propertyId")).where(eq(exemptions.propertyId, propertyId));
+        await db
+            .update(exemptions)
+            .set(omit(data.exemption, 'propertyId'))
+            .where(eq(exemptions.propertyId, propertyId));
     }
     if (data.parcel) {
-        await db.update(parcels).set(omit(data.parcel, "propertyId")).where(eq(parcels.propertyId, propertyId));
+        await db
+            .update(parcels)
+            .set(omit(data.parcel, 'propertyId'))
+            .where(eq(parcels.propertyId, propertyId));
     }
     if (data.schoolDistrict) {
-        await db.update(schoolDistricts).set(omit(data.schoolDistrict, "propertyId")).where(eq(schoolDistricts.propertyId, propertyId));
+        await db
+            .update(schoolDistricts)
+            .set(omit(data.schoolDistrict, 'propertyId'))
+            .where(eq(schoolDistricts.propertyId, propertyId));
     }
     if (data.lastSale) {
-        await db.update(lastSales).set(omit(data.lastSale, "propertyId")).where(eq(lastSales.propertyId, propertyId));
+        await db
+            .update(lastSales)
+            .set(omit(data.lastSale, 'propertyId'))
+            .where(eq(lastSales.propertyId, propertyId));
     }
     if (data.currentSale) {
-        await db.update(currentSales).set(omit(data.currentSale, "propertyId")).where(eq(currentSales.propertyId, propertyId));
+        await db
+            .update(currentSales)
+            .set(omit(data.currentSale, 'propertyId'))
+            .where(eq(currentSales.propertyId, propertyId));
     }
     if (data.preForeclosure) {
-        await db.update(preForeclosures).set(omit(data.preForeclosure, "propertyId")).where(eq(preForeclosures.propertyId, propertyId));
+        await db
+            .update(preForeclosures)
+            .set(omit(data.preForeclosure, 'propertyId'))
+            .where(eq(preForeclosures.propertyId, propertyId));
     }
 }
 
@@ -708,9 +794,15 @@ export async function addPropertyOneToManyDataIfNew(
     propertyData: SfrPropertyData,
     normalizedCounty: string | null,
     recordingDateOverride?: string | null,
-    buyersMarketData?: BuyersMarketSaleData | null
+    buyersMarketData?: BuyersMarketSaleData | null,
 ): Promise<void> {
-    const data = transformAllPropertyData(propertyId, propertyData, normalizedCounty, recordingDateOverride, buyersMarketData);
+    const data = transformAllPropertyData(
+        propertyId,
+        propertyData,
+        normalizedCounty,
+        recordingDateOverride,
+        buyersMarketData,
+    );
 
     if (data.assessment && propertyData.assessed_year) {
         const existing = await db
@@ -742,7 +834,9 @@ export async function addPropertyOneToManyDataIfNew(
                 .from(valuations)
                 .where(eq(valuations.propertyId, propertyId));
             const existingDates = new Set(
-                existing.map((r) => (r.valuationDate ? normalizeDateToYMD(r.valuationDate) : null)).filter(Boolean)
+                existing
+                    .map((r) => (r.valuationDate ? normalizeDateToYMD(r.valuationDate) : null))
+                    .filter(Boolean),
             );
             if (!existingDates.has(valDate)) {
                 await db.insert(valuations).values(data.valuation);

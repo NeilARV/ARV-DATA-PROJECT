@@ -1,7 +1,10 @@
-import { Request, Response } from "express";
-import { CompaniesServices } from "server/services/companies";
-import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
-import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
+import { Request, Response } from 'express';
+import { CompaniesServices } from 'server/services/companies';
+import {
+    updateCompanySchema,
+    updateCompanyContactSchema,
+} from '@database/updates/companies.update';
+import { insertCompanyContactSchema } from '@database/inserts/companyContacts.insert';
 
 export async function getCompanySuggestionsHandler(req: Request, res: Response) {
     try {
@@ -11,12 +14,12 @@ export async function getCompanySuggestionsHandler(req: Request, res: Response) 
         }
         const results = await CompaniesServices.getCompanySuggestions(
             search.toString(),
-            county?.toString()
+            county?.toString(),
         );
         return res.status(200).json(results);
     } catch (error) {
-        console.error("Error fetching company suggestions:", error);
-        return res.status(500).json({ message: "Error fetching company suggestions" });
+        console.error('Error fetching company suggestions:', error);
+        return res.status(500).json({ message: 'Error fetching company suggestions' });
     }
 }
 
@@ -32,8 +35,8 @@ export async function getContactsHandler(req: Request, res: Response) {
         });
         return res.json(result);
     } catch (error) {
-        console.error("Error fetching companies:", error);
-        return res.status(500).json({ message: "Error fetching companies" });
+        console.error('Error fetching companies:', error);
+        return res.status(500).json({ message: 'Error fetching companies' });
     }
 }
 
@@ -43,19 +46,19 @@ export async function getWholesaleLeaderboardHandler(req: Request, res: Response
         const result = await CompaniesServices.getWholesaleLeaderboard(county);
         return res.json(result);
     } catch (error) {
-        console.error("Error fetching wholesale leaderboard:", error);
-        return res.status(500).json({ message: "Error fetching wholesale leaderboard" });
+        console.error('Error fetching wholesale leaderboard:', error);
+        return res.status(500).json({ message: 'Error fetching wholesale leaderboard' });
     }
 }
 
 export async function getLeaderboardHandler(req: Request, res: Response) {
     try {
-        const county = req.query.county?.toString() || "San Diego";
+        const county = req.query.county?.toString() || 'San Diego';
         const result = await CompaniesServices.getLeaderboard(county);
         return res.json(result);
     } catch (error) {
-        console.error("Error fetching leaderboard:", error);
-        return res.status(500).json({ message: "Error fetching leaderboard" });
+        console.error('Error fetching leaderboard:', error);
+        return res.status(500).json({ message: 'Error fetching leaderboard' });
     }
 }
 
@@ -65,14 +68,14 @@ export async function getCompanyByIdHandler(req: Request, res: Response) {
         const county = req.query.county?.toString()?.trim();
         const company = await CompaniesServices.getCompanyById(id, county);
         if (!company) {
-            return res.status(404).json({ message: "Company contact not found" });
+            return res.status(404).json({ message: 'Company contact not found' });
         }
         return res.json(company);
     } catch (error) {
-        console.error("Error fetching company:", error);
+        console.error('Error fetching company:', error);
         return res.status(500).json({
-            message: "Error fetching company",
-            error: error instanceof Error ? error.message : "Unknown error",
+            message: 'Error fetching company',
+            error: error instanceof Error ? error.message : 'Unknown error',
         });
     }
 }
@@ -82,28 +85,30 @@ export async function updateCompanyHandler(req: Request, res: Response) {
         const { id } = req.params;
         const validation = updateCompanySchema.safeParse(req.body);
         if (!validation.success) {
-            console.error("Validation errors:", validation.error.errors);
-            return res.status(400).json({ message: "Invalid update data", errors: validation.error.errors });
+            console.error('Validation errors:', validation.error.errors);
+            return res
+                .status(400)
+                .json({ message: 'Invalid update data', errors: validation.error.errors });
         }
 
         if (Object.keys(validation.data).length === 0) {
-            return res.status(400).json({ message: "No fields provided to update" });
+            return res.status(400).json({ message: 'No fields provided to update' });
         }
 
         const result = await CompaniesServices.updateCompany(id, validation.data);
         switch (result.status) {
-            case "not-found":
-                return res.status(404).json({ message: "Company not found" });
-            case "duplicate-name":
-                return res.status(409).json({ message: "A company with this name already exists" });
-            case "ok":
+            case 'not-found':
+                return res.status(404).json({ message: 'Company not found' });
+            case 'duplicate-name':
+                return res.status(409).json({ message: 'A company with this name already exists' });
+            case 'ok':
                 return res.json(result.company);
         }
     } catch (error) {
-        console.error("Error updating company:", error);
+        console.error('Error updating company:', error);
         return res.status(500).json({
-            message: "Error updating company",
-            error: error instanceof Error ? error.message : "Unknown error",
+            message: 'Error updating company',
+            error: error instanceof Error ? error.message : 'Unknown error',
         });
     }
 }
@@ -113,18 +118,20 @@ export async function addContactHandler(req: Request, res: Response) {
         const { id } = req.params;
         const validation = insertCompanyContactSchema.safeParse(req.body);
         if (!validation.success) {
-            return res.status(400).json({ message: "Invalid contact data", errors: validation.error.errors });
+            return res
+                .status(400)
+                .json({ message: 'Invalid contact data', errors: validation.error.errors });
         }
         const result = await CompaniesServices.addContact(id, validation.data);
         switch (result.status) {
-            case "company-not-found":
-                return res.status(404).json({ message: "Company not found" });
-            case "ok":
+            case 'company-not-found':
+                return res.status(404).json({ message: 'Company not found' });
+            case 'ok':
                 return res.status(201).json(result.contact);
         }
     } catch (error) {
-        console.error("Error adding contact:", error);
-        return res.status(500).json({ message: "Error adding contact" });
+        console.error('Error adding contact:', error);
+        return res.status(500).json({ message: 'Error adding contact' });
     }
 }
 
@@ -133,25 +140,27 @@ export async function updateContactHandler(req: Request, res: Response) {
         const { id, contactId } = req.params;
         const contactIdNum = parseInt(contactId, 10);
         if (isNaN(contactIdNum)) {
-            return res.status(400).json({ message: "Invalid contact ID" });
+            return res.status(400).json({ message: 'Invalid contact ID' });
         }
         const validation = updateCompanyContactSchema.safeParse(req.body);
         if (!validation.success) {
-            return res.status(400).json({ message: "Invalid contact data", errors: validation.error.errors });
+            return res
+                .status(400)
+                .json({ message: 'Invalid contact data', errors: validation.error.errors });
         }
         if (Object.keys(validation.data).length === 0) {
-            return res.status(400).json({ message: "No fields provided to update" });
+            return res.status(400).json({ message: 'No fields provided to update' });
         }
         const result = await CompaniesServices.updateContact(id, contactIdNum, validation.data);
         switch (result.status) {
-            case "contact-not-found":
-                return res.status(404).json({ message: "Contact not found" });
-            case "ok":
+            case 'contact-not-found':
+                return res.status(404).json({ message: 'Contact not found' });
+            case 'ok':
                 return res.json(result.contact);
         }
     } catch (error) {
-        console.error("Error updating contact:", error);
-        return res.status(500).json({ message: "Error updating contact" });
+        console.error('Error updating contact:', error);
+        return res.status(500).json({ message: 'Error updating contact' });
     }
 }
 
@@ -160,18 +169,18 @@ export async function deleteContactHandler(req: Request, res: Response) {
         const { id, contactId } = req.params;
         const contactIdNum = parseInt(contactId, 10);
         if (isNaN(contactIdNum)) {
-            return res.status(400).json({ message: "Invalid contact ID" });
+            return res.status(400).json({ message: 'Invalid contact ID' });
         }
         const result = await CompaniesServices.deleteContact(id, contactIdNum);
         switch (result.status) {
-            case "contact-not-found":
-                return res.status(404).json({ message: "Contact not found" });
-            case "ok":
+            case 'contact-not-found':
+                return res.status(404).json({ message: 'Contact not found' });
+            case 'ok':
                 return res.status(204).send();
         }
     } catch (error) {
-        console.error("Error deleting contact:", error);
-        return res.status(500).json({ message: "Error deleting contact" });
+        console.error('Error deleting contact:', error);
+        return res.status(500).json({ message: 'Error deleting contact' });
     }
 }
 
@@ -179,26 +188,28 @@ export async function enrichCompanyHandler(req: Request, res: Response) {
     try {
         const { id } = req.params;
         const { state } = req.body as { state?: string };
-        if (!state || typeof state !== "string" || state.trim().length !== 2) {
-            return res.status(400).json({ message: "state is required and must be a 2-letter code (e.g. CA, FL)" });
+        if (!state || typeof state !== 'string' || state.trim().length !== 2) {
+            return res
+                .status(400)
+                .json({ message: 'state is required and must be a 2-letter code (e.g. CA, FL)' });
         }
         const result = await CompaniesServices.enrichCompany(id, state.trim().toUpperCase());
         switch (result.status) {
-            case "not-found":
-                return res.status(404).json({ message: "Company not found" });
-            case "unknown-jurisdiction":
+            case 'not-found':
+                return res.status(404).json({ message: 'Company not found' });
+            case 'unknown-jurisdiction':
                 return res.status(400).json({ message: `Unsupported state: ${result.state}` });
-            case "no-match":
+            case 'no-match':
                 return res.status(404).json({
                     message: `No exact match found for "${result.companyName}" in jurisdiction ${result.jurisdiction}`,
                 });
-            case "oc-error":
+            case 'oc-error':
                 return res.status(502).json({ message: result.message });
-            case "ok":
-                return res.status(200).json({ message: "Company enriched successfully" });
+            case 'ok':
+                return res.status(200).json({ message: 'Company enriched successfully' });
         }
     } catch (error) {
-        console.error("Error enriching company:", error);
-        return res.status(500).json({ message: "Error enriching company" });
+        console.error('Error enriching company:', error);
+        return res.status(500).json({ message: 'Error enriching company' });
     }
 }

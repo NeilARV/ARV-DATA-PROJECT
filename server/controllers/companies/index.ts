@@ -1,1 +1,1 @@
-export * as CompaniesController from "./companies.controllers";
+export * as CompaniesController from './companies.controllers';

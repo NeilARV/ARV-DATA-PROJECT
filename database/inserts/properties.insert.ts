@@ -1,86 +1,86 @@
-import { createInsertSchema } from "drizzle-zod";
+import { createInsertSchema } from 'drizzle-zod';
 import {
-  properties,
-  addresses,
-  assessments,
-  exemptions,
-  parcels,
-  schoolDistricts,
-  structures,
-  taxRecords,
-  valuations,
-  preForeclosures,
-  lastSales,
-  currentSales,
-  streetviewCache,
-  propertyTransactions,
-} from "../schemas";
-import { z } from "zod";
+    properties,
+    addresses,
+    assessments,
+    exemptions,
+    parcels,
+    schoolDistricts,
+    structures,
+    taxRecords,
+    valuations,
+    preForeclosures,
+    lastSales,
+    currentSales,
+    streetviewCache,
+    propertyTransactions,
+} from '../schemas';
+import { z } from 'zod';
 
 export const insertPropertySchema = createInsertSchema(properties).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+    id: true,
+    createdAt: true,
+    updatedAt: true,
 });
 
 export const insertAddressSchema = createInsertSchema(addresses).omit({
-  addressesId: true,
+    addressesId: true,
 });
 
 export const insertAssessmentSchema = createInsertSchema(assessments).omit({
-  assessmentsId: true,
+    assessmentsId: true,
 });
 
 export const insertExemptionSchema = createInsertSchema(exemptions).omit({
-  exemptionsId: true,
+    exemptionsId: true,
 });
 
 export const insertParcelSchema = createInsertSchema(parcels).omit({
-  parcelsId: true,
+    parcelsId: true,
 });
 
 export const insertSchoolDistrictSchema = createInsertSchema(schoolDistricts).omit({
-  schoolDistrictsId: true,
+    schoolDistrictsId: true,
 });
 
 export const insertStructureSchema = createInsertSchema(structures).omit({
-  structuresId: true,
+    structuresId: true,
 });
 
 export const insertTaxRecordSchema = createInsertSchema(taxRecords).omit({
-  taxRecordsId: true,
+    taxRecordsId: true,
 });
 
 export const insertValuationSchema = createInsertSchema(valuations).omit({
-  valuationsId: true,
+    valuationsId: true,
 });
 
 export const insertPreForeclosureSchema = createInsertSchema(preForeclosures).omit({
-  preForeclosuresId: true,
+    preForeclosuresId: true,
 });
 
 export const insertLastSaleSchema = createInsertSchema(lastSales).omit({
-  lastSalesId: true,
+    lastSalesId: true,
 });
 
 export const insertCurrentSaleSchema = createInsertSchema(currentSales).omit({
-  currentSalesId: true,
+    currentSalesId: true,
 });
 
 export const insertStreetviewCacheSchema = createInsertSchema(streetviewCache).omit({
-  id: true,
-  createdAt: true,
+    id: true,
+    createdAt: true,
 });
 
 export const insertPropertyTransactionSchema = createInsertSchema(propertyTransactions).omit({
-  propertyTransactionsId: true,
-  createdAt: true,
+    propertyTransactionsId: true,
+    createdAt: true,
 });
 
 export const manualPropertyEntrySchema = z.object({
-  address: z.string().min(1, "Address is required"),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  zipCode: z.string().min(5, "Valid zip code is required"),
-  dealType: z.enum(["wholesale", "agent"]).default("agent"),
+    address: z.string().min(1, 'Address is required'),
+    city: z.string().min(1, 'City is required'),
+    state: z.string().min(1, 'State is required'),
+    zipCode: z.string().min(5, 'Valid zip code is required'),
+    dealType: z.enum(['wholesale', 'agent']).default('agent'),
 });

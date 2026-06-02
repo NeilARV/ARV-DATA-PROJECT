@@ -97,27 +97,29 @@ function getConfig(): { baseUrl: string; apiKey: string } {
     const baseUrl = process.env.OPEN_CORPORATE_URL;
     const apiKey = process.env.OPEN_CORPORATE_API_KEY;
     if (!baseUrl || !apiKey) {
-        throw new Error("OPEN_CORPORATE_URL and OPEN_CORPORATE_API_KEY environment variables must be set");
+        throw new Error(
+            'OPEN_CORPORATE_URL and OPEN_CORPORATE_API_KEY environment variables must be set',
+        );
     }
     return { baseUrl, apiKey };
 }
 
 export async function searchCompany(
     name: string,
-    jurisdictionCode: string
+    jurisdictionCode: string,
 ): Promise<{ companies: OcSearchCompany[]; totalCount: number }> {
     const { baseUrl, apiKey } = getConfig();
     const params = new URLSearchParams({
         api_token: apiKey,
         q: name,
         jurisdiction_code: jurisdictionCode,
-        order: "score",
+        order: 'score',
     });
     const response = await fetch(`${baseUrl}/companies/search?${params}`);
     if (!response.ok) {
         throw new Error(`OpenCorporates search failed: ${response.status} ${response.statusText}`);
     }
-    const data = await response.json() as OcSearchResponse;
+    const data = (await response.json()) as OcSearchResponse;
     return {
         companies: data.results.companies,
         totalCount: data.results.total_count,
@@ -126,14 +128,18 @@ export async function searchCompany(
 
 export async function getCompanyByNumber(
     jurisdictionCode: string,
-    companyNumber: string
+    companyNumber: string,
 ): Promise<OcCompanyDetail> {
     const { baseUrl, apiKey } = getConfig();
     const params = new URLSearchParams({ api_token: apiKey });
-    const response = await fetch(`${baseUrl}/companies/${jurisdictionCode}/${companyNumber}?${params}`);
+    const response = await fetch(
+        `${baseUrl}/companies/${jurisdictionCode}/${companyNumber}?${params}`,
+    );
     if (!response.ok) {
-        throw new Error(`OpenCorporates company lookup failed: ${response.status} ${response.statusText}`);
+        throw new Error(
+            `OpenCorporates company lookup failed: ${response.status} ${response.statusText}`,
+        );
     }
-    const data = await response.json() as OcCompanyResponse;
+    const data = (await response.json()) as OcCompanyResponse;
     return data.results.company;
 }

@@ -1,6 +1,6 @@
-import { useAuth } from "@/hooks/use-auth";
-import { useDialogs } from "@/hooks/useDialogs";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/hooks/use-auth';
+import { useDialogs } from '@/hooks/useDialogs';
+import { useToast } from '@/hooks/use-toast';
 
 export function useRequireAuth() {
     const { isAuthenticated, isLoading } = useAuth();
@@ -12,10 +12,10 @@ export function useRequireAuth() {
         if (isLoading) return;
         if (!isAuthenticated) {
             toast({
-                title: "Sign in to continue",
-                description: "Log in or create an account to access this feature.",
+                title: 'Sign in to continue',
+                description: 'Log in or create an account to access this feature.',
             });
-            openDialog({ type: "login" });
+            openDialog({ type: 'login' });
             return;
         }
         action();

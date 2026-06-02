@@ -1,14 +1,23 @@
-import { useState, useRef, useEffect } from "react";
-import { MapPin, Phone, Globe, MoreVertical, Pencil, Trash2, CircleUser, Trophy } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { deleteVendor, toggleVendorRecommend } from "@/api/vendors.api";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import AppDialog from "@/components/modals/Dialog";
-import ConfirmationContent from "@/components/modals/Confirmation";
-import { EditVendorDialog } from "./EditVendorDialog";
-import type { Vendor } from "@/types/vendors";
+import { useState, useRef, useEffect } from 'react';
+import {
+    MapPin,
+    Phone,
+    Globe,
+    MoreVertical,
+    Pencil,
+    Trash2,
+    CircleUser,
+    Trophy,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { deleteVendor, toggleVendorRecommend } from '@/api/vendors.api';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import AppDialog from '@/components/modals/Dialog';
+import ConfirmationContent from '@/components/modals/Confirmation';
+import { EditVendorDialog } from './EditVendorDialog';
+import type { Vendor } from '@/types/vendors';
 
 type VendorCardProps = {
     vendor: Vendor;
@@ -18,18 +27,19 @@ type VendorCardProps = {
 
 export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
     const locationLine1 = vendor.address ?? null;
-    const locationLine2 = [vendor.city, vendor.state, vendor.zipCode].filter(Boolean).join(", ") || null;
+    const locationLine2 =
+        [vendor.city, vendor.state, vendor.zipCode].filter(Boolean).join(', ') || null;
 
     const { isAdmin, isOwner } = useAuth();
     const isPrivileged = isAdmin || isOwner;
 
-    const [showMenu, setShowMenu]                 = useState(false);
-    const [showEditDialog, setShowEditDialog]     = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
+    const [showEditDialog, setShowEditDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     const queryClient = useQueryClient();
-    const { toast }   = useToast();
+    const { toast } = useToast();
 
     useEffect(() => {
         if (!showMenu) return;
@@ -38,33 +48,43 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                 setShowMenu(false);
             }
         };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
     }, [showMenu]);
 
     const deleteMutation = useMutation({
         mutationFn: () => deleteVendor(vendor.id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendors-for-post"] });
-            queryClient.invalidateQueries({ queryKey: ["categories"] });
-            toast({ title: "Vendor deleted" });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendors-for-post'] });
+            queryClient.invalidateQueries({ queryKey: ['categories'] });
+            toast({ title: 'Vendor deleted' });
             setShowDeleteDialog(false);
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to delete vendor.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to delete vendor.',
+                variant: 'destructive',
+            });
         },
     });
 
     const recommendMutation = useMutation({
         mutationFn: () => toggleVendorRecommend(vendor.id),
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendors-recommended"] });
-            toast({ title: data.isRecommended ? "Added to recommended" : "Removed from recommended" });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendors-recommended'] });
+            toast({
+                title: data.isRecommended ? 'Added to recommended' : 'Removed from recommended',
+            });
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to update recommendation.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to update recommendation.',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -74,7 +94,7 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
         <>
             <div
                 className={`p-4 min-w-0 bg-card border rounded-xl transition-colors cursor-pointer ${
-                    isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
+                    isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'
                 }`}
                 onClick={() => onClick(vendor)}
             >
@@ -82,7 +102,11 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                 <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-primary/10 flex items-center justify-center">
                         {vendor.logoUrl ? (
-                            <img src={vendor.logoUrl} alt="" className="w-full h-full object-cover" />
+                            <img
+                                src={vendor.logoUrl}
+                                alt=""
+                                className="w-full h-full object-cover"
+                            />
                         ) : (
                             <CircleUser className="w-4 h-4 text-primary" />
                         )}
@@ -100,7 +124,10 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                     {isPrivileged && (
                         <div className="relative flex-shrink-0 self-start" ref={menuRef}>
                             <button
-                                onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowMenu((v) => !v);
+                                }}
                                 className="p-0.5 rounded hover:bg-muted transition-colors text-muted-foreground"
                             >
                                 <MoreVertical className="w-4 h-4" />
@@ -109,21 +136,35 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                                 <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-10">
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2"
-                                        onClick={(e) => { e.stopPropagation(); setShowEditDialog(true); setShowMenu(false); }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowEditDialog(true);
+                                            setShowMenu(false);
+                                        }}
                                     >
                                         <Pencil className="w-3.5 h-3.5" />
                                         Edit Vendor
                                     </button>
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2"
-                                        onClick={(e) => { e.stopPropagation(); recommendMutation.mutate(); setShowMenu(false); }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            recommendMutation.mutate();
+                                            setShowMenu(false);
+                                        }}
                                     >
                                         <Trophy className="w-3.5 h-3.5" />
-                                        {vendor.isRecommended ? "Remove from Recommended" : "Add to Recommended"}
+                                        {vendor.isRecommended
+                                            ? 'Remove from Recommended'
+                                            : 'Add to Recommended'}
                                     </button>
                                     <button
                                         className="w-full text-left px-3 py-2 text-xs hover:bg-muted text-destructive flex items-center gap-2"
-                                        onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); setShowMenu(false); }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowDeleteDialog(true);
+                                            setShowMenu(false);
+                                        }}
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
                                         Delete Vendor
@@ -141,8 +182,12 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                             <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
                                 <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
                                 <span className="leading-relaxed">
-                                    {locationLine1 && <span className="block">{locationLine1}</span>}
-                                    {locationLine2 && <span className="block">{locationLine2}</span>}
+                                    {locationLine1 && (
+                                        <span className="block">{locationLine1}</span>
+                                    )}
+                                    {locationLine2 && (
+                                        <span className="block">{locationLine2}</span>
+                                    )}
                                 </span>
                             </div>
                         )}
@@ -156,13 +201,17 @@ export function VendorCard({ vendor, isSelected, onClick }: VendorCardProps) {
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <Globe className="w-3 h-3 flex-shrink-0" />
                                 <a
-                                    href={vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`}
+                                    href={
+                                        vendor.website.startsWith('http')
+                                            ? vendor.website
+                                            : `https://${vendor.website}`
+                                    }
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="truncate hover:text-primary transition-colors"
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    {vendor.website.replace(/^https?:\/\//, "")}
+                                    {vendor.website.replace(/^https?:\/\//, '')}
                                 </a>
                             </div>
                         )}

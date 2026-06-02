@@ -13,11 +13,11 @@
  *   npm run seed:sort-order
  */
 
-import "dotenv/config";
-import { db } from "server/storage";
-import { properties, propertyTransactions } from "@database/schemas/properties.schema";
-import { eq, sql } from "drizzle-orm";
-import { sortTransactionsDesc } from "server/utils/orderTransactions";
+import 'dotenv/config';
+import { db } from 'server/storage';
+import { properties, propertyTransactions } from '@database/schemas/properties.schema';
+import { eq, sql } from 'drizzle-orm';
+import { sortTransactionsDesc } from 'server/utils/orderTransactions';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -28,8 +28,8 @@ const RESUME_FROM_DATE: string | null = null;
 
 function toDateStr(d: Date | string | null | undefined): string | null {
     if (d == null) return null;
-    if (typeof d === "string") return d.split("T")[0] ?? null;
-    return (d as Date).toISOString().split("T")[0] ?? null;
+    if (typeof d === 'string') return d.split('T')[0] ?? null;
+    return (d as Date).toISOString().split('T')[0] ?? null;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -40,7 +40,9 @@ async function main() {
     const startDate = RESUME_FROM_DATE;
 
     if (startDate) {
-        console.log(`[seed-sort-order] Resuming from ${startDate} (max recording_date <= ${startDate})`);
+        console.log(
+            `[seed-sort-order] Resuming from ${startDate} (max recording_date <= ${startDate})`,
+        );
     } else {
         console.log(`[seed-sort-order] Processing all properties (most recent first)`);
     }
@@ -56,7 +58,7 @@ async function main() {
         .having(
             startDate
                 ? sql`MAX(${propertyTransactions.recordingDate}) <= ${startDate}::date OR MAX(${propertyTransactions.recordingDate}) IS NULL`
-                : sql`1=1`
+                : sql`1=1`,
         )
         .orderBy(sql`MAX(${propertyTransactions.recordingDate}) DESC NULLS LAST`);
 
@@ -78,25 +80,29 @@ async function main() {
 
             if (txs.length === 0) continue;
 
-            type TxWithStrDates = Omit<typeof txs[number], "recordingDate" | "saleDate"> & {
+            type TxWithStrDates = Omit<(typeof txs)[number], 'recordingDate' | 'saleDate'> & {
                 recordingDate: string | null;
                 saleDate: string | null;
             };
 
             const sorted = sortTransactionsDesc(
-                txs.map((tx): TxWithStrDates => ({
-                    ...tx,
-                    recordingDate: toDateStr(tx.recordingDate),
-                    saleDate: toDateStr(tx.saleDate),
-                }))
+                txs.map(
+                    (tx): TxWithStrDates => ({
+                        ...tx,
+                        recordingDate: toDateStr(tx.recordingDate),
+                        saleDate: toDateStr(tx.saleDate),
+                    }),
+                ),
             );
 
             for (let i = 0; i < sorted.length; i++) {
-                const tx = sorted[i] as typeof txs[number];
+                const tx = sorted[i] as (typeof txs)[number];
                 await db
                     .update(propertyTransactions)
                     .set({ sortOrder: i + 1 })
-                    .where(eq(propertyTransactions.propertyTransactionsId, tx.propertyTransactionsId));
+                    .where(
+                        eq(propertyTransactions.propertyTransactionsId, tx.propertyTransactionsId),
+                    );
             }
 
             lastRecordingDate = toDateStr(row.maxRecordingDate);
@@ -106,7 +112,9 @@ async function main() {
         }
 
         const processed = Math.min(offset + BATCH_SIZE, total);
-        console.log(`[seed-sort-order] ${processed} / ${total} — last recording_date: ${lastRecordingDate ?? "none"}`);
+        console.log(
+            `[seed-sort-order] ${processed} / ${total} — last recording_date: ${lastRecordingDate ?? 'none'}`,
+        );
     }
 
     console.log(`\n[seed-sort-order] Done.`);
@@ -116,7 +124,7 @@ async function main() {
 
 main()
     .catch((err) => {
-        console.error("[seed-sort-order] Fatal error:", err);
+        console.error('[seed-sort-order] Fatal error:', err);
         process.exit(1);
     })
     .finally(() => process.exit(0));

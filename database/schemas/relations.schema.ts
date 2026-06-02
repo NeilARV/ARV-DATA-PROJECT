@@ -1,8 +1,8 @@
-import { relations } from "drizzle-orm";
-import { properties } from "./properties.schema";
-import { companies, companyMsas } from "./companies.schema";
-import { msas } from "./msas.schema";
-import { users } from "./users.schema";
+import { relations } from 'drizzle-orm';
+import { properties } from './properties.schema';
+import { companies, companyMsas } from './companies.schema';
+import { msas } from './msas.schema';
+import { users } from './users.schema';
 import {
     categories,
     vendors,
@@ -14,175 +14,174 @@ import {
     postComments,
     postVendorTags,
     postUserTags,
-} from "./vendors.schema";
+} from './vendors.schema';
 import {
-  addresses,
-  structures,
-  assessments,
-  exemptions,
-  parcels,
-  schoolDistricts,
-  taxRecords,
-  valuations,
-  preForeclosures,
-  lastSales,
-  currentSales,
-  propertyTransactions,
-} from "./properties.schema";
+    addresses,
+    structures,
+    assessments,
+    exemptions,
+    parcels,
+    schoolDistricts,
+    taxRecords,
+    valuations,
+    preForeclosures,
+    lastSales,
+    currentSales,
+    propertyTransactions,
+} from './properties.schema';
 
 export const propertiesRelations = relations(properties, ({ one, many }) => ({
-  address: one(addresses, {
-    fields: [properties.id],
-    references: [addresses.propertyId],
-  }),
-  structure: one(structures, {
-    fields: [properties.id],
-    references: [structures.propertyId],
-  }),
-  exemptions: one(exemptions, {
-    fields: [properties.id],
-    references: [exemptions.propertyId],
-  }),
-  parcel: one(parcels, {
-    fields: [properties.id],
-    references: [parcels.propertyId],
-  }),
-  schoolDistrict: one(schoolDistricts, {
-    fields: [properties.id],
-    references: [schoolDistricts.propertyId],
-  }),
-  preForeclosure: one(preForeclosures, {
-    fields: [properties.id],
-    references: [preForeclosures.propertyId],
-  }),
-  lastSale: one(lastSales, {
-    fields: [properties.id],
-    references: [lastSales.propertyId],
-  }),
-  currentSale: one(currentSales, {
-    fields: [properties.id],
-    references: [currentSales.propertyId],
-  }),
-  assessments: many(assessments),
-  taxRecords: many(taxRecords),
-  valuations: many(valuations),
-  transactions: many(propertyTransactions),
+    address: one(addresses, {
+        fields: [properties.id],
+        references: [addresses.propertyId],
+    }),
+    structure: one(structures, {
+        fields: [properties.id],
+        references: [structures.propertyId],
+    }),
+    exemptions: one(exemptions, {
+        fields: [properties.id],
+        references: [exemptions.propertyId],
+    }),
+    parcel: one(parcels, {
+        fields: [properties.id],
+        references: [parcels.propertyId],
+    }),
+    schoolDistrict: one(schoolDistricts, {
+        fields: [properties.id],
+        references: [schoolDistricts.propertyId],
+    }),
+    preForeclosure: one(preForeclosures, {
+        fields: [properties.id],
+        references: [preForeclosures.propertyId],
+    }),
+    lastSale: one(lastSales, {
+        fields: [properties.id],
+        references: [lastSales.propertyId],
+    }),
+    currentSale: one(currentSales, {
+        fields: [properties.id],
+        references: [currentSales.propertyId],
+    }),
+    assessments: many(assessments),
+    taxRecords: many(taxRecords),
+    valuations: many(valuations),
+    transactions: many(propertyTransactions),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
-  transactionsAsBuyer: many(propertyTransactions, { relationName: "transactionBuyer" }),
-  transactionsAsSeller: many(propertyTransactions, { relationName: "transactionSeller" }),
-  companyMsas: many(companyMsas),
+    transactionsAsBuyer: many(propertyTransactions, { relationName: 'transactionBuyer' }),
+    transactionsAsSeller: many(propertyTransactions, { relationName: 'transactionSeller' }),
+    companyMsas: many(companyMsas),
 }));
 
 export const companyMsasRelations = relations(companyMsas, ({ one }) => ({
-  company: one(companies, {
-    fields: [companyMsas.companyId],
-    references: [companies.id],
-  }),
-  msa: one(msas, {
-    fields: [companyMsas.msaId],
-    references: [msas.id],
-  }),
+    company: one(companies, {
+        fields: [companyMsas.companyId],
+        references: [companies.id],
+    }),
+    msa: one(msas, {
+        fields: [companyMsas.msaId],
+        references: [msas.id],
+    }),
 }));
 
 export const msasRelations = relations(msas, ({ many }) => ({
-  companyMsas: many(companyMsas),
+    companyMsas: many(companyMsas),
 }));
 
 export const addressesRelations = relations(addresses, ({ one }) => ({
-  property: one(properties, {
-    fields: [addresses.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [addresses.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const structuresRelations = relations(structures, ({ one }) => ({
-  property: one(properties, {
-    fields: [structures.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [structures.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const assessmentsRelations = relations(assessments, ({ one }) => ({
-  property: one(properties, {
-    fields: [assessments.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [assessments.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const exemptionsRelations = relations(exemptions, ({ one }) => ({
-  property: one(properties, {
-    fields: [exemptions.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [exemptions.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const parcelsRelations = relations(parcels, ({ one }) => ({
-  property: one(properties, {
-    fields: [parcels.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [parcels.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const schoolDistrictsRelations = relations(schoolDistricts, ({ one }) => ({
-  property: one(properties, {
-    fields: [schoolDistricts.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [schoolDistricts.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const taxRecordsRelations = relations(taxRecords, ({ one }) => ({
-  property: one(properties, {
-    fields: [taxRecords.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [taxRecords.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const valuationsRelations = relations(valuations, ({ one }) => ({
-  property: one(properties, {
-    fields: [valuations.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [valuations.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const preForeclosuresRelations = relations(preForeclosures, ({ one }) => ({
-  property: one(properties, {
-    fields: [preForeclosures.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [preForeclosures.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const lastSalesRelations = relations(lastSales, ({ one }) => ({
-  property: one(properties, {
-    fields: [lastSales.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [lastSales.propertyId],
+        references: [properties.id],
+    }),
 }));
 
 export const currentSalesRelations = relations(currentSales, ({ one }) => ({
-  property: one(properties, {
-    fields: [currentSales.propertyId],
-    references: [properties.id],
-  }),
+    property: one(properties, {
+        fields: [currentSales.propertyId],
+        references: [properties.id],
+    }),
 }));
 
-
 export const propertyTransactionsRelations = relations(propertyTransactions, ({ one }) => ({
-  property: one(properties, {
-    fields: [propertyTransactions.propertyId],
-    references: [properties.id],
-  }),
-  buyer: one(companies, {
-    fields: [propertyTransactions.buyerId],
-    references: [companies.id],
-    relationName: "transactionBuyer",
-  }),
-  seller: one(companies, {
-    fields: [propertyTransactions.sellerId],
-    references: [companies.id],
-    relationName: "transactionSeller",
-  }),
+    property: one(properties, {
+        fields: [propertyTransactions.propertyId],
+        references: [properties.id],
+    }),
+    buyer: one(companies, {
+        fields: [propertyTransactions.buyerId],
+        references: [companies.id],
+        relationName: 'transactionBuyer',
+    }),
+    seller: one(companies, {
+        fields: [propertyTransactions.sellerId],
+        references: [companies.id],
+        relationName: 'transactionSeller',
+    }),
 }));
 
 // ─── Community Relations ───────────────────────────────────────────────────────
@@ -274,9 +273,9 @@ export const postCommentsRelations = relations(postComments, ({ one, many }) => 
     parentComment: one(postComments, {
         fields: [postComments.parentCommentId],
         references: [postComments.id],
-        relationName: "commentReplies",
+        relationName: 'commentReplies',
     }),
-    replies: many(postComments, { relationName: "commentReplies" }),
+    replies: many(postComments, { relationName: 'commentReplies' }),
 }));
 
 export const postVendorTagsRelations = relations(postVendorTags, ({ one }) => ({

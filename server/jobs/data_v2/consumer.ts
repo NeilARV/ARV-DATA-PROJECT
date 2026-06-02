@@ -1,22 +1,27 @@
-import { db } from "server/storage";
-import { msas } from "@database/schemas/msas.schema";
-import { fetchQueue } from "./processes/fetch-queue";
-import { markProcessing, markComplete, markFailed, resetStaleProcessing } from "./processes/mark-queue";
+import { db } from 'server/storage';
+import { msas } from '@database/schemas/msas.schema';
+import { fetchQueue } from './processes/fetch-queue';
+import {
+    markProcessing,
+    markComplete,
+    markFailed,
+    resetStaleProcessing,
+} from './processes/mark-queue';
 
-import { batchLookup } from "./processes/batch-lookup";
-import { getTransactions } from "./processes/get-transactions";
-import { cleanTransactions } from "./processes/clean-transactions";
-import { insertCompanies } from "./processes/insert-companies";
-import { resolvePropertyIds } from "./processes/resolve-ids";
-import { resolveStatuses } from "./processes/resolve-status";
-import { cleanBeforeInsert } from "./processes/clean-before-insert";
-import { resolveArvFunded } from "./processes/is-arv-funded";
-import { insertProperties } from "./processes/insert-properties";
-import { updateArvClientCompanies } from "./processes/is-arv-client";
+import { batchLookup } from './processes/batch-lookup';
+import { getTransactions } from './processes/get-transactions';
+import { cleanTransactions } from './processes/clean-transactions';
+import { insertCompanies } from './processes/insert-companies';
+import { resolvePropertyIds } from './processes/resolve-ids';
+import { resolveStatuses } from './processes/resolve-status';
+import { cleanBeforeInsert } from './processes/clean-before-insert';
+import { resolveArvFunded } from './processes/is-arv-funded';
+import { insertProperties } from './processes/insert-properties';
+import { updateArvClientCompanies } from './processes/is-arv-client';
 
-import type { BuyersMarketRecord } from "./processes/get-market";
-import type { MarketScanQueue } from "@database/types/sync";
-import { MSA_STATE } from "./msa-states";
+import type { BuyersMarketRecord } from './processes/get-market';
+import type { MarketScanQueue } from '@database/types/sync';
+import { MSA_STATE } from './msa-states';
 
 /**
  * Maximum unique properties to process per MSA per consumer run.
@@ -25,12 +30,10 @@ import { MSA_STATE } from "./msa-states";
  * so 100 properties ≈ 1-2 minutes of API time per MSA.
  */
 
-
 /**
  * Adjusted from 10 --> 5 to reduce total processing time per call (8 minutes --> 4 minutes)
  */
 const MAX_PROPERTIES_PER_MSA = 5;
-
 
 /**
  * Converts a market_scan_queue row into the BuyersMarketRecord shape that the
@@ -85,7 +88,7 @@ function queueRowToMarketRecord(row: MarketScanQueue, msaName: string): BuyersMa
  *   cleanBeforeInsert → insertProperties → markComplete
  */
 export async function runConsumer(): Promise<void> {
-    const label = "[CONSUMER]";
+    const label = '[CONSUMER]';
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
 
@@ -97,7 +100,9 @@ export async function runConsumer(): Promise<void> {
     // 'pending' so it gets picked up on this run. Uses enqueuedAt as a staleness proxy.
     const staleReset = await resetStaleProcessing(60);
     if (staleReset > 0) {
-        console.log(`${label} Recovered ${staleReset} stale 'processing' row(s) → reset to 'pending'`);
+        console.log(
+            `${label} Recovered ${staleReset} stale 'processing' row(s) → reset to 'pending'`,
+        );
     }
 
     const msaList = await db.select().from(msas);
@@ -118,7 +123,6 @@ export async function runConsumer(): Promise<void> {
     };
 
     for (const msa of msaList) {
-
         const msaLabel = `${label}[${msa.name}]`;
         let batchNum = 0;
         let processedThisMsa = 0;
@@ -133,7 +137,9 @@ export async function runConsumer(): Promise<void> {
                 if (batchNum === 0) {
                     console.log(`${msaLabel} No pending rows`);
                 } else {
-                    console.log(`${msaLabel} Done — ${batchNum} batch(es), ${processedThisMsa} properties`);
+                    console.log(
+                        `${msaLabel} Done — ${batchNum} batch(es), ${processedThisMsa} properties`,
+                    );
                 }
                 break;
             }
@@ -143,7 +149,7 @@ export async function runConsumer(): Promise<void> {
 
             console.log(
                 `${msaLabel} Batch ${batchNum}: ${rows.length} properties ` +
-                `(${allPropertyIds.length} total queue rows to mark)`
+                    `(${allPropertyIds.length} total queue rows to mark)`,
             );
 
             // ── Mark all matching rows as 'processing' before starting work ────
@@ -155,7 +161,9 @@ export async function runConsumer(): Promise<void> {
                 const marketRecords = rows.map((row) => queueRowToMarketRecord(row, msa.name));
 
                 // ── Step 1: Batch property lookup (/properties/batch) ─────────
-                console.log(`${msaLabel} Batch ${batchNum}: fetching property details for ${rows.length} addresses`);
+                console.log(
+                    `${msaLabel} Batch ${batchNum}: fetching property details for ${rows.length} addresses`,
+                );
                 const mergedProperties = await batchLookup({
                     records: marketRecords,
                     API_KEY,
@@ -168,9 +176,9 @@ export async function runConsumer(): Promise<void> {
                     // Mark as failed so they appear in the queue for manual review rather
                     // than silently disappearing as "complete" with nothing inserted.
                     console.warn(
-                        `${msaLabel} Batch ${batchNum}: all ${rows.length} properties returned NOT_FOUND from batch lookup — marking failed`
+                        `${msaLabel} Batch ${batchNum}: all ${rows.length} properties returned NOT_FOUND from batch lookup — marking failed`,
                     );
-                    await markFailed(msa.id, allPropertyIds, "NOT_FOUND in batch property lookup");
+                    await markFailed(msa.id, allPropertyIds, 'NOT_FOUND in batch property lookup');
                     processedThisMsa += rows.length;
                     totals.propertiesProcessed += rows.length;
                     totals.propertiesFailed += rows.length;
@@ -183,23 +191,29 @@ export async function runConsumer(): Promise<void> {
                 // Mark them failed individually so they don't get silently marked 'complete'
                 // at the end of the batch without ever having been inserted.
                 const foundSfrPropertyIds = new Set(
-                    mergedProperties.map(mp =>
-                        Number((mp.property as Record<string, unknown>).property_id ?? 0)
-                    )
+                    mergedProperties.map((mp) =>
+                        Number((mp.property as Record<string, unknown>).property_id ?? 0),
+                    ),
                 );
                 const partialNotFoundIds = rows
-                    .map(r => r.sfrPropertyId)
-                    .filter(id => !foundSfrPropertyIds.has(id));
+                    .map((r) => r.sfrPropertyId)
+                    .filter((id) => !foundSfrPropertyIds.has(id));
                 if (partialNotFoundIds.length > 0) {
-                    await markFailed(msa.id, partialNotFoundIds, "NOT_FOUND in batch property lookup");
+                    await markFailed(
+                        msa.id,
+                        partialNotFoundIds,
+                        'NOT_FOUND in batch property lookup',
+                    );
                     console.warn(
-                        `${msaLabel} Batch ${batchNum}: ${partialNotFoundIds.length} of ${rows.length} properties NOT_FOUND in batch lookup — marked failed`
+                        `${msaLabel} Batch ${batchNum}: ${partialNotFoundIds.length} of ${rows.length} properties NOT_FOUND in batch lookup — marked failed`,
                     );
                     totals.propertiesFailed += partialNotFoundIds.length;
                 }
 
                 // ── Step 2: Get transaction history (/properties/transactions) ─
-                console.log(`${msaLabel} Batch ${batchNum}: fetching transaction history for ${mergedProperties.length} properties`);
+                console.log(
+                    `${msaLabel} Batch ${batchNum}: fetching transaction history for ${mergedProperties.length} properties`,
+                );
                 const propertiesWithTransactions = await getTransactions({
                     properties: mergedProperties,
                     API_KEY,
@@ -209,11 +223,13 @@ export async function runConsumer(): Promise<void> {
 
                 // ── Step 3: Filter out New Construction properties ────────────
                 const newConstructionSfrIds: number[] = [];
-                const nonNewConstruction = propertiesWithTransactions.filter(item => {
-                    const isNC = item.transactions.some(tx => {
+                const nonNewConstruction = propertiesWithTransactions.filter((item) => {
+                    const isNC = item.transactions.some((tx) => {
                         const r = tx as Record<string, unknown>;
-                        const type = String(r.TRANSACTION_TYPE ?? r.transaction_type ?? "").toLowerCase();
-                        return type === "new construction";
+                        const type = String(
+                            r.TRANSACTION_TYPE ?? r.transaction_type ?? '',
+                        ).toLowerCase();
+                        return type === 'new construction';
                     });
                     if (isNC) {
                         const p = item.property as Record<string, unknown>;
@@ -224,15 +240,14 @@ export async function runConsumer(): Promise<void> {
                     return true;
                 });
                 if (newConstructionSfrIds.length > 0) {
-                    await markFailed(msa.id, newConstructionSfrIds, "Property is New Construction");
-                    console.log(`${msaLabel} Batch ${batchNum}: ${newConstructionSfrIds.length} new construction properties excluded`);
+                    await markFailed(msa.id, newConstructionSfrIds, 'Property is New Construction');
+                    console.log(
+                        `${msaLabel} Batch ${batchNum}: ${newConstructionSfrIds.length} new construction properties excluded`,
+                    );
                 }
 
                 // ── Step 4: Clean transactions → company names/counties ────────
-                const transactionCompanies = cleanTransactions(
-                    nonNewConstruction,
-                    msa.name
-                );
+                const transactionCompanies = cleanTransactions(nonNewConstruction, msa.name);
 
                 // ── Step 5: Insert/update companies and MSA associations ───────
                 await insertCompanies({
@@ -254,7 +269,7 @@ export async function runConsumer(): Promise<void> {
 
                 // ── Step 8: Filter out properties where status could not be resolved
                 const unresolvedSfrIds: number[] = [];
-                const resolvedProperties = propertiesWithStatus.filter(item => {
+                const resolvedProperties = propertiesWithStatus.filter((item) => {
                     if (item.statuses.length === 0) {
                         const p = item.property as Record<string, unknown>;
                         const sfrId = Number(p.property_id ?? 0);
@@ -265,7 +280,9 @@ export async function runConsumer(): Promise<void> {
                 });
                 if (unresolvedSfrIds.length > 0) {
                     await markFailed(msa.id, unresolvedSfrIds, "Couldn't Resolve Status");
-                    console.log(`${msaLabel} Batch ${batchNum}: ${unresolvedSfrIds.length} properties excluded — status unresolvable`);
+                    console.log(
+                        `${msaLabel} Batch ${batchNum}: ${unresolvedSfrIds.length} properties excluded — status unresolvable`,
+                    );
                 }
 
                 // ── Step 9: Final normalization (county, property_type) ────
@@ -275,7 +292,9 @@ export async function runConsumer(): Promise<void> {
                 const propertiesToInsertWithArv = resolveArvFunded(propertiesToInsert);
 
                 // ── Step 11: Upsert properties + all child tables + transactions ─
-                console.log(`${msaLabel} Batch ${batchNum}: inserting ${propertiesToInsertWithArv.length} properties`);
+                console.log(
+                    `${msaLabel} Batch ${batchNum}: inserting ${propertiesToInsertWithArv.length} properties`,
+                );
                 const insertResult = await insertProperties({
                     properties: propertiesToInsertWithArv,
                     msa: msa.name,
@@ -294,7 +313,7 @@ export async function runConsumer(): Promise<void> {
                     ...newConstructionSfrIds,
                     ...unresolvedSfrIds,
                 ]);
-                const idsToComplete = allPropertyIds.filter(id => !failedSfrIds.has(id));
+                const idsToComplete = allPropertyIds.filter((id) => !failedSfrIds.has(id));
                 await markComplete(msa.id, idsToComplete);
 
                 processedThisMsa += rows.length;
@@ -305,9 +324,9 @@ export async function runConsumer(): Promise<void> {
 
                 console.log(
                     `${msaLabel} Batch ${batchNum} complete — ` +
-                    `${insertResult.propertiesInserted} inserted, ` +
-                    `${insertResult.propertiesUpdated} updated, ` +
-                    `${insertResult.transactionsInserted} transactions`
+                        `${insertResult.propertiesInserted} inserted, ` +
+                        `${insertResult.propertiesUpdated} updated, ` +
+                        `${insertResult.transactionsInserted} transactions`,
                 );
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : String(err);
@@ -326,9 +345,9 @@ export async function runConsumer(): Promise<void> {
     const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(
         `${label} Consumer run complete in ${elapsedSec}s — ` +
-        `${totals.batches} batches, ` +
-        `${totals.propertiesProcessed} processed (${totals.propertiesInserted} new / ${totals.propertiesUpdated} updated), ` +
-        `${totals.transactionsInserted} transactions, ` +
-        `${totals.propertiesFailed} failed`
+            `${totals.batches} batches, ` +
+            `${totals.propertiesProcessed} processed (${totals.propertiesInserted} new / ${totals.propertiesUpdated} updated), ` +
+            `${totals.transactionsInserted} transactions, ` +
+            `${totals.propertiesFailed} failed`,
     );
 }

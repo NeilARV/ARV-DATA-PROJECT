@@ -1,1 +1,1 @@
-export * as VendorsController from "./vendors.controllers";
+export * as VendorsController from './vendors.controllers';

@@ -1,7 +1,7 @@
-import { db } from "server/storage";
-import { marketScanQueue } from "@database/schemas/sync.schema";
-import { eq, and, inArray, desc } from "drizzle-orm";
-import type { MarketScanQueue } from "@database/types/sync";
+import { db } from 'server/storage';
+import { marketScanQueue } from '@database/schemas/sync.schema';
+import { eq, and, inArray, desc } from 'drizzle-orm';
+import type { MarketScanQueue } from '@database/types/sync';
 
 export interface FetchQueueResult {
     /** One deduplicated row per sfr_property_id (best recording_date → sale_date). */
@@ -18,7 +18,11 @@ export interface FetchQueueResult {
  * is chosen. Returns both the deduplicated rows (for processing) and ALL sfr_property_ids
  * that match (for bulk status updates, covering cross-window duplicates).
  */
-export async function fetchQueue(msaId: number, msaName: string, limit: number): Promise<FetchQueueResult> {
+export async function fetchQueue(
+    msaId: number,
+    msaName: string,
+    limit: number,
+): Promise<FetchQueueResult> {
     const label = `[CONSUMER][${msaName}]`;
 
     // Inner query: DISTINCT ON sfr_property_id picks the most recent transaction per property.
@@ -27,18 +31,13 @@ export async function fetchQueue(msaId: number, msaName: string, limit: number):
     const deduped = db
         .selectDistinctOn([marketScanQueue.sfrPropertyId])
         .from(marketScanQueue)
-        .where(
-            and(
-                eq(marketScanQueue.msaId, msaId),
-                eq(marketScanQueue.status, "pending")
-            )
-        )
+        .where(and(eq(marketScanQueue.msaId, msaId), eq(marketScanQueue.status, 'pending')))
         .orderBy(
             marketScanQueue.sfrPropertyId,
             desc(marketScanQueue.recordingDate),
-            desc(marketScanQueue.saleDate)
+            desc(marketScanQueue.saleDate),
         )
-        .as("deduped");
+        .as('deduped');
 
     const deduplicated = await db
         .select()
@@ -61,16 +60,16 @@ export async function fetchQueue(msaId: number, msaName: string, limit: number):
         .where(
             and(
                 eq(marketScanQueue.msaId, msaId),
-                eq(marketScanQueue.status, "pending"),
-                inArray(marketScanQueue.sfrPropertyId, uniquePropertyIds)
-            )
+                eq(marketScanQueue.status, 'pending'),
+                inArray(marketScanQueue.sfrPropertyId, uniquePropertyIds),
+            ),
         );
 
     const allPropertyIds = Array.from(new Set(allMatching.map((r) => r.sfrPropertyId)));
 
     console.log(
         `${label} Fetched ${deduplicated.length} unique properties ` +
-        `(${allPropertyIds.length} total pending queue rows across scan windows)`
+            `(${allPropertyIds.length} total pending queue rows across scan windows)`,
     );
 
     return { rows: deduplicated, allPropertyIds };

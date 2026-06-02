@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchPosts } from "@/api/vendors.api";
-import { ImageLightbox } from "./ImageLightbox";
-import type { PostImage } from "@/types/vendors";
+import { useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchPosts } from '@/api/vendors.api';
+import { ImageLightbox } from './ImageLightbox';
+import type { PostImage } from '@/types/vendors';
 
 type VendorPhotoGalleryProps = {
     vendorId: string;
@@ -14,7 +14,7 @@ export function VendorPhotoGallery({ vendorId }: VendorPhotoGalleryProps) {
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
     const { data: posts, isLoading } = useQuery({
-        queryKey: ["posts", { vendorId }],
+        queryKey: ['posts', { vendorId }],
         queryFn: () => fetchPosts({ vendorId }),
         staleTime: 5 * 60 * 1000,
     });
@@ -24,14 +24,17 @@ export function VendorPhotoGallery({ vendorId }: VendorPhotoGalleryProps) {
     const scroll = (dir: 1 | -1) => {
         const el = containerRef.current;
         if (!el) return;
-        el.scrollBy({ left: dir * el.clientWidth, behavior: "smooth" });
+        el.scrollBy({ left: dir * el.clientWidth, behavior: 'smooth' });
     };
 
     return (
         <div className="px-6 pb-6 border-t border-border pt-5">
             <h3 className="text-base font-semibold text-foreground mb-3">
-                Photo Gallery{!isLoading && images.length > 0 && (
-                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">({images.length})</span>
+                Photo Gallery
+                {!isLoading && images.length > 0 && (
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                        ({images.length})
+                    </span>
                 )}
             </h3>
 

@@ -1,1 +1,1 @@
-export * as OpenCorporatesService from "./opencorporates.service";
+export * as OpenCorporatesService from './opencorporates.service';

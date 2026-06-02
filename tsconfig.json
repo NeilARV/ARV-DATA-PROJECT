@@ -1,24 +1,31 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*", "database/**/*", "tests/**/*", "scripts/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
-  "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
-    "noEmit": true,
-    "module": "ESNext",
-    "strict": true,
-    "lib": ["esnext", "dom", "dom.iterable"],
-    "jsx": "preserve",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "allowImportingTsExtensions": true,
-    "moduleResolution": "bundler",
-    "types": ["node", "vite/client"],
-    "paths": {
-      "@/*": ["./client/src/*"],
-      "@shared/*": ["./shared/*"],
-      "@database/*": ["./database/*"],
-      "server/*": ["./server/*"]
+    "include": [
+        "client/src/**/*",
+        "shared/**/*",
+        "server/**/*",
+        "database/**/*",
+        "tests/**/*",
+        "scripts/**/*"
+    ],
+    "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+    "compilerOptions": {
+        "incremental": true,
+        "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+        "noEmit": true,
+        "module": "ESNext",
+        "strict": true,
+        "lib": ["esnext", "dom", "dom.iterable"],
+        "jsx": "preserve",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "allowImportingTsExtensions": true,
+        "moduleResolution": "bundler",
+        "types": ["node", "vite/client"],
+        "paths": {
+            "@/*": ["./client/src/*"],
+            "@shared/*": ["./shared/*"],
+            "@database/*": ["./database/*"],
+            "server/*": ["./server/*"]
+        }
     }
-  }
 }

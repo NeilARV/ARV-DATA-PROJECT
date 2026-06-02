@@ -1,42 +1,42 @@
-import { z } from "zod";
+import { z } from 'zod';
 import {
-  properties,
-  addresses,
-  assessments,
-  exemptions,
-  parcels,
-  schoolDistricts,
-  structures,
-  taxRecords,
-  valuations,
-  preForeclosures,
-  lastSales,
-  currentSales,
-  streetviewCache,
-  propertyTransactions,
-} from "../schemas/properties.schema";
+    properties,
+    addresses,
+    assessments,
+    exemptions,
+    parcels,
+    schoolDistricts,
+    structures,
+    taxRecords,
+    valuations,
+    preForeclosures,
+    lastSales,
+    currentSales,
+    streetviewCache,
+    propertyTransactions,
+} from '../schemas/properties.schema';
 import {
-  insertPropertySchema,
-  insertAddressSchema,
-  insertAssessmentSchema,
-  insertExemptionSchema,
-  insertParcelSchema,
-  insertSchoolDistrictSchema,
-  insertStructureSchema,
-  insertTaxRecordSchema,
-  insertValuationSchema,
-  insertPreForeclosureSchema,
-  insertLastSaleSchema,
-  insertCurrentSaleSchema,
-  insertStreetviewCacheSchema,
-  insertPropertyTransactionSchema,
-  manualPropertyEntrySchema,
-} from "../inserts/properties.insert";
+    insertPropertySchema,
+    insertAddressSchema,
+    insertAssessmentSchema,
+    insertExemptionSchema,
+    insertParcelSchema,
+    insertSchoolDistrictSchema,
+    insertStructureSchema,
+    insertTaxRecordSchema,
+    insertValuationSchema,
+    insertPreForeclosureSchema,
+    insertLastSaleSchema,
+    insertCurrentSaleSchema,
+    insertStreetviewCacheSchema,
+    insertPropertyTransactionSchema,
+    manualPropertyEntrySchema,
+} from '../inserts/properties.insert';
 import {
-  updatePropertySchema,
-  updateAddressSchema,
-  updateStructureSchema,
-} from "../updates/properties.update";
+    updatePropertySchema,
+    updateAddressSchema,
+    updateStructureSchema,
+} from '../updates/properties.update';
 
 export type Property = typeof properties.$inferSelect;
 export type InsertProperty = z.infer<typeof insertPropertySchema>;

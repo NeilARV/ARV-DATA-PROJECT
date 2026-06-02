@@ -1,5 +1,5 @@
-import { SidebarView } from "./options";
+import { SidebarView } from './options';
 
 export type GridViewProps = {
-  sideBarView?: SidebarView
-}
+    sideBarView?: SidebarView;
+};

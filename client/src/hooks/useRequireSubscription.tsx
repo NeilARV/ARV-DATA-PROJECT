@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import AppDialog from "@/components/modals/Dialog";
-import ContactContent from "@/components/modals/Contact";
-import type { ContactSubject } from "@database/validation/contactMessages.validation";
+import { useState } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import AppDialog from '@/components/modals/Dialog';
+import ContactContent from '@/components/modals/Contact';
+import type { ContactSubject } from '@database/validation/contactMessages.validation';
 
 type RequireSubOptions = {
     tiers?: SubscriptionTier[];
@@ -12,15 +12,29 @@ type RequireSubOptions = {
 };
 
 export function useRequireSubscription() {
-    const { isAuthenticated, isAdminStatusLoading, role, isBasic, isPro, isPremium, subscriptionTier, user } = useAuth();
+    const {
+        isAuthenticated,
+        isAdminStatusLoading,
+        role,
+        isBasic,
+        isPro,
+        isPremium,
+        subscriptionTier,
+        user,
+    } = useAuth();
     const { toast } = useToast();
     const [showContact, setShowContact] = useState(false);
-    const [contactSubject, setContactSubject] = useState<ContactSubject>("Request Access");
+    const [contactSubject, setContactSubject] = useState<ContactSubject>('Request Access');
     const [contactMessage, setContactMessage] = useState(
-        "I would like to request more access to the ARV data application"
+        'I would like to request more access to the ARV data application',
     );
 
-    const block = (subject: ContactSubject, message: string, toastTitle: string, toastDescription: string) => {
+    const block = (
+        subject: ContactSubject,
+        message: string,
+        toastTitle: string,
+        toastDescription: string,
+    ) => {
         toast({ title: toastTitle, description: toastDescription });
         setContactSubject(subject);
         setContactMessage(message);
@@ -35,19 +49,23 @@ export function useRequireSubscription() {
 
         if (options?.tiers) {
             const hasBypassRole = role !== null;
-            const hasRequiredTier = subscriptionTier !== null && (options.tiers as string[]).includes(subscriptionTier);
+            const hasRequiredTier =
+                subscriptionTier !== null && (options.tiers as string[]).includes(subscriptionTier);
 
             if (hasBypassRole || hasRequiredTier) {
                 action();
                 return;
             }
 
-            const tierList = options.tiers.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join(" or ");
+            const tierList = options.tiers
+                .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
+                .join(' or ');
             block(
-                options.subject ?? "Request Access",
-                options.message ?? "I would like to request more access to the ARV data application",
-                "Upgrade Required",
-                `A ${tierList} subscription is required to access this area`
+                options.subject ?? 'Request Access',
+                options.message ??
+                    'I would like to request more access to the ARV data application',
+                'Upgrade Required',
+                `A ${tierList} subscription is required to access this area`,
             );
             return;
         }
@@ -57,10 +75,11 @@ export function useRequireSubscription() {
         const hasAccess = isAdminStatusLoading || role !== null || isBasic || isPro || isPremium;
         if (!hasAccess) {
             block(
-                options?.subject ?? "Request Access",
-                options?.message ?? "I would like to request more access to the ARV data application",
-                "Upgrade Account",
-                "Please request an upgrade to your account to access this area"
+                options?.subject ?? 'Request Access',
+                options?.message ??
+                    'I would like to request more access to the ARV data application',
+                'Upgrade Account',
+                'Please request an upgrade to your account to access this area',
             );
             return;
         }
@@ -74,7 +93,10 @@ export function useRequireSubscription() {
                 <ContactContent
                     onClose={() => setShowContact(false)}
                     onSuccess={() => {
-                        toast({ title: "Message Sent", description: "We will get back to you shortly." });
+                        toast({
+                            title: 'Message Sent',
+                            description: 'We will get back to you shortly.',
+                        });
                     }}
                     defaultSubject={contactSubject}
                     defaultMessage={contactMessage}

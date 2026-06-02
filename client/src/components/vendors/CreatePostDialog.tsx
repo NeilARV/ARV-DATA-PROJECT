@@ -1,15 +1,15 @@
-import { useState, useRef } from "react";
-import { X, ImagePlus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPost, fetchCategories, fetchVendors, uploadPostImage } from "@/api/vendors.api";
-import { useToast } from "@/hooks/use-toast";
-import { createPostSchema } from "@database/validation/posts.validation";
-import type { ZodFormattedError } from "zod";
+import { useState, useRef } from 'react';
+import { X, ImagePlus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createPost, fetchCategories, fetchVendors, uploadPostImage } from '@/api/vendors.api';
+import { useToast } from '@/hooks/use-toast';
+import { createPostSchema } from '@database/validation/posts.validation';
+import type { ZodFormattedError } from 'zod';
 
 const MAX_IMAGES = 5;
 
@@ -19,26 +19,31 @@ type CreatePostDialogProps = {
 };
 
 export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
-    const [title, setTitle] = useState("");
-    const [content, setContent] = useState("");
-    const [city, setCity] = useState("");
-    const [state, setState] = useState("");
+    const [title, setTitle] = useState('');
+    const [content, setContent] = useState('');
+    const [city, setCity] = useState('');
+    const [state, setState] = useState('');
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
     const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
     const [pendingFiles, setPendingFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
     const [attempted, setAttempted] = useState(false);
-    const [fieldErrors, setFieldErrors] = useState<ZodFormattedError<{ title: string; content: string; city?: string; state?: string }> | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<ZodFormattedError<{
+        title: string;
+        content: string;
+        city?: string;
+        state?: string;
+    }> | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
     const validate = (values: { title: string; content: string; city: string; state: string }) => {
         const result = createPostSchema.safeParse({
-            title:   values.title,
+            title: values.title,
             content: values.content,
-            city:    values.city.trim()  || undefined,
-            state:   values.state.trim() || undefined,
+            city: values.city.trim() || undefined,
+            state: values.state.trim() || undefined,
         });
         if (!result.success) {
             setFieldErrors(result.error.format() as typeof fieldErrors);
@@ -49,13 +54,13 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
     };
 
     const { data: categoriesData } = useQuery({
-        queryKey: ["categories"],
+        queryKey: ['categories'],
         queryFn: fetchCategories,
         staleTime: 5 * 60 * 1000,
     });
 
     const { data: vendorsData } = useQuery({
-        queryKey: ["vendors-for-post", selectedCategoryIds],
+        queryKey: ['vendors-for-post', selectedCategoryIds],
         queryFn: () => fetchVendors(selectedCategoryIds),
         enabled: selectedCategoryIds.length > 0,
         staleTime: 5 * 60 * 1000,
@@ -66,43 +71,48 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
             const post = await createPost({
                 title,
                 content,
-                city:        city.trim()  || undefined,
-                state:       state.trim() || undefined,
+                city: city.trim() || undefined,
+                state: state.trim() || undefined,
                 categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : undefined,
-                vendorIds:   selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
+                vendorIds: selectedVendorIds.length > 0 ? selectedVendorIds : undefined,
             });
             if (pendingFiles.length > 0) {
                 const results = await Promise.allSettled(
-                    pendingFiles.map((file) => uploadPostImage(post.id, file))
+                    pendingFiles.map((file) => uploadPostImage(post.id, file)),
                 );
-                const failed = results.filter((r) => r.status === "rejected");
+                const failed = results.filter((r) => r.status === 'rejected');
                 if (failed.length > 0) {
-                    throw new Error(`Post created, but ${failed.length} image(s) failed to upload. Check your Supabase storage configuration.`);
+                    throw new Error(
+                        `Post created, but ${failed.length} image(s) failed to upload. Check your Supabase storage configuration.`,
+                    );
                 }
             }
             return post;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["posts"] });
-            toast({ title: "Post created", description: "Your post has been shared with the community." });
+            queryClient.invalidateQueries({ queryKey: ['posts'] });
+            toast({
+                title: 'Post created',
+                description: 'Your post has been shared with the community.',
+            });
             resetForm();
             onClose();
         },
         onError: (err: unknown) => {
-            const message = err instanceof Error ? err.message : "Failed to create post.";
+            const message = err instanceof Error ? err.message : 'Failed to create post.';
             toast({
-                title: "Error",
+                title: 'Error',
                 description: message,
-                variant: "destructive",
+                variant: 'destructive',
             });
         },
     });
 
     const resetForm = () => {
-        setTitle("");
-        setContent("");
-        setCity("");
-        setState("");
+        setTitle('');
+        setContent('');
+        setCity('');
+        setState('');
         setSelectedCategoryIds([]);
         setSelectedVendorIds([]);
         previews.forEach((url) => URL.revokeObjectURL(url));
@@ -124,7 +134,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
         const toAdd = files.slice(0, slots);
         setPendingFiles((prev) => [...prev, ...toAdd]);
         setPreviews((prev) => [...prev, ...toAdd.map((f) => URL.createObjectURL(f))]);
-        e.target.value = "";
+        e.target.value = '';
     };
 
     const removeFile = (index: number) => {
@@ -145,7 +155,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                 prev.filter((vendorId) => {
                     const vendor = vendorsData.find((v) => v.id === vendorId);
                     return vendor?.categories.some((c) => remaining.includes(c.id)) ?? false;
-                })
+                }),
             );
         }
     };
@@ -158,11 +168,13 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
         setSelectedVendorIds((prev) => prev.filter((v) => v !== id));
     };
 
-    const availableCategories = (categoriesData ?? []).filter((c) => !selectedCategoryIds.includes(c.id));
+    const availableCategories = (categoriesData ?? []).filter(
+        (c) => !selectedCategoryIds.includes(c.id),
+    );
     const availableVendors = (vendorsData ?? []).filter((v) => !selectedVendorIds.includes(v.id));
 
     const selectClass =
-        "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground cursor-pointer";
+        'flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground cursor-pointer';
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -173,31 +185,47 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
 
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label htmlFor="post-title">Title <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="post-title">
+                            Title <span className="text-destructive">*</span>
+                        </Label>
                         <Input
                             id="post-title"
                             value={title}
-                            onChange={(e) => { setTitle(e.target.value); if (attempted) validate({ title: e.target.value, content, city, state }); }}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                if (attempted)
+                                    validate({ title: e.target.value, content, city, state });
+                            }}
                             placeholder="Give your post a title"
-                            className={fieldErrors?.title ? "border-destructive" : ""}
+                            className={fieldErrors?.title ? 'border-destructive' : ''}
                         />
                         {fieldErrors?.title?._errors[0] && (
-                            <p className="text-xs text-destructive">{fieldErrors.title._errors[0]}</p>
+                            <p className="text-xs text-destructive">
+                                {fieldErrors.title._errors[0]}
+                            </p>
                         )}
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="post-content">Content <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="post-content">
+                            Content <span className="text-destructive">*</span>
+                        </Label>
                         <Textarea
                             id="post-content"
                             value={content}
-                            onChange={(e) => { setContent(e.target.value); if (attempted) validate({ title, content: e.target.value, city, state }); }}
+                            onChange={(e) => {
+                                setContent(e.target.value);
+                                if (attempted)
+                                    validate({ title, content: e.target.value, city, state });
+                            }}
                             placeholder="Share your project update, renovation tips, or flip story..."
                             rows={4}
-                            className={fieldErrors?.content ? "border-destructive" : ""}
+                            className={fieldErrors?.content ? 'border-destructive' : ''}
                         />
                         {fieldErrors?.content?._errors[0] && (
-                            <p className="text-xs text-destructive">{fieldErrors.content._errors[0]}</p>
+                            <p className="text-xs text-destructive">
+                                {fieldErrors.content._errors[0]}
+                            </p>
                         )}
                     </div>
 
@@ -207,7 +235,11 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             <Input
                                 id="post-city"
                                 value={city}
-                                onChange={(e) => { setCity(e.target.value); if (attempted) validate({ title, content, city: e.target.value, state }); }}
+                                onChange={(e) => {
+                                    setCity(e.target.value);
+                                    if (attempted)
+                                        validate({ title, content, city: e.target.value, state });
+                                }}
                                 placeholder="San Diego"
                             />
                         </div>
@@ -216,13 +248,19 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             <Input
                                 id="post-state"
                                 value={state}
-                                onChange={(e) => { setState(e.target.value); if (attempted) validate({ title, content, city, state: e.target.value }); }}
+                                onChange={(e) => {
+                                    setState(e.target.value);
+                                    if (attempted)
+                                        validate({ title, content, city, state: e.target.value });
+                                }}
                                 placeholder="CA"
                                 maxLength={2}
-                                className={fieldErrors?.state ? "border-destructive" : ""}
+                                className={fieldErrors?.state ? 'border-destructive' : ''}
                             />
                             {fieldErrors?.state?._errors[0] && (
-                                <p className="text-xs text-destructive">{fieldErrors.state._errors[0]}</p>
+                                <p className="text-xs text-destructive">
+                                    {fieldErrors.state._errors[0]}
+                                </p>
                             )}
                         </div>
                     </div>
@@ -233,8 +271,15 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                         {previews.length > 0 && (
                             <div className="flex flex-wrap gap-2 mb-2">
                                 {previews.map((src, i) => (
-                                    <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
-                                        <img src={src} alt="" className="w-full h-full object-cover" />
+                                    <div
+                                        key={i}
+                                        className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0"
+                                    >
+                                        <img
+                                            src={src}
+                                            alt=""
+                                            className="w-full h-full object-cover"
+                                        />
                                         <button
                                             type="button"
                                             onClick={() => removeFile(i)}
@@ -274,12 +319,16 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                         {availableCategories.length > 0 && (
                             <select
                                 value=""
-                                onChange={(e) => { if (e.target.value) addCategory(Number(e.target.value)); }}
+                                onChange={(e) => {
+                                    if (e.target.value) addCategory(Number(e.target.value));
+                                }}
                                 className={selectClass}
                             >
                                 <option value="">Add a category...</option>
                                 {availableCategories.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    <option key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                    </option>
                                 ))}
                             </select>
                         )}
@@ -314,16 +363,22 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             {availableVendors.length > 0 ? (
                                 <select
                                     value=""
-                                    onChange={(e) => { if (e.target.value) addVendor(e.target.value); }}
+                                    onChange={(e) => {
+                                        if (e.target.value) addVendor(e.target.value);
+                                    }}
                                     className={selectClass}
                                 >
                                     <option value="">Add a vendor...</option>
                                     {availableVendors.map((vendor) => (
-                                        <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                                        <option key={vendor.id} value={vendor.id}>
+                                            {vendor.name}
+                                        </option>
                                     ))}
                                 </select>
                             ) : vendorsData !== undefined && vendorsData.length === 0 ? (
-                                <p className="text-xs text-muted-foreground">No vendors found for the selected categories.</p>
+                                <p className="text-xs text-muted-foreground">
+                                    No vendors found for the selected categories.
+                                </p>
                             ) : null}
                             {selectedVendorIds.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
@@ -351,7 +406,11 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                     )}
 
                     <div className="flex justify-end gap-2 pt-2">
-                        <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+                        <Button
+                            variant="outline"
+                            onClick={handleClose}
+                            disabled={mutation.isPending}
+                        >
                             Cancel
                         </Button>
                         <Button
@@ -361,7 +420,7 @@ export function CreatePostDialog({ open, onClose }: CreatePostDialogProps) {
                             }}
                             disabled={mutation.isPending}
                         >
-                            {mutation.isPending ? "Posting..." : "Post"}
+                            {mutation.isPending ? 'Posting...' : 'Post'}
                         </Button>
                     </div>
                 </div>

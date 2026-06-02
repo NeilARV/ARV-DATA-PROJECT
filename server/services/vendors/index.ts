@@ -1,1 +1,1 @@
-export * as VendorsServices from "./vendors.services";
+export * as VendorsServices from './vendors.services';

@@ -1,8 +1,8 @@
-import { normalizeDateToYMD } from "server/utils/normalization";
-import { isFlippingCompany } from "server/utils/dataSyncHelpers";
-import type { PropertyWithIds, TransactionWithIds } from "./resolve-ids";
+import { normalizeDateToYMD } from 'server/utils/normalization';
+import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
+import type { PropertyWithIds, TransactionWithIds } from './resolve-ids';
 
-export type PropertyStatus = "on-market" | "in-renovation" | "sold" | "wholesale";
+export type PropertyStatus = 'on-market' | 'in-renovation' | 'sold' | 'wholesale';
 
 /**
  * Extends PropertyWithIds with a resolved statuses array (multi-status).
@@ -11,7 +11,7 @@ export type PropertyStatus = "on-market" | "in-renovation" | "sold" | "wholesale
  */
 export interface PropertyWithStatuses extends PropertyWithIds {
     statuses: PropertyStatus[];
-    property: PropertyWithIds["property"] & { status: PropertyStatus };
+    property: PropertyWithIds['property'] & { status: PropertyStatus };
 }
 
 /** Alias for clean-before-insert and insert-properties. */
@@ -22,9 +22,9 @@ const WHOLESALE_DAYS_THRESHOLD = 30;
 function getString(obj: Record<string, unknown>, ...keys: string[]): string {
     for (const k of keys) {
         const v = obj[k];
-        if (v != null && typeof v === "string" && v.trim()) return v.trim();
+        if (v != null && typeof v === 'string' && v.trim()) return v.trim();
     }
-    return "";
+    return '';
 }
 
 function getDate(tx: Record<string, unknown>, ...keys: string[]): string | null {
@@ -40,7 +40,7 @@ function getDate(tx: Record<string, unknown>, ...keys: string[]): string | null 
 
 /** Arms Length transactions only — REFIs, HELOCs, Non-Arms Length etc. are excluded. */
 function isArmsLength(tx: Record<string, unknown>): boolean {
-    return getString(tx, "TRANSACTION_TYPE", "transaction_type").toLowerCase() === "arms length";
+    return getString(tx, 'TRANSACTION_TYPE', 'transaction_type').toLowerCase() === 'arms length';
 }
 
 /**
@@ -65,8 +65,8 @@ function sortArmsLengthDesc(txs: TransactionWithIds[]): TransactionWithIds[] {
         const br = b as Record<string, unknown>;
 
         // 1. recording_date DESC
-        const recA = getDate(ar, "RECORDING_DATE", "recording_date");
-        const recB = getDate(br, "RECORDING_DATE", "recording_date");
+        const recA = getDate(ar, 'RECORDING_DATE', 'recording_date');
+        const recB = getDate(br, 'RECORDING_DATE', 'recording_date');
         if (recA && recB) {
             if (recA > recB) return -1;
             if (recA < recB) return 1;
@@ -78,17 +78,17 @@ function sortArmsLengthDesc(txs: TransactionWithIds[]): TransactionWithIds[] {
 
         // 2. Chain detection (same recording_date)
         // If txB's buyer is txA's seller → txB is the purchase, txA is the resale → txA is more recent
-        const buyerA = getString(ar, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
-        const sellerA = getString(ar, "SELLER1_NAME", "seller1_name");
-        const buyerB = getString(br, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
-        const sellerB = getString(br, "SELLER1_NAME", "seller1_name");
+        const buyerA = getString(ar, 'BUYER_BORROWER1_NAME', 'buyer_borrower1_name');
+        const sellerA = getString(ar, 'SELLER1_NAME', 'seller1_name');
+        const buyerB = getString(br, 'BUYER_BORROWER1_NAME', 'buyer_borrower1_name');
+        const sellerB = getString(br, 'SELLER1_NAME', 'seller1_name');
 
         if (buyerB && sellerA && buyerB === sellerA) return -1; // txA is the resale → more recent
-        if (buyerA && sellerB && buyerA === sellerB) return 1;  // txB is the resale → more recent
+        if (buyerA && sellerB && buyerA === sellerB) return 1; // txB is the resale → more recent
 
         // 3. sale_date DESC
-        const saleA = getDate(ar, "SALE_DATE", "sale_date");
-        const saleB = getDate(br, "SALE_DATE", "sale_date");
+        const saleA = getDate(ar, 'SALE_DATE', 'sale_date');
+        const saleB = getDate(br, 'SALE_DATE', 'sale_date');
         if (saleA && saleB) {
             if (saleA > saleB) return -1;
             if (saleA < saleB) return 1;
@@ -121,15 +121,15 @@ function sortArmsLengthDesc(txs: TransactionWithIds[]): TransactionWithIds[] {
  */
 export function resolveStatuses(
     properties: PropertyWithIds[],
-    cityCode: string
+    cityCode: string,
 ): PropertyWithStatuses[] {
     const label = `[RESOLVE_STATUS][${cityCode}]`;
 
     return properties.map((item) => {
         const property = { ...item.property } as Record<string, unknown>;
-        const allTxs = ((item.transactions ?? []) as unknown[]) as TransactionWithIds[];
+        const allTxs = (item.transactions ?? []) as unknown[] as TransactionWithIds[];
 
-        const listingStatus = getString(property, "listing_status", "listingStatus");
+        const listingStatus = getString(property, 'listing_status', 'listingStatus');
         const sorted = sortArmsLengthDesc(allTxs);
         const mostRecent = sorted[0] ?? null;
         const mostRecentRaw = mostRecent as (TransactionWithIds & Record<string, unknown>) | null;
@@ -138,20 +138,24 @@ export function resolveStatuses(
 
         // On-market data unreliable — treat on-market listings as in-renovation instead.
         // To restore: replace the in-renovation push below with statuses.push("on-market") and remove the else-if.
-        if (listingStatus === "On Market") {
+        if (listingStatus === 'On Market') {
             // statuses.push("on-market"); // original: disabled until on-market data is reliable
-            statuses.push("in-renovation");
+            statuses.push('in-renovation');
         } else {
             // Off Market (or unrecognized listing_status → treat as off-market)
             if (!mostRecentRaw) {
                 // No Arms Length transaction history — fall back to property-level buyer_id
                 const propertyBuyerId = property.buyer_id;
                 if (propertyBuyerId) {
-                    statuses.push("in-renovation");
+                    statuses.push('in-renovation');
                 }
             } else {
-                const buyerName = getString(mostRecentRaw, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
-                const sellerName = getString(mostRecentRaw, "SELLER1_NAME", "seller1_name");
+                const buyerName = getString(
+                    mostRecentRaw,
+                    'BUYER_BORROWER1_NAME',
+                    'buyer_borrower1_name',
+                );
+                const sellerName = getString(mostRecentRaw, 'SELLER1_NAME', 'seller1_name');
                 const sellerId = mostRecentRaw.seller_id ?? null;
 
                 const buyerIsCorp = isFlippingCompany(buyerName, null);
@@ -159,32 +163,45 @@ export function resolveStatuses(
 
                 // ── Wholesale check ─────────────────────────────────────────
                 if (buyerIsCorp && sellerIsCorp) {
-                    const mostRecentRecDate = getDate(mostRecentRaw, "RECORDING_DATE", "recording_date");
+                    const mostRecentRecDate = getDate(
+                        mostRecentRaw,
+                        'RECORDING_DATE',
+                        'recording_date',
+                    );
                     if (mostRecentRecDate) {
                         // Find the previous Arms Length tx where the seller (on mostRecent) was the buyer
                         const sellerAcquisition = sorted.slice(1).find((tx) => {
                             const txRaw = tx as Record<string, unknown>;
-                            const txBuyerName = getString(txRaw, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
+                            const txBuyerName = getString(
+                                txRaw,
+                                'BUYER_BORROWER1_NAME',
+                                'buyer_borrower1_name',
+                            );
                             const txBuyerId = (tx as TransactionWithIds).buyer_id ?? null;
-                            const txRecDate = getDate(txRaw, "RECORDING_DATE", "recording_date");
+                            const txRecDate = getDate(txRaw, 'RECORDING_DATE', 'recording_date');
                             if (!txRecDate) return false;
                             const matchById = !!(sellerId && txBuyerId && sellerId === txBuyerId);
-                            const matchByName = !!(sellerName && txBuyerName && sellerName === txBuyerName);
+                            const matchByName = !!(
+                                sellerName &&
+                                txBuyerName &&
+                                sellerName === txBuyerName
+                            );
                             return matchById || matchByName;
                         });
 
                         if (sellerAcquisition) {
                             const acquisitionDate = getDate(
                                 sellerAcquisition as Record<string, unknown>,
-                                "RECORDING_DATE", "recording_date"
+                                'RECORDING_DATE',
+                                'recording_date',
                             )!;
                             const daysHeld = Math.floor(
                                 (new Date(mostRecentRecDate).setHours(0, 0, 0, 0) -
                                     new Date(acquisitionDate).setHours(0, 0, 0, 0)) /
-                                (1000 * 60 * 60 * 24)
+                                    (1000 * 60 * 60 * 24),
                             );
                             if (daysHeld <= WHOLESALE_DAYS_THRESHOLD) {
-                                statuses.push("wholesale");
+                                statuses.push('wholesale');
                             }
                         }
                     }
@@ -192,38 +209,44 @@ export function resolveStatuses(
 
                 // ── Sold check ───────────────────────────────────────────────
                 if (sellerIsCorp && !buyerIsCorp) {
-                    statuses.push("sold");
+                    statuses.push('sold');
                 }
 
                 // ── In-renovation check ──────────────────────────────────────
                 if (buyerIsCorp) {
-                    statuses.push("in-renovation");
+                    statuses.push('in-renovation');
                 }
             }
         }
 
         // Default: if no statuses resolved, log and skip (caller handles display fallback)
         if (statuses.length === 0) {
-            console.log(`${label} No status resolved for property ${property.property_id ?? "unknown"} — buyer/seller are both non-corporate`);
+            console.log(
+                `${label} No status resolved for property ${property.property_id ?? 'unknown'} — buyer/seller are both non-corporate`,
+            );
         }
 
         // Write canonical buyer/seller from most recent tx back onto the property object
         if (mostRecentRaw) {
             property.buyer_id = mostRecentRaw.buyer_id ?? null;
             property.seller_id = mostRecentRaw.seller_id ?? null;
-            const buyerName = getString(mostRecentRaw, "BUYER_BORROWER1_NAME", "buyer_borrower1_name");
-            const sellerName = getString(mostRecentRaw, "SELLER1_NAME", "seller1_name");
+            const buyerName = getString(
+                mostRecentRaw,
+                'BUYER_BORROWER1_NAME',
+                'buyer_borrower1_name',
+            );
+            const sellerName = getString(mostRecentRaw, 'SELLER1_NAME', 'seller1_name');
             const cs = (property.current_sale as Record<string, unknown>) ?? {};
             property.current_sale = { ...cs, buyer_1: buyerName, seller_1: sellerName };
         }
 
         // Set property.status to statuses[0] for backward compat with shared v1 helpers
-        const primaryStatus: PropertyStatus = statuses[0] ?? "in-renovation";
+        const primaryStatus: PropertyStatus = statuses[0] ?? 'in-renovation';
         property.status = primaryStatus;
 
         return {
             ...item,
-            property: property as PropertyWithStatuses["property"],
+            property: property as PropertyWithStatuses['property'],
             statuses,
         };
     });

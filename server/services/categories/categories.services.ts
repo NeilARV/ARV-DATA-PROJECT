@@ -1,6 +1,6 @@
-import { db } from "server/storage";
-import { categories, vendors, vendorCategories } from "@database/schemas/vendors.schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { db } from 'server/storage';
+import { categories, vendors, vendorCategories } from '@database/schemas/vendors.schema';
+import { eq, inArray, sql } from 'drizzle-orm';
 
 export async function getAll() {
     return db

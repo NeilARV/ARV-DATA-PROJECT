@@ -1,14 +1,12 @@
-import { db } from "server/storage";
-import { properties, propertyTransactions, parcels } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { companies, companyMsas } from "@database/schemas/companies.schema";
-import { msas } from "@database/schemas/msas.schema";
-import { eq, asc, and, gte, inArray, sql } from "drizzle-orm";
-import { trimCompanyName } from "server/utils/normalization";
-import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
-import { isFlippingCompany } from "server/utils/dataSyncHelpers";
-
-
+import { db } from 'server/storage';
+import { properties, propertyTransactions, parcels } from '@database/schemas/properties.schema';
+import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
+import { companies, companyMsas } from '@database/schemas/companies.schema';
+import { msas } from '@database/schemas/msas.schema';
+import { eq, asc, and, gte, inArray, sql } from 'drizzle-orm';
+import { trimCompanyName } from 'server/utils/normalization';
+import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
+import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,8 +32,8 @@ export type GetTransactionsResult = {
 
 function toDateStr(d: Date | string | null | undefined): string | null {
     if (d == null) return null;
-    if (typeof d === "string") return d.split("T")[0] ?? null;
-    return (d as Date).toISOString().split("T")[0] ?? null;
+    if (typeof d === 'string') return d.split('T')[0] ?? null;
+    return (d as Date).toISOString().split('T')[0] ?? null;
 }
 
 function formatTxRow(tx: TransactionRow): GetTransactionsResult {
@@ -43,8 +41,8 @@ function formatTxRow(tx: TransactionRow): GetTransactionsResult {
         id: tx.propertyTransactionsId,
         propertyId: tx.propertyId,
         transactionType: tx.transactionType,
-        recordingDate: toDateStr(tx.recordingDate) ?? "",
-        saleDate: toDateStr(tx.saleDate) ?? "",
+        recordingDate: toDateStr(tx.recordingDate) ?? '',
+        saleDate: toDateStr(tx.saleDate) ?? '',
         buyerId: tx.buyerId,
         buyerName: tx.buyerName,
         sellerId: tx.sellerId,
@@ -59,7 +57,7 @@ function formatTxRow(tx: TransactionRow): GetTransactionsResult {
 async function upsertCompanyByName(
     name: string,
     county: string | null,
-    msa: string | null
+    msa: string | null,
 ): Promise<string | null> {
     const trimmed = trimCompanyName(name);
     if (!trimmed) return null;
@@ -97,7 +95,7 @@ async function upsertCompanyByName(
     if (county) {
         await addCountiesToCompanyIfNeeded({ id: companyId }, [county]);
     }
-    
+
     if (msa) {
         const [msaRow] = await db
             .select({ id: msas.id })
@@ -118,23 +116,20 @@ async function upsertCompanyByName(
 // ─── Reprocess ───────────────────────────────────────────────────────────────
 
 const WHOLESALE_DAYS = 30;
-const ARV_LENDER = "ARV FINANCE INC";
+const ARV_LENDER = 'ARV FINANCE INC';
 
 function isArmsLength(type: string | null): boolean {
-    return (type ?? "").trim().toLowerCase() === "arms length";
+    return (type ?? '').trim().toLowerCase() === 'arms length';
 }
 
-function deriveStatuses(
-    listingStatus: string | null,
-    armsLengthTxs: TransactionRow[]
-): string[] {
-    if (listingStatus?.toLowerCase() === "on-market") return ["on-market"];
+function deriveStatuses(listingStatus: string | null, armsLengthTxs: TransactionRow[]): string[] {
+    if (listingStatus?.toLowerCase() === 'on-market') return ['on-market'];
 
     const latest = armsLengthTxs[0] ?? null;
-    if (!latest) return ["in-renovation"];
+    if (!latest) return ['in-renovation'];
 
-    const buyerName = latest.buyerName ?? "";
-    const sellerName = latest.sellerName ?? "";
+    const buyerName = latest.buyerName ?? '';
+    const sellerName = latest.sellerName ?? '';
     const sellerId = latest.sellerId;
 
     const buyerIsCorp = isFlippingCompany(buyerName, null);
@@ -159,23 +154,27 @@ function deriveStatuses(
                 if (priorDate) {
                     const days = Math.floor(
                         (new Date(latestDate).getTime() - new Date(priorDate).getTime()) /
-                        (1000 * 60 * 60 * 24)
+                            (1000 * 60 * 60 * 24),
                     );
-                    if (days <= WHOLESALE_DAYS) result.push("wholesale");
+                    if (days <= WHOLESALE_DAYS) result.push('wholesale');
                 }
             }
         }
     }
 
-    if (sellerIsCorp && !buyerIsCorp) result.push("sold");
-    if (buyerIsCorp) result.push("in-renovation");
+    if (sellerIsCorp && !buyerIsCorp) result.push('sold');
+    if (buyerIsCorp) result.push('in-renovation');
 
     return result;
 }
 
 export async function reprocessProperty(propertyId: string): Promise<void> {
     const [prop] = await db
-        .select({ listingStatus: properties.listingStatus, county: properties.county, msa: properties.msa })
+        .select({
+            listingStatus: properties.listingStatus,
+            county: properties.county,
+            msa: properties.msa,
+        })
         .from(properties)
         .where(eq(properties.id, propertyId))
         .limit(1);
@@ -190,10 +189,12 @@ export async function reprocessProperty(propertyId: string): Promise<void> {
     const armsLengthSorted = txs.filter((tx) => isArmsLength(tx.transactionType));
     const latestAL = armsLengthSorted[0] ?? null;
 
-    const isArvFunded =
-        latestAL?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
+    const isArvFunded = latestAL?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
 
-    const derivedStatuses = deriveStatuses(prop.listingStatus, armsLengthSorted as TransactionRow[]);
+    const derivedStatuses = deriveStatuses(
+        prop.listingStatus,
+        armsLengthSorted as TransactionRow[],
+    );
 
     await db
         .update(properties)
@@ -208,16 +209,18 @@ export async function reprocessProperty(propertyId: string): Promise<void> {
 
         await db.delete(propertyStatuses).where(eq(propertyStatuses.propertyId, propertyId));
         if (statusRows.length > 0) {
-            await db.insert(propertyStatuses).values(
-                statusRows.map((s) => ({ propertyId, statusId: s.id }))
-            );
+            await db
+                .insert(propertyStatuses)
+                .values(statusRows.map((s) => ({ propertyId, statusId: s.id })));
         }
     }
 }
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
-export async function getPropertyTransactions(propertyId: string): Promise<GetTransactionsResult[]> {
+export async function getPropertyTransactions(
+    propertyId: string,
+): Promise<GetTransactionsResult[]> {
     const rows = await db
         .select()
         .from(propertyTransactions)
@@ -241,7 +244,7 @@ export type BulkTransactionInput = {
 // Inserts a transaction at the end of the sort order for a property.
 async function insertAtEnd(
     propertyId: string,
-    row: Parameters<typeof db.insert>[0] extends never ? never : object
+    row: Parameters<typeof db.insert>[0] extends never ? never : object,
 ): Promise<void> {
     const [maxRow] = await db
         .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
@@ -249,7 +252,10 @@ async function insertAtEnd(
         .where(eq(propertyTransactions.propertyId, propertyId));
     await db
         .insert(propertyTransactions)
-        .values({ ...(row as typeof propertyTransactions.$inferInsert), sortOrder: (maxRow?.max ?? 0) + 1 });
+        .values({
+            ...(row as typeof propertyTransactions.$inferInsert),
+            sortOrder: (maxRow?.max ?? 0) + 1,
+        });
 }
 
 // Assignment: finds the Arms Length transaction whose buyer_id matches the
@@ -258,7 +264,7 @@ async function insertAtEnd(
 async function insertAssignment(
     propertyId: string,
     row: typeof propertyTransactions.$inferInsert,
-    buyerId: string | null
+    buyerId: string | null,
 ): Promise<void> {
     if (buyerId) {
         const [matchingAL] = await db
@@ -268,8 +274,8 @@ async function insertAssignment(
                 and(
                     eq(propertyTransactions.propertyId, propertyId),
                     eq(propertyTransactions.buyerId, buyerId),
-                    sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`
-                )
+                    sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+                ),
             )
             .orderBy(asc(propertyTransactions.sortOrder))
             .limit(1);
@@ -282,8 +288,8 @@ async function insertAssignment(
                 .where(
                     and(
                         eq(propertyTransactions.propertyId, propertyId),
-                        gte(propertyTransactions.sortOrder, insertAt)
-                    )
+                        gte(propertyTransactions.sortOrder, insertAt),
+                    ),
                 );
             await db.insert(propertyTransactions).values({ ...row, sortOrder: insertAt });
             return;
@@ -297,7 +303,7 @@ export async function appendPropertyTransactions(
     propertyId: string,
     transactions: BulkTransactionInput[],
     county: string | null,
-    msa: string | null
+    msa: string | null,
 ): Promise<void> {
     if (transactions.length === 0) return;
 
@@ -310,9 +316,7 @@ export async function appendPropertyTransactions(
     const apn = parcel?.apn ?? null;
 
     for (const tx of transactions) {
-        const buyerId = tx.buyerName
-            ? await upsertCompanyByName(tx.buyerName, county, msa)
-            : null;
+        const buyerId = tx.buyerName ? await upsertCompanyByName(tx.buyerName, county, msa) : null;
         const sellerId = tx.sellerName
             ? await upsertCompanyByName(tx.sellerName, county, msa)
             : null;
@@ -332,10 +336,10 @@ export async function appendPropertyTransactions(
             userCreated: true,
         };
 
-        const txType = (tx.transactionType ?? "").trim().toLowerCase();
+        const txType = (tx.transactionType ?? '').trim().toLowerCase();
 
         switch (txType) {
-            case "assignment":
+            case 'assignment':
                 await insertAssignment(propertyId, row, buyerId);
                 break;
             default:
@@ -343,4 +347,3 @@ export async function appendPropertyTransactions(
         }
     }
 }
-

@@ -1,10 +1,10 @@
-import { db } from "server/storage";
-import { marketScanQueue } from "@database/schemas/sync.schema";
-import { normalizeDateToYMD } from "server/utils/normalization";
-import { and, eq, inArray, ne } from "drizzle-orm";
-import type { BuyersMarketRecord } from "./get-market";
-import type { MarketScanWindow } from "@database/types/sync";
-import { MSA_STATE } from "../msa-states";
+import { db } from 'server/storage';
+import { marketScanQueue } from '@database/schemas/sync.schema';
+import { normalizeDateToYMD } from 'server/utils/normalization';
+import { and, eq, inArray, ne } from 'drizzle-orm';
+import type { BuyersMarketRecord } from './get-market';
+import type { MarketScanWindow } from '@database/types/sync';
+import { MSA_STATE } from '../msa-states';
 
 export interface InsertQueueParams {
     records: BuyersMarketRecord[];
@@ -23,7 +23,7 @@ function toRow(
     record: BuyersMarketRecord,
     msaId: number,
     scanWindow: MarketScanWindow,
-    msaName: string
+    msaName: string,
 ): typeof marketScanQueue.$inferInsert | null {
     const sfrMarketId = record.id as number | null | undefined;
     const sfrPropertyId = record.propertyId as number | null | undefined;
@@ -51,11 +51,12 @@ function toRow(
         sellerName: (record.sellerName as string) || null,
         saleValue,
         lenderName: (record.lenderName as string) || null,
-        isCorporate: typeof record.isCorporate === "boolean" ? record.isCorporate : null,
-        isPrivateLender: typeof record.isPrivateLender === "boolean" ? record.isPrivateLender : null,
+        isCorporate: typeof record.isCorporate === 'boolean' ? record.isCorporate : null,
+        isPrivateLender:
+            typeof record.isPrivateLender === 'boolean' ? record.isPrivateLender : null,
         propertyType: (record.propertyType as string) || null,
         rawData: record as Record<string, unknown>,
-        status: "pending",
+        status: 'pending',
         scanWindow,
     };
 }
@@ -86,11 +87,13 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
 
     const malformed = records.length - rows.length;
     if (malformed > 0) {
-        console.warn(`${label} Dropped ${malformed} malformed records (missing id, propertyId, or dates)`);
+        console.warn(
+            `${label} Dropped ${malformed} malformed records (missing id, propertyId, or dates)`,
+        );
     }
 
     // Deduplicate candidates by sfrPropertyId, keeping the most recent recordingDate
-    const candidateMap = new Map<number, typeof rows[number]>();
+    const candidateMap = new Map<number, (typeof rows)[number]>();
     for (const row of rows) {
         const existing = candidateMap.get(row.sfrPropertyId);
         if (!existing || row.recordingDate > existing.recordingDate) {
@@ -100,7 +103,7 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
     const candidates = Array.from(candidateMap.values());
 
     // Query all existing queue rows for these property IDs
-    const propertyIds = candidates.map(r => r.sfrPropertyId);
+    const propertyIds = candidates.map((r) => r.sfrPropertyId);
     const existingRows = await db
         .select({
             sfrPropertyId: marketScanQueue.sfrPropertyId,
@@ -110,15 +113,15 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
         .where(
             and(
                 eq(marketScanQueue.msaId, msaId),
-                inArray(marketScanQueue.sfrPropertyId, propertyIds)
-            )
+                inArray(marketScanQueue.sfrPropertyId, propertyIds),
+            ),
         );
 
     // Build map: sfrPropertyId → most recent recording_date in the queue (any status)
     const latestInQueue = new Map<number, string>();
     for (const row of existingRows) {
         const current = latestInQueue.get(row.sfrPropertyId);
-        const rd = row.recordingDate ?? "";
+        const rd = row.recordingDate ?? '';
         if (!current || rd > current) {
             latestInQueue.set(row.sfrPropertyId, rd);
         }
@@ -144,7 +147,9 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
     }
 
     if (toInsert.length === 0) {
-        console.log(`${label} Queue insert: 0 new, ${skippedCount} already up-to-date (${rows.length} attempted)`);
+        console.log(
+            `${label} Queue insert: 0 new, ${skippedCount} already up-to-date (${rows.length} attempted)`,
+        );
         return { attempted: rows.length, inserted: 0, skipped: skippedCount };
     }
 
@@ -156,13 +161,15 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
                 and(
                     eq(marketScanQueue.msaId, msaId),
                     inArray(marketScanQueue.sfrPropertyId, propertyIdsWithStaleRows),
-                    ne(marketScanQueue.status, "processing")
-                )
+                    ne(marketScanQueue.status, 'processing'),
+                ),
             )
             .returning({ sfrPropertyId: marketScanQueue.sfrPropertyId });
 
         if (deleted.length > 0) {
-            console.log(`${label} Removed ${deleted.length} stale queue row(s) superseded by newer transactions`);
+            console.log(
+                `${label} Removed ${deleted.length} stale queue row(s) superseded by newer transactions`,
+            );
         }
     }
 
@@ -176,7 +183,7 @@ export async function insertQueue(params: InsertQueueParams): Promise<InsertQueu
     const insertedCount = inserted.length;
 
     console.log(
-        `${label} Queue insert: ${insertedCount} new, ${skippedCount} already up-to-date (${rows.length} attempted)`
+        `${label} Queue insert: ${insertedCount} new, ${skippedCount} already up-to-date (${rows.length} attempted)`,
     );
 
     return {

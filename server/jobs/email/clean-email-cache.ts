@@ -1,6 +1,6 @@
-import { db } from "server/storage";
-import { sentPropertyIds } from "@database/schemas/sync.schema";
-import { lt } from "drizzle-orm";
+import { db } from 'server/storage';
+import { sentPropertyIds } from '@database/schemas/sync.schema';
+import { lt } from 'drizzle-orm';
 
 export async function cleanEmailCache(): Promise<void> {
     const fifteenDaysAgo = new Date();

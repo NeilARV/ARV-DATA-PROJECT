@@ -1,17 +1,35 @@
-export type SortOption = "recently-sold" | "days-held" | "price-high-low" | "price-low-high";
+export type SortOption = 'recently-sold' | 'days-held' | 'price-high-low' | 'price-low-high';
 
-export type View = "map" | "grid" | "table" | "buyers-feed" | "wholesale" | "deals"
+export type View = 'map' | 'grid' | 'table' | 'buyers-feed' | 'wholesale' | 'deals';
 
-export type SidebarView = "filters" | "directory" | "none";
+export type SidebarView = 'filters' | 'directory' | 'none';
 
-export type DirectorySortOption = "most-properties" | "most-sold-properties" | "most-sold-properties-all-time" | "most-bought-properties" | "most-bought-properties-all-time" | "new-buyers" | "buys-wholesale" | "wholesalers";
+export type DirectorySortOption =
+    | 'most-properties'
+    | 'most-sold-properties'
+    | 'most-sold-properties-all-time'
+    | 'most-bought-properties'
+    | 'most-bought-properties-all-time'
+    | 'new-buyers'
+    | 'buys-wholesale'
+    | 'wholesalers';
 
-export type Status = "in-renovation" | "wholesale" | "on-market" | "sold";
+export type Status = 'in-renovation' | 'wholesale' | 'on-market' | 'sold';
 
-export type SortColumn = "address" | "city" | "price" | "bedrooms" | "bathrooms" | "squareFeet" | "propertyType" | "dateSold" | "propertyOwner" | "daysOwned";
+export type SortColumn =
+    | 'address'
+    | 'city'
+    | 'price'
+    | 'bedrooms'
+    | 'bathrooms'
+    | 'squareFeet'
+    | 'propertyType'
+    | 'dateSold'
+    | 'propertyOwner'
+    | 'daysOwned';
 
-export type SortDirection = "asc" | "desc";
+export type SortDirection = 'asc' | 'desc';
 
-export type Section = "panel" | "modal" | "card";
+export type Section = 'panel' | 'modal' | 'card';
 
-export type ZipCodeSortOption = "most-properties" | "fewest-properties" | "alphabetical";
+export type ZipCodeSortOption = 'most-properties' | 'fewest-properties' | 'alphabetical';

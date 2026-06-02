@@ -1,14 +1,14 @@
-import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
-import Header from "@/components/Header";
-import { MapProvider } from "@/hooks/useMap";
-import { FiltersProvider } from "@/hooks/useFilters";
-import { CompaniesProvider } from "@/hooks/useCompanies";
-import { PropertiesProvider } from "@/hooks/useProperties";
-import { PropertyProvider } from "@/hooks/useProperty";
-import { useAuth } from "@/hooks/use-auth";
-import { useDialogs } from "@/hooks/useDialogs";
-import DealsPageContent from "@/components/deals/DealsPageContent";
+import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import Header from '@/components/Header';
+import { MapProvider } from '@/hooks/useMap';
+import { FiltersProvider } from '@/hooks/useFilters';
+import { CompaniesProvider } from '@/hooks/useCompanies';
+import { PropertiesProvider } from '@/hooks/useProperties';
+import { PropertyProvider } from '@/hooks/useProperty';
+import { useAuth } from '@/hooks/use-auth';
+import { useDialogs } from '@/hooks/useDialogs';
+import DealsPageContent from '@/components/deals/DealsPageContent';
 
 function DealsInner() {
     const { isLoading, isAuthenticated } = useAuth();
@@ -16,7 +16,7 @@ function DealsInner() {
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            openDialog({ type: "login" });
+            openDialog({ type: 'login' });
         }
     }, [isLoading, isAuthenticated]);
 

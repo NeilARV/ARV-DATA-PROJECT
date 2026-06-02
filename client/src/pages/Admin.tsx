@@ -1,215 +1,222 @@
-import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import AdminLogin from "@/components/AdminLogin";
-import { useAuth } from "@/hooks/use-auth";
+import { useState, useMemo } from 'react';
+import { useLocation } from 'wouter';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import AdminLogin from '@/components/AdminLogin';
+import { useAuth } from '@/hooks/use-auth';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Loader2,
-  AlertTriangle,
-  ArrowLeft,
-  Users,
-  ShieldCheck,
-  Mail,
-} from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import AppDialog from "@/components/modals/Dialog";
-import { UploadPropertyDialog } from "@/components/admin/UploadPropertyDialog";
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Loader2, AlertTriangle, ArrowLeft, Users, ShieldCheck, Mail } from 'lucide-react';
+import { queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import AppDialog from '@/components/modals/Dialog';
+import { UploadPropertyDialog } from '@/components/admin/UploadPropertyDialog';
 // import ManagePropertiesTab from "@/components/admin/ManagePropertiesTab";
-import UsersTab from "@/components/admin/UsersTab";
-import EmailListTab from "@/components/admin/EmailListTab";
-import RolesTab from "@/components/admin/RolesTab";
+import UsersTab from '@/components/admin/UsersTab';
+import EmailListTab from '@/components/admin/EmailListTab';
+import RolesTab from '@/components/admin/RolesTab';
 
 export default function Admin() {
-  const { toast } = useToast();
-  const [, setLocation] = useLocation();
-  const {
-    user: authUser,
-    isLoading: isLoadingUser,
-    isAuthenticated: isUserAuthenticated,
-    isAdmin,
-    isOwner,
-    isRelationshipManager,
-    canAccessAdminPanel,
-    isAdminStatusLoading,
-  } = useAuth();
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [selectedCounty, setSelectedCounty] = useState<string>("San Diego");
+    const { toast } = useToast();
+    const [, setLocation] = useLocation();
+    const {
+        user: authUser,
+        isLoading: isLoadingUser,
+        isAuthenticated: isUserAuthenticated,
+        isAdmin,
+        isOwner,
+        isRelationshipManager,
+        canAccessAdminPanel,
+        isAdminStatusLoading,
+    } = useAuth();
+    const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+    const [selectedCounty, setSelectedCounty] = useState<string>('San Diego');
 
-  const isVerifying = isLoadingUser || isAdminStatusLoading;
-  const showAccessDenied = isUserAuthenticated && !canAccessAdminPanel && !isVerifying;
-  /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
-  const canManageRoles = isOwner || isAdmin;
-  /** RMs can manage subscription tiers, relationship manager assignments, and email list entries. */
-  const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
+    const isVerifying = isLoadingUser || isAdminStatusLoading;
+    const showAccessDenied = isUserAuthenticated && !canAccessAdminPanel && !isVerifying;
+    /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
+    const canManageRoles = isOwner || isAdmin;
+    /** RMs can manage subscription tiers, relationship manager assignments, and email list entries. */
+    const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
 
-  // Build query URL with county filter
-  const propertiesQueryUrl = useMemo(() => {
-    const params = new URLSearchParams();
-    if (selectedCounty) {
-      params.append('county', selectedCounty);
+    // Build query URL with county filter
+    const propertiesQueryUrl = useMemo(() => {
+        const params = new URLSearchParams();
+        if (selectedCounty) {
+            params.append('county', selectedCounty);
+        }
+        const queryString = params.toString();
+        return queryString ? `/api/properties?${queryString}` : '/api/properties';
+    }, [selectedCounty]);
+
+    const handleLogout = async () => {
+        try {
+            // Use the regular user logout endpoint
+            const response = await fetch('/api/auth/logout', {
+                method: 'POST',
+                credentials: 'include',
+            });
+
+            if (response.ok) {
+                // Clear all cached queries on logout (auth + admin status)
+                queryClient.clear();
+                toast({
+                    title: 'Logged Out',
+                    description: 'You have been logged out',
+                });
+                setLocation('/');
+            }
+        } catch (error) {
+            console.error('Error logging out:', error);
+            toast({
+                title: 'Error',
+                description: 'Failed to log out',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    if (isVerifying || isLoadingUser) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+        );
     }
-    const queryString = params.toString();
-    return queryString ? `/api/properties?${queryString}` : '/api/properties';
-  }, [selectedCounty]);
 
-  const handleLogout = async () => {
-    try {
-      // Use the regular user logout endpoint
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        // Clear all cached queries on logout (auth + admin status)
-        queryClient.clear();
-        toast({
-          title: "Logged Out",
-          description: "You have been logged out",
-        });
-        setLocation("/");
-      }
-    } catch (error) {
-      console.error("Error logging out:", error);
-      toast({
-        title: "Error",
-        description: "Failed to log out",
-        variant: "destructive",
-      });
+    // Show AdminLogin only if user is not authenticated
+    // If authenticated but not admin, we'll show the access denied dialog
+    if (!isUserAuthenticated) {
+        return <AdminLogin />;
     }
-  };
 
-  if (isVerifying || isLoadingUser) {
+    // If user is authenticated but has no ARV team role, show dialog and don't render admin content
+    if (!canAccessAdminPanel && isUserAuthenticated) {
+        return (
+            <AlertDialog
+                open={showAccessDenied}
+                onOpenChange={(open) => {
+                    if (!open) setLocation('/');
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                            Access Denied
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You do not have admin privileges to access this page. Please contact an
+                            administrator if you believe this is an error.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction onClick={() => setLocation('/')}>
+                            Go to Home Page
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        );
+    }
+
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+        <div className="container mx-auto py-8 px-4 max-w-7xl">
+            <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setLocation('/')}
+                        data-testid="button-back-home"
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Back to Properties
+                    </Button>
+                    <Button variant="outline" onClick={handleLogout} data-testid="button-logout">
+                        Logout
+                    </Button>
+                </div>
+                <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
+                    Admin Panel
+                </h1>
+            </div>
 
-  // Show AdminLogin only if user is not authenticated
-  // If authenticated but not admin, we'll show the access denied dialog
-  if (!isUserAuthenticated) {
-    return <AdminLogin />;
-  }
+            <Tabs defaultValue="users" className="w-full">
+                <TabsList
+                    className={`grid w-full mb-8 ${canManageRoles ? 'grid-cols-3' : 'grid-cols-2'}`}
+                >
+                    <TabsTrigger value="users" data-testid="tab-users">
+                        <Users className="w-4 h-4 mr-2" />
+                        Users
+                    </TabsTrigger>
+                    <TabsTrigger value="email-list" data-testid="tab-email-list">
+                        <Mail className="w-4 h-4 mr-2" />
+                        Email List
+                    </TabsTrigger>
+                    {canManageRoles && (
+                        <TabsTrigger value="roles" data-testid="tab-roles">
+                            <ShieldCheck className="w-4 h-4 mr-2" />
+                            Roles
+                        </TabsTrigger>
+                    )}
+                </TabsList>
 
-  // If user is authenticated but has no ARV team role, show dialog and don't render admin content
-  if (!canAccessAdminPanel && isUserAuthenticated) {
-    return (
-      <AlertDialog
-        open={showAccessDenied}
-        onOpenChange={(open) => {
-          if (!open) setLocation("/");
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              Access Denied
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              You do not have admin privileges to access this page. Please contact an administrator if you believe this is an error.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setLocation("/")}>
-              Go to Home Page
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    );
-  }
+                <TabsContent value="users">
+                    <UsersTab
+                        isAdmin={canAccessAdminPanel}
+                        canDeleteUser={canManageRoles}
+                        canManageSubscriptionTier={canManageSubscriptionTier}
+                        canManageRelationshipManagers={canManageSubscriptionTier}
+                        canManageAccountTypes={canManageSubscriptionTier}
+                    />
+                </TabsContent>
 
-  return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <Button
-            variant="ghost"
-            onClick={() => setLocation("/")}
-            data-testid="button-back-home"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Properties
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            data-testid="button-logout"
-          >
-            Logout
-          </Button>
+                <TabsContent value="email-list">
+                    <EmailListTab
+                        isAdmin={canAccessAdminPanel}
+                        canEditEntries={canManageSubscriptionTier}
+                    />
+                </TabsContent>
+
+                {canManageRoles && (
+                    <TabsContent value="roles">
+                        <RolesTab
+                            isAdmin={canAccessAdminPanel}
+                            isOwner={isOwner}
+                            currentUserId={authUser?.id ?? null}
+                        />
+                    </TabsContent>
+                )}
+            </Tabs>
+
+            <AppDialog
+                open={uploadDialogOpen}
+                onClose={() => setUploadDialogOpen(false)}
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
+            >
+                {uploadDialogOpen && (
+                    <UploadPropertyDialog
+                        onClose={() => setUploadDialogOpen(false)}
+                        onSuccess={() => {
+                            queryClient.invalidateQueries({
+                                predicate: (query) => {
+                                    const key = query.queryKey[0];
+                                    return (
+                                        typeof key === 'string' && key.startsWith('/api/properties')
+                                    );
+                                },
+                            });
+                        }}
+                    />
+                )}
+            </AppDialog>
         </div>
-        <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
-          Admin Panel
-        </h1>
-      </div>
-
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList className={`grid w-full mb-8 ${canManageRoles ? "grid-cols-3" : "grid-cols-2"}`}>
-          <TabsTrigger value="users" data-testid="tab-users">
-            <Users className="w-4 h-4 mr-2" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="email-list" data-testid="tab-email-list">
-            <Mail className="w-4 h-4 mr-2" />
-            Email List
-          </TabsTrigger>
-          {canManageRoles && (
-            <TabsTrigger value="roles" data-testid="tab-roles">
-              <ShieldCheck className="w-4 h-4 mr-2" />
-              Roles
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="users">
-          <UsersTab isAdmin={canAccessAdminPanel} canDeleteUser={canManageRoles} canManageSubscriptionTier={canManageSubscriptionTier} canManageRelationshipManagers={canManageSubscriptionTier} canManageAccountTypes={canManageSubscriptionTier} />
-        </TabsContent>
-
-        <TabsContent value="email-list">
-          <EmailListTab isAdmin={canAccessAdminPanel} canEditEntries={canManageSubscriptionTier} />
-        </TabsContent>
-
-        {canManageRoles && (
-          <TabsContent value="roles">
-            <RolesTab isAdmin={canAccessAdminPanel} isOwner={isOwner} currentUserId={authUser?.id ?? null} />
-          </TabsContent>
-        )}
-      </Tabs>
-
-      <AppDialog
-        open={uploadDialogOpen}
-        onClose={() => setUploadDialogOpen(false)}
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
-      >
-        {uploadDialogOpen && (
-          <UploadPropertyDialog
-            onClose={() => setUploadDialogOpen(false)}
-            onSuccess={() => {
-              queryClient.invalidateQueries({
-                predicate: (query) => {
-                  const key = query.queryKey[0];
-                  return typeof key === "string" && key.startsWith("/api/properties");
-                },
-              });
-            }}
-          />
-        )}
-      </AppDialog>
-    </div>
-  );
+    );
 }

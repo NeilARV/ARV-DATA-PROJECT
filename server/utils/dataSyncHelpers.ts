@@ -1,45 +1,48 @@
-import { db } from "server/storage";
-import { companies, companyCounties } from "@database/schemas/companies.schema";
-import { eq, and } from "drizzle-orm";
+import { db } from 'server/storage';
+import { companies, companyCounties } from '@database/schemas/companies.schema';
+import { eq, and } from 'drizzle-orm';
 
 // Known county → state mapping for MSAs we track
 const COUNTY_STATE_MAP: Record<string, string> = {
     'San Diego': 'CA',
-    'Orange': 'CA',
+    Orange: 'CA',
     'Los Angeles': 'CA',
-    'Riverside': 'CA',
+    Riverside: 'CA',
     'San Bernardino': 'CA',
     'San Francisco': 'CA',
-    'Alameda': 'CA',
+    Alameda: 'CA',
     'Contra Costa': 'CA',
-    'Marin': 'CA',
+    Marin: 'CA',
     'San Mateo': 'CA',
-    'Denver': 'CO',
-    'Adams': 'CO',
-    'Arapahoe': 'CO',
-    'Broomfield': 'CO',
-    'Jefferson': 'CO',
-    'Douglas': 'CO',
+    Denver: 'CO',
+    Adams: 'CO',
+    Arapahoe: 'CO',
+    Broomfield: 'CO',
+    Jefferson: 'CO',
+    Douglas: 'CO',
     'Clear Creek': 'CO',
-    'Gilpin': 'CO',
-    'Elbert': 'CO',
-    'Park': 'CO',
+    Gilpin: 'CO',
+    Elbert: 'CO',
+    Park: 'CO',
     'Miami-Dade': 'FL',
-    'Broward': 'FL',
+    Broward: 'FL',
     'Palm Beach': 'FL',
     'St. Lucie': 'FL',
-    'Martin': 'FL',
-    'Hillsborough': 'FL',
-    'Pinellas': 'FL',
-    'Pasco': 'FL',
-    'Hernando': 'FL',
-    'King': 'WA',
-    'Pierce': 'WA',
-    'Snohomish': 'WA',
+    Martin: 'FL',
+    Hillsborough: 'FL',
+    Pinellas: 'FL',
+    Pasco: 'FL',
+    Hernando: 'FL',
+    King: 'WA',
+    Pierce: 'WA',
+    Snohomish: 'WA',
 };
 
 // Helper function to check if a name/entity is a trust (exported for property-status job)
-function isTrust(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
+function isTrust(
+    name: string | null | undefined,
+    ownershipCode: string | null | undefined,
+): boolean {
     if (!name) return false;
 
     // Ownership codes that indicate trusts
@@ -56,10 +59,10 @@ function isTrust(name: string | null | undefined, ownershipCode: string | null |
         /\bFAMILY TRUST\b/i,
         /\bREVOCABLE TRUST\b/i,
         /\bIRREVOCABLE TRUST\b/i,
-        /\bSPOUSAL TRUST\b/i
+        /\bSPOUSAL TRUST\b/i,
     ];
 
-    return trustPatterns.some(pattern => pattern.test(name));
+    return trustPatterns.some((pattern) => pattern.test(name));
 }
 
 /**
@@ -72,26 +75,29 @@ function isTrust(name: string | null | undefined, ownershipCode: string | null |
  */
 const KNOWN_CORPORATE_NAMES: ReadonlySet<string> = new Set([
     // iBuyers
-    "opendoor",
+    'opendoor',
     // Institutional SFR operators
-    "starwood",
-    "first key homes",
-    "firstkey homes",
-    "conrex",
-    "progress residential",
-    "invitation homes",
-    "main street renewal",
-    "divvy homes",
-    "tricon residential",
-    "american homes 4 rent",
-    "amh",
-    "mynd",
-    "roofstock",
-    "waypoint homes",
+    'starwood',
+    'first key homes',
+    'firstkey homes',
+    'conrex',
+    'progress residential',
+    'invitation homes',
+    'main street renewal',
+    'divvy homes',
+    'tricon residential',
+    'american homes 4 rent',
+    'amh',
+    'mynd',
+    'roofstock',
+    'waypoint homes',
 ]);
 
 // Helper function to check if a name/entity is a flipping company (corporate but not trust)
-export function isFlippingCompany(name: string | null | undefined, ownershipCode: string | null | undefined): boolean {
+export function isFlippingCompany(
+    name: string | null | undefined,
+    ownershipCode: string | null | undefined,
+): boolean {
     if (!name) return false;
 
     // Must NOT be a trust
@@ -108,8 +114,8 @@ export function isFlippingCompany(name: string | null | undefined, ownershipCode
     const corporatePatterns = [
         /\bLLC\b/i,
         /\bINC\b/i,
-        /\bCORPS?\b/i,           // CORP, CORPS
-        /\bCORPORATION\b/i,      // CORPORATION (not caught by \bCORP\b word boundary)
+        /\bCORPS?\b/i, // CORP, CORPS
+        /\bCORPORATION\b/i, // CORPORATION (not caught by \bCORP\b word boundary)
         /\bLTD\b/i,
         /\bLP\b/i,
         /\bPROPERTIES\b/i,
@@ -118,16 +124,16 @@ export function isFlippingCompany(name: string | null | undefined, ownershipCode
         /\bVENTURES?\b/i,
         /\bHOLDINGS?\b/i,
         /\bREALTY\b/i,
-        /\bENTERPRISES?\b/i,     // ENTERPRISE, ENTERPRISES
+        /\bENTERPRISES?\b/i, // ENTERPRISE, ENTERPRISES
     ];
 
-    return corporatePatterns.some(pattern => pattern.test(name));
+    return corporatePatterns.some((pattern) => pattern.test(name));
 }
 
 // Helper to add counties to a company via company_counties table
 export async function addCountiesToCompanyIfNeeded(
     company: { id: string },
-    countiesToAdd: string[] | Set<string>
+    countiesToAdd: string[] | Set<string>,
 ): Promise<void> {
     const newCounties = Array.isArray(countiesToAdd) ? countiesToAdd : Array.from(countiesToAdd);
     if (newCounties.length === 0) return;
@@ -135,7 +141,9 @@ export async function addCountiesToCompanyIfNeeded(
     for (const county of newCounties) {
         const state = COUNTY_STATE_MAP[county];
         if (!state) {
-            console.warn(`addCountiesToCompanyIfNeeded: unknown county "${county}" — no state mapping, skipping`);
+            console.warn(
+                `addCountiesToCompanyIfNeeded: unknown county "${county}" — no state mapping, skipping`,
+            );
             continue;
         }
         await db

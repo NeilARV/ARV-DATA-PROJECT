@@ -4,8 +4,8 @@
  * Single source of truth — imported by Signup.tsx and Profile.tsx.
  */
 export const STATE_DEFAULT_COUNTY: Record<string, string> = {
-    CA: "San Diego",
-    CO: "Denver",
-    FL: "Miami-Dade",
-    WA: "King",
+    CA: 'San Diego',
+    CO: 'Denver',
+    FL: 'Miami-Dade',
+    WA: 'King',
 };

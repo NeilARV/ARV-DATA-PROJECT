@@ -1,6 +1,6 @@
-import type { MergedProperty } from "./batch-lookup";
-import { fetchWithRetry } from "server/utils/fetchWithRetry";
-import { delay } from "server/utils/delay";
+import type { MergedProperty } from './batch-lookup';
+import { fetchWithRetry } from 'server/utils/fetchWithRetry';
+import { delay } from 'server/utils/delay';
 
 const RATE_LIMIT_DELAY_MS = 500;
 const RETRY_ATTEMPTS = 3;
@@ -12,7 +12,7 @@ export type TransactionRecord = Record<string, unknown>;
 /** API may return { property_id?, address?, transactions: [] } or just the array. */
 function parseTransactionsResponse(data: unknown): TransactionRecord[] {
     if (Array.isArray(data)) return data as TransactionRecord[];
-    if (data && typeof data === "object" && "transactions" in data) {
+    if (data && typeof data === 'object' && 'transactions' in data) {
         const t = (data as { transactions: unknown }).transactions;
         return Array.isArray(t) ? (t as TransactionRecord[]) : [];
     }
@@ -22,11 +22,11 @@ function parseTransactionsResponse(data: unknown): TransactionRecord[] {
 function getAddressForProperty(item: MergedProperty): string {
     if (item.address && String(item.address).trim()) return item.address.trim();
     const p = item.property as Record<string, unknown>;
-    const address = (p.address as string) || "";
-    const city = (p.city as string) || "";
-    const state = (p.state as string) || "";
-    const zip = (p.zip as string) || (p.zipCode as string) || "";
-    if (!address || !city || !state) return "";
+    const address = (p.address as string) || '';
+    const city = (p.city as string) || '';
+    const state = (p.state as string) || '';
+    const zip = (p.zip as string) || (p.zipCode as string) || '';
+    if (!address || !city || !state) return '';
     return zip ? `${address}, ${city}, ${state} ${zip}` : `${address}, ${city}, ${state}`;
 }
 
@@ -50,7 +50,7 @@ export interface PropertyWithTransactions extends MergedProperty {
  * (one request per property). Returns the same properties with a new key transactions: [].
  */
 export async function getTransactions(
-    params: GetTransactionsParams
+    params: GetTransactionsParams,
 ): Promise<PropertyWithTransactions[]> {
     const { properties, API_KEY, API_URL, cityCode } = params;
 
@@ -74,23 +74,25 @@ export async function getTransactions(
             continue;
         }
 
-        console.log(`[${cityCode} SYNC] Transactions request ${i + 1}/${properties.length}: ${address}`);
+        console.log(
+            `[${cityCode} SYNC] Transactions request ${i + 1}/${properties.length}: ${address}`,
+        );
 
         try {
             const url = `${API_URL}/properties/transactions?address=${encodeURIComponent(address)}`;
             const response = await fetchWithRetry(
                 url,
                 {
-                    method: "GET",
+                    method: 'GET',
                     headers: {
-                        "X-API-TOKEN": API_KEY,
-                        "Accept": "application/json",
-                        "User-Agent": "PostmanRuntime/7.41.0",
+                        'X-API-TOKEN': API_KEY,
+                        Accept: 'application/json',
+                        'User-Agent': 'PostmanRuntime/7.41.0',
                     },
                 },
                 RETRY_ATTEMPTS,
                 RETRY_DELAY_MS,
-                { label: `${cityCode} SYNC transactions ${i + 1}/${properties.length}` }
+                { label: `${cityCode} SYNC transactions ${i + 1}/${properties.length}` },
             );
             const data = (await response.json()) as unknown;
             const transactions = parseTransactionsResponse(data);
@@ -98,7 +100,7 @@ export async function getTransactions(
         } catch (err) {
             console.warn(
                 `[${cityCode} SYNC] Failed to fetch transactions for ${address}:`,
-                err instanceof Error ? err.message : err
+                err instanceof Error ? err.message : err,
             );
             results.push({ ...item, transactions: [] });
         }
@@ -106,7 +108,7 @@ export async function getTransactions(
 
     const withTransactions = results.filter((r) => r.transactions.length > 0);
     console.log(
-        `[${cityCode} SYNC] Transactions complete: ${withTransactions.length}/${results.length} properties have transaction history`
+        `[${cityCode} SYNC] Transactions complete: ${withTransactions.length}/${results.length} properties have transaction history`,
     );
 
     return results;

@@ -1,8 +1,14 @@
-import { db } from "server/storage";
-import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { eq, sql, and, or, inArray } from "drizzle-orm";
-import { resolveDateRange } from "server/utils/resolveDateRange";
+import { db } from 'server/storage';
+import {
+    properties,
+    addresses,
+    structures,
+    lastSales,
+    propertyTransactions,
+} from '@database/schemas/properties.schema';
+import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
+import { eq, sql, and, or, inArray } from 'drizzle-orm';
+import { resolveDateRange } from 'server/utils/resolveDateRange';
 
 export interface MapPropertyData {
     id: string;
@@ -44,8 +50,8 @@ export async function getMapProperties(
     dateRange?: string,
     companyId?: string,
 ): Promise<MapPropertyData[]> {
-    const companyIdTrimmed = companyId?.trim() ?? "";
-    const hasCompanyFilter = companyIdTrimmed !== "";
+    const companyIdTrimmed = companyId?.trim() ?? '';
+    const hasCompanyFilter = companyIdTrimmed !== '';
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
 
     // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
@@ -58,22 +64,25 @@ export async function getMapProperties(
         idConditions.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-            )
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+            ),
         );
     }
 
     if (statusFilter) {
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
-            const normalizedStatuses = statusArray.map(s => s.trim().toLowerCase());
+            const normalizedStatuses = statusArray.map((s) => s.trim().toLowerCase());
             idConditions.push(
                 sql`EXISTS (
                     SELECT 1 FROM property_statuses ps
                     JOIN statuses s ON s.id = ps.status_id
                     WHERE ps.property_id = ${properties.id}
-                    AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}]::text[])
-                )`
+                    AND LOWER(s.name) = ANY(ARRAY[${sql.join(
+                        normalizedStatuses.map((s) => sql`${s}`),
+                        sql`, `,
+                    )}]::text[])
+                )`,
             );
         }
     }
@@ -86,7 +95,7 @@ export async function getMapProperties(
                 AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
                 AND pt.recording_date >= ${resolvedRange.dateMin}::date
                 AND pt.recording_date <= ${resolvedRange.dateMax}::date
-            )`
+            )`,
         );
     }
 
@@ -97,7 +106,7 @@ export async function getMapProperties(
                 WHERE pt.property_id = ${properties.id}
                 AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
                 AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-            )`
+            )`,
         );
     }
 
@@ -108,12 +117,11 @@ export async function getMapProperties(
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId));
 
-    const idRows: Array<{ id: string }> = await (idWhereClause
-        ? (baseIdQuery as any).where(idWhereClause)
-        : baseIdQuery
+    const idRows: Array<{ id: string }> = await (
+        idWhereClause ? (baseIdQuery as any).where(idWhereClause) : baseIdQuery
     ).execute();
 
-    const qualifyingIds = idRows.map(r => r.id);
+    const qualifyingIds = idRows.map((r) => r.id);
 
     if (qualifyingIds.length === 0) return [];
 
@@ -122,17 +130,21 @@ export async function getMapProperties(
     const statusData = db
         .select({
             propertyId: propertyStatuses.propertyId,
-            primaryStatus: sql<string | null>`(array_agg(${statuses.name} ORDER BY CASE ${statuses.name}
+            primaryStatus: sql<
+                string | null
+            >`(array_agg(${statuses.name} ORDER BY CASE ${statuses.name}
                 WHEN 'wholesale' THEN 0 WHEN 'on-market' THEN 1
                 WHEN 'in-renovation' THEN 2 WHEN 'sold' THEN 3 ELSE 4
-            END))[1]`.as("primary_status"),
-            allStatuses: sql<string[]>`COALESCE(array_agg(${statuses.name}), ARRAY[]::text[])`.as("all_statuses"),
+            END))[1]`.as('primary_status'),
+            allStatuses: sql<string[]>`COALESCE(array_agg(${statuses.name}), ARRAY[]::text[])`.as(
+                'all_statuses',
+            ),
         })
         .from(propertyStatuses)
         .innerJoin(statuses, eq(propertyStatuses.statusId, statuses.id))
         .where(inArray(propertyStatuses.propertyId, qualifyingIds))
         .groupBy(propertyStatuses.propertyId)
-        .as("status_data");
+        .as('status_data');
 
     const rawResults = await db
         .select({
@@ -187,15 +199,39 @@ export async function getMapProperties(
 
     return rawResults
         .filter((prop: any) => {
-            const lat = prop.latitude ? (typeof prop.latitude === "string" ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
-            const lon = prop.longitude ? (typeof prop.longitude === "string" ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
+            const lat = prop.latitude
+                ? typeof prop.latitude === 'string'
+                    ? parseFloat(prop.latitude)
+                    : Number(prop.latitude)
+                : null;
+            const lon = prop.longitude
+                ? typeof prop.longitude === 'string'
+                    ? parseFloat(prop.longitude)
+                    : Number(prop.longitude)
+                : null;
             return lat != null && lon != null && !isNaN(lat) && !isNaN(lon);
         })
         .map((prop: any) => {
-            const lat = prop.latitude ? (typeof prop.latitude === "string" ? parseFloat(prop.latitude) : Number(prop.latitude)) : null;
-            const lon = prop.longitude ? (typeof prop.longitude === "string" ? parseFloat(prop.longitude) : Number(prop.longitude)) : null;
-            const baths = prop.bathrooms ? (typeof prop.bathrooms === "string" ? parseFloat(prop.bathrooms) : Number(prop.bathrooms)) : null;
-            const price = prop.price ? (typeof prop.price === "string" ? parseFloat(prop.price) : Number(prop.price)) : 0;
+            const lat = prop.latitude
+                ? typeof prop.latitude === 'string'
+                    ? parseFloat(prop.latitude)
+                    : Number(prop.latitude)
+                : null;
+            const lon = prop.longitude
+                ? typeof prop.longitude === 'string'
+                    ? parseFloat(prop.longitude)
+                    : Number(prop.longitude)
+                : null;
+            const baths = prop.bathrooms
+                ? typeof prop.bathrooms === 'string'
+                    ? parseFloat(prop.bathrooms)
+                    : Number(prop.bathrooms)
+                : null;
+            const price = prop.price
+                ? typeof prop.price === 'string'
+                    ? parseFloat(prop.price)
+                    : Number(prop.price)
+                : 0;
             const buyerId = prop.txBuyerId ? String(prop.txBuyerId) : null;
             const sellerId = prop.txSellerId ? String(prop.txSellerId) : null;
             const companyIdOut = buyerId || sellerId || null;
@@ -204,15 +240,15 @@ export async function getMapProperties(
                 id: String(prop.id),
                 latitude: lat,
                 longitude: lon,
-                address: prop.address || "",
-                city: prop.city || "",
-                zipcode: prop.zipcode || "",
-                county: prop.county || "",
-                propertyType: prop.propertyType || "",
+                address: prop.address || '',
+                city: prop.city || '',
+                zipcode: prop.zipcode || '',
+                county: prop.county || '',
+                propertyType: prop.propertyType || '',
                 bedrooms: prop.bedrooms ? Number(prop.bedrooms) : null,
                 bathrooms: baths,
                 price,
-                status: prop.status || "",
+                status: prop.status || '',
                 statuses: Array.isArray(prop.statuses) ? prop.statuses : [],
                 propertyOwner: prop.txBuyerName || null,
                 companyId: companyIdOut,

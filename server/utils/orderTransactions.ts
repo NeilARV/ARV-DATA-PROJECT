@@ -25,31 +25,31 @@ export type TxRow = {
 
 function toDateStr(d: Date | string | null | undefined): string | null {
     if (d == null) return null;
-    if (typeof d === "string") return d.split("T")[0] ?? null;
-    return (d as Date).toISOString().split("T")[0] ?? null;
+    if (typeof d === 'string') return d.split('T')[0] ?? null;
+    return (d as Date).toISOString().split('T')[0] ?? null;
 }
 
 function nameKey(s: string | null | undefined): string {
-    return s != null ? String(s).trim().toLowerCase() : "";
+    return s != null ? String(s).trim().toLowerCase() : '';
 }
 
 function parsePrice(p: string | number | null | undefined): number | null {
     if (p == null) return null;
-    const n = typeof p === "number" ? p : parseFloat(String(p));
+    const n = typeof p === 'number' ? p : parseFloat(String(p));
     return isNaN(n) ? null : n;
 }
 
 function isArmsLength(tx: TxRow): boolean {
-    return (tx.transactionType ?? "").trim().toLowerCase() === "arms length";
+    return (tx.transactionType ?? '').trim().toLowerCase() === 'arms length';
 }
 
 function isNonArmsLength(tx: TxRow): boolean {
-    return (tx.transactionType ?? "").trim().toLowerCase() === "non-arms length";
+    return (tx.transactionType ?? '').trim().toLowerCase() === 'non-arms length';
 }
 
 function matchesBuyer(tx: TxRow, targetName: string, targetId: string | null): boolean {
     if (targetId) {
-        const bid = tx.buyerId != null ? String(tx.buyerId).trim().toLowerCase() : "";
+        const bid = tx.buyerId != null ? String(tx.buyerId).trim().toLowerCase() : '';
         if (bid && String(targetId).trim().toLowerCase() === bid) return true;
     }
     if (targetName) {
@@ -116,7 +116,7 @@ function traceAcquisition<T extends TxRow>(
     txs: T[],
     targetName: string,
     targetId: string | null,
-    visited: Set<string>
+    visited: Set<string>,
 ): { price: number; date: string } | null {
     if (!targetName && !targetId) return null;
     const visitKey = targetId ? String(targetId).toLowerCase() : targetName;
@@ -128,7 +128,7 @@ function traceAcquisition<T extends TxRow>(
         if (!matchesBuyer(tx, targetName, targetId)) continue;
 
         const price = parsePrice(tx.salePrice);
-        const date = toDateStr(tx.recordingDate) ?? "";
+        const date = toDateStr(tx.recordingDate) ?? '';
 
         // Arms Length with a real price → this is the acquisition
         if (isArmsLength(tx) && price !== null && price > 0) {

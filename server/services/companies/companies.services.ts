@@ -1,24 +1,32 @@
-import { db } from "server/storage";
-import { companies, companyContacts, companyDetails, companyAddresses } from "@database/schemas/companies.schema";
-import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
-import { updateCompanySchema, updateCompanyContactSchema } from "@database/updates/companies.update";
-import { insertCompanyContactSchema } from "@database/inserts/companyContacts.insert";
-import { sql, eq, or, and, gte, lte, inArray, desc } from "drizzle-orm";
-import { OpenCorporatesService } from "server/services/opencorporates";
-import type { z } from "zod";
-import { formatCompanyName } from "@shared/utils/formatCompanyName";
-import { formatContactName } from "@shared/utils/formatContactName";
+import { db } from 'server/storage';
+import {
+    companies,
+    companyContacts,
+    companyDetails,
+    companyAddresses,
+} from '@database/schemas/companies.schema';
+import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
+import {
+    updateCompanySchema,
+    updateCompanyContactSchema,
+} from '@database/updates/companies.update';
+import { insertCompanyContactSchema } from '@database/inserts/companyContacts.insert';
+import { sql, eq, or, and, gte, lte, inArray, desc } from 'drizzle-orm';
+import { OpenCorporatesService } from 'server/services/opencorporates';
+import type { z } from 'zod';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
+import { formatContactName } from '@shared/utils/formatContactName';
 
 export const CONTACTS_PAGE_SIZE = 50;
 export const CONTACTS_SORT_OPTIONS = [
-    "most-properties",
-    "most-sold-properties",
-    "most-sold-properties-all-time",
-    "most-bought-properties",
-    "most-bought-properties-all-time",
-    "new-buyers",
-    "buys-wholesale",
-    "wholesalers",
+    'most-properties',
+    'most-sold-properties',
+    'most-sold-properties-all-time',
+    'most-bought-properties',
+    'most-bought-properties-all-time',
+    'new-buyers',
+    'buys-wholesale',
+    'wholesalers',
 ] as const;
 export type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
 
@@ -28,7 +36,7 @@ type PrimaryContact = typeof companyContacts.$inferSelect;
 
 function buildContactName(contact: PrimaryContact | null | undefined): string | null {
     if (!contact) return null;
-    const raw = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || null;
+    const raw = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null;
     return formatContactName(raw);
 }
 
@@ -55,7 +63,10 @@ export interface CompanySuggestion {
     contactEmail: string | null;
 }
 
-export async function getCompanySuggestions(search: string, county?: string): Promise<CompanySuggestion[]> {
+export async function getCompanySuggestions(
+    search: string,
+    county?: string,
+): Promise<CompanySuggestion[]> {
     const searchTerm = `%${search.trim().toLowerCase()}%`;
     const conditions: ReturnType<typeof sql>[] = [
         sql`LOWER(TRIM(${companies.companyName})) LIKE ${searchTerm}`,
@@ -64,7 +75,7 @@ export async function getCompanySuggestions(search: string, county?: string): Pr
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
         conditions.push(
-            sql`EXISTS (SELECT 1 FROM company_counties cc WHERE cc.company_id = ${companies.id} AND LOWER(cc.county) = ${normalizedCounty})`
+            sql`EXISTS (SELECT 1 FROM company_counties cc WHERE cc.company_id = ${companies.id} AND LOWER(cc.county) = ${normalizedCounty})`,
         );
     }
 
@@ -109,13 +120,19 @@ export interface GetContactsResult {
 }
 
 export async function getContacts(params: GetContactsParams): Promise<GetContactsResult> {
-    const { county, page = "1", limit = String(CONTACTS_PAGE_SIZE), sort = "most-properties", search } = params;
+    const {
+        county,
+        page = '1',
+        limit = String(CONTACTS_PAGE_SIZE),
+        sort = 'most-properties',
+        search,
+    } = params;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || CONTACTS_PAGE_SIZE));
     const sortOption = (CONTACTS_SORT_OPTIONS as readonly string[]).includes(sort)
         ? (sort as ContactsSortOption)
-        : "most-properties";
-    const searchTerm = typeof search === "string" ? search.trim() : "";
+        : 'most-properties';
+    const searchTerm = typeof search === 'string' ? search.trim() : '';
 
     const conditions: ReturnType<typeof sql>[] = [];
     if (county) {
@@ -125,10 +142,10 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 SELECT 1 FROM company_counties cc
                 WHERE cc.company_id = ${companies.id}
                 AND LOWER(cc.county) = ${normalizedCounty}
-            )`
+            )`,
         );
     }
-    
+
     if (searchTerm.length >= 2) {
         const searchPattern = `%${searchTerm.toLowerCase()}%`;
         conditions.push(
@@ -141,8 +158,8 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                         LOWER(TRIM(con.first_name || ' ' || COALESCE(con.last_name, ''))) LIKE ${searchPattern}
                         OR LOWER(TRIM(COALESCE(con.email, ''))) LIKE ${searchPattern}
                     )
-                )`
-            ) as any
+                )`,
+            ) as any,
         );
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -151,27 +168,39 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const ytdStartStr = `${now.getFullYear()}-01-01`;
     const todayStr = now.toISOString().slice(0, 10);
 
-    const canPaginateInDb = sortOption === "new-buyers";
+    const canPaginateInDb = sortOption === 'new-buyers';
     type CompanyRow = typeof companies.$inferSelect;
     let contacts: CompanyRow[];
     let total: number;
 
     if (canPaginateInDb) {
         const baseContactsQuery = whereClause
-            ? db.select().from(companies).where(whereClause as any)
+            ? db
+                  .select()
+                  .from(companies)
+                  .where(whereClause as any)
             : db.select().from(companies);
         const offset = (pageNum - 1) * limitNum;
         const countQuery = whereClause
-            ? db.select({ count: sql<number>`count(*)::int` }).from(companies).where(whereClause as any)
+            ? db
+                  .select({ count: sql<number>`count(*)::int` })
+                  .from(companies)
+                  .where(whereClause as any)
             : db.select({ count: sql<number>`count(*)::int` }).from(companies);
-        const contactsPageQuery = baseContactsQuery.orderBy(desc(companies.createdAt)).limit(limitNum).offset(offset);
+        const contactsPageQuery = baseContactsQuery
+            .orderBy(desc(companies.createdAt))
+            .limit(limitNum)
+            .offset(offset);
 
         const [totalResult, contactsPage] = await Promise.all([countQuery, contactsPageQuery]);
         total = Number((totalResult as { count: number }[])[0]?.count ?? 0);
         contacts = contactsPage as CompanyRow[];
     } else {
         const contactsQuery = whereClause
-            ? db.select().from(companies).where(whereClause as any)
+            ? db
+                  .select()
+                  .from(companies)
+                  .where(whereClause as any)
             : db.select().from(companies);
         contacts = (await contactsQuery.orderBy(companies.companyName)) as CompanyRow[];
         total = contacts.length;
@@ -183,10 +212,12 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     // in parallel on every load saturated the DB with full-table scans.
     const countyParts = (): ReturnType<typeof sql>[] =>
         normalizedCountyForProps
-            ? [or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`
-            ) as any]
+            ? [
+                  or(
+                      sql`LOWER(TRIM(${properties.county})) = ${normalizedCountyForProps}`,
+                      sql`LOWER(TRIM(${addresses.county})) = ${normalizedCountyForProps}`,
+                  ) as any,
+              ]
             : [];
 
     type SortRow = { id: string | null; count: number };
@@ -195,82 +226,85 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         const map = new Map<string, number>();
         let rows: SortRow[];
 
-        if (sortOption === "most-properties") {
+        if (sortOption === 'most-properties') {
             const parts: ReturnType<typeof sql>[] = [
                 sql`${propertyTransactions.sortOrder} = 1`,
                 sql`${propertyTransactions.buyerId} IS NOT NULL`,
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
-            rows = await db
-                .select({ id: propertyTransactions.buyerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            rows = (await db
+                .select({
+                    id: propertyTransactions.buyerId,
+                    count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`,
+                })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.buyerId) as SortRow[];
-
-        } else if (sortOption === "most-sold-properties") {
+                .groupBy(propertyTransactions.buyerId)) as SortRow[];
+        } else if (sortOption === 'most-sold-properties') {
             const parts: ReturnType<typeof sql>[] = [
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 gte(propertyTransactions.recordingDate, ytdStartStr),
                 lte(propertyTransactions.recordingDate, todayStr),
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
-            rows = await db
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            rows = (await db
                 .select({ id: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.sellerId) as SortRow[];
-
-        } else if (sortOption === "most-sold-properties-all-time") {
+                .groupBy(propertyTransactions.sellerId)) as SortRow[];
+        } else if (sortOption === 'most-sold-properties-all-time') {
             const parts: ReturnType<typeof sql>[] = [
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
-            rows = await db
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            rows = (await db
                 .select({ id: propertyTransactions.sellerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.sellerId) as SortRow[];
-
-        } else if (sortOption === "most-bought-properties") {
+                .groupBy(propertyTransactions.sellerId)) as SortRow[];
+        } else if (sortOption === 'most-bought-properties') {
             const parts: ReturnType<typeof sql>[] = [
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 gte(propertyTransactions.recordingDate, ytdStartStr),
                 lte(propertyTransactions.recordingDate, todayStr),
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
-            rows = await db
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            rows = (await db
                 .select({ id: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.buyerId) as SortRow[];
-
-        } else if (sortOption === "most-bought-properties-all-time") {
+                .groupBy(propertyTransactions.buyerId)) as SortRow[];
+        } else if (sortOption === 'most-bought-properties-all-time') {
             const parts: ReturnType<typeof sql>[] = [
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
-            rows = await db
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            rows = (await db
                 .select({ id: propertyTransactions.buyerId, count: sql<number>`count(*)::int` })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.buyerId) as SortRow[];
-
-        } else if (sortOption === "buys-wholesale") {
+                .groupBy(propertyTransactions.buyerId)) as SortRow[];
+        } else if (sortOption === 'buys-wholesale') {
             // End buyer on a wholesale property: buyer_id on the sort_order=1 (most recent) transaction
             // where the property has status 'wholesale'. sort_order=1 is the final purchase — the company
             // that bought FROM the wholesaler, not intermediate or assignment legs.
@@ -285,16 +319,19 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 )`,
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
-            rows = await db
-                .select({ id: propertyTransactions.buyerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.buyerId, contactIds) as any);
+            rows = (await db
+                .select({
+                    id: propertyTransactions.buyerId,
+                    count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`,
+                })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.buyerId) as SortRow[];
-
-        } else if (sortOption === "wholesalers") {
+                .groupBy(propertyTransactions.buyerId)) as SortRow[];
+        } else if (sortOption === 'wholesalers') {
             // Wholesaler: seller_id on the sort_order=1 (most recent) transaction for a wholesale property.
             // The seller on the final transaction is the company that sold TO the end buyer — the wholesaler.
             const parts: ReturnType<typeof sql>[] = [
@@ -308,20 +345,25 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
                 )`,
                 ...countyParts(),
             ];
-            if (contactIds.length > 0) parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
-            rows = await db
-                .select({ id: propertyTransactions.sellerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+            if (contactIds.length > 0)
+                parts.push(inArray(propertyTransactions.sellerId, contactIds) as any);
+            rows = (await db
+                .select({
+                    id: propertyTransactions.sellerId,
+                    count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`,
+                })
                 .from(propertyTransactions)
                 .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
                 .leftJoin(addresses, eq(properties.id, addresses.propertyId))
                 .where(and(...parts))
-                .groupBy(propertyTransactions.sellerId) as SortRow[];
-
+                .groupBy(propertyTransactions.sellerId)) as SortRow[];
         } else {
             rows = [];
         }
 
-        rows.forEach((row) => { if (row.id) map.set(row.id, row.count); });
+        rows.forEach((row) => {
+            if (row.id) map.set(row.id, row.count);
+        });
         return map;
     }
 
@@ -338,25 +380,27 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
             contactName: buildContactName(primary),
             contactEmail: primary?.email ?? null,
             phoneNumber: primary?.phoneNumber ?? null,
-            propertyCount:               sortOption === "most-properties"               ? sortCount : 0,
-            propertiesSoldCount:         sortOption === "most-sold-properties"          ? sortCount : 0,
-            propertiesSoldCountAllTime:  sortOption === "most-sold-properties-all-time" ? sortCount : 0,
-            propertiesBoughtCount:       sortOption === "most-bought-properties"        ? sortCount : 0,
-            propertiesBoughtCountAllTime:sortOption === "most-bought-properties-all-time"? sortCount : 0,
-            wholesaleBuyCount:           sortOption === "buys-wholesale"                ? sortCount : 0,
-            wholesalerCount:             sortOption === "wholesalers"                   ? sortCount : 0,
+            propertyCount: sortOption === 'most-properties' ? sortCount : 0,
+            propertiesSoldCount: sortOption === 'most-sold-properties' ? sortCount : 0,
+            propertiesSoldCountAllTime:
+                sortOption === 'most-sold-properties-all-time' ? sortCount : 0,
+            propertiesBoughtCount: sortOption === 'most-bought-properties' ? sortCount : 0,
+            propertiesBoughtCountAllTime:
+                sortOption === 'most-bought-properties-all-time' ? sortCount : 0,
+            wholesaleBuyCount: sortOption === 'buys-wholesale' ? sortCount : 0,
+            wholesalerCount: sortOption === 'wholesalers' ? sortCount : 0,
             isFinancedByARV: contact.isArvClient ?? false,
         };
     });
 
-    const zeroCountFilter: Record<string, (c: typeof contactsWithCounts[0]) => boolean> = {
-        "most-properties": (c) => c.propertyCount > 0,
-        "most-sold-properties": (c) => c.propertiesSoldCount > 0,
-        "most-sold-properties-all-time": (c) => c.propertiesSoldCountAllTime > 0,
-        "most-bought-properties": (c) => c.propertiesBoughtCount > 0,
-        "most-bought-properties-all-time": (c) => c.propertiesBoughtCountAllTime > 0,
-        "buys-wholesale": (c) => c.wholesaleBuyCount > 0,
-        "wholesalers": (c) => c.wholesalerCount > 0,
+    const zeroCountFilter: Record<string, (c: (typeof contactsWithCounts)[0]) => boolean> = {
+        'most-properties': (c) => c.propertyCount > 0,
+        'most-sold-properties': (c) => c.propertiesSoldCount > 0,
+        'most-sold-properties-all-time': (c) => c.propertiesSoldCountAllTime > 0,
+        'most-bought-properties': (c) => c.propertiesBoughtCount > 0,
+        'most-bought-properties-all-time': (c) => c.propertiesBoughtCountAllTime > 0,
+        'buys-wholesale': (c) => c.wholesaleBuyCount > 0,
+        wholesalers: (c) => c.wholesalerCount > 0,
     };
     const filterFn = zeroCountFilter[sortOption];
     if (filterFn) {
@@ -372,21 +416,39 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     } else {
         contactsWithCounts.sort((a, b) => {
             switch (sortOption) {
-                case "most-properties": return b.propertyCount - a.propertyCount;
-                case "most-sold-properties": return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
-                case "most-sold-properties-all-time": return (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0);
-                case "most-bought-properties": return (b.propertiesBoughtCount ?? 0) - (a.propertiesBoughtCount ?? 0);
-                case "most-bought-properties-all-time": return (b.propertiesBoughtCountAllTime ?? 0) - (a.propertiesBoughtCountAllTime ?? 0);
-                case "buys-wholesale": return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);
-                case "wholesalers": return (b.wholesalerCount ?? 0) - (a.wholesalerCount ?? 0);
-                default: return 0;
+                case 'most-properties':
+                    return b.propertyCount - a.propertyCount;
+                case 'most-sold-properties':
+                    return (b.propertiesSoldCount ?? 0) - (a.propertiesSoldCount ?? 0);
+                case 'most-sold-properties-all-time':
+                    return (
+                        (b.propertiesSoldCountAllTime ?? 0) - (a.propertiesSoldCountAllTime ?? 0)
+                    );
+                case 'most-bought-properties':
+                    return (b.propertiesBoughtCount ?? 0) - (a.propertiesBoughtCount ?? 0);
+                case 'most-bought-properties-all-time':
+                    return (
+                        (b.propertiesBoughtCountAllTime ?? 0) -
+                        (a.propertiesBoughtCountAllTime ?? 0)
+                    );
+                case 'buys-wholesale':
+                    return (b.wholesaleBuyCount ?? 0) - (a.wholesaleBuyCount ?? 0);
+                case 'wholesalers':
+                    return (b.wholesalerCount ?? 0) - (a.wholesalerCount ?? 0);
+                default:
+                    return 0;
             }
         });
         const offset = (pageNum - 1) * limitNum;
         companiesPage = contactsWithCounts.slice(offset, offset + limitNum);
     }
 
-    console.log(`Companies (county: ${county || "all"}, page: ${pageNum}, sort: ${sortOption}):`, companiesPage.length, "/", total);
+    console.log(
+        `Companies (county: ${county || 'all'}, page: ${pageNum}, sort: ${sortOption}):`,
+        companiesPage.length,
+        '/',
+        total,
+    );
     return { companies: companiesPage, total, page: pageNum, limit: limitNum };
 }
 
@@ -408,12 +470,15 @@ export async function getWholesaleLeaderboard(county?: string) {
         wholesaleWhereParts.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-            ) as any
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+            ) as any,
         );
     }
     const countRows = await db
-        .select({ sellerId: propertyTransactions.sellerId, count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+        .select({
+            sellerId: propertyTransactions.sellerId,
+            count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`,
+        })
         .from(propertyTransactions)
         .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -438,7 +503,7 @@ export async function getWholesaleLeaderboard(county?: string) {
         .map((row, index) => {
             const company = row.sellerId ? companyById.get(row.sellerId) : null;
             if (!company) return null;
-            const primary = row.sellerId ? primaryContacts.get(row.sellerId) ?? null : null;
+            const primary = row.sellerId ? (primaryContacts.get(row.sellerId) ?? null) : null;
             return {
                 rank: index + 1,
                 companyId: company.id,
@@ -468,9 +533,9 @@ export async function getLeaderboard(county: string) {
                 sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
                 or(
                     sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-                ) as any
-            )
+                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+                ) as any,
+            ),
         );
 
     const companyCounts: Record<string, number> = {};
@@ -501,14 +566,20 @@ export async function getLeaderboard(county: string) {
         })
         .from(companies)
         .innerJoin(companyContacts, eq(companyContacts.companyId, companies.id))
-        .where(inArray(sql`LOWER(TRIM(${companies.companyName}))`, topCompanyNames.map((n) => n.toLowerCase())))
+        .where(
+            inArray(
+                sql`LOWER(TRIM(${companies.companyName}))`,
+                topCompanyNames.map((n) => n.toLowerCase()),
+            ),
+        )
         .orderBy(companyContacts.sortOrder);
 
     const contactByCompany: Record<string, string> = {};
     for (const row of contactRows) {
         const key = row.companyName.trim().toLowerCase();
         if (!contactByCompany[key]) {
-            contactByCompany[key] = formatContactName([row.firstName, row.lastName].filter(Boolean).join(" ")) ?? "";
+            contactByCompany[key] =
+                formatContactName([row.firstName, row.lastName].filter(Boolean).join(' ')) ?? '';
         }
     }
 
@@ -556,10 +627,10 @@ export async function getCompanyById(id: string, county?: string) {
     const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
 
     const countyCondition = normalizedCounty
-        ? or(
-            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-        ) as any
+        ? (or(
+              sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+              sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+          ) as any)
         : undefined;
 
     const sellerCountQuery = db
@@ -567,24 +638,28 @@ export async function getCompanyById(id: string, county?: string) {
         .from(propertyTransactions)
         .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
-        .where(and(
-            eq(propertyTransactions.sellerId, id),
-            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
-            gte(propertyTransactions.recordingDate, ytdStartStr),
-            lte(propertyTransactions.recordingDate, todayStr),
-            ...(countyCondition ? [countyCondition] : [])
-        ));
+        .where(
+            and(
+                eq(propertyTransactions.sellerId, id),
+                sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+                gte(propertyTransactions.recordingDate, ytdStartStr),
+                lte(propertyTransactions.recordingDate, todayStr),
+                ...(countyCondition ? [countyCondition] : []),
+            ),
+        );
 
     const sellerCountAllTimeQuery = db
         .select({ count: sql<number>`count(*)::int` })
         .from(propertyTransactions)
         .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
-        .where(and(
-            eq(propertyTransactions.sellerId, id),
-            sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
-            ...(countyCondition ? [countyCondition] : [])
-        ));
+        .where(
+            and(
+                eq(propertyTransactions.sellerId, id),
+                sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+                ...(countyCondition ? [countyCondition] : []),
+            ),
+        );
 
     const [[sellerCountResult], [sellerCountAllTimeResult]] = await Promise.all([
         sellerCountQuery,
@@ -598,23 +673,27 @@ export async function getCompanyById(id: string, county?: string) {
             .from(propertyTransactions)
             .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
-            .where(and(
-                sql`${propertyTransactions.sortOrder} = 1`,
-                eq(propertyTransactions.buyerId, id),
-                or(
-                    sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                    sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-                ) as any
-            ));
+            .where(
+                and(
+                    sql`${propertyTransactions.sortOrder} = 1`,
+                    eq(propertyTransactions.buyerId, id),
+                    or(
+                        sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+                        sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+                    ) as any,
+                ),
+            );
         propertyCount = propertyCountResult?.count ?? 0;
     } else {
         const [propertyCountResult] = await db
             .select({ count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
             .from(propertyTransactions)
-            .where(and(
-                sql`${propertyTransactions.sortOrder} = 1`,
-                eq(propertyTransactions.buyerId, id)
-            ));
+            .where(
+                and(
+                    sql`${propertyTransactions.sortOrder} = 1`,
+                    eq(propertyTransactions.buyerId, id),
+                ),
+            );
         propertyCount = propertyCountResult?.count ?? 0;
     }
 
@@ -624,12 +703,14 @@ export async function getCompanyById(id: string, county?: string) {
             .from(propertyTransactions)
             .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
             .leftJoin(addresses, eq(properties.id, addresses.propertyId))
-            .where(and(
-                eq(propertyTransactions.buyerId, id),
-                gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
-                lte(propertyTransactions.recordingDate, todayStr),
-                ...(countyCondition ? [countyCondition] : [])
-            )),
+            .where(
+                and(
+                    eq(propertyTransactions.buyerId, id),
+                    gte(propertyTransactions.recordingDate, ninetyDaysAgoStr),
+                    lte(propertyTransactions.recordingDate, todayStr),
+                    ...(countyCondition ? [countyCondition] : []),
+                ),
+            ),
         db
             .select()
             .from(companyContacts)
@@ -639,7 +720,20 @@ export async function getCompanyById(id: string, county?: string) {
 
     const primaryContact = contactsList[0] ?? null;
 
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+    ];
     const months: { key: string; count: number }[] = [];
     const cursor = new Date(ninetyDaysAgo.getFullYear(), ninetyDaysAgo.getMonth(), 1);
     const endMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -649,9 +743,14 @@ export async function getCompanyById(id: string, county?: string) {
     }
     acquisitions90Day.forEach((row) => {
         const raw = row.recordingDate as string | Date | null;
-        const dateStr = typeof raw === "string" ? raw : raw instanceof Date ? raw.toISOString().slice(0, 10) : null;
+        const dateStr =
+            typeof raw === 'string'
+                ? raw
+                : raw instanceof Date
+                  ? raw.toISOString().slice(0, 10)
+                  : null;
         if (dateStr) {
-            const [, m] = dateStr.split("-").map(Number);
+            const [, m] = dateStr.split('-').map(Number);
             const monthKey = monthNames[m - 1];
             const existing = months.find((mo) => mo.key === monthKey);
             if (existing) existing.count++;
@@ -677,13 +776,16 @@ export async function getCompanyById(id: string, county?: string) {
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
 
 export type UpdateCompanyResult =
-    | { status: "ok"; company: typeof companies.$inferSelect }
-    | { status: "not-found" }
-    | { status: "duplicate-name" };
+    | { status: 'ok'; company: typeof companies.$inferSelect }
+    | { status: 'not-found' }
+    | { status: 'duplicate-name' };
 
-export async function updateCompany(id: string, data: UpdateCompanyInput): Promise<UpdateCompanyResult> {
+export async function updateCompany(
+    id: string,
+    data: UpdateCompanyInput,
+): Promise<UpdateCompanyResult> {
     const existing = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
-    if (existing.length === 0) return { status: "not-found" };
+    if (existing.length === 0) return { status: 'not-found' };
 
     const updateFields: any = {};
     if (data.isArvClient !== undefined) updateFields.isArvClient = data.isArvClient;
@@ -696,7 +798,7 @@ export async function updateCompany(id: string, data: UpdateCompanyInput): Promi
         .returning();
 
     console.log(`Updated company: ${updatedContact.companyName} (ID: ${id})`);
-    return { status: "ok", company: updatedContact };
+    return { status: 'ok', company: updatedContact };
 }
 
 // ─── Company Contacts ─────────────────────────────────────────────────────────
@@ -705,13 +807,20 @@ export type AddContactInput = z.infer<typeof insertCompanyContactSchema>;
 export type UpdateContactInput = z.infer<typeof updateCompanyContactSchema>;
 
 export type ContactMutationResult =
-    | { status: "ok"; contact: typeof companyContacts.$inferSelect }
-    | { status: "company-not-found" }
-    | { status: "contact-not-found" };
+    | { status: 'ok'; contact: typeof companyContacts.$inferSelect }
+    | { status: 'company-not-found' }
+    | { status: 'contact-not-found' };
 
-export async function addContact(companyId: string, data: AddContactInput): Promise<ContactMutationResult> {
-    const existing = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).limit(1);
-    if (existing.length === 0) return { status: "company-not-found" };
+export async function addContact(
+    companyId: string,
+    data: AddContactInput,
+): Promise<ContactMutationResult> {
+    const existing = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .limit(1);
+    if (existing.length === 0) return { status: 'company-not-found' };
 
     const [{ nextSortOrder }] = await db
         .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
@@ -732,16 +841,20 @@ export async function addContact(companyId: string, data: AddContactInput): Prom
         .returning();
 
     console.log(`Added contact ${inserted.firstName} to company ${companyId}`);
-    return { status: "ok", contact: inserted };
+    return { status: 'ok', contact: inserted };
 }
 
-export async function updateContact(companyId: string, contactId: number, data: UpdateContactInput): Promise<ContactMutationResult> {
+export async function updateContact(
+    companyId: string,
+    contactId: number,
+    data: UpdateContactInput,
+): Promise<ContactMutationResult> {
     const existing = await db
         .select()
         .from(companyContacts)
         .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
         .limit(1);
-    if (existing.length === 0) return { status: "contact-not-found" };
+    if (existing.length === 0) return { status: 'contact-not-found' };
 
     const updateFields: Partial<typeof companyContacts.$inferInsert> = { updatedAt: new Date() };
     if (data.firstName !== undefined) updateFields.firstName = data.firstName;
@@ -757,43 +870,44 @@ export async function updateContact(companyId: string, contactId: number, data: 
         .returning();
 
     console.log(`Updated contact ${contactId} on company ${companyId}`);
-    return { status: "ok", contact: updated };
+    return { status: 'ok', contact: updated };
 }
 
-export type DeleteContactResult =
-    | { status: "ok" }
-    | { status: "contact-not-found" };
+export type DeleteContactResult = { status: 'ok' } | { status: 'contact-not-found' };
 
-export async function deleteContact(companyId: string, contactId: number): Promise<DeleteContactResult> {
+export async function deleteContact(
+    companyId: string,
+    contactId: number,
+): Promise<DeleteContactResult> {
     const deleted = await db
         .delete(companyContacts)
         .where(and(eq(companyContacts.id, contactId), eq(companyContacts.companyId, companyId)))
         .returning({ id: companyContacts.id });
 
-    if (deleted.length === 0) return { status: "contact-not-found" };
+    if (deleted.length === 0) return { status: 'contact-not-found' };
     console.log(`Deleted contact ${contactId} from company ${companyId}`);
-    return { status: "ok" };
+    return { status: 'ok' };
 }
 
 // ─── Enrich (OpenCorporates) ──────────────────────────────────────────────────
 
 const STATE_TO_JURISDICTION: Record<string, string> = {
-    CA: "us_ca",
-    FL: "us_fl",
-    CO: "us_co",
-    WA: "us_wa",
+    CA: 'us_ca',
+    FL: 'us_fl',
+    CO: 'us_co',
+    WA: 'us_wa',
 };
 
 function normalizeCompanyName(name: string): string {
     return name
         .toUpperCase()
-        .replace(/[^A-Z0-9\s]/g, "")
-        .replace(/\s+/g, " ")
+        .replace(/[^A-Z0-9\s]/g, '')
+        .replace(/\s+/g, ' ')
         .trim();
 }
 
 function splitOfficerName(name: string): { firstName: string; lastName: string | null } {
-    const idx = name.indexOf(" ");
+    const idx = name.indexOf(' ');
     if (idx === -1) return { firstName: name, lastName: null };
     return { firstName: name.substring(0, idx), lastName: name.substring(idx + 1) };
 }
@@ -807,30 +921,36 @@ function formatAgentAddress(addr: {
 }): string {
     return [addr.street_address, addr.locality, addr.region, addr.postal_code, addr.country]
         .filter(Boolean)
-        .join(", ");
+        .join(', ');
 }
 
 export type EnrichCompanyResult =
-    | { status: "ok" }
-    | { status: "not-found" }
-    | { status: "unknown-jurisdiction"; state: string }
-    | { status: "no-match"; companyName: string; jurisdiction: string }
-    | { status: "oc-error"; message: string };
+    | { status: 'ok' }
+    | { status: 'not-found' }
+    | { status: 'unknown-jurisdiction'; state: string }
+    | { status: 'no-match'; companyName: string; jurisdiction: string }
+    | { status: 'oc-error'; message: string };
 
 export async function enrichCompany(id: string, state: string): Promise<EnrichCompanyResult> {
     const [company] = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
-    if (!company) return { status: "not-found" };
+    if (!company) return { status: 'not-found' };
 
     const jurisdictionCode = STATE_TO_JURISDICTION[state.toUpperCase()];
-    if (!jurisdictionCode) return { status: "unknown-jurisdiction", state };
+    if (!jurisdictionCode) return { status: 'unknown-jurisdiction', state };
 
     const normalizedTarget = normalizeCompanyName(company.companyName);
 
     let searchResults: Awaited<ReturnType<typeof OpenCorporatesService.searchCompany>>;
     try {
-        searchResults = await OpenCorporatesService.searchCompany(company.companyName, jurisdictionCode);
+        searchResults = await OpenCorporatesService.searchCompany(
+            company.companyName,
+            jurisdictionCode,
+        );
     } catch (err) {
-        return { status: "oc-error", message: err instanceof Error ? err.message : "Search request failed" };
+        return {
+            status: 'oc-error',
+            message: err instanceof Error ? err.message : 'Search request failed',
+        };
     }
 
     const checkCount = Math.min(3, searchResults.totalCount, searchResults.companies.length);
@@ -846,14 +966,24 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
     }
 
     if (!matchedNumber || !matchedJurisdiction) {
-        return { status: "no-match", companyName: company.companyName, jurisdiction: jurisdictionCode };
+        return {
+            status: 'no-match',
+            companyName: company.companyName,
+            jurisdiction: jurisdictionCode,
+        };
     }
 
     let ocCompany: Awaited<ReturnType<typeof OpenCorporatesService.getCompanyByNumber>>;
     try {
-        ocCompany = await OpenCorporatesService.getCompanyByNumber(matchedJurisdiction, matchedNumber);
+        ocCompany = await OpenCorporatesService.getCompanyByNumber(
+            matchedJurisdiction,
+            matchedNumber,
+        );
     } catch (err) {
-        return { status: "oc-error", message: err instanceof Error ? err.message : "Company lookup failed" };
+        return {
+            status: 'oc-error',
+            message: err instanceof Error ? err.message : 'Company lookup failed',
+        };
     }
 
     // Upsert company_details
@@ -876,30 +1006,48 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
         previousNames: ocCompany.previous_names?.length ? ocCompany.previous_names : null,
         numberOfEmployees: ocCompany.number_of_employees ?? null,
         nativeCompanyNumber: ocCompany.native_company_number ?? null,
-        alternateRegistrationEntities: ocCompany.alternate_registration_entities?.length ? ocCompany.alternate_registration_entities : null,
-        previousRegistrationEntities: ocCompany.previous_registration_entities?.length ? ocCompany.previous_registration_entities : null,
-        subsequentRegistrationEntities: ocCompany.subsequent_registration_entities?.length ? ocCompany.subsequent_registration_entities : null,
+        alternateRegistrationEntities: ocCompany.alternate_registration_entities?.length
+            ? ocCompany.alternate_registration_entities
+            : null,
+        previousRegistrationEntities: ocCompany.previous_registration_entities?.length
+            ? ocCompany.previous_registration_entities
+            : null,
+        subsequentRegistrationEntities: ocCompany.subsequent_registration_entities?.length
+            ? ocCompany.subsequent_registration_entities
+            : null,
         industryCodes: ocCompany.industry_codes?.length ? ocCompany.industry_codes : null,
         identifiers: ocCompany.identifiers?.length ? ocCompany.identifiers : null,
-        trademarkRegistrations: ocCompany.trademark_registrations?.length ? ocCompany.trademark_registrations : null,
-        corporateGroupings: ocCompany.corporate_groupings?.length ? ocCompany.corporate_groupings : null,
-        financialSummary: ocCompany.financial_summary != null ? JSON.stringify(ocCompany.financial_summary) : null,
+        trademarkRegistrations: ocCompany.trademark_registrations?.length
+            ? ocCompany.trademark_registrations
+            : null,
+        corporateGroupings: ocCompany.corporate_groupings?.length
+            ? ocCompany.corporate_groupings
+            : null,
+        financialSummary:
+            ocCompany.financial_summary != null
+                ? JSON.stringify(ocCompany.financial_summary)
+                : null,
         homeCompany: ocCompany.home_company != null ? JSON.stringify(ocCompany.home_company) : null,
-        controllingEntity: ocCompany.controlling_entity != null ? JSON.stringify(ocCompany.controlling_entity) : null,
-        ultimateBeneficialOwners: ocCompany.ultimate_beneficial_owners?.length ? ocCompany.ultimate_beneficial_owners : null,
-        ultimateControllingCompany: ocCompany.ultimate_controlling_company != null ? JSON.stringify(ocCompany.ultimate_controlling_company) : null,
+        controllingEntity:
+            ocCompany.controlling_entity != null
+                ? JSON.stringify(ocCompany.controlling_entity)
+                : null,
+        ultimateBeneficialOwners: ocCompany.ultimate_beneficial_owners?.length
+            ? ocCompany.ultimate_beneficial_owners
+            : null,
+        ultimateControllingCompany:
+            ocCompany.ultimate_controlling_company != null
+                ? JSON.stringify(ocCompany.ultimate_controlling_company)
+                : null,
         filings: ocCompany.filings?.length ? ocCompany.filings : null,
         enrichedAt: new Date(),
         updatedAt: new Date(),
     };
 
-    await db
-        .insert(companyDetails)
-        .values(detailValues)
-        .onConflictDoUpdate({
-            target: companyDetails.companyId,
-            set: detailValues,
-        });
+    await db.insert(companyDetails).values(detailValues).onConflictDoUpdate({
+        target: companyDetails.companyId,
+        set: detailValues,
+    });
 
     // Replace all addresses for this company
     await db.delete(companyAddresses).where(eq(companyAddresses.companyId, id));
@@ -909,7 +1057,7 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
     if (ocCompany.registered_address) {
         addressRows.push({
             companyId: id,
-            addressType: "registered",
+            addressType: 'registered',
             streetAddress: ocCompany.registered_address.street_address ?? null,
             locality: ocCompany.registered_address.locality ?? null,
             region: ocCompany.registered_address.region ?? null,
@@ -920,10 +1068,10 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
     }
 
     for (const { datum } of ocCompany.data?.most_recent ?? []) {
-        if (datum.title === "Mailing Address") {
+        if (datum.title === 'Mailing Address') {
             addressRows.push({
                 companyId: id,
-                addressType: "mailing",
+                addressType: 'mailing',
                 streetAddress: null,
                 locality: null,
                 region: null,
@@ -931,10 +1079,10 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
                 country: null,
                 addressInFull: datum.description,
             });
-        } else if (datum.title === "Head Office Address") {
+        } else if (datum.title === 'Head Office Address') {
             addressRows.push({
                 companyId: id,
-                addressType: "head_office",
+                addressType: 'head_office',
                 streetAddress: null,
                 locality: null,
                 region: null,
@@ -954,7 +1102,7 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
     // Skip registered agents (position: "agent") — they are not useful contacts.
     const officers = [...(ocCompany.officers ?? [])].reverse();
     for (const { officer } of officers) {
-        if (officer.position === "agent") continue;
+        if (officer.position === 'agent') continue;
         const { firstName, lastName } = splitOfficerName(officer.name);
 
         const lastNameCondition = lastName
@@ -968,19 +1116,25 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
                 and(
                     eq(companyContacts.companyId, id),
                     sql`LOWER(TRIM(${companyContacts.firstName})) = LOWER(TRIM(${firstName}))`,
-                    lastNameCondition
-                )
+                    lastNameCondition,
+                ),
             )
             .limit(1);
 
         if (existing) {
             await db
                 .update(companyContacts)
-                .set({ title: officer.position ?? null, address: officer.address ?? null, updatedAt: new Date() })
+                .set({
+                    title: officer.position ?? null,
+                    address: officer.address ?? null,
+                    updatedAt: new Date(),
+                })
                 .where(eq(companyContacts.id, existing.id));
         } else {
             const [{ nextSortOrder }] = await db
-                .select({ nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1` })
+                .select({
+                    nextSortOrder: sql<number>`COALESCE(MAX(${companyContacts.sortOrder}), 0) + 1`,
+                })
                 .from(companyContacts)
                 .where(eq(companyContacts.companyId, id));
 
@@ -996,5 +1150,5 @@ export async function enrichCompany(id: string, state: string): Promise<EnrichCo
     }
 
     console.log(`Enriched company ${company.companyName} (ID: ${id}) from OpenCorporates`);
-    return { status: "ok" };
+    return { status: 'ok' };
 }

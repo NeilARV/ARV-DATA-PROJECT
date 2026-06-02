@@ -1,1 +1,1 @@
-export * as CompaniesServices from "./companies.services";
+export * as CompaniesServices from './companies.services';

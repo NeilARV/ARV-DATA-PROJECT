@@ -1,1 +1,1 @@
-export * as AdminController from "./admin.controllers";
+export * as AdminController from './admin.controllers';

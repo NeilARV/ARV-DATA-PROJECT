@@ -1,8 +1,13 @@
-import { z } from "zod";
-import { companies, companyDetails, companyAddresses, companyContacts } from "../schemas/companies.schema";
-import { insertCompanySchema } from "../inserts/companies.insert";
-import { insertCompanyContactSchema } from "../inserts/companyContacts.insert";
-import { updateCompanySchema, updateCompanyContactSchema } from "../updates/companies.update";
+import { z } from 'zod';
+import {
+    companies,
+    companyDetails,
+    companyAddresses,
+    companyContacts,
+} from '../schemas/companies.schema';
+import { insertCompanySchema } from '../inserts/companies.insert';
+import { insertCompanyContactSchema } from '../inserts/companyContacts.insert';
+import { updateCompanySchema, updateCompanyContactSchema } from '../updates/companies.update';
 
 export type Company = typeof companies.$inferSelect;
 export type CompanyDetails = typeof companyDetails.$inferSelect;

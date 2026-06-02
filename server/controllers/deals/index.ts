@@ -1,1 +1,1 @@
-export * as DealsController from "./deals.controllers";
+export * as DealsController from './deals.controllers';

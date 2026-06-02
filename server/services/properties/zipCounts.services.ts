@@ -1,8 +1,8 @@
-import { db } from "server/storage";
-import { properties, addresses, propertyTransactions } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { eq, sql, and, or, inArray } from "drizzle-orm";
-import { resolveDateRange } from "server/utils/resolveDateRange";
+import { db } from 'server/storage';
+import { properties, addresses, propertyTransactions } from '@database/schemas/properties.schema';
+import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
+import { eq, sql, and, or, inArray } from 'drizzle-orm';
+import { resolveDateRange } from 'server/utils/resolveDateRange';
 
 export interface ZipCount {
     zipCode: string;
@@ -24,8 +24,8 @@ export async function getZipCounts(
     dateRange?: string,
     companyId?: string,
 ): Promise<ZipCount[]> {
-    const companyIdTrimmed = companyId?.trim() ?? "";
-    const hasCompanyFilter = companyIdTrimmed !== "";
+    const companyIdTrimmed = companyId?.trim() ?? '';
+    const hasCompanyFilter = companyIdTrimmed !== '';
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
 
     // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
@@ -36,22 +36,25 @@ export async function getZipCounts(
         idConditions.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-            )
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+            ),
         );
     }
 
     if (statusFilter) {
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
-            const normalizedStatuses = statusArray.map(s => s.trim().toLowerCase());
+            const normalizedStatuses = statusArray.map((s) => s.trim().toLowerCase());
             idConditions.push(
                 sql`EXISTS (
                     SELECT 1 FROM property_statuses ps
                     JOIN statuses s ON s.id = ps.status_id
                     WHERE ps.property_id = ${properties.id}
-                    AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}]::text[])
-                )`
+                    AND LOWER(s.name) = ANY(ARRAY[${sql.join(
+                        normalizedStatuses.map((s) => sql`${s}`),
+                        sql`, `,
+                    )}]::text[])
+                )`,
             );
         }
     }
@@ -64,7 +67,7 @@ export async function getZipCounts(
                 AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
                 AND pt.recording_date >= ${resolvedRange.dateMin}::date
                 AND pt.recording_date <= ${resolvedRange.dateMax}::date
-            )`
+            )`,
         );
     }
 
@@ -75,7 +78,7 @@ export async function getZipCounts(
                 WHERE pt.property_id = ${properties.id}
                 AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
                 AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-            )`
+            )`,
         );
     }
 
@@ -86,12 +89,11 @@ export async function getZipCounts(
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId));
 
-    const idRows: Array<{ id: string }> = await (idWhereClause
-        ? (baseIdQuery as any).where(idWhereClause)
-        : baseIdQuery
+    const idRows: Array<{ id: string }> = await (
+        idWhereClause ? (baseIdQuery as any).where(idWhereClause) : baseIdQuery
     ).execute();
 
-    const qualifyingIds = idRows.map(r => r.id);
+    const qualifyingIds = idRows.map((r) => r.id);
 
     if (qualifyingIds.length === 0) return [];
 
@@ -108,7 +110,7 @@ export async function getZipCounts(
         .execute();
 
     return results
-        .filter((r: any) => r.zipCode && r.zipCode.trim() !== "")
+        .filter((r: any) => r.zipCode && r.zipCode.trim() !== '')
         .map((r: any) => ({
             zipCode: r.zipCode.trim(),
             count: Number(r.count),

@@ -1,1 +1,1 @@
-export * as CategoriesController from "./categories.controllers";
+export * as CategoriesController from './categories.controllers';

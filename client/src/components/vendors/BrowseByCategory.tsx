@@ -1,16 +1,16 @@
-import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
-import { CategoryCard } from "./CategoryCard";
-import { VendorCard } from "./VendorCard";
-import { VendorDetail } from "./VendorDetail";
-import { AddVendorDialog } from "./AddVendorDialog";
-import { RecommendedVendors } from "./RecommendedVendors";
-import { fetchCategories, fetchVendor, fetchVendors } from "@/api/vendors.api";
-import { useAuth } from "@/hooks/use-auth";
-import type { Category, Vendor } from "@/types/vendors";
-import type { VendorNavView } from "@/hooks/useVendorNav";
+import { useState, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { CategoryCard } from './CategoryCard';
+import { VendorCard } from './VendorCard';
+import { VendorDetail } from './VendorDetail';
+import { AddVendorDialog } from './AddVendorDialog';
+import { RecommendedVendors } from './RecommendedVendors';
+import { fetchCategories, fetchVendor, fetchVendors } from '@/api/vendors.api';
+import { useAuth } from '@/hooks/use-auth';
+import type { Category, Vendor } from '@/types/vendors';
+import type { VendorNavView } from '@/hooks/useVendorNav';
 
 type BrowseByCategoryProps = {
     view: VendorNavView;
@@ -32,7 +32,7 @@ export function BrowseByCategory({
     onReset,
 }: BrowseByCategoryProps) {
     const [showAddVendor, setShowAddVendor] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState('');
     const { isAdmin, isOwner } = useAuth();
     const isPrivileged = isAdmin || isOwner;
 
@@ -40,43 +40,51 @@ export function BrowseByCategory({
     const isSearching = q.length > 0;
 
     const { data: categories, isLoading: categoriesLoading } = useQuery({
-        queryKey: ["categories"],
+        queryKey: ['categories'],
         queryFn: fetchCategories,
         staleTime: 5 * 60 * 1000,
     });
 
     const selectedCategory = useMemo(
-        () => (categoryId !== null ? (categories ?? []).find((c) => c.id === categoryId) ?? null : null),
-        [categoryId, categories]
+        () =>
+            categoryId !== null
+                ? ((categories ?? []).find((c) => c.id === categoryId) ?? null)
+                : null,
+        [categoryId, categories],
     );
 
     const { data: selectedVendor, isLoading: selectedVendorLoading } = useQuery({
-        queryKey: ["vendor", vendorId],
+        queryKey: ['vendor', vendorId],
         queryFn: () => fetchVendor(vendorId!),
-        enabled: view === "vendor-detail" && vendorId !== null,
+        enabled: view === 'vendor-detail' && vendorId !== null,
         staleTime: 5 * 60 * 1000,
     });
 
     const breadcrumbs = useMemo(() => {
-        const crumbs: { label: string; onClick: () => void }[] = [{ label: "Categories", onClick: onReset }];
+        const crumbs: { label: string; onClick: () => void }[] = [
+            { label: 'Categories', onClick: onReset },
+        ];
         if (selectedCategory) {
-            crumbs.push({ label: selectedCategory.name, onClick: () => onSelectCategory(selectedCategory) });
+            crumbs.push({
+                label: selectedCategory.name,
+                onClick: () => onSelectCategory(selectedCategory),
+            });
         }
-        if (view === "vendor-detail" && selectedVendor) {
+        if (view === 'vendor-detail' && selectedVendor) {
             crumbs.push({ label: selectedVendor.name, onClick: () => {} });
         }
         return crumbs;
     }, [selectedCategory, onReset, onSelectCategory, view, selectedVendor]);
 
     const { data: vendors, isLoading: vendorsLoading } = useQuery({
-        queryKey: ["vendors", categoryId],
+        queryKey: ['vendors', categoryId],
         queryFn: () => fetchVendors([categoryId!]),
-        enabled: view === "vendor-list" && categoryId !== null && !isSearching,
+        enabled: view === 'vendor-list' && categoryId !== null && !isSearching,
         staleTime: 5 * 60 * 1000,
     });
 
     const { data: allVendors, isLoading: allVendorsLoading } = useQuery({
-        queryKey: ["vendors"],
+        queryKey: ['vendors'],
         queryFn: () => fetchVendors(),
         enabled: isSearching,
         staleTime: 5 * 60 * 1000,
@@ -91,7 +99,7 @@ export function BrowseByCategory({
               (v) =>
                   v.name.toLowerCase().includes(q) ||
                   v.description?.toLowerCase().includes(q) ||
-                  v.city?.toLowerCase().includes(q)
+                  v.city?.toLowerCase().includes(q),
           )
         : [];
 
@@ -107,7 +115,7 @@ export function BrowseByCategory({
             />
             {searchQuery && (
                 <button
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => setSearchQuery('')}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                     <X className="w-4 h-4" />
@@ -118,237 +126,276 @@ export function BrowseByCategory({
 
     return (
         <>
-        <div className="flex flex-col h-full">
-            {/* Panel header */}
-            <div className="px-4 py-3 border-b border-border flex-shrink-0">
+            <div className="flex flex-col h-full">
+                {/* Panel header */}
+                <div className="px-4 py-3 border-b border-border flex-shrink-0">
+                    {/* Desktop: back button + stacked title/breadcrumbs left, search center, add vendor right */}
+                    <div className="hidden sm:flex items-center gap-4">
+                        {/* Back button — rendered when navigated into a category or vendor */}
+                        {(view === 'vendor-list' || view === 'vendor-detail') && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={onGoBack}
+                                className="h-9 px-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground flex-shrink-0"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                                Back
+                            </Button>
+                        )}
 
-                {/* Desktop: back button + stacked title/breadcrumbs left, search center, add vendor right */}
-                <div className="hidden sm:flex items-center gap-4">
-                    {/* Back button — rendered when navigated into a category or vendor */}
-                    {(view === "vendor-list" || view === "vendor-detail") && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onGoBack}
-                            className="h-9 px-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground flex-shrink-0"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                            Back
-                        </Button>
-                    )}
-
-                    {/* Title + breadcrumbs stacked, left-aligned */}
-                    <div className="flex-shrink-0">
-                        <h2 className="font-semibold text-lg text-foreground">Browse Vendors</h2>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 min-h-5">
-                            {breadcrumbs.map((crumb, i) => (
-                                <span key={i} className="flex items-center gap-1">
-                                    {i > 0 && <ChevronRight className="w-3 h-3" />}
-                                    <button
-                                        onClick={crumb.onClick}
-                                        className={i === breadcrumbs.length - 1 ? "text-foreground font-medium" : "hover:text-foreground transition-colors"}
-                                    >
-                                        {crumb.label}
-                                    </button>
-                                </span>
-                            ))}
+                        {/* Title + breadcrumbs stacked, left-aligned */}
+                        <div className="flex-shrink-0">
+                            <h2 className="font-semibold text-lg text-foreground">
+                                Browse Vendors
+                            </h2>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5 min-h-5">
+                                {breadcrumbs.map((crumb, i) => (
+                                    <span key={i} className="flex items-center gap-1">
+                                        {i > 0 && <ChevronRight className="w-3 h-3" />}
+                                        <button
+                                            onClick={crumb.onClick}
+                                            className={
+                                                i === breadcrumbs.length - 1
+                                                    ? 'text-foreground font-medium'
+                                                    : 'hover:text-foreground transition-colors'
+                                            }
+                                        >
+                                            {crumb.label}
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Center: search — constrained width, centered in available space */}
-                    <div className="flex-1 flex justify-center min-w-0">
-                        {searchInput}
-                    </div>
+                        {/* Center: search — constrained width, centered in available space */}
+                        <div className="flex-1 flex justify-center min-w-0">{searchInput}</div>
 
-                    {/* Right: Add Vendor */}
-                    {isPrivileged && (
-                        <Button
-                            size="sm"
-                            onClick={() => setShowAddVendor(true)}
-                            className="h-9 gap-1.5 text-sm flex-shrink-0"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add Vendor
-                        </Button>
-                    )}
-                </div>
-
-                {/* Mobile: title row, breadcrumbs, then search below */}
-                <div className="sm:hidden">
-                    <div className="h-9 flex items-center justify-between mb-0.5">
-                        <div className="flex items-center gap-2">
-                            {(view === "vendor-list" || view === "vendor-detail") && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={onGoBack}
-                                    className="h-9 px-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                    Back
-                                </Button>
-                            )}
-                            <h2 className="font-semibold text-lg text-foreground">Browse Vendors</h2>
-                        </div>
+                        {/* Right: Add Vendor */}
                         {isPrivileged && (
                             <Button
                                 size="sm"
                                 onClick={() => setShowAddVendor(true)}
-                                className="h-9 gap-1.5 text-sm"
+                                className="h-9 gap-1.5 text-sm flex-shrink-0"
                             >
                                 <Plus className="w-4 h-4" />
                                 Add Vendor
                             </Button>
                         )}
                     </div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
-                        {breadcrumbs.map((crumb, i) => (
-                            <span key={i} className="flex items-center gap-1">
-                                {i > 0 && <ChevronRight className="w-3 h-3" />}
-                                <button
-                                    onClick={crumb.onClick}
-                                    className={i === breadcrumbs.length - 1 ? "text-foreground font-medium" : "hover:text-foreground transition-colors"}
-                                >
-                                    {crumb.label}
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-                    <div className="mt-2 flex justify-center">{searchInput}</div>
-                </div>
-            </div>
 
-            {/* Content */}
-            <div className={`flex-1 overflow-y-auto ${view !== "vendor-detail" || isSearching ? "p-5" : ""}`}>
-
-                {/* Vendor detail view — search takes priority */}
-                {view === "vendor-detail" && !isSearching && (
-                    selectedVendorLoading ? (
-                        <div className="p-5 space-y-4">
-                            <div className="h-32 bg-muted rounded-xl animate-pulse" />
-                            <div className="h-6 w-48 bg-muted rounded animate-pulse" />
-                            <div className="h-4 w-64 bg-muted rounded animate-pulse" />
-                        </div>
-                    ) : selectedVendor ? (
-                        <VendorDetail vendor={selectedVendor} onDeleted={onGoBack} />
-                    ) : null
-                )}
-
-                {/* Recommended vendors — hidden in vendor-detail */}
-                {view !== "vendor-detail" && (
-                    <RecommendedVendors
-                        selectedVendorId={vendorId}
-                        onSelectVendor={(v) => { setSearchQuery(""); onSelectVendor(v); }}
-                    />
-                )}
-
-                {/* Search results — always shown when searching, regardless of view */}
-                {isSearching && (
-                    allVendorsLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                            {Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
-                            ))}
-                        </div>
-                    ) : filteredCategories.length === 0 && filteredVendors.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-center">
-                            <p className="text-sm text-muted-foreground">No results for &ldquo;{searchQuery.trim()}&rdquo;</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {filteredCategories.length > 0 && (
-                                <div>
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                                        Categories ({filteredCategories.length})
-                                    </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                                        {filteredCategories.map((cat) => (
-                                            <CategoryCard key={cat.id} category={cat} onClick={(cat) => { setSearchQuery(""); onSelectCategory(cat); }} />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {filteredVendors.length > 0 && (
-                                <div>
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                                        Vendors ({filteredVendors.length})
-                                    </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                                        {filteredVendors.map((vendor) => (
-                                            <VendorCard
-                                                key={vendor.id}
-                                                vendor={vendor}
-                                                isSelected={vendorId === vendor.id}
-                                                onClick={(v) => { setSearchQuery(""); onSelectVendor(v); }}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )
-                )}
-
-                {/* Normal category browse */}
-                {view === "categories" && !isSearching && (
-                    categoriesLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                            {Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
-                            ))}
-                        </div>
-                    ) : (
-                        <div>
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                                Categories ({(categories ?? []).length})
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                                {(categories ?? []).map((cat) => (
-                                    <CategoryCard key={cat.id} category={cat} onClick={onSelectCategory} />
-                                ))}
+                    {/* Mobile: title row, breadcrumbs, then search below */}
+                    <div className="sm:hidden">
+                        <div className="h-9 flex items-center justify-between mb-0.5">
+                            <div className="flex items-center gap-2">
+                                {(view === 'vendor-list' || view === 'vendor-detail') && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={onGoBack}
+                                        className="h-9 px-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                        Back
+                                    </Button>
+                                )}
+                                <h2 className="font-semibold text-lg text-foreground">
+                                    Browse Vendors
+                                </h2>
                             </div>
+                            {isPrivileged && (
+                                <Button
+                                    size="sm"
+                                    onClick={() => setShowAddVendor(true)}
+                                    className="h-9 gap-1.5 text-sm"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Add Vendor
+                                </Button>
+                            )}
                         </div>
-                    )
-                )}
-
-                {/* Normal vendor list */}
-                {view === "vendor-list" && !isSearching && (
-                    vendorsLoading ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                            {Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
+                            {breadcrumbs.map((crumb, i) => (
+                                <span key={i} className="flex items-center gap-1">
+                                    {i > 0 && <ChevronRight className="w-3 h-3" />}
+                                    <button
+                                        onClick={crumb.onClick}
+                                        className={
+                                            i === breadcrumbs.length - 1
+                                                ? 'text-foreground font-medium'
+                                                : 'hover:text-foreground transition-colors'
+                                        }
+                                    >
+                                        {crumb.label}
+                                    </button>
+                                </span>
                             ))}
                         </div>
-                    ) : !vendors || vendors.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-center">
-                            <p className="text-sm text-muted-foreground">No vendors in this category yet.</p>
-                        </div>
-                    ) : (
-                        <div>
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                                Vendors ({vendors.length})
-                            </p>
+                        <div className="mt-2 flex justify-center">{searchInput}</div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div
+                    className={`flex-1 overflow-y-auto ${view !== 'vendor-detail' || isSearching ? 'p-5' : ''}`}
+                >
+                    {/* Vendor detail view — search takes priority */}
+                    {view === 'vendor-detail' &&
+                        !isSearching &&
+                        (selectedVendorLoading ? (
+                            <div className="p-5 space-y-4">
+                                <div className="h-32 bg-muted rounded-xl animate-pulse" />
+                                <div className="h-6 w-48 bg-muted rounded animate-pulse" />
+                                <div className="h-4 w-64 bg-muted rounded animate-pulse" />
+                            </div>
+                        ) : selectedVendor ? (
+                            <VendorDetail vendor={selectedVendor} onDeleted={onGoBack} />
+                        ) : null)}
+
+                    {/* Recommended vendors — hidden in vendor-detail */}
+                    {view !== 'vendor-detail' && (
+                        <RecommendedVendors
+                            selectedVendorId={vendorId}
+                            onSelectVendor={(v) => {
+                                setSearchQuery('');
+                                onSelectVendor(v);
+                            }}
+                        />
+                    )}
+
+                    {/* Search results — always shown when searching, regardless of view */}
+                    {isSearching &&
+                        (allVendorsLoading ? (
                             <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                                {vendors.map((vendor) => (
-                                    <VendorCard
-                                        key={vendor.id}
-                                        vendor={vendor}
-                                        isSelected={vendorId === vendor.id}
-                                        onClick={onSelectVendor}
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-20 bg-muted rounded-xl animate-pulse"
                                     />
                                 ))}
                             </div>
-                        </div>
-                    )
-                )}
-            </div>
-        </div>
+                        ) : filteredCategories.length === 0 && filteredVendors.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-center">
+                                <p className="text-sm text-muted-foreground">
+                                    No results for &ldquo;{searchQuery.trim()}&rdquo;
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {filteredCategories.length > 0 && (
+                                    <div>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                            Categories ({filteredCategories.length})
+                                        </p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                            {filteredCategories.map((cat) => (
+                                                <CategoryCard
+                                                    key={cat.id}
+                                                    category={cat}
+                                                    onClick={(cat) => {
+                                                        setSearchQuery('');
+                                                        onSelectCategory(cat);
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {filteredVendors.length > 0 && (
+                                    <div>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                            Vendors ({filteredVendors.length})
+                                        </p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                            {filteredVendors.map((vendor) => (
+                                                <VendorCard
+                                                    key={vendor.id}
+                                                    vendor={vendor}
+                                                    isSelected={vendorId === vendor.id}
+                                                    onClick={(v) => {
+                                                        setSearchQuery('');
+                                                        onSelectVendor(v);
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
 
-        <AddVendorDialog
-            open={showAddVendor}
-            onClose={() => setShowAddVendor(false)}
-            initialCategoryId={view === "vendor-list" ? selectedCategory?.id : undefined}
-        />
+                    {/* Normal category browse */}
+                    {view === 'categories' &&
+                        !isSearching &&
+                        (categoriesLoading ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-20 bg-muted rounded-xl animate-pulse"
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                    Categories ({(categories ?? []).length})
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                    {(categories ?? []).map((cat) => (
+                                        <CategoryCard
+                                            key={cat.id}
+                                            category={cat}
+                                            onClick={onSelectCategory}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+
+                    {/* Normal vendor list */}
+                    {view === 'vendor-list' &&
+                        !isSearching &&
+                        (vendorsLoading ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="h-40 bg-muted rounded-xl animate-pulse"
+                                    />
+                                ))}
+                            </div>
+                        ) : !vendors || vendors.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-center">
+                                <p className="text-sm text-muted-foreground">
+                                    No vendors in this category yet.
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                    Vendors ({vendors.length})
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                    {vendors.map((vendor) => (
+                                        <VendorCard
+                                            key={vendor.id}
+                                            vendor={vendor}
+                                            isSelected={vendorId === vendor.id}
+                                            onClick={onSelectVendor}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                </div>
+            </div>
+
+            <AddVendorDialog
+                open={showAddVendor}
+                onClose={() => setShowAddVendor(false)}
+                initialCategoryId={view === 'vendor-list' ? selectedCategory?.id : undefined}
+            />
         </>
     );
 }

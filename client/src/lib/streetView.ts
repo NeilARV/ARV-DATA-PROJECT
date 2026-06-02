@@ -9,28 +9,28 @@
  * @returns Street View image URL (proxied through backend)
  */
 export async function getStreetViewUrl(
-  address: string,
-  city: string,
-  state: string,
-  size: string = "600x400",
-  sfrPropertyId?: number | null
+    address: string,
+    city: string,
+    state: string,
+    size: string = '600x400',
+    sfrPropertyId?: number | null,
 ): Promise<string> {
-  try {
-    const params = new URLSearchParams({
-      address,
-      city,
-      state,
-      size
-    });
+    try {
+        const params = new URLSearchParams({
+            address,
+            city,
+            state,
+            size,
+        });
 
-    if (sfrPropertyId != null) {
-      params.append('sfrPropertyId', String(sfrPropertyId));
+        if (sfrPropertyId != null) {
+            params.append('sfrPropertyId', String(sfrPropertyId));
+        }
+
+        // Return the proxied URL directly - backend will serve the image
+        return `/api/properties/streetview?${params}`;
+    } catch (error) {
+        console.error('Error generating Street View URL:', error);
+        return '';
     }
-
-    // Return the proxied URL directly - backend will serve the image
-    return `/api/properties/streetview?${params}`;
-  } catch (error) {
-    console.error('Error generating Street View URL:', error);
-    return '';
-  }
 }

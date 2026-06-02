@@ -1,10 +1,10 @@
-export type LoginDialogProps ={
+export type LoginDialogProps = {
     open: boolean;
     forced?: boolean;
     onClose: () => void;
     onSuccess: () => void;
     onSwitchToSignup: () => void;
-}
+};
 
 export type SignupDialogProps = {
     open: boolean;
@@ -12,4 +12,4 @@ export type SignupDialogProps = {
     onClose: () => void;
     onSuccess: () => void;
     onSwitchToLogin: () => void;
-}
+};

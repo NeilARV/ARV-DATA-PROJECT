@@ -1,4 +1,4 @@
-import { db } from "server/storage";
+import { db } from 'server/storage';
 import {
     posts,
     postCategories,
@@ -9,15 +9,18 @@ import {
     postUserTags,
     categories,
     vendors,
-} from "@database/schemas/vendors.schema";
-import { users, userRoles, roles } from "@database/schemas/users.schema";
-import { eq, desc, and, inArray, count } from "drizzle-orm";
-import { getSupabase, storageBucket, storagePathFromUrl } from "server/lib/supabase";
+} from '@database/schemas/vendors.schema';
+import { users, userRoles, roles } from '@database/schemas/users.schema';
+import { eq, desc, and, inArray, count } from 'drizzle-orm';
+import { getSupabase, storageBucket, storagePathFromUrl } from 'server/lib/supabase';
 
 export class PostServiceError extends Error {
-    constructor(public statusCode: number, message: string) {
+    constructor(
+        public statusCode: number,
+        message: string,
+    ) {
         super(message);
-        this.name = "PostServiceError";
+        this.name = 'PostServiceError';
     }
 }
 
@@ -43,15 +46,17 @@ async function fetchCommentCounts(postIds: string[]): Promise<Map<string, number
     return new Map(rows.map((r) => [r.postId, r.total]));
 }
 
-async function fetchCategoriesForPosts(postIds: string[]): Promise<Map<string, { id: number; name: string; slug: string; iconName: string }[]>> {
+async function fetchCategoriesForPosts(
+    postIds: string[],
+): Promise<Map<string, { id: number; name: string; slug: string; iconName: string }[]>> {
     if (postIds.length === 0) return new Map();
     const rows = await db
         .select({
-            postId:     postCategories.postId,
+            postId: postCategories.postId,
             categoryId: categories.id,
-            name:       categories.name,
-            slug:       categories.slug,
-            iconName:   categories.iconName,
+            name: categories.name,
+            slug: categories.slug,
+            iconName: categories.iconName,
         })
         .from(postCategories)
         .innerJoin(categories, eq(categories.id, postCategories.categoryId))
@@ -60,18 +65,25 @@ async function fetchCategoriesForPosts(postIds: string[]): Promise<Map<string, {
     const map = new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
     for (const row of rows) {
         if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({ id: row.categoryId, name: row.name, slug: row.slug, iconName: row.iconName });
+        map.get(row.postId)!.push({
+            id: row.categoryId,
+            name: row.name,
+            slug: row.slug,
+            iconName: row.iconName,
+        });
     }
     return map;
 }
 
-async function fetchVendorTagsForPosts(postIds: string[]): Promise<Map<string, { id: string; name: string }[]>> {
+async function fetchVendorTagsForPosts(
+    postIds: string[],
+): Promise<Map<string, { id: string; name: string }[]>> {
     if (postIds.length === 0) return new Map();
     const rows = await db
         .select({
-            postId:   postVendorTags.postId,
+            postId: postVendorTags.postId,
             vendorId: vendors.id,
-            name:     vendors.name,
+            name: vendors.name,
         })
         .from(postVendorTags)
         .innerJoin(vendors, eq(vendors.id, postVendorTags.vendorId))
@@ -85,14 +97,16 @@ async function fetchVendorTagsForPosts(postIds: string[]): Promise<Map<string, {
     return map;
 }
 
-async function fetchUserTagsForPosts(postIds: string[]): Promise<Map<string, { id: string; firstName: string; lastName: string }[]>> {
+async function fetchUserTagsForPosts(
+    postIds: string[],
+): Promise<Map<string, { id: string; firstName: string; lastName: string }[]>> {
     if (postIds.length === 0) return new Map();
     const rows = await db
         .select({
-            postId:    postUserTags.postId,
-            userId:    users.id,
+            postId: postUserTags.postId,
+            userId: users.id,
             firstName: users.firstName,
-            lastName:  users.lastName,
+            lastName: users.lastName,
         })
         .from(postUserTags)
         .innerJoin(users, eq(users.id, postUserTags.taggedUserId))
@@ -101,18 +115,24 @@ async function fetchUserTagsForPosts(postIds: string[]): Promise<Map<string, { i
     const map = new Map<string, { id: string; firstName: string; lastName: string }[]>();
     for (const row of rows) {
         if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({ id: row.userId, firstName: row.firstName, lastName: row.lastName });
+        map.get(row.postId)!.push({
+            id: row.userId,
+            firstName: row.firstName,
+            lastName: row.lastName,
+        });
     }
     return map;
 }
 
-async function fetchImagesForPosts(postIds: string[]): Promise<Map<string, { id: number; imageUrl: string; displayOrder: number }[]>> {
+async function fetchImagesForPosts(
+    postIds: string[],
+): Promise<Map<string, { id: number; imageUrl: string; displayOrder: number }[]>> {
     if (postIds.length === 0) return new Map();
     const rows = await db
         .select({
-            postId:       postImages.postId,
-            id:           postImages.id,
-            imageUrl:     postImages.imageUrl,
+            postId: postImages.postId,
+            id: postImages.id,
+            imageUrl: postImages.imageUrl,
             displayOrder: postImages.displayOrder,
         })
         .from(postImages)
@@ -122,7 +142,11 @@ async function fetchImagesForPosts(postIds: string[]): Promise<Map<string, { id:
     const map = new Map<string, { id: number; imageUrl: string; displayOrder: number }[]>();
     for (const row of rows) {
         if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({ id: row.id, imageUrl: row.imageUrl, displayOrder: row.displayOrder });
+        map.get(row.postId)!.push({
+            id: row.id,
+            imageUrl: row.imageUrl,
+            displayOrder: row.displayOrder,
+        });
     }
     return map;
 }
@@ -133,10 +157,7 @@ async function callerIsPrivileged(callerId: string): Promise<boolean> {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(
-            eq(userRoles.userId, callerId),
-            inArray(roles.name, ["admin", "owner"]),
-        ))
+        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, ['admin', 'owner'])))
         .limit(1);
     return rows.length > 0;
 }
@@ -153,7 +174,7 @@ type GetPostsFilters = {
 
 export async function getPosts(filters: GetPostsFilters) {
     const { categoryId, vendorId, userId } = filters;
-    const page  = Math.max(1, filters.page  ?? 1);
+    const page = Math.max(1, filters.page ?? 1);
     const limit = Math.min(50, Math.max(1, filters.limit ?? 20));
     const offset = (page - 1) * limit;
 
@@ -175,9 +196,10 @@ export async function getPosts(filters: GetPostsFilters) {
             .from(postVendorTags)
             .where(eq(postVendorTags.vendorId, vendorId));
         const vendorPostIds = rows.map((r) => r.postId);
-        filteredPostIds = filteredPostIds !== undefined
-            ? filteredPostIds.filter((id) => vendorPostIds.includes(id))
-            : vendorPostIds;
+        filteredPostIds =
+            filteredPostIds !== undefined
+                ? filteredPostIds.filter((id) => vendorPostIds.includes(id))
+                : vendorPostIds;
         if (filteredPostIds.length === 0) return [];
     }
 
@@ -188,17 +210,17 @@ export async function getPosts(filters: GetPostsFilters) {
 
     const rows = await db
         .select({
-            id:            posts.id,
-            title:         posts.title,
-            content:       posts.content,
-            address:       posts.address,
-            city:          posts.city,
-            state:         posts.state,
-            createdAt:     posts.createdAt,
-            updatedAt:     posts.updatedAt,
-            userId:               posts.userId,
-            authorFirstName:      users.firstName,
-            authorLastName:       users.lastName,
+            id: posts.id,
+            title: posts.title,
+            content: posts.content,
+            address: posts.address,
+            city: posts.city,
+            state: posts.state,
+            createdAt: posts.createdAt,
+            updatedAt: posts.updatedAt,
+            userId: posts.userId,
+            authorFirstName: users.firstName,
+            authorLastName: users.lastName,
             authorProfileImageUrl: users.profileImageUrl,
         })
         .from(posts)
@@ -221,11 +243,11 @@ export async function getPosts(filters: GetPostsFilters) {
 
     return rows.map((post) => ({
         ...post,
-        likeCount:    likeCounts.get(post.id)    ?? 0,
+        likeCount: likeCounts.get(post.id) ?? 0,
         commentCount: commentCounts.get(post.id) ?? 0,
-        categories:   categoryMap.get(post.id)   ?? [],
-        vendorTags:   vendorTagMap.get(post.id)  ?? [],
-        images:       imageMap.get(post.id)       ?? [],
+        categories: categoryMap.get(post.id) ?? [],
+        vendorTags: vendorTagMap.get(post.id) ?? [],
+        images: imageMap.get(post.id) ?? [],
     }));
 }
 
@@ -234,17 +256,17 @@ export async function getPosts(filters: GetPostsFilters) {
 export async function getPostById(id: string) {
     const rows = await db
         .select({
-            id:              posts.id,
-            title:           posts.title,
-            content:         posts.content,
-            address:         posts.address,
-            city:            posts.city,
-            state:           posts.state,
-            createdAt:       posts.createdAt,
-            updatedAt:       posts.updatedAt,
-            userId:               posts.userId,
-            authorFirstName:      users.firstName,
-            authorLastName:       users.lastName,
+            id: posts.id,
+            title: posts.title,
+            content: posts.content,
+            address: posts.address,
+            city: posts.city,
+            state: posts.state,
+            createdAt: posts.createdAt,
+            updatedAt: posts.updatedAt,
+            userId: posts.userId,
+            authorFirstName: users.firstName,
+            authorLastName: users.lastName,
             authorProfileImageUrl: users.profileImageUrl,
         })
         .from(posts)
@@ -255,23 +277,24 @@ export async function getPostById(id: string) {
     if (rows.length === 0) return null;
 
     const postIds = [rows[0].id];
-    const [likeCounts, commentCounts, categoryMap, vendorTagMap, userTagMap, imageMap] = await Promise.all([
-        fetchLikeCounts(postIds),
-        fetchCommentCounts(postIds),
-        fetchCategoriesForPosts(postIds),
-        fetchVendorTagsForPosts(postIds),
-        fetchUserTagsForPosts(postIds),
-        fetchImagesForPosts(postIds),
-    ]);
+    const [likeCounts, commentCounts, categoryMap, vendorTagMap, userTagMap, imageMap] =
+        await Promise.all([
+            fetchLikeCounts(postIds),
+            fetchCommentCounts(postIds),
+            fetchCategoriesForPosts(postIds),
+            fetchVendorTagsForPosts(postIds),
+            fetchUserTagsForPosts(postIds),
+            fetchImagesForPosts(postIds),
+        ]);
 
     return {
         ...rows[0],
-        likeCount:    likeCounts.get(rows[0].id)    ?? 0,
+        likeCount: likeCounts.get(rows[0].id) ?? 0,
         commentCount: commentCounts.get(rows[0].id) ?? 0,
-        categories:   categoryMap.get(rows[0].id)   ?? [],
-        vendorTags:   vendorTagMap.get(rows[0].id)  ?? [],
-        userTags:     userTagMap.get(rows[0].id)    ?? [],
-        images:       imageMap.get(rows[0].id)      ?? [],
+        categories: categoryMap.get(rows[0].id) ?? [],
+        vendorTags: vendorTagMap.get(rows[0].id) ?? [],
+        userTags: userTagMap.get(rows[0].id) ?? [],
+        images: imageMap.get(rows[0].id) ?? [],
     };
 }
 
@@ -290,36 +313,37 @@ type CreatePostInput = {
 };
 
 export async function createPost(input: CreatePostInput) {
-    const { userId, title, content, address, city, state, categoryIds, vendorIds, taggedUserIds } = input;
+    const { userId, title, content, address, city, state, categoryIds, vendorIds, taggedUserIds } =
+        input;
 
     const [post] = await db
         .insert(posts)
         .values({
             userId,
-            title:   title.trim(),
+            title: title.trim(),
             content: content.trim(),
             address: address?.trim() || null,
-            city:    city?.trim()    || null,
-            state:   state?.trim().toUpperCase() || null,
+            city: city?.trim() || null,
+            state: state?.trim().toUpperCase() || null,
         })
         .returning();
 
     if (categoryIds && categoryIds.length > 0) {
-        await db.insert(postCategories).values(
-            categoryIds.map((categoryId) => ({ postId: post.id, categoryId }))
-        );
+        await db
+            .insert(postCategories)
+            .values(categoryIds.map((categoryId) => ({ postId: post.id, categoryId })));
     }
 
     if (vendorIds && vendorIds.length > 0) {
-        await db.insert(postVendorTags).values(
-            vendorIds.map((vendorId) => ({ postId: post.id, vendorId }))
-        );
+        await db
+            .insert(postVendorTags)
+            .values(vendorIds.map((vendorId) => ({ postId: post.id, vendorId })));
     }
 
     if (taggedUserIds && taggedUserIds.length > 0) {
-        await db.insert(postUserTags).values(
-            taggedUserIds.map((taggedUserId) => ({ postId: post.id, taggedUserId }))
-        );
+        await db
+            .insert(postUserTags)
+            .values(taggedUserIds.map((taggedUserId) => ({ postId: post.id, taggedUserId })));
     }
 
     console.log(`[postsService.createPost] Post created: id=${post.id}, userId=${userId}`);
@@ -346,10 +370,10 @@ export async function updatePost(id: string, callerId: string, input: UpdatePost
         .where(eq(posts.id, id))
         .limit(1);
 
-    if (!existing) throw new PostServiceError(404, "Post not found");
+    if (!existing) throw new PostServiceError(404, 'Post not found');
 
     if (existing.userId !== callerId && !(await callerIsPrivileged(callerId))) {
-        throw new PostServiceError(403, "You can only edit your own posts");
+        throw new PostServiceError(403, 'You can only edit your own posts');
     }
 
     const { title, content, address, city, state, categoryIds, vendorIds, taggedUserIds } = input;
@@ -358,11 +382,11 @@ export async function updatePost(id: string, callerId: string, input: UpdatePost
         .update(posts)
         .set({
             updatedAt: new Date(),
-            ...(title   !== undefined ? { title:   title.trim()   } : {}),
+            ...(title !== undefined ? { title: title.trim() } : {}),
             ...(content !== undefined ? { content: content.trim() } : {}),
             ...(address !== undefined ? { address: address?.trim() || null } : {}),
-            ...(city    !== undefined ? { city:    city?.trim()    || null } : {}),
-            ...(state   !== undefined ? { state:   state?.trim().toUpperCase() || null } : {}),
+            ...(city !== undefined ? { city: city?.trim() || null } : {}),
+            ...(state !== undefined ? { state: state?.trim().toUpperCase() || null } : {}),
         })
         .where(eq(posts.id, id))
         .returning();
@@ -371,21 +395,27 @@ export async function updatePost(id: string, callerId: string, input: UpdatePost
     if (categoryIds !== undefined) {
         await db.delete(postCategories).where(eq(postCategories.postId, id));
         if (categoryIds.length > 0) {
-            await db.insert(postCategories).values(categoryIds.map((categoryId) => ({ postId: id, categoryId })));
+            await db
+                .insert(postCategories)
+                .values(categoryIds.map((categoryId) => ({ postId: id, categoryId })));
         }
     }
 
     if (vendorIds !== undefined) {
         await db.delete(postVendorTags).where(eq(postVendorTags.postId, id));
         if (vendorIds.length > 0) {
-            await db.insert(postVendorTags).values(vendorIds.map((vendorId) => ({ postId: id, vendorId })));
+            await db
+                .insert(postVendorTags)
+                .values(vendorIds.map((vendorId) => ({ postId: id, vendorId })));
         }
     }
 
     if (taggedUserIds !== undefined) {
         await db.delete(postUserTags).where(eq(postUserTags.postId, id));
         if (taggedUserIds.length > 0) {
-            await db.insert(postUserTags).values(taggedUserIds.map((taggedUserId) => ({ postId: id, taggedUserId })));
+            await db
+                .insert(postUserTags)
+                .values(taggedUserIds.map((taggedUserId) => ({ postId: id, taggedUserId })));
         }
     }
 
@@ -402,10 +432,10 @@ export async function deletePost(id: string, callerId: string) {
         .where(eq(posts.id, id))
         .limit(1);
 
-    if (!existing) throw new PostServiceError(404, "Post not found");
+    if (!existing) throw new PostServiceError(404, 'Post not found');
 
     if (existing.userId !== callerId && !(await callerIsPrivileged(callerId))) {
-        throw new PostServiceError(403, "You can only delete your own posts");
+        throw new PostServiceError(403, 'You can only delete your own posts');
     }
 
     // Remove images from Supabase storage before the DB cascade deletes the rows
@@ -415,7 +445,9 @@ export async function deletePost(id: string, callerId: string) {
         .where(eq(postImages.postId, id));
 
     if (images.length > 0) {
-        const paths = images.map((img) => storagePathFromUrl(img.imageUrl)).filter(Boolean) as string[];
+        const paths = images
+            .map((img) => storagePathFromUrl(img.imageUrl))
+            .filter(Boolean) as string[];
         if (paths.length > 0) {
             await getSupabase().storage.from(storageBucket).remove(paths);
         }
@@ -443,9 +475,9 @@ export async function uploadPostImage(
         .where(eq(posts.id, postId))
         .limit(1);
 
-    if (!existing) throw new PostServiceError(404, "Post not found");
+    if (!existing) throw new PostServiceError(404, 'Post not found');
     if (existing.userId !== callerId && !(await callerIsPrivileged(callerId))) {
-        throw new PostServiceError(403, "You can only add images to your own posts");
+        throw new PostServiceError(403, 'You can only add images to your own posts');
     }
 
     const [{ total }] = await db
@@ -457,16 +489,18 @@ export async function uploadPostImage(
         throw new PostServiceError(400, `Posts can have at most ${MAX_IMAGES_PER_POST} images`);
     }
 
-    const ext = mimetype === "image/png" ? "png" : "jpg";
+    const ext = mimetype === 'image/png' ? 'png' : 'jpg';
     const storagePath = `posts/${postId}/${crypto.randomUUID()}.${ext}`;
 
-    const { error } = await getSupabase().storage
-        .from(storageBucket)
+    const { error } = await getSupabase()
+        .storage.from(storageBucket)
         .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
 
     if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-    const { data: { publicUrl } } = getSupabase().storage.from(storageBucket).getPublicUrl(storagePath);
+    const {
+        data: { publicUrl },
+    } = getSupabase().storage.from(storageBucket).getPublicUrl(storagePath);
 
     const [image] = await db
         .insert(postImages)
@@ -485,7 +519,7 @@ export async function deletePostImage(imageId: number, callerId: string) {
         .where(eq(postImages.id, imageId))
         .limit(1);
 
-    if (!image) throw new PostServiceError(404, "Image not found");
+    if (!image) throw new PostServiceError(404, 'Image not found');
 
     const [post] = await db
         .select({ userId: posts.userId })
@@ -493,9 +527,9 @@ export async function deletePostImage(imageId: number, callerId: string) {
         .where(eq(posts.id, image.postId))
         .limit(1);
 
-    if (!post) throw new PostServiceError(404, "Post not found");
+    if (!post) throw new PostServiceError(404, 'Post not found');
     if (post.userId !== callerId && !(await callerIsPrivileged(callerId))) {
-        throw new PostServiceError(403, "You can only delete images from your own posts");
+        throw new PostServiceError(403, 'You can only delete images from your own posts');
     }
 
     const storagePath = storagePathFromUrl(image.imageUrl);

@@ -1,20 +1,18 @@
-import { Request, Response, NextFunction } from "express";
-import { insertUserSchema } from "@database/inserts";
-import { UserServices } from "server/services/auth";
-import { getMsaNameFromCounty } from "server/utils/countyToMsa";
-import { db } from "server/storage";
-import { msas } from "@database/schemas/msas.schema";
-import { eq } from "drizzle-orm";
-
+import { Request, Response, NextFunction } from 'express';
+import { insertUserSchema } from '@database/inserts';
+import { UserServices } from 'server/services/auth';
+import { getMsaNameFromCounty } from 'server/utils/countyToMsa';
+import { db } from 'server/storage';
+import { msas } from '@database/schemas/msas.schema';
+import { eq } from 'drizzle-orm';
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-
         const validation = insertUserSchema.safeParse(req.body);
 
         if (!validation.success) {
             res.status(400).json({
-                message: "Invalid signup data",
+                message: 'Invalid signup data',
                 errors: validation.error.errors,
             });
             return;
@@ -27,12 +25,20 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         const existingUser = await UserServices.getUserByEmail(email);
 
         if (existingUser.length > 0) {
-            res.status(409).json({ message: "An account with this email already exists" });
+            res.status(409).json({ message: 'An account with this email already exists' });
             return;
         }
 
         const subscriptionListEntry = await UserServices.checkEmailSubscriptionList(email);
-        console.log('[signup] email lookup:', email.toLowerCase().trim(), '→ found:', !!subscriptionListEntry, subscriptionListEntry ? `(rm: ${subscriptionListEntry.relationshipManagerId ?? 'none'})` : '');
+        console.log(
+            '[signup] email lookup:',
+            email.toLowerCase().trim(),
+            '→ found:',
+            !!subscriptionListEntry,
+            subscriptionListEntry
+                ? `(rm: ${subscriptionListEntry.relationshipManagerId ?? 'none'})`
+                : '',
+        );
 
         const subscriptionId: number | null = subscriptionListEntry ? 1 : null;
 
@@ -46,10 +52,18 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             state: normalizedState,
             subscriptionId,
         });
-        console.log('[signup] user created:', newUser.id, 'subscriptionId:', newUser.subscriptionId);
+        console.log(
+            '[signup] user created:',
+            newUser.id,
+            'subscriptionId:',
+            newUser.subscriptionId,
+        );
 
         if (subscriptionListEntry?.relationshipManagerId) {
-            await UserServices.addUserRelationshipManager(newUser.id, subscriptionListEntry.relationshipManagerId);
+            await UserServices.addUserRelationshipManager(
+                newUser.id,
+                subscriptionListEntry.relationshipManagerId,
+            );
             console.log('[signup] linked RM:', subscriptionListEntry.relationshipManagerId);
         }
 
@@ -83,9 +97,8 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
             success: true,
             user: newUser,
         });
-
     } catch (error) {
-        console.error("Signup error:", error);
-        res.status(500).json({ message: "Error creating account" });
+        console.error('Signup error:', error);
+        res.status(500).json({ message: 'Error creating account' });
     }
 }

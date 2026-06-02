@@ -1,29 +1,29 @@
 @layer components {
-  .deal-card-label {
-    @apply text-sm lg:text-base text-muted-foreground;
-  }
+    .deal-card-label {
+        @apply text-sm lg:text-base text-muted-foreground;
+    }
 
-  .deal-card-value {
-    @apply text-lg lg:text-xl font-bold text-foreground;
-  }
+    .deal-card-value {
+        @apply text-lg lg:text-xl font-bold text-foreground;
+    }
 
-  .deal-card-value-empty {
-    @apply text-xs lg:text-sm font-bold text-muted-foreground;
-  }
+    .deal-card-value-empty {
+        @apply text-xs lg:text-sm font-bold text-muted-foreground;
+    }
 
-  .deal-card-icon {
-    @apply w-4 h-4 lg:w-5 lg:h-5 text-muted-foreground;
-  }
+    .deal-card-icon {
+        @apply w-4 h-4 lg:w-5 lg:h-5 text-muted-foreground;
+    }
 
-  .deal-card-link {
-    @apply inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md border border-border bg-muted hover:bg-accent-border transition-colors capitalize;
-  }
+    .deal-card-link {
+        @apply inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md border border-border bg-muted hover:bg-accent-border transition-colors capitalize;
+    }
 
-  .deal-card-sub-icon {
-    @apply w-3.5 h-3.5;
-  }
+    .deal-card-sub-icon {
+        @apply w-3.5 h-3.5;
+    }
 
-  .deal-card-address {
-    @apply text-sm lg:text-base text-muted-foreground truncate;
-  }
+    .deal-card-address {
+        @apply text-sm lg:text-base text-muted-foreground truncate;
+    }
 }

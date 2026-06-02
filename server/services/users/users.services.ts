@@ -1,15 +1,22 @@
-import { users, roles, userRoles, userRelationshipManagers, subscriptions, accountTypes, userAccountTypes } from "@database/schemas/users.schema";
-import { db } from "server/storage";
-import { desc, asc, eq, and, inArray, ilike, sql } from "drizzle-orm";
+import {
+    users,
+    roles,
+    userRoles,
+    userRelationshipManagers,
+    subscriptions,
+    accountTypes,
+    userAccountTypes,
+} from '@database/schemas/users.schema';
+import { db } from 'server/storage';
+import { desc, asc, eq, and, inArray, ilike, sql } from 'drizzle-orm';
 
 export async function getUserList(options: { domain?: string; excludeDomain?: string }) {
     const { domain, excludeDomain } = options;
-    const whereClause =
-        domain
-            ? ilike(users.email, "%@arvfinance.com")
-            : excludeDomain
-                ? sql`NOT (${users.email} ILIKE ${"%@arvfinance.com"})`
-                : undefined;
+    const whereClause = domain
+        ? ilike(users.email, '%@arvfinance.com')
+        : excludeDomain
+          ? sql`NOT (${users.email} ILIKE ${'%@arvfinance.com'})`
+          : undefined;
     return db
         .select({
             id: users.id,
@@ -53,7 +60,7 @@ export async function getRelationshipManagerUserList() {
     const [rmRole] = await db
         .select({ id: roles.id })
         .from(roles)
-        .where(eq(roles.name, "relationship-manager"))
+        .where(eq(roles.name, 'relationship-manager'))
         .limit(1);
     if (!rmRole) return null;
 
@@ -86,10 +93,7 @@ export async function getRelationshipManagerUserList() {
 }
 
 export async function getAllRoles() {
-    return db
-        .select({ id: roles.id, name: roles.name })
-        .from(roles)
-        .orderBy(asc(roles.id));
+    return db.select({ id: roles.id, name: roles.name }).from(roles).orderBy(asc(roles.id));
 }
 
 export async function findRoleByName(name: string) {
@@ -108,13 +112,17 @@ export async function findUserById(userId: string) {
 
 export async function findUserProfile(userId: string) {
     const [user] = await db
-        .select({ id: users.id, email: users.email, firstName: users.firstName, lastName: users.lastName })
+        .select({
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            lastName: users.lastName,
+        })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
     return user ?? null;
 }
-
 
 export async function getCallerTeamRoleRows(callerId: string) {
     return db
@@ -124,8 +132,8 @@ export async function getCallerTeamRoleRows(callerId: string) {
         .where(
             and(
                 eq(userRoles.userId, callerId),
-                inArray(roles.name, ["owner", "admin", "relationship-manager"])
-            )
+                inArray(roles.name, ['owner', 'admin', 'relationship-manager']),
+            ),
         );
 }
 
@@ -173,7 +181,6 @@ export async function deleteAllRMAssignmentsForManager(managerId: string) {
         .where(eq(userRelationshipManagers.relationshipManagerId, managerId));
 }
 
-
 export async function updateUserTierRole(userId: string, tierName: string | null) {
     if (tierName === null) {
         await db.update(users).set({ subscriptionId: null }).where(eq(users.id, userId));
@@ -209,14 +216,9 @@ export async function getUserAccountTypeRows(userIds: string[]) {
 }
 
 export async function findAccountTypeByName(name: string) {
-    const [row] = await db
-        .select()
-        .from(accountTypes)
-        .where(eq(accountTypes.name, name))
-        .limit(1);
+    const [row] = await db.select().from(accountTypes).where(eq(accountTypes.name, name)).limit(1);
     return row ?? null;
 }
-
 
 export async function insertUserAccountType(userId: string, accountTypeId: number) {
     await db.insert(userAccountTypes).values({ userId, accountTypeId });
@@ -225,6 +227,14 @@ export async function insertUserAccountType(userId: string, accountTypeId: numbe
 export async function deleteUserAccountTypeAssignment(userId: string, accountTypeId: number) {
     return db
         .delete(userAccountTypes)
-        .where(and(eq(userAccountTypes.userId, userId), eq(userAccountTypes.accountTypeId, accountTypeId)))
-        .returning({ userId: userAccountTypes.userId, accountTypeId: userAccountTypes.accountTypeId });
+        .where(
+            and(
+                eq(userAccountTypes.userId, userId),
+                eq(userAccountTypes.accountTypeId, accountTypeId),
+            ),
+        )
+        .returning({
+            userId: userAccountTypes.userId,
+            accountTypeId: userAccountTypes.accountTypeId,
+        });
 }

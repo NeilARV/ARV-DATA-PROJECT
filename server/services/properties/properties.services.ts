@@ -1,12 +1,18 @@
-import { db } from "server/storage";
-import { properties, addresses, structures, lastSales, propertyTransactions } from "@database/schemas/properties.schema";
-import { statuses, propertyStatuses } from "@database/schemas/statuses.schema";
-import { companyContacts } from "@database/schemas/companies.schema";
-import { trimCompanyName } from "server/utils/normalization";
-import { calculateSpread } from "server/utils/orderTransactions";
-import { eq, sql, or, and, inArray } from "drizzle-orm";
-import { resolveDateRange } from "server/utils/resolveDateRange";
-import { formatContactName } from "@shared/utils/formatContactName";
+import { db } from 'server/storage';
+import {
+    properties,
+    addresses,
+    structures,
+    lastSales,
+    propertyTransactions,
+} from '@database/schemas/properties.schema';
+import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
+import { companyContacts } from '@database/schemas/companies.schema';
+import { trimCompanyName } from 'server/utils/normalization';
+import { calculateSpread } from 'server/utils/orderTransactions';
+import { eq, sql, or, and, inArray } from 'drizzle-orm';
+import { resolveDateRange } from 'server/utils/resolveDateRange';
+import { formatContactName } from '@shared/utils/formatContactName';
 
 export interface GetPropertiesFilters {
     zipcode?: string;
@@ -39,21 +45,23 @@ export interface GetPropertiesResult {
 }
 
 // Txs are already ordered by COALESCE(sort_order, 999999) ASC (most recent first).
-function detectAssignorFromSortedTxs(txs: Array<{
-    transactionType: string | null;
-    buyerId: string | null;
-    sellerName: string | null;
-    sellerId: string | null;
-}>): { assignorId: string | null; assignorCompanyName: string | null } {
+function detectAssignorFromSortedTxs(
+    txs: Array<{
+        transactionType: string | null;
+        buyerId: string | null;
+        sellerName: string | null;
+        sellerId: string | null;
+    }>,
+): { assignorId: string | null; assignorCompanyName: string | null } {
     const latestAL = txs.find(
-        (tx) => (tx.transactionType ?? "").trim().toLowerCase() === "arms length"
+        (tx) => (tx.transactionType ?? '').trim().toLowerCase() === 'arms length',
     );
     if (!latestAL?.buyerId) return { assignorId: null, assignorCompanyName: null };
 
     const assignmentTx = txs.find(
         (tx) =>
-            (tx.transactionType ?? "").trim().toLowerCase() === "assignment" &&
-            tx.buyerId === latestAL.buyerId
+            (tx.transactionType ?? '').trim().toLowerCase() === 'assignment' &&
+            tx.buyerId === latestAL.buyerId,
     );
     return {
         assignorId: assignmentTx?.sellerId ?? null,
@@ -72,31 +80,33 @@ function detectAssignorFromSortedTxs(txs: Array<{
  *
  * Txs must be ordered COALESCE(sort_order, 999999) ASC so the first match is most recent.
  */
-function findDisplayTx<T extends {
-    transactionType: string | null;
-    buyerId: string | null;
-    sellerId: string | null;
-}>(txs: T[], companyId: string | null): T | null {
-    const latestAL = txs.find(
-        (tx) => (tx.transactionType ?? "").trim().toLowerCase() === "arms length"
-    ) ?? null;
+function findDisplayTx<
+    T extends {
+        transactionType: string | null;
+        buyerId: string | null;
+        sellerId: string | null;
+    },
+>(txs: T[], companyId: string | null): T | null {
+    const latestAL =
+        txs.find((tx) => (tx.transactionType ?? '').trim().toLowerCase() === 'arms length') ?? null;
 
     if (!companyId) return latestAL;
 
-    const companyTx = txs.find((tx) => {
-        const type = (tx.transactionType ?? "").trim().toLowerCase();
-        return (
-            (type === "arms length" || type === "assignment") &&
-            (tx.buyerId === companyId || tx.sellerId === companyId)
-        );
-    }) ?? null;
+    const companyTx =
+        txs.find((tx) => {
+            const type = (tx.transactionType ?? '').trim().toLowerCase();
+            return (
+                (type === 'arms length' || type === 'assignment') &&
+                (tx.buyerId === companyId || tx.sellerId === companyId)
+            );
+        }) ?? null;
 
     if (!companyTx) return latestAL;
 
     // If the company's involvement is as the assigner (seller in an Assignment tx),
     // show the Arms Length tx instead — the assigner role appears separately on the card.
     const isAssigner =
-        (companyTx.transactionType ?? "").trim().toLowerCase() === "assignment" &&
+        (companyTx.transactionType ?? '').trim().toLowerCase() === 'assignment' &&
         companyTx.sellerId === companyId;
 
     return isAssigner ? latestAL : companyTx;
@@ -137,14 +147,24 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const alSummary = db
         .select({
             propertyId: propertyTransactions.propertyId,
-            maxRecordingDate: sql<string | null>`MAX(${propertyTransactions.recordingDate})`.as("max_recording_date"),
-            recentRecordingDate: sql<string | null>`(array_agg(${propertyTransactions.recordingDate} ORDER BY COALESCE(${propertyTransactions.sortOrder}, 999999) ASC))[1]`.as("recent_recording_date"),
-            recentSalePrice: sql<number | null>`(array_agg(CAST(${propertyTransactions.salePrice} AS REAL) ORDER BY COALESCE(${propertyTransactions.sortOrder}, 999999) ASC))[1]`.as("recent_sale_price"),
+            maxRecordingDate: sql<string | null>`MAX(${propertyTransactions.recordingDate})`.as(
+                'max_recording_date',
+            ),
+            recentRecordingDate: sql<
+                string | null
+            >`(array_agg(${propertyTransactions.recordingDate} ORDER BY COALESCE(${propertyTransactions.sortOrder}, 999999) ASC))[1]`.as(
+                'recent_recording_date',
+            ),
+            recentSalePrice: sql<
+                number | null
+            >`(array_agg(CAST(${propertyTransactions.salePrice} AS REAL) ORDER BY COALESCE(${propertyTransactions.sortOrder}, 999999) ASC))[1]`.as(
+                'recent_sale_price',
+            ),
         })
         .from(propertyTransactions)
         .where(sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`)
         .groupBy(propertyTransactions.propertyId)
-        .as("al_summary");
+        .as('al_summary');
 
     const conditions = [];
 
@@ -157,12 +177,12 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
                 sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
                 sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`,
-            ) as any
+            ) as any,
         );
     }
 
-    const companyIdTrimmed = companyId && typeof companyId === "string" ? companyId.trim() : "";
-    const hasCompanyFilter = companyIdTrimmed !== "";
+    const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
+    const hasCompanyFilter = companyIdTrimmed !== '';
 
     // Company ID filter: match properties where company appears as buyer or seller
     // in any Arms Length or Assignment transaction.
@@ -173,14 +193,14 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 WHERE pt.property_id = ${properties.id}
                 AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
                 AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-            )`
+            )`,
         );
     }
 
     // Status filter and optional name-based company filter.
     const statusesToUse = Array.isArray(status) ? status : status ? [status] : [];
     if (statusesToUse.length > 0) {
-        const normalizedStatuses = statusesToUse.map(s => s.toString().trim().toLowerCase());
+        const normalizedStatuses = statusesToUse.map((s) => s.toString().trim().toLowerCase());
         if (!hasCompanyFilter) {
             const ownerFilter = company || propertyOwner;
             if (ownerFilter) {
@@ -191,7 +211,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                             SELECT 1 FROM property_transactions pt
                             WHERE pt.property_id = ${properties.id}
                             AND (LOWER(TRIM(pt.buyer_name)) = ${searchTerm} OR LOWER(TRIM(pt.seller_name)) = ${searchTerm})
-                        )`
+                        )`,
                     );
                 }
             }
@@ -201,8 +221,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 SELECT 1 FROM property_statuses ps
                 JOIN statuses s ON s.id = ps.status_id
                 WHERE ps.property_id = ${properties.id}
-                AND LOWER(s.name) = ANY(ARRAY[${sql.join(normalizedStatuses.map(s => sql`${s}`), sql`, `)}])
-            )`
+                AND LOWER(s.name) = ANY(ARRAY[${sql.join(
+                    normalizedStatuses.map((s) => sql`${s}`),
+                    sql`, `,
+                )}])
+            )`,
         );
     }
 
@@ -210,14 +233,18 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     if (propertyType) {
         const typeArray = Array.isArray(propertyType) ? propertyType : [propertyType];
         if (typeArray.length > 0) {
-            const normalizedTypes = typeArray.map(t => t.toString().trim().toLowerCase());
+            const normalizedTypes = typeArray.map((t) => t.toString().trim().toLowerCase());
             if (normalizedTypes.length === 1) {
-                conditions.push(sql`LOWER(TRIM(${properties.propertyType})) = ${normalizedTypes[0]}`);
+                conditions.push(
+                    sql`LOWER(TRIM(${properties.propertyType})) = ${normalizedTypes[0]}`,
+                );
             } else {
                 conditions.push(
-                    or(...normalizedTypes.map(t =>
-                        sql`LOWER(TRIM(${properties.propertyType})) = ${t}`
-                    )) as any
+                    or(
+                        ...normalizedTypes.map(
+                            (t) => sql`LOWER(TRIM(${properties.propertyType})) = ${t}`,
+                        ),
+                    ) as any,
                 );
             }
         }
@@ -226,7 +253,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     // Bathrooms filter - from structures table
     if (bathrooms) {
         const bathroomsStr = bathrooms.toString().trim().toLowerCase();
-        if (bathroomsStr !== "any") {
+        if (bathroomsStr !== 'any') {
             const bathroomsNum = parseFloat(bathroomsStr);
             if (!isNaN(bathroomsNum)) {
                 conditions.push(sql`CAST(${structures.baths} AS REAL) >= ${bathroomsNum}`);
@@ -237,7 +264,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     // Bedrooms filter - from structures table
     if (bedrooms) {
         const bedroomsStr = bedrooms.toString().trim().toLowerCase();
-        if (bedroomsStr !== "any") {
+        if (bedroomsStr !== 'any') {
             const bedroomsNum = parseInt(bedroomsStr, 10);
             if (!isNaN(bedroomsNum)) {
                 conditions.push(sql`${structures.bedsCount} >= ${bedroomsNum}`);
@@ -266,8 +293,8 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         conditions.push(
             or(
                 sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`
-            ) as any
+                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
+            ) as any,
         );
     }
 
@@ -278,24 +305,27 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     // City filter
     if (city) {
-        conditions.push(sql`LOWER(TRIM(${addresses.city})) = ${city.toString().trim().toLowerCase()}`);
+        conditions.push(
+            sql`LOWER(TRIM(${addresses.city})) = ${city.toString().trim().toLowerCase()}`,
+        );
     }
 
     // hasDateSold: property must have at least one Arms Length tx with a recording date
-    if (hasDateSold === "true") {
+    if (hasDateSold === 'true') {
         conditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_transactions pt
                 WHERE pt.property_id = ${properties.id}
                 AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
                 AND pt.recording_date IS NOT NULL
-            )`
+            )`,
         );
     }
 
     // Date range: filter by most recent Arms Length recording_date via alSummary join.
     // Skipped when a company is selected — show all transactions regardless of date.
-    const resolvedDateRange = (dateRange && !hasCompanyFilter) ? resolveDateRange(dateRange) ?? null : null;
+    const resolvedDateRange =
+        dateRange && !hasCompanyFilter ? (resolveDateRange(dateRange) ?? null) : null;
     if (resolvedDateRange) {
         conditions.push(sql`${alSummary.maxRecordingDate} >= ${resolvedDateRange.dateMin}::date`);
         conditions.push(sql`${alSummary.maxRecordingDate} <= ${resolvedDateRange.dateMax}::date`);
@@ -305,18 +335,29 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     // Skip COUNT on pages after the first — the client caches the total from page 1.
     let total: number | null = null;
-    if (skipCount !== "true" || pageNum === 1) {
-        let countQuery = db.select({ count: sql<number>`count(DISTINCT ${properties.id})` }).from(properties);
+    if (skipCount !== 'true' || pageNum === 1) {
+        let countQuery = db
+            .select({ count: sql<number>`count(DISTINCT ${properties.id})` })
+            .from(properties);
         countQuery = countQuery.leftJoin(addresses, eq(properties.id, addresses.propertyId)) as any;
         if (bedrooms || bathrooms) {
-            countQuery = countQuery.leftJoin(structures, eq(properties.id, structures.propertyId)) as any;
+            countQuery = countQuery.leftJoin(
+                structures,
+                eq(properties.id, structures.propertyId),
+            ) as any;
         }
         if (minPrice || maxPrice) {
-            countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId)) as any;
+            countQuery = countQuery.leftJoin(
+                lastSales,
+                eq(properties.id, lastSales.propertyId),
+            ) as any;
         }
         // alSummary join required when date range conditions reference it
         if (resolvedDateRange) {
-            countQuery = (countQuery as any).leftJoin(alSummary, eq(properties.id, alSummary.propertyId));
+            countQuery = (countQuery as any).leftJoin(
+                alSummary,
+                eq(properties.id, alSummary.propertyId),
+            );
         }
         if (whereClause) {
             countQuery = countQuery.where(whereClause) as any;
@@ -339,46 +380,55 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         idQuery = idQuery.where(whereClause) as any;
     }
 
-    const sortByValue = sortBy?.toString() || "recently-sold";
+    const sortByValue = sortBy?.toString() || 'recently-sold';
     switch (sortByValue) {
-        case "recently-sold":
+        case 'recently-sold':
         default:
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN ${alSummary.recentRecordingDate} IS NULL THEN 1 ELSE 0 END`,
                 sql`${alSummary.recentRecordingDate} DESC`,
-                properties.id
+                properties.id,
             ) as any;
             break;
-        case "days-held":
+        case 'days-held':
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN ${alSummary.recentRecordingDate} IS NULL THEN 1 ELSE 0 END`,
                 sql`${alSummary.recentRecordingDate} ASC`,
-                properties.id
+                properties.id,
             ) as any;
             break;
-        case "price-high-low":
+        case 'price-high-low':
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) IS NULL THEN 1 ELSE 0 END`,
                 sql`COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) DESC`,
-                properties.id
+                properties.id,
             ) as any;
             break;
-        case "price-low-high":
+        case 'price-low-high':
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) IS NULL THEN 1 ELSE 0 END`,
                 sql`COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) ASC`,
-                properties.id
+                properties.id,
             ) as any;
             break;
     }
 
-    const idRows = await idQuery.limit(limitNum + 1).offset(offset).execute();
+    const idRows = await idQuery
+        .limit(limitNum + 1)
+        .offset(offset)
+        .execute();
     const pageIds = idRows.map((r: { id: string }) => r.id);
     const hasMore = pageIds.length > limitNum;
     const idsForPage = hasMore ? pageIds.slice(0, limitNum) : pageIds;
 
     if (idsForPage.length === 0) {
-        return { properties: [], total: total ?? 0, hasMore: false, page: pageNum, limit: limitNum };
+        return {
+            properties: [],
+            total: total ?? 0,
+            hasMore: false,
+            page: pageNum,
+            limit: limitNum,
+        };
     }
 
     // Fetch statuses for this page
@@ -426,7 +476,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const idToIndex = new Map(idsForPage.map((id, i) => [id, i]));
     const results = (await query.execute()).sort(
-        (a: any, b: any) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0)
+        (a: any, b: any) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0),
     );
     const rawPropertiesList = results;
 
@@ -450,7 +500,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .where(inArray(propertyTransactions.propertyId, idsForPage))
         .orderBy(
             propertyTransactions.propertyId,
-            sql`COALESCE(${propertyTransactions.sortOrder}, 999999) ASC`
+            sql`COALESCE(${propertyTransactions.sortOrder}, 999999) ASC`,
         );
 
     type TxRow = (typeof allTxs)[number];
@@ -475,7 +525,12 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    type CompanyContact = { id: string; contactName: string | null; contactEmail: string | null; phoneNumber: string | null };
+    type CompanyContact = {
+        id: string;
+        contactName: string | null;
+        contactEmail: string | null;
+        phoneNumber: string | null;
+    };
     const displayTxCompanyMap = new Map<string, CompanyContact>();
     if (displayTxCompanyIds.size > 0) {
         const ids = Array.from(displayTxCompanyIds);
@@ -492,7 +547,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             const primary = primaryByCompanyId.get(id);
             displayTxCompanyMap.set(id, {
                 id,
-                contactName: primary ? formatContactName([primary.firstName, primary.lastName].filter(Boolean).join(" ")) : null,
+                contactName: primary
+                    ? formatContactName(
+                          [primary.firstName, primary.lastName].filter(Boolean).join(' '),
+                      )
+                    : null,
                 contactEmail: primary?.email ?? null,
                 phoneNumber: primary?.phoneNumber ?? null,
             });
@@ -522,7 +581,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             const primary = primaryByCompanyId.get(id);
             assignorContactMap.set(id, {
                 id,
-                contactName: primary ? formatContactName([primary.firstName, primary.lastName].filter(Boolean).join(" ")) : null,
+                contactName: primary
+                    ? formatContactName(
+                          [primary.firstName, primary.lastName].filter(Boolean).join(' '),
+                      )
+                    : null,
                 contactEmail: primary?.email ?? null,
                 phoneNumber: primary?.phoneNumber ?? null,
             });
@@ -535,47 +598,72 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         const baths = prop.bathrooms ? Number(prop.bathrooms) : 0;
 
         const txs = transactionsByPropertyId.get(prop.id) ?? [];
-        const { buyerPurchasePrice, buyerPurchaseDate, sellerPurchasePrice, sellerPurchaseDate, spread, latestArmsLengthTx } = calculateSpread(txs);
+        const {
+            buyerPurchasePrice,
+            buyerPurchaseDate,
+            sellerPurchasePrice,
+            sellerPurchaseDate,
+            spread,
+            latestArmsLengthTx,
+        } = calculateSpread(txs);
         const { assignorId, assignorCompanyName } = detectAssignorFromSortedTxs(txs);
-        const assignorContact = assignorId ? assignorContactMap.get(assignorId) ?? null : null;
+        const assignorContact = assignorId ? (assignorContactMap.get(assignorId) ?? null) : null;
 
         // displayTx is the source of truth for buyer/seller/price/date
         const displayTx = displayTxByPropertyId.get(prop.id) ?? null;
-        const txBuyer = displayTx?.buyerId ? displayTxCompanyMap.get(displayTx.buyerId) ?? null : null;
-        const txSeller = displayTx?.sellerId ? displayTxCompanyMap.get(displayTx.sellerId) ?? null : null;
+        const txBuyer = displayTx?.buyerId
+            ? (displayTxCompanyMap.get(displayTx.buyerId) ?? null)
+            : null;
+        const txSeller = displayTx?.sellerId
+            ? (displayTxCompanyMap.get(displayTx.sellerId) ?? null)
+            : null;
 
         const buyerDisplayName = displayTx?.buyerName ?? null;
         const sellerDisplayName = displayTx?.sellerName ?? null;
         const txBuyerId = displayTx?.buyerId ?? null;
         const txSellerId = displayTx?.sellerId ?? null;
 
-        const txSalePrice = displayTx?.salePrice != null ? parseFloat(String(displayTx.salePrice)) : null;
-        const price = txSalePrice !== null && !isNaN(txSalePrice) ? txSalePrice : (prop.lastSalePrice ? Number(prop.lastSalePrice) : 0);
+        const txSalePrice =
+            displayTx?.salePrice != null ? parseFloat(String(displayTx.salePrice)) : null;
+        const price =
+            txSalePrice !== null && !isNaN(txSalePrice)
+                ? txSalePrice
+                : prop.lastSalePrice
+                  ? Number(prop.lastSalePrice)
+                  : 0;
 
         const txDate = displayTx?.recordingDate
-            ? typeof displayTx.recordingDate === "string"
-                ? displayTx.recordingDate.split("T")[0]
-                : (displayTx.recordingDate as Date).toISOString().split("T")[0]
+            ? typeof displayTx.recordingDate === 'string'
+                ? displayTx.recordingDate.split('T')[0]
+                : (displayTx.recordingDate as Date).toISOString().split('T')[0]
             : null;
-        const dateSoldStr = txDate ?? (prop.lastSaleDate ? (prop.lastSaleDate instanceof Date ? prop.lastSaleDate.toISOString().split("T")[0] : prop.lastSaleDate) : null);
+        const dateSoldStr =
+            txDate ??
+            (prop.lastSaleDate
+                ? prop.lastSaleDate instanceof Date
+                    ? prop.lastSaleDate.toISOString().split('T')[0]
+                    : prop.lastSaleDate
+                : null);
 
-        const isFinancedByARV = prop.isArvFunded || (latestArmsLengthTx?.firstMtgLenderName?.trim().toUpperCase() === "ARV FINANCE INC");
+        const isFinancedByARV =
+            prop.isArvFunded ||
+            latestArmsLengthTx?.firstMtgLenderName?.trim().toUpperCase() === 'ARV FINANCE INC';
 
         return {
             id: prop.id,
-            address: prop.address || "",
-            city: prop.city || "",
-            state: prop.state || "",
-            zipCode: prop.zipCode || "",
-            county: prop.county || "",
+            address: prop.address || '',
+            city: prop.city || '',
+            state: prop.state || '',
+            zipCode: prop.zipCode || '',
+            county: prop.county || '',
             latitude: lat,
             longitude: lon,
             bedrooms: prop.bedrooms ? Number(prop.bedrooms) : 0,
             bathrooms: baths,
             squareFeet: prop.squareFeet ? Number(prop.squareFeet) : 0,
-            propertyType: prop.propertyType || "",
-            statuses: statusesByPropertyId.get(prop.id) ?? ["in-renovation"],
-            status: statusesByPropertyId.get(prop.id)?.[0] ?? "in-renovation",
+            propertyType: prop.propertyType || '',
+            statuses: statusesByPropertyId.get(prop.id) ?? ['in-renovation'],
+            status: statusesByPropertyId.get(prop.id)?.[0] ?? 'in-renovation',
             price,
             dateSold: dateSoldStr,
             companyId: txBuyerId || txSellerId || null,
@@ -616,7 +704,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         };
     });
 
-    console.log(`Properties: ${propertiesList.length} returned, ${total} total, hasMore: ${hasMore}, page: ${pageNum}`);
+    console.log(
+        `Properties: ${propertiesList.length} returned, ${total} total, hasMore: ${hasMore}, page: ${pageNum}`,
+    );
 
     return {
         properties: propertiesList,

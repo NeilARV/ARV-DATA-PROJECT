@@ -1,12 +1,13 @@
-import crypto from "crypto";
-import { db } from "server/storage";
-import { vendors, vendorCategories, categories } from "@database/schemas/vendors.schema";
-import { eq, inArray } from "drizzle-orm";
-import type { VendorInput, UpdateVendorInput } from "@database/validation/vendors.validation";
-import { getSupabase, vendorStorageBucket, storagePathFromUrl } from "server/lib/supabase";
+import crypto from 'crypto';
+import { db } from 'server/storage';
+import { vendors, vendorCategories, categories } from '@database/schemas/vendors.schema';
+import { eq, inArray } from 'drizzle-orm';
+import type { VendorInput, UpdateVendorInput } from '@database/validation/vendors.validation';
+import { getSupabase, vendorStorageBucket, storagePathFromUrl } from 'server/lib/supabase';
 
 async function fetchCategoriesForVendors(vendorIds: string[]) {
-    if (vendorIds.length === 0) return new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
+    if (vendorIds.length === 0)
+        return new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
 
     const rows = await db
         .select({
@@ -23,7 +24,12 @@ async function fetchCategoriesForVendors(vendorIds: string[]) {
     const map = new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
     for (const row of rows) {
         if (!map.has(row.vendorId)) map.set(row.vendorId, []);
-        map.get(row.vendorId)!.push({ id: row.categoryId, name: row.name, slug: row.slug, iconName: row.iconName });
+        map.get(row.vendorId)!.push({
+            id: row.categoryId,
+            name: row.name,
+            slug: row.slug,
+            iconName: row.iconName,
+        });
     }
     return map;
 }
@@ -55,7 +61,11 @@ export async function getAll(categoryIds?: number[]) {
             .orderBy(vendors.name);
         // A vendor belonging to multiple matching categories appears once per match — deduplicate
         const seen = new Set<string>();
-        rows = raw.filter((v) => { if (seen.has(v.id)) return false; seen.add(v.id); return true; });
+        rows = raw.filter((v) => {
+            if (seen.has(v.id)) return false;
+            seen.add(v.id);
+            return true;
+        });
     } else {
         rows = await db.select(VENDOR_COLUMNS).from(vendors).orderBy(vendors.name);
     }
@@ -105,20 +115,20 @@ export async function create(input: VendorInput) {
     const [vendor] = await db
         .insert(vendors)
         .values({
-            name:        fields.name.trim(),
+            name: fields.name.trim(),
             description: fields.description?.trim() || null,
-            address:     fields.address?.trim()     || null,
-            city:        fields.city?.trim()         || null,
-            state:       fields.state?.trim().toUpperCase() || null,
-            zipCode:     fields.zipCode?.trim()      || null,
-            phone:       fields.phone?.trim()        || null,
-            website:     fields.website?.trim()      || null,
+            address: fields.address?.trim() || null,
+            city: fields.city?.trim() || null,
+            state: fields.state?.trim().toUpperCase() || null,
+            zipCode: fields.zipCode?.trim() || null,
+            phone: fields.phone?.trim() || null,
+            website: fields.website?.trim() || null,
         })
         .returning();
 
-    await db.insert(vendorCategories).values(
-        categoryIds.map((categoryId) => ({ vendorId: vendor.id, categoryId }))
-    );
+    await db
+        .insert(vendorCategories)
+        .values(categoryIds.map((categoryId) => ({ vendorId: vendor.id, categoryId })));
 
     const categoryMap = await fetchCategoriesForVendors([vendor.id]);
     console.log(`[vendorsService.create] Vendor created: id=${vendor.id}`);
@@ -136,28 +146,32 @@ export async function update(id: string, input: UpdateVendorInput) {
         .where(eq(vendors.id, id))
         .limit(1);
 
-    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+    if (!existing) throw Object.assign(new Error('Vendor not found'), { statusCode: 404 });
 
     const [updated] = await db
         .update(vendors)
         .set({
             updatedAt: new Date(),
-            ...(fields.name        !== undefined ? { name:        fields.name.trim() }                       : {}),
-            ...(fields.description !== undefined ? { description: fields.description?.trim() || null }       : {}),
-            ...(fields.address     !== undefined ? { address:     fields.address?.trim()     || null }       : {}),
-            ...(fields.city        !== undefined ? { city:        fields.city?.trim()         || null }       : {}),
-            ...(fields.state       !== undefined ? { state:       fields.state?.trim().toUpperCase() || null }: {}),
-            ...(fields.zipCode     !== undefined ? { zipCode:     fields.zipCode?.trim()      || null }       : {}),
-            ...(fields.phone       !== undefined ? { phone:       fields.phone?.trim()        || null }       : {}),
-            ...(fields.website     !== undefined ? { website:     fields.website?.trim()      || null }       : {}),
+            ...(fields.name !== undefined ? { name: fields.name.trim() } : {}),
+            ...(fields.description !== undefined
+                ? { description: fields.description?.trim() || null }
+                : {}),
+            ...(fields.address !== undefined ? { address: fields.address?.trim() || null } : {}),
+            ...(fields.city !== undefined ? { city: fields.city?.trim() || null } : {}),
+            ...(fields.state !== undefined
+                ? { state: fields.state?.trim().toUpperCase() || null }
+                : {}),
+            ...(fields.zipCode !== undefined ? { zipCode: fields.zipCode?.trim() || null } : {}),
+            ...(fields.phone !== undefined ? { phone: fields.phone?.trim() || null } : {}),
+            ...(fields.website !== undefined ? { website: fields.website?.trim() || null } : {}),
         })
         .where(eq(vendors.id, id))
         .returning();
 
     await db.delete(vendorCategories).where(eq(vendorCategories.vendorId, id));
-    await db.insert(vendorCategories).values(
-        categoryIds.map((categoryId) => ({ vendorId: id, categoryId }))
-    );
+    await db
+        .insert(vendorCategories)
+        .values(categoryIds.map((categoryId) => ({ vendorId: id, categoryId })));
 
     const categoryMap = await fetchCategoriesForVendors([updated.id]);
     console.log(`[vendorsService.update] Vendor updated: id=${id}`);
@@ -189,7 +203,7 @@ export async function toggleRecommend(id: string) {
         .where(eq(vendors.id, id))
         .limit(1);
 
-    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+    if (!existing) throw Object.assign(new Error('Vendor not found'), { statusCode: 404 });
 
     const [updated] = await db
         .update(vendors)
@@ -197,7 +211,9 @@ export async function toggleRecommend(id: string) {
         .where(eq(vendors.id, id))
         .returning();
 
-    console.log(`[vendorsService.toggleRecommend] Vendor ${id} isRecommended=${updated.isRecommended}`);
+    console.log(
+        `[vendorsService.toggleRecommend] Vendor ${id} isRecommended=${updated.isRecommended}`,
+    );
     return { id: updated.id, isRecommended: updated.isRecommended };
 }
 
@@ -210,7 +226,7 @@ export async function remove(id: string) {
         .where(eq(vendors.id, id))
         .limit(1);
 
-    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+    if (!existing) throw Object.assign(new Error('Vendor not found'), { statusCode: 404 });
 
     const pathsToDelete: string[] = [];
     if (existing.logoUrl) {
@@ -238,32 +254,34 @@ async function requireVendorExists(id: string) {
         .from(vendors)
         .where(eq(vendors.id, id))
         .limit(1);
-    if (!existing) throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+    if (!existing) throw Object.assign(new Error('Vendor not found'), { statusCode: 404 });
     return existing;
 }
 
 export async function uploadImage(
     id: string,
-    imageType: "logo" | "header",
+    imageType: 'logo' | 'header',
     buffer: Buffer,
     mimetype: string,
 ) {
     const existing = await requireVendorExists(id);
 
-    const ext = mimetype === "image/png" ? "png" : "jpg";
+    const ext = mimetype === 'image/png' ? 'png' : 'jpg';
     const storagePath = `${imageType}s/${id}/${imageType}.${ext}`;
 
     // Remove old image from storage if it exists
-    const oldUrl = imageType === "logo" ? existing.logoUrl : existing.headerUrl;
+    const oldUrl = imageType === 'logo' ? existing.logoUrl : existing.headerUrl;
     if (oldUrl) {
         const oldPath = storagePathFromUrl(oldUrl, vendorStorageBucket);
         if (oldPath) await getSupabase().storage.from(vendorStorageBucket).remove([oldPath]);
     }
 
-    console.log(`[vendorsService.uploadImage] bucket=${vendorStorageBucket} path=${storagePath} mime=${mimetype}`);
+    console.log(
+        `[vendorsService.uploadImage] bucket=${vendorStorageBucket} path=${storagePath} mime=${mimetype}`,
+    );
 
-    const { error } = await getSupabase().storage
-        .from(vendorStorageBucket)
+    const { error } = await getSupabase()
+        .storage.from(vendorStorageBucket)
         .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
 
     if (error) {
@@ -271,47 +289,60 @@ export async function uploadImage(
         throw new Error(`Storage upload failed: ${error.message}`);
     }
 
-    const { data: { publicUrl } } = getSupabase().storage
-        .from(vendorStorageBucket)
-        .getPublicUrl(storagePath);
+    const {
+        data: { publicUrl },
+    } = getSupabase().storage.from(vendorStorageBucket).getPublicUrl(storagePath);
 
     // Bust cache by appending a timestamp query param
     const urlWithBust = `${publicUrl}?t=${crypto.randomUUID()}`;
 
-    const column = imageType === "logo" ? { logoUrl: urlWithBust } : { headerUrl: urlWithBust };
+    const column = imageType === 'logo' ? { logoUrl: urlWithBust } : { headerUrl: urlWithBust };
     const [updated] = await db
         .update(vendors)
         .set({ ...column, updatedAt: new Date() })
         .where(eq(vendors.id, id))
         .returning();
 
-    const key = imageType === "logo" ? "logoUrl" : "headerUrl";
+    const key = imageType === 'logo' ? 'logoUrl' : 'headerUrl';
     console.log(`[vendorsService.uploadImage] ${imageType} uploaded for vendor id=${id}`);
     return { id: updated.id, [key]: urlWithBust };
 }
 
-export async function removeImage(id: string, imageType: "logo" | "header") {
+export async function removeImage(id: string, imageType: 'logo' | 'header') {
     const existing = await requireVendorExists(id);
 
-    const oldUrl = imageType === "logo" ? existing.logoUrl : existing.headerUrl;
-    console.log(`[vendorsService.removeImage] imageType=${imageType} oldUrl=${oldUrl} bucket=${vendorStorageBucket}`);
+    const oldUrl = imageType === 'logo' ? existing.logoUrl : existing.headerUrl;
+    console.log(
+        `[vendorsService.removeImage] imageType=${imageType} oldUrl=${oldUrl} bucket=${vendorStorageBucket}`,
+    );
 
-    console.log(`[OLD URL]: ${oldUrl}`)
-    
+    console.log(`[OLD URL]: ${oldUrl}`);
+
     if (oldUrl) {
         const oldPath = storagePathFromUrl(oldUrl, vendorStorageBucket);
         console.log(`[vendorsService.removeImage] extracted path=${oldPath}`);
         if (oldPath) {
-            const { data, error } = await getSupabase().storage.from(vendorStorageBucket).remove([oldPath]);
+            const { data, error } = await getSupabase()
+                .storage.from(vendorStorageBucket)
+                .remove([oldPath]);
             console.log(`[vendorsService.removeImage] storage remove data:`, JSON.stringify(data));
-            if (error) console.error(`[vendorsService.removeImage] storage remove error:`, JSON.stringify(error));
+            if (error)
+                console.error(
+                    `[vendorsService.removeImage] storage remove error:`,
+                    JSON.stringify(error),
+                );
         } else {
-            console.warn(`[vendorsService.removeImage] could not extract path from url — file NOT removed from storage`);
+            console.warn(
+                `[vendorsService.removeImage] could not extract path from url — file NOT removed from storage`,
+            );
         }
     }
 
-    const column = imageType === "logo" ? { logoUrl: null } : { headerUrl: null };
-    await db.update(vendors).set({ ...column, updatedAt: new Date() }).where(eq(vendors.id, id));
+    const column = imageType === 'logo' ? { logoUrl: null } : { headerUrl: null };
+    await db
+        .update(vendors)
+        .set({ ...column, updatedAt: new Date() })
+        .where(eq(vendors.id, id));
 
     console.log(`[vendorsService.removeImage] ${imageType} removed for vendor id=${id}`);
     return { id };

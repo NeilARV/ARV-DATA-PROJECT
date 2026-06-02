@@ -1,11 +1,11 @@
-import { useRef, useState } from "react";
-import { X, Upload, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from 'react';
+import { X, Upload, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     updateVendor,
     fetchCategories,
@@ -13,10 +13,10 @@ import {
     removeVendorLogo,
     uploadVendorHeader,
     removeVendorHeader,
-} from "@/api/vendors.api";
-import { useToast } from "@/hooks/use-toast";
-import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
-import type { Vendor } from "@/types/vendors";
+} from '@/api/vendors.api';
+import { useToast } from '@/hooks/use-toast';
+import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
+import type { Vendor } from '@/types/vendors';
 
 type EditVendorDialogProps = {
     open: boolean;
@@ -25,7 +25,7 @@ type EditVendorDialogProps = {
 };
 
 const selectClass =
-    "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground cursor-pointer";
+    'flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-muted-foreground cursor-pointer';
 
 type ImageFieldProps = {
     label: string;
@@ -37,21 +37,31 @@ type ImageFieldProps = {
     isRemoving: boolean;
 };
 
-function ImageField({ label, currentUrl, aspectClass, onUpload, onRemove, isUploading, isRemoving }: ImageFieldProps) {
+function ImageField({
+    label,
+    currentUrl,
+    aspectClass,
+    onUpload,
+    onRemove,
+    isUploading,
+    isRemoving,
+}: ImageFieldProps) {
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             onUpload(file);
-            e.target.value = "";
+            e.target.value = '';
         }
     };
 
     return (
         <div className="space-y-1.5">
             <Label>{label}</Label>
-            <div className={`relative w-full ${aspectClass} rounded-lg overflow-hidden bg-muted border border-border`}>
+            <div
+                className={`relative w-full ${aspectClass} rounded-lg overflow-hidden bg-muted border border-border`}
+            >
                 {currentUrl ? (
                     <>
                         <img src={currentUrl} alt="" className="w-full h-full object-cover" />
@@ -75,7 +85,9 @@ function ImageField({ label, currentUrl, aspectClass, onUpload, onRemove, isUplo
                         </div>
                         {(isUploading || isRemoving) && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                                <span className="text-xs text-white">{isUploading ? "Uploading…" : "Removing…"}</span>
+                                <span className="text-xs text-white">
+                                    {isUploading ? 'Uploading…' : 'Removing…'}
+                                </span>
                             </div>
                         )}
                     </>
@@ -109,28 +121,28 @@ function ImageField({ label, currentUrl, aspectClass, onUpload, onRemove, isUplo
 }
 
 export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProps) {
-    const [name, setName]               = useState(vendor.name);
-    const [description, setDescription] = useState(vendor.description ?? "");
-    const [address, setAddress]         = useState(vendor.address     ?? "");
-    const [city, setCity]               = useState(vendor.city        ?? "");
-    const [state, setState]             = useState(vendor.state       ?? "");
-    const [zipCode, setZipCode]         = useState(vendor.zipCode     ?? "");
-    const [phone, setPhone]             = useState(formatPhoneNumber(vendor.phone ?? ""));
-    const [website, setWebsite]         = useState(vendor.website     ?? "");
+    const [name, setName] = useState(vendor.name);
+    const [description, setDescription] = useState(vendor.description ?? '');
+    const [address, setAddress] = useState(vendor.address ?? '');
+    const [city, setCity] = useState(vendor.city ?? '');
+    const [state, setState] = useState(vendor.state ?? '');
+    const [zipCode, setZipCode] = useState(vendor.zipCode ?? '');
+    const [phone, setPhone] = useState(formatPhoneNumber(vendor.phone ?? ''));
+    const [website, setWebsite] = useState(vendor.website ?? '');
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>(
-        vendor.categories.map((c) => c.id)
+        vendor.categories.map((c) => c.id),
     );
 
     // Local image URL state — updated immediately after upload/remove so UI reflects changes
-    const [logoUrl, setLogoUrl]     = useState<string | null>(vendor.logoUrl);
+    const [logoUrl, setLogoUrl] = useState<string | null>(vendor.logoUrl);
     const [headerUrl, setHeaderUrl] = useState<string | null>(vendor.headerUrl);
 
     const queryClient = useQueryClient();
-    const { toast }   = useToast();
+    const { toast } = useToast();
 
     const { data: categoriesData } = useQuery({
-        queryKey: ["categories"],
-        queryFn:  fetchCategories,
+        queryKey: ['categories'],
+        queryFn: fetchCategories,
         staleTime: 5 * 60 * 1000,
     });
 
@@ -139,23 +151,27 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
             updateVendor(vendor.id, {
                 name,
                 description: description.trim() || null,
-                address:     address.trim()     || null,
-                city:        city.trim()         || null,
-                state:       state.trim()        || null,
-                zipCode:     zipCode.trim()      || null,
-                phone:       phone.trim()        || null,
-                website:     website.trim()      || null,
+                address: address.trim() || null,
+                city: city.trim() || null,
+                state: state.trim() || null,
+                zipCode: zipCode.trim() || null,
+                phone: phone.trim() || null,
+                website: website.trim() || null,
                 categoryIds: selectedCategoryIds,
             }),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendors-for-post"] });
-            queryClient.invalidateQueries({ queryKey: ["categories"] });
-            toast({ title: "Vendor updated", description: "Changes have been saved." });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendors-for-post'] });
+            queryClient.invalidateQueries({ queryKey: ['categories'] });
+            toast({ title: 'Vendor updated', description: 'Changes have been saved.' });
             onClose();
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to update vendor.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to update vendor.',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -163,12 +179,16 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
         mutationFn: (file: File) => uploadVendorLogo(vendor.id, file),
         onSuccess: (data) => {
             setLogoUrl(data.logoUrl);
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
-            toast({ title: "Logo uploaded" });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendor.id] });
+            toast({ title: 'Logo uploaded' });
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to upload logo.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to upload logo.',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -176,12 +196,16 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
         mutationFn: () => removeVendorLogo(vendor.id),
         onSuccess: () => {
             setLogoUrl(null);
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
-            toast({ title: "Logo removed" });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendor.id] });
+            toast({ title: 'Logo removed' });
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to remove logo.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to remove logo.',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -189,12 +213,16 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
         mutationFn: (file: File) => uploadVendorHeader(vendor.id, file),
         onSuccess: (data) => {
             setHeaderUrl(data.headerUrl);
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
-            toast({ title: "Header uploaded" });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendor.id] });
+            toast({ title: 'Header uploaded' });
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to upload header.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to upload header.',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -202,18 +230,22 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
         mutationFn: () => removeVendorHeader(vendor.id),
         onSuccess: () => {
             setHeaderUrl(null);
-            queryClient.invalidateQueries({ queryKey: ["vendors"] });
-            queryClient.invalidateQueries({ queryKey: ["vendor", vendor.id] });
-            toast({ title: "Header removed" });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendor.id] });
+            toast({ title: 'Header removed' });
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to remove header.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to remove header.',
+                variant: 'destructive',
+            });
         },
     });
 
     const anyImagePending =
-        logoUploadMutation.isPending   ||
-        logoRemoveMutation.isPending   ||
+        logoUploadMutation.isPending ||
+        logoRemoveMutation.isPending ||
         headerUploadMutation.isPending ||
         headerRemoveMutation.isPending;
 
@@ -228,7 +260,9 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
     const removeCategory = (id: number) =>
         setSelectedCategoryIds((prev) => prev.filter((c) => c !== id));
 
-    const availableCategories = (categoriesData ?? []).filter((c) => !selectedCategoryIds.includes(c.id));
+    const availableCategories = (categoriesData ?? []).filter(
+        (c) => !selectedCategoryIds.includes(c.id),
+    );
 
     return (
         <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -262,72 +296,131 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
 
                     {/* Name */}
                     <div className="space-y-1.5">
-                        <Label htmlFor="ev-name">Name <span className="text-destructive">*</span></Label>
-                        <Input id="ev-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Business name" />
+                        <Label htmlFor="ev-name">
+                            Name <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                            id="ev-name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Business name"
+                        />
                     </div>
 
                     {/* Description */}
                     <div className="space-y-1.5">
                         <Label htmlFor="ev-desc">Description</Label>
-                        <Textarea id="ev-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Brief description of services" rows={3} />
+                        <Textarea
+                            id="ev-desc"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Brief description of services"
+                            rows={3}
+                        />
                     </div>
 
                     {/* Address / City / State / Zip */}
                     <div className="space-y-1.5">
                         <Label htmlFor="ev-address">Address</Label>
-                        <Input id="ev-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" />
+                        <Input
+                            id="ev-address"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="123 Main St"
+                        />
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                         <div className="col-span-2 space-y-1.5">
                             <Label htmlFor="ev-city">City</Label>
-                            <Input id="ev-city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="San Diego" />
+                            <Input
+                                id="ev-city"
+                                value={city}
+                                onChange={(e) => setCity(e.target.value)}
+                                placeholder="San Diego"
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="ev-state">State</Label>
-                            <Input id="ev-state" value={state} onChange={(e) => setState(e.target.value)} placeholder="CA" maxLength={2} />
+                            <Input
+                                id="ev-state"
+                                value={state}
+                                onChange={(e) => setState(e.target.value)}
+                                placeholder="CA"
+                                maxLength={2}
+                            />
                         </div>
                     </div>
                     <div className="space-y-1.5">
                         <Label htmlFor="ev-zip">Zip Code</Label>
-                        <Input id="ev-zip" value={zipCode} onChange={(e) => setZipCode(e.target.value)} placeholder="92101" maxLength={10} />
+                        <Input
+                            id="ev-zip"
+                            value={zipCode}
+                            onChange={(e) => setZipCode(e.target.value)}
+                            placeholder="92101"
+                            maxLength={10}
+                        />
                     </div>
 
                     {/* Phone / Website */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label htmlFor="ev-phone">Phone</Label>
-                            <Input id="ev-phone" value={phone} onChange={(e) => setPhone(formatPhoneNumber(e.target.value))} placeholder="(619) 555-0100" />
+                            <Input
+                                id="ev-phone"
+                                value={phone}
+                                onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+                                placeholder="(619) 555-0100"
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="ev-website">Website</Label>
-                            <Input id="ev-website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="example.com" />
+                            <Input
+                                id="ev-website"
+                                value={website}
+                                onChange={(e) => setWebsite(e.target.value)}
+                                placeholder="example.com"
+                            />
                         </div>
                     </div>
 
                     {/* Categories */}
                     <div className="space-y-1.5">
-                        <Label>Categories <span className="text-destructive">*</span></Label>
+                        <Label>
+                            Categories <span className="text-destructive">*</span>
+                        </Label>
                         {availableCategories.length > 0 && (
                             <select
                                 value=""
-                                onChange={(e) => { if (e.target.value) addCategory(Number(e.target.value)); }}
+                                onChange={(e) => {
+                                    if (e.target.value) addCategory(Number(e.target.value));
+                                }}
                                 className={selectClass}
                             >
                                 <option value="">Add a category...</option>
                                 {availableCategories.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    <option key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                    </option>
                                 ))}
                             </select>
                         )}
                         {selectedCategoryIds.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                                 {selectedCategoryIds.map((id) => {
-                                    const cat = categoriesData?.find((c) => c.id === id)
-                                        ?? vendor.categories.find((c) => c.id === id);
+                                    const cat =
+                                        categoriesData?.find((c) => c.id === id) ??
+                                        vendor.categories.find((c) => c.id === id);
                                     return cat ? (
-                                        <span key={id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-md">
+                                        <span
+                                            key={id}
+                                            className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-md"
+                                        >
                                             {cat.name}
-                                            <button type="button" onClick={() => removeCategory(id)} className="hover:text-destructive transition-colors">
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCategory(id)}
+                                                className="hover:text-destructive transition-colors"
+                                            >
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </span>
@@ -338,14 +431,23 @@ export function EditVendorDialog({ open, onClose, vendor }: EditVendorDialogProp
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
-                        <Button variant="outline" onClick={handleClose} disabled={mutation.isPending || anyImagePending}>
+                        <Button
+                            variant="outline"
+                            onClick={handleClose}
+                            disabled={mutation.isPending || anyImagePending}
+                        >
                             Cancel
                         </Button>
                         <Button
                             onClick={() => mutation.mutate()}
-                            disabled={!name.trim() || selectedCategoryIds.length === 0 || mutation.isPending || anyImagePending}
+                            disabled={
+                                !name.trim() ||
+                                selectedCategoryIds.length === 0 ||
+                                mutation.isPending ||
+                                anyImagePending
+                            }
                         >
-                            {mutation.isPending ? "Saving..." : "Save"}
+                            {mutation.isPending ? 'Saving...' : 'Save'}
                         </Button>
                     </div>
                 </div>

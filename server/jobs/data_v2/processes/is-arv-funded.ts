@@ -1,11 +1,11 @@
-import type { PropertyWithStatus } from "./resolve-status";
-import type { TransactionWithIds } from "./resolve-ids";
+import type { PropertyWithStatus } from './resolve-status';
+import type { TransactionWithIds } from './resolve-ids';
 
-const ARV_LENDER = "ARV FINANCE INC";
+const ARV_LENDER = 'ARV FINANCE INC';
 
 function getTxStr(r: Record<string, unknown>, upper: string, lower: string): string {
     const v = r[upper] ?? r[lower];
-    return v != null && typeof v === "string" ? v.trim() : "";
+    return v != null && typeof v === 'string' ? v.trim() : '';
 }
 
 /**
@@ -19,21 +19,26 @@ function getTxStr(r: Record<string, unknown>, upper: string, lower: string): str
 function isArvFunded(transactions: TransactionWithIds[]): boolean {
     if (transactions.length === 0) return false;
 
-    const armsLength = transactions.filter((tx) =>
-        getTxStr(tx as Record<string, unknown>, "TRANSACTION_TYPE", "transaction_type").toLowerCase() === "arms length"
+    const armsLength = transactions.filter(
+        (tx) =>
+            getTxStr(
+                tx as Record<string, unknown>,
+                'TRANSACTION_TYPE',
+                'transaction_type',
+            ).toLowerCase() === 'arms length',
     );
 
     if (armsLength.length === 0) return false;
 
-    let latestDate = "";
-    let latestLender = "";
+    let latestDate = '';
+    let latestLender = '';
 
     for (const tx of armsLength) {
         const r = tx as Record<string, unknown>;
-        const recDate = getTxStr(r, "RECORDING_DATE", "recording_date");
+        const recDate = getTxStr(r, 'RECORDING_DATE', 'recording_date');
         if (!recDate || recDate <= latestDate) continue;
         latestDate = recDate;
-        latestLender = getTxStr(r, "FIRST_MTG_LENDER_NAME", "first_mtg_lender_name").toUpperCase();
+        latestLender = getTxStr(r, 'FIRST_MTG_LENDER_NAME', 'first_mtg_lender_name').toUpperCase();
     }
 
     return latestLender === ARV_LENDER;
@@ -53,7 +58,7 @@ export function resolveArvFunded(properties: PropertyWithStatus[]): PropertyWith
         property.is_arv_funded = isArvFunded(transactions);
         return {
             ...item,
-            property: property as PropertyWithStatus["property"],
+            property: property as PropertyWithStatus['property'],
         };
     });
 }

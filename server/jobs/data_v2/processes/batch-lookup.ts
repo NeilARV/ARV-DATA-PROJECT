@@ -1,7 +1,7 @@
-import { normalizeAddressForLookup, normalizeDateToYMD } from "server/utils/normalization";
-import type { BuyersMarketRecord } from "./get-market";
-import { fetchWithRetry } from "server/utils/fetchWithRetry";
-import { delay } from "server/utils/delay";
+import { normalizeAddressForLookup, normalizeDateToYMD } from 'server/utils/normalization';
+import type { BuyersMarketRecord } from './get-market';
+import { fetchWithRetry } from 'server/utils/fetchWithRetry';
+import { delay } from 'server/utils/delay';
 
 const BATCH_SIZE = 100;
 const RATE_LIMIT_DELAY_MS = 1000;
@@ -12,19 +12,31 @@ const RETRY_DELAY_MS = 5000;
 function getString(record: BuyersMarketRecord, ...keys: string[]): string {
     for (const k of keys) {
         const v = record[k];
-        if (v != null && typeof v === "string" && v.trim()) return v.trim();
+        if (v != null && typeof v === 'string' && v.trim()) return v.trim();
     }
-    return "";
+    return '';
 }
 
 /** Get address parts from nested object (e.g. record.address or record.property). */
-function getAddressPartsFromObj(obj: unknown): { address: string; city: string; state: string; zipCode: string } {
-    if (!obj || typeof obj !== "object") return { address: "", city: "", state: "", zipCode: "" };
+function getAddressPartsFromObj(obj: unknown): {
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+} {
+    if (!obj || typeof obj !== 'object') return { address: '', city: '', state: '', zipCode: '' };
     const r = obj as Record<string, unknown>;
-    const address = getString(r, "address", "street_address", "formatted_street_address", "streetAddress", "formattedStreetAddress");
-    const city = getString(r, "city");
-    const state = getString(r, "state");
-    const zipCode = getString(r, "zipCode", "zip_code");
+    const address = getString(
+        r,
+        'address',
+        'street_address',
+        'formatted_street_address',
+        'streetAddress',
+        'formattedStreetAddress',
+    );
+    const city = getString(r, 'city');
+    const state = getString(r, 'state');
+    const zipCode = getString(r, 'zipCode', 'zip_code');
     return { address, city, state, zipCode };
 }
 
@@ -34,10 +46,10 @@ function getAddressPartsFromObj(obj: unknown): { address: string; city: string; 
  */
 function formatAddressForBatch(record: BuyersMarketRecord): string {
     // Flat keys (camelCase then snake_case)
-    let address = getString(record, "address", "street_address", "formatted_street_address");
-    let city = getString(record, "city");
-    let state = getString(record, "state");
-    let zipCode = getString(record, "zipCode", "zip_code");
+    let address = getString(record, 'address', 'street_address', 'formatted_street_address');
+    let city = getString(record, 'city');
+    let state = getString(record, 'state');
+    let zipCode = getString(record, 'zipCode', 'zip_code');
 
     // If missing, try nested record.address or record.property
     if (!address || !city || !state) {
@@ -49,10 +61,8 @@ function formatAddressForBatch(record: BuyersMarketRecord): string {
         if (!zipCode) zipCode = fromAddr.zipCode || fromProp.zipCode;
     }
 
-    if (!address || !city || !state) return "";
-    return zipCode
-        ? `${address}, ${city}, ${state} ${zipCode}`
-        : `${address}, ${city}, ${state}`;
+    if (!address || !city || !state) return '';
+    return zipCode ? `${address}, ${city}, ${state} ${zipCode}` : `${address}, ${city}, ${state}`;
 }
 
 export interface BatchLookupParams {
@@ -77,9 +87,7 @@ export interface MergedProperty {
  * data (saleValue, buyerName, sellerName, recordingDate, saleDate) into the
  * batch response. Returns merged property objects for later DB insert.
  */
-export async function batchLookup(
-    params: BatchLookupParams
-): Promise<MergedProperty[]> {
+export async function batchLookup(params: BatchLookupParams): Promise<MergedProperty[]> {
     const { records, API_KEY, API_URL, cityCode } = params;
 
     // Build address -> best record (latest recordingDate)
@@ -90,10 +98,13 @@ export async function batchLookup(
         const addr = formatAddressForBatch(record);
         if (!addr) continue;
 
-        const recordingDate = normalizeDateToYMD(record.recordingDate as string) || "";
+        const recordingDate = normalizeDateToYMD(record.recordingDate as string) || '';
         const existing = recordsByAddress.get(addr);
 
-        if (!existing || recordingDate > (normalizeDateToYMD(existing.recordingDate as string) || "")) {
+        if (
+            !existing ||
+            recordingDate > (normalizeDateToYMD(existing.recordingDate as string) || '')
+        ) {
             recordsByAddress.set(addr, record);
         }
 
@@ -108,15 +119,21 @@ export async function batchLookup(
         console.log(`[${cityCode} SYNC] No addresses to batch lookup`);
         if (records.length > 0) {
             const sample = records[0] as Record<string, unknown>;
-            const keys = Object.keys(sample).sort().join(", ");
+            const keys = Object.keys(sample).sort().join(', ');
             const withCamelAddress = records.filter(
                 (r) =>
-                    r.address && typeof r.address === "string" && (r.address as string).trim() &&
-                    r.city && typeof r.city === "string" && (r.city as string).trim() &&
-                    r.state && typeof r.state === "string" && (r.state as string).trim()
+                    r.address &&
+                    typeof r.address === 'string' &&
+                    (r.address as string).trim() &&
+                    r.city &&
+                    typeof r.city === 'string' &&
+                    (r.city as string).trim() &&
+                    r.state &&
+                    typeof r.state === 'string' &&
+                    (r.state as string).trim(),
             ).length;
             console.log(
-                `[${cityCode} SYNC] Records with address/city/state (camelCase): ${withCamelAddress}/${records.length}. Sample keys: ${keys}`
+                `[${cityCode} SYNC] Records with address/city/state (camelCase): ${withCamelAddress}/${records.length}. Sample keys: ${keys}`,
             );
         }
         return [];
@@ -131,20 +148,20 @@ export async function batchLookup(
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(addresses.length / BATCH_SIZE);
 
-        const addressesParam = batchAddresses.join("|");
+        const addressesParam = batchAddresses.join('|');
         const response = await fetchWithRetry(
             `${API_URL}/properties/batch?addresses=${encodeURIComponent(addressesParam)}`,
             {
-                method: "GET",
+                method: 'GET',
                 headers: {
-                    "X-API-TOKEN": API_KEY,
-                    "Accept": "application/json",
-                    "User-Agent": "PostmanRuntime/7.41.0",
+                    'X-API-TOKEN': API_KEY,
+                    Accept: 'application/json',
+                    'User-Agent': 'PostmanRuntime/7.41.0',
                 },
             },
             RETRY_ATTEMPTS,
             RETRY_DELAY_MS,
-            { label: `${cityCode} SYNC properties/batch ${batchNum}/${totalBatches}` }
+            { label: `${cityCode} SYNC properties/batch ${batchNum}/${totalBatches}` },
         );
         const batchData = (await response.json()) as Array<{
             address?: string;
@@ -153,18 +170,22 @@ export async function batchLookup(
         }>;
 
         if (!batchData || !Array.isArray(batchData)) {
-            console.warn(`[${cityCode} SYNC] Invalid batch response format, skipping batch ${batchNum}`);
+            console.warn(
+                `[${cityCode} SYNC] Invalid batch response format, skipping batch ${batchNum}`,
+            );
             continue;
         }
 
-        const notFound = batchData.filter(item => item.error || !item.property);
+        const notFound = batchData.filter((item) => item.error || !item.property);
         if (notFound.length > 0) {
             console.warn(
                 `[${cityCode} SYNC] Batch ${batchNum}/${totalBatches}: ` +
-                `${notFound.length}/${batchData.length} properties NOT_FOUND or errored — skipping those`
+                    `${notFound.length}/${batchData.length} properties NOT_FOUND or errored — skipping those`,
             );
         }
-        console.log(`[${cityCode} SYNC] Batch ${batchNum}/${totalBatches}: fetched ${batchData.length} properties (${batchData.length - notFound.length} valid)`);
+        console.log(
+            `[${cityCode} SYNC] Batch ${batchNum}/${totalBatches}: fetched ${batchData.length} properties (${batchData.length - notFound.length} valid)`,
+        );
 
         for (const item of batchData) {
             if (item.error || !item.property) {
@@ -220,9 +241,7 @@ export async function batchLookup(
         }
     }
 
-    console.log(
-        `[${cityCode} SYNC] Batch lookup complete: ${results.length} properties`
-    );
+    console.log(`[${cityCode} SYNC] Batch lookup complete: ${results.length} properties`);
 
     return results;
 }

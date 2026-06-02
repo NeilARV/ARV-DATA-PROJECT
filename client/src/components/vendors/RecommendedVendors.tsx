@@ -1,8 +1,8 @@
-import { Trophy } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchRecommendedVendors } from "@/api/vendors.api";
-import { VendorCard } from "./VendorCard";
-import type { Vendor } from "@/types/vendors";
+import { Trophy } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchRecommendedVendors } from '@/api/vendors.api';
+import { VendorCard } from './VendorCard';
+import type { Vendor } from '@/types/vendors';
 
 type RecommendedVendorsProps = {
     selectedVendorId: string | null;
@@ -11,7 +11,7 @@ type RecommendedVendorsProps = {
 
 export function RecommendedVendors({ selectedVendorId, onSelectVendor }: RecommendedVendorsProps) {
     const { data: vendors, isLoading } = useQuery({
-        queryKey: ["vendors-recommended"],
+        queryKey: ['vendors-recommended'],
         queryFn: fetchRecommendedVendors,
         staleTime: 5 * 60 * 1000,
     });
@@ -20,7 +20,9 @@ export function RecommendedVendors({ selectedVendorId, onSelectVendor }: Recomme
         <div>
             <div className="flex items-center gap-2 mb-3">
                 <Trophy className="w-4 h-4 text-primary flex-shrink-0" />
-                <h2 className="font-semibold text-lg text-foreground">Most Recommended this Month</h2>
+                <h2 className="font-semibold text-lg text-foreground">
+                    Most Recommended this Month
+                </h2>
             </div>
 
             {isLoading ? (

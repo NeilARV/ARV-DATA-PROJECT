@@ -1,1 +1,1 @@
-export * as CategoriesServices from "./categories.services";
+export * as CategoriesServices from './categories.services';

@@ -1,12 +1,19 @@
-import { users, userRelationshipManagers, userRoles, roles, userNotificationPreferences, emailSubscriptionList, subscriptions } from "@database/schemas/users.schema";
-import { msas, userMsaSubscriptions } from "@database/schemas/msas.schema";
-import { db } from "server/storage";
-import { eq, sql, inArray, and, ilike } from "drizzle-orm";
-import type { UpdateNotificationPreferences } from "@database/updates";
-import bcrypt from "bcrypt";
-import crypto from "crypto";
-import { getSupabase, userStorageBucket, storagePathFromUrl } from "server/lib/supabase.js";
-
+import {
+    users,
+    userRelationshipManagers,
+    userRoles,
+    roles,
+    userNotificationPreferences,
+    emailSubscriptionList,
+    subscriptions,
+} from '@database/schemas/users.schema';
+import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
+import { db } from 'server/storage';
+import { eq, sql, inArray, and, ilike } from 'drizzle-orm';
+import type { UpdateNotificationPreferences } from '@database/updates';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import { getSupabase, userStorageBucket, storagePathFromUrl } from 'server/lib/supabase.js';
 
 interface SignupData {
     firstName: string;
@@ -20,10 +27,9 @@ interface SignupData {
 }
 
 export async function createUser(data: SignupData) {
+    const { firstName, lastName, phone, email, password, county, state, subscriptionId } = data;
 
-    const { firstName, lastName, phone, email, password, county, state, subscriptionId } = data
-
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const [newUser] = await db
         .insert(users)
@@ -38,23 +44,26 @@ export async function createUser(data: SignupData) {
             state: state || null,
             subscriptionId: subscriptionId ?? null,
         })
-        .returning()
+        .returning();
 
-    const { passwordHash: _, ...userWithoutPassword} = newUser
+    const { passwordHash: _, ...userWithoutPassword } = newUser;
 
-    return userWithoutPassword
+    return userWithoutPassword;
 }
 
-export async function updateUser(userId: string, updateData: {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    phone?: string;
-    notifications?: boolean;
-    msaSubscriptions?: string[];
-    county?: string | null;
-    state?: string | null;
-}) {
+export async function updateUser(
+    userId: string,
+    updateData: {
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        phone?: string;
+        notifications?: boolean;
+        msaSubscriptions?: string[];
+        county?: string | null;
+        state?: string | null;
+    },
+) {
     const { msaSubscriptions, ...dbUpdateData } = updateData;
 
     const [updatedUser] = await db
@@ -83,10 +92,7 @@ async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Pro
         return;
     }
 
-    const msaRows = await db
-        .select({ id: msas.id })
-        .from(msas)
-        .where(inArray(msas.name, msaNames));
+    const msaRows = await db.select({ id: msas.id }).from(msas).where(inArray(msas.name, msaNames));
 
     const msaIds = msaRows.map((r) => r.id);
     if (msaIds.length === 0) {
@@ -100,7 +106,7 @@ async function syncUserMsaSubscriptions(userId: string, msaNames: string[]): Pro
         msaIds.map((msaId) => ({
             userId,
             msaId,
-        }))
+        })),
     );
 }
 
@@ -114,43 +120,40 @@ export async function addUserMsaSubscription(userId: string, msaId: number): Pro
 /**
  * Links a user to a relationship manager in user_relationship_managers.
  */
-export async function addUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
+export async function addUserRelationshipManager(
+    userId: string,
+    relationshipManagerId: string,
+): Promise<void> {
     await db.insert(userRelationshipManagers).values({ userId, relationshipManagerId });
 }
 
 /**
  * Removes the link between a user and a relationship manager in user_relationship_managers.
  */
-export async function removeUserRelationshipManager(userId: string, relationshipManagerId: string): Promise<void> {
+export async function removeUserRelationshipManager(
+    userId: string,
+    relationshipManagerId: string,
+): Promise<void> {
     await db
         .delete(userRelationshipManagers)
         .where(
             and(
                 eq(userRelationshipManagers.userId, userId),
-                eq(userRelationshipManagers.relationshipManagerId, relationshipManagerId)
-            )
+                eq(userRelationshipManagers.relationshipManagerId, relationshipManagerId),
+            ),
         );
 }
 
 export async function getUserByEmail(email: string) {
+    const user = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
 
-    const user = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email.toLowerCase()))
-        .limit(1);
-    
-    return user
+    return user;
 }
 
 export async function getUserById(userId: string) {
-    const user = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
+    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
-    return user
+    return user;
 }
 
 /**
@@ -170,7 +173,7 @@ export async function getRandomRelationshipManager(): Promise<{
         .from(users)
         .innerJoin(userRoles, eq(userRoles.userId, users.id))
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(eq(roles.name, "relationship-manager"));
+        .where(eq(roles.name, 'relationship-manager'));
 
     if (rows.length === 0) return null;
     return rows[Math.floor(Math.random() * rows.length)];
@@ -231,7 +234,7 @@ export async function getUserNotificationPreferences(userId: string) {
  * Returns the email_subscription_list row for a given email (case-insensitive), or null if not found.
  */
 export async function checkEmailSubscriptionList(
-    email: string
+    email: string,
 ): Promise<typeof emailSubscriptionList.$inferSelect | null> {
     const normalizedEmail = email.toLowerCase().trim();
     const [row] = await db
@@ -265,7 +268,10 @@ export async function getSubscriptionIdByName(name: string): Promise<number | nu
 /**
  * Creates or updates the user's notification preferences row (upsert).
  */
-export async function upsertUserNotificationPreferences(userId: string, data: UpdateNotificationPreferences) {
+export async function upsertUserNotificationPreferences(
+    userId: string,
+    data: UpdateNotificationPreferences,
+) {
     const [result] = await db
         .insert(userNotificationPreferences)
         .values({
@@ -283,32 +289,36 @@ export async function upsertUserNotificationPreferences(userId: string, data: Up
     return result;
 }
 
-export async function uploadUserAvatar(userId: string, buffer: Buffer, mimetype: string): Promise<string> {
+export async function uploadUserAvatar(
+    userId: string,
+    buffer: Buffer,
+    mimetype: string,
+): Promise<string> {
     const [existing] = await db
         .select({ profileImageUrl: users.profileImageUrl })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
 
-    if (!existing) throw Object.assign(new Error("User not found"), { statusCode: 404 });
+    if (!existing) throw Object.assign(new Error('User not found'), { statusCode: 404 });
 
     if (existing.profileImageUrl) {
         const oldPath = storagePathFromUrl(existing.profileImageUrl, userStorageBucket);
         if (oldPath) await getSupabase().storage.from(userStorageBucket).remove([oldPath]);
     }
 
-    const ext = mimetype === "image/png" ? "png" : "jpg";
+    const ext = mimetype === 'image/png' ? 'png' : 'jpg';
     const storagePath = `avatars/${userId}/${crypto.randomUUID()}.${ext}`;
 
-    const { error } = await getSupabase().storage
-        .from(userStorageBucket)
+    const { error } = await getSupabase()
+        .storage.from(userStorageBucket)
         .upload(storagePath, buffer, { contentType: mimetype, upsert: false });
 
     if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-    const { data: { publicUrl } } = getSupabase().storage
-        .from(userStorageBucket)
-        .getPublicUrl(storagePath);
+    const {
+        data: { publicUrl },
+    } = getSupabase().storage.from(userStorageBucket).getPublicUrl(storagePath);
 
     const urlWithBust = `${publicUrl}?t=${Date.now()}`;
 
@@ -327,7 +337,7 @@ export async function removeUserAvatar(userId: string): Promise<void> {
         .where(eq(users.id, userId))
         .limit(1);
 
-    if (!existing) throw Object.assign(new Error("User not found"), { statusCode: 404 });
+    if (!existing) throw Object.assign(new Error('User not found'), { statusCode: 404 });
 
     if (existing.profileImageUrl) {
         const oldPath = storagePathFromUrl(existing.profileImageUrl, userStorageBucket);

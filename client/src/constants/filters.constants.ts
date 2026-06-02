@@ -1,29 +1,37 @@
-export const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo', 'Duplex', 'Triplex', 'Fourplex', 'Vacant Land'];
+export const PROPERTY_TYPES = [
+    'Single Family',
+    'Townhouse',
+    'Condo',
+    'Duplex',
+    'Triplex',
+    'Fourplex',
+    'Vacant Land',
+];
 export const BEDROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+', '5+'];
 export const BATHROOM_OPTIONS = ['Any', '1+', '2+', '3+', '4+'];
 export const MAX_PRICE = 10000000;
 
 export const DATE_RANGE_OPTIONS = [
-    { label: "Last 30 Days",  value: "30d" },
-    { label: "Last 60 Days",  value: "60d" },
-    { label: "Last 90 Days",  value: "90d" },
-    { label: "Past 6 Months", value: "180d" },
-    { label: "Past 12 Months", value: "1y" },
-    { label: "YTD",           value: "ytd" },
-    { label: "All-Time",      value: "all-time" },
+    { label: 'Last 30 Days', value: '30d' },
+    { label: 'Last 60 Days', value: '60d' },
+    { label: 'Last 90 Days', value: '90d' },
+    { label: 'Past 6 Months', value: '180d' },
+    { label: 'Past 12 Months', value: '1y' },
+    { label: 'YTD', value: 'ytd' },
+    { label: 'All-Time', value: 'all-time' },
 ] as const;
 
 export const MSA = [
-    "San Diego-Chula Vista-Carlsbad, CA",
-    "Los Angeles-Long Beach-Anaheim, CA",
-    "Riverside-San Bernardino-Ontario, CA",
-    "Denver-Aurora-Centennial, CO",
-    "San Francisco-Oakland-Fremont, CA",
-    "Miami-Fort Lauderdale-West Palm Beach, FL",
-    "Port St. Lucie, FL",
-    "Seattle-Tacoma-Bellevue, WA",
-    "Tampa-St. Petersburg-Clearwater, FL"
-]
+    'San Diego-Chula Vista-Carlsbad, CA',
+    'Los Angeles-Long Beach-Anaheim, CA',
+    'Riverside-San Bernardino-Ontario, CA',
+    'Denver-Aurora-Centennial, CO',
+    'San Francisco-Oakland-Fremont, CA',
+    'Miami-Fort Lauderdale-West Palm Beach, FL',
+    'Port St. Lucie, FL',
+    'Seattle-Tacoma-Bellevue, WA',
+    'Tampa-St. Petersburg-Clearwater, FL',
+];
 
 export const DENVER_MSA_ZIP_CODES = {
     // Denver County (City and County of Denver)
@@ -79,7 +87,7 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80294', city: 'Denver' },
         { zip: '80299', city: 'Denver' },
     ],
-  
+
     // Adams County
     adams: [
         { zip: '80019', city: 'Aurora' },
@@ -107,7 +115,7 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80614', city: 'Eastlake' },
         { zip: '80640', city: 'Henderson' },
     ],
-  
+
     // Arapahoe County
     arapahoe: [
         { zip: '80010', city: 'Aurora' },
@@ -141,7 +149,7 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80166', city: 'Littleton' },
         { zip: '80247', city: 'Denver' },
     ],
-  
+
     // Jefferson County
     jefferson: [
         { zip: '80001', city: 'Arvada' },
@@ -180,7 +188,7 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80465', city: 'Morrison' },
         { zip: '80470', city: 'Pine' },
     ],
-  
+
     // Douglas County
     douglas: [
         { zip: '80104', city: 'Castle Rock' },
@@ -198,16 +206,16 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80135', city: 'Sedalia' },
         { zip: '80138', city: 'Parker' },
         { zip: '80163', city: 'Littleton' },
-        ],
-    
-        // Broomfield County (City and County of Broomfield)
-        broomfield: [
+    ],
+
+    // Broomfield County (City and County of Broomfield)
+    broomfield: [
         { zip: '80020', city: 'Broomfield' },
         { zip: '80021', city: 'Broomfield' },
         { zip: '80023', city: 'Broomfield' },
         { zip: '80038', city: 'Broomfield' },
     ],
-  
+
     // Clear Creek County
     clear_creek: [
         { zip: '80436', city: 'Dumont' },
@@ -216,14 +224,14 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80452', city: 'Idaho Springs' },
         { zip: '80476', city: 'Silver Plume' },
     ],
-  
+
     // Gilpin County
     gilpin: [
         { zip: '80422', city: 'Black Hawk' },
         { zip: '80427', city: 'Central City' },
         { zip: '80474', city: 'Rollinsville' },
     ],
-  
+
     // Elbert County
     elbert: [
         { zip: '80101', city: 'Agate' },
@@ -233,7 +241,7 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80830', city: 'Matheson' },
         { zip: '80835', city: 'Simla' },
     ],
-  
+
     // Park County
     park: [
         { zip: '80420', city: 'Alma' },
@@ -248,7 +256,7 @@ export const DENVER_MSA_ZIP_CODES = {
         { zip: '80827', city: 'Lake George' },
     ],
 };
-  
+
 export const SAN_DIEGO_MSA_ZIP_CODES = {
     san_diego: [
         { zip: '91901', city: 'Alpine' },
@@ -366,8 +374,8 @@ export const SAN_DIEGO_MSA_ZIP_CODES = {
         { zip: '92182', city: 'San Diego' },
         { zip: '92118', city: 'Coronado' },
         { zip: '92672', city: 'San Clemente' },
-    ]
-}
+    ],
+};
 
 export const LOS_ANGELES_MSA_ZIP_CODES = {
     los_angeles: [
@@ -658,7 +666,7 @@ export const LOS_ANGELES_MSA_ZIP_CODES = {
         { zip: '90280', city: 'South Gate' },
         { zip: '90290', city: 'Topanga' },
     ],
-  
+
     orange: [
         { zip: '92602', city: 'Irvine' },
         { zip: '92603', city: 'Irvine' },
@@ -942,7 +950,6 @@ export const SAN_FRANCISCO_MSA_ZIP_CODES = {
 };
 
 export const MIAMI_MSA_ZIP_CODES = {
-
     // Miami-Dade County
     miami_dade: [
         { zip: '33002', city: 'Miami' },
@@ -1128,11 +1135,9 @@ export const MIAMI_MSA_ZIP_CODES = {
         { zip: '33477', city: 'Jupiter' },
         { zip: '33480', city: 'Palm Beach' },
     ],
-
 };
 
 export const PORT_ST_LUCIE_MSA_ZIP_CODES = {
-
     // St. Lucie County
     st_lucie: [
         { zip: '34945', city: 'Fort Pierce' },
@@ -1172,11 +1177,9 @@ export const PORT_ST_LUCIE_MSA_ZIP_CODES = {
         { zip: '34956', city: 'Indiantown' },
         { zip: '34957', city: 'Jensen Beach' },
     ],
-
 };
 
 export const SEATTLE_MSA_ZIP_CODES = {
-
     // King County
     king: [
         { zip: '98001', city: 'Auburn' },
@@ -1422,11 +1425,10 @@ export const SEATTLE_MSA_ZIP_CODES = {
         { zip: '98294', city: 'Sultan' },
         { zip: '98296', city: 'Snohomish' },
     ],
-
 };
 
 export const TAMPA_MSA_ZIP_CODES = {
-  // Hillsborough County (Tampa, Brandon, Plant City, etc.)
+    // Hillsborough County (Tampa, Brandon, Plant City, etc.)
     hillsborough: [
         // Balm
         { zip: '33503', city: 'Balm' },
@@ -1551,7 +1553,7 @@ export const TAMPA_MSA_ZIP_CODES = {
         // Lakeland / Kathleen (partial — multi-county)
         { zip: '33810', city: 'Lakeland' },
     ],
- 
+
     // Pinellas County (St. Petersburg, Clearwater, Largo, etc.)
     pinellas: [
         // Saint Petersburg
@@ -1643,7 +1645,7 @@ export const TAMPA_MSA_ZIP_CODES = {
         // Ozona
         { zip: '34660', city: 'Ozona' },
     ],
-    
+
     // Pasco County (New Port Richey, Wesley Chapel, Zephyrhills, Land O Lakes, etc.)
     pasco: [
         // Dade City
@@ -1696,7 +1698,7 @@ export const TAMPA_MSA_ZIP_CODES = {
         // Spring Hill (partial — primary in Hernando; multi-county)
         { zip: '34610', city: 'Spring Hill' },
     ],
- 
+
     // Hernando County (Spring Hill, Brooksville)
     hernando: [
         // Brooksville
@@ -1724,7 +1726,6 @@ export const TAMPA_MSA_ZIP_CODES = {
 };
 
 export const RIVERSIDE_MSA_ZIP_CODES = {
-
     // Riverside County
     riverside: [
         // Banning
@@ -1942,52 +1943,51 @@ export const RIVERSIDE_MSA_ZIP_CODES = {
         { zip: '92284', city: 'Yucca Valley' },
         { zip: '92285', city: 'Yucca Valley' },
     ],
-
 };
 
 export const COUNTIES = [
-    { county: "San Diego", state: "CA", center: [32.7157, -117.1611] },
-    { county: "Orange", state: "CA", center: [33.7879, -117.8531] },
-    { county: "Los Angeles", state: "CA", center: [34.0522, -118.2437] },
+    { county: 'San Diego', state: 'CA', center: [32.7157, -117.1611] },
+    { county: 'Orange', state: 'CA', center: [33.7879, -117.8531] },
+    { county: 'Los Angeles', state: 'CA', center: [34.0522, -118.2437] },
     // Riverside-San Bernardino-Ontario MSA
-    { county: "Riverside",      state: "CA", center: [33.9806, -117.3755] },
-    { county: "San Bernardino", state: "CA", center: [34.1083, -117.2898] },
-  
-    { county: "Denver", state: "CO", center: [39.7392, -104.9903] },
-    { county: "Adams", state: "CO", center: [39.8743, -104.3310] },
-    { county: "Arapahoe", state: "CO", center: [39.6203, -104.3326] },
-    { county: "Broomfield", state: "CO", center: [39.9205, -105.0867] },
-    { county: "Jefferson", state: "CO", center: [39.5866, -105.2500] },
-    { county: "Douglas", state: "CO", center: [39.3315, -104.9294] },
-    { county: "Clear Creek", state: "CO", center: [39.6916, -105.6447] },
-    { county: "Gilpin", state: "CO", center: [39.8570, -105.5220] },
-    { county: "Elbert", state: "CO", center: [39.2860, -104.1350] },
-    { county: "Park", state: "CO", center: [39.1183, -105.7170] },
+    { county: 'Riverside', state: 'CA', center: [33.9806, -117.3755] },
+    { county: 'San Bernardino', state: 'CA', center: [34.1083, -117.2898] },
+
+    { county: 'Denver', state: 'CO', center: [39.7392, -104.9903] },
+    { county: 'Adams', state: 'CO', center: [39.8743, -104.331] },
+    { county: 'Arapahoe', state: 'CO', center: [39.6203, -104.3326] },
+    { county: 'Broomfield', state: 'CO', center: [39.9205, -105.0867] },
+    { county: 'Jefferson', state: 'CO', center: [39.5866, -105.25] },
+    { county: 'Douglas', state: 'CO', center: [39.3315, -104.9294] },
+    { county: 'Clear Creek', state: 'CO', center: [39.6916, -105.6447] },
+    { county: 'Gilpin', state: 'CO', center: [39.857, -105.522] },
+    { county: 'Elbert', state: 'CO', center: [39.286, -104.135] },
+    { county: 'Park', state: 'CO', center: [39.1183, -105.717] },
 
     // San Francisco-Oakland-Fremont MSA
-    { county: "San Francisco", state: "CA", center: [37.7749, -122.4194] },
-    { county: "Alameda", state: "CA", center: [37.6506, -121.9179] },
-    { county: "Contra Costa", state: "CA", center: [37.9234, -121.9512] },
-    { county: "Marin", state: "CA", center: [38.0552, -122.7489] },
-    { county: "San Mateo", state: "CA", center: [37.4400, -122.3600] },
+    { county: 'San Francisco', state: 'CA', center: [37.7749, -122.4194] },
+    { county: 'Alameda', state: 'CA', center: [37.6506, -121.9179] },
+    { county: 'Contra Costa', state: 'CA', center: [37.9234, -121.9512] },
+    { county: 'Marin', state: 'CA', center: [38.0552, -122.7489] },
+    { county: 'San Mateo', state: 'CA', center: [37.44, -122.36] },
 
     // Miami-Fort Lauderdale-West Palm Beach, FL MSA
-    { county: "Miami-Dade", state: "FL", center: [25.7617, -80.1918] },
-    { county: "Broward", state: "FL", center: [26.1769, -80.2621] },
-    { county: "Palm Beach", state: "FL", center: [26.5790, -80.2709] },
+    { county: 'Miami-Dade', state: 'FL', center: [25.7617, -80.1918] },
+    { county: 'Broward', state: 'FL', center: [26.1769, -80.2621] },
+    { county: 'Palm Beach', state: 'FL', center: [26.579, -80.2709] },
 
     // Port St. Lucie, FL
-    { county: "St. Lucie", state: "FL", center: [27.3110, -80.4144] },
-    { county: "Martin", state: "FL", center: [27.1296, -80.337426] },
+    { county: 'St. Lucie', state: 'FL', center: [27.311, -80.4144] },
+    { county: 'Martin', state: 'FL', center: [27.1296, -80.337426] },
 
     // Seattle-Tacoma-Bellevue, WA MSA
-    { county: "King", state: "WA", center: [47.3928, -121.5141] },
-    { county: "Pierce", state: "WA", center: [46.9920, -122.0940] },
-    { county: "Snohomish", state: "WA", center: [48.0123, -121.6904] },
+    { county: 'King', state: 'WA', center: [47.3928, -121.5141] },
+    { county: 'Pierce', state: 'WA', center: [46.992, -122.094] },
+    { county: 'Snohomish', state: 'WA', center: [48.0123, -121.6904] },
 
     // Tampa-St. Petersburg-Clearwater, FL MSA
-    { county: "Hillsborough", state: "FL", center: [27.9292, -82.3088] },
-    { county: "Pinellas",     state: "FL", center: [27.9198, -82.7255] },
-    { county: "Pasco",        state: "FL", center: [28.3092, -82.3920] },
-    { county: "Hernando",     state: "FL", center: [28.5537, -82.4240] },
+    { county: 'Hillsborough', state: 'FL', center: [27.9292, -82.3088] },
+    { county: 'Pinellas', state: 'FL', center: [27.9198, -82.7255] },
+    { county: 'Pasco', state: 'FL', center: [28.3092, -82.392] },
+    { county: 'Hernando', state: 'FL', center: [28.5537, -82.424] },
 ];

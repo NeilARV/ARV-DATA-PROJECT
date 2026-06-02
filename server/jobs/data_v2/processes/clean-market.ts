@@ -1,5 +1,5 @@
-import { isFlippingCompany } from "server/utils/dataSyncHelpers";
-import type { BuyersMarketRecord } from "./get-market";
+import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
+import type { BuyersMarketRecord } from './get-market';
 
 export interface CleanMarketResult {
     records: BuyersMarketRecord[];
@@ -17,18 +17,21 @@ export interface CleanMarketResult {
  * Uses the isCorporate field from the API as a fast first check for buyers,
  * then falls back to isFlippingCompany name matching for both parties.
  */
-export function cleanMarket(records: BuyersMarketRecord[], scanWindow: string, msaName: string): CleanMarketResult {
+export function cleanMarket(
+    records: BuyersMarketRecord[],
+    scanWindow: string,
+    msaName: string,
+): CleanMarketResult {
     const label = `[SCAN:${scanWindow}][${msaName}]`;
     const total = records.length;
     const kept: BuyersMarketRecord[] = [];
 
     for (const record of records) {
-        const buyerName = String(record.buyerName ?? "").trim();
-        const sellerName = String(record.sellerName ?? "").trim();
+        const buyerName = String(record.buyerName ?? '').trim();
+        const sellerName = String(record.sellerName ?? '').trim();
 
         // isCorporate from the API is a reliable fast path for buyer
-        const isBuyerCorporate =
-            record.isCorporate === true || isFlippingCompany(buyerName, null);
+        const isBuyerCorporate = record.isCorporate === true || isFlippingCompany(buyerName, null);
 
         // Seller has no isCorporate flag — rely on name matching only
         const isSellerCorporate = isFlippingCompany(sellerName, null);
@@ -39,7 +42,7 @@ export function cleanMarket(records: BuyersMarketRecord[], scanWindow: string, m
     }
 
     console.log(
-        `${label} Clean market: ${kept.length} kept, ${total - kept.length} removed (${total} total)`
+        `${label} Clean market: ${kept.length} kept, ${total - kept.length} removed (${total} total)`,
     );
 
     return {

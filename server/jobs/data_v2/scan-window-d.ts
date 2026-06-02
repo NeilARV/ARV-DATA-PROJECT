@@ -1,11 +1,11 @@
-import { db } from "server/storage";
-import { msas } from "@database/schemas/msas.schema";
-import { addDaysToYMD } from "server/utils/normalization";
-import { getMarket } from "./processes/get-market";
-import { cleanMarket } from "./processes/clean-market";
-import { insertQueue } from "./processes/insert-queue";
+import { db } from 'server/storage';
+import { msas } from '@database/schemas/msas.schema';
+import { addDaysToYMD } from 'server/utils/normalization';
+import { getMarket } from './processes/get-market';
+import { cleanMarket } from './processes/clean-market';
+import { insertQueue } from './processes/insert-queue';
 
-const SCAN_WINDOW = "60-90d" as const;
+const SCAN_WINDOW = '60-90d' as const;
 const DAYS_BACK_MIN = 60;
 const DAYS_BACK_MAX = 90;
 
@@ -23,7 +23,7 @@ export async function scanWindowD(): Promise<void> {
     const API_KEY = process.env.SFR_API_KEY!;
     const API_URL = process.env.SFR_API_URL!;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split('T')[0];
     const saleDateMin = addDaysToYMD(today, -DAYS_BACK_MAX);
     const saleDateMax = addDaysToYMD(today, -DAYS_BACK_MIN);
 
@@ -72,7 +72,7 @@ export async function scanWindowD(): Promise<void> {
 
     console.log(
         `[SCAN:${SCAN_WINDOW}] Complete — ` +
-        `fetched: ${totals.fetched}, kept: ${totals.kept}, ` +
-        `inserted: ${totals.inserted} new, ${totals.skipped} already existed`
+            `fetched: ${totals.fetched}, kept: ${totals.kept}, ` +
+            `inserted: ${totals.inserted} new, ${totals.skipped} already existed`,
     );
 }

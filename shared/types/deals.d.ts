@@ -1,11 +1,11 @@
-type DealType = "wholesale" | "agent" | "sold"
-type DealTab = "all" | "mine"
+type DealType = 'wholesale' | 'agent' | 'sold';
+type DealTab = 'all' | 'mine';
 
 type TopBuyer = {
-  companyId: string | null;
-  companyName: string;
-  contactName: string | null;
-}
+    companyId: string | null;
+    companyName: string;
+    contactName: string | null;
+};
 
 // API response shape returned by GET /api/deals
 type Deal = DealProperty & {
@@ -31,7 +31,7 @@ type Deal = DealProperty & {
     // Admin / RM-only fields
     isArvExclusive: boolean;
     onBehalfOfEmail?: string | null;
-}
+};
 
 type DealProperty = {
     address?: string;
@@ -49,7 +49,7 @@ type DealProperty = {
     propertyType?: string;
     notes?: string;
     photosUrl?: string | null;
-}
+};
 
 type DealToEdit = DealProperty & {
     id: number;
@@ -57,7 +57,7 @@ type DealToEdit = DealProperty & {
     adminNotes?: string | null;
     isArvExclusive?: boolean;
     onBehalfOfEmail?: string | null;
-}
+};
 
 // Input for POST /api/deals
 type CreateDealInput = DealProperty & {
@@ -67,7 +67,7 @@ type CreateDealInput = DealProperty & {
     adminNotes?: string | null;
     isArvExclusive?: boolean;
     onBehalfOfEmail?: string | null;
-}
+};
 
 // Input for PATCH /api/deals/:id (all fields optional except identity)
 type UpdateDealInput = DealProperty & {
@@ -75,4 +75,4 @@ type UpdateDealInput = DealProperty & {
     adminNotes?: string | null;
     isArvExclusive?: boolean;
     onBehalfOfEmail?: string | null;
-}
+};

@@ -1,14 +1,14 @@
-import { Request, Response, NextFunction } from "express";
-import { loginSchema } from "@database/validation/users.validation";
-import { updateUserProfileSchema, updateNotificationPreferencesSchema } from "@database/updates";
-import { SessionServices, UserServices } from "server/services/auth";
+import { Request, Response, NextFunction } from 'express';
+import { loginSchema } from '@database/validation/users.validation';
+import { updateUserProfileSchema, updateNotificationPreferencesSchema } from '@database/updates';
+import { SessionServices, UserServices } from 'server/services/auth';
 
-export async function login(req: Request, res: Response, next: NextFunction):Promise<void> {
+export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const validation = loginSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({
-                message: "Invalid login data",
+                message: 'Invalid login data',
                 errors: validation.error.errors,
             });
             return;
@@ -17,19 +17,19 @@ export async function login(req: Request, res: Response, next: NextFunction):Pro
         const { email, password } = validation.data;
 
         // Find user by email
-        const [ user ] = await UserServices.getUserByEmail(email)
+        const [user] = await UserServices.getUserByEmail(email);
 
         // User does not exist
         if (!user) {
-            res.status(401).json({ message: "Invalid email or password" });
+            res.status(401).json({ message: 'Invalid email or password' });
             return;
         }
 
         // Verify password
-        const isValidPassword = SessionServices.isValidPassword(password, user.passwordHash)
-        
+        const isValidPassword = SessionServices.isValidPassword(password, user.passwordHash);
+
         if (!isValidPassword) {
-            res.status(401).json({ message: "Invalid email or password" });
+            res.status(401).json({ message: 'Invalid email or password' });
             return;
         }
 
@@ -43,32 +43,32 @@ export async function login(req: Request, res: Response, next: NextFunction):Pro
             user: userWithoutPassword,
         });
     } catch (error) {
-        console.error("Login error:", error);
-        res.status(500).json({ message: "Error logging in" });
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Error logging in' });
     }
 }
 
-export async function logout(req: Request, res: Response, next: NextFunction):Promise<void> {
+export async function logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     req.session.destroy((err) => {
         if (err) {
-            console.error("Session destroy error:", err);
-            res.status(500).json({ message: "Error logging out" });
+            console.error('Session destroy error:', err);
+            res.status(500).json({ message: 'Error logging out' });
             return;
         }
-        res.clearCookie("connect.sid");
+        res.clearCookie('connect.sid');
         res.json({ success: true });
     });
 }
 
-export async function me(req: Request, res: Response, next: NextFunction):Promise<void> {
+export async function me(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         if (!req.session.userId) {
             res.json({ user: null });
             return;
         }
-        
-        const [ user ] = await UserServices.getUserById(req.session.userId)
-            
+
+        const [user] = await UserServices.getUserById(req.session.userId);
+
         if (!user) {
             req.session.userId = undefined;
             res.json({ user: null });
@@ -81,19 +81,29 @@ export async function me(req: Request, res: Response, next: NextFunction):Promis
             UserServices.getUserNotificationPreferences(user.id),
         ]);
         const { passwordHash: _, ...userWithoutPassword } = user;
-        res.json({ user: { ...userWithoutPassword, msaSubscriptions, relationshipManager, notificationPreferences } });
-
+        res.json({
+            user: {
+                ...userWithoutPassword,
+                msaSubscriptions,
+                relationshipManager,
+                notificationPreferences,
+            },
+        });
     } catch (error) {
-        console.error("Error fetching current user:", error);
-        res.status(500).json({ message: "Error fetching user" });
-    }    
+        console.error('Error fetching current user:', error);
+        res.status(500).json({ message: 'Error fetching user' });
+    }
 }
 
-export async function updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function updateProfile(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+): Promise<void> {
     try {
         // Check if user is authenticated
         if (!req.session.userId) {
-            res.status(401).json({ message: "Unauthorized" });
+            res.status(401).json({ message: 'Unauthorized' });
             return;
         }
 
@@ -101,7 +111,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
         const validation = updateUserProfileSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({
-                message: "Invalid profile data",
+                message: 'Invalid profile data',
                 errors: validation.error.errors,
             });
             return;
@@ -113,7 +123,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
         if (updateData.email) {
             const [existingUser] = await UserServices.getUserByEmail(updateData.email);
             if (existingUser && existingUser.id !== req.session.userId) {
-                res.status(409).json({ message: "An account with this email already exists" });
+                res.status(409).json({ message: 'An account with this email already exists' });
                 return;
             }
         }
@@ -122,7 +132,7 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
         const updatedUser = await UserServices.updateUser(req.session.userId, updateData);
 
         if (!updatedUser) {
-            res.status(404).json({ message: "User not found" });
+            res.status(404).json({ message: 'User not found' });
             return;
         }
 
@@ -134,26 +144,34 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
         const { passwordHash: _, ...userWithoutPassword } = updatedUser;
         res.json({
             success: true,
-            user: { ...userWithoutPassword, msaSubscriptions, relationshipManager, notificationPreferences },
+            user: {
+                ...userWithoutPassword,
+                msaSubscriptions,
+                relationshipManager,
+                notificationPreferences,
+            },
         });
-
     } catch (error) {
-        console.error("Error updating profile:", error);
-        res.status(500).json({ message: "Error updating profile" });
+        console.error('Error updating profile:', error);
+        res.status(500).json({ message: 'Error updating profile' });
     }
 }
 
-export async function updateNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function updateNotifications(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+): Promise<void> {
     try {
         if (!req.session.userId) {
-            res.status(401).json({ message: "Unauthorized" });
+            res.status(401).json({ message: 'Unauthorized' });
             return;
         }
 
         const validation = updateNotificationPreferencesSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({
-                message: "Invalid notification preferences",
+                message: 'Invalid notification preferences',
                 errors: validation.error.errors,
             });
             return;
@@ -166,7 +184,7 @@ export async function updateNotifications(req: Request, res: Response, next: Nex
 
         res.json({ success: true, preferences });
     } catch (error) {
-        console.error("Error updating notification preferences:", error);
-        res.status(500).json({ message: "Error updating notification preferences" });
+        console.error('Error updating notification preferences:', error);
+        res.status(500).json({ message: 'Error updating notification preferences' });
     }
 }

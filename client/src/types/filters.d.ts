@@ -1,31 +1,31 @@
 export type PropertyFilters = {
-  minPrice: number;
-  maxPrice: number; // Use Number.MAX_SAFE_INTEGER for "no limit"
-  bedrooms: string;
-  bathrooms: string;
-  propertyTypes: string[];
-  zipCode: string;
-  city?: string; // Optional city filter
-  county?: string; // Optional county filter
-  statusFilters: string[];
-  dateRange?: DateRange; // Currently coming from shared types | filters.d.ts
-}
+    minPrice: number;
+    maxPrice: number; // Use Number.MAX_SAFE_INTEGER for "no limit"
+    bedrooms: string;
+    bathrooms: string;
+    propertyTypes: string[];
+    zipCode: string;
+    city?: string; // Optional city filter
+    county?: string; // Optional county filter
+    statusFilters: string[];
+    dateRange?: DateRange; // Currently coming from shared types | filters.d.ts
+};
 
 export type ZipCodeWithCount = {
-  zipCode: string;
-  count: number;
-  city?: string;
-}
+    zipCode: string;
+    count: number;
+    city?: string;
+};
 
 export type CityWithCount = {
-  city: string;
-  count: number;
-}
+    city: string;
+    count: number;
+};
 
 export type FilterSidebar = {
-  onClose?: () => void;
-  onFilterChange?: (filters: PropertyFilters) => void;
-  zipCodesWithCounts?: ZipCodeWithCount[];
-  onSwitchToDirectory?: () => void;
-  filters?: PropertyFilters; // Controlled filters from parent
-}
+    onClose?: () => void;
+    onFilterChange?: (filters: PropertyFilters) => void;
+    zipCodesWithCounts?: ZipCodeWithCount[];
+    onSwitchToDirectory?: () => void;
+    filters?: PropertyFilters; // Controlled filters from parent
+};

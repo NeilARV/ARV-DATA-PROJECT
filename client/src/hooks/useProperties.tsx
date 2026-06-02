@@ -1,12 +1,20 @@
-import { useState, useEffect, createContext, useRef, useContext, ReactNode, useMemo, type RefObject  } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { buildPropertyQueryParams } from "@/lib/propertyQueryParams";
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
-import { useCompanies } from "./useCompanies";
-import { useFilters } from "./useFilters";
-import { useView } from "./useView";
-import type { Property } from "@/types/property";
-
+import {
+    useState,
+    useEffect,
+    createContext,
+    useRef,
+    useContext,
+    ReactNode,
+    useMemo,
+    type RefObject,
+} from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { buildPropertyQueryParams } from '@/lib/propertyQueryParams';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { useCompanies } from './useCompanies';
+import { useFilters } from './useFilters';
+import { useView } from './useView';
+import type { Property } from '@/types/property';
 
 export type PropertiesResponse = {
     properties: Property[];
@@ -25,18 +33,18 @@ type PropertiesContextValue = {
     totalProperties: number;
     stablePropertyCount: number;
     stableCompanyPropertyCount: number;
-}
+};
 
-const PropertiesContext = createContext<PropertiesContextValue | null>(null)
+const PropertiesContext = createContext<PropertiesContextValue | null>(null);
 
 type PropertiesProviderProps = {
-    children: ReactNode,
-}
+    children: ReactNode;
+};
 
-const propertiesListEnabled = (view: string) => view === "grid" || view === "table" || view === "wholesale" || view === "buyers-feed";
+const propertiesListEnabled = (view: string) =>
+    view === 'grid' || view === 'table' || view === 'wholesale' || view === 'buyers-feed';
 
-export function PropertiesProvider({children}: PropertiesProviderProps) {
-    
+export function PropertiesProvider({ children }: PropertiesProviderProps) {
     const { company } = useCompanies();
     const { view } = useView();
     const { filters, sortBy } = useFilters();
@@ -59,46 +67,58 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
         setIsLoadingMoreProperties(false);
     }, [filters, sortBy, company?.id, view]);
 
-    const propertiesQueryParam = useMemo(() => {
-        const base = buildPropertyQueryParams(filters, {
-            page: propertiesPage,
-            limit: view === "table" ? "20" : "10",
-            hasDateSold,
-        }, { company, sortBy });
-        // Skip COUNT query on pages after the first — we already have the total cached
-        if (propertiesPage > 1) {
-            const sep = base.includes("?") ? "&" : "?";
-            return `${base}${sep}skipCount=true`;
-        }
-        return base;
-    },
+    const propertiesQueryParam = useMemo(
+        () => {
+            const base = buildPropertyQueryParams(
+                filters,
+                {
+                    page: propertiesPage,
+                    limit: view === 'table' ? '20' : '10',
+                    hasDateSold,
+                },
+                { company, sortBy },
+            );
+            // Skip COUNT query on pages after the first — we already have the total cached
+            if (propertiesPage > 1) {
+                const sep = base.includes('?') ? '&' : '?';
+                return `${base}${sep}skipCount=true`;
+            }
+            return base;
+        },
         // Intentionally uses company?.id (not company object) — same reason as the reset effect above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [filters, company?.id, propertiesPage, sortBy, view, hasDateSold]
+        [filters, company?.id, propertiesPage, sortBy, view, hasDateSold],
     );
 
-    const propertiesQueryUrl = useMemo(() => `/api/properties${propertiesQueryParam}`, [propertiesQueryParam]);
+    const propertiesQueryUrl = useMemo(
+        () => `/api/properties${propertiesQueryParam}`,
+        [propertiesQueryParam],
+    );
 
-    const { data: propertiesResponse, isLoading, isFetching } = useQuery<PropertiesResponse>({
+    const {
+        data: propertiesResponse,
+        isLoading,
+        isFetching,
+    } = useQuery<PropertiesResponse>({
         queryKey: [propertiesQueryUrl],
         queryFn: async () => {
-            const res = await fetch(propertiesQueryUrl, { credentials: "include" });
+            const res = await fetch(propertiesQueryUrl, { credentials: 'include' });
             if (!res.ok) {
                 throw new Error(`Failed to fetch properties: ${res.status}`);
             }
             return res.json();
         },
-        enabled: view !== "map",
+        enabled: view !== 'map',
         staleTime: 5 * 60 * 1000,
     });
 
     const totalProperties = useMemo(() => {
-        if (view === "map") return 0;
+        if (view === 'map') return 0;
         const propertiesTotal = propertiesResponse?.total;
         return isLoading && propertiesTotal === undefined
             ? stablePropertyCount
             : (propertiesTotal ?? stablePropertyCount);
-        }, [view, propertiesResponse, isLoading, stablePropertyCount]);
+    }, [view, propertiesResponse, isLoading, stablePropertyCount]);
 
     // Accumulate paginated results: page 1 replaces list, page > 1 appends and dedupes by id.
     useEffect(() => {
@@ -108,7 +128,9 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
         } else {
             setAllProperties((prev) => {
                 const existingIds = new Set(prev.map((p) => p.id));
-                const newItems = propertiesResponse.properties.filter((p) => !existingIds.has(p.id));
+                const newItems = propertiesResponse.properties.filter(
+                    (p) => !existingIds.has(p.id),
+                );
                 return [...prev, ...newItems];
             });
         }
@@ -133,7 +155,7 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
     // Stable counts: avoid flashing "0" during loading; update only when we have a real total.
     // null means server skipped COUNT (page > 1) — keep the existing cached count in that case.
     useEffect(() => {
-        if (view !== "map" && propertiesResponse?.total != null && !isLoading) {
+        if (view !== 'map' && propertiesResponse?.total != null && !isLoading) {
             setStablePropertyCount(propertiesResponse.total);
         }
     }, [view, propertiesResponse?.total, isLoading]);
@@ -156,21 +178,18 @@ export function PropertiesProvider({children}: PropertiesProviderProps) {
         propertiesResponse,
         totalProperties,
         stablePropertyCount,
-        stableCompanyPropertyCount
-    }
+        stableCompanyPropertyCount,
+    };
 
-    return (
-        <PropertiesContext.Provider value={value}>{children}</PropertiesContext.Provider>
-    )
+    return <PropertiesContext.Provider value={value}>{children}</PropertiesContext.Provider>;
 }
 
 export function useProperties(): PropertiesContextValue {
+    const ctx = useContext(PropertiesContext);
 
-    const ctx = useContext(PropertiesContext)
-    
     if (!ctx) {
-        throw new Error(`Trouble getting property`)
+        throw new Error(`Trouble getting property`);
     }
-    
-    return ctx
+
+    return ctx;
 }

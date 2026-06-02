@@ -1,9 +1,9 @@
-import { sendEmailUpdatesForMsa } from "server/jobs/email/processes/emailUpdates";
+import { sendEmailUpdatesForMsa } from 'server/jobs/email/processes/emailUpdates';
 
-const MSA = "Denver-Aurora-Centennial, CO";
-const CITY = "Denver";
-const STATE = "CO";
+const MSA = 'Denver-Aurora-Centennial, CO';
+const CITY = 'Denver';
+const STATE = 'CO';
 
 export async function sendDenverEmail() {
-  await sendEmailUpdatesForMsa(MSA, CITY, STATE);
+    await sendEmailUpdatesForMsa(MSA, CITY, STATE);
 }

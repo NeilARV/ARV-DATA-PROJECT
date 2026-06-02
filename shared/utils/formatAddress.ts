@@ -1,4 +1,4 @@
-import { STREET_TYPE_ABBREVIATIONS } from "../constants/street-types";
+import { STREET_TYPE_ABBREVIATIONS } from '../constants/street-types';
 
 // Normalize address to standard format based on specific rules
 /**
@@ -6,7 +6,7 @@ import { STREET_TYPE_ABBREVIATIONS } from "../constants/street-types";
  * 1. Capitalize first letter of each word in street name
  * 2. Use standard abbreviations for street types (Ave, Dr, St, etc.) without periods
  * 3. Preserve street numbers
- */ 
+ */
 export function formatAddress(address: string | null | undefined): string | null {
     if (!address || typeof address !== 'string') return null;
 
@@ -16,7 +16,7 @@ export function formatAddress(address: string | null | undefined): string | null
     // Split address into parts (number and street)
     // Pattern: optional number, then street name
     const parts = trimmed.split(/\s+/);
-    
+
     if (parts.length === 0) return null;
 
     // First part is usually the street number
@@ -36,24 +36,26 @@ export function formatAddress(address: string | null | undefined): string | null
     }
 
     // Normalize each word in the street name
-    const normalizedStreet = streetParts.map((word, index) => {
-        const lowerWord = word.toLowerCase();
-        const isLastWord = index === streetParts.length - 1;
-        
-        // Check if this is a street type abbreviation (usually the last word)
-        if (isLastWord && STREET_TYPE_ABBREVIATIONS[lowerWord]) {
-            return STREET_TYPE_ABBREVIATIONS[lowerWord];
-        }
-        
-        // Capitalize first letter, lowercase the rest
-        if (word.length === 0) return word;
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-    }).join(' ');
+    const normalizedStreet = streetParts
+        .map((word, index) => {
+            const lowerWord = word.toLowerCase();
+            const isLastWord = index === streetParts.length - 1;
+
+            // Check if this is a street type abbreviation (usually the last word)
+            if (isLastWord && STREET_TYPE_ABBREVIATIONS[lowerWord]) {
+                return STREET_TYPE_ABBREVIATIONS[lowerWord];
+            }
+
+            // Capitalize first letter, lowercase the rest
+            if (word.length === 0) return word;
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        })
+        .join(' ');
 
     // Combine number and normalized street
     if (normalizedParts.length > 0) {
         return `${normalizedParts[0]} ${normalizedStreet}`.trim();
     }
-    
+
     return normalizedStreet.trim();
 }

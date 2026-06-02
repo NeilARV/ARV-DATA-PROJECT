@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { PostComposer } from "./PostComposer";
-import type { PostComposerHandle } from "./PostComposer";
-import type { Post } from "@/types/vendors";
+import { useState, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { PostComposer } from './PostComposer';
+import type { PostComposerHandle } from './PostComposer';
+import type { Post } from '@/types/vendors';
 
 type EditPostDialogProps = {
     open: boolean;
@@ -42,7 +42,7 @@ export function EditPostDialog({ open, onClose, post }: EditPostDialogProps) {
                         Cancel
                     </Button>
                     <Button onClick={() => composerRef.current?.submit()} disabled={isPending}>
-                        {isPending ? "Saving..." : "Save"}
+                        {isPending ? 'Saving...' : 'Save'}
                     </Button>
                 </div>
             </DialogContent>

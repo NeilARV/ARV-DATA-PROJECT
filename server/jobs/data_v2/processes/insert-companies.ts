@@ -1,9 +1,9 @@
-import { db } from "server/storage";
-import { companies, companyMsas } from "@database/schemas/companies.schema";
-import { msas } from "@database/schemas/msas.schema";
-import { eq, inArray } from "drizzle-orm";
-import { trimCompanyName } from "server/utils/normalization";
-import { addCountiesToCompanyIfNeeded } from "server/utils/dataSyncHelpers";
+import { db } from 'server/storage';
+import { companies, companyMsas } from '@database/schemas/companies.schema';
+import { msas } from '@database/schemas/msas.schema';
+import { eq, inArray } from 'drizzle-orm';
+import { trimCompanyName } from 'server/utils/normalization';
+import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 
 const BATCH_SIZE = 100;
 
@@ -32,10 +32,7 @@ async function getOrCreateMsaId(msaName: string): Promise<number> {
 
     if (existing) return existing.id;
 
-    const [inserted] = await db
-        .insert(msas)
-        .values({ name: msaName })
-        .returning({ id: msas.id });
+    const [inserted] = await db.insert(msas).values({ name: msaName }).returning({ id: msas.id });
     if (!inserted) throw new Error(`Failed to insert MSA: ${msaName}`);
     return inserted.id;
 }
@@ -47,7 +44,7 @@ async function getOrCreateMsaId(msaName: string): Promise<number> {
  * Uses chunks of BATCH_SIZE (100) and onConflictDoNothing to avoid duplicates.
  */
 export async function insertCompanies(
-    params: InsertCompaniesParams
+    params: InsertCompaniesParams,
 ): Promise<InsertCompaniesResult> {
     const { companyNames, msa, cityCode, companyCounties = {} } = params;
 
@@ -76,9 +73,7 @@ export async function insertCompanies(
         .from(companyMsas)
         .where(eq(companyMsas.msaId, msaId));
 
-    const companyIdsWithThisMsa = new Set(
-        existingCompanyMsas.map((r) => r.companyId)
-    );
+    const companyIdsWithThisMsa = new Set(existingCompanyMsas.map((r) => r.companyId));
 
     // Partition: need only MSA link vs need company + MSA; track existing companies that need county updates
     const needMsaOnly: { companyId: string }[] = [];
@@ -117,7 +112,10 @@ export async function insertCompanies(
                     target: [companyMsas.companyId, companyMsas.msaId],
                 });
         } catch (err) {
-            console.error(`[${cityCode} SYNC] Error batch inserting company_msas (existing companies):`, err);
+            console.error(
+                `[${cityCode} SYNC] Error batch inserting company_msas (existing companies):`,
+                err,
+            );
         }
     }
 
@@ -126,7 +124,10 @@ export async function insertCompanies(
         try {
             await addCountiesToCompanyIfNeeded(company, counties);
         } catch (err) {
-            console.error(`[${cityCode} SYNC] Error adding counties to company ${company.companyName}:`, err);
+            console.error(
+                `[${cityCode} SYNC] Error adding counties to company ${company.companyName}:`,
+                err,
+            );
         }
     }
 
@@ -200,12 +201,17 @@ export async function insertCompanies(
                     target: [companyMsas.companyId, companyMsas.msaId],
                 });
         } catch (err) {
-            console.error(`[${cityCode} SYNC] Error batch inserting company_msas (new companies):`, err);
+            console.error(
+                `[${cityCode} SYNC] Error batch inserting company_msas (new companies):`,
+                err,
+            );
         }
     }
 
     const companyMsasAdded = needMsaOnly.length + companyMsasToAdd.length;
-    console.log(`[${cityCode} SYNC] Companies: ${companiesInserted} new, ${companyMsasAdded} MSA associations added`);
+    console.log(
+        `[${cityCode} SYNC] Companies: ${companiesInserted} new, ${companyMsasAdded} MSA associations added`,
+    );
 
     return {
         companiesInserted,

@@ -1,6 +1,6 @@
-import { db } from "server/storage";
-import { marketScanQueue } from "@database/schemas/sync.schema";
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { db } from 'server/storage';
+import { marketScanQueue } from '@database/schemas/sync.schema';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 
 /**
  * Resets queue rows that have been stuck in 'processing' for longer than
@@ -18,12 +18,9 @@ export async function resetStaleProcessing(staleMinutes: number = 60): Promise<n
     const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
     const reset = await db
         .update(marketScanQueue)
-        .set({ status: "pending", errorMessage: null })
+        .set({ status: 'pending', errorMessage: null })
         .where(
-            and(
-                eq(marketScanQueue.status, "processing"),
-                lt(marketScanQueue.enqueuedAt, cutoff)
-            )
+            and(eq(marketScanQueue.status, 'processing'), lt(marketScanQueue.enqueuedAt, cutoff)),
         )
         .returning({ id: marketScanQueue.id });
     return reset.length;
@@ -37,12 +34,12 @@ export async function markProcessing(msaId: number, sfrPropertyIds: number[]): P
     if (sfrPropertyIds.length === 0) return;
     await db
         .update(marketScanQueue)
-        .set({ status: "processing" })
+        .set({ status: 'processing' })
         .where(
             and(
                 eq(marketScanQueue.msaId, msaId),
-                inArray(marketScanQueue.sfrPropertyId, sfrPropertyIds)
-            )
+                inArray(marketScanQueue.sfrPropertyId, sfrPropertyIds),
+            ),
         );
 }
 
@@ -54,12 +51,12 @@ export async function markComplete(msaId: number, sfrPropertyIds: number[]): Pro
     if (sfrPropertyIds.length === 0) return;
     await db
         .update(marketScanQueue)
-        .set({ status: "complete", processedAt: new Date() })
+        .set({ status: 'complete', processedAt: new Date() })
         .where(
             and(
                 eq(marketScanQueue.msaId, msaId),
-                inArray(marketScanQueue.sfrPropertyId, sfrPropertyIds)
-            )
+                inArray(marketScanQueue.sfrPropertyId, sfrPropertyIds),
+            ),
         );
 }
 
@@ -71,16 +68,16 @@ export async function markComplete(msaId: number, sfrPropertyIds: number[]): Pro
 export async function markFailed(
     msaId: number,
     sfrPropertyIds: number[],
-    error: string
+    error: string,
 ): Promise<void> {
     if (sfrPropertyIds.length === 0) return;
     await db
         .update(marketScanQueue)
-        .set({ status: "failed", errorMessage: error.slice(0, 500) })
+        .set({ status: 'failed', errorMessage: error.slice(0, 500) })
         .where(
             and(
                 eq(marketScanQueue.msaId, msaId),
-                inArray(marketScanQueue.sfrPropertyId, sfrPropertyIds)
-            )
+                inArray(marketScanQueue.sfrPropertyId, sfrPropertyIds),
+            ),
         );
 }

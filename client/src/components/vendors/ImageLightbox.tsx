@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import type { PostImage } from "@/types/vendors";
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import type { PostImage } from '@/types/vendors';
 
 type ImageLightboxProps = {
     images: PostImage[];
@@ -17,12 +17,12 @@ export function ImageLightbox({ images, initialIndex, onClose }: ImageLightboxPr
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-            if (e.key === "ArrowLeft") prev();
-            if (e.key === "ArrowRight") next();
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowLeft') prev();
+            if (e.key === 'ArrowRight') next();
         };
-        document.addEventListener("keydown", onKey);
-        return () => document.removeEventListener("keydown", onKey);
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
     }, [images.length]);
 
     return createPortal(
@@ -70,7 +70,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: ImageLightboxPr
                                 <button
                                     key={i}
                                     onClick={() => setIndex(i)}
-                                    className={`w-2 h-2 rounded-full transition-colors ${i === index ? "bg-white" : "bg-white/40"}`}
+                                    className={`w-2 h-2 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/40'}`}
                                 />
                             ))}
                         </div>

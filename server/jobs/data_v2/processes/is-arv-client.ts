@@ -1,9 +1,9 @@
-import { db } from "server/storage";
-import { companies } from "@database/schemas/companies.schema";
-import { inArray } from "drizzle-orm";
-import type { PropertyWithStatus } from "./resolve-status";
+import { db } from 'server/storage';
+import { companies } from '@database/schemas/companies.schema';
+import { inArray } from 'drizzle-orm';
+import type { PropertyWithStatus } from './resolve-status';
 
-const ARV_LENDER = "ARV FINANCE INC";
+const ARV_LENDER = 'ARV FINANCE INC';
 
 /**
  * Pipeline step: marks companies as ARV clients when they appear as buyer or
@@ -16,7 +16,7 @@ const ARV_LENDER = "ARV FINANCE INC";
  */
 export async function updateArvClientCompanies(
     properties: PropertyWithStatus[],
-    cityCode: string
+    cityCode: string,
 ): Promise<void> {
     const arvClientIds = new Set<string>();
 
@@ -24,13 +24,16 @@ export async function updateArvClientCompanies(
         for (const tx of item.transactions ?? []) {
             const r = tx as Record<string, unknown>;
 
-            const txType = ((r["TRANSACTION_TYPE"] ?? r["transaction_type"]) as string ?? "").trim().toLowerCase();
-            if (txType !== "arms length") continue;
+            const txType = (((r['TRANSACTION_TYPE'] ?? r['transaction_type']) as string) ?? '')
+                .trim()
+                .toLowerCase();
+            if (txType !== 'arms length') continue;
 
-            const rawLender = r["FIRST_MTG_LENDER_NAME"] ?? r["first_mtg_lender_name"];
-            const lender = rawLender != null && typeof rawLender === "string"
-                ? rawLender.trim().toUpperCase()
-                : "";
+            const rawLender = r['FIRST_MTG_LENDER_NAME'] ?? r['first_mtg_lender_name'];
+            const lender =
+                rawLender != null && typeof rawLender === 'string'
+                    ? rawLender.trim().toUpperCase()
+                    : '';
             if (lender !== ARV_LENDER) continue;
 
             if (tx.buyer_id) arvClientIds.add(tx.buyer_id);
@@ -45,5 +48,7 @@ export async function updateArvClientCompanies(
         .set({ isArvClient: true })
         .where(inArray(companies.id, Array.from(arvClientIds)));
 
-    console.log(`[${cityCode}] Marked ${arvClientIds.size} compan${arvClientIds.size === 1 ? "y" : "ies"} as ARV clients`);
+    console.log(
+        `[${cityCode}] Marked ${arvClientIds.size} compan${arvClientIds.size === 1 ? 'y' : 'ies'} as ARV clients`,
+    );
 }
