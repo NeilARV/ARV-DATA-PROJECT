@@ -11,12 +11,25 @@
         ]
     },
     "hooks": {
-        "Stop": [
+        "PostToolUse": [
             {
+                "matcher": "Edit|Write",
                 "hooks": [
                     {
-                        "type": "prompt",
-                        "prompt": "If no files were created or edited during this task, do nothing and end silently.\n\nOtherwise, do two things:\n\n1. **Code Review** — Review all files created or edited in this task following the rules in .claude/docs/optimizer.md. Begin with '🔍 Optimizer running...' then show findings. If everything looks clean, say '✅ Looks good' in one line.\n\n2. **Agent Update Check** — Follow the detection rules in .claude/docs/agent-updater.md to determine if any agent documentation needs updating. If updates are needed, begin with '📋 Agent Updater running...' then list findings and ask for approval. If nothing needs updating, say nothing about this step."
+                        "type": "command",
+                        "command": "$data = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $data.tool_input.file_path; if ($f) { npx prettier --write \"$f\" }",
+                        "shell": "powershell"
+                    }
+                ]
+            }
+        ],
+        "Notification": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "osascript -e 'display notification \"Claude needs you\" with title \"Claude Code\"'"
                     }
                 ]
             }
