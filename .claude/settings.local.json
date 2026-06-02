@@ -1,19 +1,22 @@
 {
-    "permissions": {
-        "allow": [
-            "Bash(npm run:*)",
-            "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
-            "Bash(git stash *)",
-            "Bash(Get-ChildItem -Path \"c:\\\\Github\\\\ARV-DATA-Project\\\\database\\\\schemas\\\\\" -File)",
-            "Bash(npx tsc *)",
-            "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\ARV-DATA-PROJECT\\\\server\\\\controllers\" -Recurse)",
-            "Bash(Select-Object FullName)",
-            "Bash(findstr /i \"db seed\")",
-            "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
-            "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\ARV-DATA-PROJECT\\\\client\\\\src\\\\hooks\" -File)",
-            "Bash(Select-Object -ExpandProperty Name)",
-            "PowerShell([System.IO.Directory]::GetDirectories\\(\"c:\\\\Github\\\\ARV-DATA-Project\\\\client\\\\src\\\\components\"\\))",
-            "Bash(npx drizzle-kit *)"
-        ]
-    }
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "Bash(git stash *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Github\\\\ARV-DATA-Project\\\\database\\\\schemas\\\\\" -File)",
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\ARV-DATA-PROJECT\\\\server\\\\controllers\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(findstr /i \"db seed\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\ARV-DATA-PROJECT\\\\client\\\\src\\\\hooks\" -File)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "PowerShell([System.IO.Directory]::GetDirectories\\(\"c:\\\\Github\\\\ARV-DATA-Project\\\\client\\\\src\\\\components\"\\))",
+      "Bash(npx drizzle-kit *)",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\assets\\\\email\\\\templates\")",
+      "Bash(Out-Null)",
+      "Bash(Move-Item \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\\\\*\" \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\assets\\\\email\\\\templates\\\\\"; Remove-Item -Force \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\")"
+    ]
+  }
 }
