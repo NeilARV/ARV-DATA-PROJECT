@@ -276,7 +276,7 @@ export default function Header({ onSearch, county }: HeaderProps) {
                         className="h-16 w-auto"
                         data-testid="img-logo"
                     />
-                    <h1 className="text-lg font-semibold hidden sm:block">ARV DATA</h1>
+                    <h1 className="text-xl lg:text-2xl font-semibold hidden sm:block">ARV Data</h1>
                 </button>
 
                 <form onSubmit={handleSearch} className="flex-1 max-w-[350px] min-w-0">
