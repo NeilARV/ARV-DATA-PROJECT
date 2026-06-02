@@ -5,9 +5,7 @@
             "name": "CT DREAM REALTY LLC",
             "formattedName": "ct-dream-realty-llc-ca",
             "matchScore": 42,
-            "matchReasons": [
-                "Active buyer with 7 acquisitions"
-            ],
+            "matchReasons": ["Active buyer with 7 acquisitions"],
             "totalAcquisitions": 7,
             "purchasesWithinQuarterMile": 0,
             "purchasesWithinOneMile": 0,
@@ -17,9 +15,7 @@
             "name": "ROSEWOOD HOME LLC",
             "formattedName": "rosewood-home-llc-ca",
             "matchScore": 42,
-            "matchReasons": [
-                "Active buyer with 5 acquisitions"
-            ],
+            "matchReasons": ["Active buyer with 5 acquisitions"],
             "totalAcquisitions": 5,
             "purchasesWithinQuarterMile": 0,
             "purchasesWithinOneMile": 0,
@@ -29,9 +25,7 @@
             "name": "SOCAL METRO HOLDINGS LLC",
             "formattedName": "socal-metro-holdings-llc-ca",
             "matchScore": 42,
-            "matchReasons": [
-                "Active buyer with 5 acquisitions"
-            ],
+            "matchReasons": ["Active buyer with 5 acquisitions"],
             "totalAcquisitions": 5,
             "purchasesWithinQuarterMile": 0,
             "purchasesWithinOneMile": 0,

@@ -1,13 +1,13 @@
-import { useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { User, Camera, Trash2, Plus, Loader2 } from "lucide-react";
+import { useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { User, Camera, Trash2, Plus, Loader2 } from 'lucide-react';
 
-import AppDialog from "@/components/modals/Dialog";
-import ConfirmationContent from "@/components/modals/Confirmation";
+import AppDialog from '@/components/modals/Dialog';
+import ConfirmationContent from '@/components/modals/Confirmation';
 
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
 
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 type AvatarUploadProps = {
     profileImageUrl?: string | null;
@@ -22,11 +22,11 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
             const formData = new FormData();
-            formData.append("image", file);
-            const response = await fetch("/api/auth/me/avatar", {
-                method: "POST",
+            formData.append('image', file);
+            const response = await fetch('/api/auth/me/avatar', {
+                method: 'POST',
                 body: formData,
-                credentials: "include",
+                credentials: 'include',
             });
             if (!response.ok) {
                 const text = await response.text();
@@ -37,37 +37,45 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
         onSuccess: (data) => {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             queryClient.setQueryData(
-                ["/api/auth/me"],
+                ['/api/auth/me'],
                 (old: { user: Record<string, unknown> } | undefined) => ({
                     user: { ...(old?.user ?? {}), profileImageUrl: data.profileImageUrl },
                 }),
             );
             setPreviewUrl(null);
-            toast({ title: "Photo updated" });
+            toast({ title: 'Photo updated' });
         },
         onError: () => {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setPreviewUrl(null);
-            toast({ title: "Error", description: "Failed to upload photo.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to upload photo.',
+                variant: 'destructive',
+            });
         },
     });
 
     const removeMutation = useMutation({
         mutationFn: async () => {
-            const response = await apiRequest("DELETE", "/api/auth/me/avatar");
+            const response = await apiRequest('DELETE', '/api/auth/me/avatar');
             return response.json();
         },
         onSuccess: () => {
             queryClient.setQueryData(
-                ["/api/auth/me"],
+                ['/api/auth/me'],
                 (old: { user: Record<string, unknown> } | undefined) => ({
                     user: { ...(old?.user ?? {}), profileImageUrl: null },
                 }),
             );
-            toast({ title: "Photo removed" });
+            toast({ title: 'Photo removed' });
         },
         onError: () => {
-            toast({ title: "Error", description: "Failed to remove photo.", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: 'Failed to remove photo.',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -79,7 +87,7 @@ export function AvatarUpload({ profileImageUrl }: AvatarUploadProps) {
         if (!file) return;
         setPreviewUrl(URL.createObjectURL(file));
         uploadMutation.mutate(file);
-        e.target.value = "";
+        e.target.value = '';
     }
 
     return (

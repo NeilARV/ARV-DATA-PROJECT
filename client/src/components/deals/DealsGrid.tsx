@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import DealCard from "@/components/deals/DealCard2";
-import DealsColumn from "@/components/deals/DealsColumn";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useState, useEffect } from 'react';
+import DealCard from '@/components/deals/DealCard2';
+import DealsColumn from '@/components/deals/DealsColumn';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 type DealsGridProps = {
     newDeals: Deal[];
@@ -40,7 +40,7 @@ export default function DealsGrid({
     onRequestInfo,
     onTopBuyers,
 }: DealsGridProps) {
-    const [mobileColumn, setMobileColumn] = useState<"new" | "sold">("new");
+    const [mobileColumn, setMobileColumn] = useState<'new' | 'sold'>('new');
     const { requireAuth } = useRequireAuth();
 
     const totalDeals = newDeals.length + soldDeals.length;
@@ -49,10 +49,10 @@ export default function DealsGrid({
     useEffect(() => {
         if (!expandedDealId || totalDeals === 0) return;
         const inSold = soldDeals.some((d) => d.id === expandedDealId);
-        setMobileColumn(inSold ? "sold" : "new");
+        setMobileColumn(inSold ? 'sold' : 'new');
         requestAnimationFrame(() => {
             const el = document.getElementById(`deal-${expandedDealId}`);
-            el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
     }, [expandedDealId, totalDeals]);
 
@@ -62,7 +62,7 @@ export default function DealsGrid({
         });
     };
 
-    const switchMobileColumn = (col: "new" | "sold") => {
+    const switchMobileColumn = (col: 'new' | 'sold') => {
         setMobileColumn(col);
         onToggleDeal(null);
     };
@@ -76,7 +76,7 @@ export default function DealsGrid({
                     deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
                     canDelete={canManageDeals || isOwnerOfDeal}
                     canEdit={userId === deal.userId || isAdmin || isOwner}
-                    canRequestContact={deal.dealType !== "sold" && !isOwnerOfDeal}
+                    canRequestContact={deal.dealType !== 'sold' && !isOwnerOfDeal}
                     isOwner={isOwnerOfDealForTopBuyers}
                     canViewPoster={isAdmin || isOwner || isRelationshipManager}
                     expanded={expandedDealId === deal.id}
@@ -97,21 +97,21 @@ export default function DealsGrid({
             {/* Mobile tab bar — hidden on md+ */}
             <div className="2xl:hidden flex-shrink-0 flex border-b border-border bg-background">
                 <button
-                    onClick={() => switchMobileColumn("new")}
+                    onClick={() => switchMobileColumn('new')}
                     className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileColumn === "new"
-                            ? "text-primary border-b-2 border-primary -mb-px"
-                            : "text-muted-foreground hover:text-foreground"
+                        mobileColumn === 'new'
+                            ? 'text-primary border-b-2 border-primary -mb-px'
+                            : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
                     New Deals ({newDeals.length})
                 </button>
                 <button
-                    onClick={() => switchMobileColumn("sold")}
+                    onClick={() => switchMobileColumn('sold')}
                     className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileColumn === "sold"
-                            ? "text-primary border-b-2 border-primary -mb-px"
-                            : "text-muted-foreground hover:text-foreground"
+                        mobileColumn === 'sold'
+                            ? 'text-primary border-b-2 border-primary -mb-px'
+                            : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
                     Sold Deals ({soldDeals.length})
@@ -120,7 +120,9 @@ export default function DealsGrid({
 
             {/* Columns */}
             <div className="flex flex-1 overflow-hidden min-h-0">
-                <div className={`${mobileColumn === "new" ? "flex" : "hidden"} 2xl:flex flex-1 flex-col overflow-hidden min-w-0`}>
+                <div
+                    className={`${mobileColumn === 'new' ? 'flex' : 'hidden'} 2xl:flex flex-1 flex-col overflow-hidden min-w-0`}
+                >
                     <DealsColumn
                         title="New Deals"
                         count={newDeals.length}
@@ -130,7 +132,9 @@ export default function DealsGrid({
                         {newDeals.map(renderCard)}
                     </DealsColumn>
                 </div>
-                <div className={`${mobileColumn === "sold" ? "flex" : "hidden"} 2xl:flex flex-1 flex-col overflow-hidden min-w-0`}>
+                <div
+                    className={`${mobileColumn === 'sold' ? 'flex' : 'hidden'} 2xl:flex flex-1 flex-col overflow-hidden min-w-0`}
+                >
                     <DealsColumn
                         title="Sold Deals"
                         count={soldDeals.length}

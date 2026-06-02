@@ -1,5 +1,5 @@
-import AppDialog from "@/components/modals/Dialog";
-import ConfirmationContent from "@/components/modals/Confirmation";
+import AppDialog from '@/components/modals/Dialog';
+import ConfirmationContent from '@/components/modals/Confirmation';
 
 type DeleteDealDialogProps = {
     open: boolean;

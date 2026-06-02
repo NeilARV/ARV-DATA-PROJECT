@@ -1,49 +1,43 @@
-import { useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus } from "lucide-react";
-import {
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
+import { useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Trash2, Plus } from 'lucide-react';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import type { Control } from "react-hook-form";
-import type { DealFormValues } from "@database/inserts/deals.insert";
+} from '@/components/ui/select';
+import type { Control } from 'react-hook-form';
+import type { DealFormValues } from '@database/inserts/deals.insert';
 
 export const PROPERTY_TYPES = [
-    "Single Family",
-    "Townhouse",
-    "Condo",
-    "Duplex",
-    "Triplex",
-    "Fourplex",
-    "Vacant Land",
-    "Other",
+    'Single Family',
+    'Townhouse',
+    'Condo',
+    'Duplex',
+    'Triplex',
+    'Fourplex',
+    'Vacant Land',
+    'Other',
 ];
 
 export const ADD_DEAL_TYPES = [
-    { value: "agent",     label: "Agent Deal" },
-    { value: "wholesale", label: "Wholesale Deal" },
+    { value: 'agent', label: 'Agent Deal' },
+    { value: 'wholesale', label: 'Wholesale Deal' },
 ];
 
 export const EDIT_DEAL_TYPES = [
-    { value: "agent",     label: "Agent Deal" },
-    { value: "wholesale", label: "Wholesale Deal" },
-    { value: "sold",      label: "Sold Deal" },
+    { value: 'agent', label: 'Agent Deal' },
+    { value: 'wholesale', label: 'Wholesale Deal' },
+    { value: 'sold', label: 'Sold Deal' },
 ];
 
 function maskDateInput(raw: string): string {
-    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
     if (digits.length <= 2) return digits;
     if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
     return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
@@ -51,13 +45,18 @@ function maskDateInput(raw: string): string {
 
 const TIME_OPTIONS = Array.from({ length: 12 }, (_, h) =>
     [0, 15, 30, 45].map((m) => {
-        const val = `${h + 1}:${String(m).padStart(2, "0")}`;
+        const val = `${h + 1}:${String(m).padStart(2, '0')}`;
         return { value: val, label: val };
-    })
+    }),
 ).flat();
 
 function isValidUrl(url: string): boolean {
-    try { new URL(url); return true; } catch { return false; }
+    try {
+        new URL(url);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 type DealFormFieldsProps = {
@@ -82,21 +81,23 @@ export default function DealFormFields({
     const linksEndRef = useRef<HTMLDivElement>(null);
 
     function handleAddLink() {
-        onLinksChange([...links, ""]);
+        onLinksChange([...links, '']);
         requestAnimationFrame(() => {
-            linksEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            linksEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
     }
 
     return (
         <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
-
             <FormField
                 control={control}
                 name="address"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Street Address <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormLabel>
+                            Street Address{' '}
+                            <span className="text-muted-foreground font-normal">(optional)</span>
+                        </FormLabel>
                         <FormControl>
                             <Input {...field} placeholder="123 Main St" />
                         </FormControl>
@@ -153,14 +154,17 @@ export default function DealFormFields({
                 name="price"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Price <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormLabel>
+                            Price{' '}
+                            <span className="text-muted-foreground font-normal">(optional)</span>
+                        </FormLabel>
                         <FormControl>
                             <Input
                                 {...field}
                                 type="number"
                                 min={1}
                                 placeholder="350000"
-                                value={field.value ?? ""}
+                                value={field.value ?? ''}
                                 onChange={(e) => field.onChange(e.target.value)}
                             />
                         </FormControl>
@@ -174,14 +178,17 @@ export default function DealFormFields({
                 name="potentialARV"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Potential ARV <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormLabel>
+                            Potential ARV{' '}
+                            <span className="text-muted-foreground font-normal">(optional)</span>
+                        </FormLabel>
                         <FormControl>
                             <Input
                                 {...field}
                                 type="number"
                                 min={1}
                                 placeholder="425000"
-                                value={field.value ?? ""}
+                                value={field.value ?? ''}
                                 onChange={(e) => field.onChange(e.target.value)}
                             />
                         </FormControl>
@@ -196,14 +203,19 @@ export default function DealFormFields({
                     name="showingDate"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Showing Date <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                            <FormLabel>
+                                Showing Date{' '}
+                                <span className="text-muted-foreground font-normal">
+                                    (optional)
+                                </span>
+                            </FormLabel>
                             <FormControl>
                                 <Input
                                     {...field}
                                     type="text"
                                     inputMode="numeric"
                                     placeholder="MM/DD/YYYY"
-                                    value={field.value ?? ""}
+                                    value={field.value ?? ''}
                                     onChange={(e) => field.onChange(maskDateInput(e.target.value))}
                                 />
                             </FormControl>
@@ -216,9 +228,17 @@ export default function DealFormFields({
                     name="showingTimeStr"
                     render={({ field: timeField }) => (
                         <FormItem>
-                            <FormLabel>Showing Time <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                            <FormLabel>
+                                Showing Time{' '}
+                                <span className="text-muted-foreground font-normal">
+                                    (optional)
+                                </span>
+                            </FormLabel>
                             <div className="flex gap-2">
-                                <Select value={timeField.value ?? ""} onValueChange={timeField.onChange}>
+                                <Select
+                                    value={timeField.value ?? ''}
+                                    onValueChange={timeField.onChange}
+                                >
                                     <FormControl>
                                         <SelectTrigger className="flex-1">
                                             <SelectValue placeholder="Select time" />
@@ -226,7 +246,9 @@ export default function DealFormFields({
                                     </FormControl>
                                     <SelectContent className="z-[10000]">
                                         {TIME_OPTIONS.map((t) => (
-                                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                            <SelectItem key={t.value} value={t.value}>
+                                                {t.label}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -234,7 +256,10 @@ export default function DealFormFields({
                                     control={control}
                                     name="showingAmPm"
                                     render={({ field: ampmField }) => (
-                                        <Select value={ampmField.value} onValueChange={ampmField.onChange}>
+                                        <Select
+                                            value={ampmField.value}
+                                            onValueChange={ampmField.onChange}
+                                        >
                                             <SelectTrigger className="w-20 shrink-0">
                                                 <SelectValue />
                                             </SelectTrigger>
@@ -257,7 +282,10 @@ export default function DealFormFields({
                 name="estimatedBudget"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Estimated Budget <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormLabel>
+                            Estimated Budget{' '}
+                            <span className="text-muted-foreground font-normal">(optional)</span>
+                        </FormLabel>
                         <FormControl>
                             <Input
                                 {...field}
@@ -265,7 +293,7 @@ export default function DealFormFields({
                                 min={1}
                                 step={1}
                                 placeholder="75000"
-                                value={field.value ?? ""}
+                                value={field.value ?? ''}
                                 onChange={(e) => field.onChange(e.target.value)}
                             />
                         </FormControl>
@@ -288,7 +316,9 @@ export default function DealFormFields({
                             </FormControl>
                             <SelectContent className="z-[10000]">
                                 {dealTypes.map((t) => (
-                                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                    <SelectItem key={t.value} value={t.value}>
+                                        {t.label}
+                                    </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -300,7 +330,8 @@ export default function DealFormFields({
             {!hasFullAddress && (
                 <>
                     <p className="text-xs text-muted-foreground">
-                        Property details are required when a full street address (including house number) is not provided.
+                        Property details are required when a full street address (including house
+                        number) is not provided.
                     </p>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -316,7 +347,7 @@ export default function DealFormFields({
                                             type="number"
                                             min={0}
                                             placeholder="3"
-                                            value={field.value ?? ""}
+                                            value={field.value ?? ''}
                                             onChange={(e) => field.onChange(e.target.value)}
                                         />
                                     </FormControl>
@@ -337,7 +368,7 @@ export default function DealFormFields({
                                             min={0}
                                             step={0.5}
                                             placeholder="2"
-                                            value={field.value ?? ""}
+                                            value={field.value ?? ''}
                                             onChange={(e) => field.onChange(e.target.value)}
                                         />
                                     </FormControl>
@@ -359,7 +390,7 @@ export default function DealFormFields({
                                         type="number"
                                         min={1}
                                         placeholder="1500"
-                                        value={field.value ?? ""}
+                                        value={field.value ?? ''}
                                         onChange={(e) => field.onChange(e.target.value)}
                                     />
                                 </FormControl>
@@ -374,7 +405,7 @@ export default function DealFormFields({
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Property Type *</FormLabel>
-                                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                                <Select value={field.value ?? ''} onValueChange={field.onChange}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select type" />
@@ -382,7 +413,9 @@ export default function DealFormFields({
                                     </FormControl>
                                     <SelectContent className="z-[10000]">
                                         {PROPERTY_TYPES.map((t) => (
-                                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                                            <SelectItem key={t} value={t}>
+                                                {t}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -404,7 +437,10 @@ export default function DealFormFields({
                 name="notes"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Notes <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormLabel>
+                            Notes{' '}
+                            <span className="text-muted-foreground font-normal">(optional)</span>
+                        </FormLabel>
                         <FormControl>
                             <Textarea
                                 {...field}
@@ -421,7 +457,8 @@ export default function DealFormFields({
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
                     <label className="text-sm font-medium leading-none">
-                        Comparable Sale Links <span className="text-muted-foreground font-normal">(optional, max 3)</span>
+                        Comparable Sale Links{' '}
+                        <span className="text-muted-foreground font-normal">(optional, max 3)</span>
                     </label>
                     <Button
                         type="button"
@@ -439,9 +476,17 @@ export default function DealFormFields({
                     <div key={i} className="flex gap-2">
                         <Input
                             value={link}
-                            onChange={(e) => onLinksChange(links.map((l, idx) => idx === i ? e.target.value : l))}
+                            onChange={(e) =>
+                                onLinksChange(
+                                    links.map((l, idx) => (idx === i ? e.target.value : l)),
+                                )
+                            }
                             placeholder="https://example.com"
-                            className={link.length > 0 && !isValidUrl(link) ? "border-destructive focus-visible:ring-destructive" : ""}
+                            className={
+                                link.length > 0 && !isValidUrl(link)
+                                    ? 'border-destructive focus-visible:ring-destructive'
+                                    : ''
+                            }
                         />
                         <Button
                             type="button"
@@ -459,19 +504,23 @@ export default function DealFormFields({
 
             <div className="space-y-2">
                 <label className="text-sm font-medium leading-none">
-                    Photo Album URL <span className="text-muted-foreground font-normal">(optional)</span>
+                    Photo Album URL{' '}
+                    <span className="text-muted-foreground font-normal">(optional)</span>
                 </label>
                 <Input
                     value={photosUrl}
                     onChange={(e) => onPhotosUrlChange(e.target.value)}
                     placeholder="https://photos.example.com/album"
-                    className={photosUrl.length > 0 && !isValidUrl(photosUrl) ? "border-destructive focus-visible:ring-destructive" : ""}
+                    className={
+                        photosUrl.length > 0 && !isValidUrl(photosUrl)
+                            ? 'border-destructive focus-visible:ring-destructive'
+                            : ''
+                    }
                 />
                 {photosUrl.length > 0 && !isValidUrl(photosUrl) && (
                     <p className="text-xs text-destructive">Please enter a valid URL</p>
                 )}
             </div>
-
         </div>
     );
 }

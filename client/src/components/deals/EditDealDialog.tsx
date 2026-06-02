@@ -1,21 +1,28 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2 } from "lucide-react";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { dealFormSchema } from "@database/inserts/deals.insert";
-import type { DealFormValues } from "@database/inserts/deals.insert";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
-import { Textarea } from "@/components/ui/textarea";
-import AppDialog from "@/components/modals/Dialog";
-import DealFormFields, { EDIT_DEAL_TYPES } from "@/components/deals/DealFormFields";
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { dealFormSchema } from '@database/inserts/deals.insert';
+import type { DealFormValues } from '@database/inserts/deals.insert';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { Textarea } from '@/components/ui/textarea';
+import AppDialog from '@/components/modals/Dialog';
+import DealFormFields, { EDIT_DEAL_TYPES } from '@/components/deals/DealFormFields';
 
 type EditDealDialogProps = {
     deal: DealToEdit;
@@ -29,105 +36,121 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
     const canEditAdminNotes = isAdmin || isOwner;
     const canEditPrivilegedFields = isAdmin || isOwner || isRelationshipManager;
     const [links, setLinks] = useState<string[]>(deal.links ?? []);
-    const [photosUrl, setPhotosUrl] = useState(deal.photosUrl ?? "");
+    const [photosUrl, setPhotosUrl] = useState(deal.photosUrl ?? '');
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealFormSchema),
         defaultValues: {
-            address:       deal.address      ?? "",
-            city:          deal.city         ?? "",
-            state:         deal.state        ?? "",
-            zipCode:       deal.zipCode      ?? "",
-            price:         deal.price        != null ? Number(deal.price) : undefined,
-            dealType:      deal.dealType,
-            beds:          deal.beds         ?? undefined,
-            baths:         deal.baths        ? Number(deal.baths) : undefined,
-            sqft:          deal.sqft         ?? undefined,
-            propertyType:  deal.propertyType ?? undefined,
-            potentialARV:  deal.potentialARV  ? Number(deal.potentialARV)  : undefined,
-            showingDate:    (() => {
-                                if (!deal.showingTime) return undefined;
-                                const datePart = deal.showingTime.includes("T")
-                                    ? deal.showingTime.split("T")[0]
-                                    : deal.showingTime.split(" ")[0];
-                                const [y, m, d] = datePart.split("-");
-                                return `${m}/${d}/${y}`;
-                            })(),
+            address: deal.address ?? '',
+            city: deal.city ?? '',
+            state: deal.state ?? '',
+            zipCode: deal.zipCode ?? '',
+            price: deal.price != null ? Number(deal.price) : undefined,
+            dealType: deal.dealType,
+            beds: deal.beds ?? undefined,
+            baths: deal.baths ? Number(deal.baths) : undefined,
+            sqft: deal.sqft ?? undefined,
+            propertyType: deal.propertyType ?? undefined,
+            potentialARV: deal.potentialARV ? Number(deal.potentialARV) : undefined,
+            showingDate: (() => {
+                if (!deal.showingTime) return undefined;
+                const datePart = deal.showingTime.includes('T')
+                    ? deal.showingTime.split('T')[0]
+                    : deal.showingTime.split(' ')[0];
+                const [y, m, d] = datePart.split('-');
+                return `${m}/${d}/${y}`;
+            })(),
             showingTimeStr: (() => {
-                                if (!deal.showingTime) return undefined;
-                                const timePart = deal.showingTime.includes("T")
-                                    ? deal.showingTime.split("T")[1]
-                                    : deal.showingTime.split(" ")[1];
-                                if (!timePart) return undefined;
-                                const [hhStr, mmStr] = timePart.split(":");
-                                let hh = parseInt(hhStr, 10);
-                                if (hh > 12) hh -= 12;
-                                if (hh === 0) hh = 12;
-                                const mm = Math.floor(parseInt(mmStr ?? "0", 10) / 15) * 15;
-                                return `${hh}:${String(mm).padStart(2, "0")}`;
-                            })(),
-            showingAmPm:    (() => {
-                                if (!deal.showingTime) return "AM" as const;
-                                const timePart = deal.showingTime.includes("T")
-                                    ? deal.showingTime.split("T")[1]
-                                    : deal.showingTime.split(" ")[1];
-                                if (!timePart) return "AM" as const;
-                                const hh = parseInt(timePart.split(":")[0], 10);
-                                return (hh >= 12 ? "PM" : "AM") as "AM" | "PM";
-                            })(),
-            estimatedBudget:   deal.estimatedBudget ?? undefined,
-            notes:             deal.notes        ?? "",
-            adminNotes:        deal.adminNotes    ?? "",
+                if (!deal.showingTime) return undefined;
+                const timePart = deal.showingTime.includes('T')
+                    ? deal.showingTime.split('T')[1]
+                    : deal.showingTime.split(' ')[1];
+                if (!timePart) return undefined;
+                const [hhStr, mmStr] = timePart.split(':');
+                let hh = parseInt(hhStr, 10);
+                if (hh > 12) hh -= 12;
+                if (hh === 0) hh = 12;
+                const mm = Math.floor(parseInt(mmStr ?? '0', 10) / 15) * 15;
+                return `${hh}:${String(mm).padStart(2, '0')}`;
+            })(),
+            showingAmPm: (() => {
+                if (!deal.showingTime) return 'AM' as const;
+                const timePart = deal.showingTime.includes('T')
+                    ? deal.showingTime.split('T')[1]
+                    : deal.showingTime.split(' ')[1];
+                if (!timePart) return 'AM' as const;
+                const hh = parseInt(timePart.split(':')[0], 10);
+                return (hh >= 12 ? 'PM' : 'AM') as 'AM' | 'PM';
+            })(),
+            estimatedBudget: deal.estimatedBudget ?? undefined,
+            notes: deal.notes ?? '',
+            adminNotes: deal.adminNotes ?? '',
             sendNotifications: true,
-            isArvExclusive:    deal.isArvExclusive ?? false,
-            onBehalfOfEmail:   deal.onBehalfOfEmail ?? undefined,
+            isArvExclusive: deal.isArvExclusive ?? false,
+            onBehalfOfEmail: deal.onBehalfOfEmail ?? undefined,
         },
     });
 
-    const addressValue = useWatch({ control: form.control, name: "address" });
-    const hasFullAddress = typeof addressValue === "string" && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
+    const addressValue = useWatch({ control: form.control, name: 'address' });
+    const hasFullAddress =
+        typeof addressValue === 'string' && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
 
     const updateDeal = useMutation({
         mutationFn: async (data: DealFormValues) => {
-            const res = await apiRequest("PATCH", `/api/deals/${deal.id}`, {
-                address:       data.address?.trim() || null,
-                city:          data.city,
-                state:         data.state,
-                zipCode:       data.zipCode,
-                price:         data.price        ?? null,
-                dealType:      data.dealType,
-                beds:          data.beds         ?? null,
-                baths:         data.baths        ?? null,
-                sqft:          data.sqft         ?? null,
-                propertyType:  data.propertyType ?? null,
-                potentialARV:  data.potentialARV  ?? null,
-                showingTime:   (() => {
-                                   if (!data.showingDate) return null;
-                                   const [m, d, y] = data.showingDate.split("/");
-                                   let hh = data.showingTimeStr ? parseInt(data.showingTimeStr.split(":")[0], 10) : 0;
-                                   const mm = data.showingTimeStr ? (data.showingTimeStr.split(":")[1] ?? "00") : "00";
-                                   if (data.showingAmPm === "PM" && hh < 12) hh += 12;
-                                   if (data.showingAmPm === "AM" && hh === 12) hh = 0;
-                                   return `${y}-${m}-${d}T${String(hh).padStart(2, "0")}:${mm}:00`;
-                               })(),
-                estimatedBudget:   data.estimatedBudget ?? null,
-                notes:             data.notes?.trim() || null,
-                adminNotes:        data.adminNotes?.trim() || null,
-                photosUrl:         photosUrl.trim() || null,
-                links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
+            const res = await apiRequest('PATCH', `/api/deals/${deal.id}`, {
+                address: data.address?.trim() || null,
+                city: data.city,
+                state: data.state,
+                zipCode: data.zipCode,
+                price: data.price ?? null,
+                dealType: data.dealType,
+                beds: data.beds ?? null,
+                baths: data.baths ?? null,
+                sqft: data.sqft ?? null,
+                propertyType: data.propertyType ?? null,
+                potentialARV: data.potentialARV ?? null,
+                showingTime: (() => {
+                    if (!data.showingDate) return null;
+                    const [m, d, y] = data.showingDate.split('/');
+                    let hh = data.showingTimeStr
+                        ? parseInt(data.showingTimeStr.split(':')[0], 10)
+                        : 0;
+                    const mm = data.showingTimeStr
+                        ? (data.showingTimeStr.split(':')[1] ?? '00')
+                        : '00';
+                    if (data.showingAmPm === 'PM' && hh < 12) hh += 12;
+                    if (data.showingAmPm === 'AM' && hh === 12) hh = 0;
+                    return `${y}-${m}-${d}T${String(hh).padStart(2, '0')}:${mm}:00`;
+                })(),
+                estimatedBudget: data.estimatedBudget ?? null,
+                notes: data.notes?.trim() || null,
+                adminNotes: data.adminNotes?.trim() || null,
+                photosUrl: photosUrl.trim() || null,
+                links: links.filter((u) => {
+                    try {
+                        new URL(u);
+                        return true;
+                    } catch {
+                        return false;
+                    }
+                }),
                 sendNotifications: data.sendNotifications,
-                isArvExclusive:    data.isArvExclusive,
-                onBehalfOfEmail:   data.onBehalfOfEmail || null,
+                isArvExclusive: data.isArvExclusive,
+                onBehalfOfEmail: data.onBehalfOfEmail || null,
             });
             return res.json();
         },
         onSuccess: () => {
-            toast({ title: "Deal Updated", description: "Your deal has been updated." });
-            queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
+            toast({ title: 'Deal Updated', description: 'Your deal has been updated.' });
+            queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
             onClose();
         },
         onError: (err: any) => {
-            toast({ title: "Error", description: err.message || "Failed to update deal", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: err.message || 'Failed to update deal',
+                variant: 'destructive',
+            });
         },
     });
 
@@ -137,7 +160,11 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
     };
 
     return (
-        <AppDialog open={open} onClose={handleClose} className="max-w-[350px] sm:max-w-lg lg:max-w-2xl">
+        <AppDialog
+            open={open}
+            onClose={handleClose}
+            className="max-w-[350px] sm:max-w-lg lg:max-w-2xl"
+        >
             <DialogHeader>
                 <DialogTitle>Edit Deal</DialogTitle>
             </DialogHeader>
@@ -163,7 +190,10 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         render={({ field }) => (
                             <FormItem className="flex items-center gap-2 space-y-0">
                                 <FormControl>
-                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
                                 </FormControl>
                                 <FormLabel className="font-normal cursor-pointer">
                                     Send notification email
@@ -214,11 +244,12 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                                         {...field}
                                                         type="email"
                                                         placeholder="client@example.com"
-                                                        value={field.value ?? ""}
+                                                        value={field.value ?? ''}
                                                     />
                                                 </FormControl>
                                                 <p className="text-xs text-muted-foreground">
-                                                    Client email — receives contact requests instead of the poster
+                                                    Client email — receives contact requests instead
+                                                    of the poster
                                                 </p>
                                                 <FormMessage />
                                             </FormItem>
@@ -231,7 +262,10 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                                         render={({ field }) => (
                                             <FormItem className="flex items-center gap-2 space-y-0">
                                                 <FormControl>
-                                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                                    <Checkbox
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                    />
                                                 </FormControl>
                                                 <FormLabel className="font-normal cursor-pointer">
                                                     ARV Exclusive deal
@@ -254,18 +288,14 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         >
                             Cancel
                         </Button>
-                        <Button
-                            type="submit"
-                            className="flex-1"
-                            disabled={updateDeal.isPending}
-                        >
+                        <Button type="submit" className="flex-1" disabled={updateDeal.isPending}>
                             {updateDeal.isPending ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                     Updating...
                                 </>
                             ) : (
-                                "Update Deal"
+                                'Update Deal'
                             )}
                         </Button>
                     </div>

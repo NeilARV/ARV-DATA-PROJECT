@@ -1,29 +1,29 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, X, MapPin, Building2, Hash, Layers } from "lucide-react";
-import { COUNTIES, MSA } from "@/constants/filters.constants";
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, X, MapPin, Building2, Hash, Layers } from 'lucide-react';
+import { COUNTIES, MSA } from '@/constants/filters.constants';
 
 export type LocationFilter =
-    | { type: "county"; value: string; state: string }
-    | { type: "msa";    value: string }
-    | { type: "city";   value: string; state: string }
-    | { type: "zip";    value: string };
+    | { type: 'county'; value: string; state: string }
+    | { type: 'msa'; value: string }
+    | { type: 'city'; value: string; state: string }
+    | { type: 'zip'; value: string };
 
 // Returns the primary city name from a full MSA string
 // e.g. "San Diego-Chula Vista-Carlsbad, CA" → "San Diego"
 export function msaShortName(msa: string): string {
-    return msa.split("-")[0].split(",")[0].trim();
+    return msa.split('-')[0].split(',')[0].trim();
 }
 
 export function filterToInputText(filter: LocationFilter): string {
-    if (filter.type === "county") return `${filter.value} County, ${filter.state}`;
-    if (filter.type === "msa")    return `${msaShortName(filter.value)} MSA`;
-    if (filter.type === "city")   return `${filter.value}, ${filter.state}`;
-    if (filter.type === "zip")    return filter.value;
-    return "";
+    if (filter.type === 'county') return `${filter.value} County, ${filter.state}`;
+    if (filter.type === 'msa') return `${msaShortName(filter.value)} MSA`;
+    if (filter.type === 'city') return `${filter.value}, ${filter.state}`;
+    if (filter.type === 'zip') return filter.value;
+    return '';
 }
 
 type Suggestion = {
-    kind: "county" | "msa" | "city" | "zip";
+    kind: 'county' | 'msa' | 'city' | 'zip';
     label: string;
     sublabel: string;
     filter: LocationFilter;
@@ -36,13 +36,13 @@ type DealsLocationSearchProps = {
 };
 
 export default function DealsLocationSearch({ deals, value, onChange }: DealsLocationSearchProps) {
-    const [inputText, setInputText] = useState(value ? filterToInputText(value) : "");
+    const [inputText, setInputText] = useState(value ? filterToInputText(value) : '');
     const [open, setOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
     // Sync display text when filter changes externally
     useEffect(() => {
-        if (!value) setInputText("");
+        if (!value) setInputText('');
         else setInputText(filterToInputText(value));
     }, [value]);
 
@@ -54,8 +54,8 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
                 setOpen(false);
             }
         };
-        document.addEventListener("mousedown", handleMouseDown);
-        return () => document.removeEventListener("mousedown", handleMouseDown);
+        document.addEventListener('mousedown', handleMouseDown);
+        return () => document.removeEventListener('mousedown', handleMouseDown);
     }, [open]);
 
     // Unique cities and zips from the current deals list
@@ -67,7 +67,7 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
             const key = `${d.city}|${d.state}`;
             if (!seen.has(key)) {
                 seen.add(key);
-                result.push({ city: d.city, state: d.state ?? "" });
+                result.push({ city: d.city, state: d.state ?? '' });
             }
         }
         return result.sort((a, b) => a.city.localeCompare(b.city));
@@ -88,55 +88,51 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
         const results: Suggestion[] = [];
 
         // County suggestions — matched against county name or state
-        const countyMatches = COUNTIES
-            .filter((c) => c.county.toLowerCase().includes(q) || c.state.toLowerCase().includes(q))
-            .slice(0, 3);
+        const countyMatches = COUNTIES.filter(
+            (c) => c.county.toLowerCase().includes(q) || c.state.toLowerCase().includes(q),
+        ).slice(0, 3);
         for (const c of countyMatches) {
             results.push({
-                kind: "county",
+                kind: 'county',
                 label: `${c.county} County`,
                 sublabel: c.state,
-                filter: { type: "county", value: c.county, state: c.state },
+                filter: { type: 'county', value: c.county, state: c.state },
             });
         }
 
         // MSA suggestions — matched against short name or full MSA string
-        const msaMatches = MSA
-            .filter((m) => m.toLowerCase().includes(q) || msaShortName(m).toLowerCase().includes(q))
-            .slice(0, 3);
+        const msaMatches = MSA.filter(
+            (m) => m.toLowerCase().includes(q) || msaShortName(m).toLowerCase().includes(q),
+        ).slice(0, 3);
         for (const m of msaMatches) {
-            const state = m.split(",").pop()?.trim() ?? "";
+            const state = m.split(',').pop()?.trim() ?? '';
             results.push({
-                kind: "msa",
+                kind: 'msa',
                 label: `${msaShortName(m)} MSA`,
                 sublabel: state,
-                filter: { type: "msa", value: m },
+                filter: { type: 'msa', value: m },
             });
         }
 
         // City suggestions — matched against cities in the current deals list
-        const cityMatches = dealCities
-            .filter((c) => c.city.toLowerCase().includes(q))
-            .slice(0, 3);
+        const cityMatches = dealCities.filter((c) => c.city.toLowerCase().includes(q)).slice(0, 3);
         for (const c of cityMatches) {
             results.push({
-                kind: "city",
+                kind: 'city',
                 label: c.city,
                 sublabel: c.state,
-                filter: { type: "city", value: c.city, state: c.state },
+                filter: { type: 'city', value: c.city, state: c.state },
             });
         }
 
         // Zip code suggestions — prefix matched
-        const zipMatches = dealZips
-            .filter((z) => z.startsWith(inputText.trim()))
-            .slice(0, 3);
+        const zipMatches = dealZips.filter((z) => z.startsWith(inputText.trim())).slice(0, 3);
         for (const z of zipMatches) {
             results.push({
-                kind: "zip",
+                kind: 'zip',
                 label: z,
-                sublabel: "Zip Code",
-                filter: { type: "zip", value: z },
+                sublabel: 'Zip Code',
+                filter: { type: 'zip', value: z },
             });
         }
 
@@ -160,23 +156,26 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
     };
 
     const handleClear = () => {
-        setInputText("");
+        setInputText('');
         setOpen(false);
         onChange(null);
     };
 
-    const kindIcon = (kind: Suggestion["kind"]) => {
-        if (kind === "county") return <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
-        if (kind === "msa")    return <Layers    className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
-        if (kind === "city")   return <MapPin    className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
-        return                        <Hash      className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
+    const kindIcon = (kind: Suggestion['kind']) => {
+        if (kind === 'county')
+            return <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
+        if (kind === 'msa')
+            return <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
+        if (kind === 'city')
+            return <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
+        return <Hash className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
     };
 
-    const kindLabel = (kind: Suggestion["kind"]) => {
-        if (kind === "county") return "County";
-        if (kind === "msa")    return "MSA";
-        if (kind === "city")   return "City";
-        return "Zip";
+    const kindLabel = (kind: Suggestion['kind']) => {
+        if (kind === 'county') return 'County';
+        if (kind === 'msa') return 'MSA';
+        if (kind === 'city') return 'City';
+        return 'Zip';
     };
 
     return (
@@ -186,7 +185,9 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
                 type="text"
                 value={inputText}
                 onChange={(e) => handleInputChange(e.target.value)}
-                onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+                onFocus={() => {
+                    if (suggestions.length > 0) setOpen(true);
+                }}
                 placeholder="Filter by county, MSA, city, or zip..."
                 className="w-full h-9 pl-9 pr-7 text-sm bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
             />
@@ -213,8 +214,10 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
                             <span className="flex items-center gap-2 min-w-0">
                                 {kindIcon(s.kind)}
                                 <span className="font-medium truncate">{s.label}</span>
-                                {s.kind !== "zip" && (
-                                    <span className="text-muted-foreground text-xs">{s.sublabel}</span>
+                                {s.kind !== 'zip' && (
+                                    <span className="text-muted-foreground text-xs">
+                                        {s.sublabel}
+                                    </span>
                                 )}
                             </span>
                             <span className="text-xs text-muted-foreground ml-2 flex-shrink-0 bg-muted px-1.5 py-0.5 rounded">

@@ -1,21 +1,15 @@
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { Edit, Save, X } from "lucide-react";
-import { MSA } from "@/constants/filters.constants";
-import type { AuthUser, NotificationPreferences, DealTypeFilter } from "@/hooks/use-auth";
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { queryClient, apiRequest } from '@/lib/queryClient';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+import { Edit, Save, X } from 'lucide-react';
+import { MSA } from '@/constants/filters.constants';
+import type { AuthUser, NotificationPreferences, DealTypeFilter } from '@/hooks/use-auth';
 
-const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "updatedAt"> = {
+const DEFAULT_PREFS: Omit<NotificationPreferences, 'userId' | 'createdAt' | 'updatedAt'> = {
     dataAppEnabled: true,
     dealNotificationsEnabled: true,
     vendorNotificationsEnabled: false,
@@ -25,8 +19,8 @@ const DEFAULT_PREFS: Omit<NotificationPreferences, "userId" | "createdAt" | "upd
 };
 
 const DEAL_TYPE_OPTIONS: { value: DealTypeFilter; label: string; description: string }[] = [
-    { value: "wholesale", label: "Wholesale", description: "All wholesale deals" },
-    { value: "agent", label: "Agent", description: "Off-market agent deals" },
+    { value: 'wholesale', label: 'Wholesale', description: 'All wholesale deals' },
+    { value: 'agent', label: 'Agent', description: 'Off-market agent deals' },
 ];
 
 interface Props {
@@ -81,15 +75,15 @@ export default function NotificationPreferencesPanel({ user }: Props) {
         try {
             // Always update both: master/MSA and app preferences
             const [profileRes, prefsRes] = await Promise.all([
-                apiRequest("PATCH", "/api/auth/me", {
+                apiRequest('PATCH', '/api/auth/me', {
                     notifications: masterEnabled,
                     msaSubscriptions,
                 }),
-                apiRequest("PATCH", "/api/auth/me/notifications", prefs),
+                apiRequest('PATCH', '/api/auth/me/notifications', prefs),
             ]);
 
             if (!profileRes.ok || !prefsRes.ok) {
-                throw new Error("Save failed");
+                throw new Error('Save failed');
             }
 
             const [profileData, prefsData] = await Promise.all([
@@ -98,27 +92,30 @@ export default function NotificationPreferencesPanel({ user }: Props) {
             ]);
 
             if (profileData.success && prefsData.success) {
-                queryClient.setQueryData(["/api/auth/me"], (old: { user: AuthUser } | undefined) => ({
-                    user: {
-                        ...(old?.user ?? {}),
-                        ...profileData.user,
-                        notificationPreferences: prefsData.preferences,
-                        msaSubscriptions,
-                    },
-                }));
+                queryClient.setQueryData(
+                    ['/api/auth/me'],
+                    (old: { user: AuthUser } | undefined) => ({
+                        user: {
+                            ...(old?.user ?? {}),
+                            ...profileData.user,
+                            notificationPreferences: prefsData.preferences,
+                            msaSubscriptions,
+                        },
+                    }),
+                );
                 toast({
-                    title: "Notification Preferences Saved",
-                    description: "Your notification settings have been updated.",
+                    title: 'Notification Preferences Saved',
+                    description: 'Your notification settings have been updated.',
                 });
                 setIsEditing(false);
             } else {
-                throw new Error("Unexpected response");
+                throw new Error('Unexpected response');
             }
         } catch {
             toast({
-                title: "Error",
-                description: "Failed to save notification preferences. Please try again.",
-                variant: "destructive",
+                title: 'Error',
+                description: 'Failed to save notification preferences. Please try again.',
+                variant: 'destructive',
             });
         } finally {
             setIsSaving(false);
@@ -144,17 +141,16 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                 )}
             </CardHeader>
             <CardContent className="space-y-6">
-
                 {/* ── Master toggle ── */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="profile-notification-label">Turn {displayMaster ? "Off" : "On"} All Email Notifications</p>
+                        <p className="profile-notification-label">
+                            Turn {displayMaster ? 'Off' : 'On'} All Email Notifications
+                        </p>
                         <p className="profile-notification-value">
-                            {
-                                displayMaster ? 
-                                "Disabling this stops all email feeds regardless of app settings below." :
-                                "Enabling this turns on all email feeds regardless of app settings below."
-                            }
+                            {displayMaster
+                                ? 'Disabling this stops all email feeds regardless of app settings below.'
+                                : 'Enabling this turns on all email feeds regardless of app settings below.'}
                         </p>
                     </div>
                     <Switch
@@ -167,21 +163,27 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                 {displayMaster && (
                     <>
                         <div className="border-t pt-6 space-y-6">
-
                             {/* ── Data App ── */}
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="profile-notification-label">Daily Transaction Emails</p>
+                                        <p className="profile-notification-label">
+                                            Daily Transaction Emails
+                                        </p>
                                         <p className="profile-notification-value">
                                             Track all sales in your market every day
                                         </p>
                                     </div>
                                     <Switch
-                                        checked={isEditing ? prefs.dataAppEnabled : resolvedPrefs.dataAppEnabled}
+                                        checked={
+                                            isEditing
+                                                ? prefs.dataAppEnabled
+                                                : resolvedPrefs.dataAppEnabled
+                                        }
                                         disabled={!isEditing}
                                         onCheckedChange={(checked) =>
-                                            isEditing && setPrefs((p) => ({ ...p, dataAppEnabled: checked }))
+                                            isEditing &&
+                                            setPrefs((p) => ({ ...p, dataAppEnabled: checked }))
                                         }
                                     />
                                 </div>
@@ -191,49 +193,69 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div className="space-y-3 border-t pt-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="profile-notification-label">Wholesale Deal Notifications</p>
+                                        <p className="profile-notification-label">
+                                            Wholesale Deal Notifications
+                                        </p>
                                         <p className="profile-notification-value">
-                                            Exclusive deals direct to your inbox for ARV clients only
+                                            Exclusive deals direct to your inbox for ARV clients
+                                            only
                                         </p>
                                     </div>
                                     <Switch
-                                        checked={isEditing ? prefs.dealNotificationsEnabled : resolvedPrefs.dealNotificationsEnabled}
+                                        checked={
+                                            isEditing
+                                                ? prefs.dealNotificationsEnabled
+                                                : resolvedPrefs.dealNotificationsEnabled
+                                        }
                                         disabled={!isEditing}
                                         onCheckedChange={(checked) =>
-                                            isEditing && setPrefs((p) => ({ ...p, dealNotificationsEnabled: checked }))
+                                            isEditing &&
+                                            setPrefs((p) => ({
+                                                ...p,
+                                                dealNotificationsEnabled: checked,
+                                            }))
                                         }
                                     />
                                 </div>
-                                {(isEditing ? prefs.dealNotificationsEnabled : resolvedPrefs.dealNotificationsEnabled) && (
+                                {(isEditing
+                                    ? prefs.dealNotificationsEnabled
+                                    : resolvedPrefs.dealNotificationsEnabled) && (
                                     <div className="ml-1 space-y-2">
                                         <div className="grid grid-cols-3 gap-3">
-                                            {DEAL_TYPE_OPTIONS.map(({ value, label, description }) => (
-                                                <div key={value}>
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            id={`deal-type-${value}`}
-                                                            checked={
-                                                                isEditing
-                                                                    ? prefs.dealTypeFilter.includes(value)
-                                                                    : resolvedPrefs.dealTypeFilter.includes(value)
-                                                            }
-                                                            disabled={!isEditing}
-                                                            onCheckedChange={() =>
-                                                                isEditing && toggleDealTypeFilter(value)
-                                                            }
-                                                        />
-                                                        <label
-                                                            htmlFor={`deal-type-${value}`}
-                                                            className={`profile-notification-value text-foreground ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
-                                                        >
-                                                            {label}
-                                                        </label>
+                                            {DEAL_TYPE_OPTIONS.map(
+                                                ({ value, label, description }) => (
+                                                    <div key={value}>
+                                                        <div className="flex items-center gap-2">
+                                                            <Checkbox
+                                                                id={`deal-type-${value}`}
+                                                                checked={
+                                                                    isEditing
+                                                                        ? prefs.dealTypeFilter.includes(
+                                                                              value,
+                                                                          )
+                                                                        : resolvedPrefs.dealTypeFilter.includes(
+                                                                              value,
+                                                                          )
+                                                                }
+                                                                disabled={!isEditing}
+                                                                onCheckedChange={() =>
+                                                                    isEditing &&
+                                                                    toggleDealTypeFilter(value)
+                                                                }
+                                                            />
+                                                            <label
+                                                                htmlFor={`deal-type-${value}`}
+                                                                className={`profile-notification-value text-foreground ${!isEditing ? 'cursor-default' : 'cursor-pointer'}`}
+                                                            >
+                                                                {label}
+                                                            </label>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground mt-1 ml-6">
+                                                            {description}
+                                                        </p>
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground mt-1 ml-6">
-                                                        {description}
-                                                    </p>
-                                                </div>
-                                            ))}
+                                                ),
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -244,18 +266,28 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="profile-notification-label">
-                                            Vendor Notifications{" "}
-                                            <span className="text-xs lg:text-sm text-muted-foreground font-normal">(coming soon)</span>
+                                            Vendor Notifications{' '}
+                                            <span className="text-xs lg:text-sm text-muted-foreground font-normal">
+                                                (coming soon)
+                                            </span>
                                         </p>
                                         <p className="profile-notification-value">
                                             Notifications for new vendors and community posts.
                                         </p>
                                     </div>
                                     <Switch
-                                        checked={isEditing ? prefs.vendorNotificationsEnabled : resolvedPrefs.vendorNotificationsEnabled}
+                                        checked={
+                                            isEditing
+                                                ? prefs.vendorNotificationsEnabled
+                                                : resolvedPrefs.vendorNotificationsEnabled
+                                        }
                                         disabled={!isEditing}
                                         onCheckedChange={(checked) =>
-                                            isEditing && setPrefs((p) => ({ ...p, vendorNotificationsEnabled: checked }))
+                                            isEditing &&
+                                            setPrefs((p) => ({
+                                                ...p,
+                                                vendorNotificationsEnabled: checked,
+                                            }))
                                         }
                                     />
                                 </div>
@@ -266,18 +298,26 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="profile-notification-label">
-                                            Analytics Reports{" "}
-                                            <span className="text-xs lg:text-sm text-muted-foreground font-normal">(coming soon)</span>
+                                            Analytics Reports{' '}
+                                            <span className="text-xs lg:text-sm text-muted-foreground font-normal">
+                                                (coming soon)
+                                            </span>
                                         </p>
                                         <p className="profile-notification-value">
-                                            Periodic market summary reports for your subscribed markets.
+                                            Periodic market summary reports for your subscribed
+                                            markets.
                                         </p>
                                     </div>
                                     <Switch
-                                        checked={isEditing ? prefs.analyticsEnabled : resolvedPrefs.analyticsEnabled}
+                                        checked={
+                                            isEditing
+                                                ? prefs.analyticsEnabled
+                                                : resolvedPrefs.analyticsEnabled
+                                        }
                                         disabled={!isEditing}
                                         onCheckedChange={(checked) =>
-                                            isEditing && setPrefs((p) => ({ ...p, analyticsEnabled: checked }))
+                                            isEditing &&
+                                            setPrefs((p) => ({ ...p, analyticsEnabled: checked }))
                                         }
                                     />
                                 </div>
@@ -289,7 +329,8 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                             <div>
                                 <CardTitle>Location Subscriptions</CardTitle>
                                 <CardDescription>
-                                    Select the MSAs you want to receive notifications for. Applies to all active email feeds above.
+                                    Select the MSAs you want to receive notifications for. Applies
+                                    to all active email feeds above.
                                 </CardDescription>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -300,7 +341,9 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                             checked={
                                                 isEditing
                                                     ? msaSubscriptions.includes(msaName)
-                                                    : (user.msaSubscriptions ?? []).includes(msaName)
+                                                    : (user.msaSubscriptions ?? []).includes(
+                                                          msaName,
+                                                      )
                                             }
                                             disabled={!isEditing}
                                             onCheckedChange={(checked) => {
@@ -308,13 +351,13 @@ export default function NotificationPreferencesPanel({ user }: Props) {
                                                 setMsaSubscriptions((prev) =>
                                                     checked
                                                         ? [...prev, msaName]
-                                                        : prev.filter((m) => m !== msaName)
+                                                        : prev.filter((m) => m !== msaName),
                                                 );
                                             }}
                                         />
                                         <label
                                             htmlFor={`msa-${msaName}`}
-                                            className={`profile-notification-label font-medium leading-none ${!isEditing ? "cursor-default" : "cursor-pointer"}`}
+                                            className={`profile-notification-label font-medium leading-none ${!isEditing ? 'cursor-default' : 'cursor-pointer'}`}
                                         >
                                             {msaName}
                                         </label>
@@ -327,17 +370,13 @@ export default function NotificationPreferencesPanel({ user }: Props) {
 
                 {isEditing && (
                     <div className="flex justify-end gap-2 pt-4 border-t">
-                        <Button
-                            variant="outline"
-                            onClick={resetToSaved}
-                            disabled={isSaving}
-                        >
+                        <Button variant="outline" onClick={resetToSaved} disabled={isSaving}>
                             <X className="w-4 h-4 mr-2" />
                             Cancel
                         </Button>
                         <Button onClick={handleSave} disabled={isSaving}>
                             <Save className="w-4 h-4 mr-2" />
-                            {isSaving ? "Saving..." : "Save"}
+                            {isSaving ? 'Saving...' : 'Save'}
                         </Button>
                     </div>
                 )}

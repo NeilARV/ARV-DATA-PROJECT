@@ -1,22 +1,22 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { X, Search, MapPin, Home, ChevronDown, DollarSign } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { X, Search, MapPin, Home, ChevronDown, DollarSign } from 'lucide-react';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getZipCodesForCounty } from "@/lib/county";
+} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { getZipCodesForCounty } from '@/lib/county';
 import {
     PROPERTY_TYPES,
     BEDROOM_OPTIONS,
@@ -24,13 +24,13 @@ import {
     DATE_RANGE_OPTIONS,
     MAX_PRICE,
     COUNTIES,
-} from "@/constants/filters.constants";
-import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { useFilters } from "@/hooks/useFilters";
-import { useCompanies } from "@/hooks/useCompanies";
-import { useDataNav } from "@/hooks/useDataNav";
-import { useZipCounts } from "@/hooks/useZipCounts";
-import type { ZipCodeWithCount, CityWithCount } from "@/types/filters";
+} from '@/constants/filters.constants';
+import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
+import { useFilters } from '@/hooks/useFilters';
+import { useCompanies } from '@/hooks/useCompanies';
+import { useDataNav } from '@/hooks/useDataNav';
+import { useZipCounts } from '@/hooks/useZipCounts';
+import type { ZipCodeWithCount, CityWithCount } from '@/types/filters';
 
 // ---- Price helper ----
 function formatPrice(val: number): string {
@@ -61,14 +61,14 @@ export default function FilterHeader() {
         filters.minPrice ?? 0,
         filters.maxPrice ?? MAX_PRICE,
     ]);
-    const [zipInput, setZipInput] = useState<string>(filters.city ?? filters.zipCode ?? "");
-    const [countySearch, setCountySearch] = useState<string>(filters.county ?? "San Diego");
+    const [zipInput, setZipInput] = useState<string>(filters.city ?? filters.zipCode ?? '');
+    const [countySearch, setCountySearch] = useState<string>(filters.county ?? 'San Diego');
     const [selectedState, setSelectedState] = useState<string>(() => {
-        const data = COUNTIES.find((c) => c.county === (filters.county ?? "San Diego"));
-        return data?.state ?? "CA";
+        const data = COUNTIES.find((c) => c.county === (filters.county ?? 'San Diego'));
+        return data?.state ?? 'CA';
     });
     const [statusFilters, setStatusFilters] = useState<Set<string>>(
-        new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS)
+        new Set(filters.statusFilters ?? DEFAULT_STATUS_FILTERS),
     );
     // Popover/dropdown open states
     const [priceOpen, setPriceOpen] = useState(false);
@@ -97,17 +97,14 @@ export default function FilterHeader() {
 
     // Sync local display state when context filters change
     useEffect(() => {
-        setPriceRange([
-            filters.minPrice ?? 0,
-            Math.min(filters.maxPrice ?? MAX_PRICE, MAX_PRICE),
-        ]);
-        setZipInput(filters.city ?? filters.zipCode ?? "");
+        setPriceRange([filters.minPrice ?? 0, Math.min(filters.maxPrice ?? MAX_PRICE, MAX_PRICE)]);
+        setZipInput(filters.city ?? filters.zipCode ?? '');
 
-        const countyVal = filters.county ?? "San Diego";
+        const countyVal = filters.county ?? 'San Diego';
         setCountySearch(countyVal);
 
         const countyData = COUNTIES.find((c) => c.county === countyVal);
-        setSelectedState(countyData?.state ?? "CA");
+        setSelectedState(countyData?.state ?? 'CA');
         setStatusFilters(new Set(filters.statusFilters ?? []));
     }, [filters]);
 
@@ -118,11 +115,11 @@ export default function FilterHeader() {
 
     const countiesByState = useMemo(
         () => COUNTIES.filter((c) => c.state === selectedState),
-        [selectedState]
+        [selectedState],
     );
 
     const zipCodeList = useMemo(() => {
-        return getZipCodesForCounty(filters.county ?? "San Diego");
+        return getZipCodesForCounty(filters.county ?? 'San Diego');
     }, [filters.county]);
 
     const sortedZipCodes = useMemo(
@@ -130,17 +127,17 @@ export default function FilterHeader() {
             zipCodesWithCounts
                 .map((z) => ({
                     ...z,
-                    city: zipCodeList.find((zl) => zl.zip === z.zipCode)?.city ?? "Unknown",
+                    city: zipCodeList.find((zl) => zl.zip === z.zipCode)?.city ?? 'Unknown',
                 }))
                 .sort((a, b) => b.count - a.count),
-        [zipCodesWithCounts, zipCodeList]
+        [zipCodesWithCounts, zipCodeList],
     );
 
     const citiesWithCounts = useMemo<CityWithCount[]>(() => {
         const cityMap = new Map<string, number>();
         sortedZipCodes.forEach((z) => {
-            if (z.city && z.city !== "Unknown") {
-                const normalized = z.city.startsWith("San Diego") ? "San Diego" : z.city;
+            if (z.city && z.city !== 'Unknown') {
+                const normalized = z.city.startsWith('San Diego') ? 'San Diego' : z.city;
                 cityMap.set(normalized, (cityMap.get(normalized) ?? 0) + z.count);
             }
         });
@@ -160,11 +157,13 @@ export default function FilterHeader() {
         if (zipInput.length > 0) {
             const lower = zipInput.toLowerCase();
             const zipMatches = sortedZipCodes
-                .filter(z => z.zipCode.startsWith(zipInput) || z.city?.toLowerCase().includes(lower))
+                .filter(
+                    (z) => z.zipCode.startsWith(zipInput) || z.city?.toLowerCase().includes(lower),
+                )
                 .slice(0, 10);
             const cityMatches = citiesWithCounts
-                .filter(c => {
-                    const n = c.city.startsWith("San Diego") ? "San Diego" : c.city;
+                .filter((c) => {
+                    const n = c.city.startsWith('San Diego') ? 'San Diego' : c.city;
                     return n.toLowerCase().includes(lower);
                 })
                 .slice(0, 10);
@@ -176,7 +175,7 @@ export default function FilterHeader() {
             setFilteredCities(citiesWithCounts.slice(0, 10));
             setZipOpen(true);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sortedZipCodes]);
 
     // ---- Handlers ----
@@ -204,9 +203,9 @@ export default function FilterHeader() {
                 .filter((z) => z.zipCode.startsWith(value) || z.city?.toLowerCase().includes(lower))
                 .slice(0, 10);
 
-                const cityMatches = citiesWithCounts
+            const cityMatches = citiesWithCounts
                 .filter((c) => {
-                    const normalized = c.city.startsWith("San Diego") ? "San Diego" : c.city;
+                    const normalized = c.city.startsWith('San Diego') ? 'San Diego' : c.city;
                     return normalized.toLowerCase().includes(lower);
                 })
                 .slice(0, 10);
@@ -218,7 +217,7 @@ export default function FilterHeader() {
             setFilteredZipCodes(sortedZipCodes.slice(0, 10));
             setFilteredCities(citiesWithCounts.slice(0, 10));
             setZipOpen(false);
-            setFilters((f) => ({ ...f, zipCode: "", city: undefined }));
+            setFilters((f) => ({ ...f, zipCode: '', city: undefined }));
         }
     };
 
@@ -231,12 +230,12 @@ export default function FilterHeader() {
     const selectCity = (c: CityWithCount) => {
         setZipInput(c.city);
         setZipOpen(false);
-        setFilters((f) => ({ ...f, zipCode: "", city: c.city }));
+        setFilters((f) => ({ ...f, zipCode: '', city: c.city }));
     };
 
     const handleCountySearch = (value: string) => {
         setCountySearch(value);
-        const search = value.replace(/\s+County$/i, "").toLowerCase();
+        const search = value.replace(/\s+County$/i, '').toLowerCase();
         const matches = countiesByState
             .filter((c) => c.county.toLowerCase().includes(search))
             .slice(0, 10);
@@ -247,7 +246,7 @@ export default function FilterHeader() {
         setCountySearch(countyObj.county);
         setCountyOpen(false);
         setCompany(null);
-        setFilters((f) => ({ ...f, county: countyObj.county, zipCode: "", city: undefined }));
+        setFilters((f) => ({ ...f, county: countyObj.county, zipCode: '', city: undefined }));
         nav.setCounty(countyObj.county);
     };
 
@@ -255,14 +254,14 @@ export default function FilterHeader() {
         setSelectedState(newState);
 
         const countiesInState = COUNTIES.filter((c) => c.state === newState);
-        const currentCounty = filters.county ?? "San Diego";
+        const currentCounty = filters.county ?? 'San Diego';
         const exists = countiesInState.some((c) => c.county === currentCounty);
 
         if (!exists && countiesInState.length > 0) {
             const first = countiesInState[0];
             setCountySearch(first.county);
             setCompany(null);
-            setFilters((f) => ({ ...f, county: first.county, zipCode: "", city: undefined }));
+            setFilters((f) => ({ ...f, county: first.county, zipCode: '', city: undefined }));
             nav.setCounty(first.county);
         }
     };
@@ -275,57 +274,59 @@ export default function FilterHeader() {
     };
 
     const handleClearFilters = () => {
-        const countyToKeep = filters.county ?? "San Diego";
+        const countyToKeep = filters.county ?? 'San Diego';
 
         setPriceRange([0, MAX_PRICE]);
-        setZipInput("");
+        setZipInput('');
         setStatusFilters(new Set(DEFAULT_STATUS_FILTERS));
         setFilters((f) => ({
             ...f,
             minPrice: 0,
             maxPrice: MAX_PRICE,
-            bedrooms: "Any",
-            bathrooms: "Any",
+            bedrooms: 'Any',
+            bathrooms: 'Any',
             propertyTypes: [],
-            zipCode: "",
+            zipCode: '',
             city: undefined,
             county: countyToKeep,
             statusFilters: DEFAULT_STATUS_FILTERS,
-            dateRange: "60d" as DateRange,
+            dateRange: '60d' as DateRange,
         }));
     };
 
     const priceLabel =
         priceRange[0] === 0 && priceRange[1] >= MAX_PRICE
-            ? "Any Price"
+            ? 'Any Price'
             : `${formatPrice(priceRange[0])} – ${formatPrice(priceRange[1])}`;
 
     const propertyTypeLabel =
         filters.propertyTypes.length === 0
-            ? "Property Type"
+            ? 'Property Type'
             : filters.propertyTypes.length === 1
-            ? filters.propertyTypes[0]
-            : `${filters.propertyTypes.length} Types`;
+              ? filters.propertyTypes[0]
+              : `${filters.propertyTypes.length} Types`;
 
     const hasPriceFilter = priceRange[0] > 0 || priceRange[1] < MAX_PRICE;
 
     return (
-        <div className="border-b border-border bg-background flex-shrink-0" data-testid="filter-header">
+        <div
+            className="border-b border-border bg-background flex-shrink-0"
+            data-testid="filter-header"
+        >
             <div className="flex xl:flex-row xl:items-center gap-y-2 gap-x-3 px-3 py-2 lg:flex-wrap">
-
                 {/* Status tags */}
                 <div className="inline-flex rounded-md border border-border overflow-hidden">
                     <button
                         onClick={() => toggleStatusFilter(PROPERTY_STATUS.IN_RENOVATION)}
                         className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
-                        statusFilters.has(PROPERTY_STATUS.IN_RENOVATION)
-                            ? "text-white"
-                            : "bg-background text-muted-foreground hover:bg-muted"
+                            statusFilters.has(PROPERTY_STATUS.IN_RENOVATION)
+                                ? 'text-white'
+                                : 'bg-background text-muted-foreground hover:bg-muted'
                         }`}
                         style={
-                        statusFilters.has(PROPERTY_STATUS.IN_RENOVATION)
-                            ? { backgroundColor: "#69C9E1" }
-                            : undefined
+                            statusFilters.has(PROPERTY_STATUS.IN_RENOVATION)
+                                ? { backgroundColor: '#69C9E1' }
+                                : undefined
                         }
                         data-testid="button-filter-in-renovation"
                     >
@@ -334,14 +335,14 @@ export default function FilterHeader() {
                     <button
                         onClick={() => toggleStatusFilter(PROPERTY_STATUS.WHOLESALE)}
                         className={`px-3 h-8 flex items-center text-xs font-medium transition-colors border-r border-border whitespace-nowrap ${
-                        statusFilters.has(PROPERTY_STATUS.WHOLESALE)
-                            ? "text-white"
-                            : "bg-background text-muted-foreground hover:bg-muted"
+                            statusFilters.has(PROPERTY_STATUS.WHOLESALE)
+                                ? 'text-white'
+                                : 'bg-background text-muted-foreground hover:bg-muted'
                         }`}
                         style={
-                        statusFilters.has(PROPERTY_STATUS.WHOLESALE)
-                            ? { backgroundColor: "#9333EA" }
-                            : undefined
+                            statusFilters.has(PROPERTY_STATUS.WHOLESALE)
+                                ? { backgroundColor: '#9333EA' }
+                                : undefined
                         }
                         data-testid="button-filter-wholesale"
                     >
@@ -368,14 +369,14 @@ export default function FilterHeader() {
                     <button
                         onClick={() => toggleStatusFilter(PROPERTY_STATUS.SOLD)}
                         className={`px-3 h-8 flex items-center text-xs font-medium transition-colors whitespace-nowrap ${
-                        statusFilters.has(PROPERTY_STATUS.SOLD)
-                            ? "text-white"
-                            : "bg-background text-muted-foreground hover:bg-muted"
+                            statusFilters.has(PROPERTY_STATUS.SOLD)
+                                ? 'text-white'
+                                : 'bg-background text-muted-foreground hover:bg-muted'
                         }`}
                         style={
-                        statusFilters.has(PROPERTY_STATUS.SOLD)
-                            ? { backgroundColor: "#FF0000" }
-                            : undefined
+                            statusFilters.has(PROPERTY_STATUS.SOLD)
+                                ? { backgroundColor: '#FF0000' }
+                                : undefined
                         }
                         data-testid="button-filter-sold"
                     >
@@ -385,73 +386,81 @@ export default function FilterHeader() {
 
                 {/* State */}
                 <Select value={selectedState} onValueChange={handleStateChange}>
-                <SelectTrigger
-                    className="h-8 w-[68px] text-xs flex-shrink-0 px-2"
-                    data-testid="button-state-select"
-                >
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[10000]">
-                    {availableStates.map((state) => (
-                    <SelectItem key={state} value={state} data-testid={`option-state-${state}`}>
-                        {state}
-                    </SelectItem>
-                    ))}
-                </SelectContent>
+                    <SelectTrigger
+                        className="h-8 w-[68px] text-xs flex-shrink-0 px-2"
+                        data-testid="button-state-select"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10000]">
+                        {availableStates.map((state) => (
+                            <SelectItem
+                                key={state}
+                                value={state}
+                                data-testid={`option-state-${state}`}
+                            >
+                                {state}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
                 </Select>
 
                 {/* County combobox */}
                 <Popover
-                open={countyOpen}
-                onOpenChange={(open) => {
-                    setCountyOpen(open);
-                    if (open) {
-                    setCountySearch(filters.county ?? "San Diego");
-                    setFilteredCounties(countiesByState.slice(0, 15));
-                    }
-                }}
+                    open={countyOpen}
+                    onOpenChange={(open) => {
+                        setCountyOpen(open);
+                        if (open) {
+                            setCountySearch(filters.county ?? 'San Diego');
+                            setFilteredCounties(countiesByState.slice(0, 15));
+                        }
+                    }}
                 >
-                <PopoverTrigger asChild>
-                    <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-40 justify-between text-xs flex-shrink-0 px-2"
-                    data-testid="button-county-trigger"
-                    >
-                    <span className="truncate">{countySearch}</span>
-                    <ChevronDown className="w-3 h-3 ml-1 flex-shrink-0 opacity-50" />
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-2 w-52 z-[10000]" align="start">
-                    <div className="relative mb-2">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                        placeholder="Search counties..."
-                        value={countySearch}
-                        onChange={(e) => handleCountySearch(e.target.value)}
-                        className="h-8 pl-7 text-xs"
-                        data-testid="input-county"
-                        autoFocus
-                    />
-                    </div>
-                    <div className="max-h-48 overflow-y-auto">
-                    {filteredCounties.map((c) => (
-                        <div
-                        key={c.county}
-                        className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted rounded-sm text-sm"
-                        onClick={() => selectCounty(c)}
-                        data-testid={`suggestion-county-${c.county}`}
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-40 justify-between text-xs flex-shrink-0 px-2"
+                            data-testid="button-county-trigger"
                         >
-                        <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        {c.county} County
+                            <span className="truncate">{countySearch}</span>
+                            <ChevronDown className="w-3 h-3 ml-1 flex-shrink-0 opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-2 w-52 z-[10000]" align="start">
+                        <div className="relative mb-2">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                            <Input
+                                placeholder="Search counties..."
+                                value={countySearch}
+                                onChange={(e) => handleCountySearch(e.target.value)}
+                                className="h-8 pl-7 text-xs"
+                                data-testid="input-county"
+                                autoFocus
+                            />
                         </div>
-                    ))}
-                    </div>
-                </PopoverContent>
+                        <div className="max-h-48 overflow-y-auto">
+                            {filteredCounties.map((c) => (
+                                <div
+                                    key={c.county}
+                                    className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted rounded-sm text-sm"
+                                    onClick={() => selectCounty(c)}
+                                    data-testid={`suggestion-county-${c.county}`}
+                                >
+                                    <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                    {c.county} County
+                                </div>
+                            ))}
+                        </div>
+                    </PopoverContent>
                 </Popover>
 
                 {/* Zip/City search */}
-                <div ref={zipWrapperRef} className="relative flex-shrink-0" data-testid="zip-trigger-wrapper">
+                <div
+                    ref={zipWrapperRef}
+                    className="relative flex-shrink-0"
+                    data-testid="zip-trigger-wrapper"
+                >
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
                     <Input
                         type="text"
@@ -470,7 +479,10 @@ export default function FilterHeader() {
                         onClick={() => {
                             zipFocusedRef.current = true;
                             setZipCountsEnabled(true);
-                            if (!zipOpen && (sortedZipCodes.length > 0 || citiesWithCounts.length > 0)) {
+                            if (
+                                !zipOpen &&
+                                (sortedZipCodes.length > 0 || citiesWithCounts.length > 0)
+                            ) {
                                 setFilteredZipCodes(sortedZipCodes.slice(0, 10));
                                 setFilteredCities(citiesWithCounts.slice(0, 10));
                                 setZipOpen(true);
@@ -484,7 +496,7 @@ export default function FilterHeader() {
                             className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground hover:text-foreground cursor-pointer z-10"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                handleZipInputChange("");
+                                handleZipInputChange('');
                             }}
                         />
                     )}
@@ -507,7 +519,9 @@ export default function FilterHeader() {
                                         <Home className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                                         <span className="font-medium truncate">{city.city}</span>
                                     </span>
-                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{city.count}</span>
+                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                                        {city.count}
+                                    </span>
                                 </div>
                             ))}
                             {filteredZipCodes.map((z) => (
@@ -523,9 +537,13 @@ export default function FilterHeader() {
                                     <span className="flex items-center gap-2 min-w-0">
                                         <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                                         <span className="font-medium">{z.zipCode}</span>
-                                        <span className="text-muted-foreground text-xs truncate">{z.city}</span>
+                                        <span className="text-muted-foreground text-xs truncate">
+                                            {z.city}
+                                        </span>
                                     </span>
-                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{z.count}</span>
+                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                                        {z.count}
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -534,8 +552,10 @@ export default function FilterHeader() {
 
                 {/* Date Range */}
                 <Select
-                    value={filters.dateRange ?? "60d"}
-                    onValueChange={(val) => setFilters((f) => ({ ...f, dateRange: val as DateRange }))}
+                    value={filters.dateRange ?? '60d'}
+                    onValueChange={(val) =>
+                        setFilters((f) => ({ ...f, dateRange: val as DateRange }))
+                    }
                 >
                     <SelectTrigger
                         className="h-8 w-[140px] text-xs flex-shrink-0"
@@ -545,9 +565,13 @@ export default function FilterHeader() {
                     </SelectTrigger>
                     <SelectContent className="z-[10000]">
                         {DATE_RANGE_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} data-testid={`option-date-range-${opt.value}`}>
-                            {opt.label}
-                        </SelectItem>
+                            <SelectItem
+                                key={opt.value}
+                                value={opt.value}
+                                data-testid={`option-date-range-${opt.value}`}
+                            >
+                                {opt.label}
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -556,42 +580,46 @@ export default function FilterHeader() {
                 <Popover open={priceOpen} onOpenChange={setPriceOpen}>
                     <PopoverTrigger asChild>
                         <button
-                        type="button"
-                        className={`flex items-center gap-1.5 h-8 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
-                            hasPriceFilter
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-input bg-background hover:bg-accent"
-                        }`}
-                        data-testid="button-price-trigger"
+                            type="button"
+                            className={`flex items-center gap-1.5 h-8 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
+                                hasPriceFilter
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-input bg-background hover:bg-accent'
+                            }`}
+                            data-testid="button-price-trigger"
                         >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        {priceLabel}
+                            <DollarSign className="w-3.5 h-3.5" />
+                            {priceLabel}
                         </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-72 p-4 z-[10000]" align="start">
                         <div className="space-y-3">
-                        <div className="text-xs font-medium">Price Range</div>
-                        <div className="text-xs text-muted-foreground">
-                            {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
-                        </div>
-                        <Slider
-                            value={priceRange}
-                            onValueChange={(newRange) => {
-                            setPriceRange(newRange as [number, number]);
-                            setFilters((f) => ({ ...f, minPrice: newRange[0], maxPrice: newRange[1] }));
-                            }}
-                            min={0}
-                            max={MAX_PRICE}
-                            step={50000}
-                            data-testid="slider-price"
-                        />
+                            <div className="text-xs font-medium">Price Range</div>
+                            <div className="text-xs text-muted-foreground">
+                                {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
+                            </div>
+                            <Slider
+                                value={priceRange}
+                                onValueChange={(newRange) => {
+                                    setPriceRange(newRange as [number, number]);
+                                    setFilters((f) => ({
+                                        ...f,
+                                        minPrice: newRange[0],
+                                        maxPrice: newRange[1],
+                                    }));
+                                }}
+                                min={0}
+                                max={MAX_PRICE}
+                                step={50000}
+                                data-testid="slider-price"
+                            />
                         </div>
                     </PopoverContent>
                 </Popover>
 
                 {/* Bedrooms */}
                 <Select
-                    value={filters.bedrooms ?? "Any"}
+                    value={filters.bedrooms ?? 'Any'}
                     onValueChange={(val) => setFilters((f) => ({ ...f, bedrooms: val }))}
                 >
                     <SelectTrigger
@@ -602,16 +630,20 @@ export default function FilterHeader() {
                     </SelectTrigger>
                     <SelectContent className="z-[10000]">
                         {BEDROOM_OPTIONS.map((opt) => (
-                        <SelectItem key={opt} value={opt} data-testid={`button-bedrooms-${opt}`}>
-                            {opt === "Any" ? "Any Beds" : `${opt} Beds`}
-                        </SelectItem>
+                            <SelectItem
+                                key={opt}
+                                value={opt}
+                                data-testid={`button-bedrooms-${opt}`}
+                            >
+                                {opt === 'Any' ? 'Any Beds' : `${opt} Beds`}
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
 
                 {/* Bathrooms */}
                 <Select
-                    value={filters.bathrooms ?? "Any"}
+                    value={filters.bathrooms ?? 'Any'}
                     onValueChange={(val) => setFilters((f) => ({ ...f, bathrooms: val }))}
                 >
                     <SelectTrigger
@@ -622,9 +654,13 @@ export default function FilterHeader() {
                     </SelectTrigger>
                     <SelectContent className="z-[10000]">
                         {BATHROOM_OPTIONS.map((opt) => (
-                        <SelectItem key={opt} value={opt} data-testid={`button-bathrooms-${opt}`}>
-                            {opt === "Any" ? "Any Baths" : `${opt} Baths`}
-                        </SelectItem>
+                            <SelectItem
+                                key={opt}
+                                value={opt}
+                                data-testid={`button-bathrooms-${opt}`}
+                            >
+                                {opt === 'Any' ? 'Any Baths' : `${opt} Baths`}
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -633,50 +669,50 @@ export default function FilterHeader() {
                 <DropdownMenu open={typeOpen} onOpenChange={setTypeOpen}>
                     <DropdownMenuTrigger asChild>
                         <button
-                        type="button"
-                        className={`flex items-center gap-1.5 h-8 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
-                            filters.propertyTypes.length > 0
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-input bg-background hover:bg-accent"
-                        }`}
-                        data-testid="button-type-trigger"
+                            type="button"
+                            className={`flex items-center gap-1.5 h-8 rounded-md border px-3 text-xs transition-colors flex-shrink-0 whitespace-nowrap ${
+                                filters.propertyTypes.length > 0
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-input bg-background hover:bg-accent'
+                            }`}
+                            data-testid="button-type-trigger"
                         >
-                        {propertyTypeLabel}
-                        <ChevronDown className="w-3 h-3 opacity-50" />
+                            {propertyTypeLabel}
+                            <ChevronDown className="w-3 h-3 opacity-50" />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-48 p-1 z-[10000]">
                         {PROPERTY_TYPES.map((type) => (
-                        <div
-                            key={type}
-                            className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted rounded-sm text-sm select-none"
-                            onClick={(e) => {
-                            e.preventDefault();
-                            togglePropertyType(type);
-                            }}
-                            data-testid={`checkbox-type-${type.toLowerCase().replace(" ", "-")}`}
-                        >
                             <div
-                            className={`w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 transition-colors ${
-                                filters.propertyTypes.includes(type)
-                                ? "bg-primary border-primary"
-                                : "border-input"
-                            }`}
+                                key={type}
+                                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted rounded-sm text-sm select-none"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    togglePropertyType(type);
+                                }}
+                                data-testid={`checkbox-type-${type.toLowerCase().replace(' ', '-')}`}
                             >
-                            {filters.propertyTypes.includes(type) && (
-                                <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none">
-                                <path
-                                    d="M2 6l3 3 5-5"
-                                    stroke="white"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                />
-                                </svg>
-                            )}
+                                <div
+                                    className={`w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 transition-colors ${
+                                        filters.propertyTypes.includes(type)
+                                            ? 'bg-primary border-primary'
+                                            : 'border-input'
+                                    }`}
+                                >
+                                    {filters.propertyTypes.includes(type) && (
+                                        <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none">
+                                            <path
+                                                d="M2 6l3 3 5-5"
+                                                stroke="white"
+                                                strokeWidth="1.5"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            />
+                                        </svg>
+                                    )}
+                                </div>
+                                {type}
                             </div>
-                            {type}
-                        </div>
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -685,19 +721,19 @@ export default function FilterHeader() {
                 {hasActiveFilters && (
                     <>
                         <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleClearFilters}
-                        className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
-                        data-testid="button-reset-filters"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleClearFilters}
+                            className="h-8 text-xs flex-shrink-0 text-muted-foreground hover:text-foreground px-2"
+                            data-testid="button-reset-filters"
                         >
-                        <X className="w-3 h-3 mr-1" />
-                        Clear
+                            <X className="w-3 h-3 mr-1" />
+                            Clear
                         </Button>
                     </>
                 )}
-
-            </div>{/* end flex container */}
+            </div>
+            {/* end flex container */}
         </div>
     );
 }

@@ -1,10 +1,10 @@
-import AppDialog from "@/components/modals/Dialog";
-import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2 } from "lucide-react";
-import RequestDealInfoForm from "@/components/deals/RequestDealInfoForm";
-import type { RequestDealInfoFormValues } from "@database/validation/deals.validation";
-import type { AuthUser } from "@/hooks/use-auth";
+import AppDialog from '@/components/modals/Dialog';
+import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
+import RequestDealInfoForm from '@/components/deals/RequestDealInfoForm';
+import type { RequestDealInfoFormValues } from '@database/validation/deals.validation';
+import type { AuthUser } from '@/hooks/use-auth';
 
 type RequestDealInfoDialogProps = {
     open: boolean;
@@ -34,7 +34,8 @@ export default function RequestDealInfoDialog({
                             <DialogTitle>Request Received</DialogTitle>
                         </div>
                         <DialogDescription>
-                            A member of our team will reach out to you shortly with more details regarding {address}.
+                            A member of our team will reach out to you shortly with more details
+                            regarding {address}.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="pt-4">

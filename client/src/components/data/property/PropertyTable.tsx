@@ -1,232 +1,246 @@
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { PROPERTY_STATUS } from "@/constants/propertyStatus.constants";
-import { formatDate, calculateDaysOwned } from "@/utils/date";
-import { ArrowUpDown } from "lucide-react";
-import { useState } from "react";
-import { formatAddress } from "@shared/utils/formatAddress";
-import type { PropertyTableProps } from "@/types/property";
-import type { SortColumn, SortDirection } from "@/types/options";
-import { useProperty } from "@/hooks/useProperty";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { formatCompanyName } from "@shared/utils/formatCompanyName";
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import { PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
+import { formatDate, calculateDaysOwned } from '@/utils/date';
+import { ArrowUpDown } from 'lucide-react';
+import { useState } from 'react';
+import { formatAddress } from '@shared/utils/formatAddress';
+import type { PropertyTableProps } from '@/types/property';
+import type { SortColumn, SortDirection } from '@/types/options';
+import { useProperty } from '@/hooks/useProperty';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {
-  Renovating: "#69C9E1",
-  Sold: "#FF0000",
-  OnMarket: "#22C55E",
-  Wholesale: "#9333EA",
+    Renovating: '#69C9E1',
+    Sold: '#FF0000',
+    OnMarket: '#22C55E',
+    Wholesale: '#9333EA',
 };
 
 function getStatusDots(status: string): string[] {
-  const s = (status || "").toLowerCase().trim();
-  if (s === PROPERTY_STATUS.IN_RENOVATION) return [STATUS_COLORS.Renovating];
-  if (s === PROPERTY_STATUS.SOLD) return [STATUS_COLORS.Sold];
-  if (s === PROPERTY_STATUS.ON_MARKET) return [STATUS_COLORS.OnMarket];
-  if (s === PROPERTY_STATUS.WHOLESALE) return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
-  return [STATUS_COLORS.Renovating];
+    const s = (status || '').toLowerCase().trim();
+    if (s === PROPERTY_STATUS.IN_RENOVATION) return [STATUS_COLORS.Renovating];
+    if (s === PROPERTY_STATUS.SOLD) return [STATUS_COLORS.Sold];
+    if (s === PROPERTY_STATUS.ON_MARKET) return [STATUS_COLORS.OnMarket];
+    if (s === PROPERTY_STATUS.WHOLESALE) return [STATUS_COLORS.Wholesale, STATUS_COLORS.Renovating];
+    return [STATUS_COLORS.Renovating];
 }
 
 const getStreetName = (address?: string | null) => {
-  if (!address) return "";
-  let s = address;
-  // Remove common prefixes like "unit 5", "#5", "apt 3", "suite 200"
-  s = s.replace(/^\s*(?:unit|apt|suite|#)\s*\d+[-\w]*\s+/i, '');
-  // Remove leading house number with optional letter or hyphen (e.g., "123", "123A", "123-1")
-  s = s.replace(/^\s*\d+[-\w]*\s+/, '');
-  return s.toLowerCase().trim();
+    if (!address) return '';
+    let s = address;
+    // Remove common prefixes like "unit 5", "#5", "apt 3", "suite 200"
+    s = s.replace(/^\s*(?:unit|apt|suite|#)\s*\d+[-\w]*\s+/i, '');
+    // Remove leading house number with optional letter or hyphen (e.g., "123", "123A", "123-1")
+    s = s.replace(/^\s*\d+[-\w]*\s+/, '');
+    return s.toLowerCase().trim();
 };
 
 export default function PropertyTable({ properties }: PropertyTableProps) {
+    const { fetchProperty } = useProperty();
+    const { requireAuth } = useRequireAuth();
 
-  const { fetchProperty } = useProperty();
-  const { requireAuth } = useRequireAuth();
+    const [sortColumn, setSortColumn] = useState<SortColumn>('dateSold');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  const [sortColumn, setSortColumn] = useState<SortColumn>("dateSold");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+    const handleSort = (column: SortColumn) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
 
-  const handleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
+    const sortedProperties = [...properties].sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
 
-  const sortedProperties = [...properties].sort((a, b) => {
-    let aValue: any;
-    let bValue: any;
+        // Special handling for calculated columns
+        if (sortColumn === 'daysOwned') {
+            aValue = calculateDaysOwned(a.dateSold) ?? -1;
+            bValue = calculateDaysOwned(b.dateSold) ?? -1;
+        } else {
+            aValue = a[sortColumn];
+            bValue = b[sortColumn];
+        }
 
-    // Special handling for calculated columns
-    if (sortColumn === "daysOwned") {
-      aValue = calculateDaysOwned(a.dateSold) ?? -1;
-      bValue = calculateDaysOwned(b.dateSold) ?? -1;
-    } else {
-      aValue = a[sortColumn];
-      bValue = b[sortColumn];
-    }
+        // If sorting by address, prefer the street name (strip leading numbers like house/unit)
+        if (sortColumn === 'address') {
+            aValue = getStreetName(a.address);
+            bValue = getStreetName(b.address);
+        }
 
-    // If sorting by address, prefer the street name (strip leading numbers like house/unit)
-    if (sortColumn === "address") {
-      aValue = getStreetName(a.address);
-      bValue = getStreetName(b.address);
-    }
+        // Handle null/undefined values
+        if (aValue == null && bValue == null) return 0;
+        if (aValue == null) return 1;
+        if (bValue == null) return -1;
 
-    // Handle null/undefined values
-    if (aValue == null && bValue == null) return 0;
-    if (aValue == null) return 1;
-    if (bValue == null) return -1;
+        // Column-specific sorting logic
+        if (
+            sortColumn === 'price' ||
+            sortColumn === 'squareFeet' ||
+            sortColumn === 'bedrooms' ||
+            sortColumn === 'bathrooms' ||
+            sortColumn === 'daysOwned'
+        ) {
+            // Numeric columns
+            aValue = Number(aValue);
+            bValue = Number(bValue);
+        } else if (sortColumn === 'dateSold') {
+            // Date column
+            aValue = aValue ? new Date(aValue).getTime() : 0;
+            bValue = bValue ? new Date(bValue).getTime() : 0;
+        } else if (typeof aValue === 'string') {
+            // String columns (address, city, propertyType, propertyOwner)
+            aValue = aValue.toLowerCase();
+            bValue = bValue.toLowerCase();
+        }
 
-    // Column-specific sorting logic
-    if (sortColumn === "price" || sortColumn === "squareFeet" || sortColumn === "bedrooms" || sortColumn === "bathrooms" || sortColumn === "daysOwned") {
-      // Numeric columns
-      aValue = Number(aValue);
-      bValue = Number(bValue);
-    } else if (sortColumn === "dateSold") {
-      // Date column
-      aValue = aValue ? new Date(aValue).getTime() : 0;
-      bValue = bValue ? new Date(bValue).getTime() : 0;
-    } else if (typeof aValue === "string") {
-      // String columns (address, city, propertyType, propertyOwner)
-      aValue = aValue.toLowerCase();
-      bValue = bValue.toLowerCase();
-    }
+        if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
 
-    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-    return 0;
-  });
-
-  const SortButton = ({ column, children }: { column: SortColumn; children: React.ReactNode }) => {
-    const isActive = sortColumn === column;
-    return (
-      <button
-        onClick={() => handleSort(column)}
-        className="flex items-center gap-1 font-medium hover-elevate active-elevate-2 px-3 py-1 rounded-md -ml-3"
-        data-testid={`button-sort-${column}`}
-      >
-        {children}
-        <ArrowUpDown 
-          className={`h-3 w-3 transition-transform ${
-            isActive ? (sortDirection === "asc" ? "rotate-180" : "") : "opacity-50"
-          }`} 
-        />
-      </button>
-    );
-  };
-
-  return (
-    <div className="w-full overflow-x-auto" data-testid="table-properties">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-8 px-2" />
-            <TableHead className="min-w-[200px]">
-              <SortButton column="address">Address</SortButton>
-            </TableHead>
-            <TableHead className="min-w-[120px]">
-              <SortButton column="city">City</SortButton>
-            </TableHead>
-            <TableHead className="min-w-[120px]">
-              <SortButton column="price">Purchase Price</SortButton>
-            </TableHead>
-            <TableHead className="text-center">
-              <SortButton column="bedrooms">Beds</SortButton>
-            </TableHead>
-            <TableHead className="text-center">
-              <SortButton column="bathrooms">Baths</SortButton>
-            </TableHead>
-            <TableHead className="text-center">
-              <SortButton column="squareFeet">Sq Ft</SortButton>
-            </TableHead>
-            <TableHead className="min-w-[120px]">
-              <SortButton column="propertyType">Type</SortButton>
-            </TableHead>
-            <TableHead className="min-w-[150px]">
-              <SortButton column="propertyOwner">Company</SortButton>
-            </TableHead>
-            <TableHead className="text-center">
-              <SortButton column="daysOwned">Days Owned</SortButton>
-            </TableHead>
-            <TableHead className="min-w-[120px]">
-              <SortButton column="dateSold">Date Sold</SortButton>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedProperties.map((property) => (
-            <TableRow
-              key={property.id}
-              onClick={() => requireAuth(() => fetchProperty(property.id))}
-              className="cursor-pointer hover-elevate"
-              data-testid={`row-property-${property.id}`}
+    const SortButton = ({
+        column,
+        children,
+    }: {
+        column: SortColumn;
+        children: React.ReactNode;
+    }) => {
+        const isActive = sortColumn === column;
+        return (
+            <button
+                onClick={() => handleSort(column)}
+                className="flex items-center gap-1 font-medium hover-elevate active-elevate-2 px-3 py-1 rounded-md -ml-3"
+                data-testid={`button-sort-${column}`}
             >
-              <TableCell className="w-8 px-2 align-middle">
-                <div className="flex flex-col gap-1 items-center justify-center">
-                  {getStatusDots(property.status).map((color, i) => (
-                    <span
-                      key={i}
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                      data-testid={`status-dot-${property.id}-${i}`}
-                    />
-                  ))}
-                </div>
-              </TableCell>
-              <TableCell className="font-medium">
-                <div>{formatAddress(property.address)}</div>
-                <div className="text-xs text-muted-foreground">
-                  {property.state} {property.zipCode}
-                </div>
-              </TableCell>
-              <TableCell>{formatAddress(property.city)}</TableCell>
-              <TableCell className="font-semibold">
-                ${property.price.toLocaleString()}
-              </TableCell>
-              <TableCell className="text-center">{property.bedrooms}</TableCell>
-              <TableCell className="text-center">{property.bathrooms}</TableCell>
-              <TableCell className="text-center">
-                {property.squareFeet.toLocaleString()}
-              </TableCell>
-              <TableCell>{property.propertyType}</TableCell>
-              <TableCell>
-                {formatCompanyName(property.companyName) || (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell className="text-center">
-                {calculateDaysOwned(property.dateSold) !== null ? (
-                  `${calculateDaysOwned(property.dateSold)} days`
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              <TableCell>
-                {property.dateSold ? (
-                  formatDate(property.dateSold)
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-          {sortedProperties.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
-                No properties found
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
+                {children}
+                <ArrowUpDown
+                    className={`h-3 w-3 transition-transform ${
+                        isActive ? (sortDirection === 'asc' ? 'rotate-180' : '') : 'opacity-50'
+                    }`}
+                />
+            </button>
+        );
+    };
+
+    return (
+        <div className="w-full overflow-x-auto" data-testid="table-properties">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-8 px-2" />
+                        <TableHead className="min-w-[200px]">
+                            <SortButton column="address">Address</SortButton>
+                        </TableHead>
+                        <TableHead className="min-w-[120px]">
+                            <SortButton column="city">City</SortButton>
+                        </TableHead>
+                        <TableHead className="min-w-[120px]">
+                            <SortButton column="price">Purchase Price</SortButton>
+                        </TableHead>
+                        <TableHead className="text-center">
+                            <SortButton column="bedrooms">Beds</SortButton>
+                        </TableHead>
+                        <TableHead className="text-center">
+                            <SortButton column="bathrooms">Baths</SortButton>
+                        </TableHead>
+                        <TableHead className="text-center">
+                            <SortButton column="squareFeet">Sq Ft</SortButton>
+                        </TableHead>
+                        <TableHead className="min-w-[120px]">
+                            <SortButton column="propertyType">Type</SortButton>
+                        </TableHead>
+                        <TableHead className="min-w-[150px]">
+                            <SortButton column="propertyOwner">Company</SortButton>
+                        </TableHead>
+                        <TableHead className="text-center">
+                            <SortButton column="daysOwned">Days Owned</SortButton>
+                        </TableHead>
+                        <TableHead className="min-w-[120px]">
+                            <SortButton column="dateSold">Date Sold</SortButton>
+                        </TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {sortedProperties.map((property) => (
+                        <TableRow
+                            key={property.id}
+                            onClick={() => requireAuth(() => fetchProperty(property.id))}
+                            className="cursor-pointer hover-elevate"
+                            data-testid={`row-property-${property.id}`}
+                        >
+                            <TableCell className="w-8 px-2 align-middle">
+                                <div className="flex flex-col gap-1 items-center justify-center">
+                                    {getStatusDots(property.status).map((color, i) => (
+                                        <span
+                                            key={i}
+                                            className="w-2 h-2 rounded-full shrink-0"
+                                            style={{ backgroundColor: color }}
+                                            data-testid={`status-dot-${property.id}-${i}`}
+                                        />
+                                    ))}
+                                </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                                <div>{formatAddress(property.address)}</div>
+                                <div className="text-xs text-muted-foreground">
+                                    {property.state} {property.zipCode}
+                                </div>
+                            </TableCell>
+                            <TableCell>{formatAddress(property.city)}</TableCell>
+                            <TableCell className="font-semibold">
+                                ${property.price.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-center">{property.bedrooms}</TableCell>
+                            <TableCell className="text-center">{property.bathrooms}</TableCell>
+                            <TableCell className="text-center">
+                                {property.squareFeet.toLocaleString()}
+                            </TableCell>
+                            <TableCell>{property.propertyType}</TableCell>
+                            <TableCell>
+                                {formatCompanyName(property.companyName) || (
+                                    <span className="text-muted-foreground">—</span>
+                                )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                                {calculateDaysOwned(property.dateSold) !== null ? (
+                                    `${calculateDaysOwned(property.dateSold)} days`
+                                ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                )}
+                            </TableCell>
+                            <TableCell>
+                                {property.dateSold ? (
+                                    formatDate(property.dateSold)
+                                ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                )}
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                    {sortedProperties.length === 0 && (
+                        <TableRow>
+                            <TableCell
+                                colSpan={11}
+                                className="text-center text-muted-foreground py-8"
+                            >
+                                No properties found
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </div>
+    );
 }

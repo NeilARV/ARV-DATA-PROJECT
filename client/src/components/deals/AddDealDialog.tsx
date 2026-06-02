@@ -1,23 +1,30 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2 } from "lucide-react";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { dealFormSchema } from "@database/inserts/deals.insert";
-import type { DealFormValues } from "@database/inserts/deals.insert";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
-import { useAuth } from "@/hooks/use-auth";
-import { Textarea } from "@/components/ui/textarea";
-import AppDialog from "@/components/modals/Dialog";
-import ContactContent from "@/components/modals/Contact";
-import DealFormFields, { ADD_DEAL_TYPES } from "@/components/deals/DealFormFields";
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { dealFormSchema } from '@database/inserts/deals.insert';
+import type { DealFormValues } from '@database/inserts/deals.insert';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
+import { useAuth } from '@/hooks/use-auth';
+import { Textarea } from '@/components/ui/textarea';
+import AppDialog from '@/components/modals/Dialog';
+import ContactContent from '@/components/modals/Contact';
+import DealFormFields, { ADD_DEAL_TYPES } from '@/components/deals/DealFormFields';
 
 type AddDealDialogProps = {
     open: boolean;
@@ -31,87 +38,99 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
     const canEditPrivilegedFields = isAdmin || isOwner || isRelationshipManager;
     const [showContact, setShowContact] = useState(false);
     const [links, setLinks] = useState<string[]>([]);
-    const [photosUrl, setPhotosUrl] = useState("");
+    const [photosUrl, setPhotosUrl] = useState('');
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealFormSchema),
         defaultValues: {
-            address:           "",
-            city:              "",
-            state:             "",
-            zipCode:           "",
-            price:             undefined,
-            potentialARV:      undefined,
-            showingDate:       undefined,
-            showingTimeStr:    undefined,
-            showingAmPm:       "AM" as const,
-            estimatedBudget:   undefined,
-            dealType:          "agent",
-            beds:              undefined,
-            baths:             undefined,
-            sqft:              undefined,
-            propertyType:      undefined,
-            notes:             "",
-            adminNotes:        "",
+            address: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            price: undefined,
+            potentialARV: undefined,
+            showingDate: undefined,
+            showingTimeStr: undefined,
+            showingAmPm: 'AM' as const,
+            estimatedBudget: undefined,
+            dealType: 'agent',
+            beds: undefined,
+            baths: undefined,
+            sqft: undefined,
+            propertyType: undefined,
+            notes: '',
+            adminNotes: '',
             sendNotifications: true,
-            isArvExclusive:    false,
-            onBehalfOfEmail:   undefined,
+            isArvExclusive: false,
+            onBehalfOfEmail: undefined,
         },
     });
 
-    const addressValue = useWatch({ control: form.control, name: "address" });
-    const hasFullAddress = typeof addressValue === "string" && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
+    const addressValue = useWatch({ control: form.control, name: 'address' });
+    const hasFullAddress =
+        typeof addressValue === 'string' && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
 
     const postDeal = useMutation({
         mutationFn: async (data: DealFormValues) => {
-            const res = await apiRequest("POST", "/api/deals", {
-                address:           data.address?.trim() || undefined,
-                city:              data.city,
-                state:             data.state,
-                zipCode:           data.zipCode,
-                userId:            user?.id,
-                dealType:          data.dealType,
-                price:             data.price,
-                potentialARV:      data.potentialARV,
-                showingTime:       (() => {
-                                       if (!data.showingDate) return undefined;
-                                       const [m, d, y] = data.showingDate.split("/");
-                                       let hh = data.showingTimeStr ? parseInt(data.showingTimeStr.split(":")[0], 10) : 0;
-                                       const mm = data.showingTimeStr ? (data.showingTimeStr.split(":")[1] ?? "00") : "00";
-                                       if (data.showingAmPm === "PM" && hh < 12) hh += 12;
-                                       if (data.showingAmPm === "AM" && hh === 12) hh = 0;
-                                       return `${y}-${m}-${d}T${String(hh).padStart(2, "0")}:${mm}:00`;
-                                   })(),
-                estimatedBudget:   data.estimatedBudget ?? undefined,
-                beds:              data.beds,
-                baths:             data.baths,
-                sqft:              data.sqft,
-                propertyType:      data.propertyType,
-                notes:             data.notes?.trim() || undefined,
-                adminNotes:        data.adminNotes?.trim() || undefined,
-                photosUrl:         photosUrl.trim() || undefined,
+            const res = await apiRequest('POST', '/api/deals', {
+                address: data.address?.trim() || undefined,
+                city: data.city,
+                state: data.state,
+                zipCode: data.zipCode,
+                userId: user?.id,
+                dealType: data.dealType,
+                price: data.price,
+                potentialARV: data.potentialARV,
+                showingTime: (() => {
+                    if (!data.showingDate) return undefined;
+                    const [m, d, y] = data.showingDate.split('/');
+                    let hh = data.showingTimeStr
+                        ? parseInt(data.showingTimeStr.split(':')[0], 10)
+                        : 0;
+                    const mm = data.showingTimeStr
+                        ? (data.showingTimeStr.split(':')[1] ?? '00')
+                        : '00';
+                    if (data.showingAmPm === 'PM' && hh < 12) hh += 12;
+                    if (data.showingAmPm === 'AM' && hh === 12) hh = 0;
+                    return `${y}-${m}-${d}T${String(hh).padStart(2, '0')}:${mm}:00`;
+                })(),
+                estimatedBudget: data.estimatedBudget ?? undefined,
+                beds: data.beds,
+                baths: data.baths,
+                sqft: data.sqft,
+                propertyType: data.propertyType,
+                notes: data.notes?.trim() || undefined,
+                adminNotes: data.adminNotes?.trim() || undefined,
+                photosUrl: photosUrl.trim() || undefined,
                 sendNotifications: data.sendNotifications,
-                links:             links.filter((u) => { try { new URL(u); return true; } catch { return false; } }),
-                isArvExclusive:    data.isArvExclusive,
-                onBehalfOfEmail:   data.onBehalfOfEmail || undefined,
+                links: links.filter((u) => {
+                    try {
+                        new URL(u);
+                        return true;
+                    } catch {
+                        return false;
+                    }
+                }),
+                isArvExclusive: data.isArvExclusive,
+                onBehalfOfEmail: data.onBehalfOfEmail || undefined,
             });
             return res.json();
         },
         onSuccess: () => {
-            toast({ title: "Deal Posted", description: "Your deal has been added to the feed." });
-            queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
+            toast({ title: 'Deal Posted', description: 'Your deal has been added to the feed.' });
+            queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
             form.reset();
             setLinks([]);
-            setPhotosUrl("");
+            setPhotosUrl('');
             onClose();
         },
         onError: (err: any) => {
-            const is403 = typeof err?.message === "string" && err.message.startsWith("403:");
+            const is403 = typeof err?.message === 'string' && err.message.startsWith('403:');
             if (is403) {
                 toast({
-                    title: "Upgrade Required",
-                    description: "Upgrade your account to access this feature.",
-                    variant: "destructive",
+                    title: 'Upgrade Required',
+                    description: 'Upgrade your account to access this feature.',
+                    variant: 'destructive',
                     action: (
                         <ToastAction altText="Contact us" onClick={() => setShowContact(true)}>
                             Contact Us
@@ -119,7 +138,11 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                     ),
                 });
             } else {
-                toast({ title: "Error", description: err.message || "Failed to post deal", variant: "destructive" });
+                toast({
+                    title: 'Error',
+                    description: err.message || 'Failed to post deal',
+                    variant: 'destructive',
+                });
             }
         },
     });
@@ -128,13 +151,17 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
         if (postDeal.isPending) return;
         form.reset();
         setLinks([]);
-        setPhotosUrl("");
+        setPhotosUrl('');
         onClose();
     };
 
     return (
         <>
-            <AppDialog open={open} onClose={handleClose} className="max-w-[350px] sm:max-w-lg lg:max-w-2xl">
+            <AppDialog
+                open={open}
+                onClose={handleClose}
+                className="max-w-[350px] sm:max-w-lg lg:max-w-2xl"
+            >
                 <DialogHeader>
                     <DialogTitle>Post a Deal</DialogTitle>
                 </DialogHeader>
@@ -160,7 +187,10 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                             render={({ field }) => (
                                 <FormItem className="flex items-center gap-2 space-y-0">
                                     <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                        <Checkbox
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
                                     </FormControl>
                                     <FormLabel className="font-normal cursor-pointer">
                                         Send notification email
@@ -211,11 +241,12 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                                                             {...field}
                                                             type="email"
                                                             placeholder="client@example.com"
-                                                            value={field.value ?? ""}
+                                                            value={field.value ?? ''}
                                                         />
                                                     </FormControl>
                                                     <p className="text-xs text-muted-foreground">
-                                                        Client email — receives contact requests instead of the poster
+                                                        Client email — receives contact requests
+                                                        instead of the poster
                                                     </p>
                                                     <FormMessage />
                                                 </FormItem>
@@ -228,7 +259,10 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                                             render={({ field }) => (
                                                 <FormItem className="flex items-center gap-2 space-y-0">
                                                     <FormControl>
-                                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                                        <Checkbox
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                        />
                                                     </FormControl>
                                                     <FormLabel className="font-normal cursor-pointer">
                                                         ARV Exclusive deal
@@ -262,7 +296,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                                         Posting...
                                     </>
                                 ) : (
-                                    "Post Deal"
+                                    'Post Deal'
                                 )}
                             </Button>
                         </div>
@@ -270,12 +304,20 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 </Form>
             </AppDialog>
 
-            <AppDialog hideOverlay open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
+            <AppDialog
+                hideOverlay
+                open={showContact}
+                onClose={() => setShowContact(false)}
+                className="max-w-lg"
+            >
                 {showContact && (
                     <ContactContent
                         onClose={() => setShowContact(false)}
                         onSuccess={() => {
-                            toast({ title: "Request Received", description: "We will get back to you shortly." });
+                            toast({
+                                title: 'Request Received',
+                                description: 'We will get back to you shortly.',
+                            });
                         }}
                         defaultSubject="Upgrade Account"
                         defaultFirstName={user?.firstName}

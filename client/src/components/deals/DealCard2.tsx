@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
     Handshake,
     Loader2,
@@ -23,8 +23,8 @@ import {
     ChevronDown,
     ChevronsUp,
     Link2,
-} from "lucide-react";
-import { formatAddress } from "@shared/utils/formatAddress";
+} from 'lucide-react';
+import { formatAddress } from '@shared/utils/formatAddress';
 
 type DealCardProps = {
     deal: Deal;
@@ -44,13 +44,13 @@ type DealCardProps = {
 };
 
 function formatShowingTime(isoStr: string): string {
-    const normalized = isoStr.replace(" ", "T");
-    const [datePart, timePart] = normalized.split("T");
-    const [y, m, d] = datePart.split("-");
+    const normalized = isoStr.replace(' ', 'T');
+    const [datePart, timePart] = normalized.split('T');
+    const [y, m, d] = datePart.split('-');
     if (!timePart) return `${m}/${d}/${y}`;
-    const [hhStr, mmStr] = timePart.split(":");
+    const [hhStr, mmStr] = timePart.split(':');
     let hh = parseInt(hhStr, 10);
-    const ampm = hh >= 12 ? "PM" : "AM";
+    const ampm = hh >= 12 ? 'PM' : 'AM';
     if (hh > 12) hh -= 12;
     if (hh === 0) hh = 12;
     return `${m}/${d}/${y} at ${hh}:${mmStr} ${ampm}`;
@@ -61,15 +61,19 @@ function formatDatePosted(dateStr: string): string {
     const now = new Date();
     const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
     if (posted < oneYearAgo) {
-        return posted.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        return posted.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
     }
-    return posted.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 const DEAL_TYPE_STYLES: Record<string, { bg: string; label: string }> = {
-    wholesale: { bg: "#9333EA", label: "Wholesale" },
-    sold:      { bg: "#FF0000", label: "Sold" },
-    agent:     { bg: "#F97316", label: "Agent" },
+    wholesale: { bg: '#9333EA', label: 'Wholesale' },
+    sold: { bg: '#FF0000', label: 'Sold' },
+    agent: { bg: '#F97316', label: 'Agent' },
 };
 
 export default function DealCard2({
@@ -88,7 +92,7 @@ export default function DealCard2({
     onRequestInfo,
     onTopBuyers,
 }: DealCardProps) {
-    const [imageUrl, setImageUrl] = useState("");
+    const [imageUrl, setImageUrl] = useState('');
     const [imageLoading, setImageLoading] = useState(true);
 
     useEffect(() => {
@@ -97,30 +101,38 @@ export default function DealCard2({
             return;
         }
         const img = new Image();
-        img.onload  = () => { setImageUrl(deal.streetViewUrl!); setImageLoading(false); };
+        img.onload = () => {
+            setImageUrl(deal.streetViewUrl!);
+            setImageLoading(false);
+        };
         img.onerror = () => setImageLoading(false);
         img.src = deal.streetViewUrl;
     }, [deal.streetViewUrl]);
 
-    const price           = deal.price           ? Number(deal.price)           : null;
-    const potentialARV    = deal.potentialARV     ? Number(deal.potentialARV)    : null;
-    const showingTime     = deal.showingTime ?? null;
-    const estimatedBudget = deal.estimatedBudget  != null ? Number(deal.estimatedBudget) : null;
-    const beds            = deal.beds             ? Number(deal.beds)             : null;
-    const baths           = deal.baths || null;
-    const sqft            = deal.sqft             ? Number(deal.sqft)             : null;
+    const price = deal.price ? Number(deal.price) : null;
+    const potentialARV = deal.potentialARV ? Number(deal.potentialARV) : null;
+    const showingTime = deal.showingTime ?? null;
+    const estimatedBudget = deal.estimatedBudget != null ? Number(deal.estimatedBudget) : null;
+    const beds = deal.beds ? Number(deal.beds) : null;
+    const baths = deal.baths || null;
+    const sqft = deal.sqft ? Number(deal.sqft) : null;
 
-    const typeStyle            = DEAL_TYPE_STYLES[deal.dealType] ?? DEAL_TYPE_STYLES.agent;
+    const typeStyle = DEAL_TYPE_STYLES[deal.dealType] ?? DEAL_TYPE_STYLES.agent;
     const hasExpandableContent = true; // notes section always renders in expanded view
 
     return (
-        <div className={`rounded-xl border-2 bg-card overflow-hidden flex flex-col transition-colors ${
-            expanded ? "border-primary" : "border-border hover:border-primary"
-        }`}>
-
+        <div
+            className={`rounded-xl border-2 bg-card overflow-hidden flex flex-col transition-colors ${
+                expanded ? 'border-primary' : 'border-border hover:border-primary'
+            }`}
+        >
             {/* ── Main body — click anywhere to expand ─────────────────────── */}
             <div
-                className={hasExpandableContent ? "flex flex-col md:flex-row cursor-pointer select-none" : "flex flex-col md:flex-row"}
+                className={
+                    hasExpandableContent
+                        ? 'flex flex-col md:flex-row cursor-pointer select-none'
+                        : 'flex flex-col md:flex-row'
+                }
                 onClick={() => hasExpandableContent && onToggle()}
             >
                 {/* Street view image — full-width banner below 500px, fixed sidebar above */}
@@ -130,7 +142,7 @@ export default function DealCard2({
                     ) : imageUrl ? (
                         <img
                             src={imageUrl}
-                            alt={deal.address ?? ""}
+                            alt={deal.address ?? ''}
                             className="absolute inset-0 w-full h-full object-cover block"
                         />
                     ) : (
@@ -139,13 +151,16 @@ export default function DealCard2({
                     {/* Badges: ARV Exclusive (left) + deal type (right), both left-aligned */}
                     <div className="absolute top-2 left-2 flex items-center gap-1.5">
                         {deal.isArvExclusive && (
-                            <span className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm" style={{ backgroundColor: "#ffffff", color: "#000000" }}>
+                            <span
+                                className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm"
+                                style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                            >
                                 ★ ARV Exclusive
                             </span>
                         )}
                         <span
                             className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm"
-                            style={{ backgroundColor: typeStyle.bg, color: "#fff" }}
+                            style={{ backgroundColor: typeStyle.bg, color: '#fff' }}
                         >
                             {typeStyle.label}
                         </span>
@@ -154,15 +169,16 @@ export default function DealCard2({
 
                 {/* ── Right content ─────────────────────────────────────────── */}
                 <div className="flex-1 min-w-0 px-4 md:px-5 pt-4 pb-2 flex flex-col gap-3">
-
                     {/* Address row + time ago + 3-dot menu */}
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                             <p className="font-semibold text-base lg:text-lg leading-tight truncate text-foreground">
-                                {formatAddress(deal.address) ?? "Undisclosed Address"}
+                                {formatAddress(deal.address) ?? 'Undisclosed Address'}
                             </p>
                             <p className="deal-card-address mt-0.5">
-                                {[formatAddress(deal.city), deal.state, deal.zipCode].filter(Boolean).join(", ")}
+                                {[formatAddress(deal.city), deal.state, deal.zipCode]
+                                    .filter(Boolean)
+                                    .join(', ')}
                             </p>
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
@@ -177,11 +193,18 @@ export default function DealCard2({
                             </span>
                             {canRequestContact && (
                                 <div onClick={(e) => e.stopPropagation()}>
-                                    <Button variant="default" size="base" onClick={onRequestInfo} disabled={isRequestingInfo} className="hidden md:inline-flex gap-1.5 mr-1.5">
-                                        {isRequestingInfo
-                                            ? <Loader2 className="deal-card-sub-icon animate-spin" />
-                                            : <Phone className="deal-card-sub-icon" />
-                                        }
+                                    <Button
+                                        variant="default"
+                                        size="base"
+                                        onClick={onRequestInfo}
+                                        disabled={isRequestingInfo}
+                                        className="hidden md:inline-flex gap-1.5 mr-1.5"
+                                    >
+                                        {isRequestingInfo ? (
+                                            <Loader2 className="deal-card-sub-icon animate-spin" />
+                                        ) : (
+                                            <Phone className="deal-card-sub-icon" />
+                                        )}
                                         Request More Info
                                     </Button>
                                 </div>
@@ -200,7 +223,10 @@ export default function DealCard2({
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="z-[10001]">
                                             {canEdit && (
-                                                <DropdownMenuItem className="gap-2 cursor-pointer" onSelect={onEdit}>
+                                                <DropdownMenuItem
+                                                    className="gap-2 cursor-pointer"
+                                                    onSelect={onEdit}
+                                                >
                                                     <Pencil className="h-4 w-4" />
                                                     Edit Deal
                                                 </DropdownMenuItem>
@@ -226,7 +252,7 @@ export default function DealCard2({
                         <div className="flex items-center gap-4 text-sm lg:text-base text-foreground">
                             {beds !== null && (
                                 <span className="flex items-center gap-1.5">
-                                    <Bed className="deal-card-icon"/>
+                                    <Bed className="deal-card-icon" />
                                     {beds} bd
                                 </span>
                             )}
@@ -249,41 +275,56 @@ export default function DealCard2({
                     <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full md:w-3/4">
                         <div className="flex flex-col">
                             <span className="deal-card-label">Purchase Price</span>
-                            {price !== null && price > 0
-                                ? <span className="deal-card-value">${price.toLocaleString()}</span>
-                                : <span className="deal-card-value-empty">—</span>
-                            }
+                            {price !== null && price > 0 ? (
+                                <span className="deal-card-value">${price.toLocaleString()}</span>
+                            ) : (
+                                <span className="deal-card-value-empty">—</span>
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <span className="deal-card-label">Potential ARV</span>
-                            {potentialARV !== null && potentialARV > 0
-                                ? <span className="deal-card-value text-[#2e7d32]">${potentialARV.toLocaleString()}</span>
-                                : <span className="deal-card-value-empty">—</span>
-                            }
+                            {potentialARV !== null && potentialARV > 0 ? (
+                                <span className="deal-card-value text-[#2e7d32]">
+                                    ${potentialARV.toLocaleString()}
+                                </span>
+                            ) : (
+                                <span className="deal-card-value-empty">—</span>
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <span className="deal-card-label">Est. Budget</span>
-                            {estimatedBudget !== null && estimatedBudget > 0
-                                ? <span className="deal-card-value">${estimatedBudget.toLocaleString()}</span>
-                                : <span className="deal-card-value-empty">—</span>
-                            }
+                            {estimatedBudget !== null && estimatedBudget > 0 ? (
+                                <span className="deal-card-value">
+                                    ${estimatedBudget.toLocaleString()}
+                                </span>
+                            ) : (
+                                <span className="deal-card-value-empty">—</span>
+                            )}
                         </div>
                         <div className="flex flex-col">
                             <span className="deal-card-label">Showing</span>
-                            {showingTime
-                                ? <span className="deal-card-value">{formatShowingTime(showingTime)}</span>
-                                : <span className="deal-card-value-empty">—</span>
-                            }
+                            {showingTime ? (
+                                <span className="deal-card-value">
+                                    {formatShowingTime(showingTime)}
+                                </span>
+                            ) : (
+                                <span className="deal-card-value-empty">—</span>
+                            )}
                         </div>
                     </div>
 
                     {/* View More indicator — part of the card top section */}
                     {hasExpandableContent && (
                         <div className="flex items-center justify-center gap-1 pt-1 text-sm text-white select-none">
-                            {expanded
-                                ? <><ChevronsUp className="w-4 h-4" /> View Less</>
-                                : <><ChevronDown className="w-4 h-4" /> View More</>
-                            }
+                            {expanded ? (
+                                <>
+                                    <ChevronsUp className="w-4 h-4" /> View Less
+                                </>
+                            ) : (
+                                <>
+                                    <ChevronDown className="w-4 h-4" /> View More
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -295,7 +336,9 @@ export default function DealCard2({
                     <div>
                         <p className="deal-card-label">Notes</p>
                         <p className="text-sm lg:text-base text-foreground leading-relaxed">
-                            {deal.notes || <span className="text-foreground">No notes available.</span>}
+                            {deal.notes || (
+                                <span className="text-foreground">No notes available.</span>
+                            )}
                         </p>
                     </div>
                     {deal.photosUrl && (
@@ -341,10 +384,11 @@ export default function DealCard2({
                                         disabled={isRequestingInfo}
                                         className="deal-card-link disabled:opacity-50"
                                     >
-                                        {isRequestingInfo
-                                            ? <Loader2 className="deal-card-sub-icon animate-spin" />
-                                            : <Phone className="deal-card-sub-icon" />
-                                        }
+                                        {isRequestingInfo ? (
+                                            <Loader2 className="deal-card-sub-icon animate-spin" />
+                                        ) : (
+                                            <Phone className="deal-card-sub-icon" />
+                                        )}
                                         Request More Info
                                     </button>
                                 </div>
@@ -375,26 +419,37 @@ export default function DealCard2({
                         <User className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                         <span className="deal-card-label">Posted by:</span>
                         {[
-                            [deal.userFirstName, deal.userLastName].filter(Boolean).join(" ") || "Unknown",
+                            [deal.userFirstName, deal.userLastName].filter(Boolean).join(' ') ||
+                                'Unknown',
                             deal.userEmail,
                             deal.userPhone,
-                        ].filter(Boolean).map((item, i, arr) => (
-                            <span key={i} className="flex items-center gap-1.5">
-                                <span className="text-sm lg:text-base text-foreground">{item}</span>
-                                {i < arr.length - 1 && <span className="text-muted-foreground">|</span>}
-                            </span>
-                        ))}
+                        ]
+                            .filter(Boolean)
+                            .map((item, i, arr) => (
+                                <span key={i} className="flex items-center gap-1.5">
+                                    <span className="text-sm lg:text-base text-foreground">
+                                        {item}
+                                    </span>
+                                    {i < arr.length - 1 && (
+                                        <span className="text-muted-foreground">|</span>
+                                    )}
+                                </span>
+                            ))}
                     </div>
                     {deal.onBehalfOfEmail && (
                         <div className="flex items-center gap-1.5">
                             <span className="deal-card-label shrink-0">On Behalf Of:</span>
-                            <span className="text-sm lg:text-base text-foreground">{deal.onBehalfOfEmail}</span>
+                            <span className="text-sm lg:text-base text-foreground">
+                                {deal.onBehalfOfEmail}
+                            </span>
                         </div>
                     )}
                     {deal.adminNotes && (
                         <div className="flex items-center gap-1.5">
                             <span className="deal-card-label shrink-0">Internal Note:</span>
-                            <span className="text-sm lg:text-base text-foreground">{deal.adminNotes}</span>
+                            <span className="text-sm lg:text-base text-foreground">
+                                {deal.adminNotes}
+                            </span>
                         </div>
                     )}
                 </div>

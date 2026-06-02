@@ -11,18 +11,18 @@ import { useGeoMap } from '@/hooks/useMap';
 import { useProperty } from '@/hooks/useProperty';
 
 const createColoredIcon = (color: string) => {
-  const svgIcon = `
+    const svgIcon = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="41">
       <path fill="${color}" stroke="#333" stroke-width="1" d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 24 12 24s12-16.8 12-24c0-6.6-5.4-12-12-12z"/>
       <circle fill="#fff" cx="12" cy="12" r="5"/>
     </svg>
   `;
-  return new L.Icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(svgIcon)}`,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [-120, -34],
-  });
+    return new L.Icon({
+        iconUrl: `data:image/svg+xml;base64,${btoa(svgIcon)}`,
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [-120, -34],
+    });
 };
 
 const blueIcon = createColoredIcon('#69C9E1');
@@ -34,223 +34,250 @@ const purpleIcon = createColoredIcon('#9333EA');
 const selectedBlueIcon = createColoredIcon('#FFA500');
 
 const getIconForPin = (
-  pin: MapPin,
-  isSelected: boolean,
-  selectedCompanyId: string | null | undefined,
-  statusFilters: string[]
+    pin: MapPin,
+    isSelected: boolean,
+    selectedCompanyId: string | null | undefined,
+    statusFilters: string[],
 ) => {
-  if (isSelected) return selectedBlueIcon;
+    if (isSelected) return selectedBlueIcon;
 
-  const status = (pin.status || '').toLowerCase().trim();
-  const bid = pin.buyerId ?? null;
-  const sid = pin.sellerId ?? null;
-  const wholesaleFilterActive = statusFilters.map(f => f.toLowerCase().trim()).includes('wholesale');
+    const status = (pin.status || '').toLowerCase().trim();
+    const bid = pin.buyerId ?? null;
+    const sid = pin.sellerId ?? null;
+    const wholesaleFilterActive = statusFilters
+        .map((f) => f.toLowerCase().trim())
+        .includes('wholesale');
 
-  // When a company is selected, icon reflects the company's role (buyer vs seller)
-  if (selectedCompanyId) {
-    if (status === 'wholesale') {
-      // Company is buyer of wholesale → always blue (they own it, it's their renovation)
-      if (bid === selectedCompanyId) return blueIcon;
-      // Company is seller of wholesale → always purple (sold to another company)
-      if (sid === selectedCompanyId) return purpleIcon;
+    // When a company is selected, icon reflects the company's role (buyer vs seller)
+    if (selectedCompanyId) {
+        if (status === 'wholesale') {
+            // Company is buyer of wholesale → always blue (they own it, it's their renovation)
+            if (bid === selectedCompanyId) return blueIcon;
+            // Company is seller of wholesale → always purple (sold to another company)
+            if (sid === selectedCompanyId) return purpleIcon;
+        }
+        // Non-wholesale statuses keep their standard colors
+        if (bid === selectedCompanyId || sid === selectedCompanyId) {
+            if (status === 'sold') return charcoalIcon;
+            if (status === 'on-market') return greenIcon;
+            return blueIcon; // in-renovation or default
+        }
     }
-    // Non-wholesale statuses keep their standard colors
-    if (bid === selectedCompanyId || sid === selectedCompanyId) {
-      if (status === 'sold') return charcoalIcon;
-      if (status === 'on-market') return greenIcon;
-      return blueIcon; // in-renovation or default
-    }
-  }
 
-  // No company selected - status-based colors
-  switch (status) {
-    case 'on-market':
-      return greenIcon;
-    case 'sold':
-      return charcoalIcon;
-    case 'wholesale':
-      // If wholesale filter is explicitly active → purple (distinguished)
-      // If showing via in-renovation → blue (blends in)
-      return wholesaleFilterActive ? purpleIcon : blueIcon;
-    case 'in-renovation':
-    default:
-      return blueIcon;
-  }
+    // No company selected - status-based colors
+    switch (status) {
+        case 'on-market':
+            return greenIcon;
+        case 'sold':
+            return charcoalIcon;
+        case 'wholesale':
+            // If wholesale filter is explicitly active → purple (distinguished)
+            // If showing via in-renovation → blue (blends in)
+            return wholesaleFilterActive ? purpleIcon : blueIcon;
+        case 'in-renovation':
+        default:
+            return blueIcon;
+    }
 };
 
 function MapResizeHandler() {
-  const map = useMap();
-  
-  useEffect(() => {
-    // Invalidate size on mount
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 0);
-    
-    // Watch for window resize events
-    const handleResize = () => {
-      map.invalidateSize();
-    };
-    
-    window.addEventListener('resize', handleResize);
-    
-    // Also use ResizeObserver to watch for container size changes
-    const mapContainer = map.getContainer();
-    const resizeObserver = new ResizeObserver(() => {
-      map.invalidateSize();
-    });
-    
-    if (mapContainer) {
-      resizeObserver.observe(mapContainer);
-    }
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      resizeObserver.disconnect();
-    };
-  }, [map]);
-  
-  return null;
+    const map = useMap();
+
+    useEffect(() => {
+        // Invalidate size on mount
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 0);
+
+        // Watch for window resize events
+        const handleResize = () => {
+            map.invalidateSize();
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        // Also use ResizeObserver to watch for container size changes
+        const mapContainer = map.getContainer();
+        const resizeObserver = new ResizeObserver(() => {
+            map.invalidateSize();
+        });
+
+        if (mapContainer) {
+            resizeObserver.observe(mapContainer);
+        }
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
+        };
+    }, [map]);
+
+    return null;
 }
 
-function MapBounds({ mapPins, center, zoom }: { mapPins: MapPin[], center?: [number, number], zoom?: number }) {
-  const map = useMap();
-  const { company } = useCompanies();
-  const previousPropertyIdsRef = useRef<string>('');
-  const previousCenterRef = useRef<[number, number] | undefined>(undefined);
-  const previousSelectedCompanyRef = useRef<string | null | undefined>(undefined);
-  
-  useEffect(() => {
-    // Create a sorted string of property IDs to compare
-    const currentPropertyIds = mapPins.map(p => p.id).sort().join(',');
-    
-    // Only refit bounds if the property set actually changed (not just a re-render)
-    const propertySetChanged = previousPropertyIdsRef.current !== currentPropertyIds;
-    previousPropertyIdsRef.current = currentPropertyIds;
-    
-    // Check if selected company changed (triggers refit even if same properties)
-    const companyChanged = company?.companyName !== previousSelectedCompanyRef.current;
-    previousSelectedCompanyRef.current = company?.companyName;
-    
-    // Check if center changed
-    const centerChanged = center !== undefined && (
-      previousCenterRef.current === undefined ||
-      (center[0] !== previousCenterRef.current[0] || center[1] !== previousCenterRef.current[1])
-    );
-    
-    previousCenterRef.current = center;
-    
-    // If center is explicitly set (e.g., from zipcode selection), use it
-    if (center && zoom && centerChanged) {
-      map.setView(center, zoom);
-      return;
-    }
-    
-    if (mapPins.length > 0) {
-      // Filter map pins with valid coordinates
-      const validPins = mapPins.filter(p => 
-        p.latitude != null && p.longitude != null && 
-        !isNaN(p.latitude) && !isNaN(p.longitude)
-      );
-      
-      if (validPins.length > 0) {
-        // Fit bounds if:
-        // 1. Company selection changed (always fit bounds to show all company properties)
-        // 2. OR property set changed AND center is not explicitly set (filters applied, etc.)
-        if (companyChanged || (propertySetChanged && center === undefined)) {
-          const bounds = L.latLngBounds(
-            validPins.map(p => [p.latitude!, p.longitude!])
-          );
-          map.fitBounds(bounds, { padding: [50, 50] });
-        }
-      } else if (center && zoom) {
-        // Reset to default view when no valid coordinates exist
-        map.setView(center, zoom);
-      }
-    } else if (center && zoom) {
-      // No properties at all, use default view
-      map.setView(center, zoom);
-    }
-  }, [mapPins, center, zoom, map, company]);
+function MapBounds({
+    mapPins,
+    center,
+    zoom,
+}: {
+    mapPins: MapPin[];
+    center?: [number, number];
+    zoom?: number;
+}) {
+    const map = useMap();
+    const { company } = useCompanies();
+    const previousPropertyIdsRef = useRef<string>('');
+    const previousCenterRef = useRef<[number, number] | undefined>(undefined);
+    const previousSelectedCompanyRef = useRef<string | null | undefined>(undefined);
 
-  return null;
+    useEffect(() => {
+        // Create a sorted string of property IDs to compare
+        const currentPropertyIds = mapPins
+            .map((p) => p.id)
+            .sort()
+            .join(',');
+
+        // Only refit bounds if the property set actually changed (not just a re-render)
+        const propertySetChanged = previousPropertyIdsRef.current !== currentPropertyIds;
+        previousPropertyIdsRef.current = currentPropertyIds;
+
+        // Check if selected company changed (triggers refit even if same properties)
+        const companyChanged = company?.companyName !== previousSelectedCompanyRef.current;
+        previousSelectedCompanyRef.current = company?.companyName;
+
+        // Check if center changed
+        const centerChanged =
+            center !== undefined &&
+            (previousCenterRef.current === undefined ||
+                center[0] !== previousCenterRef.current[0] ||
+                center[1] !== previousCenterRef.current[1]);
+
+        previousCenterRef.current = center;
+
+        // If center is explicitly set (e.g., from zipcode selection), use it
+        if (center && zoom && centerChanged) {
+            map.setView(center, zoom);
+            return;
+        }
+
+        if (mapPins.length > 0) {
+            // Filter map pins with valid coordinates
+            const validPins = mapPins.filter(
+                (p) =>
+                    p.latitude != null &&
+                    p.longitude != null &&
+                    !isNaN(p.latitude) &&
+                    !isNaN(p.longitude),
+            );
+
+            if (validPins.length > 0) {
+                // Fit bounds if:
+                // 1. Company selection changed (always fit bounds to show all company properties)
+                // 2. OR property set changed AND center is not explicitly set (filters applied, etc.)
+                if (companyChanged || (propertySetChanged && center === undefined)) {
+                    const bounds = L.latLngBounds(
+                        validPins.map((p) => [p.latitude!, p.longitude!]),
+                    );
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+            } else if (center && zoom) {
+                // Reset to default view when no valid coordinates exist
+                map.setView(center, zoom);
+            }
+        } else if (center && zoom) {
+            // No properties at all, use default view
+            map.setView(center, zoom);
+        }
+    }, [mapPins, center, zoom, map, company]);
+
+    return null;
 }
 
 export default function PropertyMap() {
+    const { filters, clearFilters, hasActiveFilters } = useFilters();
+    const { fetchProperty, property } = useProperty();
+    const { company, setCompany } = useCompanies();
+    const {
+        mapPins = [],
+        filteredMapPins = [],
+        isLoadingMapPins = false,
+        mapCenter,
+        mapZoom,
+    } = useGeoMap({ fetchMapPins: true });
 
-  const { filters, clearFilters, hasActiveFilters } = useFilters();
-  const { fetchProperty, property } = useProperty();
-  const { company, setCompany } = useCompanies();
-  const { mapPins = [], filteredMapPins = [], isLoadingMapPins = false, mapCenter, mapZoom } = useGeoMap({ fetchMapPins: true });
+    // Use filteredMapPins (respects company + filters), then filter to valid coordinates for rendering
+    const validPins = filteredMapPins.filter(
+        (p) =>
+            p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude),
+    );
 
-  // Use filteredMapPins (respects company + filters), then filter to valid coordinates for rendering
-  const validPins = filteredMapPins.filter(p => 
-    p.latitude != null && p.longitude != null && 
-    !isNaN(p.latitude) && !isNaN(p.longitude)
-  );
-
-  return (
-    <div className="w-full h-full relative" data-testid="map-container">
-      {(hasActiveFilters) || (company) ? (
-        <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
-          {company && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setCompany(null)}
-              className="shadow-lg h-8 px-2 text-xs"
-              data-testid="button-deselect-company-map"
+    return (
+        <div className="w-full h-full relative" data-testid="map-container">
+            {hasActiveFilters || company ? (
+                <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
+                    {company && (
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => setCompany(null)}
+                            className="shadow-lg h-8 px-2 text-xs"
+                            data-testid="button-deselect-company-map"
+                        >
+                            <X className="w-3 h-2.5 mr-1.5" />
+                            Deselect Company
+                        </Button>
+                    )}
+                    {hasActiveFilters && (
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => clearFilters()}
+                            className="shadow-lg h-8 px-2 text-xs"
+                            data-testid="button-clear-filters-map"
+                        >
+                            <X className="w-3 h-2.5 mr-1.5" />
+                            Clear Filters
+                        </Button>
+                    )}
+                </div>
+            ) : null}
+            <MapContainer
+                center={mapCenter}
+                zoom={mapZoom}
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={true}
             >
-              <X className="w-3 h-2.5 mr-1.5" />
-              Deselect Company
-            </Button>
-          )}
-          {hasActiveFilters && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => clearFilters()}
-              className="shadow-lg h-8 px-2 text-xs"
-              data-testid="button-clear-filters-map"
-            >
-              <X className="w-3 h-2.5 mr-1.5" />
-              Clear Filters
-            </Button>
-          )}
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapResizeHandler />
+                <MapBounds mapPins={validPins} center={mapCenter} zoom={mapZoom} />
+                {isLoadingMapPins ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
+                        <div className="text-muted-foreground">Loading map pins...</div>
+                    </div>
+                ) : (
+                    validPins.map((pin) => {
+                        const isSelected = property?.id === pin.id;
+                        return (
+                            <Marker
+                                key={pin.id}
+                                position={[pin.latitude!, pin.longitude!]}
+                                icon={getIconForPin(
+                                    pin,
+                                    isSelected,
+                                    company?.id ?? null,
+                                    filters.statusFilters,
+                                )}
+                                eventHandlers={{
+                                    click: () => fetchProperty?.(pin.id),
+                                }}
+                            />
+                        );
+                    })
+                )}
+            </MapContainer>
         </div>
-      ) : null}
-      <MapContainer
-        center={mapCenter}
-        zoom={mapZoom}
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <MapResizeHandler />
-        <MapBounds mapPins={validPins} center={mapCenter} zoom={mapZoom}/>
-        {isLoadingMapPins ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
-            <div className="text-muted-foreground">Loading map pins...</div>
-          </div>
-        ) : (
-          validPins.map((pin) => {
-            const isSelected = property?.id === pin.id;
-            return (
-              <Marker
-                key={pin.id}
-                position={[pin.latitude!, pin.longitude!]}
-                icon={getIconForPin(pin, isSelected, company?.id ?? null, filters.statusFilters)}
-                eventHandlers={{
-                  click: () => fetchProperty?.(pin.id),
-                }}
-              />
-            );
-          })
-        )}
-      </MapContainer>
-    </div>
-  );
+    );
 }

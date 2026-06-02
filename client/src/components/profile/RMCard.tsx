@@ -1,15 +1,14 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatPhoneNumber } from "@shared/utils/formatPhoneNumber";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
 
 type RMCardProps = {
     firstName: string;
     lastName?: string;
     email?: string;
     phone?: string | null;
-}
+};
 
-export function RMCard(rm: RMCardProps ) {
-
+export function RMCard(rm: RMCardProps) {
     const { firstName, lastName, email, phone } = rm;
 
     return (
@@ -32,22 +31,16 @@ export function RMCard(rm: RMCardProps ) {
                     </div>
                     <div>
                         <span className="profile-rm-label">Email</span>
-                        <p className="profile-rm-value">
-                            {email}
-                        </p>
+                        <p className="profile-rm-value">{email}</p>
                     </div>
                     <div>
                         <span className="profile-rm-label">Phone</span>
                         <p className="profile-rm-value">
-                            {phone
-                            ? (phone.includes("(")
-                                ? phone
-                                : formatPhoneNumber(phone))
-                            : "—"}
+                            {phone ? (phone.includes('(') ? phone : formatPhoneNumber(phone)) : '—'}
                         </p>
                     </div>
                 </div>
             </CardContent>
         </Card>
-    )
+    );
 }

@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, Pencil, Trash2, Check, X, Loader2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, Pencil, Trash2, Check, X, Loader2, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useAuth } from '@/hooks/use-auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,53 +38,53 @@ type CompanySuggestion = { id: string; companyName: string };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TRANSACTION_TYPES = [
-    "Arms Length",
-    "Non-Arms Length",
-    "Assignment",
-    "Refinance",
-    "HELOC",
-    "New Construction",
-    "Acquisition",
+    'Arms Length',
+    'Non-Arms Length',
+    'Assignment',
+    'Refinance',
+    'HELOC',
+    'New Construction',
+    'Acquisition',
 ] as const;
 
 const TYPE_COLORS: Record<string, string> = {
-    "arms length":     "bg-[#22C55E]/15 text-[#16A34A] border-[#22C55E]/30",
-    "non-arms length": "bg-[#F59E0B]/15 text-[#D97706] border-[#F59E0B]/30",
-    "assignment":      "bg-[#9333EA]/15 text-[#7E22CE] border-[#9333EA]/30",
-    "refinance":       "bg-[#3B82F6]/15 text-[#1D4ED8] border-[#3B82F6]/30",
-    "heloc":           "bg-[#06B6D4]/15 text-[#0E7490] border-[#06B6D4]/30",
-    "new construction":"bg-[#EF4444]/15 text-[#DC2626] border-[#EF4444]/30",
-    "acquisition":     "bg-[#69C9E1]/15 text-[#0891B2] border-[#69C9E1]/30",
+    'arms length': 'bg-[#22C55E]/15 text-[#16A34A] border-[#22C55E]/30',
+    'non-arms length': 'bg-[#F59E0B]/15 text-[#D97706] border-[#F59E0B]/30',
+    assignment: 'bg-[#9333EA]/15 text-[#7E22CE] border-[#9333EA]/30',
+    refinance: 'bg-[#3B82F6]/15 text-[#1D4ED8] border-[#3B82F6]/30',
+    heloc: 'bg-[#06B6D4]/15 text-[#0E7490] border-[#06B6D4]/30',
+    'new construction': 'bg-[#EF4444]/15 text-[#DC2626] border-[#EF4444]/30',
+    acquisition: 'bg-[#69C9E1]/15 text-[#0891B2] border-[#69C9E1]/30',
 };
 
 function typeBadgeClass(type: string | null): string {
-    const key = (type ?? "").trim().toLowerCase();
-    return TYPE_COLORS[key] ?? "bg-muted text-muted-foreground border-border";
+    const key = (type ?? '').trim().toLowerCase();
+    return TYPE_COLORS[key] ?? 'bg-muted text-muted-foreground border-border';
 }
 
 function formatPrice(price: string | null): string {
-    if (!price) return "—";
+    if (!price) return '—';
     const n = parseFloat(price);
-    if (isNaN(n)) return "—";
+    if (isNaN(n)) return '—';
     return `$${n.toLocaleString()}`;
 }
 
 function formatDate(d: string): string {
-    if (!d) return "—";
-    const [y, m, day] = d.split("-");
+    if (!d) return '—';
+    const [y, m, day] = d.split('-');
     if (!y || !m || !day) return d;
     return `${m}/${day}/${y}`;
 }
 
 function emptyForm(tx?: Transaction): EditForm {
     return {
-        transactionType: tx?.transactionType ?? "Arms Length",
-        recordingDate: tx?.recordingDate ?? "",
-        saleDate: tx?.saleDate ?? tx?.recordingDate ?? "",
-        buyerName: tx?.buyerName ?? "",
-        sellerName: tx?.sellerName ?? "",
-        salePrice: tx?.salePrice ?? "",
-        firstMtgLenderName: tx?.firstMtgLenderName ?? "",
+        transactionType: tx?.transactionType ?? 'Arms Length',
+        recordingDate: tx?.recordingDate ?? '',
+        saleDate: tx?.saleDate ?? tx?.recordingDate ?? '',
+        buyerName: tx?.buyerName ?? '',
+        sellerName: tx?.sellerName ?? '',
+        salePrice: tx?.salePrice ?? '',
+        firstMtgLenderName: tx?.firstMtgLenderName ?? '',
     };
 }
 
@@ -106,11 +106,15 @@ function CompanyAutocomplete({
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (value.length < 2) { setSuggestions([]); setOpen(false); return; }
+        if (value.length < 2) {
+            setSuggestions([]);
+            setOpen(false);
+            return;
+        }
         const t = setTimeout(async () => {
             try {
                 const p = new URLSearchParams({ search: value });
-                if (county) p.set("county", county);
+                if (county) p.set('county', county);
                 const r = await fetch(`/api/companies/contacts/suggestions?${p}`);
                 if (!r.ok) return;
                 const data: CompanySuggestion[] = await r.json();
@@ -125,8 +129,8 @@ function CompanyAutocomplete({
         const handler = (e: MouseEvent) => {
             if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
         };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
     }, []);
 
     return (
@@ -145,7 +149,11 @@ function CompanyAutocomplete({
                         <li
                             key={s.id}
                             className="px-2 py-1.5 text-xs cursor-pointer hover:bg-accent"
-                            onMouseDown={(e) => { e.preventDefault(); onChange(s.companyName); setOpen(false); }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                onChange(s.companyName);
+                                setOpen(false);
+                            }}
                         >
                             {s.companyName}
                         </li>
@@ -184,7 +192,9 @@ function EditRow({
                     className="flex-1 h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                     {TRANSACTION_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option key={t} value={t}>
+                            {t}
+                        </option>
                     ))}
                 </select>
             </div>
@@ -308,8 +318,10 @@ function DisplayRow({
         <div className="p-3 rounded-lg border border-border bg-card space-y-1.5">
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${typeBadgeClass(tx.transactionType)}`}>
-                        {tx.transactionType ?? "Unknown"}
+                    <span
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${typeBadgeClass(tx.transactionType)}`}
+                    >
+                        {tx.transactionType ?? 'Unknown'}
                     </span>
                     {tx.isManualOverride && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
@@ -317,24 +329,32 @@ function DisplayRow({
                         </span>
                     )}
                 </div>
-                <span className="text-[11px] text-muted-foreground shrink-0">{formatDate(tx.recordingDate)}</span>
+                <span className="text-[11px] text-muted-foreground shrink-0">
+                    {formatDate(tx.recordingDate)}
+                </span>
             </div>
 
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                 <div>
                     <p className="text-[10px] text-muted-foreground">Buyer</p>
-                    <p className="text-xs font-medium text-foreground truncate">{tx.buyerName ?? "—"}</p>
+                    <p className="text-xs font-medium text-foreground truncate">
+                        {tx.buyerName ?? '—'}
+                    </p>
                 </div>
                 <div>
                     <p className="text-[10px] text-muted-foreground">Seller</p>
-                    <p className="text-xs font-medium text-foreground truncate">{tx.sellerName ?? "—"}</p>
+                    <p className="text-xs font-medium text-foreground truncate">
+                        {tx.sellerName ?? '—'}
+                    </p>
                 </div>
             </div>
 
             <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{formatPrice(tx.salePrice)}</span>
                 {tx.firstMtgLenderName && (
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{tx.firstMtgLenderName}</span>
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                        {tx.firstMtgLenderName}
+                    </span>
                 )}
             </div>
 
@@ -377,7 +397,11 @@ interface PropertyTransactionsProps {
     onReprocess?: () => void;
 }
 
-export function PropertyTransactions({ propertyId, county, onReprocess }: PropertyTransactionsProps) {
+export function PropertyTransactions({
+    propertyId,
+    county,
+    onReprocess,
+}: PropertyTransactionsProps) {
     const { toast } = useToast();
     const { isAdmin, isOwner } = useAuth();
     const isAdminOrOwner = isAdmin || isOwner;
@@ -402,11 +426,11 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
         try {
             setError(null);
             const resp = await fetch(`/api/properties/${propertyId}/transactions`);
-            if (!resp.ok) throw new Error("Failed to load transactions");
+            if (!resp.ok) throw new Error('Failed to load transactions');
             const data: Transaction[] = await resp.json();
             setTransactions(data);
         } catch {
-            setError("Could not load transactions");
+            setError('Could not load transactions');
         } finally {
             setIsLoading(false);
         }
@@ -440,7 +464,7 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
         if (!editingId) return;
         setIsSaving(true);
         try {
-            await apiRequest("PATCH", `/api/properties/${propertyId}/transactions/${editingId}`, {
+            await apiRequest('PATCH', `/api/properties/${propertyId}/transactions/${editingId}`, {
                 transactionType: editForm.transactionType || undefined,
                 recordingDate: editForm.recordingDate || undefined,
                 saleDate: editForm.saleDate || undefined,
@@ -453,9 +477,13 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
             await fetchTransactions();
             invalidatePropertyQueries();
             onReprocess?.();
-            toast({ title: "Transaction updated" });
+            toast({ title: 'Transaction updated' });
         } catch (e) {
-            toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to update", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: e instanceof Error ? e.message : 'Failed to update',
+                variant: 'destructive',
+            });
         } finally {
             setIsSaving(false);
         }
@@ -465,7 +493,7 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
         if (!addForm.recordingDate || !addForm.saleDate) return;
         setIsSaving(true);
         try {
-            await apiRequest("POST", `/api/properties/${propertyId}/transactions`, {
+            await apiRequest('POST', `/api/properties/${propertyId}/transactions`, {
                 transactionType: addForm.transactionType,
                 recordingDate: addForm.recordingDate,
                 saleDate: addForm.saleDate,
@@ -478,9 +506,13 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
             await fetchTransactions();
             invalidatePropertyQueries();
             onReprocess?.();
-            toast({ title: "Transaction added" });
+            toast({ title: 'Transaction added' });
         } catch (e) {
-            toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to add", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: e instanceof Error ? e.message : 'Failed to add',
+                variant: 'destructive',
+            });
         } finally {
             setIsSaving(false);
         }
@@ -489,13 +521,17 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
     async function handleDelete(txId: number) {
         setDeletingId(txId);
         try {
-            await apiRequest("DELETE", `/api/properties/${propertyId}/transactions/${txId}`);
+            await apiRequest('DELETE', `/api/properties/${propertyId}/transactions/${txId}`);
             await fetchTransactions();
             invalidatePropertyQueries();
             onReprocess?.();
-            toast({ title: "Transaction deleted" });
+            toast({ title: 'Transaction deleted' });
         } catch (e) {
-            toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to delete", variant: "destructive" });
+            toast({
+                title: 'Error',
+                description: e instanceof Error ? e.message : 'Failed to delete',
+                variant: 'destructive',
+            });
         } finally {
             setDeletingId(null);
         }
@@ -505,7 +541,7 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
         queryClient.invalidateQueries({
             predicate: (q) => {
                 const key = q.queryKey[0];
-                return typeof key === "string" && key.startsWith("/api/properties");
+                return typeof key === 'string' && key.startsWith('/api/properties');
             },
         });
     }
@@ -576,7 +612,7 @@ export function PropertyTransactions({ propertyId, county, onReprocess }: Proper
                             isDeleting={deletingId === tx.id}
                             isAdminOrOwner={isAdminOrOwner}
                         />
-                    )
+                    ),
                 )}
             </div>
         </div>
