@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { X, Search, MapPin, Home, ChevronDown, DollarSign } from 'lucide-react';
+import { X, Search, MapPin, Home, ChevronDown, DollarSign, Building2 } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -30,7 +30,14 @@ import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useDataNav } from '@/hooks/useDataNav';
 import { useZipCounts } from '@/hooks/useZipCounts';
+import { useProperty } from '@/hooks/useProperty';
+import { useGeoMap } from '@/hooks/useMap';
+import { useView } from '@/hooks/useView';
 import type { ZipCodeWithCount, CityWithCount } from '@/types/filters';
+import type { PropertySuggestion } from '@/types/general';
+import { apiRequest } from '@/lib/queryClient';
+import { fetchPropertyById } from '@/api/properties.api';
+import { MAP_ZOOM_PROPERTY } from '@/constants/map.constants';
 
 // ---- Price helper ----
 function formatPrice(val: number): string {
@@ -43,6 +50,9 @@ export default function FilterHeader() {
     const { filters, setFilters, hasActiveFilters } = useFilters();
     const { setCompany } = useCompanies();
     const nav = useDataNav();
+    const { setProperty } = useProperty();
+    const { setMapCenter, setMapZoom } = useGeoMap();
+    const { view } = useView();
 
     // Zip counts are only needed when the user opens the zip/city autocomplete.
     // Defer the fetch until first interaction to avoid competing with map pins
@@ -81,6 +91,7 @@ export default function FilterHeader() {
     const [filteredZipCodes, setFilteredZipCodes] = useState<ZipCodeWithCount[]>([]);
     const [filteredCities, setFilteredCities] = useState<CityWithCount[]>([]);
     const [filteredCounties, setFilteredCounties] = useState<typeof COUNTIES>([]);
+    const [propertySuggestions, setPropertySuggestions] = useState<PropertySuggestion[]>([]);
 
     // Close zip dropdown when clicking outside the wrapper
     useEffect(() => {
@@ -178,6 +189,32 @@ export default function FilterHeader() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sortedZipCodes]);
 
+    // Debounced property address suggestions from the API
+    useEffect(() => {
+        const trimmed = zipInput.trim();
+        if (trimmed.length < 2) {
+            setPropertySuggestions([]);
+            return;
+        }
+        const county = filters.county ?? 'San Diego';
+        const timeoutId = setTimeout(async () => {
+            try {
+                const res = await apiRequest(
+                    'GET',
+                    `/api/properties/suggestions?search=${encodeURIComponent(trimmed)}&county=${encodeURIComponent(county)}`,
+                );
+                const data = await res.json();
+                setPropertySuggestions(data);
+                if (data.length > 0 && zipFocusedRef.current) {
+                    setZipOpen(true);
+                }
+            } catch {
+                setPropertySuggestions([]);
+            }
+        }, 300);
+        return () => clearTimeout(timeoutId);
+    }, [zipInput, filters.county]);
+
     // ---- Handlers ----
 
     const toggleStatusFilter = (status: string) => {
@@ -217,6 +254,7 @@ export default function FilterHeader() {
             setFilteredZipCodes(sortedZipCodes.slice(0, 10));
             setFilteredCities(citiesWithCounts.slice(0, 10));
             setZipOpen(false);
+            setPropertySuggestions([]);
             setFilters((f) => ({ ...f, zipCode: '', city: undefined }));
         }
     };
@@ -224,13 +262,29 @@ export default function FilterHeader() {
     const selectZipCode = (z: ZipCodeWithCount) => {
         setZipInput(z.zipCode);
         setZipOpen(false);
+        setPropertySuggestions([]);
         setFilters((f) => ({ ...f, zipCode: z.zipCode, city: undefined }));
     };
 
     const selectCity = (c: CityWithCount) => {
         setZipInput(c.city);
         setZipOpen(false);
+        setPropertySuggestions([]);
         setFilters((f) => ({ ...f, zipCode: '', city: c.city }));
+    };
+
+    const selectProperty = async (suggestion: PropertySuggestion) => {
+        setZipInput('');
+        setZipOpen(false);
+        setPropertySuggestions([]);
+        const property = await fetchPropertyById(suggestion.id);
+        if (property) {
+            setProperty(property);
+            if (view === 'map' && property.latitude && property.longitude) {
+                setMapCenter([property.latitude, property.longitude]);
+                setMapZoom(MAP_ZOOM_PROPERTY);
+            }
+        }
     };
 
     const handleCountySearch = (value: string) => {
@@ -464,7 +518,7 @@ export default function FilterHeader() {
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
                     <Input
                         type="text"
-                        placeholder="Zip code or city"
+                        placeholder="Search zip, city, address..."
                         value={zipInput}
                         onChange={(e) => handleZipInputChange(e.target.value)}
                         onFocus={() => {
@@ -500,54 +554,97 @@ export default function FilterHeader() {
                             }}
                         />
                     )}
-                    {zipOpen && (filteredCities.length > 0 || filteredZipCodes.length > 0) && (
-                        <div
-                            className="absolute top-full left-0 mt-1 w-60 max-h-60 overflow-y-auto bg-popover border border-border rounded-md shadow-md z-[10000]"
-                            data-testid="zipcode-suggestions"
-                        >
-                            {filteredCities.map((city) => (
-                                <div
-                                    key={`city-${city.city}`}
-                                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        selectCity(city);
-                                    }}
-                                    data-testid={`suggestion-city-${city.city}`}
-                                >
-                                    <span className="flex items-center gap-2 min-w-0">
-                                        <Home className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                        <span className="font-medium truncate">{city.city}</span>
-                                    </span>
-                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                                        {city.count}
-                                    </span>
-                                </div>
-                            ))}
-                            {filteredZipCodes.map((z) => (
-                                <div
-                                    key={z.zipCode}
-                                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        selectZipCode(z);
-                                    }}
-                                    data-testid={`suggestion-${z.zipCode}`}
-                                >
-                                    <span className="flex items-center gap-2 min-w-0">
-                                        <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                        <span className="font-medium">{z.zipCode}</span>
-                                        <span className="text-muted-foreground text-xs truncate">
-                                            {z.city}
+                    {zipOpen &&
+                        (filteredCities.length > 0 ||
+                            filteredZipCodes.length > 0 ||
+                            propertySuggestions.length > 0) && (
+                            <div
+                                className="absolute top-full left-0 mt-1 w-60 max-h-60 overflow-y-auto bg-popover border border-border rounded-md shadow-md z-[10000]"
+                                data-testid="zipcode-suggestions"
+                            >
+                                {(filteredCities.length > 0 || filteredZipCodes.length > 0) &&
+                                    propertySuggestions.length > 0 && (
+                                        <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                                            Areas
+                                        </div>
+                                    )}
+                                {filteredCities.map((city) => (
+                                    <div
+                                        key={`city-${city.city}`}
+                                        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            selectCity(city);
+                                        }}
+                                        data-testid={`suggestion-city-${city.city}`}
+                                    >
+                                        <span className="flex items-center gap-2 min-w-0">
+                                            <Home className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                            <span className="font-medium truncate">
+                                                {city.city}
+                                            </span>
                                         </span>
-                                    </span>
-                                    <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                                        {z.count}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                                            {city.count}
+                                        </span>
+                                    </div>
+                                ))}
+                                {filteredZipCodes.map((z) => (
+                                    <div
+                                        key={z.zipCode}
+                                        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            selectZipCode(z);
+                                        }}
+                                        data-testid={`suggestion-${z.zipCode}`}
+                                    >
+                                        <span className="flex items-center gap-2 min-w-0">
+                                            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                            <span className="font-medium">{z.zipCode}</span>
+                                            <span className="text-muted-foreground text-xs truncate">
+                                                {z.city}
+                                            </span>
+                                        </span>
+                                        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                                            {z.count}
+                                        </span>
+                                    </div>
+                                ))}
+                                {propertySuggestions.length > 0 && (
+                                    <>
+                                        {(filteredCities.length > 0 ||
+                                            filteredZipCodes.length > 0) && (
+                                            <div className="border-t border-border mx-2 my-1" />
+                                        )}
+                                        <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                                            Properties
+                                        </div>
+                                        {propertySuggestions.map((p) => (
+                                            <div
+                                                key={p.id}
+                                                className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-muted text-sm"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    selectProperty(p);
+                                                }}
+                                                data-testid={`suggestion-property-${p.id}`}
+                                            >
+                                                <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                <div className="min-w-0">
+                                                    <div className="font-medium truncate">
+                                                        {p.address}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {p.city}, {p.state} {p.zipcode}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
                 </div>
 
                 {/* Date Range */}
