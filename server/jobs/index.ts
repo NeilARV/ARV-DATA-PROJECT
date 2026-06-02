@@ -17,6 +17,7 @@ import { runConsumer } from './data_v2/consumer';
 import { sendTampaEmail } from './email/tampa-email';
 import { cleanEmailCache } from './email/clean-email-cache';
 import { cleanMarketCache } from './data_v2/clean-market-cache';
+import { enrichCompaniesJob } from './enrich-companies';
 
 export function startScheduledJobs() {
     console.log('[CRON] Starting scheduled jobs...');
@@ -93,6 +94,20 @@ export function startScheduledJobs() {
     } else {
         console.log(
             `[CRON] Consumer skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`,
+        );
+    }
+
+    // =========================================================================
+    // OpenCorporates Enrichment — 3rd of each month at 11:30 PM PT
+    // Drains remaining API quota before the billing period resets on the 5th.
+    // =========================================================================
+    if (process.env.NODE_ENV === 'production') {
+        cron.schedule('30 23 3 * *', enrichCompaniesJob, {
+            timezone: 'America/Los_Angeles',
+        });
+    } else {
+        console.log(
+            `[CRON] Company enrichment skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`,
         );
     }
 

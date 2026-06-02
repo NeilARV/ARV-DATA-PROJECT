@@ -143,3 +143,33 @@ export async function getCompanyByNumber(
     const data = (await response.json()) as OcCompanyResponse;
     return data.results.company;
 }
+
+interface OcAccountStatus {
+    calls_remaining: {
+        this_month: number;
+        today: number;
+    };
+    usage: {
+        this_month: number;
+        today: number;
+    };
+}
+
+interface OcAccountStatusResponse {
+    results: {
+        account_status: OcAccountStatus;
+    };
+}
+
+export async function getAccountStatus(): Promise<OcAccountStatus> {
+    const { baseUrl, apiKey } = getConfig();
+    const params = new URLSearchParams({ api_token: apiKey });
+    const response = await fetch(`${baseUrl}/account_status?${params}`);
+    if (!response.ok) {
+        throw new Error(
+            `OpenCorporates account status failed: ${response.status} ${response.statusText}`,
+        );
+    }
+    const data = (await response.json()) as OcAccountStatusResponse;
+    return data.results.account_status;
+}

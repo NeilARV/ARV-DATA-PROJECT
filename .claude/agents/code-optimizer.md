@@ -2,7 +2,7 @@
 name: code-optimizer
 description: Expert code reviewer and optimizer. Use proactively after writing or modifying code to catch bugs, security issues, and performance problems. Reviews code with fresh eyes in an isolated context. Especially useful after completing a feature, before commits, or when asked to review changes.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 memory: project
 ---
 
