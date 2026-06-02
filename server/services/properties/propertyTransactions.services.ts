@@ -250,12 +250,10 @@ async function insertAtEnd(
         .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
         .from(propertyTransactions)
         .where(eq(propertyTransactions.propertyId, propertyId));
-    await db
-        .insert(propertyTransactions)
-        .values({
-            ...(row as typeof propertyTransactions.$inferInsert),
-            sortOrder: (maxRow?.max ?? 0) + 1,
-        });
+    await db.insert(propertyTransactions).values({
+        ...(row as typeof propertyTransactions.$inferInsert),
+        sortOrder: (maxRow?.max ?? 0) + 1,
+    });
 }
 
 // Assignment: finds the Arms Length transaction whose buyer_id matches the

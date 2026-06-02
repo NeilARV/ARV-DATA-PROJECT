@@ -516,16 +516,14 @@ export async function createDeal(input: CreateDealInput) {
 
     const validLinks = filterValidLinks(links);
     if (validLinks.length > 0) {
-        await db
-            .insert(dealLinks)
-            .values(
-                validLinks.map((link, i) => ({
-                    dealId: deal.id,
-                    sortOrder: i + 1,
-                    url: link.url,
-                    domain: link.domain,
-                })),
-            );
+        await db.insert(dealLinks).values(
+            validLinks.map((link, i) => ({
+                dealId: deal.id,
+                sortOrder: i + 1,
+                url: link.url,
+                domain: link.domain,
+            })),
+        );
     }
 
     return { deal, msaId, links: validLinks };
@@ -923,16 +921,14 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     await db.delete(dealLinks).where(eq(dealLinks.dealId, id));
     const validLinks = filterValidLinks(links);
     if (validLinks.length > 0) {
-        await db
-            .insert(dealLinks)
-            .values(
-                validLinks.map((link, i) => ({
-                    dealId: id,
-                    sortOrder: i + 1,
-                    url: link.url,
-                    domain: link.domain,
-                })),
-            );
+        await db.insert(dealLinks).values(
+            validLinks.map((link, i) => ({
+                dealId: id,
+                sortOrder: i + 1,
+                url: link.url,
+                domain: link.domain,
+            })),
+        );
     }
 
     console.log(`${label} Deal updated: id=${id}`);

@@ -62,26 +62,20 @@ export async function postProperty(req: Request, res: Response) {
 
         switch (result.status) {
             case 'missing-config':
-                return res
-                    .status(500)
-                    .json({
-                        message: 'SFR API not configured',
-                        error: 'SFR_API_KEY and SFR_API_URL must be set',
-                    });
+                return res.status(500).json({
+                    message: 'SFR API not configured',
+                    error: 'SFR_API_KEY and SFR_API_URL must be set',
+                });
             case 'sfr-error':
-                return res
-                    .status(result.httpStatus)
-                    .json({
-                        message: 'Failed to fetch property from SFR API',
-                        error: result.error,
-                    });
+                return res.status(result.httpStatus).json({
+                    message: 'Failed to fetch property from SFR API',
+                    error: result.error,
+                });
             case 'not-found':
-                return res
-                    .status(404)
-                    .json({
-                        message: 'Property not found in SFR API',
-                        error: 'No property data returned',
-                    });
+                return res.status(404).json({
+                    message: 'Property not found in SFR API',
+                    error: 'No property data returned',
+                });
             case 'updated':
                 return res.json({
                     message: 'Property updated successfully',
@@ -131,14 +125,12 @@ export async function patchPropertyHandler(req: Request, res: Response) {
         if (!updated) {
             return res.status(404).json({ message: 'Property not found' });
         }
-        return res
-            .status(200)
-            .json({
-                message: 'Property updated',
-                id: updated.id,
-                isArvFunded: updated.isArvFunded,
-                statuses: updated.statuses,
-            });
+        return res.status(200).json({
+            message: 'Property updated',
+            id: updated.id,
+            isArvFunded: updated.isArvFunded,
+            statuses: updated.statuses,
+        });
     } catch (error) {
         console.error('Error updating property:', error);
         return res.status(500).json({ message: 'Error updating property' });
