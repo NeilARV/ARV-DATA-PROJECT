@@ -163,122 +163,124 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
         <AppDialog
             open={open}
             onClose={handleClose}
-            className="max-w-[350px] sm:max-w-lg lg:max-w-2xl"
+            className="max-w-[350px] sm:max-w-lg lg:max-w-2xl flex flex-col max-h-[90dvh] overflow-hidden"
         >
-            <DialogHeader>
+            <DialogHeader className="shrink-0">
                 <DialogTitle>Edit Deal</DialogTitle>
             </DialogHeader>
 
             <Form {...form}>
                 <form
                     onSubmit={form.handleSubmit((d) => updateDeal.mutate(d))}
-                    className="space-y-4 mt-2"
+                    className="flex flex-col flex-1 min-h-0 mt-4"
                 >
-                    <DealFormFields
-                        control={form.control}
-                        dealTypes={EDIT_DEAL_TYPES}
-                        hasFullAddress={hasFullAddress}
-                        links={links}
-                        onLinksChange={setLinks}
-                        photosUrl={photosUrl}
-                        onPhotosUrlChange={setPhotosUrl}
-                    />
+                    <div className="dialog-scrollable-body">
+                        <DealFormFields
+                            control={form.control}
+                            dealTypes={EDIT_DEAL_TYPES}
+                            hasFullAddress={hasFullAddress}
+                            links={links}
+                            onLinksChange={setLinks}
+                            photosUrl={photosUrl}
+                            onPhotosUrlChange={setPhotosUrl}
+                        />
 
-                    <FormField
-                        control={form.control}
-                        name="sendNotifications"
-                        render={({ field }) => (
-                            <FormItem className="flex items-center gap-2 space-y-0">
-                                <FormControl>
-                                    <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                                <FormLabel className="font-normal cursor-pointer">
-                                    Send notification email
-                                </FormLabel>
-                            </FormItem>
-                        )}
-                    />
-
-                    {(canEditAdminNotes || canEditPrivilegedFields) && (
-                        <div className="space-y-4 pt-1">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                                    Admin Only
-                                </span>
-                                <div className="flex-1 h-px bg-border" />
-                            </div>
-
-                            {canEditAdminNotes && (
-                                <FormField
-                                    control={form.control}
-                                    name="adminNotes"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Internal Note</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    {...field}
-                                                    placeholder="Internal notes visible only to admins and owners..."
-                                                    className="resize-none text-sm"
-                                                    rows={2}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
+                        <FormField
+                            control={form.control}
+                            name="sendNotifications"
+                            render={({ field }) => (
+                                <FormItem className="flex items-center gap-2 space-y-0">
+                                    <FormControl>
+                                        <Checkbox
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                    <FormLabel className="font-normal cursor-pointer">
+                                        Send notification email
+                                    </FormLabel>
+                                </FormItem>
                             )}
+                        />
 
-                            {canEditPrivilegedFields && (
-                                <>
+                        {(canEditAdminNotes || canEditPrivilegedFields) && (
+                            <div className="space-y-4 pt-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                                        Admin Only
+                                    </span>
+                                    <div className="flex-1 h-px bg-border" />
+                                </div>
+
+                                {canEditAdminNotes && (
                                     <FormField
                                         control={form.control}
-                                        name="onBehalfOfEmail"
+                                        name="adminNotes"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>On Behalf Of</FormLabel>
+                                                <FormLabel>Internal Note</FormLabel>
                                                 <FormControl>
-                                                    <Input
+                                                    <Textarea
                                                         {...field}
-                                                        type="email"
-                                                        placeholder="client@example.com"
-                                                        value={field.value ?? ''}
+                                                        placeholder="Internal notes visible only to admins and owners..."
+                                                        className="resize-none text-sm"
+                                                        rows={2}
                                                     />
                                                 </FormControl>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Client email — receives contact requests instead
-                                                    of the poster
-                                                </p>
-                                                <FormMessage />
                                             </FormItem>
                                         )}
                                     />
+                                )}
 
-                                    <FormField
-                                        control={form.control}
-                                        name="isArvExclusive"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="font-normal cursor-pointer">
-                                                    ARV Exclusive deal
-                                                </FormLabel>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </>
-                            )}
-                        </div>
-                    )}
+                                {canEditPrivilegedFields && (
+                                    <>
+                                        <FormField
+                                            control={form.control}
+                                            name="onBehalfOfEmail"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>On Behalf Of</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            {...field}
+                                                            type="email"
+                                                            placeholder="client@example.com"
+                                                            value={field.value ?? ''}
+                                                        />
+                                                    </FormControl>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Client email — receives contact requests
+                                                        instead of the poster
+                                                    </p>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
 
-                    <div className="flex gap-2 pt-2">
+                                        <FormField
+                                            control={form.control}
+                                            name="isArvExclusive"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center gap-2 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                        />
+                                                    </FormControl>
+                                                    <FormLabel className="font-normal cursor-pointer">
+                                                        ARV Exclusive deal
+                                                    </FormLabel>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex gap-2 pt-2 shrink-0">
                         <Button
                             type="button"
                             variant="outline"

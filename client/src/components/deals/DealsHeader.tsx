@@ -34,24 +34,15 @@ export default function DealsHeader({
                     ? `Zip ${locationFilter.value} Deals`
                     : 'All Deals';
 
-    const subtitle =
-        tab === 'mine'
-            ? 'Deals you have posted'
-            : locationFilter
-              ? 'Filtered by location'
-              : 'All active deals';
-
     return (
         <div className="border-b border-border bg-background flex-shrink-0">
             {/* Primary row */}
             <div className="flex items-center gap-3 px-4 2xl:px-6 py-3">
                 <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-base 2xl:text-lg text-foreground truncate">
-                        {title}
+                    <h2 className="font-semibold text-xl lg:text-2xl text-foreground truncate">
+                        Welcome to ARV Deal Marketplace
                     </h2>
-                    <p className="hidden 2xl:block text-sm text-muted-foreground mt-0.5">
-                        {subtitle}
-                    </p>
+                    <p className="text-base lg:text-lg text-muted-foreground mt-0.5 truncate">{title}</p>
                 </div>
 
                 {/* Desktop: location search + tabs + button inline */}

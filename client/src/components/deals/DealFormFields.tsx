@@ -88,7 +88,7 @@ export default function DealFormFields({
     }
 
     return (
-        <div className="overflow-y-auto max-h-[50dvh] space-y-4 pl-1 pr-5 pb-1">
+        <div className="space-y-4">
             <FormField
                 control={control}
                 name="address"

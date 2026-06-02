@@ -467,6 +467,14 @@ select.font-size-select option {
     word-break: break-word;
 }
 
+/* ─── Dialog layout ──────────────────────────────────────────────── */
+
+@layer components {
+    .dialog-scrollable-body {
+        @apply overflow-y-auto flex-1 min-h-0 space-y-4 pl-1 pr-4 pb-1;
+    }
+}
+
 /* Links inside the editor */
 .post-composer-editor.ProseMirror a,
 .edit-post-editor.ProseMirror a {
