@@ -60,10 +60,14 @@ export default function RolesTab({
     } | null>(null);
     const [addRoleSelectValue, setAddRoleSelectValue] = useState<Record<string, string>>({});
 
-    const { data: users, isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
+    const { data: usersResponse, isLoading: isLoadingUsers } = useQuery<{
+        data: AdminUser[];
+        count: number;
+    }>({
         queryKey: ['/api/users/?domain=arvfinance.com'],
         enabled: isAdmin,
     });
+    const users = usersResponse?.data;
 
     const { data: rolesList } = useQuery<RoleOption[]>({
         queryKey: ['/api/users/roles'],
