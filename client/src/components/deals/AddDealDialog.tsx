@@ -161,7 +161,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                 <DialogHeader className="shrink-0">
                     <DialogTitle>Post a Deal</DialogTitle>
                     <DialogDescription>
-                        Share a wholesale or agent deal where other investors can browse your listing 
+                        Share a wholesale or agent deal, where other investors can browse listings
                         and request more information
                     </DialogDescription>
                 </DialogHeader>
