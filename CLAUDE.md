@@ -101,12 +101,12 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 
 ---
 
-## Automated Hooks
+## Automated Agents
 
-The following workflows run automatically via `.claude/settings.json` and do not need to be invoked manually:
+The following subagents MUST be invoked via the `Agent` tool at the end of every task where files were modified. This is mandatory — not optional, not skippable. Run `npm run check` first, fix any errors, then invoke both agents before finishing.
 
-- **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Runs at the end of each task.
-- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Runs at the end of each task. Will ask for approval before modifying any agent files.
+- **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Pass it the list of modified files and instruct it to run `git diff HEAD~1` to orient itself.
+- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Will ask for approval before modifying any agent files.
 
 ---
 
@@ -131,6 +131,7 @@ The following workflows run automatically via `.claude/settings.json` and do not
 5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
 6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md`
 7. Before writing or running ANY test, read `.claude/docs/testing.md`
+8. After modifying any files, you MUST invoke the `code-optimizer` agent via the `Agent` tool before finishing. No exceptions.
 
 ---
 
