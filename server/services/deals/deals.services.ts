@@ -60,77 +60,6 @@ function buildDealStreetViewUrl(
     return `/api/properties/streetview?${params}`;
 }
 
-// ── Shared: resolve property details from SFR for a single address ─────────────
-async function resolvePropertyDetails(
-    address: string,
-    city: string,
-    state: string,
-    zipCode: string,
-    label: string,
-): Promise<{
-    sfrPropertyId: number | null;
-    beds: number | null;
-    baths: number | null;
-    sqft: number | null;
-    propertyType: string | null;
-}> {
-    const API_KEY = process.env.SFR_API_KEY;
-    const API_URL = process.env.SFR_API_URL;
-
-    if (!API_KEY || !API_URL) {
-        console.warn(`${label} SFR API not configured — skipping property detail lookup`);
-        return { sfrPropertyId: null, beds: null, baths: null, sqft: null, propertyType: null };
-    }
-
-    const fullAddress = zipCode
-        ? `${address}, ${city}, ${state} ${zipCode}`
-        : `${address}, ${city}, ${state}`;
-
-    console.log(`${label} Looking up property details: ${fullAddress}`);
-
-    const params = new URLSearchParams({ address: fullAddress });
-    const response = await fetch(`${API_URL}/properties/by-address?${params}`, {
-        method: 'GET',
-        headers: {
-            'X-API-TOKEN': API_KEY,
-            Accept: 'application/json',
-            'User-Agent': 'PostmanRuntime/7.41.0',
-        },
-    });
-
-    if (!response.ok) {
-        throw new DealServiceError(
-            502,
-            `Property lookup failed (${response.status}): unable to retrieve details for "${fullAddress}"`,
-        );
-    }
-
-    const property = (await response.json()) as Record<string, unknown>;
-
-    if (!property || property.error) {
-        throw new DealServiceError(
-            404,
-            `No property found for "${fullAddress}". Please verify the address and try again.`,
-        );
-    }
-
-    const struct = (property.structure as Record<string, unknown> | undefined) ?? {};
-    return {
-        sfrPropertyId: Number(property.property_id ?? 0) || null,
-        beds: Number(struct.beds_count ?? 0) || null,
-        baths: Number(struct.baths ?? 0) + Number(struct.partial_baths_count ?? 0) * 0.5 || null,
-        sqft: Number(struct.living_area_sqft ?? 0) || null,
-        propertyType: (property.property_type as string | undefined) ?? null,
-    };
-}
-
-// ── Address helpers ────────────────────────────────────────────────────────────
-// Returns true only when the address begins with a house/building number (e.g. "123 Main St").
-// A street-name-only value like "Main St" returns false and is treated as a partial address.
-function isFullStreetAddress(address: string): boolean {
-    return /^\d+[a-zA-Z]?\s+/i.test(address.trim());
-}
-
 function isValidUrl(url: string): boolean {
     try {
         new URL(url);
@@ -423,24 +352,7 @@ export async function createDeal(input: CreateDealInput) {
         onBehalfOfEmail,
     } = input;
 
-    const addressStr = typeof address === 'string' ? address.trim() : '';
-    const hasAddress = addressStr.length > 0;
-    const hasFullAddress = hasAddress && isFullStreetAddress(addressStr);
-
-    // Business rule: manual property details required when no full street address
-    if (!hasFullAddress) {
-        const missing: string[] = [];
-        if (beds == null) missing.push('beds');
-        if (baths == null) missing.push('baths');
-        if (sqft == null) missing.push('sqft');
-        if (!propertyType) missing.push('propertyType');
-        if (missing.length > 0) {
-            throw new DealServiceError(
-                400,
-                `beds, baths, sqft, and propertyType are required when a full street address (with house number) is not provided`,
-            );
-        }
-    }
+    const hasAddress = typeof address === 'string' && address.trim().length > 0;
 
     const validDealTypes = ['wholesale', 'agent', 'sold'] as const;
     const resolvedDealType = (validDealTypes as readonly string[]).includes(dealType ?? '')
@@ -458,37 +370,13 @@ export async function createDeal(input: CreateDealInput) {
 
     const county = await resolveCountyFromZip(zipCode, city, state);
 
-    let resolvedSfrPropertyId: number | null = null;
-    let resolvedBeds: number | null = beds != null ? Number(beds) : null;
-    let resolvedBaths: number | null = baths != null ? Number(baths) : null;
-    let resolvedSqft: number | null = sqft != null ? Number(sqft) : null;
-    let resolvedPropertyType: string | null = propertyType ?? null;
-
-    if (hasFullAddress) {
-        try {
-            const sfr = await resolvePropertyDetails(addressStr, city, state, zipCode, label);
-            if (sfr.beds !== null || sfr.baths !== null) {
-                resolvedSfrPropertyId = sfr.sfrPropertyId;
-                resolvedBeds = sfr.beds;
-                resolvedBaths = sfr.baths;
-                resolvedSqft = sfr.sqft;
-                resolvedPropertyType = sfr.propertyType;
-            }
-        } catch (err) {
-            console.warn(
-                `${label} SFR lookup failed, continuing with user-provided values:`,
-                err instanceof Error ? err.message : err,
-            );
-        }
-    }
-
     const [deal] = await db
         .insert(deals)
         .values({
             userId,
             msaId,
             type: resolvedDealType,
-            sfrPropertyId: resolvedSfrPropertyId,
+            sfrPropertyId: null,
             address: hasAddress ? (address as string).trim() : null,
             city: city.trim(),
             state: state.toUpperCase().trim(),
@@ -498,10 +386,10 @@ export async function createDeal(input: CreateDealInput) {
             potentialARV: potentialARV != null ? String(potentialARV) : null,
             showingTime: showingTime ?? null,
             estimatedBudget: estimatedBudget != null ? Number(estimatedBudget) : null,
-            beds: resolvedBeds,
-            baths: resolvedBaths != null ? String(resolvedBaths) : null,
-            sqft: resolvedSqft,
-            propertyType: normalizePropertyType(resolvedPropertyType),
+            beds: beds != null ? Number(beds) : null,
+            baths: baths != null ? String(Number(baths)) : null,
+            sqft: sqft != null ? Number(sqft) : null,
+            propertyType: normalizePropertyType(propertyType ?? null),
             notes: notes ?? null,
             adminNotes: adminNotes ?? null,
             photosUrl: photosUrl ?? null,
@@ -822,35 +710,6 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
 
     const incomingAddress =
         address !== undefined && address !== null ? String(address).trim() : null;
-    const incomingFullAddress = incomingAddress ? isFullStreetAddress(incomingAddress) : false;
-
-    let resolvedBeds: number | null = beds != null ? Number(beds) : null;
-    let resolvedBaths: number | null = baths != null ? Number(baths) : null;
-    let resolvedSqft: number | null = sqft != null ? Number(sqft) : null;
-    let resolvedPropertyType: string | null = propertyType ?? null;
-
-    if (incomingFullAddress) {
-        try {
-            const sfr = await resolvePropertyDetails(
-                incomingAddress!,
-                mergedCity,
-                mergedState,
-                mergedZip,
-                label,
-            );
-            if (sfr.beds !== null || sfr.baths !== null) {
-                resolvedBeds = sfr.beds;
-                resolvedBaths = sfr.baths;
-                resolvedSqft = sfr.sqft;
-                resolvedPropertyType = sfr.propertyType;
-            }
-        } catch (err) {
-            console.warn(
-                `${label} SFR lookup failed, continuing with user-provided values:`,
-                err instanceof Error ? err.message : err,
-            );
-        }
-    }
 
     const validDealTypes = ['wholesale', 'agent', 'sold'] as const;
 
@@ -883,34 +742,13 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
                 validDealTypes.includes(dealType as (typeof validDealTypes)[number])
                     ? (dealType as (typeof validDealTypes)[number])
                     : undefined,
-            beds: incomingFullAddress
-                ? resolvedBeds
-                : beds !== undefined
-                  ? beds != null
-                      ? Number(beds)
-                      : null
-                  : undefined,
-            baths: incomingFullAddress
-                ? resolvedBaths != null
-                    ? String(resolvedBaths)
-                    : null
-                : baths !== undefined
-                  ? baths != null
-                      ? String(baths)
-                      : null
-                  : undefined,
-            sqft: incomingFullAddress
-                ? resolvedSqft
-                : sqft !== undefined
-                  ? sqft != null
-                      ? Number(sqft)
-                      : null
-                  : undefined,
-            propertyType: incomingFullAddress
-                ? normalizePropertyType(resolvedPropertyType)
-                : propertyType !== undefined
-                  ? normalizePropertyType(propertyType ?? null)
-                  : undefined,
+            beds: beds !== undefined ? (beds != null ? Number(beds) : null) : undefined,
+            baths: baths !== undefined ? (baths != null ? String(baths) : null) : undefined,
+            sqft: sqft !== undefined ? (sqft != null ? Number(sqft) : null) : undefined,
+            propertyType:
+                propertyType !== undefined
+                    ? normalizePropertyType(propertyType ?? null)
+                    : undefined,
             notes: notes !== undefined ? (notes ?? null) : undefined,
             adminNotes: adminNotes !== undefined ? (adminNotes ?? null) : undefined,
             photosUrl: photosUrl !== undefined ? (photosUrl ?? null) : undefined,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
@@ -13,7 +13,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { dealFormSchema } from '@database/inserts/deals.insert';
 import type { DealFormValues } from '@database/inserts/deals.insert';
@@ -91,10 +91,6 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
         },
     });
 
-    const addressValue = useWatch({ control: form.control, name: 'address' });
-    const hasFullAddress =
-        typeof addressValue === 'string' && /^\d+[a-zA-Z]?\s+/i.test(addressValue.trim());
-
     const updateDeal = useMutation({
         mutationFn: async (data: DealFormValues) => {
             const res = await apiRequest('PATCH', `/api/deals/${deal.id}`, {
@@ -167,6 +163,10 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
         >
             <DialogHeader className="shrink-0">
                 <DialogTitle>Edit Deal</DialogTitle>
+                <DialogDescription>
+                    Update the details on your deal. If you mark it as sold or change the price,
+                    subscribed investors will be notified automatically.
+                </DialogDescription>
             </DialogHeader>
 
             <Form {...form}>
@@ -178,7 +178,6 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         <DealFormFields
                             control={form.control}
                             dealTypes={EDIT_DEAL_TYPES}
-                            hasFullAddress={hasFullAddress}
                             links={links}
                             onLinksChange={setLinks}
                             photosUrl={photosUrl}
