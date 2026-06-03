@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { requireAuth } from 'server/middleware/requireAuth';
 import { requireRole } from 'server/middleware/requireRole';
 import { UsersController } from 'server/controllers/users';
+import { ClaimsController } from 'server/controllers/claims';
 
 const router = Router();
 
@@ -27,6 +29,9 @@ router.get(
     requireRole(['admin', 'owner', 'relationship-manager', 'member']),
     UsersController.listAccountTypesHandler,
 );
+
+// GET /me/company-memberships — companies the authenticated user belongs to
+router.get('/me/company-memberships', requireAuth, ClaimsController.getUserMembershipsHandler);
 
 // POST /:userId/roles — assign an ARV team role to a user
 router.post('/:userId/roles', requireRole(['admin', 'owner']), UsersController.assignRoleHandler);

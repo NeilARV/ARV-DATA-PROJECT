@@ -10,6 +10,7 @@ import contactRoutes from './contact.routes';
 import categoriesRoutes from './categories.routes';
 import vendorsRoutes from './vendors.routes';
 import postsRoutes from './posts.routes';
+import claimsRoutes from './claims.routes';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use('/admin', adminRoutes);
 router.use('/users', userRoutes);
 router.use('/properties', propertyRoutes);
 router.use('/companies', companyRoutes);
+router.use('/claims', claimsRoutes);
 router.use('/geocoding', geocodingRoutes);
 router.use('/deals', dealsRoutes);
 router.use('/contact', contactRoutes);

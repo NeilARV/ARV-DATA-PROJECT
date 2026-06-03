@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -7,8 +8,9 @@ import { updateUserProfileSchema } from '@database/updates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, User, Edit, Save, X } from 'lucide-react';
+import { ArrowLeft, Loader2, User, Edit, Save, X, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
 import { COUNTIES } from '@/constants/filters.constants';
 import { STATE_DEFAULT_COUNTY } from '@shared/constants/stateDefaults';
@@ -24,6 +26,75 @@ import { RMCard } from '@/components/profile/RMCard';
 import { AvatarUpload } from '@/components/profile/AvatarUpload';
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
+
+interface UserMembership {
+    companyId: string;
+    companyName: string;
+    role: 'owner' | 'member';
+    isPrimary: boolean;
+    joinedAt: string;
+}
+
+function MyCompaniesCard() {
+    const { data, isLoading } = useQuery<{ data: UserMembership[]; count: number }>({
+        queryKey: ['/api/users/me/company-memberships'],
+        queryFn: async () => {
+            const res = await fetch('/api/users/me/company-memberships', {
+                credentials: 'include',
+            });
+            if (!res.ok) throw new Error('Failed to fetch memberships');
+            return res.json();
+        },
+    });
+
+    const memberships = data?.data ?? [];
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5" />
+                    My Companies
+                </CardTitle>
+                <CardDescription>Companies you have claimed on the platform.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading...
+                    </div>
+                ) : memberships.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">
+                        You haven't claimed any companies yet. Find a company in the directory and
+                        click "Claim This Company."
+                    </p>
+                ) : (
+                    <div className="space-y-3">
+                        {memberships.map((m) => (
+                            <div
+                                key={m.companyId}
+                                className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/30"
+                            >
+                                <div>
+                                    <div className="font-medium text-sm text-foreground">
+                                        {formatCompanyName(m.companyName)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-0.5 capitalize">
+                                        {m.role}
+                                        {m.isPrimary ? ' · Primary' : ''}
+                                        {' · Joined '}
+                                        {format(new Date(m.joinedAt), 'MMM d, yyyy')}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function Profile() {
     const [, setLocation] = useLocation();
@@ -453,6 +524,9 @@ export default function Profile() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* ── My Companies ── */}
+                <MyCompaniesCard />
 
                 {/* ── Notification Preferences + MSA Subscriptions ── */}
                 <NotificationPreferencesPanel user={user} />

@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { requireAuth } from 'server/middleware/requireAuth';
 import { requireRole } from 'server/middleware/requireRole';
 import { CompaniesController } from 'server/controllers/companies';
+import { ClaimsController } from 'server/controllers/claims';
 
 const router = Router();
 
@@ -45,5 +47,11 @@ router.post(
     requireRole(['admin', 'owner']),
     CompaniesController.enrichCompanyHandler,
 );
+
+// Submit a claim for a company (any authenticated user)
+router.post('/:id/claim', requireAuth, ClaimsController.submitClaimHandler);
+
+// Get members for a company (any authenticated user)
+router.get('/:id/members', requireAuth, ClaimsController.getCompanyMembersHandler);
 
 export default router;

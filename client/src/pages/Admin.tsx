@@ -13,7 +13,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, AlertTriangle, ArrowLeft, Users, ShieldCheck, Mail } from 'lucide-react';
+import {
+    Loader2,
+    AlertTriangle,
+    ArrowLeft,
+    Users,
+    ShieldCheck,
+    Mail,
+    Building2,
+} from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
@@ -22,6 +30,7 @@ import { UploadPropertyDialog } from '@/components/admin/UploadPropertyDialog';
 import UsersTab from '@/components/admin/UsersTab';
 import EmailListTab from '@/components/admin/EmailListTab';
 import RolesTab from '@/components/admin/RolesTab';
+import CompanyClaimsTab from '@/components/admin/CompanyClaimsTab';
 
 export default function Admin() {
     const { toast } = useToast();
@@ -45,6 +54,8 @@ export default function Admin() {
     const canManageRoles = isOwner || isAdmin;
     /** RMs can manage subscription tiers, relationship manager assignments, and email list entries. */
     const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
+    /** Admin, owner, and RM can review company claims. */
+    const canManageClaims = canManageRoles || isRelationshipManager;
 
     // Build query URL with county filter
     const propertiesQueryUrl = useMemo(() => {
@@ -150,7 +161,13 @@ export default function Admin() {
 
             <Tabs defaultValue="users" className="w-full">
                 <TabsList
-                    className={`grid w-full mb-8 ${canManageRoles ? 'grid-cols-3' : 'grid-cols-2'}`}
+                    className={`grid w-full mb-8 ${
+                        canManageRoles && canManageClaims
+                            ? 'grid-cols-4'
+                            : canManageRoles || canManageClaims
+                              ? 'grid-cols-3'
+                              : 'grid-cols-2'
+                    }`}
                 >
                     <TabsTrigger value="users" data-testid="tab-users">
                         <Users className="w-4 h-4 mr-2" />
@@ -160,6 +177,12 @@ export default function Admin() {
                         <Mail className="w-4 h-4 mr-2" />
                         Email List
                     </TabsTrigger>
+                    {canManageClaims && (
+                        <TabsTrigger value="claims" data-testid="tab-claims">
+                            <Building2 className="w-4 h-4 mr-2" />
+                            Claims
+                        </TabsTrigger>
+                    )}
                     {canManageRoles && (
                         <TabsTrigger value="roles" data-testid="tab-roles">
                             <ShieldCheck className="w-4 h-4 mr-2" />
@@ -184,6 +207,12 @@ export default function Admin() {
                         canEditEntries={canManageSubscriptionTier}
                     />
                 </TabsContent>
+
+                {canManageClaims && (
+                    <TabsContent value="claims">
+                        <CompanyClaimsTab />
+                    </TabsContent>
+                )}
 
                 {canManageRoles && (
                     <TabsContent value="roles">
