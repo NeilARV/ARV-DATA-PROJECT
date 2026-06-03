@@ -7,7 +7,6 @@ import {
     userNotificationPreferences,
 } from '@database/schemas/users.schema';
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
-import { resolveMsaId } from 'server/utils/resolveMsa';
 import { resolveCountyFromZip } from 'server/utils/resolveCounty';
 import { normalizePropertyType } from 'server/utils/normalization';
 import {
@@ -359,13 +358,14 @@ export async function createDeal(input: CreateDealInput) {
         ? (dealType as 'wholesale' | 'agent' | 'sold')
         : ('agent' as const);
 
-    const msaId = await resolveMsaId(city, state, zipCode);
-    if (!msaId) {
-        throw new DealServiceError(
-            422,
-            `Could not determine MSA for ${city}, ${state}${zipCode ? ` ${zipCode}` : ''}. ` +
-                `Ensure the location is within one of the tracked markets.`,
-        );
+    const msaId = input.msaId;
+    const [msaExists] = await db
+        .select({ id: msas.id })
+        .from(msas)
+        .where(eq(msas.id, msaId))
+        .limit(1);
+    if (!msaExists) {
+        throw new DealServiceError(422, 'Invalid MSA — please select a valid market.');
     }
 
     const county = await resolveCountyFromZip(zipCode, city, state);
@@ -416,6 +416,13 @@ export async function createDeal(input: CreateDealInput) {
 
     return { deal, msaId, links: validLinks };
 }
+
+// Cities that cross MSA boundaries but belong to a companion MSA's notification audience.
+// Key: "city|state" (lowercase). Values: additional MSA names to notify.
+const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
+    'temecula|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+    'murrieta|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+};
 
 // ── POST deal — background notification (fire and forget) ──────────────────────
 type DealNotificationData = {
@@ -470,16 +477,53 @@ export async function sendDealNotification(
                 ),
             );
 
-        if (subscribedUsers.length === 0) {
+        // ── Companion MSA fan-out ─────────────────────────────────────────────────
+        // Some cities straddle MSA boundaries. Merge subscribers from companion MSAs
+        // so they receive the same notification as the primary MSA subscribers.
+        const allSubscribers = [...subscribedUsers];
+        const companionMsaIds: number[] = [];
+        const companionKey = `${deal.city?.toLowerCase().trim()}|${deal.state?.toLowerCase().trim()}`;
+        for (const companionName of COMPANION_NOTIFICATION_MSAS[companionKey] ?? []) {
+            const [companionMsaRow] = await db
+                .select({ id: msas.id })
+                .from(msas)
+                .where(eq(msas.name, companionName))
+                .limit(1);
+            if (!companionMsaRow) continue;
+            companionMsaIds.push(companionMsaRow.id);
+            const companionSubs = await db
+                .select({
+                    id: users.id,
+                    email: users.email,
+                    dealTypeFilter: userNotificationPreferences.dealTypeFilter,
+                })
+                .from(users)
+                .innerJoin(userMsaSubscriptions, eq(users.id, userMsaSubscriptions.userId))
+                .innerJoin(
+                    userNotificationPreferences,
+                    eq(users.id, userNotificationPreferences.userId),
+                )
+                .where(
+                    and(
+                        eq(userMsaSubscriptions.msaId, companionMsaRow.id),
+                        eq(users.notifications, true),
+                        eq(userNotificationPreferences.dealNotificationsEnabled, true),
+                    ),
+                );
+            allSubscribers.push(...companionSubs);
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
+        if (allSubscribers.length === 0) {
             console.log(`${label} No MSA subscribers to notify`);
             return;
         }
 
         // neil@arvfinance.com receives notifications for his own postings; all other posters do not
-        const posterInSubscribers = subscribedUsers.find((u) => u.id === posterUserId);
+        const posterInSubscribers = allSubscribers.find((u) => u.id === posterUserId);
         const posterIsNeil = posterInSubscribers?.email?.toLowerCase() === 'neil@arvfinance.com';
         const seen = new Set<string>(posterIsNeil ? [] : [posterUserId]);
-        const uniqueUsers = subscribedUsers.filter((u) => {
+        const uniqueUsers = allSubscribers.filter((u) => {
             if (seen.has(u.id)) return false;
             seen.add(u.id);
             // Deal type filter: empty = all types; non-empty = must include this deal's type
@@ -504,7 +548,11 @@ export async function sendDealNotification(
                 .from(msas)
                 .where(eq(msas.id, msaId))
                 .limit(1);
-            const county = deal.county ?? msaRow?.name ?? 'your area';
+            // Use the MSA the poster selected as the area label, not the physical county.
+            // e.g. a Temecula deal posted under San Diego MSA shows "San Diego", not "Riverside".
+            const county = msaRow?.name
+                ? msaRow.name.split('-')[0].split(',')[0].trim()
+                : (deal.county ?? 'your area');
 
             const { label: dealTypeLabel, color: dealTypeColor } = getDealTypeMeta(deal.type);
 
@@ -556,8 +604,20 @@ export async function sendDealNotification(
                 }
             }
 
-            // ── Whitelist recipients ──────────────────────────────────────────────
-            const whitelistRecipients = await getWhitelistRecipientsForMsa(msaId);
+            // ── Whitelist recipients (primary + companion MSAs, deduplicated by email) ──
+            const primaryWhitelist = await getWhitelistRecipientsForMsa(msaId);
+            const companionWhitelists = await Promise.all(
+                companionMsaIds.map((id) => getWhitelistRecipientsForMsa(id)),
+            );
+            const seenWhitelistEmails = new Set<string>();
+            const whitelistRecipients = [...primaryWhitelist, ...companionWhitelists.flat()].filter(
+                (r) => {
+                    const key = r.email.toLowerCase();
+                    if (seenWhitelistEmails.has(key)) return false;
+                    seenWhitelistEmails.add(key);
+                    return true;
+                },
+            );
             // ─────────────────────────────────────────────────────────────────────
 
             const APP_BASE_URL_DEALS = (() => {
@@ -665,6 +725,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             zipCode: deals.zipCode,
             type: deals.type,
             price: deals.price,
+            msaId: deals.msaId,
         })
         .from(deals)
         .where(eq(deals.id, id))
@@ -675,6 +736,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         city,
         state,
         zipCode,
+        msaId,
         dealType,
         price,
         potentialARV,
@@ -697,14 +759,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         (state !== undefined ? String(state).toUpperCase().trim() : current.state) ?? '';
     const mergedZip = (zipCode !== undefined ? String(zipCode).trim() : current.zipCode) ?? '';
 
-    const newMsaId = await resolveMsaId(mergedCity, mergedState, mergedZip);
-    if (!newMsaId) {
-        throw new DealServiceError(
-            422,
-            `Could not determine MSA for ${mergedCity}, ${mergedState} ${mergedZip}. ` +
-                `Ensure the location is within one of the tracked markets.`,
-        );
-    }
+    const newMsaId = msaId ?? current.msaId;
 
     const updatedCounty = await resolveCountyFromZip(mergedZip, mergedCity, mergedState);
 

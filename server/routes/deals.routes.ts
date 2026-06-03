@@ -7,12 +7,16 @@ import {
     updateDealController,
     deleteDealController,
     requestDealInfoController,
+    getMsasController,
 } from 'server/controllers/deals/deals.controllers';
 
 const router = Router();
 
 // GET /api/deals — fetch deals; filter by ?userId= or ?msaName=
 router.get('/', getDealsController);
+
+// GET /api/deals/msas — fetch all MSAs for the deal form dropdown (must be before /:id)
+router.get('/msas', getMsasController);
 
 // GET /api/deals/:id — fetch a single deal by id
 router.get('/:id', getDealByIdController);

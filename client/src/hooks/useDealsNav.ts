@@ -68,13 +68,9 @@ export function useDealsNav() {
             return;
         }
         defaultApplied.current = true;
-        const filter: LocationFilter = {
-            type: 'county',
-            value: user.county,
-            state: user.state ?? '',
-        };
+        const filter: LocationFilter = { type: 'msa', value: msaName };
         setLocation(buildDealsUrl(tab, filter, dealId), { replace: true });
-    }, [user?.county, user?.state, hasExplicitFilter, tab, dealId, setLocation]);
+    }, [user?.county, hasExplicitFilter, tab, dealId, setLocation]);
 
     const setTab = useCallback(
         (newTab: DealTab) => {

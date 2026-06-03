@@ -12,6 +12,7 @@ import {
 import { requestDealInfoSchema } from '@database/validation/deals.validation';
 import { db } from 'server/storage';
 import { userRoles, roles } from '@database/schemas/users.schema';
+import { msas } from '@database/schemas/msas.schema';
 import { eq, inArray, and } from 'drizzle-orm';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,6 +36,19 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
     } else {
         console.error(fallbackMessage, err);
         res.status(500).json({ message: fallbackMessage });
+    }
+}
+
+// ── GET /api/deals/msas ────────────────────────────────────────────────────────
+export async function getMsasController(req: Request, res: Response): Promise<void> {
+    try {
+        const list = await db
+            .select({ id: msas.id, name: msas.name })
+            .from(msas)
+            .orderBy(msas.name);
+        res.json(list);
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching MSA list');
     }
 }
 
@@ -83,6 +97,7 @@ export async function createDealController(req: Request, res: Response): Promise
             state,
             zipCode,
             userId,
+            msaId,
             dealType,
             price,
             potentialARV,
@@ -127,12 +142,13 @@ export async function createDealController(req: Request, res: Response): Promise
         const resolvedIsArvExclusive = privileged ? (isArvExclusive ?? false) : false;
         const resolvedOnBehalfOfEmail = privileged ? (onBehalfOfEmail ?? null) : null;
 
-        const { deal, msaId } = await createDeal({
+        const { deal, msaId: resolvedMsaId } = await createDeal({
             address,
             city,
             state,
             zipCode,
             userId,
+            msaId,
             dealType,
             price,
             potentialARV,
@@ -154,7 +170,7 @@ export async function createDealController(req: Request, res: Response): Promise
         res.status(201).json({ message: 'Deal posted successfully', deal });
 
         // Fire-and-forget notification after response is sent
-        sendDealNotification(deal, msaId, userId, sendNotifications === true, 'new');
+        sendDealNotification(deal, resolvedMsaId, userId, sendNotifications === true, 'new');
     } catch (err) {
         handleServiceError(res, err, 'Error posting deal');
     }
@@ -180,6 +196,7 @@ export async function updateDealController(req: Request, res: Response): Promise
             city,
             state,
             zipCode,
+            msaId,
             dealType,
             price,
             potentialARV,
@@ -206,6 +223,7 @@ export async function updateDealController(req: Request, res: Response): Promise
             city,
             state,
             zipCode,
+            msaId,
             dealType,
             price,
             potentialARV,

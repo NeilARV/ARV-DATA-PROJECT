@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,6 +14,8 @@ import {
 } from '@/components/ui/select';
 import type { Control } from 'react-hook-form';
 import type { DealFormValues } from '@database/inserts/deals.insert';
+import { apiRequest } from '@/lib/queryClient';
+import { msaShortName } from '@/components/deals/DealsLocationSearch';
 
 export const PROPERTY_TYPES = [
     'Single Family',
@@ -77,6 +80,11 @@ export default function DealFormFields({
     onPhotosUrlChange,
 }: DealFormFieldsProps) {
     const linksEndRef = useRef<HTMLDivElement>(null);
+
+    const { data: msaList = [] } = useQuery<{ id: number; name: string }[]>({
+        queryKey: ['/api/deals/msas'],
+        queryFn: () => apiRequest('GET', '/api/deals/msas').then((r) => r.json()),
+    });
 
     function handleAddLink() {
         onLinksChange([...links, '']);
@@ -211,6 +219,34 @@ export default function DealFormFields({
                     )}
                 />
             </div>
+
+            <FormField
+                control={control}
+                name="msaId"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Market (MSA) *</FormLabel>
+                        <Select
+                            value={field.value != null ? String(field.value) : ''}
+                            onValueChange={(v) => field.onChange(Number(v))}
+                        >
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select market" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="z-[10000]">
+                                {msaList.map((msa) => (
+                                    <SelectItem key={msa.id} value={String(msa.id)}>
+                                        {msaShortName(msa.name)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
 
             <FormField
                 control={control}

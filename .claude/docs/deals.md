@@ -129,16 +129,17 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 - Returns enriched `Deal[]` with `topBuyers`, `links`, `streetViewUrl`
 
 **`createDeal(input)`**
-- Validates that either a full street address or manual property details (beds/baths/sqft/type) are provided
-- Resolves MSA ID and county from city/state/zip
-- If full address: calls SFR API to auto-populate beds, baths, sqft, propertyType, sfrPropertyId
+- Validates that city, state, zipCode, beds, baths, sqft, and propertyType are all provided (all required — see Validation section)
+- Resolves MSA ID from city/state/zip via `resolveMsaId`
+- Resolves county from zip/city/state via `resolveCountyFromZip`
 - Inserts deal row + dealLinks rows
+- `sfrPropertyId` is always `null` — property specs are entered manually, not fetched from any external API
 
 **`updateDeal(id, callerId, input)`**
 - Enforces ownership (caller must be deal owner, or admin/owner role)
-- Re-runs SFR lookup if address changed
+- Re-runs MSA and county resolution if location fields changed
 - Re-inserts all links (delete old, insert new)
-- Returns `previousType` and `previousPrice` for notification detection
+- Returns `previousType` and `previousPrice` for notification detection in the controller
 
 **`requestDealInfo(dealId, requesterId, overrides)`**
 - On-behalf-of mode: email goes to client (onBehalfOfEmail), CC to poster's RM
@@ -146,10 +147,69 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 - Email includes deal details, requester contact info, message, deep link to deal
 
 **`sendDealNotification(deal, msaId, posterUserId, sendNotifications)`**
-- Fetches MSA subscribers with deal notifications enabled
+- Fetches MSA subscribers with deal notifications enabled for the primary MSA
+- Extends the subscriber list with any **companion MSA** subscribers (see Companion MSA Notifications below)
 - Filters by deal type preference if subscriber has one set
-- Excludes the deal poster
+- Excludes the deal poster (exception: neil@arvfinance.com always receives)
+- Fetches whitelist recipients for the primary and all companion MSAs, deduplicates by email
 - Sends Postmark template emails: `new-deal`, `deal-sold`, or `price-update`
+
+---
+
+## Deal Creation & Editing — Form Behavior
+
+### Property Details (Always Required)
+Beds, baths, sqft, and property type are **always required** when posting or editing a deal. There is no auto-fill from any external API — the poster enters these manually.
+
+- Baths accepts decimals (e.g. `2.5` for a half-bath)
+- Street address is **optional** — a deal can be posted with only city/state/zip (useful for undisclosed-address wholesale deals)
+- When a street address is provided, it is used for street view image display only — no external lookup occurs
+
+### Form Field Layout (`DealFormFields`)
+Fields are ordered and grouped to surface required information first:
+
+1. Street Address *(optional)*
+2. City / State / Zip Code — single row, equal-width columns
+3. Beds / Baths / Sq Ft — single row, equal-width columns *(required)*
+4. Property Type *(required)*
+5. Price / Potential ARV — side by side *(optional)*
+6. Showing Date / Showing Time — side by side *(optional)*
+7. Estimated Budget *(optional)*
+8. Deal Type
+9. Notes *(optional)*
+10. Comparable Sale Links — up to 3 URLs *(optional)*
+11. Photo Album URL *(optional)*
+
+Admin-only fields (Internal Note, On Behalf Of, ARV Exclusive) appear below a divider in `AddDealDialog` and `EditDealDialog` and are only visible to admin/owner/RM roles.
+
+### `AddDealDialog` vs `EditDealDialog`
+- **Add** — default deal type is `agent`; `sold` is not available (deals cannot be posted directly as sold)
+- **Edit** — `sold` type is available, enabling the sold transition that fires a deal-sold notification
+- Both dialogs show a description below the title explaining the purpose and email notification behavior to the poster
+
+---
+
+## Companion MSA Notifications
+
+Some cities sit near MSA boundaries and are of interest to investors in a neighboring market. The static map `COMPANION_NOTIFICATION_MSAS` in `deals.services.ts` defines these overrides:
+
+```ts
+const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
+    'temecula|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+    'murrieta|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+};
+```
+
+**How it works:**
+- The deal's `msaId` is **never changed** — Temecula is correctly assigned to the Riverside MSA for data integrity
+- At notification time, `sendDealNotification` builds a key `city|state` from the deal's location and checks the map
+- For each companion MSA name found, it queries the `msas` table for the ID, then runs the same subscriber query (same join: `userMsaSubscriptions` + `userNotificationPreferences`)
+- All subscriber lists are merged before deduplication — the existing `seen` Set (by user ID) handles cross-MSA duplicates naturally
+- Whitelist recipients are fetched for both the primary and all companion MSAs, then deduplicated by email
+- The early-return "no subscribers" guard checks the **merged** list, so a primary MSA with zero subscribers does not prevent companion MSA subscribers from receiving the notification
+
+**Adding a new companion city:**
+Add one entry to `COMPANION_NOTIFICATION_MSAS` in `server/services/deals/deals.services.ts`. Key format is `"city|state"` (all lowercase). No DB migration or other code changes needed.
 
 ---
 
@@ -160,14 +220,14 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 |---|---|---|
 | id | bigserial PK | |
 | userId | uuid FK→users | Deal poster |
-| msaId | int FK→msas | Resolved on create/update |
-| sfrPropertyId | bigint nullable | From SFR API lookup |
+| msaId | int FK→msas | Resolved on create/update from city/state/zip |
+| sfrPropertyId | bigint nullable | Always null — retained for schema compatibility |
 | type | enum | `wholesale`, `agent`, `sold` |
 | address | text nullable | Full street address (optional) |
-| city, state, zipCode, county | text/varchar | Required |
+| city, state, zipCode, county | text/varchar | city/state/zipCode required; county resolved server-side |
 | price, potentialARV | decimal(15,2) | Optional |
-| beds, baths, sqft | int/decimal | Required if no full address |
-| propertyType | varchar(100) | Single Family, Townhouse, Condo, etc. |
+| beds, baths, sqft | int/decimal | Required — entered manually by poster |
+| propertyType | varchar(100) | Required — Single Family, Townhouse, Condo, etc. |
 | notes | text | Free-form |
 | adminNotes | text | Internal only (admin/owner) |
 | showingTime | timestamp | Optional; stored as ISO datetime string (no timezone) |
@@ -190,9 +250,10 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 
 `dealFormSchema` (Zod):
 - city, state (2 chars), zipCode required
+- beds, baths, sqft, propertyType **always required** — no conditional logic based on address presence
+- baths accepts decimals (`z.coerce.number().positive()`)
 - dealType: `"wholesale" | "agent" | "sold"` (default `"agent"`; `"sold"` only available on edit)
 - showingDate: optional, regex `MM/DD/YYYY`; showingTimeStr: optional, regex `HH:MM`; showingAmPm: `"AM"|"PM"` (default `"AM"`) — three fields combined into ISO datetime string (`YYYY-MM-DDThh:mm:00`) before DB insert as `showingTime`
-- superRefine: if no full street address pattern, beds/baths/sqft/propertyType are required
 - links: URL-validated, max 3
 - adminNotes, onBehalfOfEmail, isArvExclusive: schema fields, stripped server-side for non-privileged callers
 
@@ -219,10 +280,13 @@ Deals are split client-side into `newDeals` (type !== "sold") and `soldDeals`.
 ```
 User creates deal
   → Subscription check (pro/premium or bypass role)
-  → SFR API lookup if full address provided (auto-fills specs)
-  → MSA + county resolved from location
+  → MSA + county resolved from city/state/zip
+  → Beds/baths/sqft/propertyType validated (always required, always manual)
   → Inserted to deals + dealLinks
-  → Email notifications sent to MSA subscribers (fire-and-forget)
+  → Email notifications sent (fire-and-forget):
+      Primary MSA subscribers notified
+      Companion MSA subscribers notified (if city is in COMPANION_NOTIFICATION_MSAS)
+      Whitelist recipients notified (primary + companion MSAs, deduplicated)
 
 Another user requests info
   → RequestDealInfoForm (firstName, lastName, email required)
@@ -232,11 +296,11 @@ Another user requests info
 
 Deal is edited → sold
   → Type changes from wholesale/agent → sold
-  → Email notification sent ("deal-sold" template)
+  → Email notification sent ("deal-sold" template) to primary + companion MSA subscribers
 
 Deal is price-updated
   → Price change detected by controller comparing old vs new
-  → Email notification sent ("price-update" template)
+  → Email notification sent ("price-update" template) to primary + companion MSA subscribers
 ```
 
 ---
@@ -247,7 +311,10 @@ Deal is price-updated
 |---|---|
 | Page | `client/src/pages/Deals.tsx` |
 | Main content | `client/src/components/deals/DealsPageContent.tsx` |
-| Components | `client/src/components/deals/` (15 files) |
+| Shared form fields | `client/src/components/deals/DealFormFields.tsx` |
+| Add dialog | `client/src/components/deals/AddDealDialog.tsx` |
+| Edit dialog | `client/src/components/deals/EditDealDialog.tsx` |
+| Other components | `client/src/components/deals/` (15 files total) |
 | Nav hook | `client/src/hooks/useDealsNav.ts` |
 | Routes | `server/routes/deals.routes.ts` |
 | Controller | `server/controllers/deals/deals.controllers.ts` |

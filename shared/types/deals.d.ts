@@ -53,6 +53,7 @@ type DealProperty = {
 
 type DealToEdit = DealProperty & {
     id: number;
+    msaId: number;
     links?: string[];
     adminNotes?: string | null;
     isArvExclusive?: boolean;
@@ -62,6 +63,7 @@ type DealToEdit = DealProperty & {
 // Input for POST /api/deals
 type CreateDealInput = DealProperty & {
     userId: string;
+    msaId: number;
     sendNotifications?: boolean;
     links?: string[];
     adminNotes?: string | null;
@@ -71,6 +73,7 @@ type CreateDealInput = DealProperty & {
 
 // Input for PATCH /api/deals/:id (all fields optional except identity)
 type UpdateDealInput = DealProperty & {
+    msaId?: number;
     links?: string[];
     adminNotes?: string | null;
     isArvExclusive?: boolean;
