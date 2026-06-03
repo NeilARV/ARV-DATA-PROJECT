@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { insertUserSchema } from '@database/inserts';
 import { UserServices } from 'server/services/auth';
-import { getMsaNameFromCounty } from 'server/utils/countyToMsa';
+import { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
 import { db } from 'server/storage';
 import { msas } from '@database/schemas/msas.schema';
 import { eq } from 'drizzle-orm';

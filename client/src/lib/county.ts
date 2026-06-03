@@ -10,7 +10,6 @@ import {
     SEATTLE_MSA_ZIP_CODES,
     TAMPA_MSA_ZIP_CODES,
 } from '@/constants/filters.constants';
-import { COUNTY_TO_MSA } from '@shared/constants/countyToMsa';
 export { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
 
 /** Default map center when county is not found (San Diego coordinates). */
