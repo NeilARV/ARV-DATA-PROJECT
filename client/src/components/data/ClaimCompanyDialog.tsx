@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import AppDialog from '@/components/modals/Dialog';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -24,11 +25,14 @@ export function ClaimCompanyDialog({
 }: ClaimCompanyDialogProps) {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [userMessage, setUserMessage] = useState('');
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
         try {
-            await apiRequest('POST', `/api/companies/${companyId}/claim`);
+            await apiRequest('POST', `/api/companies/${companyId}/claim`, {
+                userMessage: userMessage.trim() || undefined,
+            });
             toast({
                 title: isClaimed ? 'Dispute submitted' : 'Claim submitted',
                 description: `Your ${isClaimed ? 'dispute' : 'claim'} for ${formatCompanyName(companyName)} has been submitted for review.`,
@@ -76,6 +80,25 @@ export function ClaimCompanyDialog({
                         ? `This company already has a verified owner. If you believe you have a right to this company, submit a dispute and our team will review it.`
                         : `Submit a claim to associate your account with ${formattedName}. Our team will review your request and approve it if everything checks out.`}
                 </p>
+
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">
+                        Message{' '}
+                        <span className="text-muted-foreground font-normal">(optional)</span>
+                    </label>
+                    <Textarea
+                        placeholder={
+                            isClaimed
+                                ? 'Explain why you have a right to this company...'
+                                : 'Add any context that might help us verify your claim...'
+                        }
+                        value={userMessage}
+                        onChange={(e) => setUserMessage(e.target.value)}
+                        rows={3}
+                        maxLength={1000}
+                        disabled={isSubmitting}
+                    />
+                </div>
 
                 <div className="flex justify-end gap-2 pt-2">
                     <Button variant="outline" onClick={onClose} disabled={isSubmitting}>

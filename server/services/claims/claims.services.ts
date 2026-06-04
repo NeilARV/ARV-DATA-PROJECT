@@ -15,6 +15,7 @@ async function notifyClaimSubmitted(
     companyName: string,
     claimId: string,
     type: 'claim' | 'dispute',
+    userMessage?: string,
 ): Promise<void> {
     const [[claimant], rmMap] = await Promise.all([
         db
@@ -37,6 +38,9 @@ async function notifyClaimSubmitted(
 
     const typeLabel = type === 'dispute' ? 'Dispute' : 'Claim';
     const claimantName = `${claimant.firstName} ${claimant.lastName}`.trim();
+    const messageSection = userMessage
+        ? `<p><strong>Message from claimant:</strong><br>${userMessage}</p>`
+        : '';
 
     console.log(
         `Sending claim notification for claim ${claimId} to ${recipientEmail} (${rmMap.has(userId) ? 'RM' : 'default recipient'})`,
@@ -47,12 +51,47 @@ async function notifyClaimSubmitted(
         Subject: `New Company ${typeLabel}: ${companyName}`,
         HtmlBody: `
             <p><strong>${claimantName}</strong> (${claimant.email}) has submitted a <strong>${type}</strong> for <strong>${companyName}</strong>.</p>
+            ${messageSection}
             <p>Please review this ${type} in the <strong>Admin Panel → Claims</strong> tab.</p>
             <p style="color:#666;font-size:12px;">Claim ID: ${claimId}</p>
         `,
-        TextBody: `${claimantName} (${claimant.email}) submitted a ${type} for ${companyName}. Review in Admin Panel > Claims. Claim ID: ${claimId}`,
+        TextBody: `${claimantName} (${claimant.email}) submitted a ${type} for ${companyName}.${userMessage ? ` Message: ${userMessage}` : ''} Review in Admin Panel > Claims. Claim ID: ${claimId}`,
     });
     console.log(`Claim notification sent for claim ${claimId}`);
+}
+
+async function notifyClaimReviewed(
+    claimUserId: string,
+    companyName: string,
+    action: 'approve' | 'reject',
+    adminMessage?: string,
+): Promise<void> {
+    const [claimant] = await db
+        .select({ firstName: users.firstName, email: users.email })
+        .from(users)
+        .where(eq(users.id, claimUserId))
+        .limit(1);
+
+    if (!claimant) return;
+
+    const actionLabel = action === 'approve' ? 'Approved' : 'Rejected';
+    const messageSection = adminMessage
+        ? `<p><strong>Message from our team:</strong><br>${adminMessage}</p>`
+        : '';
+
+    await sendPlainEmail({
+        From: getDefaultFromEmail(),
+        To: claimant.email,
+        Subject: `Company Claim ${actionLabel}: ${companyName}`,
+        HtmlBody: `
+            <p>Hi ${claimant.firstName},</p>
+            <p>Your claim for <strong>${companyName}</strong> has been <strong>${actionLabel.toLowerCase()}</strong>.</p>
+            ${messageSection}
+            ${action === 'approve' ? '<p>You can now view your company on your profile page.</p>' : ''}
+        `,
+        TextBody: `Hi ${claimant.firstName}, your claim for ${companyName} has been ${actionLabel.toLowerCase()}.${adminMessage ? ` Message from our team: ${adminMessage}` : ''}`,
+    });
+    console.log(`Claim review notification sent to ${claimant.email} (${actionLabel})`);
 }
 
 // ─── Submit claim ─────────────────────────────────────────────────────────────
@@ -62,7 +101,11 @@ export type SubmitClaimResult =
     | { status: 'company-not-found' }
     | { status: 'already-claimed-by-user' }; // user already has pending or approved claim
 
-export async function submitClaim(userId: string, companyId: string): Promise<SubmitClaimResult> {
+export async function submitClaim(
+    userId: string,
+    companyId: string,
+    userMessage?: string,
+): Promise<SubmitClaimResult> {
     const [company] = await db
         .select({ id: companies.id, companyName: companies.companyName })
         .from(companies)
@@ -94,17 +137,24 @@ export async function submitClaim(userId: string, companyId: string): Promise<Su
     try {
         const [inserted] = await db
             .insert(companyClaims)
-            .values({ userId, companyId, status: 'pending', type })
+            .values({
+                userId,
+                companyId,
+                status: 'pending',
+                type,
+                userMessage: userMessage ?? null,
+            })
             .returning({ id: companyClaims.id });
 
         console.log(
             `${type === 'dispute' ? 'Dispute' : 'Claim'} submitted: user ${userId} → company ${companyId} (claim ${inserted.id})`,
         );
-        notifyClaimSubmitted(userId, company.companyName, inserted.id, type).catch((err) =>
-            console.error(
-                'Claim notification email failed:',
-                err instanceof Error ? err.message : err,
-            ),
+        notifyClaimSubmitted(userId, company.companyName, inserted.id, type, userMessage).catch(
+            (err) =>
+                console.error(
+                    'Claim notification email failed:',
+                    err instanceof Error ? err.message : err,
+                ),
         );
         return { status: 'ok', claimId: inserted.id };
     } catch (err: unknown) {
@@ -122,7 +172,9 @@ export interface ClaimRow {
     id: string;
     status: 'pending' | 'approved' | 'rejected';
     type: 'claim' | 'dispute';
+    userMessage: string | null;
     adminNotes: string | null;
+    adminMessage: string | null;
     reviewedAt: Date | null;
     createdAt: Date;
     userId: string;
@@ -161,7 +213,9 @@ export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
             id: companyClaims.id,
             status: companyClaims.status,
             type: companyClaims.type,
+            userMessage: companyClaims.userMessage,
             adminNotes: companyClaims.adminNotes,
+            adminMessage: companyClaims.adminMessage,
             reviewedAt: companyClaims.reviewedAt,
             createdAt: companyClaims.createdAt,
             userId: companyClaims.userId,
@@ -199,7 +253,9 @@ export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
             id: r.id,
             status: r.status,
             type: r.type,
+            userMessage: r.userMessage,
             adminNotes: r.adminNotes,
+            adminMessage: r.adminMessage,
             reviewedAt: r.reviewedAt,
             createdAt: r.createdAt,
             userId: r.userId,
@@ -226,6 +282,7 @@ export async function reviewClaim(
     reviewerId: string,
     action: 'approve' | 'reject',
     adminNotes?: string,
+    adminMessage?: string,
 ): Promise<ReviewClaimResult> {
     const [claim] = await db
         .select()
@@ -291,12 +348,29 @@ export async function reviewClaim(
         .set({
             status: newStatus,
             adminNotes: adminNotes ?? null,
+            adminMessage: adminMessage ?? null,
             reviewedBy: reviewerId,
             reviewedAt: new Date(),
             updatedAt: new Date(),
         })
         .where(eq(companyClaims.id, claimId))
         .returning();
+
+    // Need the company name for the notification email
+    const [company] = await db
+        .select({ companyName: companies.companyName })
+        .from(companies)
+        .where(eq(companies.id, claim.companyId))
+        .limit(1);
+
+    if (company) {
+        notifyClaimReviewed(claim.userId, company.companyName, action, adminMessage).catch((err) =>
+            console.error(
+                'Claim review notification email failed:',
+                err instanceof Error ? err.message : err,
+            ),
+        );
+    }
 
     return { status: 'ok', claim: updated };
 }

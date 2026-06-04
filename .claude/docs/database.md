@@ -340,7 +340,9 @@ User claims and disputes for company ownership.
 | `company_id` | `uuid` | NOT NULL, FK → `companies.id` (cascade) |
 | `status` | `claim_status` enum | NOT NULL, default `pending` |
 | `type` | `claim_type` enum | NOT NULL, default `claim` |
+| `user_message` | `text` | nullable — optional message from claimant on submission |
 | `admin_notes` | `text` | nullable |
+| `admin_message` | `text` | nullable — message sent to claimant on approve/reject |
 | `reviewed_by` | `uuid` | FK → `users.id` (set null), nullable |
 | `reviewed_at` | `timestamp` | nullable |
 | `created_at` | `timestamp` | NOT NULL, default now |

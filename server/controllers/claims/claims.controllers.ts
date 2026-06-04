@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { ClaimsServices } from 'server/services/claims';
 import { reviewCompanyClaimSchema } from '@database/updates/companyClaims.update';
+import { insertCompanyClaimSchema } from '@database/inserts/companyClaims.insert';
 
 const uuidParam = z.string().uuid();
 
@@ -14,7 +15,12 @@ export async function submitClaimHandler(req: Request, res: Response) {
         const companyId = idValidation.data;
         const userId = req.session.userId!;
 
-        const result = await ClaimsServices.submitClaim(userId, companyId);
+        const bodyValidation = insertCompanyClaimSchema
+            .omit({ companyId: true })
+            .safeParse(req.body);
+        const userMessage = bodyValidation.success ? bodyValidation.data.userMessage : undefined;
+
+        const result = await ClaimsServices.submitClaim(userId, companyId, userMessage);
         switch (result.status) {
             case 'company-not-found':
                 return res.status(404).json({ message: 'Company not found' });
@@ -56,8 +62,14 @@ export async function reviewClaimHandler(req: Request, res: Response) {
                 .json({ message: 'Invalid request data', errors: validation.error.errors });
         }
 
-        const { action, adminNotes } = validation.data;
-        const result = await ClaimsServices.reviewClaim(claimId, reviewerId, action, adminNotes);
+        const { action, adminNotes, adminMessage } = validation.data;
+        const result = await ClaimsServices.reviewClaim(
+            claimId,
+            reviewerId,
+            action,
+            adminNotes,
+            adminMessage,
+        );
 
         switch (result.status) {
             case 'not-found':

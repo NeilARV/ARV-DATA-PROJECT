@@ -23,7 +23,9 @@ interface ClaimRow {
     id: string;
     status: 'pending' | 'approved' | 'rejected';
     type: 'claim' | 'dispute';
+    userMessage: string | null;
     adminNotes: string | null;
+    adminMessage: string | null;
     reviewedAt: string | null;
     createdAt: string;
     userId: string;
@@ -53,6 +55,7 @@ export default function CompanyClaimsTab() {
     );
     const [reviewDialog, setReviewDialog] = useState<ReviewDialogState | null>(null);
     const [adminNotes, setAdminNotes] = useState('');
+    const [adminMessage, setAdminMessage] = useState('');
     const [detailClaim, setDetailClaim] = useState<ClaimRow | null>(null);
 
     const { data, isLoading } = useQuery<{ data: ClaimRow[]; count: number }>({
@@ -71,14 +74,17 @@ export default function CompanyClaimsTab() {
             claimId,
             action,
             notes,
+            message,
         }: {
             claimId: string;
             action: ReviewAction;
             notes: string;
+            message: string;
         }) => {
             const res = await apiRequest('PATCH', `/api/claims/${claimId}`, {
                 action,
                 adminNotes: notes.trim() || undefined,
+                adminMessage: message.trim() || undefined,
             });
             return res.json();
         },
@@ -93,6 +99,7 @@ export default function CompanyClaimsTab() {
             });
             setReviewDialog(null);
             setAdminNotes('');
+            setAdminMessage('');
         },
         onError: (err) => {
             const raw = err instanceof Error ? err.message : 'An error occurred';
@@ -110,6 +117,7 @@ export default function CompanyClaimsTab() {
 
     const openReview = (claim: ClaimRow, action: ReviewAction) => {
         setAdminNotes('');
+        setAdminMessage('');
         setReviewDialog({
             claimId: claim.id,
             action,
@@ -120,7 +128,6 @@ export default function CompanyClaimsTab() {
     };
 
     const claims = data?.data ?? [];
-    const isPending = statusFilter === 'pending';
 
     return (
         <>
@@ -217,7 +224,16 @@ export default function CompanyClaimsTab() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
-                                                {isPending ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setDetailClaim(claim)}
+                                                    data-testid={`button-view-claim-${claim.id}`}
+                                                >
+                                                    <Eye className="w-4 h-4 mr-1" />
+                                                    View
+                                                </Button>
+                                                {claim.status === 'pending' && (
                                                     <>
                                                         <Button
                                                             size="sm"
@@ -244,16 +260,6 @@ export default function CompanyClaimsTab() {
                                                             Reject
                                                         </Button>
                                                     </>
-                                                ) : (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => setDetailClaim(claim)}
-                                                        data-testid={`button-view-claim-${claim.id}`}
-                                                    >
-                                                        <Eye className="w-4 h-4 mr-1" />
-                                                        View
-                                                    </Button>
                                                 )}
                                             </div>
                                         </TableCell>
@@ -271,6 +277,7 @@ export default function CompanyClaimsTab() {
                 onClose={() => {
                     setReviewDialog(null);
                     setAdminNotes('');
+                    setAdminMessage('');
                 }}
                 className="max-w-md"
             >
@@ -296,20 +303,36 @@ export default function CompanyClaimsTab() {
 
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-foreground">
-                                Admin notes{' '}
+                                Message to user{' '}
                                 <span className="text-muted-foreground font-normal">
-                                    (optional)
+                                    (optional — sent in email)
                                 </span>
                             </label>
                             <Textarea
                                 placeholder={
                                     reviewDialog.action === 'reject'
-                                        ? 'Reason for rejection...'
-                                        : 'Any notes about this approval...'
+                                        ? 'Explain why the claim was rejected...'
+                                        : 'Any message to include in the approval email...'
                                 }
+                                value={adminMessage}
+                                onChange={(e) => setAdminMessage(e.target.value)}
+                                rows={3}
+                                maxLength={1000}
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-foreground">
+                                Internal notes{' '}
+                                <span className="text-muted-foreground font-normal">
+                                    (optional — not sent to user)
+                                </span>
+                            </label>
+                            <Textarea
+                                placeholder="Private notes for the admin team..."
                                 value={adminNotes}
                                 onChange={(e) => setAdminNotes(e.target.value)}
-                                rows={3}
+                                rows={2}
                                 maxLength={1000}
                             />
                         </div>
@@ -320,6 +343,7 @@ export default function CompanyClaimsTab() {
                                 onClick={() => {
                                     setReviewDialog(null);
                                     setAdminNotes('');
+                                    setAdminMessage('');
                                 }}
                                 disabled={reviewMutation.isPending}
                             >
@@ -334,6 +358,7 @@ export default function CompanyClaimsTab() {
                                         claimId: reviewDialog.claimId,
                                         action: reviewDialog.action,
                                         notes: adminNotes,
+                                        message: adminMessage,
                                     })
                                 }
                                 disabled={reviewMutation.isPending}
@@ -357,7 +382,7 @@ export default function CompanyClaimsTab() {
                 )}
             </AppDialog>
 
-            {/* Claim detail modal (approved / rejected views) */}
+            {/* Claim detail modal */}
             <AppDialog
                 open={!!detailClaim}
                 onClose={() => setDetailClaim(null)}
@@ -385,20 +410,39 @@ export default function CompanyClaimsTab() {
                                 </span>
                             </div>
 
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Status
-                                </span>
-                                <Badge
-                                    variant={
-                                        detailClaim.status === 'approved'
-                                            ? 'default'
-                                            : 'destructive'
-                                    }
-                                    className="w-fit capitalize"
-                                >
-                                    {detailClaim.status}
-                                </Badge>
+                            <div className="flex gap-3">
+                                <div className="flex flex-col gap-0.5 flex-1">
+                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                        Type
+                                    </span>
+                                    <Badge
+                                        variant={
+                                            detailClaim.type === 'dispute'
+                                                ? 'destructive'
+                                                : 'outline'
+                                        }
+                                        className="w-fit capitalize"
+                                    >
+                                        {detailClaim.type}
+                                    </Badge>
+                                </div>
+                                <div className="flex flex-col gap-0.5 flex-1">
+                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                        Status
+                                    </span>
+                                    <Badge
+                                        variant={
+                                            detailClaim.status === 'approved'
+                                                ? 'default'
+                                                : detailClaim.status === 'rejected'
+                                                  ? 'destructive'
+                                                  : 'secondary'
+                                        }
+                                        className="w-fit capitalize"
+                                    >
+                                        {detailClaim.status}
+                                    </Badge>
+                                </div>
                             </div>
 
                             <div className="flex flex-col gap-0.5">
@@ -413,39 +457,67 @@ export default function CompanyClaimsTab() {
                                 </span>
                             </div>
 
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Reviewed By
-                                </span>
-                                <span className="text-foreground">
-                                    {detailClaim.reviewerFirstName
-                                        ? `${detailClaim.reviewerFirstName} ${detailClaim.reviewerLastName}`
-                                        : '—'}
-                                </span>
-                            </div>
+                            {detailClaim.userMessage && (
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                        Message from Claimant
+                                    </span>
+                                    <span className="text-foreground whitespace-pre-wrap">
+                                        {detailClaim.userMessage}
+                                    </span>
+                                </div>
+                            )}
 
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Reviewed At
-                                </span>
-                                <span className="text-foreground">
-                                    {detailClaim.reviewedAt
-                                        ? format(
-                                              new Date(detailClaim.reviewedAt),
-                                              "MMM d, yyyy 'at' h:mm a",
-                                          )
-                                        : '—'}
-                                </span>
-                            </div>
+                            {detailClaim.status !== 'pending' && (
+                                <>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                            Reviewed By
+                                        </span>
+                                        <span className="text-foreground">
+                                            {detailClaim.reviewerFirstName
+                                                ? `${detailClaim.reviewerFirstName} ${detailClaim.reviewerLastName}`
+                                                : '—'}
+                                        </span>
+                                    </div>
 
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Admin Notes
-                                </span>
-                                <span className="text-foreground whitespace-pre-wrap">
-                                    {detailClaim.adminNotes ?? '—'}
-                                </span>
-                            </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                            Reviewed At
+                                        </span>
+                                        <span className="text-foreground">
+                                            {detailClaim.reviewedAt
+                                                ? format(
+                                                      new Date(detailClaim.reviewedAt),
+                                                      "MMM d, yyyy 'at' h:mm a",
+                                                  )
+                                                : '—'}
+                                        </span>
+                                    </div>
+
+                                    {detailClaim.adminMessage && (
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                                Message Sent to User
+                                            </span>
+                                            <span className="text-foreground whitespace-pre-wrap">
+                                                {detailClaim.adminMessage}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {detailClaim.adminNotes && (
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                                Internal Notes
+                                            </span>
+                                            <span className="text-foreground whitespace-pre-wrap">
+                                                {detailClaim.adminNotes}
+                                            </span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
 
                         <div className="flex justify-end pt-1">
