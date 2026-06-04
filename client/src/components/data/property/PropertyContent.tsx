@@ -285,7 +285,7 @@ export function PropertyContent({
                     </span>
                 </div>
             )}
-            <div className="absolute top-2 right-2 flex gap-2 items-end flex-wrap">
+            <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
                 {(statusList.filter((s) => s in STATUS_LABEL_MAP).length > 0
                     ? statusList.filter((s) => s in STATUS_LABEL_MAP)
                     : [PROPERTY_STATUS.IN_RENOVATION]

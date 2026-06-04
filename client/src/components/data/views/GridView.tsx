@@ -48,8 +48,8 @@ export default function GridView({ sideBarView }: GridViewProps) {
     const gridColsClass = useMemo(() => {
         const hasSidebar = sideBarView !== 'none';
         return hasSidebar
-            ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3'
-            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+            ? 'grid-cols-1 md:grid-cols-2'
+            : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
     }, [sideBarView]);
 
     return (
