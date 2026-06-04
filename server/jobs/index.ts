@@ -103,7 +103,7 @@ export function startScheduledJobs() {
     // Note: February fires only on the 29th (leap years only) — acceptable for a best-effort drain.
     // =========================================================================
     if (process.env.NODE_ENV === 'production') {
-        cron.schedule('30 23 29,30,31 * *', enrichCompaniesJob, {
+        cron.schedule('30 23 28,29,30,31 * *', enrichCompaniesJob, {
             timezone: 'America/Los_Angeles',
         });
     } else {
