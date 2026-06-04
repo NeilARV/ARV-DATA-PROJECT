@@ -22,7 +22,7 @@ export default function DealsColumn({
         >
             {/* Independently scrolling body */}
             <div className="flex-1 overflow-y-auto p-6 min-h-0">
-                <h3 className="text-base lg:text-lg font-semibold text-foreground mb-4">
+                <h3 className="text-base font-semibold text-foreground mb-4">
                     {title}
                     <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground">
                         ({count})

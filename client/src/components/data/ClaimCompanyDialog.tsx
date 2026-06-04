@@ -69,7 +69,7 @@ export function ClaimCompanyDialog({
                 </DialogDescription>
             </DialogHeader>
 
-            <p className="text-sm lg:text-base text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
                 {isClaimed
                     ? `This company already has a verified owner. If you believe you have a right to this company, submit a dispute and our team will review it.`
                     : `Submit a claim to associate your account with ${formattedName}. Our team will review your request and approve it if everything checks out.`}

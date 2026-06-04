@@ -53,7 +53,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                                 <span className="field-label">Type</span>
                                 <Badge
                                     variant={claim.type === 'dispute' ? 'destructive' : 'outline'}
-                                    className="w-fit capitalize text-base lg:text-lg font-medium px-3 py-1"
+                                    className="w-fit capitalize"
                                 >
                                     {claim.type}
                                 </Badge>
@@ -68,7 +68,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                                               ? 'destructive'
                                               : 'secondary'
                                     }
-                                    className="w-fit capitalize text-base lg:text-lg font-medium px-3 py-1"
+                                    className="w-fit capitalize"
                                 >
                                     {claim.status}
                                 </Badge>
@@ -92,10 +92,8 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                         {claim.status !== 'pending' && (
                             <>
                                 <div className="flex flex-col gap-0.5">
-                                    <span className="text-sm font-medium text-foreground">
-                                        Reviewed by
-                                    </span>
-                                    <span className="text-sm text-foreground">
+                                    <span className="field-label">Reviewed by</span>
+                                    <span className="field-value">
                                         {claim.reviewerFirstName
                                             ? `${claim.reviewerFirstName} ${claim.reviewerLastName}`
                                             : '—'}
@@ -103,10 +101,8 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                                 </div>
 
                                 <div className="flex flex-col gap-0.5">
-                                    <span className="text-sm font-medium text-foreground">
-                                        Reviewed at
-                                    </span>
-                                    <span className="text-sm text-foreground">
+                                    <span className="field-label">Reviewed at</span>
+                                    <span className="field-value">
                                         {claim.reviewedAt
                                             ? format(
                                                   new Date(claim.reviewedAt),
@@ -118,9 +114,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
 
                                 {claim.adminMessage && (
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="text-sm font-medium text-foreground">
-                                            Message sent to user
-                                        </span>
+                                        <span className="field-label">Message sent to user</span>
                                         <span className="text-sm text-foreground whitespace-pre-wrap">
                                             {claim.adminMessage}
                                         </span>
@@ -129,9 +123,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
 
                                 {claim.adminNotes && (
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="text-sm font-medium text-foreground">
-                                            Internal notes
-                                        </span>
+                                        <span className="field-label">Internal notes</span>
                                         <span className="text-sm text-foreground whitespace-pre-wrap">
                                             {claim.adminNotes}
                                         </span>

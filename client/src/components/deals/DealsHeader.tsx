@@ -39,10 +39,10 @@ export default function DealsHeader({
             {/* Primary row */}
             <div className="flex items-center gap-3 px-4 2xl:px-6 py-3">
                 <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-lg lg:text-xl text-foreground truncate">
+                    <h2 className="font-semibold text-xl text-foreground truncate">
                         Welcome to the ARV Deal Marketplace
                     </h2>
-                    <p className="text-sm lg:text-base text-muted-foreground mt-0.5 truncate">{title}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5 truncate">{title}</p>
                 </div>
 
                 {/* Desktop: location search + tabs + button inline */}

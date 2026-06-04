@@ -33,6 +33,18 @@
                     }
                 ]
             }
+        ],
+        "Stop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "prompt",
+                        "prompt": "You are a design consistency reviewer. Before Claude finishes this session, review all files that were created or modified.\n\n1. Read the project's design system documentation at `.claude/docs/design.md` (check the project root and common locations like `docs/design.md`, `.claude/design.md`, or `src/design.md`).\n\n2. For every UI file touched this session, verify:\n   - Text sizes use only the scale defined in design.md (no hardcoded arbitrary values like `text-[13px]` or `font-size: 17px`)\n   - Font size tokens/classes are consistent with the design system (e.g. `text-sm`, `text-base`, `text-lg` or whatever scale is defined)\n   - Components are scalable — sizes use relative units (rem/em) or design tokens, not fixed px where avoidable\n   - No one-off overrides that break uniformity across the app\n\n3. If violations are found, respond with {\"ok\": false, \"reason\": \"<list each file and specific violation>\"} and Claude will fix them before stopping.\n\n4. If everything follows the design system, respond with {\"ok\": true}.",
+                        "timeout": 60
+                    }
+                ]
+            }
         ]
     }
 }

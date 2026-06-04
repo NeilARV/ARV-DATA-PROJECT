@@ -33,9 +33,9 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
         <div className="flex flex-col h-full">
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
                 <div className="h-7 flex items-center">
-                    <h2 className="font-semibold text-lg lg:text-xl text-foreground">Activity Feed</h2>
+                    <h2 className="font-semibold text-xl text-foreground">Activity Feed</h2>
                 </div>
-                <p className="text-sm lg:text-base text-muted-foreground mt-0.5">
+                <p className="text-sm text-muted-foreground mt-0.5">
                     {filterLabel ?? 'See recent project activity'}
                 </p>
             </div>

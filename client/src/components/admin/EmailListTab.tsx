@@ -259,7 +259,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                 <CardTitle>
                     Email Subscription List{' '}
                     {whitelistCount > 0 && (
-                        <span className="text-muted-foreground font-normal text-base lg:text-lg">
+                        <span className="text-base font-normal text-muted-foreground">
                             ({whitelistCount})
                         </span>
                     )}

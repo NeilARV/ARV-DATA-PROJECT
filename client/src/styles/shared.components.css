@@ -1,22 +1,14 @@
 @layer components {
     .field-label {
-        @apply text-sm lg:text-base font-medium text-muted-foreground;
+        @apply text-sm font-medium text-muted-foreground;
     }
 
     .field-value {
-        @apply text-base lg:text-lg font-medium;
+        @apply text-base font-medium;
     }
 
     .rm-label {
-        @apply text-sm lg:text-base text-muted-foreground;
-    }
-
-    .rm-value {
-        @apply text-base lg:text-lg font-medium;
-    }
-
-    .card-sub-title {
-        @apply text-sm lg:text-base text-muted-foreground;
+        @apply text-sm text-muted-foreground;
     }
 
     .card-title {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -151,16 +152,13 @@ export default function DealCard2({
                     {/* Badges: ARV Exclusive (left) + deal type (right), both left-aligned */}
                     <div className="absolute top-2 left-2 flex items-center gap-1.5">
                         {deal.isArvExclusive && (
-                            <span
-                                className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm"
-                                style={{ backgroundColor: '#ffffff', color: '#000000' }}
-                            >
+                            <span className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm bg-white text-black">
                                 ★ ARV Exclusive
                             </span>
                         )}
                         <span
-                            className="text-[13px] font-semibold px-3 py-0.5 rounded shadow-sm"
-                            style={{ backgroundColor: typeStyle.bg, color: '#fff' }}
+                            className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm text-white"
+                            style={{ backgroundColor: typeStyle.bg }}
                         >
                             {typeStyle.label}
                         </span>
@@ -172,7 +170,7 @@ export default function DealCard2({
                     {/* Address row + time ago + 3-dot menu */}
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <p className="font-semibold text-base lg:text-lg leading-tight truncate text-foreground">
+                            <p className="font-semibold text-base leading-tight truncate text-foreground">
                                 {formatAddress(deal.address) ?? 'Undisclosed Address'}
                             </p>
                             <p className="deal-card-address mt-0.5">
@@ -183,12 +181,12 @@ export default function DealCard2({
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
                             {isPinned && (
-                                <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground shrink-0 mr-1.5">
-                                    <Link2 className="w-2.5 h-2.5" />
+                                <Badge variant="secondary" className="gap-1 mr-1.5 shrink-0">
+                                    <Link2 className="w-3 h-3" />
                                     Linked
-                                </span>
+                                </Badge>
                             )}
-                            <span className="text-xs lg:text-sm text-muted-foreground whitespace-nowrap pr-4">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap pr-4">
                                 {formatDatePosted(deal.createdAt)}
                             </span>
                             {canRequestContact && (
@@ -249,7 +247,7 @@ export default function DealCard2({
 
                     {/* Specs row */}
                     {(beds !== null || baths !== null || sqft !== null) && (
-                        <div className="flex items-center gap-4 text-sm lg:text-base text-foreground">
+                        <div className="flex items-center gap-4 text-sm text-foreground">
                             {beds !== null && (
                                 <span className="flex items-center gap-1.5">
                                     <Bed className="deal-card-icon" />
@@ -335,7 +333,7 @@ export default function DealCard2({
                 <div className="border-t border-border px-5 py-4 flex flex-col gap-4">
                     <div>
                         <p className="deal-card-label">Notes</p>
-                        <p className="text-sm lg:text-base text-foreground leading-relaxed">
+                        <p className="text-sm text-foreground leading-relaxed">
                             {deal.notes || (
                                 <span className="text-foreground">No notes available.</span>
                             )}
@@ -427,9 +425,7 @@ export default function DealCard2({
                             .filter(Boolean)
                             .map((item, i, arr) => (
                                 <span key={i} className="flex items-center gap-1.5">
-                                    <span className="text-sm lg:text-base text-foreground">
-                                        {item}
-                                    </span>
+                                    <span className="text-sm text-foreground">{item}</span>
                                     {i < arr.length - 1 && (
                                         <span className="text-muted-foreground">|</span>
                                     )}
@@ -439,17 +435,13 @@ export default function DealCard2({
                     {deal.onBehalfOfEmail && (
                         <div className="flex items-center gap-1.5">
                             <span className="deal-card-label shrink-0">On Behalf Of:</span>
-                            <span className="text-sm lg:text-base text-foreground">
-                                {deal.onBehalfOfEmail}
-                            </span>
+                            <span className="text-sm text-foreground">{deal.onBehalfOfEmail}</span>
                         </div>
                     )}
                     {deal.adminNotes && (
                         <div className="flex items-center gap-1.5">
                             <span className="deal-card-label shrink-0">Internal Note:</span>
-                            <span className="text-sm lg:text-base text-foreground">
-                                {deal.adminNotes}
-                            </span>
+                            <span className="text-sm text-foreground">{deal.adminNotes}</span>
                         </div>
                     )}
                 </div>

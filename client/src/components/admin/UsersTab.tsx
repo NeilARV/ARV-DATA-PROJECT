@@ -108,7 +108,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                 <CardTitle>
                     Registered Users{' '}
                     {userCount > 0 && (
-                        <span className="text-muted-foreground font-normal text-base lg:text-lg">
+                        <span className="text-base font-normal text-muted-foreground">
                             ({userCount})
                         </span>
                     )}
