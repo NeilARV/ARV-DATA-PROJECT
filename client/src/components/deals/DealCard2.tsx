@@ -152,9 +152,9 @@ export default function DealCard2({
                     {/* Badges: ARV Exclusive (left) + deal type (right), both left-aligned */}
                     <div className="absolute top-2 left-2 flex items-center gap-1.5">
                         {deal.isArvExclusive && (
-                            <span className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm bg-white text-black">
+                            <Badge variant="secondary" className="shadow-sm">
                                 ★ ARV Exclusive
-                            </span>
+                            </Badge>
                         )}
                         <span
                             className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm text-white"
@@ -247,7 +247,7 @@ export default function DealCard2({
 
                     {/* Specs row */}
                     {(beds !== null || baths !== null || sqft !== null) && (
-                        <div className="flex items-center gap-4 text-sm text-foreground">
+                        <div className="flex items-center gap-4 text-base text-foreground">
                             {beds !== null && (
                                 <span className="flex items-center gap-1.5">
                                     <Bed className="deal-card-icon" />
@@ -282,7 +282,7 @@ export default function DealCard2({
                         <div className="flex flex-col">
                             <span className="deal-card-label">Potential ARV</span>
                             {potentialARV !== null && potentialARV > 0 ? (
-                                <span className="deal-card-value text-[#2e7d32]">
+                                <span className="deal-card-value text-spread-positive">
                                     ${potentialARV.toLocaleString()}
                                 </span>
                             ) : (
@@ -348,7 +348,7 @@ export default function DealCard2({
                                 rel="noopener noreferrer"
                                 className="deal-card-link"
                             >
-                                <Images className="w-3 h-3 shrink-0 text-muted-foreground" />
+                                <Images className="deal-card-sub-icon shrink-0 text-muted-foreground" />
                                 View Photos
                             </a>
                         </div>

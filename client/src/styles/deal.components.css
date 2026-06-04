@@ -8,7 +8,7 @@
     }
 
     .deal-card-value-empty {
-        @apply text-xs font-bold text-muted-foreground;
+        @apply text-lg font-bold text-muted-foreground;
     }
 
     .deal-card-icon {
@@ -24,6 +24,6 @@
     }
 
     .deal-card-address {
-        @apply text-base text-muted-foreground truncate;
+        @apply text-sm text-muted-foreground truncate;
     }
 }
