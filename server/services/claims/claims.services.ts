@@ -38,6 +38,9 @@ async function notifyClaimSubmitted(
     const typeLabel = type === 'dispute' ? 'Dispute' : 'Claim';
     const claimantName = `${claimant.firstName} ${claimant.lastName}`.trim();
 
+    console.log(
+        `Sending claim notification for claim ${claimId} to ${recipientEmail} (${rmMap.has(userId) ? 'RM' : 'default recipient'})`,
+    );
     await sendPlainEmail({
         From: getDefaultFromEmail(),
         To: recipientEmail,
@@ -49,6 +52,7 @@ async function notifyClaimSubmitted(
         `,
         TextBody: `${claimantName} (${claimant.email}) submitted a ${type} for ${companyName}. Review in Admin Panel > Claims. Claim ID: ${claimId}`,
     });
+    console.log(`Claim notification sent for claim ${claimId}`);
 }
 
 // ─── Submit claim ─────────────────────────────────────────────────────────────
