@@ -201,7 +201,7 @@ export default function CompanyClaimsTab() {
                                                     <Badge
                                                         variant={
                                                             claim.status === 'approved'
-                                                                ? 'default'
+                                                                ? 'green'
                                                                 : claim.status === 'rejected'
                                                                   ? 'destructive'
                                                                   : 'secondary'

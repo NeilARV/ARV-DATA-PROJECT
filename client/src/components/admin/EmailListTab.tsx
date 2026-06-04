@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Mail, Plus, Trash2 } from 'lucide-react';
 import { MSA } from '@/constants/filters.constants';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -483,41 +483,28 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                                                 return rm ? (
                                                                     <Badge
                                                                         variant="secondary"
-                                                                        className={
-                                                                            canEditEntries
-                                                                                ? 'gap-0.5 pr-0.5 font-normal'
-                                                                                : 'font-normal'
+                                                                        className="font-normal"
+                                                                        data-testid={`button-remove-rm-${entry.id}`}
+                                                                        removeLabel={`Remove ${rm.first_name} ${rm.last_name}`}
+                                                                        onRemove={
+                                                                            canEditEntries &&
+                                                                            !updateWhitelistMutation.isPending
+                                                                                ? () =>
+                                                                                      setRemoveRmConfirm(
+                                                                                          {
+                                                                                              id: entry.id,
+                                                                                              email: entry.email,
+                                                                                              msaName:
+                                                                                                  entry.msaName ??
+                                                                                                  MSA[0],
+                                                                                              managerName: `${rm.first_name} ${rm.last_name}`,
+                                                                                          },
+                                                                                      )
+                                                                                : undefined
                                                                         }
                                                                     >
                                                                         {rm.first_name}{' '}
                                                                         {rm.last_name}
-                                                                        {canEditEntries && (
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
-                                                                                aria-label={`Remove ${rm.first_name} ${rm.last_name}`}
-                                                                                disabled={
-                                                                                    updateWhitelistMutation.isPending
-                                                                                }
-                                                                                onClick={() =>
-                                                                                    setRemoveRmConfirm(
-                                                                                        {
-                                                                                            id: entry.id,
-                                                                                            email: entry.email,
-                                                                                            msaName:
-                                                                                                entry.msaName ??
-                                                                                                MSA[0],
-                                                                                            managerName: `${rm.first_name} ${rm.last_name}`,
-                                                                                        },
-                                                                                    )
-                                                                                }
-                                                                                data-testid={`button-remove-rm-${entry.id}`}
-                                                                            >
-                                                                                <X className="h-3 w-3" />
-                                                                            </Button>
-                                                                        )}
                                                                     </Badge>
                                                                 ) : (
                                                                     <span className="rm-label">

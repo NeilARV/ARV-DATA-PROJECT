@@ -16,7 +16,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { getStreetViewUrl } from '@/lib/streetView';
-import { StatusTag } from './StatusTag';
+import { Badge } from '@/components/ui/badge';
 import { formatAddress } from '@shared/utils/formatAddress';
 import { isNegative } from '@/utils/isNegative';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
@@ -33,7 +33,7 @@ const IMAGE_SIZES: Record<Section, string> = {
 const VARIANT_CFG = {
     card: {
         imageClass: 'aspect-[4/3] overflow-hidden bg-muted relative',
-        arvBadgeTextClass: 'text-[15px]',
+        arvBadgeTextClass: 'text-sm',
         arvIconClass: 'w-3.5 h-3.5',
         priceClass: 'text-xl font-bold text-foreground',
         dateLabelClass: 'text-sm',
@@ -52,7 +52,7 @@ const VARIANT_CFG = {
     },
     modal: {
         imageClass: 'aspect-[4/3] overflow-hidden rounded-lg bg-muted relative',
-        arvBadgeTextClass: 'text-[15px]',
+        arvBadgeTextClass: 'text-sm',
         arvIconClass: 'w-3.5 h-3.5',
         priceClass: 'text-2xl font-bold',
         dateLabelClass: 'text-sm',
@@ -71,7 +71,7 @@ const VARIANT_CFG = {
     },
     panel: {
         imageClass: 'aspect-[4/3] overflow-hidden rounded-lg bg-muted relative',
-        arvBadgeTextClass: 'text-[12px]',
+        arvBadgeTextClass: 'text-xs',
         arvIconClass: 'w-3 h-3',
         priceClass: 'text-2xl font-bold',
         dateLabelClass: 'text-xs',
@@ -160,6 +160,19 @@ export function PropertyContent({
     const statusList = (property.statuses ?? [property.status ?? '']).map((s) =>
         s.toLowerCase().trim(),
     );
+
+    const STATUS_VARIANT_MAP: Record<string, 'cyan' | 'red' | 'green' | 'purple'> = {
+        [PROPERTY_STATUS.IN_RENOVATION]: 'cyan',
+        [PROPERTY_STATUS.SOLD]: 'red',
+        [PROPERTY_STATUS.ON_MARKET]: 'green',
+        [PROPERTY_STATUS.WHOLESALE]: 'purple',
+    };
+    const STATUS_LABEL_MAP: Record<string, string> = {
+        [PROPERTY_STATUS.IN_RENOVATION]: 'Renovating',
+        [PROPERTY_STATUS.SOLD]: 'Sold',
+        [PROPERTY_STATUS.ON_MARKET]: 'On Market',
+        [PROPERTY_STATUS.WHOLESALE]: 'Wholesale',
+    };
     const isWholesale = statusList.includes(PROPERTY_STATUS.WHOLESALE);
     const isSold = statusList.includes(PROPERTY_STATUS.SOLD);
     const hasBothPurchasePrices =
@@ -272,12 +285,19 @@ export function PropertyContent({
                     </span>
                 </div>
             )}
-            <div className="absolute top-2 right-2 flex gap-2 items-end">
-                <StatusTag
-                    status={property.status}
-                    statuses={property.statuses}
-                    section={variant}
-                />
+            <div className="absolute top-2 right-2 flex gap-2 items-end flex-wrap">
+                {(statusList.filter((s) => s in STATUS_LABEL_MAP).length > 0
+                    ? statusList.filter((s) => s in STATUS_LABEL_MAP)
+                    : [PROPERTY_STATUS.IN_RENOVATION]
+                ).map((s) => (
+                    <Badge
+                        key={s}
+                        variant={STATUS_VARIANT_MAP[s] ?? 'cyan'}
+                        size={variant === 'panel' ? 'sm' : 'lg'}
+                    >
+                        {STATUS_LABEL_MAP[s] ?? 'Renovating'}
+                    </Badge>
+                ))}
             </div>
         </div>
     );

@@ -114,12 +114,6 @@ export type PropertyTableProps = {
     properties: Property[];
 };
 
-export type StatusTag = {
-    status?: string;
-    statuses?: string[];
-    section: Section;
-};
-
 export type PropertyMap = {
     mapPins: MapPin[];
     onPropertyClick?: (mapPin: MapPin) => void;

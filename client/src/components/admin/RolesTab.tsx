@@ -17,8 +17,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Loader2, Users, X } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
@@ -211,42 +210,26 @@ export default function RolesTab({
                                                                   <Badge
                                                                       key={roleName}
                                                                       variant="secondary"
-                                                                      className={
+                                                                      className="font-normal"
+                                                                      removeLabel={`Remove ${roleName}`}
+                                                                      onRemove={
                                                                           canRemoveRole(
                                                                               roleName,
                                                                               user,
-                                                                          )
-                                                                              ? 'gap-0.5 pr-0.5 font-normal'
-                                                                              : 'font-normal'
+                                                                          ) &&
+                                                                          !isRoleMutationPending
+                                                                              ? () =>
+                                                                                    setRoleConfirm({
+                                                                                        open: true,
+                                                                                        userId: user.id,
+                                                                                        userName: `${user.firstName} ${user.lastName}`,
+                                                                                        roleName,
+                                                                                        action: 'remove',
+                                                                                    })
+                                                                              : undefined
                                                                       }
                                                                   >
                                                                       {roleName}
-                                                                      {canRemoveRole(
-                                                                          roleName,
-                                                                          user,
-                                                                      ) && (
-                                                                          <Button
-                                                                              type="button"
-                                                                              variant="ghost"
-                                                                              size="icon"
-                                                                              className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
-                                                                              aria-label={`Remove ${roleName}`}
-                                                                              disabled={
-                                                                                  isRoleMutationPending
-                                                                              }
-                                                                              onClick={() =>
-                                                                                  setRoleConfirm({
-                                                                                      open: true,
-                                                                                      userId: user.id,
-                                                                                      userName: `${user.firstName} ${user.lastName}`,
-                                                                                      roleName,
-                                                                                      action: 'remove',
-                                                                                  })
-                                                                              }
-                                                                          >
-                                                                              <X className="h-3 w-3" />
-                                                                          </Button>
-                                                                      )}
                                                                   </Badge>
                                                               ))
                                                             : '-'}

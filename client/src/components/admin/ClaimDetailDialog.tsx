@@ -63,7 +63,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                                 <Badge
                                     variant={
                                         claim.status === 'approved'
-                                            ? 'default'
+                                            ? 'green'
                                             : claim.status === 'rejected'
                                               ? 'destructive'
                                               : 'secondary'

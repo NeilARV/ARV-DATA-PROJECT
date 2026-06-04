@@ -16,7 +16,8 @@
       "Bash(npx drizzle-kit *)",
       "Bash(New-Item -ItemType Directory -Force \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\assets\\\\email\\\\templates\")",
       "Bash(Out-Null)",
-      "Bash(Move-Item \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\\\\*\" \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\assets\\\\email\\\\templates\\\\\"; Remove-Item -Force \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\")"
+      "Bash(Move-Item \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\\\\*\" \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\assets\\\\email\\\\templates\\\\\"; Remove-Item -Force \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\")",
+      "Bash(rm \"c:/Github/ARV-DATA-Project/client/src/components/data/property/StatusTag.tsx\")"
     ]
   }
 }

@@ -71,10 +71,10 @@ function formatDatePosted(dateStr: string): string {
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const DEAL_TYPE_STYLES: Record<string, { bg: string; label: string }> = {
-    wholesale: { bg: '#9333EA', label: 'Wholesale' },
-    sold: { bg: '#FF0000', label: 'Sold' },
-    agent: { bg: '#F97316', label: 'Agent' },
+const DEAL_TYPE_MAP: Record<string, { variant: 'purple' | 'red' | 'orange'; label: string }> = {
+    wholesale: { variant: 'purple', label: 'Wholesale' },
+    sold: { variant: 'red', label: 'Sold' },
+    agent: { variant: 'orange', label: 'Agent' },
 };
 
 export default function DealCard2({
@@ -118,7 +118,7 @@ export default function DealCard2({
     const baths = deal.baths || null;
     const sqft = deal.sqft ? Number(deal.sqft) : null;
 
-    const typeStyle = DEAL_TYPE_STYLES[deal.dealType] ?? DEAL_TYPE_STYLES.agent;
+    const dealType = DEAL_TYPE_MAP[deal.dealType] ?? DEAL_TYPE_MAP.agent;
     const hasExpandableContent = true; // notes section always renders in expanded view
 
     return (
@@ -151,17 +151,10 @@ export default function DealCard2({
                     )}
                     {/* Badges: ARV Exclusive (left) + deal type (right), both left-aligned */}
                     <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                        {deal.isArvExclusive && (
-                            <Badge variant="secondary" className="shadow-sm">
-                                ★ ARV Exclusive
-                            </Badge>
-                        )}
-                        <span
-                            className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm text-white"
-                            style={{ backgroundColor: typeStyle.bg }}
-                        >
-                            {typeStyle.label}
-                        </span>
+                        {deal.isArvExclusive && <Badge variant="white">★ ARV Exclusive</Badge>}
+                        <Badge variant={dealType.variant} size="lg">
+                            {dealType.label}
+                        </Badge>
                     </div>
                 </div>
 
