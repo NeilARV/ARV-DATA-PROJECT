@@ -53,7 +53,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                                 <span className="field-label">Type</span>
                                 <Badge
                                     variant={claim.type === 'dispute' ? 'destructive' : 'outline'}
-                                    className="w-fit capitalize h-6"
+                                    className="w-fit capitalize text-base lg:text-lg font-medium px-3 py-1"
                                 >
                                     {claim.type}
                                 </Badge>
@@ -68,7 +68,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                                               ? 'destructive'
                                               : 'secondary'
                                     }
-                                    className="w-fit capitalize h-6"
+                                    className="w-fit capitalize text-base lg:text-lg font-medium px-3 py-1"
                                 >
                                     {claim.status}
                                 </Badge>
@@ -84,12 +84,8 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
 
                         {claim.userMessage && (
                             <div className="flex flex-col gap-0.5">
-                                <span className="field-label">
-                                    Message from User
-                                </span>
-                                <span className="field-value">
-                                    {claim.userMessage}
-                                </span>
+                                <span className="field-label">Message from User</span>
+                                <span className="field-value">{claim.userMessage}</span>
                             </div>
                         )}
 
