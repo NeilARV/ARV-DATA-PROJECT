@@ -143,113 +143,121 @@ export default function CompanyClaimsTab() {
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="flex justify-center py-12">
-                            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        <div className="tab-loading">
+                            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                         </div>
                     ) : claims.length === 0 ? (
-                        <div className="text-center text-muted-foreground py-12 text-sm">
-                            No {statusFilter} claims.
+                        <div className="tab-empty-state">
+                            <Building2 className="w-16 h-16 text-muted-foreground" />
+                            <p className="text-muted-foreground">No {statusFilter} claims.</p>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>User</TableHead>
-                                    <TableHead>Company</TableHead>
-                                    <TableHead>Submitted</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {claims.map((claim) => (
-                                    <TableRow key={claim.id}>
-                                        <TableCell>
-                                            <div className="font-medium text-sm">
-                                                {claim.userFirstName} {claim.userLastName}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {claim.userEmail}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="font-medium text-sm">
-                                            {formatCompanyName(claim.companyName)}
-                                        </TableCell>
-                                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                                            {format(new Date(claim.createdAt), 'MMM d, yyyy')}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                variant={
-                                                    claim.type === 'dispute'
-                                                        ? 'destructive'
-                                                        : 'outline'
-                                                }
-                                                className="capitalize"
-                                            >
-                                                {claim.type}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                variant={
-                                                    claim.status === 'approved'
-                                                        ? 'default'
-                                                        : claim.status === 'rejected'
-                                                          ? 'destructive'
-                                                          : 'secondary'
-                                                }
-                                                className="capitalize"
-                                            >
-                                                {claim.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => setDetailClaim(claim)}
-                                                    data-testid={`button-view-claim-${claim.id}`}
-                                                >
-                                                    <Eye className="w-4 h-4 mr-1" />
-                                                    View
-                                                </Button>
-                                                {claim.status === 'pending' && (
-                                                    <>
+                        <div className="table-scroll-wrapper">
+                            <div className="table-scroll-body">
+                                <Table>
+                                    <TableHeader className="sticky top-0 bg-background">
+                                        <TableRow>
+                                            <TableHead>User</TableHead>
+                                            <TableHead>Company</TableHead>
+                                            <TableHead>Submitted</TableHead>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {claims.map((claim) => (
+                                            <TableRow key={claim.id}>
+                                                <TableCell>
+                                                    <div className="font-medium text-sm">
+                                                        {claim.userFirstName} {claim.userLastName}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {claim.userEmail}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="font-medium text-sm">
+                                                    {formatCompanyName(claim.companyName)}
+                                                </TableCell>
+                                                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                                    {format(
+                                                        new Date(claim.createdAt),
+                                                        'MMM d, yyyy',
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        variant={
+                                                            claim.type === 'dispute'
+                                                                ? 'destructive'
+                                                                : 'outline'
+                                                        }
+                                                        className="capitalize"
+                                                    >
+                                                        {claim.type}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        variant={
+                                                            claim.status === 'approved'
+                                                                ? 'default'
+                                                                : claim.status === 'rejected'
+                                                                  ? 'destructive'
+                                                                  : 'secondary'
+                                                        }
+                                                        className="capitalize"
+                                                    >
+                                                        {claim.status}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-                                                            onClick={() =>
-                                                                openReview(claim, 'approve')
-                                                            }
-                                                            data-testid={`button-approve-claim-${claim.id}`}
+                                                            onClick={() => setDetailClaim(claim)}
+                                                            data-testid={`button-view-claim-${claim.id}`}
                                                         >
-                                                            <CheckCircle className="w-4 h-4 mr-1" />
-                                                            Approve
+                                                            <Eye className="w-4 h-4 mr-1" />
+                                                            View
                                                         </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="text-destructive border-destructive hover:bg-destructive/10"
-                                                            onClick={() =>
-                                                                openReview(claim, 'reject')
-                                                            }
-                                                            data-testid={`button-reject-claim-${claim.id}`}
-                                                        >
-                                                            <XCircle className="w-4 h-4 mr-1" />
-                                                            Reject
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                                        {claim.status === 'pending' && (
+                                                            <>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                                                                    onClick={() =>
+                                                                        openReview(claim, 'approve')
+                                                                    }
+                                                                    data-testid={`button-approve-claim-${claim.id}`}
+                                                                >
+                                                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                                                    Approve
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="text-destructive border-destructive hover:bg-destructive/10"
+                                                                    onClick={() =>
+                                                                        openReview(claim, 'reject')
+                                                                    }
+                                                                    data-testid={`button-reject-claim-${claim.id}`}
+                                                                >
+                                                                    <XCircle className="w-4 h-4 mr-1" />
+                                                                    Reject
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
                     )}
                 </CardContent>
             </Card>
@@ -277,7 +285,7 @@ export default function CompanyClaimsTab() {
                             </DialogDescription>
                         </DialogHeader>
 
-                        <p className="text-sm lg:text-base text-muted-foreground">
+                        <p className="rm-label">
                             {reviewDialog.action === 'approve' &&
                             reviewDialog.claimType === 'dispute'
                                 ? `Approving this dispute will remove the current owner and make ${reviewDialog.userName} the new owner. This cannot be undone.`

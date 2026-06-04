@@ -30,4 +30,20 @@
     .notification-value {
         @apply text-sm lg:text-base text-muted-foreground;
     }
+
+    .tab-loading {
+        @apply flex items-center justify-center py-12;
+    }
+
+    .tab-empty-state {
+        @apply flex flex-col items-center justify-center py-12 gap-4;
+    }
+
+    .table-scroll-wrapper {
+        @apply border rounded-lg overflow-hidden;
+    }
+
+    .table-scroll-body {
+        @apply max-h-[600px] overflow-y-auto;
+    }
 }

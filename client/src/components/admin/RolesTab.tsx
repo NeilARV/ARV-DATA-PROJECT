@@ -169,18 +169,18 @@ export default function RolesTab({
             </CardHeader>
             <CardContent>
                 {isLoadingUsers ? (
-                    <div className="flex items-center justify-center py-12">
+                    <div className="tab-loading">
                         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
                 ) : !users || users.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <div className="tab-empty-state">
                         <Users className="w-16 h-16 text-muted-foreground" />
                         <p className="text-muted-foreground">No @arvfinance.com users found</p>
                     </div>
                 ) : (
                     <div>
-                        <div className="border rounded-lg overflow-hidden">
-                            <div className="max-h-[600px] overflow-y-auto">
+                        <div className="table-scroll-wrapper">
+                            <div className="table-scroll-body">
                                 <Table>
                                     <TableHeader className="sticky top-0 bg-background">
                                         <TableRow>
@@ -315,9 +315,7 @@ export default function RolesTab({
                                                             </SelectContent>
                                                         </Select>
                                                     ) : (
-                                                        <span className="text-muted-foreground text-sm">
-                                                            —
-                                                        </span>
+                                                        <span className="rm-label">—</span>
                                                     )}
                                                 </TableCell>
                                             </TableRow>
