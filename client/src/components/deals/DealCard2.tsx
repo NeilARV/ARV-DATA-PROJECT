@@ -315,7 +315,7 @@ export default function DealCard2({
 
                     {/* View More indicator — part of the card top section */}
                     {hasExpandableContent && (
-                        <div className="flex items-center justify-center gap-1 pt-1 text-sm text-white select-none">
+                        <div className="flex items-center justify-center gap-1 pt-1 text-sm text-muted-foreground select-none">
                             {expanded ? (
                                 <>
                                     <ChevronsUp className="w-4 h-4" /> View Less

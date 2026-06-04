@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import AppDialog from '@/components/modals/Dialog';
@@ -63,16 +62,11 @@ export function ClaimCompanyDialog({
     return (
         <AppDialog open={open} onClose={onClose} className="max-w-md">
             <div className="space-y-4 p-1">
-                <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                        <Building2 className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-semibold text-foreground">
-                            {isClaimed ? 'Dispute Company Claim' : 'Claim This Company'}
-                        </h2>
-                        <p className="text-sm text-muted-foreground">{formattedName}</p>
-                    </div>
+                <div>
+                    <h2 className="text-lg font-semibold text-foreground">{formattedName}</h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {isClaimed ? 'Dispute company claim' : 'Claim this company'}
+                    </p>
                 </div>
 
                 <p className="text-sm text-muted-foreground">
