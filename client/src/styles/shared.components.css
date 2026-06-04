@@ -1,0 +1,33 @@
+@layer components {
+    .field-label {
+        @apply text-sm lg:text-base font-medium text-muted-foreground;
+    }
+
+    .field-value {
+        @apply text-base lg:text-lg font-medium;
+    }
+
+    .rm-label {
+        @apply text-sm lg:text-base text-muted-foreground;
+    }
+
+    .rm-value {
+        @apply text-base lg:text-lg font-medium;
+    }
+
+    .card-sub-title {
+        @apply text-sm lg:text-base text-muted-foreground;
+    }
+
+    .card-title {
+        @apply text-xl lg:text-2xl font-semibold leading-none tracking-tight;
+    }
+
+    .notification-label {
+        @apply text-base lg:text-lg text-foreground;
+    }
+
+    .notification-value {
+        @apply text-sm lg:text-base text-muted-foreground;
+    }
+}

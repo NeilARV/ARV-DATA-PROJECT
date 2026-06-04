@@ -16,27 +16,10 @@ import { Loader2, CheckCircle, XCircle, Building2, Eye } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
+import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-
-interface ClaimRow {
-    id: string;
-    status: 'pending' | 'approved' | 'rejected';
-    type: 'claim' | 'dispute';
-    userMessage: string | null;
-    adminNotes: string | null;
-    adminMessage: string | null;
-    reviewedAt: string | null;
-    createdAt: string;
-    userId: string;
-    userFirstName: string;
-    userLastName: string;
-    userEmail: string;
-    companyId: string;
-    companyName: string;
-    reviewerFirstName: string | null;
-    reviewerLastName: string | null;
-}
+import ClaimDetailDialog, { type ClaimRow } from '@/components/admin/ClaimDetailDialog';
 
 type ReviewAction = 'approve' | 'reject';
 
@@ -282,24 +265,26 @@ export default function CompanyClaimsTab() {
                 className="max-w-md"
             >
                 {reviewDialog && (
-                    <div className="space-y-4 p-1">
-                        <div>
-                            <h2 className="text-lg font-semibold text-foreground">
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>{formatCompanyName(reviewDialog.companyName)}</DialogTitle>
+                            <DialogDescription>
                                 {reviewDialog.action === 'approve'
                                     ? reviewDialog.claimType === 'dispute'
-                                        ? 'Approve Dispute'
-                                        : 'Approve Claim'
-                                    : 'Reject Claim'}
-                            </h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                {reviewDialog.action === 'approve' &&
-                                reviewDialog.claimType === 'dispute'
-                                    ? `Approving this dispute will remove the current owner and make ${reviewDialog.userName} the new owner of ${formatCompanyName(reviewDialog.companyName)}. This cannot be undone.`
-                                    : reviewDialog.action === 'approve'
-                                      ? `Approve ${reviewDialog.userName}'s claim to ${formatCompanyName(reviewDialog.companyName)}? This will make them the owner.`
-                                      : `Reject ${reviewDialog.userName}'s claim to ${formatCompanyName(reviewDialog.companyName)}?`}
-                            </p>
-                        </div>
+                                        ? 'Approve dispute'
+                                        : 'Approve claim'
+                                    : 'Reject claim'}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <p className="text-sm lg:text-base text-muted-foreground">
+                            {reviewDialog.action === 'approve' &&
+                            reviewDialog.claimType === 'dispute'
+                                ? `Approving this dispute will remove the current owner and make ${reviewDialog.userName} the new owner. This cannot be undone.`
+                                : reviewDialog.action === 'approve'
+                                  ? `Approve ${reviewDialog.userName}'s claim? This will make them the owner.`
+                                  : `Reject ${reviewDialog.userName}'s claim to this company?`}
+                        </p>
 
                         <div className="space-y-1.5">
                             <label className="text-sm font-medium text-foreground">
@@ -378,156 +363,11 @@ export default function CompanyClaimsTab() {
                                 )}
                             </Button>
                         </div>
-                    </div>
+                    </>
                 )}
             </AppDialog>
 
-            {/* Claim detail modal */}
-            <AppDialog
-                open={!!detailClaim}
-                onClose={() => setDetailClaim(null)}
-                className="max-w-md"
-            >
-                {detailClaim && (
-                    <div className="space-y-4 p-1">
-                        <div>
-                            <h2 className="text-lg font-semibold text-foreground">Claim Details</h2>
-                            <p className="text-sm text-muted-foreground mt-0.5">
-                                {formatCompanyName(detailClaim.companyName)}
-                            </p>
-                        </div>
-
-                        <div className="space-y-3 text-sm">
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Claimant
-                                </span>
-                                <span className="text-foreground font-medium">
-                                    {detailClaim.userFirstName} {detailClaim.userLastName}
-                                </span>
-                                <span className="text-muted-foreground text-xs">
-                                    {detailClaim.userEmail}
-                                </span>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <div className="flex flex-col gap-0.5 flex-1">
-                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                        Type
-                                    </span>
-                                    <Badge
-                                        variant={
-                                            detailClaim.type === 'dispute'
-                                                ? 'destructive'
-                                                : 'outline'
-                                        }
-                                        className="w-fit capitalize"
-                                    >
-                                        {detailClaim.type}
-                                    </Badge>
-                                </div>
-                                <div className="flex flex-col gap-0.5 flex-1">
-                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                        Status
-                                    </span>
-                                    <Badge
-                                        variant={
-                                            detailClaim.status === 'approved'
-                                                ? 'default'
-                                                : detailClaim.status === 'rejected'
-                                                  ? 'destructive'
-                                                  : 'secondary'
-                                        }
-                                        className="w-fit capitalize"
-                                    >
-                                        {detailClaim.status}
-                                    </Badge>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                    Submitted
-                                </span>
-                                <span className="text-foreground">
-                                    {format(
-                                        new Date(detailClaim.createdAt),
-                                        "MMM d, yyyy 'at' h:mm a",
-                                    )}
-                                </span>
-                            </div>
-
-                            {detailClaim.userMessage && (
-                                <div className="flex flex-col gap-0.5">
-                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                        Message from Claimant
-                                    </span>
-                                    <span className="text-foreground whitespace-pre-wrap">
-                                        {detailClaim.userMessage}
-                                    </span>
-                                </div>
-                            )}
-
-                            {detailClaim.status !== 'pending' && (
-                                <>
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                            Reviewed By
-                                        </span>
-                                        <span className="text-foreground">
-                                            {detailClaim.reviewerFirstName
-                                                ? `${detailClaim.reviewerFirstName} ${detailClaim.reviewerLastName}`
-                                                : '—'}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                            Reviewed At
-                                        </span>
-                                        <span className="text-foreground">
-                                            {detailClaim.reviewedAt
-                                                ? format(
-                                                      new Date(detailClaim.reviewedAt),
-                                                      "MMM d, yyyy 'at' h:mm a",
-                                                  )
-                                                : '—'}
-                                        </span>
-                                    </div>
-
-                                    {detailClaim.adminMessage && (
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                                Message Sent to User
-                                            </span>
-                                            <span className="text-foreground whitespace-pre-wrap">
-                                                {detailClaim.adminMessage}
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    {detailClaim.adminNotes && (
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                                Internal Notes
-                                            </span>
-                                            <span className="text-foreground whitespace-pre-wrap">
-                                                {detailClaim.adminNotes}
-                                            </span>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-
-                        <div className="flex justify-end pt-1">
-                            <Button variant="outline" onClick={() => setDetailClaim(null)}>
-                                Close
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </AppDialog>
+            <ClaimDetailDialog claim={detailClaim} onClose={() => setDetailClaim(null)} />
         </>
     );
 }

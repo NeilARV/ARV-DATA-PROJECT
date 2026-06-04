@@ -1,5 +1,6 @@
 @import './styles/deal.components.css';
 @import './styles/profile.components.css';
+@import './styles/shared.components.css';
 
 @tailwind base;
 @tailwind components;
