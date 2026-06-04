@@ -1,10 +1,17 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { ClaimsServices } from 'server/services/claims';
 import { reviewCompanyClaimSchema } from '@database/updates/companyClaims.update';
 
+const uuidParam = z.string().uuid();
+
 export async function submitClaimHandler(req: Request, res: Response) {
     try {
-        const { id: companyId } = req.params;
+        const idValidation = uuidParam.safeParse(req.params.id);
+        if (!idValidation.success) {
+            return res.status(400).json({ message: 'Invalid company ID' });
+        }
+        const companyId = idValidation.data;
         const userId = req.session.userId!;
 
         const result = await ClaimsServices.submitClaim(userId, companyId);
@@ -68,7 +75,11 @@ export async function reviewClaimHandler(req: Request, res: Response) {
 
 export async function getCompanyMembersHandler(req: Request, res: Response) {
     try {
-        const { id: companyId } = req.params;
+        const idValidation = uuidParam.safeParse(req.params.id);
+        if (!idValidation.success) {
+            return res.status(400).json({ message: 'Invalid company ID' });
+        }
+        const companyId = idValidation.data;
         const members = await ClaimsServices.getCompanyMembers(companyId);
         return res.json({ data: members, count: members.length });
     } catch (error) {

@@ -14,6 +14,7 @@ import {
     pgEnum,
     jsonb,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { msas } from './msas.schema';
 import { users } from './users.schema';
 
@@ -166,6 +167,9 @@ export const companyClaims = pgTable(
         index('idx_company_claims_user_status').on(t.userId, t.status),
         index('idx_company_claims_company_status').on(t.companyId, t.status),
         index('idx_company_claims_status_created').on(t.status, t.createdAt),
+        uniqueIndex('idx_company_claims_unique_active_user_company')
+            .on(t.userId, t.companyId)
+            .where(sql`status != 'rejected'`),
     ],
 );
 

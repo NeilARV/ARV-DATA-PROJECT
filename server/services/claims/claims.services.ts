@@ -39,15 +39,23 @@ export async function submitClaim(userId: string, companyId: string): Promise<Su
         .limit(1);
     const type = existingOwner ? 'dispute' : 'claim';
 
-    const [inserted] = await db
-        .insert(companyClaims)
-        .values({ userId, companyId, status: 'pending', type })
-        .returning({ id: companyClaims.id });
+    try {
+        const [inserted] = await db
+            .insert(companyClaims)
+            .values({ userId, companyId, status: 'pending', type })
+            .returning({ id: companyClaims.id });
 
-    console.log(
-        `${type === 'dispute' ? 'Dispute' : 'Claim'} submitted: user ${userId} → company ${companyId} (claim ${inserted.id})`,
-    );
-    return { status: 'ok', claimId: inserted.id };
+        console.log(
+            `${type === 'dispute' ? 'Dispute' : 'Claim'} submitted: user ${userId} → company ${companyId} (claim ${inserted.id})`,
+        );
+        return { status: 'ok', claimId: inserted.id };
+    } catch (err: unknown) {
+        // Unique constraint violation — concurrent request beat us to the insert
+        if (err && typeof err === 'object' && 'code' in err && err.code === '23505') {
+            return { status: 'already-claimed-by-user' };
+        }
+        throw err;
+    }
 }
 
 // ─── List claims (admin) ──────────────────────────────────────────────────────
@@ -68,16 +76,6 @@ export interface ClaimRow {
     reviewerFirstName: string | null;
     reviewerLastName: string | null;
 }
-
-const reviewers = db.$with('reviewers').as(
-    db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-        })
-        .from(users),
-);
 
 export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
     const validStatuses = ['pending', 'approved', 'rejected'] as const;
@@ -180,8 +178,56 @@ export async function reviewClaim(
     if (!claim) return { status: 'not-found' };
     if (claim.status !== 'pending') return { status: 'already-reviewed' };
 
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    // Member writes happen BEFORE the status update so that if anything fails
+    // mid-way the claim stays 'pending' and the admin can safely retry.
+    if (action === 'approve') {
+        if (claim.type === 'dispute') {
+            // Dispute: remove all existing members, then insert the disputer as new owner.
+            // If the insert fails the claim stays pending; retrying will no-op the delete
+            // (nothing left) and succeed on the insert.
+            await db.delete(companyMembers).where(eq(companyMembers.companyId, claim.companyId));
+            await db.insert(companyMembers).values({
+                userId: claim.userId,
+                companyId: claim.companyId,
+                role: 'owner',
+                isPrimary: true,
+            });
+            console.log(
+                `Dispute ${claimId} approved: replaced owner, user ${claim.userId} is now owner of company ${claim.companyId}`,
+            );
+        } else {
+            // Standard claim: skip insert if the user somehow already has a member row.
+            const [alreadyMember] = await db
+                .select({ userId: companyMembers.userId })
+                .from(companyMembers)
+                .where(
+                    and(
+                        eq(companyMembers.userId, claim.userId),
+                        eq(companyMembers.companyId, claim.companyId),
+                    ),
+                )
+                .limit(1);
+            if (!alreadyMember) {
+                await db.insert(companyMembers).values({
+                    userId: claim.userId,
+                    companyId: claim.companyId,
+                    role: 'owner',
+                    isPrimary: true,
+                });
+            }
+            console.log(
+                alreadyMember
+                    ? `Claim ${claimId} approved: user already a member, skipping insert`
+                    : `Claim ${claimId} approved: user ${claim.userId} → company ${claim.companyId}`,
+            );
+        }
+    } else {
+        console.log(`Claim ${claimId} rejected`);
+    }
 
+    // Status update is last — if this fails the claim stays pending and
+    // the member write above is idempotent on retry (alreadyMember guard).
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
     const [updated] = await db
         .update(companyClaims)
         .set({
@@ -194,44 +240,6 @@ export async function reviewClaim(
         .where(eq(companyClaims.id, claimId))
         .returning();
 
-    if (action === 'approve') {
-        if (claim.type === 'dispute') {
-            // Dispute approval: remove all existing members and make the disputer the new owner
-            await db.delete(companyMembers).where(eq(companyMembers.companyId, claim.companyId));
-            console.log(
-                `Dispute ${claimId} approved: removed existing owner, user ${claim.userId} is now owner of company ${claim.companyId}`,
-            );
-        } else {
-            // Standard first-time claim: skip if this user already somehow has a member row
-            const [alreadyMember] = await db
-                .select({ userId: companyMembers.userId })
-                .from(companyMembers)
-                .where(
-                    and(
-                        eq(companyMembers.userId, claim.userId),
-                        eq(companyMembers.companyId, claim.companyId),
-                    ),
-                )
-                .limit(1);
-            if (alreadyMember) {
-                console.log(`Claim ${claimId} approved: user already a member, skipping insert`);
-                return { status: 'ok', claim: updated };
-            }
-            console.log(
-                `Claim ${claimId} approved: user ${claim.userId} → company ${claim.companyId}`,
-            );
-        }
-
-        await db.insert(companyMembers).values({
-            userId: claim.userId,
-            companyId: claim.companyId,
-            role: 'owner',
-            isPrimary: true,
-        });
-    } else {
-        console.log(`Claim ${claimId} rejected`);
-    }
-
     return { status: 'ok', claim: updated };
 }
 
@@ -239,27 +247,12 @@ export async function reviewClaim(
 
 export interface MemberRow {
     userId: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    role: 'owner' | 'member';
-    isPrimary: boolean;
-    joinedAt: Date;
 }
 
 export async function getCompanyMembers(companyId: string): Promise<MemberRow[]> {
     const rows = await db
-        .select({
-            userId: companyMembers.userId,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            email: users.email,
-            role: companyMembers.role,
-            isPrimary: companyMembers.isPrimary,
-            joinedAt: companyMembers.createdAt,
-        })
+        .select({ userId: companyMembers.userId })
         .from(companyMembers)
-        .innerJoin(users, eq(companyMembers.userId, users.id))
         .where(eq(companyMembers.companyId, companyId))
         .orderBy(companyMembers.createdAt);
 
