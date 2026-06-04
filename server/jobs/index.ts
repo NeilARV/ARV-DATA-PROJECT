@@ -98,11 +98,12 @@ export function startScheduledJobs() {
     }
 
     // =========================================================================
-    // OpenCorporates Enrichment — 3rd of each month at 11:30 PM PT
-    // Drains remaining API quota before the billing period resets on the 5th.
+    // OpenCorporates Enrichment — last 3 days of each month at 11:30 PM PT
+    // Drains remaining API quota before the billing period resets at month-end.
+    // Note: February fires only on the 29th (leap years only) — acceptable for a best-effort drain.
     // =========================================================================
     if (process.env.NODE_ENV === 'production') {
-        cron.schedule('30 23 3 * *', enrichCompaniesJob, {
+        cron.schedule('30 23 29,30,31 * *', enrichCompaniesJob, {
             timezone: 'America/Los_Angeles',
         });
     } else {
