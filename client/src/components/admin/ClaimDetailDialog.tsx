@@ -52,7 +52,7 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                             <div className="flex flex-col gap-0.5 flex-1">
                                 <span className="field-label">Type</span>
                                 <Badge
-                                    variant={claim.type === 'dispute' ? 'destructive' : 'outline'}
+                                    variant={claim.type === 'dispute' ? 'destructive' : 'secondary'}
                                     className="w-fit capitalize"
                                 >
                                     {claim.type}

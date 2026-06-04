@@ -190,7 +190,7 @@ export default function CompanyClaimsTab() {
                                                         variant={
                                                             claim.type === 'dispute'
                                                                 ? 'destructive'
-                                                                : 'outline'
+                                                                : 'secondary'
                                                         }
                                                         className="capitalize"
                                                     >
