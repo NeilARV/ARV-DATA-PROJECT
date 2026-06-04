@@ -3,7 +3,7 @@ import { ZipCountsServices } from 'server/services/properties';
 
 export async function getZipCounts(req: Request, res: Response, next: NextFunction) {
     try {
-        const { county, status, dateRange, companyId } = req.query;
+        const { county, status, dateRange, companyId, companyRole } = req.query;
         const countyParam = county ? county.toString() : undefined;
         const statusParam = status
             ? Array.isArray(status)
@@ -12,12 +12,14 @@ export async function getZipCounts(req: Request, res: Response, next: NextFuncti
             : undefined;
         const dateRangeParam = dateRange ? dateRange.toString() : undefined;
         const companyIdParam = companyId ? companyId.toString() : undefined;
+        const companyRoleParam = companyRole ? companyRole.toString() : undefined;
 
         const results = await ZipCountsServices.getZipCounts(
             countyParam,
             statusParam,
             dateRangeParam,
             companyIdParam,
+            companyRoleParam,
         );
 
         res.status(200).json(results);

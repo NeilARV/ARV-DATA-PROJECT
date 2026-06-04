@@ -9,6 +9,7 @@ export type PropertyFilters = {
     county?: string; // Optional county filter
     statusFilters: string[];
     dateRange?: DateRange; // Currently coming from shared types | filters.d.ts
+    companyRole?: 'buyer' | 'seller'; // Set on company selection; restricts tx role match in API
 };
 
 export type ZipCodeWithCount = {

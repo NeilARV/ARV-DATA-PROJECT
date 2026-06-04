@@ -49,6 +49,7 @@ export async function getMapProperties(
     statusFilter?: string | string[],
     dateRange?: string,
     companyId?: string,
+    companyRole?: string,
 ): Promise<MapPropertyData[]> {
     const companyIdTrimmed = companyId?.trim() ?? '';
     const hasCompanyFilter = companyIdTrimmed !== '';
@@ -100,12 +101,18 @@ export async function getMapProperties(
     }
 
     if (hasCompanyFilter) {
+        const roleCondition =
+            companyRole === 'buyer'
+                ? sql`pt.buyer_id = ${companyIdTrimmed}::uuid`
+                : companyRole === 'seller'
+                  ? sql`pt.seller_id = ${companyIdTrimmed}::uuid`
+                  : sql`(pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)`;
         idConditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_transactions pt
                 WHERE pt.property_id = ${properties.id}
                 AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+                AND ${roleCondition}
             )`,
         );
     }

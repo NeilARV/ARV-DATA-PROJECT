@@ -46,8 +46,8 @@ import { fetchCompanyById } from '@/api/companies.api';
 import type { UpdateDialogInitialData } from '@/types/general';
 import type { DirectorySortOption } from '@/types/options';
 import {
-    ALL_STATUS_FILTERS,
     BUYERS_FEED_STATUS_FILTERS,
+    COMPANY_DIRECTORY_SORT_FILTERS,
     DEFAULT_STATUS_FILTERS,
     WHOLESALE_VIEW_STATUS_FILTERS,
 } from '@/constants/propertyStatus.constants';
@@ -189,11 +189,14 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             // Expand filters when a new company is selected. Skip if same company (e.g. sidebar tab remount).
             if (companyFiltersExpandedRef.current !== (company?.id ?? null)) {
                 companyFiltersExpandedRef.current = company?.id ?? null;
-                setStatusFilters(new Set(ALL_STATUS_FILTERS));
+                const { statusFilters: sortStatuses, companyRole } =
+                    COMPANY_DIRECTORY_SORT_FILTERS[sortBy];
+                setStatusFilters(new Set(sortStatuses));
                 setFilters({
                     ...filters,
-                    statusFilters: ALL_STATUS_FILTERS,
+                    statusFilters: sortStatuses,
                     dateRange: 'all-time',
+                    companyRole,
                 });
             }
         } else if (!hasSelection && hadSelection) {
@@ -208,6 +211,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                 ...filters,
                 statusFilters: statuses,
                 dateRange: '60d',
+                companyRole: undefined,
             });
         }
     }, [company, view]);
@@ -309,6 +313,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                 ...filters,
                 statusFilters: statuses,
                 dateRange: '60d',
+                companyRole: undefined,
             });
             setCompany(null);
             nav.setCompanyId(null);

@@ -48,6 +48,9 @@ export function buildPropertyQueryParams(
     if (forMapPins) {
         if (company?.id) {
             params.append('companyId', company.id);
+            if (filters.companyRole) {
+                params.append('companyRole', filters.companyRole);
+            }
         } else if (company?.companyName) {
             params.append('company', company.companyName);
         }
@@ -83,6 +86,9 @@ export function buildPropertyQueryParams(
 
     if (company?.id) {
         params.append('companyId', company.id);
+        if (filters.companyRole) {
+            params.append('companyRole', filters.companyRole);
+        }
     } else if (company?.companyName) {
         params.append('company', company.companyName);
     }

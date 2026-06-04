@@ -174,7 +174,12 @@ export function CompaniesProvider({ children }: CompanyProviderProps) {
             // filters in the same render batch as the company change (prevents race where properties
             // are fetched with old filters before CompanyDirectory's useEffect can expand them).
             companyFiltersExpandedRef.current = companyId ?? companyName;
-            setFilters({ ...filters, statusFilters: ALL_STATUS_FILTERS, dateRange: 'all-time' });
+            setFilters({
+                ...filters,
+                statusFilters: ALL_STATUS_FILTERS,
+                dateRange: 'all-time',
+                companyRole: undefined,
+            });
             try {
                 const found = companies.find(
                     (c) =>

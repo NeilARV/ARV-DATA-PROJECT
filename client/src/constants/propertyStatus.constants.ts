@@ -1,4 +1,4 @@
-import type { Status } from '@/types/options';
+import type { DirectorySortOption, Status } from '@/types/options';
 
 /** Property status string constants - use these instead of magic strings. */
 export const PROPERTY_STATUS = {
@@ -37,3 +37,21 @@ export const ALL_STATUS_FILTERS: Status[] = [
     // PROPERTY_STATUS.ON_MARKET, // removed: on-market data unreliable
     PROPERTY_STATUS.SOLD,
 ];
+
+/** Status filters and optional transaction-role restriction applied per directory sort when a company is selected. */
+export const COMPANY_DIRECTORY_SORT_FILTERS: Record<
+    DirectorySortOption,
+    { statusFilters: Status[]; companyRole?: 'buyer' | 'seller' }
+> = {
+    'most-properties': { statusFilters: [PROPERTY_STATUS.IN_RENOVATION] },
+    'most-sold-properties': { statusFilters: [PROPERTY_STATUS.SOLD] },
+    'most-sold-properties-all-time': { statusFilters: [PROPERTY_STATUS.SOLD] },
+    'most-bought-properties': { statusFilters: [PROPERTY_STATUS.IN_RENOVATION] },
+    'most-bought-properties-all-time': { statusFilters: [PROPERTY_STATUS.IN_RENOVATION] },
+    'buys-wholesale': {
+        statusFilters: [PROPERTY_STATUS.WHOLESALE, PROPERTY_STATUS.IN_RENOVATION],
+        companyRole: 'buyer',
+    },
+    wholesalers: { statusFilters: [PROPERTY_STATUS.WHOLESALE], companyRole: 'seller' },
+    'new-buyers': { statusFilters: [PROPERTY_STATUS.IN_RENOVATION] },
+};

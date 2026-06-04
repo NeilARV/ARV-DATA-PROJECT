@@ -3,7 +3,7 @@ import { MapServices } from 'server/services/properties';
 
 export async function getMapData(req: Request, res: Response, next: NextFunction) {
     try {
-        const { county, status, dateRange, companyId } = req.query;
+        const { county, status, dateRange, companyId, companyRole } = req.query;
         const countyParam = county ? county.toString() : undefined;
         const statusParam = status
             ? Array.isArray(status)
@@ -12,12 +12,14 @@ export async function getMapData(req: Request, res: Response, next: NextFunction
             : undefined;
         const dateRangeParam = dateRange ? dateRange.toString() : undefined;
         const companyIdParam = companyId ? companyId.toString() : undefined;
+        const companyRoleParam = companyRole ? companyRole.toString() : undefined;
 
         const results = await MapServices.getMapProperties(
             countyParam,
             statusParam,
             dateRangeParam,
             companyIdParam,
+            companyRoleParam,
         );
 
         console.log('Properties map pins:', results.length);

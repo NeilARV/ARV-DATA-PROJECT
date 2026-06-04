@@ -34,6 +34,7 @@ export interface GetPropertiesFilters {
     sortBy?: string;
     search?: string; // Full-text search across address, city, state, zip
     skipCount?: string; // When "true" on page > 1, skips the COUNT query — client uses cached total
+    companyRole?: string; // 'buyer' | 'seller' — restricts companyId match to one transaction role
 }
 
 export interface GetPropertiesResult {
@@ -133,6 +134,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         sortBy,
         search,
         skipCount,
+        companyRole,
     } = filters;
 
     const pageNum = page ? Math.max(1, parseInt(page.toString(), 10)) : 1;
@@ -184,15 +186,21 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
     const hasCompanyFilter = companyIdTrimmed !== '';
 
-    // Company ID filter: match properties where company appears as buyer or seller
-    // in any Arms Length or Assignment transaction.
+    // Company ID filter: match properties where company appears in any Arms Length or Assignment
+    // transaction. companyRole restricts to buyer-only or seller-only when set.
     if (hasCompanyFilter) {
+        const roleCondition =
+            companyRole === 'buyer'
+                ? sql`pt.buyer_id = ${companyIdTrimmed}::uuid`
+                : companyRole === 'seller'
+                  ? sql`pt.seller_id = ${companyIdTrimmed}::uuid`
+                  : sql`(pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)`;
         conditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_transactions pt
                 WHERE pt.property_id = ${properties.id}
                 AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+                AND ${roleCondition}
             )`,
         );
     }
