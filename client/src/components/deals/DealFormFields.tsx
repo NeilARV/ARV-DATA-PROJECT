@@ -226,6 +226,9 @@ export default function DealFormFields({
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Market (MSA) *</FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                            Select the market you would like to post your deal to
+                        </p>
                         <Select
                             value={field.value != null ? String(field.value) : ''}
                             onValueChange={(v) => field.onChange(Number(v))}
