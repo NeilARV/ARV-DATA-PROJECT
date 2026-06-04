@@ -720,6 +720,122 @@ Fetch and apply company data from OpenCorporates.
 
 ---
 
+### `POST /api/companies/:id/claim`
+Submit a claim for a company. Creates a `pending` claim in the admin review queue.
+
+**Auth**: `requireAuth`
+
+**Body**: none
+
+**Response `201`** `{ "message": "Claim submitted", "claimId": "uuid" }`
+
+**Errors** `404` company not found · `409` user already has a pending or approved claim for this company
+
+---
+
+### `GET /api/companies/:id/members`
+Get the approved members (claimed users) for a company.
+
+**Auth**: `requireAuth`
+
+**Response `200`**
+```json
+{
+  "data": [
+    {
+      "userId": "uuid",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "email": "jane@example.com",
+      "role": "owner",
+      "isPrimary": true,
+      "joinedAt": "2026-06-03T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+## 5a. Claims `/api/claims`
+
+### `GET /api/claims`
+List company claims for admin review.
+
+**Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
+
+**Query params**: `status` — `pending` | `approved` | `rejected` (default: all)
+
+**Response `200`**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "status": "pending",
+      "adminNotes": null,
+      "reviewedAt": null,
+      "createdAt": "2026-06-03T00:00:00Z",
+      "userId": "uuid",
+      "userFirstName": "Jane",
+      "userLastName": "Doe",
+      "userEmail": "jane@example.com",
+      "companyId": "uuid",
+      "companyName": "Acme Capital LLC",
+      "reviewerFirstName": null,
+      "reviewerLastName": null
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+### `PATCH /api/claims/:id`
+Approve or reject a company claim.
+
+**Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
+
+**Body**
+```json
+{ "action": "approve", "adminNotes": "Verified via LinkedIn" }
+```
+
+`action` is required: `"approve"` or `"reject"`. `adminNotes` is optional (max 1000 chars).
+
+**Response `200`** `{ "message": "Claim approved", "claim": { ...claim } }`
+
+**Errors** `400` invalid body · `404` claim not found · `409` claim already reviewed
+
+On approve: inserts a row into `company_members` linking the user to the company.
+
+---
+
+### `GET /api/users/me/company-memberships`
+Get all approved company memberships for the currently authenticated user.
+
+**Auth**: `requireAuth`
+
+**Response `200`**
+```json
+{
+  "data": [
+    {
+      "companyId": "uuid",
+      "companyName": "Acme Capital LLC",
+      "role": "owner",
+      "isPrimary": true,
+      "joinedAt": "2026-06-03T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
 ## 6. Deals `/api/deals`
 
 ### `GET /api/deals`

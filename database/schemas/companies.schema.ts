@@ -14,10 +14,14 @@ import {
     pgEnum,
     jsonb,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { msas } from './msas.schema';
 import { users } from './users.schema';
 
 export const addressTypeEnum = pgEnum('address_type', ['registered', 'mailing', 'head_office']);
+export const claimStatusEnum = pgEnum('claim_status', ['pending', 'approved', 'rejected']);
+export const claimTypeEnum = pgEnum('claim_type', ['claim', 'dispute']);
+export const memberRoleEnum = pgEnum('member_role', ['owner', 'member']);
 
 export const companies = pgTable('companies', {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -139,4 +143,54 @@ export const companyMsas = pgTable(
         updatedAt: timestamp('updated_at').defaultNow(),
     },
     (t) => [primaryKey({ columns: [t.companyId, t.msaId] })],
+);
+
+export const companyClaims = pgTable(
+    'company_claims',
+    {
+        id: uuid('id').defaultRandom().primaryKey(),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        companyId: uuid('company_id')
+            .notNull()
+            .references(() => companies.id, { onDelete: 'cascade' }),
+        status: claimStatusEnum('status').notNull().default('pending'),
+        type: claimTypeEnum('type').notNull().default('claim'),
+        userMessage: text('user_message'),
+        adminNotes: text('admin_notes'),
+        adminMessage: text('admin_message'),
+        reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+        reviewedAt: timestamp('reviewed_at'),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+        updatedAt: timestamp('updated_at').defaultNow(),
+    },
+    (t) => [
+        index('idx_company_claims_user_status').on(t.userId, t.status),
+        index('idx_company_claims_company_status').on(t.companyId, t.status),
+        index('idx_company_claims_status_created').on(t.status, t.createdAt),
+        uniqueIndex('idx_company_claims_unique_active_user_company')
+            .on(t.userId, t.companyId)
+            .where(sql`status != 'rejected'`),
+    ],
+);
+
+export const companyMembers = pgTable(
+    'company_members',
+    {
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        companyId: uuid('company_id')
+            .notNull()
+            .references(() => companies.id, { onDelete: 'cascade' }),
+        role: memberRoleEnum('role').notNull().default('owner'),
+        isPrimary: boolean('is_primary').notNull().default(true),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+    },
+    (t) => [
+        primaryKey({ columns: [t.userId, t.companyId] }),
+        index('idx_company_members_user_id').on(t.userId),
+        index('idx_company_members_company_id').on(t.companyId),
+    ],
 );

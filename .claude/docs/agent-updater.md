@@ -19,6 +19,7 @@ Detects when code changes make agent documentation stale. Triggered automaticall
 | `.claude/docs/deals.md` | App | Deals page: component tree, state, API surface, services, schema |
 | `.claude/docs/vendors.md` | App | Vendors page: component tree, state, API surface, services, schema |
 | `.claude/docs/email-settings.md` | Feature | Email/notification feature documentation |
+| `.claude/docs/database.md` | Workflow | Documentation  and explanation on our database | Should be changed every time a database change it made
 | `.claude/docs/agent-updater.md` | Workflow | This file |
 
 ---

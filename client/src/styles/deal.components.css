@@ -1,6 +1,6 @@
 @layer components {
     .deal-card-label {
-        @apply text-sm lg:text-base text-muted-foreground;
+        @apply text-sm lg:text-base font-medium text-muted-foreground;
     }
 
     .deal-card-value {

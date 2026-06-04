@@ -158,6 +158,17 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | PATCH | `/api/companies/:id/contacts/:contactId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/companies/:id/contacts/:contactId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | POST | `/api/companies/:id/enrich` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| POST | `/api/companies/:id/claim` | `requireAuth` | 401 | ✓ | ✓ | ✓ |
+| GET | `/api/companies/:id/members` | `requireAuth` | 401 | ✓ | ✓ | ✓ |
+
+---
+
+### 5.3a Claims (`/api/claims`)
+
+| Method | Route | Middleware chain | unauth | member | RM | admin/owner |
+|---|---|---|---|---|---|---|
+| GET | `/api/claims` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
+| PATCH | `/api/claims/:id` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
 
 ---
 
@@ -240,6 +251,7 @@ All public — no auth required.
 | GET | `/api/users/relationship-managers` | `requireRole(["admin","owner","relationship-manager","member"])` | 401 | ✓ | ✓ | ✓ |
 | GET | `/api/users/roles` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | GET | `/api/users/account-types` | `requireRole(["admin","owner","relationship-manager","member"])` | 401 | ✓ | ✓ | ✓ |
+| GET | `/api/users/me/company-memberships` | `requireAuth` | 401 | ✓ | ✓ | ✓ |
 | POST | `/api/users/:userId/roles` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/users/:userId/roles/:role` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | PATCH | `/api/users/:userId` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
