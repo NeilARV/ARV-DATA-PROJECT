@@ -2,6 +2,54 @@ import { db } from 'server/storage';
 import { companyClaims, companyMembers, companies } from '@database/schemas/companies.schema';
 import { users } from '@database/schemas/users.schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import {
+    sendPlainEmail,
+    getRmEmailsByUserIds,
+    getDefaultFromEmail,
+} from 'server/services/postmark/email.services';
+
+// ─── Claim notification email ─────────────────────────────────────────────────
+
+async function notifyClaimSubmitted(
+    userId: string,
+    companyName: string,
+    claimId: string,
+    type: 'claim' | 'dispute',
+): Promise<void> {
+    const [[claimant], rmMap] = await Promise.all([
+        db
+            .select({ firstName: users.firstName, lastName: users.lastName, email: users.email })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1),
+        getRmEmailsByUserIds([userId]),
+    ]);
+
+    if (!claimant) return;
+
+    const recipientEmail = rmMap.get(userId) ?? process.env.DEFAULT_CONTACT_RECIPIENT;
+    if (!recipientEmail) {
+        console.warn(
+            `No recipient for claim notification (claim ${claimId}) — set DEFAULT_CONTACT_RECIPIENT`,
+        );
+        return;
+    }
+
+    const typeLabel = type === 'dispute' ? 'Dispute' : 'Claim';
+    const claimantName = `${claimant.firstName} ${claimant.lastName}`.trim();
+
+    await sendPlainEmail({
+        From: getDefaultFromEmail(),
+        To: recipientEmail,
+        Subject: `New Company ${typeLabel}: ${companyName}`,
+        HtmlBody: `
+            <p><strong>${claimantName}</strong> (${claimant.email}) has submitted a <strong>${type}</strong> for <strong>${companyName}</strong>.</p>
+            <p>Please review this ${type} in the <strong>Admin Panel → Claims</strong> tab.</p>
+            <p style="color:#666;font-size:12px;">Claim ID: ${claimId}</p>
+        `,
+        TextBody: `${claimantName} (${claimant.email}) submitted a ${type} for ${companyName}. Review in Admin Panel > Claims. Claim ID: ${claimId}`,
+    });
+}
 
 // ─── Submit claim ─────────────────────────────────────────────────────────────
 
@@ -12,7 +60,7 @@ export type SubmitClaimResult =
 
 export async function submitClaim(userId: string, companyId: string): Promise<SubmitClaimResult> {
     const [company] = await db
-        .select({ id: companies.id })
+        .select({ id: companies.id, companyName: companies.companyName })
         .from(companies)
         .where(eq(companies.id, companyId))
         .limit(1);
@@ -47,6 +95,12 @@ export async function submitClaim(userId: string, companyId: string): Promise<Su
 
         console.log(
             `${type === 'dispute' ? 'Dispute' : 'Claim'} submitted: user ${userId} → company ${companyId} (claim ${inserted.id})`,
+        );
+        notifyClaimSubmitted(userId, company.companyName, inserted.id, type).catch((err) =>
+            console.error(
+                'Claim notification email failed:',
+                err instanceof Error ? err.message : err,
+            ),
         );
         return { status: 'ok', claimId: inserted.id };
     } catch (err: unknown) {

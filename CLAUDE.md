@@ -106,7 +106,7 @@ Before writing or running ANY test, read `.claude/docs/testing.md`. For new API 
 The following subagents MUST be invoked via the `Agent` tool at the end of every task where files were modified. This is mandatory — not optional, not skippable. Run `npm run check` first, fix any errors, then invoke both agents before finishing.
 
 - **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Pass it the list of modified files and instruct it to run `git diff HEAD~1` to orient itself.
-- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Will ask for approval before modifying any agent files.
+- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Will ask for approval before modifying any agent files. This document can run as you see fit, but it 100% MUST run when we make database and API changes so those changes can be reflected in the markdown documentation
 
 ---
 
