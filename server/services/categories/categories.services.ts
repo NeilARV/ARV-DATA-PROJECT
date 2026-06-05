@@ -1,6 +1,7 @@
 import { db } from 'server/storage';
 import { categories, vendors, vendorCategories } from '@database/schemas/vendors.schema';
 import { eq, inArray, sql } from 'drizzle-orm';
+import type { CategoryInput } from '@database/validation/vendors.validation';
 
 export async function getAll() {
     return db
@@ -22,6 +23,49 @@ export async function getAll() {
             categories.iconName,
         )
         .orderBy(categories.name);
+}
+
+export async function create(input: CategoryInput) {
+    const slug = input.name
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+
+    if (!slug) {
+        throw Object.assign(new Error('Category name must contain at least one letter or number'), {
+            statusCode: 400,
+        });
+    }
+
+    const [created] = await db
+        .insert(categories)
+        .values({
+            name: input.name.trim(),
+            slug,
+            description: input.description?.trim() || null,
+            iconName: 'tag',
+        })
+        .returning();
+
+    console.log(`[categoriesService.create] Category created: id=${created.id} slug=${slug}`);
+    return created;
+}
+
+export async function remove(id: number) {
+    const [existing] = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.id, id))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error('Category not found'), { statusCode: 404 });
+
+    await db.delete(categories).where(eq(categories.id, id));
+    console.log(`[categoriesService.remove] Category deleted: id=${id}`);
+    return { id };
 }
 
 export async function getVendorsByCategory(categoryId: number) {

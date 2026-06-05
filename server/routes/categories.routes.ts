@@ -1,15 +1,18 @@
 import { Router } from 'express';
+import { requireRole } from 'server/middleware/requireRole';
 import { CategoriesController } from 'server/controllers/categories';
 
 const router = Router();
 
-// Get all categories (feeds the left panel category cards)
+const adminOrOwner = requireRole(['admin', 'owner']);
+
+// Public reads
 router.get('/', CategoriesController.getAllCategoriesHandler);
-
-// Get all vendors belonging to a category
 router.get('/:categoryId/vendors', CategoriesController.getVendorsByCategoryHandler);
-
-// Get all posts tagged with a category
 router.get('/:categoryId/posts', CategoriesController.getPostsByCategoryHandler);
+
+// Admin / owner writes
+router.post('/', adminOrOwner, CategoriesController.createCategoryHandler);
+router.delete('/:categoryId', adminOrOwner, CategoriesController.deleteCategoryHandler);
 
 export default router;

@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+export const categoryInputSchema = z.object({
+    name: z.string().min(1, 'Name is required').max(100),
+    description: z.string().max(500).nullish(),
+});
+
+export type CategoryInput = z.infer<typeof categoryInputSchema>;
+
 export const vendorInputSchema = z.object({
     name: z.string().min(1, 'Name is required').max(255),
     description: z.string().max(1000).nullish(),

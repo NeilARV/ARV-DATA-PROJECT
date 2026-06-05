@@ -6,6 +6,7 @@ import { CategoryCard } from './CategoryCard';
 import { VendorCard } from './VendorCard';
 import { VendorDetail } from './VendorDetail';
 import { AddVendorDialog } from './AddVendorDialog';
+import { AddCategoryDialog } from './AddCategoryDialog';
 import { RecommendedVendors } from './RecommendedVendors';
 import { fetchCategories, fetchVendor, fetchVendors } from '@/api/vendors.api';
 import { useAuth } from '@/hooks/use-auth';
@@ -32,6 +33,7 @@ export function BrowseByCategory({
     onReset,
 }: BrowseByCategoryProps) {
     const [showAddVendor, setShowAddVendor] = useState(false);
+    const [showAddCategory, setShowAddCategory] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const { isAdmin, isOwner } = useAuth();
     const isPrivileged = isAdmin || isOwner;
@@ -171,7 +173,18 @@ export function BrowseByCategory({
                         {/* Center: search — constrained width, centered in available space */}
                         <div className="flex-1 flex justify-center min-w-0">{searchInput}</div>
 
-                        {/* Right: Add Vendor */}
+                        {/* Right: Add Category + Add Vendor */}
+                        {isPrivileged && view === 'categories' && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAddCategory(true)}
+                                className="h-9 gap-1.5 text-sm flex-shrink-0"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add Category
+                            </Button>
+                        )}
                         {isPrivileged && (
                             <Button
                                 size="sm"
@@ -203,6 +216,17 @@ export function BrowseByCategory({
                                     Browse Vendors
                                 </h2>
                             </div>
+                            {isPrivileged && view === 'categories' && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowAddCategory(true)}
+                                    className="h-9 gap-1.5 text-sm"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Add Category
+                                </Button>
+                            )}
                             {isPrivileged && (
                                 <Button
                                     size="sm"
@@ -396,6 +420,7 @@ export function BrowseByCategory({
                 onClose={() => setShowAddVendor(false)}
                 initialCategoryId={view === 'vendor-list' ? selectedCategory?.id : undefined}
             />
+            <AddCategoryDialog open={showAddCategory} onClose={() => setShowAddCategory(false)} />
         </>
     );
 }

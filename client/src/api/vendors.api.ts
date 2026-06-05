@@ -1,6 +1,10 @@
 import { apiRequest } from '@/lib/queryClient';
 import type { Category, Vendor, Post, CreatePostInput } from '@/types/vendors';
-import type { VendorInput, UpdateVendorInput } from '@database/validation/vendors.validation';
+import type {
+    VendorInput,
+    UpdateVendorInput,
+    CategoryInput,
+} from '@database/validation/vendors.validation';
 
 export async function fetchCategories(): Promise<Category[]> {
     const res = await apiRequest('GET', '/api/categories');
@@ -143,4 +147,14 @@ export async function uploadVendorHeader(
 
 export async function removeVendorHeader(vendorId: string): Promise<void> {
     await apiRequest('DELETE', `/api/vendors/${vendorId}/header`);
+}
+
+export async function createCategory(input: CategoryInput): Promise<Category> {
+    const res = await apiRequest('POST', '/api/categories', input);
+    const json = await res.json();
+    return json.category;
+}
+
+export async function deleteCategory(categoryId: number): Promise<void> {
+    await apiRequest('DELETE', `/api/categories/${categoryId}`);
 }
