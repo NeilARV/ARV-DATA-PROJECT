@@ -194,7 +194,6 @@ export default function Header() {
                     <span className="hidden sm:inline">Deal Room</span>
                 </Button>
 
-
                 <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="flex items-center border border-border rounded-md">
                         <Button

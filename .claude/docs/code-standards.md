@@ -780,3 +780,23 @@ Additional conventions Prettier does not cover:
 - Use ES module syntax (`import`/`export`) everywhere. No `require()`.
 - Server files use `.js` extensions in import paths (TypeScript compiles to `.js`, Node requires it for ESM).
 - Short objects and arrays that fit on one line: keep on one line. Once they exceed ~80 characters or contain 3+ properties, split to multi-line.
+
+---
+
+## 20. Data Formatting Utilities
+
+### Company Names
+
+Database company names are stored in ALL CAPS. Always pass company name strings through `formatCompanyName` from `@shared/utils/formatCompanyName` before rendering them in any component or including them in any API response displayed to the user.
+
+```tsx
+import { formatCompanyName } from "@shared/utils/formatCompanyName";
+
+// Good
+<span>{formatCompanyName(property.companyName)}</span>
+
+// Bad — raw DB value renders as "ACME HOLDINGS LLC"
+<span>{property.companyName}</span>
+```
+
+This applies everywhere a company name is displayed: property cards, detail modals, company directory, table rows, search results, tooltips, and any other UI surface. The utility normalizes to title case while preserving legal suffixes (LLC, LLP, PLLC, Inc, Corp, etc.).
