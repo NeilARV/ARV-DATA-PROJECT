@@ -26,7 +26,6 @@ type ReviewAction = 'approve' | 'reject';
 interface ReviewDialogState {
     claimId: string;
     action: ReviewAction;
-    claimType: 'claim' | 'dispute';
     companyName: string;
     userName: string;
 }
@@ -104,7 +103,6 @@ export default function CompanyClaimsTab() {
         setReviewDialog({
             claimId: claim.id,
             action,
-            claimType: claim.type,
             companyName: claim.companyName,
             userName: `${claim.userFirstName} ${claim.userLastName}`,
         });
@@ -160,7 +158,6 @@ export default function CompanyClaimsTab() {
                                             <TableHead>User</TableHead>
                                             <TableHead>Company</TableHead>
                                             <TableHead>Submitted</TableHead>
-                                            <TableHead>Type</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
@@ -184,18 +181,6 @@ export default function CompanyClaimsTab() {
                                                         new Date(claim.createdAt),
                                                         'MMM d, yyyy',
                                                     )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge
-                                                        variant={
-                                                            claim.type === 'dispute'
-                                                                ? 'destructive'
-                                                                : 'secondary'
-                                                        }
-                                                        className="capitalize"
-                                                    >
-                                                        {claim.type}
-                                                    </Badge>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge
@@ -278,20 +263,15 @@ export default function CompanyClaimsTab() {
                             <DialogTitle>{formatCompanyName(reviewDialog.companyName)}</DialogTitle>
                             <DialogDescription>
                                 {reviewDialog.action === 'approve'
-                                    ? reviewDialog.claimType === 'dispute'
-                                        ? 'Approve dispute'
-                                        : 'Approve claim'
-                                    : 'Reject claim'}
+                                    ? 'Approve join request'
+                                    : 'Reject join request'}
                             </DialogDescription>
                         </DialogHeader>
 
                         <p className="rm-label">
-                            {reviewDialog.action === 'approve' &&
-                            reviewDialog.claimType === 'dispute'
-                                ? `Approving this dispute will remove the current owner and make ${reviewDialog.userName} the new owner. This cannot be undone.`
-                                : reviewDialog.action === 'approve'
-                                  ? `Approve ${reviewDialog.userName}'s claim? This will make them the owner.`
-                                  : `Reject ${reviewDialog.userName}'s claim to this company?`}
+                            {reviewDialog.action === 'approve'
+                                ? `Approve ${reviewDialog.userName}'s request to join this company? They will be added as a member.`
+                                : `Reject ${reviewDialog.userName}'s request to join this company?`}
                         </p>
 
                         <div className="space-y-1.5">

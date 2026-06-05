@@ -12,8 +12,6 @@ interface ClaimCompanyDialogProps {
     onClose: () => void;
     companyId: string;
     companyName: string;
-    /** When true the company already has an approved member — show dispute UI */
-    isClaimed: boolean;
 }
 
 export function ClaimCompanyDialog({
@@ -21,7 +19,6 @@ export function ClaimCompanyDialog({
     onClose,
     companyId,
     companyName,
-    isClaimed,
 }: ClaimCompanyDialogProps) {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,8 +31,8 @@ export function ClaimCompanyDialog({
                 userMessage: userMessage.trim() || undefined,
             });
             toast({
-                title: isClaimed ? 'Dispute submitted' : 'Claim submitted',
-                description: `Your ${isClaimed ? 'dispute' : 'claim'} for ${formatCompanyName(companyName)} has been submitted for review.`,
+                title: 'Request submitted',
+                description: `Your request to join ${formatCompanyName(companyName)} has been submitted for review.`,
             });
             onClose();
         } catch (err) {
@@ -64,15 +61,12 @@ export function ClaimCompanyDialog({
         <AppDialog open={open} onClose={onClose} className="max-w-md">
             <DialogHeader>
                 <DialogTitle>{formattedName}</DialogTitle>
-                <DialogDescription>
-                    {isClaimed ? 'Dispute company claim' : 'Claim this company'}
-                </DialogDescription>
+                <DialogDescription>Request to join this company</DialogDescription>
             </DialogHeader>
 
             <p className="text-sm text-muted-foreground">
-                {isClaimed
-                    ? `This company already has a verified owner. If you believe you have a right to this company, submit a dispute and our team will review it.`
-                    : `Submit a claim to associate your account with ${formattedName}. Our team will review your request and approve it if everything checks out.`}
+                Submit a request to associate your account with {formattedName}. Our team will
+                review your request and approve it if everything checks out.
             </p>
 
             <div className="space-y-1.5">
@@ -80,11 +74,7 @@ export function ClaimCompanyDialog({
                     Message <span className="text-muted-foreground font-normal">(optional)</span>
                 </label>
                 <Textarea
-                    placeholder={
-                        isClaimed
-                            ? 'Explain why you have a right to this company...'
-                            : 'Add any context that might help us verify your claim...'
-                    }
+                    placeholder="Add any context that might help us verify your request..."
                     value={userMessage}
                     onChange={(e) => setUserMessage(e.target.value)}
                     rows={3}
@@ -98,7 +88,7 @@ export function ClaimCompanyDialog({
                     Cancel
                 </Button>
                 <Button onClick={handleSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? 'Submitting...' : isClaimed ? 'Submit Dispute' : 'Submit Claim'}
+                    {isSubmitting ? 'Submitting...' : 'Request to Join'}
                 </Button>
             </div>
         </AppDialog>

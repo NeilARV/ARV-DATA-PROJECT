@@ -14,7 +14,6 @@ async function notifyClaimSubmitted(
     userId: string,
     companyName: string,
     claimId: string,
-    type: 'claim' | 'dispute',
     userMessage?: string,
 ): Promise<void> {
     const [[claimant], rmMap] = await Promise.all([
@@ -36,28 +35,27 @@ async function notifyClaimSubmitted(
         return;
     }
 
-    const typeLabel = type === 'dispute' ? 'Dispute' : 'Claim';
     const claimantName = `${claimant.firstName} ${claimant.lastName}`.trim();
     const messageSection = userMessage
-        ? `<p><strong>Message from claimant:</strong><br>${userMessage}</p>`
+        ? `<p><strong>Message from user:</strong><br>${userMessage}</p>`
         : '';
 
     console.log(
-        `Sending claim notification for claim ${claimId} to ${recipientEmail} (${rmMap.has(userId) ? 'RM' : 'default recipient'})`,
+        `Sending join request notification for claim ${claimId} to ${recipientEmail} (${rmMap.has(userId) ? 'RM' : 'default recipient'})`,
     );
     await sendPlainEmail({
         From: getDefaultFromEmail(),
         To: recipientEmail,
-        Subject: `New Company ${typeLabel}: ${companyName}`,
+        Subject: `New Join Request: ${companyName}`,
         HtmlBody: `
-            <p><strong>${claimantName}</strong> (${claimant.email}) has submitted a <strong>${type}</strong> for <strong>${companyName}</strong>.</p>
+            <p><strong>${claimantName}</strong> (${claimant.email}) has submitted a <strong>join request</strong> for <strong>${companyName}</strong>.</p>
             ${messageSection}
-            <p>Please review this ${type} in the <strong>Admin Panel → Claims</strong> tab.</p>
-            <p style="color:#666;font-size:12px;">Claim ID: ${claimId}</p>
+            <p>Please review this request in the <strong>Admin Panel → Claims</strong> tab.</p>
+            <p style="color:#666;font-size:12px;">Request ID: ${claimId}</p>
         `,
-        TextBody: `${claimantName} (${claimant.email}) submitted a ${type} for ${companyName}.${userMessage ? ` Message: ${userMessage}` : ''} Review in Admin Panel > Claims. Claim ID: ${claimId}`,
+        TextBody: `${claimantName} (${claimant.email}) submitted a join request for ${companyName}.${userMessage ? ` Message: ${userMessage}` : ''} Review in Admin Panel > Claims. Request ID: ${claimId}`,
     });
-    console.log(`Claim notification sent for claim ${claimId}`);
+    console.log(`Join request notification sent for claim ${claimId}`);
 }
 
 async function notifyClaimReviewed(
@@ -126,14 +124,6 @@ export async function submitClaim(
         .limit(1);
     if (existing) return { status: 'already-claimed-by-user' };
 
-    // Determine type: dispute if the company already has an approved member
-    const [existingOwner] = await db
-        .select({ userId: companyMembers.userId })
-        .from(companyMembers)
-        .where(eq(companyMembers.companyId, companyId))
-        .limit(1);
-    const type = existingOwner ? 'dispute' : 'claim';
-
     try {
         const [inserted] = await db
             .insert(companyClaims)
@@ -141,20 +131,18 @@ export async function submitClaim(
                 userId,
                 companyId,
                 status: 'pending',
-                type,
                 userMessage: userMessage ?? null,
             })
             .returning({ id: companyClaims.id });
 
         console.log(
-            `${type === 'dispute' ? 'Dispute' : 'Claim'} submitted: user ${userId} → company ${companyId} (claim ${inserted.id})`,
+            `Join request submitted: user ${userId} → company ${companyId} (claim ${inserted.id})`,
         );
-        notifyClaimSubmitted(userId, company.companyName, inserted.id, type, userMessage).catch(
-            (err) =>
-                console.error(
-                    'Claim notification email failed:',
-                    err instanceof Error ? err.message : err,
-                ),
+        notifyClaimSubmitted(userId, company.companyName, inserted.id, userMessage).catch((err) =>
+            console.error(
+                'Join request notification email failed:',
+                err instanceof Error ? err.message : err,
+            ),
         );
         return { status: 'ok', claimId: inserted.id };
     } catch (err: unknown) {
@@ -171,7 +159,6 @@ export async function submitClaim(
 export interface ClaimRow {
     id: string;
     status: 'pending' | 'approved' | 'rejected';
-    type: 'claim' | 'dispute';
     userMessage: string | null;
     adminNotes: string | null;
     adminMessage: string | null;
@@ -212,7 +199,6 @@ export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
         .select({
             id: companyClaims.id,
             status: companyClaims.status,
-            type: companyClaims.type,
             userMessage: companyClaims.userMessage,
             adminNotes: companyClaims.adminNotes,
             adminMessage: companyClaims.adminMessage,
@@ -252,7 +238,6 @@ export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
         return {
             id: r.id,
             status: r.status,
-            type: r.type,
             userMessage: r.userMessage,
             adminNotes: r.adminNotes,
             adminMessage: r.adminMessage,

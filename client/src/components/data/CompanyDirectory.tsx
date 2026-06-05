@@ -100,7 +100,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     const [claimDialog, setClaimDialog] = useState<{
         companyId: string;
         companyName: string;
-        isClaimed: boolean;
     } | null>(null);
     const { requireSubscription, ContactDialog } = useRequireSubscription();
     const { requireAuth } = useRequireAuth();
@@ -256,25 +255,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         },
         enabled: !!expandedCompanyId,
     });
-
-    // Fetch members for the expanded company to determine claim/dispute state
-    const { data: expandedCompanyMembers } = useQuery<{
-        data: { userId: string }[];
-        count: number;
-    }>({
-        queryKey: ['/api/companies', expandedCompanyId, 'members'],
-        queryFn: async () => {
-            if (!expandedCompanyId) return { data: [], count: 0 };
-            const res = await fetch(`/api/companies/${expandedCompanyId}/members`, {
-                credentials: 'include',
-            });
-            if (!res.ok) return { data: [], count: 0 };
-            return res.json();
-        },
-        enabled: !!expandedCompanyId && isAuthenticated,
-    });
-
-    const expandedCompanyIsClaimed = (expandedCompanyMembers?.count ?? 0) > 0;
 
     // Rank in list (backend returns sorted; position = rank for this view)
     const getRank = useCallback(
@@ -869,7 +849,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                             </Button>
                                         </div>
 
-                                        {/* Claim / Dispute — authenticated users only */}
+                                        {/* Request to Join — authenticated users only */}
                                         {isAuthenticated && isExpanded && (
                                             <div className="pt-3 border-t border-border">
                                                 <Button
@@ -881,15 +861,12 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                         setClaimDialog({
                                                             companyId: listCompany.id,
                                                             companyName: listCompany.companyName,
-                                                            isClaimed: expandedCompanyIsClaimed,
                                                         });
                                                     }}
                                                     data-testid="button-claim-company"
                                                 >
                                                     <Flag className="w-4 h-4 mr-2" />
-                                                    {expandedCompanyIsClaimed
-                                                        ? 'Dispute Claim'
-                                                        : 'Claim This Company'}
+                                                    Request to Join
                                                 </Button>
                                             </div>
                                         )}
@@ -1027,14 +1004,13 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
 
             {ContactDialog}
 
-            {/* Claim / Dispute dialog */}
+            {/* Request to Join dialog */}
             {claimDialog && (
                 <ClaimCompanyDialog
                     open={!!claimDialog}
                     onClose={() => setClaimDialog(null)}
                     companyId={claimDialog.companyId}
                     companyName={claimDialog.companyName}
-                    isClaimed={claimDialog.isClaimed}
                 />
             )}
         </div>

@@ -8,7 +8,6 @@ import { formatCompanyName } from '@shared/utils/formatCompanyName';
 export interface ClaimRow {
     id: string;
     status: 'pending' | 'approved' | 'rejected';
-    type: 'claim' | 'dispute';
     userMessage: string | null;
     adminNotes: string | null;
     adminMessage: string | null;
@@ -48,31 +47,20 @@ export default function ClaimDetailDialog({ claim, onClose }: ClaimDetailDialogP
                             <span className="field-value">{claim.userEmail}</span>
                         </div>
 
-                        <div className="flex gap-3">
-                            <div className="flex flex-col gap-0.5 flex-1">
-                                <span className="field-label">Type</span>
-                                <Badge
-                                    variant={claim.type === 'dispute' ? 'destructive' : 'secondary'}
-                                    className="w-fit capitalize"
-                                >
-                                    {claim.type}
-                                </Badge>
-                            </div>
-                            <div className="flex flex-col gap-0.5 flex-1">
-                                <span className="field-label">Status</span>
-                                <Badge
-                                    variant={
-                                        claim.status === 'approved'
-                                            ? 'green'
-                                            : claim.status === 'rejected'
-                                              ? 'destructive'
-                                              : 'secondary'
-                                    }
-                                    className="w-fit capitalize"
-                                >
-                                    {claim.status}
-                                </Badge>
-                            </div>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="field-label">Status</span>
+                            <Badge
+                                variant={
+                                    claim.status === 'approved'
+                                        ? 'green'
+                                        : claim.status === 'rejected'
+                                          ? 'destructive'
+                                          : 'secondary'
+                                }
+                                className="w-fit capitalize"
+                            >
+                                {claim.status}
+                            </Badge>
                         </div>
 
                         <div className="flex flex-col gap-0.5">
