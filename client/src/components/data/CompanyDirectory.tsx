@@ -24,6 +24,7 @@ import {
 import { ClaimCompanyDialog } from './ClaimCompanyDialog';
 import { useAuth } from '@/hooks/use-auth';
 import AppDialog from '@/components/modals/Dialog';
+import ConfirmationContent from '@/components/modals/Confirmation';
 import { UpdateCompanyDialog } from '../admin/UpdateCompanyDialog';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card } from '@/components/ui/card';
@@ -92,6 +93,10 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         useState<UpdateDialogInitialData | null>(null);
     const [copiedCompanyId, setCopiedCompanyId] = useState<string | null>(null);
     const [enrichingCompanyId, setEnrichingCompanyId] = useState<string | null>(null);
+    const [enrichConfirmCompany, setEnrichConfirmCompany] = useState<{
+        id: string;
+        name: string;
+    } | null>(null);
     const enrichState = useMemo(
         () => COUNTIES.find((c) => c.county === (filters.county ?? 'San Diego'))?.state ?? 'CA',
         [filters.county],
@@ -833,8 +838,8 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                             )}
                                         </div>
 
-                                        {/* View Properties — visible to all users */}
-                                        <div className="pt-3 border-t border-border">
+                                        {/* View Properties + Request to Join — visible to all / authenticated users */}
+                                        <div className="pt-3 border-t border-border space-y-2">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -847,11 +852,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                 <Eye className="w-4 h-4 mr-2" />
                                                 View Properties
                                             </Button>
-                                        </div>
-
-                                        {/* Request to Join — authenticated users only */}
-                                        {isAuthenticated && isExpanded && (
-                                            <div className="pt-3 border-t border-border">
+                                            {isAuthenticated && isExpanded && (
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -868,92 +869,120 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                     <Flag className="w-4 h-4 mr-2" />
                                                     Request to Join
                                                 </Button>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
 
                                         {/* Admin Actions - Only visible to owner or admin */}
                                         {(isAdmin || isOwner) && (
-                                            <div className="pt-3 border-t border-border space-y-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="w-full"
-                                                    disabled={enrichingCompanyId === listCompany.id}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleEnrichCompany(listCompany.id);
-                                                    }}
-                                                    data-testid="button-enrich-company"
-                                                >
-                                                    <RefreshCw
-                                                        className={`w-4 h-4 mr-2 ${enrichingCompanyId === listCompany.id ? 'animate-spin' : ''}`}
-                                                    />
-                                                    {enrichingCompanyId === listCompany.id
-                                                        ? 'Loading...'
-                                                        : 'Load Company Data'}
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="w-full"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditDialogCompanyId(listCompany.id);
-                                                        setEditDialogInitialData({
-                                                            companyName: listCompany.companyName,
-                                                            isArvClient:
-                                                                listCompany.isArvClient ?? false,
-                                                        });
-                                                        setUpdateDialogOpen(true);
-                                                    }}
-                                                    data-testid="button-edit-company"
-                                                >
-                                                    <Pencil className="w-4 h-4 mr-2" />
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="w-full"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        navigator.clipboard
-                                                            .writeText(listCompany.companyName)
-                                                            .then(() => {
-                                                                setCopiedCompanyId(listCompany.id);
-                                                                toast({
-                                                                    title: 'Copied',
-                                                                    description:
-                                                                        'Company name copied to clipboard',
-                                                                });
-                                                                // Reset after 2 seconds
-                                                                setTimeout(() => {
-                                                                    setCopiedCompanyId(null);
-                                                                }, 2000);
-                                                            })
-                                                            .catch(() => {
-                                                                toast({
-                                                                    title: 'Copy Failed',
-                                                                    description:
-                                                                        'Failed to copy company name',
-                                                                    variant: 'destructive',
-                                                                });
+                                            <div className="pt-3 space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                                                        Admin Only
+                                                    </span>
+                                                    <div className="flex-1 h-px bg-border" />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="flex-1"
+                                                        disabled={
+                                                            enrichingCompanyId === listCompany.id
+                                                        }
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEnrichConfirmCompany({
+                                                                id: listCompany.id,
+                                                                name: listCompany.companyName,
                                                             });
-                                                    }}
-                                                    data-testid="button-copy-company-name"
-                                                >
-                                                    {copiedCompanyId === listCompany.id ? (
-                                                        <>
-                                                            <Check className="w-4 h-4 mr-2" />
-                                                            Copied
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Copy className="w-4 h-4 mr-2" />
-                                                            Copy Company Name
-                                                        </>
-                                                    )}
-                                                </Button>
+                                                        }}
+                                                        data-testid="button-enrich-company"
+                                                        title={
+                                                            enrichingCompanyId === listCompany.id
+                                                                ? 'Loading...'
+                                                                : 'Load Company Data'
+                                                        }
+                                                        aria-label={
+                                                            enrichingCompanyId === listCompany.id
+                                                                ? 'Loading...'
+                                                                : 'Load Company Data'
+                                                        }
+                                                    >
+                                                        <RefreshCw
+                                                            className={`w-4 h-4 ${enrichingCompanyId === listCompany.id ? 'animate-spin' : ''}`}
+                                                        />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="flex-1"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditDialogCompanyId(listCompany.id);
+                                                            setEditDialogInitialData({
+                                                                companyName:
+                                                                    listCompany.companyName,
+                                                                isArvClient:
+                                                                    listCompany.isArvClient ??
+                                                                    false,
+                                                            });
+                                                            setUpdateDialogOpen(true);
+                                                        }}
+                                                        data-testid="button-edit-company"
+                                                        title="Edit Company"
+                                                        aria-label="Edit Company"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="flex-1"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigator.clipboard
+                                                                .writeText(listCompany.companyName)
+                                                                .then(() => {
+                                                                    setCopiedCompanyId(
+                                                                        listCompany.id,
+                                                                    );
+                                                                    toast({
+                                                                        title: 'Copied',
+                                                                        description:
+                                                                            'Company name copied to clipboard',
+                                                                    });
+                                                                    setTimeout(() => {
+                                                                        setCopiedCompanyId(null);
+                                                                    }, 2000);
+                                                                })
+                                                                .catch(() => {
+                                                                    toast({
+                                                                        title: 'Copy Failed',
+                                                                        description:
+                                                                            'Failed to copy company name',
+                                                                        variant: 'destructive',
+                                                                    });
+                                                                });
+                                                        }}
+                                                        data-testid="button-copy-company-name"
+                                                        title={
+                                                            copiedCompanyId === listCompany.id
+                                                                ? 'Copied!'
+                                                                : 'Copy Company Name'
+                                                        }
+                                                        aria-label={
+                                                            copiedCompanyId === listCompany.id
+                                                                ? 'Copied!'
+                                                                : 'Copy Company Name'
+                                                        }
+                                                    >
+                                                        {copiedCompanyId === listCompany.id ? (
+                                                            <Check className="w-4 h-4" />
+                                                        ) : (
+                                                            <Copy className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1003,6 +1032,24 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             </div>
 
             {ContactDialog}
+
+            {/* Enrich confirmation dialog */}
+            <AppDialog open={!!enrichConfirmCompany} onClose={() => setEnrichConfirmCompany(null)}>
+                {enrichConfirmCompany && (
+                    <ConfirmationContent
+                        title="Load Company Data"
+                        description={`Would you like to load ${enrichConfirmCompany.name}'s contact information?`}
+                        confirmText="Yes"
+                        cancelText="No"
+                        isLoading={enrichingCompanyId === enrichConfirmCompany.id}
+                        onClose={() => setEnrichConfirmCompany(null)}
+                        onConfirm={() => {
+                            handleEnrichCompany(enrichConfirmCompany.id);
+                            setEnrichConfirmCompany(null);
+                        }}
+                    />
+                )}
+            </AppDialog>
 
             {/* Request to Join dialog */}
             {claimDialog && (
