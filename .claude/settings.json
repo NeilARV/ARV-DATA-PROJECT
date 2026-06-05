@@ -39,19 +39,19 @@
                 "matcher": "",
                 "hooks": [
                     {
-                        "type": "prompt",
-                        "prompt": "You are a design consistency reviewer. Before Claude finishes this session, you MUST review all files that were created or modified.\n\n1. You must read the project's design system documentation at `.claude/docs/design-guidelines.md` (check the project root and common locations like `docs/design-guidelines.md`, `.claude/design-guidelines.md`, or `src/design-guidelines.md`).\n\n2. For every UI file touched this session, verify:\n   - Text sizes use only the scale defined in design-guidelines.md (no hardcoded arbitrary values like `text-[13px]` or `font-size: 17px`)\n   - Font size tokens/classes are consistent with the design system (e.g. `text-sm`, `text-base`, `text-lg` or whatever scale is defined)\n   - Components are scalable — sizes use relative units (rem/em) or design tokens, not fixed px where avoidable\n   - No one-off overrides that break uniformity across the app\n\n3. If violations are found, respond with {\"ok\": false, \"reason\": \"<list each file and specific violation>\"} and Claude will fix them before stopping.\n\n4. If everything follows the design system, respond with {\"ok\": true}. ONLY run if writes or edits were made.",
-                        "timeout": 60
+                        "type": "command",
+                        "command": "$changed = git status --porcelain 2>$null; if ($changed) { Write-Output 'Design review required: Read .claude/docs/design-guidelines.md and check all UI files modified this session for violations: no hardcoded text sizes (e.g. text-[13px]), font tokens must match the design system scale, components must use relative units. Respond {ok:false,reason:...} if violations found, {ok:true} if clean.' }",
+                        "shell": "powershell"
                     },
                     {
-                        "type": "prompt",
-                        "prompt": "You are the agent-updater defined in .claude/docs/agent-updater.md. A task just completed. Review all files created, edited, or deleted during this session by checking the transcript at the path provided in the hook input. Cross-reference changes against the detection rules in agent-updater.md. If no agent files in the registry need updating, stay completely silent — output nothing. If updates are needed, list each affected file, the specific section, and a one-line description of the change, then ask the user for approval before touching anything. Never modify agent files without explicit approval. ONLY run if writes or edits were made.",
-                        "timeout": 60
+                        "type": "command",
+                        "command": "$changed = git status --porcelain 2>$null; if ($changed) { Write-Output 'Agent updater required: You are the agent-updater from .claude/docs/agent-updater.md. Review files changed this session against the detection rules in that document. If agent docs need updating, list each affected file and section and ask for approval before changing anything. If nothing needs updating, stay completely silent.' }",
+                        "shell": "powershell"
                     },
                     {
-                        "type": "agent",
-                        "prompt": "Run the code-optimizer subagent to review all changes made this session. ONLY run if writes or edits were made.",
-                        "timeout": 180
+                        "type": "command",
+                        "command": "$changed = git status --porcelain 2>$null; if ($changed) { Write-Output 'Code review required: Use the Agent tool to spawn a code-optimizer subagent (subagent_type: code-optimizer) to review all files changed this session for bugs, security issues, and performance problems. Pass it the list of modified files and tell it to run git diff HEAD~1 to orient itself.' }",
+                        "shell": "powershell"
                     }
                 ]
             }
