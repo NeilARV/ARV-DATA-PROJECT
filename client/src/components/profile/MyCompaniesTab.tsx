@@ -57,7 +57,7 @@ export default function MyCompaniesTab() {
                                         {formatCompanyName(m.companyName)}
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-0.5 capitalize">
-                                        {m.role}
+                                        {m.role ?? 'member'}
                                         {m.isPrimary ? ' · Primary' : ''}
                                         {' · Joined '}
                                         {format(new Date(m.joinedAt), 'MMM d, yyyy')}

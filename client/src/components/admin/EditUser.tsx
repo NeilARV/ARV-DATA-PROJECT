@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +11,15 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { AdminUser, AccountTypeOption, RelationshipManager } from '@/types/admin';
+
+interface CompanyOption {
+    id: string;
+    companyName: string;
+}
 
 const SUBSCRIPTION_TIERS = ['basic', 'pro', 'premium'] as const;
 const NO_VALUE = '__none__';
@@ -44,6 +50,55 @@ export default function EditUserContent({
         user.accountTypes ?? [],
     );
 
+    const [selectedCompanies, setSelectedCompanies] = useState<CompanyOption[]>([]);
+    const [companySearch, setCompanySearch] = useState('');
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const initializedRef = useRef(false);
+
+    const { data: membershipsResponse } = useQuery<{
+        data: Array<{ companyId: string; companyName: string }>;
+    }>({
+        queryKey: [`/api/users/${user.id}/company-memberships`],
+    });
+
+    useEffect(() => {
+        if (membershipsResponse?.data && !initializedRef.current) {
+            setSelectedCompanies(
+                membershipsResponse.data.map((m) => ({
+                    id: m.companyId,
+                    companyName: m.companyName,
+                })),
+            );
+            initializedRef.current = true;
+        }
+    }, [membershipsResponse]);
+
+    useEffect(() => {
+        return () => {
+            if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+        };
+    }, []);
+
+    const trimmedSearch = companySearch.trim();
+    const { data: suggestions } = useQuery<CompanyOption[]>({
+        queryKey: [
+            `/api/companies/contacts/suggestions?search=${encodeURIComponent(trimmedSearch)}`,
+        ],
+        enabled: trimmedSearch.length >= 2,
+        staleTime: 30_000,
+    });
+
+    const filteredSuggestions = (suggestions ?? []).filter(
+        (s) => !selectedCompanies.some((c) => c.id === s.id),
+    );
+
+    const addCompany = (company: CompanyOption) => {
+        setSelectedCompanies((prev) => [...prev, company]);
+        setCompanySearch('');
+        setShowSuggestions(false);
+    };
+
     const availableAccountTypes = accountTypesList.filter(
         (t) => !selectedAccountTypes.includes(t.name),
     );
@@ -56,8 +111,14 @@ export default function EditUserContent({
                 accountTypes: selectedAccountTypes,
                 relationshipManagerId: selectedRmId,
             });
+            await apiRequest('PUT', `/api/users/${user.id}/company-memberships`, {
+                companyIds: selectedCompanies.map((c) => c.id),
+            });
             queryClient.invalidateQueries({
                 queryKey: ['/api/users/?excludeDomain=arvfinance.com'],
+            });
+            queryClient.invalidateQueries({
+                queryKey: [`/api/users/${user.id}/company-memberships`],
             });
             toast({ title: 'User updated', description: 'Changes have been saved.' });
             onSuccess?.();
@@ -138,23 +199,15 @@ export default function EditUserContent({
                             <Badge
                                 key={typeName}
                                 variant="secondary"
-                                className="gap-0.5 pr-0.5 font-normal"
+                                className="font-normal"
+                                onRemove={() =>
+                                    setSelectedAccountTypes((prev) =>
+                                        prev.filter((t) => t !== typeName),
+                                    )
+                                }
+                                removeLabel={`Remove ${typeName}`}
                             >
                                 {typeName}
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-4 w-4 rounded-full hover:bg-destructive/20 hover:text-destructive"
-                                    aria-label={`Remove ${typeName}`}
-                                    onClick={() =>
-                                        setSelectedAccountTypes((prev) =>
-                                            prev.filter((t) => t !== typeName),
-                                        )
-                                    }
-                                >
-                                    <X className="h-3 w-3" />
-                                </Button>
                             </Badge>
                         ))}
                         {availableAccountTypes.length > 0 && (
@@ -182,6 +235,76 @@ export default function EditUserContent({
                                     No account types available
                                 </span>
                             )}
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none">Companies</label>
+                    {selectedCompanies.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pb-1">
+                            {selectedCompanies.map((c) => (
+                                <Badge
+                                    key={c.id}
+                                    variant="secondary"
+                                    className="font-normal"
+                                    onRemove={() =>
+                                        setSelectedCompanies((prev) =>
+                                            prev.filter((co) => co.id !== c.id),
+                                        )
+                                    }
+                                    removeLabel={`Remove ${c.companyName}`}
+                                >
+                                    {c.companyName}
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                            placeholder="Search companies..."
+                            value={companySearch}
+                            onChange={(e) => {
+                                setCompanySearch(e.target.value);
+                                setShowSuggestions(true);
+                            }}
+                            onFocus={() => setShowSuggestions(true)}
+                            onBlur={() => {
+                                blurTimeoutRef.current = setTimeout(
+                                    () => setShowSuggestions(false),
+                                    150,
+                                );
+                            }}
+                            className="pl-9 pr-9"
+                        />
+                        {companySearch && (
+                            <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => {
+                                    setCompanySearch('');
+                                    setShowSuggestions(false);
+                                }}
+                                aria-label="Clear search"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                        {showSuggestions && filteredSuggestions.length > 0 && (
+                            <div className="absolute z-[10000] w-full mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto">
+                                {filteredSuggestions.map((s) => (
+                                    <button
+                                        key={s.id}
+                                        type="button"
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => addCompany(s)}
+                                    >
+                                        {s.companyName}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

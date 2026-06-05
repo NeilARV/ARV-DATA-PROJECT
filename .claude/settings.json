@@ -17,7 +17,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "$data = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $data.tool_input.file_path; if ($f) { npx prettier --write \"$f\" }",
+                        "command": "$data = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $data.tool_input.file_path; if ($f) { .\\node_modules\\.bin\\prettier --write \"$f\" }",
                         "shell": "powershell"
                     }
                 ]

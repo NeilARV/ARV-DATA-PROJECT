@@ -33,6 +33,20 @@ router.get(
 // GET /me/company-memberships — companies the authenticated user belongs to
 router.get('/me/company-memberships', requireAuth, ClaimsController.getUserMembershipsHandler);
 
+// GET /:userId/company-memberships — admin view of any user's company associations
+router.get(
+    '/:userId/company-memberships',
+    requireRole(['admin', 'owner', 'relationship-manager']),
+    ClaimsController.getAdminUserMembershipsHandler,
+);
+
+// PUT /:userId/company-memberships — replace a user's company associations
+router.put(
+    '/:userId/company-memberships',
+    requireRole(['admin', 'owner']),
+    ClaimsController.setUserCompanyMembershipsHandler,
+);
+
 // POST /:userId/roles — assign an ARV team role to a user
 router.post('/:userId/roles', requireRole(['admin', 'owner']), UsersController.assignRoleHandler);
 

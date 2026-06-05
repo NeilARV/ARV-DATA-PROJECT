@@ -110,3 +110,42 @@ export async function getUserMembershipsHandler(req: Request, res: Response) {
         return res.status(500).json({ message: 'Error fetching user memberships' });
     }
 }
+
+export async function getAdminUserMembershipsHandler(req: Request, res: Response) {
+    try {
+        const idValidation = uuidParam.safeParse(req.params.userId);
+        if (!idValidation.success) {
+            return res.status(400).json({ message: 'Invalid user ID' });
+        }
+        const memberships = await ClaimsServices.getUserMemberships(idValidation.data);
+        return res.json({ data: memberships, count: memberships.length });
+    } catch (error) {
+        console.error('Error fetching user memberships:', error);
+        return res.status(500).json({ message: 'Error fetching user memberships' });
+    }
+}
+
+export async function setUserCompanyMembershipsHandler(req: Request, res: Response) {
+    try {
+        const idValidation = uuidParam.safeParse(req.params.userId);
+        if (!idValidation.success) {
+            return res.status(400).json({ message: 'Invalid user ID' });
+        }
+        const userId = idValidation.data;
+
+        const bodyValidation = z
+            .object({ companyIds: z.array(z.string().uuid()) })
+            .safeParse(req.body);
+        if (!bodyValidation.success) {
+            return res
+                .status(400)
+                .json({ message: 'Invalid request data', errors: bodyValidation.error.errors });
+        }
+
+        await ClaimsServices.setUserCompanyMemberships(userId, bodyValidation.data.companyIds);
+        return res.json({ message: 'Company memberships updated' });
+    } catch (error) {
+        console.error('Error updating company memberships:', error);
+        return res.status(500).json({ message: 'Error updating company memberships' });
+    }
+}

@@ -184,8 +184,8 @@ export const companyMembers = pgTable(
         companyId: uuid('company_id')
             .notNull()
             .references(() => companies.id, { onDelete: 'cascade' }),
-        role: memberRoleEnum('role').notNull().default('owner'),
-        isPrimary: boolean('is_primary').notNull().default(true),
+        role: memberRoleEnum('role'),
+        isPrimary: boolean('is_primary').notNull().default(false),
         createdAt: timestamp('created_at').notNull().defaultNow(),
     },
     (t) => [

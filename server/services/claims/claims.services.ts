@@ -296,46 +296,27 @@ export async function reviewClaim(
     // Member writes happen BEFORE the status update so that if anything fails
     // mid-way the claim stays 'pending' and the admin can safely retry.
     if (action === 'approve') {
-        if (claim.type === 'dispute') {
-            // Dispute: remove all existing members, then insert the disputer as new owner.
-            // If the insert fails the claim stays pending; retrying will no-op the delete
-            // (nothing left) and succeed on the insert.
-            await db.delete(companyMembers).where(eq(companyMembers.companyId, claim.companyId));
+        const [alreadyMember] = await db
+            .select({ userId: companyMembers.userId })
+            .from(companyMembers)
+            .where(
+                and(
+                    eq(companyMembers.userId, claim.userId),
+                    eq(companyMembers.companyId, claim.companyId),
+                ),
+            )
+            .limit(1);
+        if (!alreadyMember) {
             await db.insert(companyMembers).values({
                 userId: claim.userId,
                 companyId: claim.companyId,
-                role: 'owner',
-                isPrimary: true,
             });
-            console.log(
-                `Dispute ${claimId} approved: replaced owner, user ${claim.userId} is now owner of company ${claim.companyId}`,
-            );
-        } else {
-            // Standard claim: skip insert if the user somehow already has a member row.
-            const [alreadyMember] = await db
-                .select({ userId: companyMembers.userId })
-                .from(companyMembers)
-                .where(
-                    and(
-                        eq(companyMembers.userId, claim.userId),
-                        eq(companyMembers.companyId, claim.companyId),
-                    ),
-                )
-                .limit(1);
-            if (!alreadyMember) {
-                await db.insert(companyMembers).values({
-                    userId: claim.userId,
-                    companyId: claim.companyId,
-                    role: 'owner',
-                    isPrimary: true,
-                });
-            }
-            console.log(
-                alreadyMember
-                    ? `Claim ${claimId} approved: user already a member, skipping insert`
-                    : `Claim ${claimId} approved: user ${claim.userId} → company ${claim.companyId}`,
-            );
         }
+        console.log(
+            alreadyMember
+                ? `Claim ${claimId} approved: user already a member, skipping insert`
+                : `Claim ${claimId} approved: user ${claim.userId} → company ${claim.companyId}`,
+        );
     } else {
         console.log(`Claim ${claimId} rejected`);
     }
@@ -396,7 +377,7 @@ export async function getCompanyMembers(companyId: string): Promise<MemberRow[]>
 export interface UserMembershipRow {
     companyId: string;
     companyName: string;
-    role: 'owner' | 'member';
+    role: 'owner' | 'member' | null;
     isPrimary: boolean;
     joinedAt: Date;
 }
@@ -416,4 +397,34 @@ export async function getUserMemberships(userId: string): Promise<UserMembership
         .orderBy(companyMembers.createdAt);
 
     return rows;
+}
+
+// ─── Set company memberships for a user (admin) ───────────────────────────────
+
+export async function setUserCompanyMemberships(
+    userId: string,
+    companyIds: string[],
+): Promise<void> {
+    const currentRows = await db
+        .select({ companyId: companyMembers.companyId })
+        .from(companyMembers)
+        .where(eq(companyMembers.userId, userId));
+
+    const currentIds = new Set(currentRows.map((r) => r.companyId));
+    const nextIds = new Set(companyIds);
+
+    const toAdd = companyIds.filter((id) => !currentIds.has(id));
+    const toRemove = Array.from(currentIds).filter((id) => !nextIds.has(id));
+
+    if (toRemove.length > 0) {
+        await db
+            .delete(companyMembers)
+            .where(
+                and(eq(companyMembers.userId, userId), inArray(companyMembers.companyId, toRemove)),
+            );
+    }
+
+    for (const companyId of toAdd) {
+        await db.insert(companyMembers).values({ userId, companyId }).onConflictDoNothing();
+    }
 }
