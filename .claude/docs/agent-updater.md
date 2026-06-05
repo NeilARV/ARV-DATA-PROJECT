@@ -14,7 +14,7 @@ Detects when code changes make agent documentation stale. Triggered automaticall
 | `.claude/docs/coding-standards.md` | Standards | Naming, file structure, patterns, conventions |
 | `.claude/docs/testing.md` | Workflow | Test structure, helpers, mandatory baseline, naming |
 | `.claude/docs/optimizer.md` | Workflow | Auto-review checklists, output format |
-| `.claude/docs/design.md` | Design | Tokens, colors, typography, spacing, component styles |
+| `.claude/docs/design-guidelines.md` | Design | Tokens, colors, typography, spacing, component styles |
 | `.claude/docs/data.md` | App | Data page: component tree, state, API surface, services, schema |
 | `.claude/docs/deals.md` | App | Deals page: component tree, state, API surface, services, schema |
 | `.claude/docs/vendors.md` | App | Vendors page: component tree, state, API surface, services, schema |
@@ -37,8 +37,8 @@ A change is **significant** and requires an agent update when it alters somethin
 - **New or changed component in a component tree** → update the relevant app file's component tree
 - **New or changed state/hook** (new context, new URL param, renamed hook) → update the relevant app file's state management section
 - **New enum value, status, or type** added to a domain (e.g. new deal type, new property status) → update the relevant app file
-- **New or changed design token** (color, spacing, breakpoint added to `index.css` or `tailwind.config.ts`) → update `design.md`
-- **New CSS component class** added to a `.components.css` file → update `design.md`
+- **New or changed design token** (color, spacing, breakpoint added to `index.css` or `tailwind.config.ts`) → update `design-guidelines.md`
+- **New CSS component class** added to a `.components.css` file → update `design-guidelines.md`
 - **New or changed test helper or convention** → update `testing.md`
 - **New role or subscription tier** → update `access-control.md`
 - **New agent file created** → update the registry table above

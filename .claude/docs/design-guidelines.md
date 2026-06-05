@@ -473,4 +473,4 @@ You modify or update a componet on `client/src/pages/Vendors.tsx` and notice the
 | `client/src/styles/deal.components.css` | Deal card component utility classes |
 | `client/src/components/ui/button.tsx` | Button variants and sizes |
 | `client/src/components/ui/badge.tsx` | Badge variants |
-| `.claude/docs/DESIGN.md` | This file — the canonical design reference |
+| `.claude/docs/design-guidelines.md` | This file — the canonical design reference |

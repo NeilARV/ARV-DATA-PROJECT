@@ -88,9 +88,9 @@ Before adding or modifying ANY code, read `.claude/docs/code-standards.md` and f
 ---
 
 ## Design
-Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md` first and stay within its tokens and conventions.
+Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md` first and stay within its tokens and conventions.
 
-> **Full reference**: `.claude/docs/design.md` — authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states). Style tokens live in `tailwind.config.ts` and `client/src/index.css`.
+> **Full reference**: `.claude/docs/design-guidelines.md` — authoritative source for all design decisions (colors, typography, spacing, breakpoints, components, interaction states). Style tokens live in `tailwind.config.ts` and `client/src/index.css`.
 
 ---
 
@@ -114,7 +114,7 @@ The following subagents MUST be invoked via the `Agent` tool at the end of every
 - `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params)
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
-- `.claude/docs/design.md` — UI design system (colors, typography, components, dark mode)
+- `.claude/docs/design-guidelines.md` — UI design system (colors, typography, components, dark mode)
 - `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
 - `.claude/docs/data.md` — Data app overview (property intelligence, map, company directory, SFR pipeline)
 - `.claude/docs/deals.md` — Deals app overview (deal marketplace, subscription gate, email notifications)
@@ -129,7 +129,7 @@ The following subagents MUST be invoked via the `Agent` tool at the end of every
 3. You must refer to `.claude/docs/vendors.md` when working on the vendors side of the application
 4. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`
 5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
-6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design.md`
+6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md`
 7. Before writing or running ANY test, read `.claude/docs/testing.md`
 8. After modifying any files, you MUST invoke the `code-optimizer` agent via the `Agent` tool before finishing. No exceptions.
 
