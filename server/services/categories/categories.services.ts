@@ -54,6 +54,44 @@ export async function create(input: CategoryInput) {
     return created;
 }
 
+export async function update(id: number, input: CategoryInput) {
+    const [existing] = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.id, id))
+        .limit(1);
+
+    if (!existing) throw Object.assign(new Error('Category not found'), { statusCode: 404 });
+
+    const slug = input.name
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+
+    if (!slug) {
+        throw Object.assign(new Error('Category name must contain at least one letter or number'), {
+            statusCode: 400,
+        });
+    }
+
+    const [updated] = await db
+        .update(categories)
+        .set({
+            name: input.name.trim(),
+            slug,
+            description: input.description?.trim() || null,
+            updatedAt: new Date(),
+        })
+        .where(eq(categories.id, id))
+        .returning();
+
+    console.log(`[categoriesService.update] Category updated: id=${id}`);
+    return updated;
+}
+
 export async function remove(id: number) {
     const [existing] = await db
         .select({ id: categories.id })

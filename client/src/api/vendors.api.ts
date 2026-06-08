@@ -155,6 +155,12 @@ export async function createCategory(input: CategoryInput): Promise<Category> {
     return json.category;
 }
 
+export async function updateCategory(categoryId: number, input: CategoryInput): Promise<Category> {
+    const res = await apiRequest('PUT', `/api/categories/${categoryId}`, input);
+    const json = await res.json();
+    return json.category;
+}
+
 export async function deleteCategory(categoryId: number): Promise<void> {
     await apiRequest('DELETE', `/api/categories/${categoryId}`);
 }

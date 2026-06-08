@@ -7,9 +7,14 @@ import { VendorCard } from './VendorCard';
 import { VendorDetail } from './VendorDetail';
 import { AddVendorDialog } from './AddVendorDialog';
 import { AddCategoryDialog } from './AddCategoryDialog';
+import { EditCategoryDialog } from './EditCategoryDialog';
 import { RecommendedVendors } from './RecommendedVendors';
-import { fetchCategories, fetchVendor, fetchVendors } from '@/api/vendors.api';
+import { fetchCategories, fetchVendor, fetchVendors, deleteCategory } from '@/api/vendors.api';
 import { useAuth } from '@/hooks/use-auth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import AppDialog from '@/components/modals/Dialog';
+import ConfirmationContent from '@/components/modals/Confirmation';
 import type { Category, Vendor } from '@/types/vendors';
 import type { VendorNavView } from '@/hooks/useVendorNav';
 
@@ -34,9 +39,30 @@ export function BrowseByCategory({
 }: BrowseByCategoryProps) {
     const [showAddVendor, setShowAddVendor] = useState(false);
     const [showAddCategory, setShowAddCategory] = useState(false);
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+    const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const { isAdmin, isOwner } = useAuth();
     const isPrivileged = isAdmin || isOwner;
+
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+
+    const deleteMutation = useMutation({
+        mutationFn: (id: number) => deleteCategory(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['categories'] });
+            toast({ title: 'Category deleted' });
+            setDeletingCategory(null);
+        },
+        onError: () => {
+            toast({
+                title: 'Error',
+                description: 'Failed to delete category.',
+                variant: 'destructive',
+            });
+        },
+    });
 
     const q = searchQuery.trim().toLowerCase();
     const isSearching = q.length > 0;
@@ -371,6 +397,16 @@ export function BrowseByCategory({
                                             key={cat.id}
                                             category={cat}
                                             onClick={onSelectCategory}
+                                            onEdit={
+                                                isPrivileged
+                                                    ? (c) => setEditingCategory(c)
+                                                    : undefined
+                                            }
+                                            onDelete={
+                                                isPrivileged
+                                                    ? (c) => setDeletingCategory(c)
+                                                    : undefined
+                                            }
                                         />
                                     ))}
                                 </div>
@@ -421,6 +457,31 @@ export function BrowseByCategory({
                 initialCategoryId={view === 'vendor-list' ? selectedCategory?.id : undefined}
             />
             <AddCategoryDialog open={showAddCategory} onClose={() => setShowAddCategory(false)} />
+
+            {editingCategory && (
+                <EditCategoryDialog
+                    open={!!editingCategory}
+                    onClose={() => setEditingCategory(null)}
+                    category={editingCategory}
+                />
+            )}
+
+            <AppDialog open={!!deletingCategory} onClose={() => setDeletingCategory(null)}>
+                <ConfirmationContent
+                    title="Delete Category"
+                    description={
+                        deletingCategory
+                            ? `Delete "${deletingCategory.name}"? This will remove it from all vendors and posts.`
+                            : ''
+                    }
+                    confirmText="Delete"
+                    cancelText="Cancel"
+                    variant="destructive"
+                    isLoading={deleteMutation.isPending}
+                    onClose={() => setDeletingCategory(null)}
+                    onConfirm={() => deletingCategory && deleteMutation.mutate(deletingCategory.id)}
+                />
+            </AppDialog>
         </>
     );
 }

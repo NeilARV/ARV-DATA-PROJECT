@@ -13,6 +13,7 @@ router.get('/:categoryId/posts', CategoriesController.getPostsByCategoryHandler)
 
 // Admin / owner writes
 router.post('/', adminOrOwner, CategoriesController.createCategoryHandler);
+router.put('/:categoryId', adminOrOwner, CategoriesController.updateCategoryHandler);
 router.delete('/:categoryId', adminOrOwner, CategoriesController.deleteCategoryHandler);
 
 export default router;

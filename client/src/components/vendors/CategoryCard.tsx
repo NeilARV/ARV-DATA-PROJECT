@@ -59,8 +59,15 @@ import {
     Bug,
     Scroll,
     AppWindow,
+    MoreVertical,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { Category } from '@/types/vendors';
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -131,15 +138,26 @@ const ICON_MAP: Record<string, LucideIcon> = {
 type CategoryCardProps = {
     category: Category;
     onClick: (category: Category) => void;
+    onEdit?: (category: Category) => void;
+    onDelete?: (category: Category) => void;
 };
 
-export function CategoryCard({ category, onClick }: CategoryCardProps) {
+export function CategoryCard({ category, onClick, onEdit, onDelete }: CategoryCardProps) {
     const Icon = ICON_MAP[category.iconName] ?? Tag;
+    const showMenu = !!(onEdit || onDelete);
 
     return (
-        <button
+        <div
+            role="button"
+            tabIndex={0}
             className="w-full min-w-0 text-left p-4 bg-card border border-border rounded-xl hover:bg-accent transition-colors cursor-pointer"
             onClick={() => onClick(category)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick(category);
+                }
+            }}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -157,10 +175,42 @@ export function CategoryCard({ category, onClick }: CategoryCardProps) {
                         )}
                     </div>
                 </div>
-                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
-                    {category.vendorCount}
-                </span>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        {category.vendorCount}
+                    </span>
+
+                    {showMenu && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <button
+                                    type="button"
+                                    className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    aria-label="Category options"
+                                >
+                                    <MoreVertical className="w-4 h-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                {onEdit && (
+                                    <DropdownMenuItem onClick={() => onEdit(category)}>
+                                        Edit
+                                    </DropdownMenuItem>
+                                )}
+                                {onDelete && (
+                                    <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => onDelete(category)}
+                                    >
+                                        Delete
+                                    </DropdownMenuItem>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+                </div>
             </div>
-        </button>
+        </div>
     );
 }
