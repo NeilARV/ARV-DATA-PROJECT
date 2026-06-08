@@ -11,14 +11,45 @@
         ]
     },
     "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "if": "Bash(rm -rf *)",
+                        "command": "echo 'Blocked: rm -rf is not allowed' >&2; exit 2"
+                    },
+                    {
+                        "type": "command",
+                        "if": "Bash(git push --force*)",
+                        "command": "echo 'Blocked: force push is not allowed' >&2; exit 2"
+                    },
+                    {
+                        "type": "command",
+                        "if": "Bash(git push -f *)",
+                        "command": "echo 'Blocked: force push is not allowed' >&2; exit 2"
+                    }
+                ]
+            }
+        ],
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "echo '## Git' && git branch --show-current && git status --short | head -10 && echo '' && git log --oneline -5"
+                    }
+                ]
+            }
+        ],
         "PostToolUse": [
             {
                 "matcher": "Edit|Write",
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "$data = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $data.tool_input.file_path; if ($f) { .\\node_modules\\.bin\\prettier --write \"$f\" }",
-                        "shell": "powershell"
+                        "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write"
                     }
                 ]
             }
@@ -36,22 +67,14 @@
         ],
         "Stop": [
             {
-                "matcher": "",
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "$changed = git status --porcelain 2>$null; if ($changed) { Write-Output 'Design review required: Read .claude/docs/design-guidelines.md and check all UI files modified this session for violations: no hardcoded text sizes (e.g. text-[13px]), font tokens must match the design system scale, components must use relative units. Respond {ok:false,reason:...} if violations found, {ok:true} if clean.' }",
-                        "shell": "powershell"
+                        "command": "changed=$(git status --porcelain 2>/dev/null); if [ -n \"$changed\" ]; then echo 'Code review required: Use the Agent tool to spawn a code-optimizer subagent to review all files changed this session for bugs, security issues, and performance problems. Pass it the list of modified files and tell it to run git diff HEAD~1 to orient itself.'; fi"
                     },
                     {
                         "type": "command",
-                        "command": "$changed = git status --porcelain 2>$null; if ($changed) { Write-Output 'Agent updater required: You are the agent-updater from .claude/docs/agent-updater.md. Review files changed this session against the detection rules in that document. If agent docs need updating, list each affected file and section and ask for approval before changing anything. If nothing needs updating, stay completely silent.' }",
-                        "shell": "powershell"
-                    },
-                    {
-                        "type": "command",
-                        "command": "$changed = git status --porcelain 2>$null; if ($changed) { Write-Output 'Code review required: Use the Agent tool to spawn a code-optimizer subagent (subagent_type: code-optimizer) to review all files changed this session for bugs, security issues, and performance problems. Pass it the list of modified files and tell it to run git diff HEAD~1 to orient itself.' }",
-                        "shell": "powershell"
+                        "command": "changed=$(git status --porcelain 2>/dev/null); if [ -n \"$changed\" ]; then echo 'Agent updater required: You are the agent-updater from .claude/docs/agent-updater.md. Review files changed this session against the detection rules in that document. If docs need updating, list each affected file and section and ask for approval before changing anything. If nothing needs updating, stay completely silent.'; fi"
                     }
                 ]
             }
