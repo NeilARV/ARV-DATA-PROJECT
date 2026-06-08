@@ -5,6 +5,7 @@ import { msas } from './schemas/msas.schema';
 import { accountTypes, roles, subscriptions } from './schemas/users.schema';
 import { statuses } from './schemas/statuses.schema';
 import { categories } from './schemas/vendors.schema';
+import { channels } from './schemas/mastermind.schema';
 
 dotenv.config();
 
@@ -431,6 +432,30 @@ async function seed() {
         ])
         .onConflictDoNothing();
     console.log('  ✓ categories');
+
+    // Mastermind starter channels (public). created_by left null — system-seeded.
+    await db
+        .insert(channels)
+        .values([
+            { name: 'general', description: 'Community-wide discussion', type: 'public' },
+            {
+                name: 'first-time-flippers',
+                description: 'Questions and wins for your first flip',
+                type: 'public',
+            },
+            { name: 'san-diego-market', description: 'San Diego MSA market talk', type: 'public' },
+            { name: 'los-angeles-market', description: 'Los Angeles MSA market talk', type: 'public' },
+            {
+                name: 'san-francisco-market',
+                description: 'San Francisco MSA market talk',
+                type: 'public',
+            },
+            { name: 'denver-market', description: 'Denver MSA market talk', type: 'public' },
+            { name: 'miami-market', description: 'Miami MSA market talk', type: 'public' },
+            { name: 'port-st-lucie-market', description: 'Port St. Lucie market talk', type: 'public' },
+        ])
+        .onConflictDoNothing();
+    console.log('  ✓ channels');
 
     console.log('Seed complete.');
 }

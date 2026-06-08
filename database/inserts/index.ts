@@ -4,3 +4,4 @@ export * from './companyClaims.insert';
 export * from './users.insert';
 export * from './sync.insert';
 export * from './properties.insert';
+export * from './mastermind.insert';
