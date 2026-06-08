@@ -15,9 +15,7 @@ Detects when code changes make agent documentation stale. Triggered automaticall
 | `.claude/docs/testing.md` | Workflow | Test structure, helpers, mandatory baseline, naming |
 | `.claude/docs/optimizer.md` | Workflow | Auto-review checklists, output format |
 | `.claude/docs/design-guidelines.md` | Design | Tokens, colors, typography, spacing, component styles |
-| `.claude/docs/data.md` | App | Data page: component tree, state, API surface, services, schema |
-| `.claude/docs/deals.md` | App | Deals page: component tree, state, API surface, services, schema |
-| `.claude/docs/vendors.md` | App | Vendors page: component tree, state, API surface, services, schema |
+| `.claude/docs/apps.md` | App | Combined Data / Deals / Vendors reference: component tree, state, API surface, services, schema for each app |
 | `.claude/docs/email-settings.md` | Feature | Email/notification feature documentation |
 | `.claude/docs/database.md` | Workflow | Documentation  and explanation on our database | Should be changed every time a database change it made
 | `.claude/docs/agent-updater.md` | Workflow | This file |

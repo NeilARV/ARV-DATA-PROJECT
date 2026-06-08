@@ -1,0 +1,527 @@
+# Apps — Overview & Reference (Data · Deals · Vendors)
+
+ARV is organized as three feature areas that function like separate apps on a shared
+foundation (auth, providers, backend). Each has its own page entry point, nav hook, routes,
+controllers, and services.
+
+| App | Route | Purpose | Backend |
+|---|---|---|---|
+| **Data** | `/` | Property intelligence — browse SFR transaction data by MSA | `properties.*`, `companies.*` |
+| **Deals** | `/deals` | Deal marketplace — post/browse wholesale, agent, sold deals | `deals.*` |
+| **Vendors** | `/vendors` | Community hub — activity feed + vendor directory | `vendors.*`, `posts.*`, `categories.*` |
+
+All three pages wrap their content in the same 5 shared context providers:
+`MapProvider → FiltersProvider → CompaniesProvider → PropertiesProvider → PropertyProvider`.
+
+---
+---
+
+# 1. Data App
+
+## What It Is
+The Data app (Home page) is the core of ARV — a property intelligence platform. It surfaces
+transaction data from the SFR data pipeline organized by MSA (Metropolitan Statistical Area)
+and lets users explore properties by status, location, price, company, and more. The primary
+use case is researching which investors are buying/selling in a market, at what prices, and
+who the active operators are. It is the most data-dense part of the app — everything is
+filtered, paginated, and synchronized through URL state so deep links work.
+
+## Page Entry Point
+`client/src/pages/Home.tsx` wraps `HomeContent`. Before rendering, it waits for auth to
+resolve when there's no `?county=` in the URL — preventing a double-fetch caused by
+`useDataNav` pushing the user's default county after the initial render.
+
+## Layout
+CSS Grid `grid-cols-[375px_1fr] grid-rows-[auto_1fr]`:
+- Row 1: "Investor Profiles" sidebar header · FilterHeader
+- Row 2: CompanyDirectory (scrollable, 375px) · Content Area (view-dependent)
+
+Content Area renders by `view`:
+- `"map"` → `PropertyDetailPanel` (sidebar) + `PropertyMap`
+- `"table"` → `TableView`
+- `"grid"` / `"buyers-feed"` / `"wholesale"` → `GridView`
+
+## Component Tree (key elements)
+- **FilterHeader** — status tag filters (In-Renovation, Wholesale, Sold), state selector,
+  county combobox, zip/city autocomplete (with property counts), date range (60d/90d/6mo/1yr/
+  all-time), price slider ($0–$10M, $50K steps), beds, baths, property type multi-select,
+  clear filters.
+- **CompanyDirectory** — debounced search (300ms), 7 sort options, infinite-scroll list
+  (50/page). `CompanyCard` is expandable: rank badge (gold/silver/bronze top 3), name +
+  contact, property count badges, and an expanded section with owned/sold/bought counts,
+  market ranking, principal/contact details, a 90-day acquisition chart (recharts BarChart),
+  and action buttons (View Properties, Enrich, Edit, Copy). An "ensured company" slot shows a
+  selected company that isn't in the paginated list.
+- **Views** — map (`PropertyDetailPanel` + Leaflet `PropertyMap`), table
+  (`PropertyTable`, 20/page), grid (`PropertyCard` grid, 10/page).
+- **Dialogs** — LeaderboardDialog, InfoDialog, PropertyModalContent (all via `AppDialog`).
+
+## State Management
+
+**`useFilters()`** — property filters:
+```ts
+filters: {
+  minPrice, maxPrice: number
+  bedrooms: "Any" | "1" | "2" | "3" | "4" | "5+"
+  bathrooms: "Any" | "1" | "1.5" | "2" | "2.5" | "3" | "3.5" | "4"
+  propertyTypes: string[]
+  zipCode: string; city?: string
+  county?: string      // Default: user.county ?? "San Diego"
+  statusFilters: string[]; dateRange?: DateRange
+}
+sortBy: "recently-sold" | "days-held" | "price-high-low" | "price-low-high"
+hasActiveFilters: boolean
+clearFilters(overrides?)  // Preserves county by default
+```
+
+**`useView()`** — `view: "map" | "grid" | "table" | "buyers-feed" | "wholesale"`,
+`sidebarView: "directory" | "filters" | "none"`. View persisted to `?view=`.
+
+**`useDataNav()`** — URL params `county` (`?county=`), `propertyId` (`?property=`),
+`companyId` (`?company=`). `Home.tsx` runs sync effects keeping URL params ↔ filter/selection
+state in sync (URL county → filters.county; URL propertyId → `fetchProperty`; URL companyId →
+`handleCompanyClick`; and reverse syncs from `property.id` / `company.id` back to the URL).
+
+**`useGeoMap()` / `useMap()`** — `mapCenter`, `mapZoom`, `mapPins`, `filteredMapPins`. Map
+pins fetched from `/api/properties/map` only when `view === "map"`. Filter changes geocode via
+zippopotam.us to recenter (zip→16, city→15, county→12). Company selection fits a bounding box
+of company pins (zoom 8–20).
+
+**`useCompanies()`** — selected `company`, paginated `companies`, `total`, `hasMore`,
+`directorySort`, `directorySearch`, `loadCompanies`, `loadMoreCompanies`,
+`handleCompanyClick` (expands filters to ALL statuses + all-time range), `ensuredCompany`,
+`companySelectionInProgressRef` (prevents loadCompanies during selection).
+
+**`useProperties()`** — `properties`, `totalProperties`, `stablePropertyCount` (retained
+during loading to prevent flicker), `isLoading/isFetching`, `propertiesHasMore`,
+`loadMorePropertiesRef`. Not active in map view. Page resets to 1 on any filter/sort/company/
+view change; page 1 replaces, page >1 appends with ID dedup. Page size 10 (grid) / 20 (table).
+
+**`useProperty()`** — single selected `property`, `setProperty`, `fetchProperty(id)`.
+
+## API Surface
+
+### Properties (`/api/properties`)
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/properties` | Public | List with filters (county, zip, city, status, price, beds, baths, type, company, sort, page, limit) |
+| GET | `/api/properties/map` | Public | Map pins (id, lat, lng, address, status, companyId, etc.) |
+| GET | `/api/properties/suggestions` | Public | Address autocomplete |
+| GET | `/api/properties/streetview` | Public | Google Street View proxy |
+| GET | `/api/properties/:id` | Public | Single property |
+| GET | `/api/properties/:id/transactions` | Public | Full transaction history |
+| PATCH | `/api/properties/:id` | relationship-manager+ | Update isArvFunded, status |
+| POST | `/api/properties` | admin/owner | Add property |
+| DELETE | `/api/properties/:id` | admin/owner | Delete property |
+
+### Companies (`/api/companies`)
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/companies` | Public | Directory; accepts sort, search, county, page |
+| GET | `/api/companies/contacts/suggestions` | Public | Company search autocomplete |
+| GET | `/api/companies/wholesale-leaderboard` | Public | Top wholesalers by county |
+| GET | `/api/companies/leaderboard` | Public | Top zipcodes and buyers in MSA |
+| GET | `/api/companies/:id` | Public | Single company with counts |
+| POST | `/api/companies/:id/contacts` | admin/owner | Add contact |
+| PATCH | `/api/companies/:id` | admin/owner | Update company |
+| PATCH | `/api/companies/:id/contacts/:contactId` | admin/owner | Update contact |
+| DELETE | `/api/companies/:id/contacts/:contactId` | admin/owner | Delete contact |
+| POST | `/api/companies/:id/enrich` | admin/owner | Enrich from OpenCorporates |
+
+### Geocoding
+`GET /api/geocoding/county` — reverse geocode lat/lng → county (US Census Bureau proxy).
+
+## Backend
+- **`getProperties(filters)`** (`properties.services.ts`) — core query. Builds SQL
+  dynamically (full-text address search, EXISTS subqueries for company/status, date range,
+  price/bed/bath comparisons). **Transaction display logic** decides which company shows on
+  each card: company selected → most recent Arms Length/Assignment tx involving it; no company
+  → most recent Arms Length tx; detects the "assignor" pattern (Assignment seller between two
+  Arms Length txs) and surfaces it separately. Sorts: recently-sold, days-held,
+  price-high-low, price-low-high.
+- **`getMapProperties(...)`** — lightweight `MapPin[]`; pin color set on frontend by status +
+  company role.
+- **`getContacts(params)`** (`companies.services.ts`) — directory listing; 7 sort modes each
+  use different count aggregates over `property_transactions`; county filter via EXISTS on
+  `company_counties`.
+- **`getCompanyById(id, county)`** — full detail: all property counts (owned, sold/bought
+  YTD & all-time, wholesale), 90-day acquisition by month, contacts list with sort order.
+
+## Database Schema (key tables)
+
+**Properties:** `properties` (status, MSA, county, isArvFunded, sfrPropertyId), `addresses`
+(1:1, lat/lng + address parts), `structures` (1:1, beds/baths/sqft/year/condition),
+`assessments` (1:many, assessed/market value by year), `property_transactions` (the heart —
+buyerId/sellerId FK→companies, price, dateSold, transactionType arms-length/assignment,
+sortOrder), `property_statuses` (M:M with `statuses`), `statuses` (lookup).
+
+**Companies:** `companies` (companyName unique, isArvClient), `company_contacts` (name, email,
+phone, title, sortOrder), `company_counties` (activity counties), `company_details`
+(OpenCorporates enrichment, 20+ fields), `company_addresses` (registered/mailing/head office).
+
+## Views & Display Logic
+- **Map** — color-coded Leaflet pins: blue (in-renovation), green (on-market), red (sold),
+  purple (wholesale), orange (selected). Pin click → `PropertyDetailPanel`. Company selection
+  re-centers to its bounding box; filter changes recenter via zippopotam.us.
+- **Grid** — `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`, 10/page infinite scroll, click →
+  modal. Buyers-feed and wholesale are grid variants with different status presets.
+- **Table** — full-width, 20/page infinite scroll, click row → modal.
+- **Which transaction shows** — most recent relevant tx: no company → most recent Arms Length
+  (buyer + seller names); company selected → most recent tx where it's buyer or seller;
+  assignor pattern surfaced separately.
+- **Spread (wholesale)** — Arms Length only: `buyer price − seller price`, green/red by sign.
+- **Enrichment** — admin/owner triggers OpenCorporates enrichment from the company card; fills
+  `company_details`; requires a valid 2-letter state code.
+
+## Company Membership & Claiming
+Users can be **associated with companies** to see their company's transaction portfolio,
+market ranking, and acquisition activity. Membership lives in the `company_members` join table
+— an access/ownership roster kept deliberately separate from `company_contacts` (the public
+display roster sourced from the pipeline). Being a member does **not** auto-make a user a
+public contact.
+
+Two ways a user becomes associated:
+1. **Request → approval.** From the Company Directory, an authenticated user submits a request
+   to join a company, creating a `company_claims` row (`status: 'pending'`). An admin/owner
+   reviews it in the **Claims** tab of the Admin Panel; on approval a `company_members` row is
+   created. Multiple users can join the same company; if one already has an approved member,
+   additional requests surface as a **dispute** through the same queue.
+2. **Direct admin assignment.** An admin/owner opens a user in the **Users** table of the
+   Admin Panel and adds associated companies directly, bypassing the request flow.
+
+Approved memberships appear in the user's Profile under "My Companies."
+
+| Table | Purpose |
+|---|---|
+| `company_claims` | Pending/approved/rejected join requests; admin review queue |
+| `company_members` | Access/ownership roster (user↔company, `role`, `is_primary`) |
+
+## Access Control
+| Action | Public | Relationship Manager | Admin/Owner |
+|---|---|---|---|
+| Browse properties and companies | ✓ | ✓ | ✓ |
+| View property transactions | ✓ | ✓ | ✓ |
+| Update property isArvFunded / status | — | ✓ | ✓ |
+| Add / delete property | — | — | ✓ |
+| Edit company / contacts | — | — | ✓ |
+| Enrich company from OpenCorporates | — | — | ✓ |
+| Request to join a company | authenticated users | ✓ | ✓ |
+| Approve / reject claims, assign user↔company | — | review only | ✓ |
+
+## Data Pipeline
+The Data app displays what the pipeline ingests. A cron job syncs property transaction data
+from the external SFR (Single Family Rental) API into the DB, organized by MSA.
+
+**Entry point:** `runConsumer()` in `server/jobs/consumer.ts` — reads pending rows from
+`market_scan_queue` in batches, runs the steps below, marks rows complete/failed.
+
+**Steps per batch:** `fetchQueue` (pull pending rows for an MSA, capped at
+`MAX_PROPERTIES_PER_MSA` unique properties) → `markProcessing` → `batchLookup`
+(SFR `/properties/batch`) → `getTransactions` (SFR `/properties/transactions`) →
+`cleanTransactions` (extract company names + counties) → `insertCompanies` (upsert
+buyer/seller companies, associate with MSA) → `resolvePropertyIds` (resolve buyer/seller FKs)
+→ `resolveStatuses` (on-market / in-renovation / sold / wholesale) → `cleanBeforeInsert`
+(normalize) → `resolveArvFunded` (annotate by lender patterns) → `insertProperties` (upsert
+properties + child records) → `updateArvClientCompanies` → `markComplete` / `markFailed`.
+
+**Key behaviors:** New Construction excluded (`"Property is New Construction"`); unresolved
+status excluded (`"Couldn't Resolve Status"`); a failed batch doesn't abort the MSA (errors
+caught per-batch); `MAX_PROPERTIES_PER_MSA` controls throughput (currently 5; ~2 external API
+calls per property); failed rows stay in the queue for manual review (no auto-retry).
+
+**Files:** `server/jobs/consumer.ts`, `server/jobs/processes/`,
+`database/schemas/msas.schema.ts`.
+
+## Key Files
+Page `client/src/pages/Home.tsx` · components `client/src/components/data/` · hooks
+`useFilters.tsx`, `useView.ts`, `useDataNav.ts`, `useMap.tsx`, `useCompanies.tsx`,
+`useProperties.tsx`, `useProperty.tsx` · routes `server/routes/properties.routes.ts`,
+`companies.routes.ts` · services `server/services/properties/properties.services.ts`,
+`maps.services.ts`, `server/services/companies/companies.services.ts` · schemas
+`database/schemas/properties.schema.ts`, `companies.schema.ts`.
+
+---
+---
+
+# 2. Deals App
+
+## What It Is
+A marketplace for real estate investment deals — wholesale, agent-listed, and completed sales.
+Users post deals, others browse and request contact info, and the system routes inquiries to
+the appropriate relationship manager. It's an internal deal board layered on the Data app's
+property/company data. Publicly viewable, but creating deals requires a pro/premium
+subscription (with bypass for team roles).
+
+## Page Entry Point
+`client/src/pages/Deals.tsx` wraps `DealsInner`, which checks auth and renders `Header` +
+`DealsPageContent`. Unauthenticated users get a non-forced login dialog.
+
+## Component Tree
+- **DealsHeader** — tabs "All Deals" / "Your Deals", `DealsLocationSearch` (county/MSA/city/
+  zip autocomplete), Add Deal button (subscription-gated).
+- **DealsGrid** — mobile tab bar (New / Sold), two `DealsColumn`s (New Deals, Sold Deals) of
+  `DealCard2`. New Deals column auto-scrolls to the expanded deal.
+- **Dialogs** — AddDealDialog, EditDealDialog (both use `DealFormFields`), DeleteDealDialog,
+  RequestDealInfoDialog (`RequestDealInfoForm`), BestBuyersDialog (top 3 buyers for a zip).
+
+**DealCard2 collapsed:** street view image, address, deal-type badge (Wholesale purple /
+Agent orange / Sold red), ARV Exclusive badge (admin-set), relative posted date, beds/baths/
+sqft, financial grid (Purchase Price, Potential ARV, Est. Budget, Close of Escrow), Request
+More Info + 3-dot Edit/Delete menu.
+**Expanded:** notes, photo album link, up to 3 comparable sale links (domain-extracted
+labels), Request More Info (mobile), Top Potential Buyers (owner only), admin footer
+(admin/owner/RM): poster name/email/phone, On Behalf Of, Internal Note.
+
+## State Management
+**`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `locationFilter` (`?filterType`
++ `?filterValue` + `?filterState`), `dealId` (`?dealId=`); actions `setTab`,
+`setLocationFilter`, `setDealId`. On first load with no filter, defaults to the user's county
+(resolved from their MSA).
+
+**`DealsPageContent` local state:** `showAddDeal`, `deleteConfirm`, `editDeal` (links
+normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `bestBuyersDeal`.
+
+**Data fetching (React Query):** primary `GET /api/deals?userId&county&state&city&zip`;
+secondary `GET /api/deals/:id` for a pinned deal from `?dealId` (prepended if absent from the
+filtered list). Deals split client-side into `newDeals` (type !== "sold") and `soldDeals`.
+
+## API Surface (`server/routes/deals.routes.ts`)
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/deals` | Public | List deals; `userId`, `county`, `city`, `state`, `zipCode`, `msaName` |
+| GET | `/api/deals/:id` | Public | Single deal |
+| POST | `/api/deals` | requireSub (pro/premium) | Create deal |
+| PATCH | `/api/deals/:id` | requireSub (pro/premium) | Update deal (ownership enforced in service) |
+| DELETE | `/api/deals/:id` | requireSub (pro/premium) | Delete deal |
+| POST | `/api/deals/:id/request-info` | Auth required | Send deal inquiry |
+
+**Subscription bypass:** `admin`, `owner`, `relationship-manager`, `member` skip the
+pro/premium requirement.
+
+## Backend
+**Controller** (`deals.controllers.ts`) — strips admin-only fields (`isArvExclusive`,
+`onBehalfOfEmail`, `adminNotes`) when caller isn't admin/owner; detects sold transition or
+price change on PATCH → fires notification email; validates POST `userId` matches the session
+(no posting on behalf of others unless admin).
+
+**Service** (`deals.services.ts`):
+- **`getDeals(filters)`** — dynamic WHERE, joins `msas` + `users`. Per deal: batch-fetch top 3
+  buyers per zip (arms-length sales, last 3 months), batch-fetch `dealLinks`, resolve street
+  view URL. Returns enriched `Deal[]` with `topBuyers`, `links`, `streetViewUrl`.
+- **`createDeal(input)`** — validates city/state/zip/beds/baths/sqft/propertyType all present;
+  resolves MSA from city/state/zip (`resolveMsaId`) and county from zip (`resolveCountyFromZip`);
+  inserts deal + dealLinks. `sfrPropertyId` is always `null` (specs entered manually).
+- **`updateDeal(id, callerId, input)`** — enforces ownership (owner or admin/owner role);
+  re-runs MSA/county resolution if location changed; re-inserts links; returns `previousType`
+  and `previousPrice` for notification detection.
+- **`requestDealInfo(...)`** — on-behalf-of mode → email to client (onBehalfOfEmail), CC
+  poster's RM; normal mode → email to poster, CC requester's RM or default contact. Includes
+  deal details, requester contact, message, deep link.
+- **`sendDealNotification(...)`** — fetches MSA subscribers with deal notifications enabled,
+  extends with companion-MSA subscribers, filters by deal-type preference, excludes the poster
+  (except neil@arvfinance.com), adds whitelist recipients (primary + companion MSAs, dedup by
+  email), sends Postmark templates `new-deal` / `deal-sold` / `price-update`.
+
+## Deal Creation & Editing — Form Behavior
+- **Property details always required:** beds, baths, sqft, property type — no external auto-fill.
+  Baths accept decimals (`2.5`). Street address is **optional** (supports undisclosed-address
+  wholesale); when present it's used only for the street view image (no external lookup).
+- **`DealFormFields` order:** Street Address *(opt)* → City/State/Zip → Beds/Baths/SqFt
+  *(req)* → Property Type *(req)* → Price/Potential ARV *(opt)* → Showing Date/Time *(opt)* →
+  Estimated Budget *(opt)* → Deal Type → Notes *(opt)* → up to 3 Comparable Links *(opt)* →
+  Photo Album URL *(opt)*. Admin-only fields (Internal Note, On Behalf Of, ARV Exclusive)
+  appear below a divider, visible to admin/owner/RM only.
+- **Add vs Edit:** Add defaults to `agent` and can't post `sold`; Edit exposes `sold`,
+  enabling the sold transition that fires the deal-sold notification.
+
+## Companion MSA Notifications
+Some cities near MSA boundaries interest a neighboring market. The static map
+`COMPANION_NOTIFICATION_MSAS` in `deals.services.ts` defines overrides:
+```ts
+const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
+    'temecula|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+    'murrieta|ca': ['San Diego-Chula Vista-Carlsbad, CA'],
+};
+```
+- The deal's `msaId` is **never changed** (Temecula stays in the Riverside MSA for data
+  integrity). At notification time, a `city|state` key is checked against the map.
+- For each companion MSA, it looks up the MSA ID and runs the same subscriber query
+  (`userMsaSubscriptions` + `userNotificationPreferences`). All lists merge before dedup (the
+  `seen` Set by user ID handles cross-MSA duplicates). Whitelist recipients fetched for primary
+  + companion MSAs, deduped by email. The "no subscribers" early-return checks the **merged**
+  list, so an empty primary MSA doesn't block companion subscribers.
+- **Adding a companion city:** add one `"city|state"` (lowercase) entry — no migration needed.
+
+## Database Schema (`database/schemas/deals.schema.ts`)
+**`deals`:** `id` (bigserial PK), `userId` (FK→users, poster), `msaId` (FK→msas, resolved on
+create/update), `sfrPropertyId` (bigint nullable, always null), `type` (`wholesale`/`agent`/
+`sold`), `address` (nullable, optional), `city`/`state`/`zipCode`/`county` (city/state/zip
+required, county resolved server-side), `price`/`potentialARV` (decimal, optional),
+`beds`/`baths`/`sqft` (required, manual), `propertyType` (required), `notes`, `adminNotes`
+(admin/owner only), `showingTime` (timestamp, ISO string no tz), `estimatedBudget`,
+`photosUrl`, `isArvExclusive` (default false, admin-set), `onBehalfOfEmail` (RM-posted deals,
+redirects contact requests).
+**`dealLinks`:** `dealId` (cascade delete), `sortOrder` (1–3), `url`, `domain` (extracted label).
+
+## Validation (`database/inserts/deals.insert.ts`)
+`dealFormSchema` (Zod): city/state(2)/zip required; beds/baths/sqft/propertyType always
+required (no conditional logic on address); baths `z.coerce.number().positive()`; dealType
+default `"agent"`, `"sold"` only on edit; showingDate optional (`MM/DD/YYYY`) + showingTimeStr
+(`HH:MM`) + showingAmPm (`AM`/`PM`) combine into ISO `YYYY-MM-DDThh:mm:00`; links URL-validated
+max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-privileged callers.
+
+## Access Control
+| Action | Public | Auth | Member/RM | Admin/Owner |
+|---|---|---|---|---|
+| View deals | ✓ | ✓ | ✓ | ✓ |
+| Request deal info | — | ✓ | ✓ | ✓ |
+| Create deal | — | Pro/Premium | ✓ (bypass) | ✓ |
+| Edit own deal | — | — | ✓ (own) | ✓ (any) |
+| Delete own deal | — | — | ✓ (own) | ✓ (any) |
+| Delete any deal | — | — | RM only | ✓ |
+| Set ARV Exclusive | — | — | — | ✓ |
+| Set On Behalf Of | — | — | RM only | ✓ |
+| View poster contact info | — | — | ✓ | ✓ |
+
+## Deal Lifecycle
+- **Create** → subscription check → MSA + county resolved → beds/baths/sqft/propertyType
+  validated → insert deals + dealLinks → fire-and-forget emails (primary MSA subscribers,
+  companion MSA subscribers, whitelist recipients deduped).
+- **Request info** → `RequestDealInfoForm` (firstName/lastName/email) → with onBehalfOfEmail:
+  email to client, CC poster's RM; without: email to poster, CC requester's RM.
+- **Edit → sold** → type wholesale/agent → sold → `deal-sold` email to primary + companion subs.
+- **Price update** → controller detects old vs new → `price-update` email to primary + companion subs.
+
+## Key Files
+Page `client/src/pages/Deals.tsx` · `client/src/components/deals/` (DealsPageContent,
+DealFormFields, AddDealDialog, EditDealDialog, +others) · hook `useDealsNav.ts` · routes
+`server/routes/deals.routes.ts` · controller `deals.controllers.ts` · service
+`deals.services.ts` · schema `database/schemas/deals.schema.ts` · validation
+`database/inserts/deals.insert.ts`, `database/validation/deals.validation.ts`.
+
+---
+---
+
+# 3. Vendors App
+
+## What It Is
+A two-panel community hub for renovation/real estate professionals. Left panel (480px) is an
+**Activity Feed** of community posts about renovation projects, flips, and property work. Right
+panel is a **Browse by Category** vendor directory. On mobile the two are tab-switched
+("Browse" / "Activity Feed"). It lets users discover vendors (contractors, plumbers, HVAC, …)
+by trade category, and lets the community share project work, tag vendors/categories, and
+surface vendors through real activity.
+
+## Page Entry Point
+`client/src/pages/Vendors.tsx` wraps `VendorsContent` in the shared provider tree (inherited
+from the rest of the app, not Vendors-specific).
+
+## Component Tree
+- **ActivityFeed** (left, 480px) — `PostCard` (author + avatar + timestamp, formatted HTML
+  with clickable vendor/category mentions, image carousel up to 5, Edit/Delete menu for
+  author/admin/owner, ImageLightbox) and `PostComposer` (auth required: TipTap rich text editor
+  with Bold/Italic/Underline/Link/Font Size and mentions `@vendor` → vendorMention / `#category`
+  → categoryMention, image upload max 5 JPEG/PNG, Post button).
+- **BrowseByCategory** (right, flex-1) — header with search, breadcrumbs, Add Vendor button
+  (admin/owner); RecommendedVendors section (`isRecommended`); view states from `useVendorNav`:
+  `categories` (CategoryCard grid), `vendor-list` (VendorCard grid), `vendor-detail`
+  (VendorDetail), `search` (mixed results). **VendorDetail**: header image + logo, name,
+  description, contact (address/phone/website), category badges, VendorPhotoGallery (post images
+  featuring the vendor), EditVendorDialog + DeleteConfirmation (admin/owner).
+
+## State Management
+**`useVendorNav`** (URL-driven): `view: "categories" | "vendor-list" | "vendor-detail"`,
+`categoryId` (`?category=`), `vendorId` (`?vendor=`), `postFilters: { categoryId?, vendorId? }`
+(passed to ActivityFeed). Actions: `selectCategory(id)` (→ vendor-list, clears vendor),
+`selectVendor(id)` (→ vendor-detail), `goBack()`, `reset()`. URL pattern
+`/vendors?category=5&vendor=abc-123`.
+
+**Post editor:** `usePostEditor` inside `PostComposer` — TipTap instance, mention extraction,
+image files, submit state.
+
+## API Surface
+### Categories
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/categories` | All categories with vendor counts |
+| GET | `/api/categories/:id/vendors` | Vendors in a category |
+
+### Vendors
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/vendors` | Public | All vendors; `?categoryIds=` |
+| GET | `/api/vendors/recommended` | Public | `isRecommended=true` |
+| GET | `/api/vendors/:id` | Public | Single vendor with categories |
+| POST | `/api/vendors` | Admin/Owner | Create vendor |
+| PUT | `/api/vendors/:id` | Admin/Owner | Update vendor |
+| DELETE | `/api/vendors/:id` | Admin/Owner | Delete vendor |
+| PUT | `/api/vendors/:id/recommend` | Admin/Owner | Toggle `isRecommended` |
+| POST/DELETE | `/api/vendors/:id/logo` | Admin/Owner | Upload / remove logo (FormData) |
+| POST/DELETE | `/api/vendors/:id/header` | Admin/Owner | Upload / remove header image (FormData) |
+
+### Posts
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | `/api/posts` | Public | Feed; `?categoryId=`, `?vendorId=`, `?page=`, `?limit=` |
+| POST | `/api/posts` | Auth required | Create post |
+| PUT | `/api/posts/:id` | Author/Admin/Owner | Update post |
+| DELETE | `/api/posts/:id` | Author/Admin/Owner | Delete post |
+| POST | `/api/posts/:id/images` | Author | Upload image (FormData, max 5) |
+| DELETE | `/api/posts/:id/images/:imageId` | Author/Admin/Owner | Delete image |
+
+## Backend
+**Services:** `vendors.services.ts` (CRUD, category mapping, Supabase image upload/delete),
+`posts.services.ts` (post CRUD, mention parsing, batch enrichment of likes/comments/images/
+tags, ownership checks), `categories.services.ts` (category list with vendor-count aggregates).
+
+**Key behavior:** `createPost`/`updatePost` parse vendor + category mentions out of TipTap
+HTML and rebuild junction records on every save. `getPosts` enrichment fetches likes, comment
+counts, images, vendor tags, and user tags in parallel batch queries (never N+1). Vendor
+`getAll` dedupes when filtering by multiple categories. Vendor/post images go to Supabase
+Storage (URL stored in DB); deleting a vendor cleans up its Supabase images.
+
+## Database Schema (`database/schemas/vendors.schema.ts`)
+| Table | Key Columns | Notes |
+|---|---|---|
+| `categories` | id, name, slug, iconName, description | Shared by vendors and posts |
+| `vendors` | id (uuid), name, logoUrl, headerUrl, isRecommended, userId (nullable FK) | No registered account required |
+| `vendor_categories` | (vendorId, categoryId) | M:M junction |
+| `posts` | id (uuid), userId, title, content (HTML), address, city, state | Content stores TipTap HTML incl. mention marks |
+| `post_categories` | (postId, categoryId) | Rebuilt on every save |
+| `post_images` | id, postId, imageUrl, displayOrder | Max 5 per post |
+| `post_likes` | (userId, postId) | One like per user per post |
+| `post_comments` | id, postId, userId, parentCommentId (nullable) | One level of threading |
+| `post_vendor_tags` | (postId, vendorId) | Rebuilt from @mentions on save |
+| `post_user_tags` | (postId, taggedUserId) | Rebuilt from @user mentions on save |
+
+Deleting a vendor or post cascades to all related junction and child records.
+
+## Access Control
+| Action | Anyone | Authenticated | Admin / Owner |
+|---|---|---|---|
+| Browse vendors and categories | ✓ | ✓ | ✓ |
+| Read posts / activity feed | ✓ | ✓ | ✓ |
+| Create post | — | ✓ | ✓ |
+| Edit / delete own post | — | ✓ (own) | ✓ (any) |
+| Create / edit / delete vendor | — | — | ✓ |
+| Upload vendor logo / header | — | — | ✓ |
+| Toggle vendor recommended | — | — | ✓ |
+
+## Current State
+**Fully implemented:** vendor CRUD with logo/header upload (Supabase), category tagging (M:M),
+recommended vendors, post creation with TipTap, `@vendor`/`#category` mention autocomplete,
+post images (≤5, Supabase), post edit/delete with ownership enforcement, feed filtering by
+category/vendor, vendor photo gallery (images from tagged posts), mobile two-panel tab layout,
+search across categories + vendors, breadcrumb nav with URL-driven state.
+
+**In schema/backend, not yet in UI:** post likes (count fetched, no like button), post comments
+(schema + count, no thread UI), user tagging (`@user`, `post_user_tags` exists, autocomplete
+not wired), infinite scroll (pagination API ready; UI uses query invalidation on new posts).
+
+## Key Files
+Page `client/src/pages/Vendors.tsx` · API client `client/src/api/vendors.api.ts` · components
+`client/src/components/vendors/` · hooks `useVendorNav.ts`, `usePostEditor.ts` · types
+`client/src/types/vendors.d.ts` · routes `server/routes/vendors.routes.ts`, `posts.routes.ts`,
+`categories.routes.ts` · controllers/services under `server/controllers/` and
+`server/services/` (`vendors/`, `posts/`, `categories/`) · schema
+`database/schemas/vendors.schema.ts` · validation `database/validation/vendors.validation.ts`.

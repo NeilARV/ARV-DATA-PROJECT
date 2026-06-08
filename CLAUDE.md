@@ -54,22 +54,22 @@ The following environment variables are required or used by the application. **N
 
 ## Apps
 
-The application is organized as three distinct feature areas that function like separate apps, all sharing the some code like auth, providers, and backend.
+The application is organized as three distinct feature areas that function like separate apps, all sharing the some code like auth, providers, and backend. All three are documented in a single reference: `.claude/docs/apps.md`. You MUST read the relevant section of that document when working on the corresponding side of the application.
 
 ### Data
-Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database. You MUST reference this document when working on the data side of the application.
+Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database.
 
-> **Full reference**: `.claude/docs/data.md` | `/` | `data.services.ts`, `data.controllers.ts`, `data.routes.ts`
+> **Full reference**: `.claude/docs/apps.md` (Data section) | `/` | `properties.services.ts`, `companies.services.ts`
 
 ### Deals
-Deal marketplace. Users post wholesale, agent, and sold deals; other investors browse, filter by location, and request contact info. Subscription-gated for deal creation. You MUST reference this document when working on the deals side of the application.
+Deal marketplace. Users post wholesale, agent, and sold deals; other investors browse, filter by location, and request contact info. Subscription-gated for deal creation.
 
-> **Full reference**: `.claude/docs/deals.md` | `/deals` | `deals.services.ts`, `deals.controllers.ts`, `deals.routes.ts`
+> **Full reference**: `.claude/docs/apps.md` (Deals section) | `/deals` | `deals.services.ts`, `deals.controllers.ts`, `deals.routes.ts`
 
 ### Vendors
-Community hub. Two-panel layout: an activity feed for community posts (with rich text + vendor/category mentions) and a vendor directory organized by trade category. You MUST reference this document when working on the vendors side of the application.
+Community hub. Two-panel layout: an activity feed for community posts (with rich text + vendor/category mentions) and a vendor directory organized by trade category.
 
-> **Full reference**: `.claude/docs/vendors.md` | `/vendors` | `vendors.services.ts`, `vendors.controllers.ts`, `vendors.routes.ts`
+> **Full reference**: `.claude/docs/apps.md` (Vendors section) | `/vendors` | `vendors.services.ts`, `posts.services.ts`, `categories.services.ts`
 
 ---
 
@@ -116,17 +116,15 @@ The following subagents MUST be invoked via the `Agent` tool at the end of every
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
 - `.claude/docs/design-guidelines.md` — UI design system (colors, typography, components, dark mode)
 - `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
-- `.claude/docs/data.md` — Data app overview (property intelligence, map, company directory, SFR pipeline)
-- `.claude/docs/deals.md` — Deals app overview (deal marketplace, subscription gate, email notifications)
-- `.claude/docs/vendors.md` — Vendors app overview (vendor directory, community posts, mentions)
+- `.claude/docs/apps.md` — Combined overview of all three apps: Data (property intelligence, map, company directory, SFR pipeline), Deals (marketplace, subscription gate, email notifications), and Vendors (vendor directory, community posts, mentions)
 - `.claude/docs/new-msa.md` — Documentation on how to add a new MSA to the application
 
 ---
 
 ## Requirements
-1. You must refer to `.claude/docs/data.md` when working on the data side of the application
-2. You must refer to `.claude/docs/deals.md` when working on the deals side of the application
-3. You must refer to `.claude/docs/vendors.md` when working on the vendors side of the application
+1. You must refer to the Data section of `.claude/docs/apps.md` when working on the data side of the application
+2. You must refer to the Deals section of `.claude/docs/apps.md` when working on the deals side of the application
+3. You must refer to the Vendors section of `.claude/docs/apps.md` when working on the vendors side of the application
 4. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`
 5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
 6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md`
