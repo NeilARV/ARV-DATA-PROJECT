@@ -298,6 +298,37 @@ Admin/owner can trigger OpenCorporates enrichment from the company card. This fi
 
 ---
 
+## Company Membership & Claiming
+
+Users can be **associated with companies** so they can see their company's transaction
+portfolio, market ranking, and acquisition activity. Membership is recorded in the
+`company_members` join table — a slim access/ownership roster kept deliberately separate
+from `company_contacts` (the public display roster sourced from the data pipeline). A user
+being a member does **not** automatically make them a public-facing contact.
+
+There are **two ways** a user becomes associated with a company:
+
+1. **User request → approval.** From the Company Directory, an authenticated user submits a
+   request to join a company. This creates a `company_claims` row with `status: 'pending'`.
+   An admin or owner reviews it in the **Claims** tab of the Admin Panel and approves or
+   rejects it. On approval, a `company_members` row links the user to the company. Multiple
+   users can request to join the same company — each is reviewed independently, so a company
+   can have several approved members. If a company already has an approved member, additional
+   requests surface as a **dispute** but flow through the same queue.
+
+2. **Direct admin assignment.** An admin or owner can open a user in the **Users** table of
+   the Admin Panel and directly add the companies that user is associated with — bypassing the
+   request/approval flow entirely.
+
+Approved memberships appear in the user's Profile under "My Companies."
+
+| Table | Purpose |
+|---|---|
+| `company_claims` | Pending/approved/rejected join requests; admin review queue |
+| `company_members` | Access/ownership roster — which users belong to which companies (`role`, `is_primary`) |
+
+---
+
 ## Access Control
 
 | Action | Public | Relationship Manager | Admin/Owner |
@@ -308,6 +339,8 @@ Admin/owner can trigger OpenCorporates enrichment from the company card. This fi
 | Add / delete property | — | — | ✓ |
 | Edit company / contacts | — | — | ✓ |
 | Enrich company from OpenCorporates | — | — | ✓ |
+| Request to join a company | authenticated users | ✓ | ✓ |
+| Approve / reject claims, assign user↔company | — | — | ✓ (+ relationship-manager for review) |
 
 ---
 
