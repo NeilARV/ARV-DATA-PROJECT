@@ -11,6 +11,7 @@ import categoriesRoutes from './categories.routes';
 import vendorsRoutes from './vendors.routes';
 import postsRoutes from './posts.routes';
 import claimsRoutes from './claims.routes';
+import channelsRoutes from './channels.routes';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/contact', contactRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/vendors', vendorsRoutes);
 router.use('/posts', postsRoutes);
+router.use('/channels', channelsRoutes);
 
 export default router;

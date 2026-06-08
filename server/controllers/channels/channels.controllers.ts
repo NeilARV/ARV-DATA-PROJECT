@@ -1,0 +1,129 @@
+import type { Request, Response } from 'express';
+import {
+    listChannels,
+    createChannel,
+    updateChannel,
+    archiveChannel,
+    deleteChannel,
+    ChannelServiceError,
+} from 'server/services/channels/channels.services';
+import {
+    createChannelSchema,
+    updateChannelSchema,
+} from '@database/validation/mastermind.validation';
+import { db } from 'server/storage';
+import { userRoles, roles } from '@database/schemas/users.schema';
+import { eq, and, inArray } from 'drizzle-orm';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const CHANNEL_ADMIN_ROLES = ['admin', 'owner'] as const;
+
+/** Returns true if the given userId holds an admin or owner role. */
+async function callerIsChannelAdmin(userId: string): Promise<boolean> {
+    const rows = await db
+        .select({ roleName: roles.name })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...CHANNEL_ADMIN_ROLES])))
+        .limit(1);
+    return rows.length > 0;
+}
+
+function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
+    if (err instanceof ChannelServiceError) {
+        res.status(err.statusCode).json({ message: err.message });
+    } else {
+        console.error(fallbackMessage, err);
+        res.status(500).json({ message: fallbackMessage });
+    }
+}
+
+// ── GET /api/channels ──────────────────────────────────────────────────────────
+export async function getChannelsController(req: Request, res: Response): Promise<void> {
+    try {
+        const callerId = req.session.userId!;
+        // Only admin/owner may view archived channels; the flag is ignored otherwise.
+        const wantsArchived = req.query.includeArchived === 'true';
+        const includeArchived = wantsArchived && (await callerIsChannelAdmin(callerId));
+
+        const channels = await listChannels({ includeArchived });
+        res.json({ channels });
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching channels');
+    }
+}
+
+// ── POST /api/channels ─────────────────────────────────────────────────────────
+export async function createChannelController(req: Request, res: Response): Promise<void> {
+    try {
+        const parsed = createChannelSchema.safeParse(req.body ?? {});
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid input', errors: parsed.error.errors });
+            return;
+        }
+
+        const channel = await createChannel({
+            name: parsed.data.name,
+            description: parsed.data.description ?? null,
+            createdBy: req.session.userId!,
+        });
+        res.status(201).json({ message: 'Channel created', channel });
+    } catch (err) {
+        handleServiceError(res, err, 'Error creating channel');
+    }
+}
+
+// ── PATCH /api/channels/:id ──────────────────────────────────────────────────────
+export async function updateChannelController(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params;
+        if (!UUID_REGEX.test(id)) {
+            res.status(400).json({ message: 'Invalid channel id' });
+            return;
+        }
+
+        const parsed = updateChannelSchema.safeParse(req.body ?? {});
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid input', errors: parsed.error.errors });
+            return;
+        }
+
+        const channel = await updateChannel(id, parsed.data);
+        res.json({ message: 'Channel updated', channel });
+    } catch (err) {
+        handleServiceError(res, err, 'Error updating channel');
+    }
+}
+
+// ── POST /api/channels/:id/archive ────────────────────────────────────────────────
+export async function archiveChannelController(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params;
+        if (!UUID_REGEX.test(id)) {
+            res.status(400).json({ message: 'Invalid channel id' });
+            return;
+        }
+
+        const channel = await archiveChannel(id);
+        res.json({ message: 'Channel archived', channel });
+    } catch (err) {
+        handleServiceError(res, err, 'Error archiving channel');
+    }
+}
+
+// ── DELETE /api/channels/:id ──────────────────────────────────────────────────────
+export async function deleteChannelController(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params;
+        if (!UUID_REGEX.test(id)) {
+            res.status(400).json({ message: 'Invalid channel id' });
+            return;
+        }
+
+        const result = await deleteChannel(id);
+        res.json({ message: 'Channel deleted', id: result.id });
+    } catch (err) {
+        handleServiceError(res, err, 'Error deleting channel');
+    }
+}

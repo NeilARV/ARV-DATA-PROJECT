@@ -1,4 +1,4 @@
-# Apps — Overview & Reference (Data · Deals · Vendors)
+# Apps — Overview & Reference (Data · Deals · Vendors · Mastermind)
 
 ARV is organized as three feature areas that function like separate apps on a shared
 foundation (auth, providers, backend). Each has its own page entry point, nav hook, routes,
@@ -525,3 +525,87 @@ Page `client/src/pages/Vendors.tsx` · API client `client/src/api/vendors.api.ts
 `categories.routes.ts` · controllers/services under `server/controllers/` and
 `server/services/` (`vendors/`, `posts/`, `categories/`) · schema
 `database/schemas/vendors.schema.ts` · validation `database/validation/vendors.validation.ts`.
+
+---
+
+# 4. Mastermind App
+
+## What It Is
+A Slack-style real-time community — the live layer of the mastermind subscription. Topic
+channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …), real-time messages,
+@mentions, reactions, pins, and notifications, scoped to paying members and the ARV team. Full
+design and phased build plan: `.claude/docs/mastermind.md`.
+
+> **Status:** under construction. **Phase 1 Part 1** (schema/migrations) and **Part 2** (access
+> gate + channel routes) are built. Messages, WebSocket delivery, the frontend shell, mentions,
+> unread badges, notifications, reactions/pins/attachments, and email are later parts.
+
+## Page Entry Point
+`/mastermind` (route + page not built yet — Part 5). Nav entry will be gated on `canAccessApp`.
+
+## Access Model
+Access = **any subscription tier OR any team role** (mirrors the frontend `canAccessApp` flag).
+Server gate is `requireMastermind` — a configured instance of
+`requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`
+exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindEligible(userId)`
+(the boolean form, for the future WebSocket upgrade handshake). Channel management
+(create/rename/archive/delete) is admin/owner only via `requireRole(["admin","owner"])`.
+
+| Action | Subscriber (basic/pro/premium) | Member / RM | Admin / Owner |
+|---|---|---|---|
+| List & read channels | ✓ | ✓ | ✓ |
+| Create / rename / archive / delete channel | — | — | ✓ |
+
+## API Surface (`server/routes/channels.routes.ts`)
+| Method | Route | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/channels` | `requireMastermind` | Lists public, non-archived channels; admin/owner may pass `?includeArchived=true` |
+| POST | `/api/channels` | `requireRole(["admin","owner"])` | Create; `name` is a unique lowercase slug |
+| PATCH | `/api/channels/:id` | `requireRole(["admin","owner"])` | Rename / edit description |
+| POST | `/api/channels/:id/archive` | `requireRole(["admin","owner"])` | Soft archive (`is_archived = true`) |
+| DELETE | `/api/channels/:id` | `requireRole(["admin","owner"])` | Hard delete (cascade); `409` unless already archived |
+
+Full request/response detail: `.claude/docs/api.md` §12. Permission tables:
+`.claude/docs/access-control.md` §5.12.
+
+## Backend
+Routes `server/routes/channels.routes.ts` · controller `server/controllers/channels/` ·
+service `server/services/channels/` (`ChannelServiceError` carries `statusCode`, mirroring
+`DealServiceError`; duplicate-name writes are mapped to `409`) · gate
+`server/middleware/requireMastermind.ts`.
+
+Membership is **implicit** in Phase 1: every eligible user can read every public channel — no
+`channel_members` row is required, and that table is not consulted for authorization. It exists
+to carry per-user read-state (`last_read_at`) later (unread badges, Part 7).
+
+## Database Schema (`database/schemas/mastermind.schema.ts`)
+Enums: `channel_type` (`public`/`private`/`dm`/`group_dm` — Phase 1 uses only `public`),
+`channel_member_role` (`owner`/`admin`/`member`), `notification_type` (`mention`/`channel_mention`).
+
+| Table | Key Columns | Notes |
+|---|---|---|
+| `channels` | id (uuid), name (unique), description, type, createdBy (FK users, set null), isArchived | Seeded with starter channels |
+| `channel_members` | id, channelId, userId, role, lastReadAt, lastReadMessageId, isMuted | UNIQUE(channelId, userId); written lazily for read-state |
+| `messages` | id, channelId, senderId, parentMessageId (self-FK, threads/Phase 2), content (HTML), isEdited, isDeleted | Soft-delete only; index (channelId, createdAt DESC) |
+| `message_attachments` | id, messageId, fileUrl, fileName, fileType, fileSizeBytes | Supabase Storage URLs |
+| `message_reactions` | id, messageId, userId, emoji | UNIQUE(messageId, userId, emoji); fixed emoji set |
+| `message_mentions` | id, messageId, mentionedUserId | UNIQUE(messageId, mentionedUserId); index (mentionedUserId, createdAt DESC) |
+| `pinned_messages` | id, messageId, channelId, pinnedBy | UNIQUE(channelId) — one pin per channel |
+| `notifications` | id, userId (recipient), type, channelId, messageId, actorId, isRead, emailedAt | Bell feed; index (userId, isRead, createdAt DESC) |
+
+Deleting a channel cascades to its messages, members, reactions, mentions, pins, and
+notifications. See `.claude/docs/database.md` (Mastermind section) for full column detail.
+
+## Validation (`database/validation/mastermind.validation.ts`, `database/inserts/mastermind.insert.ts`)
+Request schemas: `createChannelSchema`, `updateChannelSchema` (and message/reaction/attachment
+schemas for later parts). `MASTERMIND_REACTION_EMOJIS` is the fixed reaction set
+(👍 👎 😀 😢 😂 ❤️). drizzle-zod insert schemas live in `database/inserts/mastermind.insert.ts`;
+types in `database/types/mastermind.d.ts`.
+
+## Key Files
+Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.routes.ts` ·
+controller `server/controllers/channels/channels.controllers.ts` · service
+`server/services/channels/channels.services.ts` · schema
+`database/schemas/mastermind.schema.ts` · validation
+`database/validation/mastermind.validation.ts` · tests
+`tests/server/api/channels/` · design doc `.claude/docs/mastermind.md`.

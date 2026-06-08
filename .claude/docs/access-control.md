@@ -287,6 +287,40 @@ All public — no auth required.
 
 ---
 
+### 5.12 Mastermind — Channels (`/api/channels`)
+
+Mastermind access = **any subscription tier OR any team role**. The read/list route is gated
+by `requireMastermind` — a configured instance of `requireSub(['basic','pro','premium'], { bypassRoles: ['admin','owner','relationship-manager','member'] })` exported from
+`server/middleware/requireMastermind.ts`. This is equivalent in meaning to the frontend
+`canAccessApp` flag. The same file exports `isMastermindEligible(userId)` (the boolean form,
+for the WebSocket upgrade handshake in a later part).
+
+Channel **management** (create / rename / archive / delete) is admin/owner only and uses
+`requireRole(['admin','owner'])` — stricter than `requireMastermind`, so it is not stacked.
+
+Membership is **implicit**: every eligible user can read every public, non-archived channel
+(no `channel_members` row required). `channel_members` rows are written lazily later to carry
+read-state; they are not consulted for authorization in Phase 1.
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/channels` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/channels` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| PATCH | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| POST | `/api/channels/:id/archive` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| DELETE | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+
+**Behavior notes:**
+- `GET /api/channels` returns public, non-archived channels. Admin/owner may pass
+  `?includeArchived=true` to include archived channels (the archive view); the flag is ignored
+  for non-admin callers (controller-enforced), so they only ever see active channels.
+- `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
+- `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
+  channel is **already archived** — otherwise it returns `409` ("archive the channel before
+  deleting"). This is the delete-twice safety net.
+
+---
+
 ## 6. How `testing.md` uses this file
 
 When generating the mandatory access-control integration tests for a new or changed route:

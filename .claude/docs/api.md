@@ -21,6 +21,7 @@ For access control rules (which roles/tiers can call what), see [`access-control
 9. [Categories (`/api/categories`)](#9-categories-apicategories)
 10. [Contact (`/api/contact`)](#10-contact-apicontact)
 11. [Geocoding (`/api/geocoding`)](#11-geocoding-apigeooding)
+12. [Mastermind — Channels (`/api/channels`)](#12-mastermind--channels-apichannels)
 
 ---
 
@@ -1313,6 +1314,98 @@ Reverse geocode a coordinate pair to a US county name. Proxies the US Census Bur
 **Response `200`** `{ "county": "San Diego" }`
 
 **Errors** `400` missing or invalid params · `404` no county found for coordinates · `500` Census API error
+
+---
+
+## 12. Mastermind — Channels `/api/channels`
+
+The first slice of the Mastermind app (4th app). Access = any subscription tier OR any team
+role, via `requireMastermind` (a configured `requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`). Channel management is admin/owner only.
+Membership is implicit in Phase 1: every eligible user can read every public, non-archived
+channel. See [`access-control.md` §5.12](./access-control.md).
+
+### `GET /api/channels`
+List public channels.
+
+**Auth**: `requireMastermind`
+
+**Query params** (optional)
+| Param | Type | Description |
+|---|---|---|
+| `includeArchived` | boolean (`"true"`) | Include archived channels. **Honored only for admin/owner**; ignored for everyone else. |
+
+**Response `200`** `{ "channels": [ { "id": "uuid", "name": "san-diego-market", "description": "…", "type": "public", "isArchived": false, "createdBy": "uuid|null", "createdAt": "…", "updatedAt": "…" } ] }`
+
+**Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
+### `POST /api/channels`
+Create a public channel.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** (validated via `createChannelSchema`)
+```json
+{
+  "name": "san-diego-market",
+  "description": "San Diego MSA market talk"
+}
+```
+
+`name` must be a lowercase slug (`^[a-z0-9-]+$`, ≤80 chars) and unique. `description` is optional (≤500 chars).
+
+**Response `201`** `{ "message": "Channel created", "channel": { ...channel } }`
+
+**Errors** `400` invalid input · `401` not authenticated · `403` not admin/owner · `409` name already exists
+
+---
+
+### `PATCH /api/channels/:id`
+Rename a channel or edit its description.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — channel UUID
+
+**Body** (validated via `updateChannelSchema`; both fields optional)
+```json
+{
+  "name": "san-diego-flips",
+  "description": "Updated topic"
+}
+```
+
+**Response `200`** `{ "message": "Channel updated", "channel": { ...channel } }`
+
+**Errors** `400` invalid id or input · `401` not authenticated · `403` not admin/owner · `404` not found · `409` name already exists
+
+---
+
+### `POST /api/channels/:id/archive`
+Soft-archive a channel (`is_archived = true`). The first "delete" — reversible safety net.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — channel UUID
+
+**Response `200`** `{ "message": "Channel archived", "channel": { ...channel } }`
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not admin/owner · `404` not found
+
+---
+
+### `DELETE /api/channels/:id`
+Hard-delete a channel (cascades to its messages, members, etc.). Permitted **only when the
+channel is already archived** — the delete-twice safety net.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — channel UUID
+
+**Response `200`** `{ "message": "Channel deleted", "id": "uuid" }`
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not admin/owner · `404` not found · `409` channel is not archived yet
 
 ---
 
