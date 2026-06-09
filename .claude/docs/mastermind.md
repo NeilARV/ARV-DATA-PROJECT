@@ -300,6 +300,7 @@ history on desktop + mobile.
   highlight (red dot) vs. plain unread (bold).
 - Unread count = messages in channel newer than `last_read_*`.
 **Done:** unread badges appear/clear correctly across tabs and reconnects.
+**Known Problem:** Unread messages does not appear until a user refreshes the screen. Fine for now but should be changed in the future 
 
 ### Part 8 — In-app notifications (bell)
 - `notifications` table rows created when a user is mentioned (or `@here`/`@channel` hits them).
