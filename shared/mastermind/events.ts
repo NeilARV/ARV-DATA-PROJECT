@@ -37,6 +37,9 @@ export interface MastermindMessageWire {
     senderFirstName: string;
     senderLastName: string;
     senderProfileImageUrl: string | null;
+    // Present on message.created events; omitted on message.updated / message.deleted.
+    mentionedUserIds?: string[];
+    mentionedEveryone?: boolean;
 }
 
 export type ServerMessageEvent = {

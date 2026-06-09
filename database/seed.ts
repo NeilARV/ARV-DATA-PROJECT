@@ -438,21 +438,16 @@ async function seed() {
         .insert(channels)
         .values([
             { name: 'general', description: 'Community-wide discussion', type: 'public' },
-            {
-                name: 'first-time-flippers',
-                description: 'Questions and wins for your first flip',
-                type: 'public',
-            },
+            { name: 'first-time-flippers', description: 'Questions and wins for your first flip', type: 'public'},
             { name: 'san-diego-market', description: 'San Diego MSA market talk', type: 'public' },
             { name: 'los-angeles-market', description: 'Los Angeles MSA market talk', type: 'public' },
-            {
-                name: 'san-francisco-market',
-                description: 'San Francisco MSA market talk',
-                type: 'public',
-            },
+            { name: 'san-francisco-market', description: 'San Francisco MSA market talk', type: 'public'},
             { name: 'denver-market', description: 'Denver MSA market talk', type: 'public' },
             { name: 'miami-market', description: 'Miami MSA market talk', type: 'public' },
             { name: 'port-st-lucie-market', description: 'Port St. Lucie market talk', type: 'public' },
+            { name: 'riverside-market', description: 'Riverside MSA market talking', type: 'public' },
+            { name: 'seattle-market', description: 'Seattle MSA market talk', type: 'public' },
+            { name: 'tampa-market', description: 'Tampa MSA market talk', type: 'public' }
         ])
         .onConflictDoNothing();
     console.log('  ✓ channels');

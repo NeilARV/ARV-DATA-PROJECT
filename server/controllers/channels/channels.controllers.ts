@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import {
-    listChannels,
+    listChannelsWithUnread,
+    markChannelRead,
     createChannel,
     updateChannel,
     archiveChannel,
@@ -44,14 +45,28 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
 export async function getChannelsController(req: Request, res: Response): Promise<void> {
     try {
         const callerId = req.session.userId!;
-        // Only admin/owner may view archived channels; the flag is ignored otherwise.
         const wantsArchived = req.query.includeArchived === 'true';
         const includeArchived = wantsArchived && (await callerIsChannelAdmin(callerId));
 
-        const channels = await listChannels({ includeArchived });
+        const channels = await listChannelsWithUnread({ userId: callerId, includeArchived });
         res.json({ channels });
     } catch (err) {
         handleServiceError(res, err, 'Error fetching channels');
+    }
+}
+
+// ── PATCH /api/channels/:id/read ──────────────────────────────────────────────
+export async function markChannelReadController(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params;
+        if (!UUID_REGEX.test(id)) {
+            res.status(400).json({ message: 'Invalid channel id' });
+            return;
+        }
+        await markChannelRead({ channelId: id, userId: req.session.userId! });
+        res.status(204).send();
+    } catch (err) {
+        handleServiceError(res, err, 'Error marking channel as read');
     }
 }
 

@@ -71,12 +71,15 @@ export async function createMessageController(req: Request, res: Response): Prom
             return;
         }
 
-        const message = await createMessage({
+        const { message, mentionedUserIds, mentionedEveryone } = await createMessage({
             channelId: id,
             senderId: req.session.userId!,
             content: parsed.data.content,
         });
-        broadcastToChannel(message.channelId, { type: ServerToClient.MessageCreated, message });
+        broadcastToChannel(message.channelId, {
+            type: ServerToClient.MessageCreated,
+            message: { ...message, mentionedUserIds, mentionedEveryone },
+        });
         res.status(201).json({ message });
     } catch (err) {
         handleServiceError(res, err, 'Error creating message');

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Brain, Loader2 } from 'lucide-react';
 
 import Header from '@/components/Header';
@@ -15,18 +15,29 @@ import { PropertiesProvider } from '@/hooks/useProperties';
 import { PropertyProvider } from '@/hooks/useProperty';
 import { useAuth } from '@/hooks/use-auth';
 import { useDialogs } from '@/hooks/useDialogs';
+import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
 
 import { Button } from '@/components/ui/button';
+import { apiRequest } from '@/lib/queryClient';
 
 import type { ChannelSummary } from '@/types/mastermind';
 
 type ChannelsResponse = { channels: ChannelSummary[] };
 
+type UnreadEntry = { count: number; hasMention: boolean };
+
 function MastermindContent() {
-    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessApp } = useAuth();
+    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessApp, user } = useAuth();
     const { openDialog } = useDialogs();
+    const { lastCreatedMessage } = useMastermindSocket();
+
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
+    const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());
+
+    const unreadSeeded = useRef(false);
+    // Tracks the pending debounced mark-read so we can flush it on channel switch.
+    const markReadTimerRef = useRef<{ timer: ReturnType<typeof setTimeout>; channelId: string } | null>(null);
 
     const { data, isLoading: channelsLoading } = useQuery<ChannelsResponse>({
         queryKey: ['/api/channels'],
@@ -34,19 +45,109 @@ function MastermindContent() {
     });
     const channels = data?.channels ?? [];
 
-    // Auto-select the first channel once the list loads
+    const markReadMutation = useMutation({
+        mutationFn: (channelId: string) =>
+            apiRequest('PATCH', `/api/channels/${channelId}/read`),
+    });
+
+    // Debounced mark-read — fires 1s after the last call. On channel switch, the previous
+    // channel's pending mark-read is flushed immediately so it is never skipped.
+    const scheduleMarkRead = useCallback(
+        (channelId: string) => {
+            if (markReadTimerRef.current !== null) {
+                clearTimeout(markReadTimerRef.current.timer);
+                if (markReadTimerRef.current.channelId !== channelId) {
+                    markReadMutation.mutate(markReadTimerRef.current.channelId);
+                }
+                markReadTimerRef.current = null;
+            }
+            markReadTimerRef.current = {
+                channelId,
+                timer: setTimeout(() => {
+                    markReadMutation.mutate(channelId);
+                    markReadTimerRef.current = null;
+                }, 1000),
+            };
+        },
+        [markReadMutation],
+    );
+
+    // Flush pending mark-read on unmount so a quick navigation never drops it.
+    useEffect(() => {
+        return () => {
+            if (markReadTimerRef.current !== null) {
+                clearTimeout(markReadTimerRef.current.timer);
+                markReadMutation.mutate(markReadTimerRef.current.channelId);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const clearUnread = useCallback((channelId: string) => {
+        setUnreadState((prev) => new Map(prev).set(channelId, { count: 0, hasMention: false }));
+    }, []);
+
+    // Seed unread state once from the API response on initial load.
+    useEffect(() => {
+        if (unreadSeeded.current || channels.length === 0) return;
+        unreadSeeded.current = true;
+        setUnreadState(
+            new Map(channels.map((c) => [c.id, { count: c.unreadCount, hasMention: c.hasMention }])),
+        );
+    }, [channels]);
+
+    // Auto-select the first channel once the list loads; mark it as read.
     useEffect(() => {
         if (!activeChannelId && channels.length > 0) {
-            setActiveChannelId(channels[0].id);
+            const first = channels[0];
+            setActiveChannelId(first.id);
+            clearUnread(first.id);
+            scheduleMarkRead(first.id);
         }
-    }, [channels, activeChannelId]);
+    }, [channels, activeChannelId, clearUnread, scheduleMarkRead]);
+
+    // React to incoming WS messages: skip badge for the active channel; increment for others.
+    // NOTE: The client currently subscribes to one channel at a time, so lastCreatedMessage
+    // will always be for the active channel. Cross-channel badge updates will become live
+    // in Part 8 when broadcastToUser delivers notification events across all subscriptions.
+    useEffect(() => {
+        if (!lastCreatedMessage) return;
+        // Never count the user's own messages as unread.
+        if (lastCreatedMessage.senderId === user?.id) return;
+        if (lastCreatedMessage.channelId === activeChannelId) {
+            // User is already viewing this channel — advance read state immediately.
+            scheduleMarkRead(activeChannelId);
+            return;
+        }
+        const isMentioned =
+            (lastCreatedMessage.mentionedEveryone ?? false) ||
+            (lastCreatedMessage.mentionedUserIds ?? []).includes(user?.id ?? '');
+        setUnreadState((prev) => {
+            const current = prev.get(lastCreatedMessage.channelId) ?? {
+                count: 0,
+                hasMention: false,
+            };
+            return new Map(prev).set(lastCreatedMessage.channelId, {
+                count: current.count + 1,
+                hasMention: current.hasMention || isMentioned,
+            });
+        });
+    }, [lastCreatedMessage, activeChannelId, user?.id, scheduleMarkRead]);
 
     const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
 
     function handleSelectChannel(id: string) {
         setActiveChannelId(id);
         setMobileTab('chat');
+        clearUnread(id);
+        scheduleMarkRead(id);
     }
+
+    // Merge live unread state into the channels list for the sidebar.
+    const channelsWithUnread = channels.map((c) => {
+        const live = unreadState.get(c.id);
+        return live ? { ...c, unreadCount: live.count, hasMention: live.hasMention } : c;
+    });
 
     // ── Gate states ────────────────────────────────────────────────────────────
 
@@ -143,7 +244,7 @@ function MastermindContent() {
                         </div>
                     ) : (
                         <ChannelSidebar
-                            channels={channels}
+                            channels={channelsWithUnread}
                             activeChannelId={activeChannelId}
                             onSelectChannel={handleSelectChannel}
                         />

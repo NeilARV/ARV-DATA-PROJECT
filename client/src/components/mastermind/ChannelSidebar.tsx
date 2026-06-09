@@ -8,6 +8,16 @@ type ChannelSidebarProps = {
     onSelectChannel: (id: string) => void;
 };
 
+function UnreadBadge({ count, hasMention }: { count: number; hasMention: boolean }) {
+    if (count === 0) return null;
+    const label = count > 99 ? '99+' : String(count);
+    return (
+        <span className={`mm-unread-badge ${hasMention ? 'mm-unread-badge-mention' : ''}`}>
+            {label}
+        </span>
+    );
+}
+
 export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: ChannelSidebarProps) {
     return (
         <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border w-full md:w-60 lg:w-64 flex-shrink-0">
@@ -26,17 +36,31 @@ export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: C
                 </div>
 
                 <ul>
-                    {channels.map((c) => (
-                        <li key={c.id}>
-                            <button
-                                onClick={() => onSelectChannel(c.id)}
-                                className={`mm-channel-item ${activeChannelId === c.id ? 'mm-channel-item-active' : ''}`}
-                            >
-                                <Hash className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-                                <span className="truncate">{c.name}</span>
-                            </button>
-                        </li>
-                    ))}
+                    {channels.map((c) => {
+                        const isActive = activeChannelId === c.id;
+                        const hasUnread = c.unreadCount > 0;
+                        return (
+                            <li key={c.id}>
+                                <button
+                                    onClick={() => onSelectChannel(c.id)}
+                                    className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
+                                >
+                                    <Hash className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                                    <span
+                                        className={`truncate flex-1 ${hasUnread && !isActive ? 'font-semibold text-foreground' : ''}`}
+                                    >
+                                        {c.name}
+                                    </span>
+                                    {!isActive && (
+                                        <UnreadBadge
+                                            count={c.unreadCount}
+                                            hasMention={c.hasMention}
+                                        />
+                                    )}
+                                </button>
+                            </li>
+                        );
+                    })}
                 </ul>
 
                 {/* Direct Messages — Phase 2 stub */}

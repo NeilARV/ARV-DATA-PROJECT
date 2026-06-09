@@ -32,6 +32,23 @@ function parseMentionedUserIds(html: string): string[] {
     return Array.from(ids);
 }
 
+// Returns true if the HTML contains any broadcast-mention sentinel (@here / @channel).
+// Sentinels are non-UUID data-id values written by the TipTap mention node.
+function hasBroadcastMention(html: string): boolean {
+    DATA_ID_RE.lastIndex = 0;
+    let match;
+    while ((match = DATA_ID_RE.exec(html)) !== null) {
+        if (!UUID_RE.test(match[1])) return true;
+    }
+    return false;
+}
+
+export type CreateMessageResult = {
+    message: EnrichedMessage;
+    mentionedUserIds: string[];
+    mentionedEveryone: boolean;
+};
+
 // Writes message_mentions rows for the given set of user IDs. Filters to only
 // users that actually exist to guard against stale client-side data.
 async function persistMentions(messageId: string, userIds: string[]): Promise<void> {
@@ -219,7 +236,7 @@ export async function createMessage({
     channelId: string;
     senderId: string;
     content: string;
-}): Promise<EnrichedMessage> {
+}): Promise<CreateMessageResult> {
     const [channel] = await db
         .select({ id: channels.id, type: channels.type, isArchived: channels.isArchived })
         .from(channels)
@@ -243,13 +260,15 @@ export async function createMessage({
         .values({ channelId, senderId, content: sanitized })
         .returning({ id: messages.id });
 
-    await persistMentions(created.id, parseMentionedUserIds(sanitized));
+    const mentionedUserIds = parseMentionedUserIds(sanitized);
+    const mentionedEveryone = hasBroadcastMention(sanitized);
+    await persistMentions(created.id, mentionedUserIds);
 
     const enriched = await getEnrichedMessageById(created.id);
     if (!enriched) {
         throw new MessageServiceError(500, 'Failed to load created message');
     }
-    return enriched;
+    return { message: enriched, mentionedUserIds, mentionedEveryone };
 }
 
 // ── Edit (author only — admins may NOT edit another user's message) ──────────────

@@ -3,6 +3,7 @@ import { requireMastermind } from 'server/middleware/requireMastermind';
 import { requireRole } from 'server/middleware/requireRole';
 import {
     getChannelsController,
+    markChannelReadController,
     createChannelController,
     updateChannelController,
     archiveChannelController,
@@ -18,6 +19,9 @@ const router = Router();
 
 // GET /api/channels — list public channels (admins may ?includeArchived=true)
 router.get('/', requireMastermind, getChannelsController);
+
+// PATCH /api/channels/:id/read — advance the caller's last_read_at (lazy membership upsert)
+router.patch('/:id/read', requireMastermind, markChannelReadController);
 
 // GET /api/channels/:id/members — mention candidates for this channel
 router.get('/:id/members', requireMastermind, getChannelMembersController);

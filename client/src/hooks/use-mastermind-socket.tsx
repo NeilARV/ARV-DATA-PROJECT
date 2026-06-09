@@ -20,6 +20,7 @@ type SocketContextValue = {
     status: SocketStatus;
     subscribeToChannel: (channelId: string) => void;
     unsubscribeFromChannel: (channelId: string) => void;
+    lastCreatedMessage: MastermindMessageWire | null;
 };
 
 const MastermindSocketContext = createContext<SocketContextValue | null>(null);
@@ -29,6 +30,7 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 export function MastermindSocketProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, canAccessApp } = useAuth();
     const [status, setStatus] = useState<SocketStatus>('closed');
+    const [lastCreatedMessage, setLastCreatedMessage] = useState<MastermindMessageWire | null>(null);
     const apiRef = useRef<{
         subscribe: (channelId: string) => void;
         unsubscribe: (channelId: string) => void;
@@ -102,6 +104,9 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                         messagesQueryKey(message.channelId),
                         (old) => mergeMessages(old ?? [], [message]),
                     );
+                    if (evt.type === ServerToClient.MessageCreated) {
+                        setLastCreatedMessage(message);
+                    }
                 }
             }
         };
@@ -176,7 +181,7 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
 
     return (
         <MastermindSocketContext.Provider
-            value={{ status, subscribeToChannel, unsubscribeFromChannel }}
+            value={{ status, subscribeToChannel, unsubscribeFromChannel, lastCreatedMessage }}
         >
             {children}
         </MastermindSocketContext.Provider>

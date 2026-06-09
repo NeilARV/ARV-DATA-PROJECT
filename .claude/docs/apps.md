@@ -536,19 +536,20 @@ channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …), real-ti
 @mentions, reactions, pins, and notifications, scoped to paying members and the ARV team. Full
 design and phased build plan: `.claude/docs/mastermind.md`.
 
-> **Status:** under construction. **Phase 1 Part 1** (schema/migrations) and **Part 2** (access
-> gate + channel routes) are built. Messages, WebSocket delivery, the frontend shell, mentions,
-> unread badges, notifications, reactions/pins/attachments, and email are later parts.
+> **Status:** under construction. **Phase 1 Parts 1–7** are built (schema, access gate +
+> channel routes, message REST lifecycle, WebSocket layer, frontend shell, mentions + user
+> tagging, unread indicators). Notifications (Part 8), reactions/pins/attachments (Part 9),
+> and email notifications (Part 10) are later parts.
 
 ## Page Entry Point
-`/mastermind` (route + page not built yet — Part 5). Nav entry will be gated on `canAccessApp`.
+`/mastermind` (`client/src/pages/Mastermind.tsx`). Nav entry is gated on `canAccessApp`.
 
 ## Access Model
 Access = **any subscription tier OR any team role** (mirrors the frontend `canAccessApp` flag).
 Server gate is `requireMastermind` — a configured instance of
 `requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`
 exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindEligible(userId)`
-(the boolean form, for the future WebSocket upgrade handshake). Channel management
+(the boolean form, used for the WebSocket upgrade handshake). Channel management
 (create/rename/archive/delete) is admin/owner only via `requireRole(["admin","owner"])`.
 
 | Action | Subscriber (basic/pro/premium) | Member / RM | Admin / Owner |
@@ -601,8 +602,8 @@ of truth; the socket is only a notifier** — the message controllers broadcast
 `?since=` backfill. One socket per tab, opened **app-wide** for eligible users; the upgrade is
 authenticated by the session cookie + `isMastermindEligible` (no Express middleware runs on a raw
 upgrade). The client subscribes to the one channel it is viewing (the "firehose"); a per-user
-`user:{id}` "doorbell" stream is **built but not yet emitting** (reserved for notifications/unread,
-Parts 7/8). The in-memory connection registry is single-instance — horizontal scaling later needs
+`user:{id}` 'doorbell' stream is **built but not yet emitting** (reserved for Part 8 notifications;
+cross-channel unread delivery is a Phase 2 TODO). The in-memory connection registry is single-instance — horizontal scaling later needs
 Redis pub/sub (see `.claude/docs/mastermind.md` Known Limitation). Vite's HMR socket is unaffected
 (upgrades routed by path). Client cache: live events and history both write a flat ascending
 `MastermindMessageWire[]` under `messagesQueryKey(channelId)`, de-duplicated by id.

@@ -9,3 +9,4 @@
 - [Mastermind WS date serialization](project_mastermind_ws_date_serialization.md) — WS broadcasts raw EnrichedMessage Dates; JSON.stringify is the only Date->ISO step matching the wire DTO
 - [useAuth isLoading scope](project_useauth_isloading_scope.md) — isLoading only covers /api/auth/me, not admin-status; canAccessApp gates can flash before access is decided
 - [Mastermind eligibility duplicated](project_mastermind_eligibility_duplicated.md) — tiers+bypass-roles rule copy-pasted across requireMastermind and mention-candidate query; both must change together
+- [Mastermind WS delivery scope](project_mastermind_ws_delivery_scope.md) — MessageCreated only reaches subscribers of that channel; client subscribes to active channel only — cross-channel live features need broadcastToUser

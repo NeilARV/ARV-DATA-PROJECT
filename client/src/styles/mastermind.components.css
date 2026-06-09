@@ -10,6 +10,17 @@
         @apply bg-sidebar-accent text-sidebar-primary font-medium;
     }
 
+    /* ── Unread badges ────────────────────────────────────────────── */
+    .mm-unread-badge {
+        @apply ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center
+               rounded-full text-xs font-semibold px-1
+               bg-muted text-muted-foreground;
+    }
+
+    .mm-unread-badge-mention {
+        @apply bg-destructive text-destructive-foreground;
+    }
+
     /* ── Composer toolbar buttons ─────────────────────────────────── */
     .mm-toolbar-btn {
         @apply p-1.5 rounded transition-colors text-muted-foreground

@@ -1,8 +1,13 @@
 import { db } from 'server/storage';
-import { channels } from '@database/schemas/mastermind.schema';
+import { channels, channelMembers, messages } from '@database/schemas/mastermind.schema';
 import { users, subscriptions, userRoles, roles } from '@database/schemas/users.schema';
 import type { Channel } from '@database/types/mastermind';
-import { eq, and, inArray, asc } from 'drizzle-orm';
+import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
+
+export type ChannelWithUnread = Channel & {
+    unreadCount: number;
+    hasMention: boolean;
+};
 
 export class ChannelServiceError extends Error {
     constructor(
@@ -35,6 +40,97 @@ export async function listChannels({
         : and(eq(channels.type, 'public'), eq(channels.isArchived, false));
 
     return db.select().from(channels).where(where).orderBy(channels.name);
+}
+
+// Returns channels enriched with per-user unread counts and mention flags.
+// Unread counts only accrue once the user has visited a channel (NULL last_read_at → 0).
+export async function listChannelsWithUnread({
+    userId,
+    includeArchived = false,
+}: {
+    userId: string;
+    includeArchived?: boolean;
+}): Promise<ChannelWithUnread[]> {
+    const where = includeArchived
+        ? eq(channels.type, 'public')
+        : and(eq(channels.type, 'public'), eq(channels.isArchived, false));
+
+    return db
+        .select({
+            id: channels.id,
+            name: channels.name,
+            description: channels.description,
+            type: channels.type,
+            isArchived: channels.isArchived,
+            createdBy: channels.createdBy,
+            createdAt: channels.createdAt,
+            updatedAt: channels.updatedAt,
+            unreadCount: sql<number>`CASE
+                WHEN ${channelMembers.lastReadAt} IS NULL THEN 0
+                ELSE COALESCE((
+                    SELECT COUNT(*)::int
+                    FROM messages AS m_ur
+                    WHERE m_ur.channel_id = ${channels.id}
+                    AND m_ur.is_deleted = false
+                    AND m_ur.created_at > ${channelMembers.lastReadAt}
+                ), 0)
+            END`,
+            hasMention: sql<boolean>`CASE
+                WHEN ${channelMembers.lastReadAt} IS NULL THEN false
+                ELSE EXISTS (
+                    SELECT 1
+                    FROM message_mentions AS mm_c
+                    JOIN messages AS m_c ON mm_c.message_id = m_c.id
+                    WHERE mm_c.mentioned_user_id = ${userId}
+                    AND m_c.channel_id = ${channels.id}
+                    AND m_c.is_deleted = false
+                    AND m_c.created_at > ${channelMembers.lastReadAt}
+                )
+            END`,
+        })
+        .from(channels)
+        .leftJoin(
+            channelMembers,
+            and(
+                eq(channelMembers.channelId, channels.id),
+                eq(channelMembers.userId, userId),
+            ),
+        )
+        .where(where)
+        .orderBy(channels.name);
+}
+
+// Upserts the caller's channel_members row to advance last_read_at to now.
+// On first visit this creates the row (lazy membership join point).
+export async function markChannelRead({
+    channelId,
+    userId,
+}: {
+    channelId: string;
+    userId: string;
+}): Promise<void> {
+    const [latest] = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(and(eq(messages.channelId, channelId), eq(messages.isDeleted, false)))
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(1);
+
+    const now = new Date();
+    await db
+        .insert(channelMembers)
+        .values({
+            channelId,
+            userId,
+            role: 'member',
+            lastReadAt: now,
+            lastReadMessageId: latest?.id ?? null,
+            joinedAt: now,
+        })
+        .onConflictDoUpdate({
+            target: [channelMembers.channelId, channelMembers.userId],
+            set: { lastReadAt: now, lastReadMessageId: latest?.id ?? null },
+        });
 }
 
 export async function getChannelById(id: string): Promise<Channel | null> {

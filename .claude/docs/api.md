@@ -1556,8 +1556,8 @@ on the same HTTP server (`ws://` in dev, `wss://` in prod). Vite's HMR socket is
 with `401` and no socket opens. See `access-control.md` §5.13.
 
 **Subscription model**: the client subscribes to the one channel it is viewing (the "firehose").
-A per-user `user:{id}` "doorbell" stream is reserved for notifications/unread (Parts 7/8) — built
-but not yet emitting.
+A per-user `user:{id}` 'doorbell' stream is **built but not yet emitting** (reserved for Part 8
+notifications; cross-channel unread delivery is a Phase 2 TODO).
 
 **Client → server** (JSON):
 ```json

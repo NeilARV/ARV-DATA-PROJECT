@@ -293,7 +293,7 @@ Mastermind access = **any subscription tier OR any team role**. The read/list ro
 by `requireMastermind` — a configured instance of `requireSub(['basic','pro','premium'], { bypassRoles: ['admin','owner','relationship-manager','member'] })` exported from
 `server/middleware/requireMastermind.ts`. This is equivalent in meaning to the frontend
 `canAccessApp` flag. The same file exports `isMastermindEligible(userId)` (the boolean form,
-for the WebSocket upgrade handshake in a later part).
+for the WebSocket upgrade handshake).
 
 Channel **management** (create / rename / archive / delete) is admin/owner only and uses
 `requireRole(['admin','owner'])` — stricter than `requireMastermind`, so it is not stacked.
