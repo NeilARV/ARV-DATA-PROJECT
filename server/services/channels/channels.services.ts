@@ -73,8 +73,14 @@ export async function listChannelsWithUnread({
                     WHERE m_ur.channel_id = ${channels.id}
                     AND m_ur.is_deleted = false
                     AND m_ur.created_at > ${channelMembers.lastReadAt}
+                    AND m_ur.sender_id <> ${userId}
                 ), 0)
             END`,
+            // hasMention only checks message_mentions rows (direct @user mentions).
+            // @here / @channel broadcast mentions are intentionally NOT stored per-user
+            // (per spec they expand at notification time in Part 8), so a broadcast mention
+            // in an unread channel will show as plain unread on page load. The live WS path
+            // in Mastermind.tsx handles mentionedEveryone correctly; this gap closes in Part 8.
             hasMention: sql<boolean>`CASE
                 WHEN ${channelMembers.lastReadAt} IS NULL THEN false
                 ELSE EXISTS (

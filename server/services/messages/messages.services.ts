@@ -16,6 +16,27 @@ export class MessageServiceError extends Error {
 
 // Default + ceiling for history pages; backfill is capped separately.
 const DEFAULT_PAGE_SIZE = 30;
+const MAX_PAGE_SIZE = 50;
+const MAX_BACKFILL = 500;
+
+const PRIVILEGED_ROLES = ['admin', 'owner'] as const;
+
+// Sliding-window rate limit: 5 messages per 5 s per user.
+// Single-server only — adequate for Phase 1 (Replit Reserved VM).
+const RATE_WINDOW_MS = 10_000;
+const RATE_MAX = 5;
+const sendTimestamps = new Map<string, number[]>();
+
+function checkPostRateLimit(userId: string): void {
+    const now = Date.now();
+    const cutoff = now - RATE_WINDOW_MS;
+    const timestamps = (sendTimestamps.get(userId) ?? []).filter((t) => t > cutoff);
+    if (timestamps.length >= RATE_MAX) {
+        throw new MessageServiceError(429, 'You are sending messages too quickly. Please wait a moment.');
+    }
+    timestamps.push(now);
+    sendTimestamps.set(userId, timestamps);
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATA_ID_RE = /data-id="([^"]+)"/g;
@@ -63,10 +84,6 @@ async function persistMentions(messageId: string, userIds: string[]): Promise<vo
         .values(validRows.map((u) => ({ messageId, mentionedUserId: u.id })))
         .onConflictDoNothing();
 }
-const MAX_PAGE_SIZE = 50;
-const MAX_BACKFILL = 500;
-
-const PRIVILEGED_ROLES = ['admin', 'owner'] as const;
 
 export type EnrichedMessage = {
     id: string;
@@ -237,6 +254,8 @@ export async function createMessage({
     senderId: string;
     content: string;
 }): Promise<CreateMessageResult> {
+    checkPostRateLimit(senderId);
+
     const [channel] = await db
         .select({ id: channels.id, type: channels.type, isArchived: channels.isArchived })
         .from(channels)

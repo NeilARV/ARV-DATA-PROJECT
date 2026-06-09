@@ -445,7 +445,7 @@ async function seed() {
             { name: 'denver-market', description: 'Denver MSA market talk', type: 'public' },
             { name: 'miami-market', description: 'Miami MSA market talk', type: 'public' },
             { name: 'port-st-lucie-market', description: 'Port St. Lucie market talk', type: 'public' },
-            { name: 'riverside-market', description: 'Riverside MSA market talking', type: 'public' },
+            { name: 'riverside-market', description: 'Riverside MSA market talk', type: 'public' },
             { name: 'seattle-market', description: 'Seattle MSA market talk', type: 'public' },
             { name: 'tampa-market', description: 'Tampa MSA market talk', type: 'public' }
         ])

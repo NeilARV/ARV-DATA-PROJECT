@@ -35,6 +35,8 @@ function MastermindContent() {
     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
     const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());
 
+    // Prevents re-seeding unread state when TanStack refetches /api/channels (e.g. on window
+    // refocus). Live state is owned by WS events after the first seed — don't remove this ref.
     const unreadSeeded = useRef(false);
     // Tracks the pending debounced mark-read so we can flush it on channel switch.
     const markReadTimerRef = useRef<{ timer: ReturnType<typeof setTimeout>; channelId: string } | null>(null);
@@ -69,7 +71,7 @@ function MastermindContent() {
                 }, 1000),
             };
         },
-        [markReadMutation],
+        [markReadMutation.mutate],
     );
 
     // Flush pending mark-read on unmount so a quick navigation never drops it.
