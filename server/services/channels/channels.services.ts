@@ -1,7 +1,8 @@
 import { db } from 'server/storage';
 import { channels } from '@database/schemas/mastermind.schema';
+import { users, subscriptions, userRoles, roles } from '@database/schemas/users.schema';
 import type { Channel } from '@database/types/mastermind';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, asc } from 'drizzle-orm';
 
 export class ChannelServiceError extends Error {
     constructor(
@@ -125,6 +126,39 @@ export async function archiveChannel(id: string): Promise<Channel> {
         .where(eq(channels.id, id))
         .returning();
     return archived;
+}
+
+// ── Mention candidates ────────────────────────────────────────────────────────
+
+const MASTERMIND_TIERS = ['basic', 'pro', 'premium'] as const;
+const MASTERMIND_BYPASS_ROLES = ['admin', 'owner', 'relationship-manager', 'member'] as const;
+
+export type MentionCandidate = { id: string; firstName: string; lastName: string };
+
+// Phase 1: every Mastermind-eligible user is a candidate for @mentions in any
+// public channel. In Phase 2+, private/DM channels can narrow this to actual members.
+export async function listChannelMentionCandidates(): Promise<MentionCandidate[]> {
+    const [byRoleRows, bySubRows] = await Promise.all([
+        db
+            .select({ userId: userRoles.userId })
+            .from(userRoles)
+            .innerJoin(roles, eq(roles.id, userRoles.roleId))
+            .where(inArray(roles.name, [...MASTERMIND_BYPASS_ROLES])),
+        db
+            .select({ userId: users.id })
+            .from(users)
+            .innerJoin(subscriptions, eq(subscriptions.id, users.subscriptionId))
+            .where(inArray(subscriptions.name, [...MASTERMIND_TIERS])),
+    ]);
+
+    const eligibleIds = Array.from(new Set([...byRoleRows, ...bySubRows].map((r) => r.userId)));
+    if (eligibleIds.length === 0) return [];
+
+    return db
+        .select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+        .from(users)
+        .where(inArray(users.id, eligibleIds))
+        .orderBy(asc(users.firstName), asc(users.lastName));
 }
 
 // Hard delete (cascade) — only permitted once the channel is already archived.

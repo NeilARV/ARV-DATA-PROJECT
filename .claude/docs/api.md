@@ -1429,6 +1429,34 @@ Soft-deleted messages are still returned, as blank tombstones (`isDeleted: true`
 
 ---
 
+### `GET /api/channels/:id/members`
+List the members who have a row in `channel_members` for this channel (i.e. users whose read-state has been lazily written).
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Response `200`**
+```json
+{
+  "members": [
+    {
+      "userId": "uuid",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "profileImageUrl": "https://...|null",
+      "role": "member",
+      "lastReadAt": "2026-06-09T00:00:00Z|null"
+    }
+  ],
+  "count": 1
+}
+```
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived
+
+---
+
 ### `GET /api/channels/:id/messages`
 Channel message history, **or** reconnect backfill when `since` is supplied.
 
@@ -1468,6 +1496,8 @@ Send a message. Content is **sanitized server-side** before persistence (stored-
 
 **Response `201`** `{ "message": { ...message } }`
 
+**Side effect**: After the message is persisted, the service parses `@user` mention marks from the sanitized HTML and inserts a row into `message_mentions` for each unique mentioned user (UNIQUE constraint deduplicates).
+
 **Errors** `400` invalid id / invalid input / empty after sanitize · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found
 
 ---
@@ -1485,6 +1515,8 @@ Edit your own message. **Author-only — even admins cannot edit another user's 
 ```
 
 Sets `isEdited = true`. Content is sanitized server-side.
+
+**Side effect**: `message_mentions` rows for this message are rebuilt on every edit — previous mention rows are deleted and re-inserted from the updated content.
 
 **Response `200`** `{ "message": { ...message } }`
 

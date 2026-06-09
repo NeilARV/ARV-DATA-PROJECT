@@ -1,5 +1,5 @@
 import { db } from 'server/storage';
-import { messages, channels } from '@database/schemas/mastermind.schema';
+import { messages, channels, messageMentions } from '@database/schemas/mastermind.schema';
 import { users, userRoles, roles } from '@database/schemas/users.schema';
 import { eq, and, or, lt, gt, desc, asc, inArray } from 'drizzle-orm';
 import { sanitizeMessageHtml, isHtmlEmpty } from 'server/utils/sanitizeHtml';
@@ -16,6 +16,36 @@ export class MessageServiceError extends Error {
 
 // Default + ceiling for history pages; backfill is capped separately.
 const DEFAULT_PAGE_SIZE = 30;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATA_ID_RE = /data-id="([^"]+)"/g;
+
+// Extracts real user IDs from sanitized message HTML. Broadcast sentinel IDs
+// (@here, @channel) are skipped — they expand at notification time (Part 8).
+function parseMentionedUserIds(html: string): string[] {
+    const ids = new Set<string>();
+    let match;
+    DATA_ID_RE.lastIndex = 0;
+    while ((match = DATA_ID_RE.exec(html)) !== null) {
+        if (UUID_RE.test(match[1])) ids.add(match[1]);
+    }
+    return Array.from(ids);
+}
+
+// Writes message_mentions rows for the given set of user IDs. Filters to only
+// users that actually exist to guard against stale client-side data.
+async function persistMentions(messageId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    const validRows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(inArray(users.id, userIds));
+    if (validRows.length === 0) return;
+    await db
+        .insert(messageMentions)
+        .values(validRows.map((u) => ({ messageId, mentionedUserId: u.id })))
+        .onConflictDoNothing();
+}
 const MAX_PAGE_SIZE = 50;
 const MAX_BACKFILL = 500;
 
@@ -213,6 +243,8 @@ export async function createMessage({
         .values({ channelId, senderId, content: sanitized })
         .returning({ id: messages.id });
 
+    await persistMentions(created.id, parseMentionedUserIds(sanitized));
+
     const enriched = await getEnrichedMessageById(created.id);
     if (!enriched) {
         throw new MessageServiceError(500, 'Failed to load created message');
@@ -251,6 +283,12 @@ export async function updateMessage(
         .update(messages)
         .set({ content: sanitized, isEdited: true, updatedAt: new Date() })
         .where(eq(messages.id, id));
+
+    // Replace mentions: delete the old set then insert the new one. Not wrapped in
+    // a transaction because neon-http is connectionless and doesn't support them.
+    // A crash here leaves stale mention rows — acceptable for Phase 1 at this scale.
+    await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
+    await persistMentions(id, parseMentionedUserIds(sanitized));
 
     const enriched = await getEnrichedMessageById(id);
     if (!enriched) {

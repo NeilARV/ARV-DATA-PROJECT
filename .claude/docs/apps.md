@@ -569,6 +569,7 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | PATCH | `/api/channels/:id` | `requireRole(["admin","owner"])` | Rename / edit description |
 | POST | `/api/channels/:id/archive` | `requireRole(["admin","owner"])` | Soft archive (`is_archived = true`) |
 | DELETE | `/api/channels/:id` | `requireRole(["admin","owner"])` | Hard delete (cascade); `409` unless already archived |
+| GET | `/api/channels/:id/members` | `requireMastermind` | Users who have a `channel_members` row (lazily written read-state); returns `{ members, count }` |
 | GET | `/api/channels/:id/messages` | `requireMastermind` | History (`?cursor=&limit=`) → `{ messages, nextCursor }`; backfill (`?since=`) → `{ messages, hasMore }`. Soft-deleted = blank tombstones |
 | POST | `/api/channels/:id/messages` | `requireMastermind` | Send; content sanitized server-side; `parentMessageId` ignored (Phase 1); `403` if channel archived |
 | PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message; admins **cannot** edit others'; sets `isEdited` |
@@ -586,6 +587,12 @@ service `server/services/channels/` (`ChannelServiceError` carries `statusCode`,
 Membership is **implicit** in Phase 1: every eligible user can read every public channel — no
 `channel_members` row is required, and that table is not consulted for authorization. It exists
 to carry per-user read-state (`last_read_at`) later (unread badges, Part 7).
+
+**Mention persistence:** `POST /api/channels/:id/messages` and `PATCH /api/messages/:id` both
+parse `@user` mention marks from the sanitized TipTap HTML after the message is saved. On
+create, a `message_mentions` row is inserted for each unique mentioned user. On edit, the
+existing mention rows for the message are deleted and re-inserted from the updated content
+(full rebuild). The UNIQUE constraint on `(messageId, mentionedUserId)` prevents duplicates.
 
 ## Real-Time (`server/websocket/`, `/ws`)
 A WebSocket layer attached to the same HTTP server delivers live messages. **REST is the source

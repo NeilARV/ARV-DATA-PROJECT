@@ -5,6 +5,7 @@ import {
     updateChannel,
     archiveChannel,
     deleteChannel,
+    listChannelMentionCandidates,
     ChannelServiceError,
 } from 'server/services/channels/channels.services';
 import {
@@ -109,6 +110,24 @@ export async function archiveChannelController(req: Request, res: Response): Pro
         res.json({ message: 'Channel archived', channel });
     } catch (err) {
         handleServiceError(res, err, 'Error archiving channel');
+    }
+}
+
+// ── GET /api/channels/:id/members ─────────────────────────────────────────────────
+// Phase 1: returns all Mastermind-eligible users as mention candidates.
+// The channelId param is validated but not used to filter (all public channels share
+// the same eligible user pool). Phase 2+ private/DM channels will narrow this list.
+export async function getChannelMembersController(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params;
+        if (!UUID_REGEX.test(id)) {
+            res.status(400).json({ message: 'Invalid channel id' });
+            return;
+        }
+        const members = await listChannelMentionCandidates();
+        res.json({ users: members });
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching channel members');
     }
 }
 

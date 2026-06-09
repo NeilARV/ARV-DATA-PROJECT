@@ -309,6 +309,7 @@ read-state; they are not consulted for authorization in Phase 1.
 | PATCH | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 | POST | `/api/channels/:id/archive` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 | DELETE | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| GET | `/api/channels/:id/members` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 
 **Behavior notes:**
 - `GET /api/channels` returns public, non-archived channels. Admin/owner may pass

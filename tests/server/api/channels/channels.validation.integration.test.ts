@@ -35,6 +35,16 @@ describe('POST /api/channels — body validation (integration)', () => {
     });
 });
 
+describe('GET /api/channels/:id/members — validation (integration)', () => {
+    it('returns 400 when the channel id is not a uuid', async () => {
+        await assignRole(ACTING_USER_ID, 'admin');
+        const res = await request(getApp())
+            .get('/api/channels/not-a-uuid/members')
+            .set('x-test-user-id', ACTING_USER_ID);
+        expect(res.status).toBe(400);
+    });
+});
+
 describe('PATCH /api/channels/:id — validation (integration)', () => {
     it('returns 400 when the channel id is not a uuid', async () => {
         await assignRole(ACTING_USER_ID, 'admin');

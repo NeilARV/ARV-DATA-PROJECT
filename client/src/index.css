@@ -416,6 +416,24 @@ select.font-size-select option {
     text-decoration: underline;
 }
 
+/* Mention chips in Mastermind composer (ProseMirror) and rendered messages */
+.ProseMirror .mention,
+.mastermind-message .mention {
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    border-radius: 3px;
+    padding: 0 3px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* @channel broadcast mention uses amber to signal "notifies everyone" */
+.ProseMirror .mention[data-id='@channel'],
+.mastermind-message .mention[data-id='@channel'] {
+    color: hsl(38 92% 40%);
+    background: hsl(38 92% 50% / 0.12);
+}
+
 /* Prose formatting for post content in PostCard */
 .post-content p {
     margin: 0;

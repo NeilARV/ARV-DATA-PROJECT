@@ -8,3 +8,4 @@
 - [Mastermind archived-channel status](project_mastermind_archived_channel_status.md) — archived channel = 404 on read paths but 403 on create, on purpose; don't consolidate the duplicate lookup
 - [Mastermind WS date serialization](project_mastermind_ws_date_serialization.md) — WS broadcasts raw EnrichedMessage Dates; JSON.stringify is the only Date->ISO step matching the wire DTO
 - [useAuth isLoading scope](project_useauth_isloading_scope.md) — isLoading only covers /api/auth/me, not admin-status; canAccessApp gates can flash before access is decided
+- [Mastermind eligibility duplicated](project_mastermind_eligibility_duplicated.md) — tiers+bypass-roles rule copy-pasted across requireMastermind and mention-candidate query; both must change together

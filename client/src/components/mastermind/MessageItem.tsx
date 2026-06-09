@@ -79,7 +79,7 @@ export function MessageItem({ message, showHeader }: MessageItemProps) {
                 {message.isDeleted ? (
                     <p className="text-sm italic text-muted-foreground">This message was deleted.</p>
                 ) : (
-                    <div className="text-sm text-foreground leading-relaxed">
+                    <div className="mastermind-message text-sm text-foreground leading-relaxed">
                         <span dangerouslySetInnerHTML={{ __html: message.content }} />
                         {message.isEdited && (
                             <span className="text-xs text-muted-foreground ml-1">(edited)</span>
