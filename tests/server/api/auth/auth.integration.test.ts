@@ -23,16 +23,14 @@ beforeAll(async () => {
     app = createTestApp();
     await deleteTestUser(TEST_USER_ID);
     const passwordHash = await bcrypt.hash(CORRECT_PASSWORD, 10);
-    await getTestDb()
-        .insert(users)
-        .values({
-            id: TEST_USER_ID,
-            firstName: 'Integration',
-            lastName: 'Login',
-            email: TEST_EMAIL,
-            phone: '(555) 000-0000',
-            passwordHash,
-        });
+    await getTestDb().insert(users).values({
+        id: TEST_USER_ID,
+        firstName: 'Integration',
+        lastName: 'Login',
+        email: TEST_EMAIL,
+        phone: '(555) 000-0000',
+        passwordHash,
+    });
 });
 
 afterAll(async () => {
@@ -65,7 +63,10 @@ describe('POST /api/auth/login — password verification (integration)', () => {
     });
 
     it('returns 401 for an email that has no account', async () => {
-        const res = await login('00000000-0000-0000-0000-0000000000a2@integration.test.internal', CORRECT_PASSWORD);
+        const res = await login(
+            '00000000-0000-0000-0000-0000000000a2@integration.test.internal',
+            CORRECT_PASSWORD,
+        );
         expect(res.status).toBe(401);
         expect(res.body.user).toBeUndefined();
     });
