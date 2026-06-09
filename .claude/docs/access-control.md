@@ -321,6 +321,40 @@ read-state; they are not consulted for authorization in Phase 1.
 
 ---
 
+### 5.13 Mastermind — Messages (`/api/channels/:id/messages`, `/api/messages/:id`)
+
+All message routes are gated by `requireMastermind` (same rule as channels: any subscription
+tier OR any team role). There is **no** `requireRole` on these routes — author-vs-admin rules
+are enforced **inside the service**, mirroring the Vendors posts pattern:
+
+- **Edit (`PATCH /api/messages/:id`)** is **author-only** — a non-author is `403` *even for
+  admin/owner*. This enforces the Mastermind design rule: admins may delete a message but may
+  **never edit** what someone else said.
+- **Delete (`DELETE /api/messages/:id`)** is allowed for the **author OR an admin/owner**.
+  Delete is a **soft delete** (`is_deleted = true`, content blanked to a tombstone); messages
+  are never hard-deleted.
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/channels/:id/messages` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/channels/:id/messages` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only in service) | 401 | 403 | ✓ own / 403 others | ✓ own / 403 others | ✓ own / **403 others** |
+| DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin in service) | 401 | 403 | ✓ own / 403 others | ✓ own / 403 others | ✓ **any** |
+
+**Behavior notes:**
+- `GET …/messages` returns history newest-first via **keyset pagination** (`?cursor=<messageId>&limit=`,
+  default 30, max 50) → `{ messages, nextCursor }`. Passing `?since=<messageId>` switches to
+  **reconnect backfill** mode (messages newer than that id, oldest-first). Reads target public,
+  non-archived channels only (archived/unknown → `404`).
+- Soft-deleted messages are still returned, as **blank tombstones** (`isDeleted: true`, content
+  stripped), so the timeline has no gaps.
+- `POST …/messages` validates content with `createMessageSchema`, **sanitizes the TipTap HTML
+  server-side** (stored-XSS protection), and rejects content that is empty once sanitized
+  (`400`). Posting to an archived channel → `403`. `parentMessageId` is ignored in Phase 1.
+- `PATCH /api/messages/:id` sets `is_edited = true`; editing a soft-deleted message → `409`.
+
+---
+
 ## 6. How `testing.md` uses this file
 
 When generating the mandatory access-control integration tests for a new or changed route:

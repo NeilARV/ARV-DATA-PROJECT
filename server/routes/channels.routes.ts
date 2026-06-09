@@ -8,11 +8,21 @@ import {
     archiveChannelController,
     deleteChannelController,
 } from 'server/controllers/channels/channels.controllers';
+import {
+    getChannelMessagesController,
+    createMessageController,
+} from 'server/controllers/messages/messages.controllers';
 
 const router = Router();
 
 // GET /api/channels — list public channels (admins may ?includeArchived=true)
 router.get('/', requireMastermind, getChannelsController);
+
+// GET /api/channels/:id/messages — history (?cursor=&limit=) or backfill (?since=)
+router.get('/:id/messages', requireMastermind, getChannelMessagesController);
+
+// POST /api/channels/:id/messages — send a message
+router.post('/:id/messages', requireMastermind, createMessageController);
 
 // POST /api/channels — create a channel (admin/owner only)
 router.post('/', requireRole(['admin', 'owner']), createChannelController);

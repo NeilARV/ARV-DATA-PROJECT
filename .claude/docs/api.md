@@ -21,7 +21,7 @@ For access control rules (which roles/tiers can call what), see [`access-control
 9. [Categories (`/api/categories`)](#9-categories-apicategories)
 10. [Contact (`/api/contact`)](#10-contact-apicontact)
 11. [Geocoding (`/api/geocoding`)](#11-geocoding-apigeooding)
-12. [Mastermind — Channels (`/api/channels`)](#12-mastermind--channels-apichannels)
+12. [Mastermind — Channels & Messages (`/api/channels`, `/api/messages`)](#12-mastermind--channels--messages-apichannels-apimessages)
 
 ---
 
@@ -1317,12 +1317,12 @@ Reverse geocode a coordinate pair to a US county name. Proxies the US Census Bur
 
 ---
 
-## 12. Mastermind — Channels `/api/channels`
+## 12. Mastermind — Channels & Messages `/api/channels`, `/api/messages`
 
-The first slice of the Mastermind app (4th app). Access = any subscription tier OR any team
+The first slices of the Mastermind app (4th app). Access = any subscription tier OR any team
 role, via `requireMastermind` (a configured `requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`). Channel management is admin/owner only.
 Membership is implicit in Phase 1: every eligible user can read every public, non-archived
-channel. See [`access-control.md` §5.12](./access-control.md).
+channel. See [`access-control.md` §5.12–§5.13](./access-control.md).
 
 ### `GET /api/channels`
 List public channels.
@@ -1406,6 +1406,104 @@ channel is already archived** — the delete-twice safety net.
 **Response `200`** `{ "message": "Channel deleted", "id": "uuid" }`
 
 **Errors** `400` invalid id · `401` not authenticated · `403` not admin/owner · `404` not found · `409` channel is not archived yet
+
+---
+
+### Messages
+
+All message routes are gated by `requireMastermind`. There is no `requireRole` on them — the
+author-vs-admin rules live in the service: **edit is author-only** (admins may delete but never
+edit another user's message); **delete is author OR admin/owner** and is a **soft delete**.
+Soft-deleted messages are still returned, as blank tombstones (`isDeleted: true`, empty
+`content`). The message object shape is:
+
+```json
+{
+  "id": "uuid", "channelId": "uuid", "senderId": "uuid",
+  "content": "<p>sanitized TipTap HTML</p>",
+  "isEdited": false, "isDeleted": false,
+  "createdAt": "…", "updatedAt": "…",
+  "senderFirstName": "Jane", "senderLastName": "Doe", "senderProfileImageUrl": "url|null"
+}
+```
+
+---
+
+### `GET /api/channels/:id/messages`
+Channel message history, **or** reconnect backfill when `since` is supplied.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Query params** (optional)
+| Param | Type | Description |
+|---|---|---|
+| `cursor` | uuid | Keyset cursor — the `id` of the oldest message already loaded. Returns the next older page. |
+| `limit` | number | Page size, default `30`, max `50`. |
+| `since` | uuid | **Backfill mode.** The `id` of the newest message the client already has; returns everything newer, oldest-first. Takes precedence over `cursor`. |
+
+**Response `200` (history mode)** `{ "messages": [ { ...message } ], "nextCursor": "uuid|null" }` — newest-first; `nextCursor` is `null` on the last page.
+
+**Response `200` (backfill mode, `?since=`)** `{ "messages": [ { ...message } ], "hasMore": false }` — oldest-first; `hasMore` is `true` if more than 500 messages are pending (request again with the last `id`).
+
+**Errors** `400` invalid channel id or cursor · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived
+
+---
+
+### `POST /api/channels/:id/messages`
+Send a message. Content is **sanitized server-side** before persistence (stored-XSS protection).
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Body** (validated via `createMessageSchema`)
+```json
+{ "content": "<p>Hello <strong>world</strong></p>" }
+```
+
+`content` is TipTap HTML, 1–10000 chars. `parentMessageId` is accepted by the schema but
+**ignored in Phase 1** (threads are Phase 2). A message that is empty once sanitized is rejected.
+
+**Response `201`** `{ "message": { ...message } }`
+
+**Errors** `400` invalid id / invalid input / empty after sanitize · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found
+
+---
+
+### `PATCH /api/messages/:id`
+Edit your own message. **Author-only — even admins cannot edit another user's message.**
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+**Body** (validated via `updateMessageSchema`)
+```json
+{ "content": "<p>Edited text</p>" }
+```
+
+Sets `isEdited = true`. Content is sanitized server-side.
+
+**Response `200`** `{ "message": { ...message } }`
+
+**Errors** `400` invalid id / invalid input / empty after sanitize · `401` not authenticated · `403` not the author · `404` not found · `409` message is deleted
+
+---
+
+### `DELETE /api/messages/:id`
+Soft-delete a message (`isDeleted = true`, content blanked). Never hard-deleted.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+Allowed for the **author OR an admin/owner**. Idempotent on an already-deleted message.
+
+**Response `200`** `{ "message": { ...tombstone message } }`
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not the author and not admin/owner · `404` not found
 
 ---
 

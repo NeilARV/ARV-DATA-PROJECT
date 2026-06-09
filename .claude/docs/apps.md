@@ -554,9 +554,14 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | Action | Subscriber (basic/pro/premium) | Member / RM | Admin / Owner |
 |---|---|---|---|
 | List & read channels | ✓ | ✓ | ✓ |
+| Read & send messages | ✓ | ✓ | ✓ |
+| Edit **own** message | ✓ | ✓ | ✓ |
+| Delete **own** message | ✓ | ✓ | ✓ |
+| Edit **another user's** message | — | — | — (never, by design) |
+| Delete **another user's** message | — | — | ✓ |
 | Create / rename / archive / delete channel | — | — | ✓ |
 
-## API Surface (`server/routes/channels.routes.ts`)
+## API Surface (`server/routes/channels.routes.ts`, `server/routes/messages.routes.ts`)
 | Method | Route | Auth | Notes |
 |---|---|---|---|
 | GET | `/api/channels` | `requireMastermind` | Lists public, non-archived channels; admin/owner may pass `?includeArchived=true` |
@@ -564,9 +569,13 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | PATCH | `/api/channels/:id` | `requireRole(["admin","owner"])` | Rename / edit description |
 | POST | `/api/channels/:id/archive` | `requireRole(["admin","owner"])` | Soft archive (`is_archived = true`) |
 | DELETE | `/api/channels/:id` | `requireRole(["admin","owner"])` | Hard delete (cascade); `409` unless already archived |
+| GET | `/api/channels/:id/messages` | `requireMastermind` | History (`?cursor=&limit=`) → `{ messages, nextCursor }`; backfill (`?since=`) → `{ messages, hasMore }`. Soft-deleted = blank tombstones |
+| POST | `/api/channels/:id/messages` | `requireMastermind` | Send; content sanitized server-side; `parentMessageId` ignored (Phase 1); `403` if channel archived |
+| PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message; admins **cannot** edit others'; sets `isEdited` |
+| DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin) | Soft delete (author or admin/owner) |
 
 Full request/response detail: `.claude/docs/api.md` §12. Permission tables:
-`.claude/docs/access-control.md` §5.12.
+`.claude/docs/access-control.md` §5.12–§5.13.
 
 ## Backend
 Routes `server/routes/channels.routes.ts` · controller `server/controllers/channels/` ·
@@ -603,9 +612,11 @@ schemas for later parts). `MASTERMIND_REACTION_EMOJIS` is the fixed reaction set
 types in `database/types/mastermind.d.ts`.
 
 ## Key Files
-Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.routes.ts` ·
-controller `server/controllers/channels/channels.controllers.ts` · service
-`server/services/channels/channels.services.ts` · schema
+Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.routes.ts`,
+`server/routes/messages.routes.ts` · controllers `server/controllers/channels/channels.controllers.ts`,
+`server/controllers/messages/messages.controllers.ts` · services
+`server/services/channels/channels.services.ts`, `server/services/messages/messages.services.ts` ·
+HTML sanitizer `server/utils/sanitizeHtml.ts` · schema
 `database/schemas/mastermind.schema.ts` · validation
 `database/validation/mastermind.validation.ts` · tests
-`tests/server/api/channels/` · design doc `.claude/docs/mastermind.md`.
+`tests/server/api/channels/`, `tests/server/api/messages/` · design doc `.claude/docs/mastermind.md`.

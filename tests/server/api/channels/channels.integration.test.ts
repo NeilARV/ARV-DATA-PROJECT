@@ -13,8 +13,8 @@ vi.mock('server/controllers/channels/channels.controllers', () => ({
     deleteChannelController: vi.fn((_req, res) => res.status(200).json({})),
 }));
 
-const ACTING_USER_ID = '00000000-0000-0000-0000-000000000020';
-const OTHER_USER_ID = '00000000-0000-0000-0000-000000000021';
+const ACTING_USER_ID = '00000000-0000-0000-0000-000000000024';
+const OTHER_USER_ID = '00000000-0000-0000-0000-000000000025';
 const DUMMY_CHANNEL_ID = '11111111-1111-1111-1111-111111111111';
 
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, OTHER_USER_ID);
