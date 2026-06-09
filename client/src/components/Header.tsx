@@ -18,6 +18,7 @@ import {
     Store,
     X,
     Brain,
+    Database,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
@@ -385,6 +386,17 @@ export default function Header() {
                                         <div className="py-1">
                                             {/* Mobile-only navigation links — hidden on lg+ where header buttons are visible */}
                                             <div className="lg:hidden">
+                                                <button
+                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                                    onClick={() => {
+                                                        onLogoClick();
+                                                        setShowMenu(false);
+                                                    }}
+                                                    data-testid="menu-item-data"
+                                                >
+                                                    <Database className="w-4 h-4" />
+                                                    Data App
+                                                </button>
                                                 <button
                                                     className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                                                     onClick={() => {
