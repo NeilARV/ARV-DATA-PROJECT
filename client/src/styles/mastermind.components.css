@@ -1,0 +1,22 @@
+@layer components {
+    /* ── Channel sidebar items ─────────────────────────────────────── */
+    .mm-channel-item {
+        @apply flex items-center w-full gap-2 px-3 py-1.5 rounded-md text-sm
+               text-sidebar-foreground cursor-pointer transition-colors text-left
+               hover:bg-sidebar-accent;
+    }
+
+    .mm-channel-item-active {
+        @apply bg-sidebar-accent text-sidebar-primary font-medium;
+    }
+
+    /* ── Composer toolbar buttons ─────────────────────────────────── */
+    .mm-toolbar-btn {
+        @apply p-1.5 rounded transition-colors text-muted-foreground
+               hover:text-foreground hover:bg-accent;
+    }
+
+    .mm-toolbar-btn-active {
+        @apply bg-accent text-foreground;
+    }
+}

@@ -1,6 +1,7 @@
 @import './styles/deal.components.css';
 @import './styles/profile.components.css';
 @import './styles/shared.components.css';
+@import './styles/mastermind.components.css';
 
 @tailwind base;
 @tailwind components;
@@ -331,7 +332,8 @@ select.font-size-select option {
 
 /* Editor placeholder (Placeholder extension) */
 .post-composer-editor.ProseMirror p.is-editor-empty:first-child::before,
-.edit-post-editor.ProseMirror p.is-editor-empty:first-child::before {
+.edit-post-editor.ProseMirror p.is-editor-empty:first-child::before,
+.mastermind-composer-editor.ProseMirror p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     color: hsl(var(--muted-foreground));
     float: left;
@@ -341,24 +343,28 @@ select.font-size-select option {
 
 /* Remove default margins inside the editor so spacing is controlled by padding */
 .post-composer-editor.ProseMirror > *,
-.edit-post-editor.ProseMirror > * {
+.edit-post-editor.ProseMirror > *,
+.mastermind-composer-editor.ProseMirror > * {
     margin: 0;
 }
 
 .post-composer-editor.ProseMirror > * + *,
-.edit-post-editor.ProseMirror > * + * {
+.edit-post-editor.ProseMirror > * + *,
+.mastermind-composer-editor.ProseMirror > * + * {
     margin-top: 0.35em;
 }
 
 /* Lists inside editor */
 .post-composer-editor.ProseMirror ul,
-.edit-post-editor.ProseMirror ul {
+.edit-post-editor.ProseMirror ul,
+.mastermind-composer-editor.ProseMirror ul {
     list-style-type: disc;
     padding-left: 1.25em;
 }
 
 .post-composer-editor.ProseMirror ol,
-.edit-post-editor.ProseMirror ol {
+.edit-post-editor.ProseMirror ol,
+.mastermind-composer-editor.ProseMirror ol {
     list-style-type: decimal;
     padding-left: 1.25em;
 }
@@ -478,7 +484,8 @@ select.font-size-select option {
 
 /* Links inside the editor */
 .post-composer-editor.ProseMirror a,
-.edit-post-editor.ProseMirror a {
+.edit-post-editor.ProseMirror a,
+.mastermind-composer-editor.ProseMirror a {
     color: hsl(var(--primary));
     text-decoration: underline;
     overflow-wrap: break-word;

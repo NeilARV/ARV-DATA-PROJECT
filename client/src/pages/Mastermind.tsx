@@ -1,135 +1,193 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Brain, Loader2 } from 'lucide-react';
 
+import Header from '@/components/Header';
+import { ChannelSidebar } from '@/components/mastermind/ChannelSidebar';
+import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
+import { MessageList } from '@/components/mastermind/MessageList';
+import { MessageComposer } from '@/components/mastermind/MessageComposer';
+
+import { MapProvider } from '@/hooks/useMap';
+import { FiltersProvider } from '@/hooks/useFilters';
+import { CompaniesProvider } from '@/hooks/useCompanies';
+import { PropertiesProvider } from '@/hooks/useProperties';
+import { PropertyProvider } from '@/hooks/useProperty';
 import { useAuth } from '@/hooks/use-auth';
-import {
-    useMastermindSocket,
-    messagesQueryKey,
-    mergeMessages,
-} from '@/hooks/use-mastermind-socket';
+import { useDialogs } from '@/hooks/useDialogs';
 
-import { apiRequest } from '@/lib/queryClient';
-import type { MastermindMessageWire } from '@shared/mastermind/events';
+import { Button } from '@/components/ui/button';
 
-// TEMPORARY Part-4 test harness — intentionally bare. Part 5 replaces this with the real shell.
-// It exists to verify the WebSocket layer end-to-end before any polished UI exists.
+import type { ChannelSummary } from '@/types/mastermind';
 
-type ChannelSummary = { id: string; name: string };
+type ChannelsResponse = { channels: ChannelSummary[] };
 
-function escapeHtml(text: string): string {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
+function MastermindContent() {
+    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessApp } = useAuth();
+    const { openDialog } = useDialogs();
+    const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+    const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
 
-export default function Mastermind() {
-    const { canAccessApp, isLoading } = useAuth();
-    const { status, subscribeToChannel, unsubscribeFromChannel } = useMastermindSocket();
-
-    const [channelId, setChannelId] = useState<string | null>(null);
-    const [draft, setDraft] = useState('');
-
-    const { data: channelsData } = useQuery<{ channels: ChannelSummary[] }>({
+    const { data, isLoading: channelsLoading } = useQuery<ChannelsResponse>({
         queryKey: ['/api/channels'],
         enabled: canAccessApp,
     });
-    const channels = channelsData?.channels ?? [];
+    const channels = data?.channels ?? [];
 
-    const { data: messages } = useQuery<MastermindMessageWire[]>({
-        queryKey: channelId ? messagesQueryKey(channelId) : ['mastermind-no-channel'],
-        enabled: !!channelId,
-        staleTime: Infinity,
-        queryFn: async () => {
-            const res = await fetch(`/api/channels/${channelId}/messages`, {
-                credentials: 'include',
-            });
-            if (!res.ok) throw new Error('Failed to load messages');
-            const data = (await res.json()) as { messages: MastermindMessageWire[] };
-            return mergeMessages([], data.messages);
-        },
-    });
-
+    // Auto-select the first channel once the list loads
     useEffect(() => {
-        if (!channelId) return;
-        subscribeToChannel(channelId);
-        return () => unsubscribeFromChannel(channelId);
-    }, [channelId, subscribeToChannel, unsubscribeFromChannel]);
+        if (!activeChannelId && channels.length > 0) {
+            setActiveChannelId(channels[0].id);
+        }
+    }, [channels, activeChannelId]);
 
-    async function handleSend() {
-        const text = draft.trim();
-        if (!channelId || !text) return;
-        setDraft('');
-        await apiRequest('POST', `/api/channels/${channelId}/messages`, {
-            content: `<p>${escapeHtml(text)}</p>`,
-        });
+    const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
+
+    function handleSelectChannel(id: string) {
+        setActiveChannelId(id);
+        setMobileTab('chat');
     }
 
-    if (isLoading) return <div className="p-8">Loading…</div>;
+    // ── Gate states ────────────────────────────────────────────────────────────
+
+    if (isLoading || isAdminStatusLoading) {
+        return (
+            <div className="min-h-dvh flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
+                <Brain className="w-10 h-10 text-muted-foreground" />
+                <div className="space-y-1">
+                    <p className="text-base font-semibold text-foreground">
+                        Sign in to access Mastermind
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        Join the ARV community and connect with other investors.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDialog({ type: 'login' })}
+                    >
+                        Log In
+                    </Button>
+                    <Button size="sm" onClick={() => openDialog({ type: 'signup' })}>
+                        Sign Up
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     if (!canAccessApp) {
-        return <div className="p-8">You need a subscription or team role to access Mastermind.</div>;
+        return (
+            <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
+                <Brain className="w-10 h-10 text-muted-foreground" />
+                <div className="space-y-1">
+                    <p className="text-base font-semibold text-foreground">Subscription required</p>
+                    <p className="text-sm text-muted-foreground">
+                        Mastermind is available to ARV subscribers and team members.
+                    </p>
+                </div>
+            </div>
+        );
     }
+
+    // ── Full layout ────────────────────────────────────────────────────────────
 
     return (
-        <div className="mx-auto max-w-2xl p-6">
-            <div className="mb-4 flex items-center justify-between">
-                <h1 className="text-xl font-semibold">Mastermind (WS test harness)</h1>
-                <span className="text-sm text-muted-foreground">socket: {status}</span>
+        <div className="h-dvh flex flex-col">
+            <Header />
+
+            {/* Mobile tab bar — hidden on md+ */}
+            <div className="md:hidden flex-shrink-0 flex border-b border-border bg-background">
+                <button
+                    onClick={() => setMobileTab('channels')}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        mobileTab === 'channels'
+                            ? 'text-primary border-b-2 border-primary -mb-px'
+                            : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                    Channels
+                </button>
+                <button
+                    onClick={() => setMobileTab('chat')}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        mobileTab === 'chat'
+                            ? 'text-primary border-b-2 border-primary -mb-px'
+                            : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                    {activeChannel ? `# ${activeChannel.name}` : 'Chat'}
+                </button>
             </div>
 
-            <div className="mb-4 flex flex-wrap gap-2">
-                {channels.map((c) => (
-                    <button
-                        key={c.id}
-                        onClick={() => setChannelId(c.id)}
-                        className={`rounded border px-3 py-1 text-sm ${
-                            channelId === c.id ? 'bg-primary text-primary-foreground' : ''
-                        }`}
-                    >
-                        #{c.name}
-                    </button>
-                ))}
-            </div>
-
-            {channelId && (
-                <>
-                    <div className="mb-3 h-96 space-y-2 overflow-y-auto rounded border p-3">
-                        {(messages ?? []).map((m) => (
-                            <div key={m.id} className="text-sm">
-                                <span className="font-medium">
-                                    {m.senderFirstName} {m.senderLastName}
-                                </span>{' '}
-                                {m.isDeleted ? (
-                                    <em className="text-muted-foreground">message deleted</em>
-                                ) : (
-                                    <span dangerouslySetInnerHTML={{ __html: m.content }} />
-                                )}
-                                {m.isEdited && !m.isDeleted && (
-                                    <span className="text-muted-foreground"> (edited)</span>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex gap-2">
-                        <input
-                            value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') void handleSend();
-                            }}
-                            placeholder="Type a message and press Enter"
-                            className="flex-1 rounded border px-3 py-2 text-sm"
+            <div className="flex-1 flex overflow-hidden min-h-0">
+                {/* Channel sidebar — full-screen on mobile (tab-controlled), fixed width on md+ */}
+                <div
+                    className={`h-full flex-col overflow-hidden ${
+                        mobileTab === 'channels' ? 'flex flex-1' : 'hidden'
+                    } md:flex md:flex-none`}
+                >
+                    {channelsLoading ? (
+                        <div className="flex items-center justify-center h-full bg-sidebar w-full md:w-60 lg:w-64">
+                            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : (
+                        <ChannelSidebar
+                            channels={channels}
+                            activeChannelId={activeChannelId}
+                            onSelectChannel={handleSelectChannel}
                         />
-                        <button
-                            onClick={() => void handleSend()}
-                            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground"
-                        >
-                            Send
-                        </button>
-                    </div>
-                </>
-            )}
+                    )}
+                </div>
+
+                {/* Main chat area — full-screen on mobile (tab-controlled), fills remaining space on md+ */}
+                <div
+                    className={`h-full flex-col flex-1 overflow-hidden bg-background ${
+                        mobileTab === 'chat' ? 'flex' : 'hidden'
+                    } md:flex`}
+                >
+                    {activeChannel ? (
+                        <>
+                            <ChannelHeader channel={activeChannel} />
+                            <MessageList channelId={activeChannel.id} />
+                            <MessageComposer
+                                channelId={activeChannel.id}
+                                channelName={activeChannel.name}
+                            />
+                        </>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+                            Select a channel to get started
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
+    );
+}
+
+export default function Mastermind() {
+    return (
+        <MapProvider>
+            <FiltersProvider>
+                <CompaniesProvider>
+                    <PropertiesProvider>
+                        <PropertyProvider>
+                            <MastermindContent />
+                        </PropertyProvider>
+                    </PropertiesProvider>
+                </CompaniesProvider>
+            </FiltersProvider>
+        </MapProvider>
     );
 }
