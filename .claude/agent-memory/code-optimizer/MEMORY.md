@@ -6,3 +6,4 @@
 - [Category delete cascades](project_category_delete_cascades.md) — deleting a category cascade-drops vendor_categories/post_categories links silently; flag missing guard/warning
 - [Mastermind soft-delete](project_mastermind_soft_delete.md) — messages are soft-delete only; judge cascade FKs to messages.id against never-hard-delete principle
 - [Mastermind archived-channel status](project_mastermind_archived_channel_status.md) — archived channel = 404 on read paths but 403 on create, on purpose; don't consolidate the duplicate lookup
+- [Mastermind WS date serialization](project_mastermind_ws_date_serialization.md) — WS broadcasts raw EnrichedMessage Dates; JSON.stringify is the only Date->ISO step matching the wire DTO

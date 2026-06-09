@@ -587,6 +587,19 @@ Membership is **implicit** in Phase 1: every eligible user can read every public
 `channel_members` row is required, and that table is not consulted for authorization. It exists
 to carry per-user read-state (`last_read_at`) later (unread badges, Part 7).
 
+## Real-Time (`server/websocket/`, `/ws`)
+A WebSocket layer attached to the same HTTP server delivers live messages. **REST is the source
+of truth; the socket is only a notifier** — the message controllers broadcast
+`message.created/updated/deleted` after each REST write, and a dropped socket is reconciled by the
+`?since=` backfill. One socket per tab, opened **app-wide** for eligible users; the upgrade is
+authenticated by the session cookie + `isMastermindEligible` (no Express middleware runs on a raw
+upgrade). The client subscribes to the one channel it is viewing (the "firehose"); a per-user
+`user:{id}` "doorbell" stream is **built but not yet emitting** (reserved for notifications/unread,
+Parts 7/8). The in-memory connection registry is single-instance — horizontal scaling later needs
+Redis pub/sub (see `.claude/docs/mastermind.md` Known Limitation). Vite's HMR socket is unaffected
+(upgrades routed by path). Client cache: live events and history both write a flat ascending
+`MastermindMessageWire[]` under `messagesQueryKey(channelId)`, de-duplicated by id.
+
 ## Database Schema (`database/schemas/mastermind.schema.ts`)
 Enums: `channel_type` (`public`/`private`/`dm`/`group_dm` — Phase 1 uses only `public`),
 `channel_member_role` (`owner`/`admin`/`member`), `notification_type` (`mention`/`channel_mention`).
@@ -616,7 +629,11 @@ Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.
 `server/routes/messages.routes.ts` · controllers `server/controllers/channels/channels.controllers.ts`,
 `server/controllers/messages/messages.controllers.ts` · services
 `server/services/channels/channels.services.ts`, `server/services/messages/messages.services.ts` ·
-HTML sanitizer `server/utils/sanitizeHtml.ts` · schema
-`database/schemas/mastermind.schema.ts` · validation
+HTML sanitizer `server/utils/sanitizeHtml.ts` · real-time `server/websocket/` (`index.ts` bootstrap,
+`auth.ts` upgrade auth, `registry.ts` connections+broadcast, `connection.ts` per-socket handler),
+protocol `shared/mastermind/events.ts`, client socket `client/src/hooks/use-mastermind-socket.tsx`
++ `client/src/lib/mastermind-messages.ts`, temporary harness `client/src/pages/Mastermind.tsx` ·
+schema `database/schemas/mastermind.schema.ts` · validation
 `database/validation/mastermind.validation.ts` · tests
-`tests/server/api/channels/`, `tests/server/api/messages/` · design doc `.claude/docs/mastermind.md`.
+`tests/server/api/channels/`, `tests/server/api/messages/`, `tests/server/websocket/` · design doc
+`.claude/docs/mastermind.md`.

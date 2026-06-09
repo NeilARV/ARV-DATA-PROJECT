@@ -11,6 +11,8 @@ import {
     createMessageSchema,
     updateMessageSchema,
 } from '@database/validation/mastermind.validation';
+import { broadcastToChannel } from 'server/websocket/registry';
+import { ServerToClient } from '@shared/mastermind/events';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -74,6 +76,7 @@ export async function createMessageController(req: Request, res: Response): Prom
             senderId: req.session.userId!,
             content: parsed.data.content,
         });
+        broadcastToChannel(message.channelId, { type: ServerToClient.MessageCreated, message });
         res.status(201).json({ message });
     } catch (err) {
         handleServiceError(res, err, 'Error creating message');
@@ -96,6 +99,7 @@ export async function updateMessageController(req: Request, res: Response): Prom
         }
 
         const message = await updateMessage(id, req.session.userId!, parsed.data.content);
+        broadcastToChannel(message.channelId, { type: ServerToClient.MessageUpdated, message });
         res.json({ message });
     } catch (err) {
         handleServiceError(res, err, 'Error updating message');
@@ -112,6 +116,7 @@ export async function deleteMessageController(req: Request, res: Response): Prom
         }
 
         const message = await softDeleteMessage(id, req.session.userId!);
+        broadcastToChannel(message.channelId, { type: ServerToClient.MessageDeleted, message });
         res.json({ message });
     } catch (err) {
         handleServiceError(res, err, 'Error deleting message');

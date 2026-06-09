@@ -1507,6 +1507,46 @@ Allowed for the **author OR an admin/owner**. Idempotent on an already-deleted m
 
 ---
 
+### Real-Time — WebSocket (`/ws`)
+
+Mastermind's live layer. **REST is the source of truth; the WebSocket is only a notifier** —
+every mutation persists over the REST routes above, then the server broadcasts the resulting
+message over the socket. No new data lives only on the socket; a dropped connection is recovered
+by the `?since=` backfill on `GET /api/channels/:id/messages`.
+
+**Connection**: one socket per browser tab, opened app-wide for eligible users. Served at `/ws`
+on the same HTTP server (`ws://` in dev, `wss://` in prod). Vite's HMR socket is left untouched
+(upgrades are routed by path).
+
+**Upgrade auth**: the upgrade request's `connect.sid` session cookie is parsed, unsigned with
+`SESSION_SECRET`, and resolved through the session store; the user must pass
+`isMastermindEligible` (the same rule as `requireMastermind`). A failed check rejects the upgrade
+with `401` and no socket opens. See `access-control.md` §5.13.
+
+**Subscription model**: the client subscribes to the one channel it is viewing (the "firehose").
+A per-user `user:{id}` "doorbell" stream is reserved for notifications/unread (Parts 7/8) — built
+but not yet emitting.
+
+**Client → server** (JSON):
+```json
+{ "type": "subscribe",   "channelId": "uuid" }
+{ "type": "unsubscribe", "channelId": "uuid" }
+```
+`subscribe` is honored only for a public, non-archived channel.
+
+**Server → client** (JSON) — each carries the same enriched message object the REST routes
+return (timestamps as ISO strings):
+```json
+{ "type": "message.created", "message": { ...message } }
+{ "type": "message.updated", "message": { ...message } }
+{ "type": "message.deleted", "message": { ...tombstone } }
+```
+(`notification.created` is reserved for Part 8.)
+
+**Heartbeat**: the server pings every ~30s and terminates sockets that miss a pong.
+
+---
+
 ## Common Error Response Shape
 
 All error responses follow:

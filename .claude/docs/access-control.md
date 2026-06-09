@@ -353,6 +353,14 @@ are enforced **inside the service**, mirroring the Vendors posts pattern:
   (`400`). Posting to an archived channel → `403`. `parentMessageId` is ignored in Phase 1.
 - `PATCH /api/messages/:id` sets `is_edited = true`; editing a soft-deleted message → `409`.
 
+**Real-time (`/ws`) upgrade gate:** the Mastermind WebSocket at `/ws` is **not** an Express
+route, so the middleware table above doesn't apply. The upgrade is authenticated manually in
+`server/websocket/auth.ts`: it reads the `connect.sid` session cookie, unsigns it with
+`SESSION_SECRET`, loads the session, and requires `isMastermindEligible(userId)` — the **same
+rule** as `requireMastermind`. A missing/invalid cookie, missing session, or ineligible user
+causes the upgrade to be rejected with `401` (no socket opens). Once connected, a client may only
+`subscribe` to public, non-archived channels.
+
 ---
 
 ## 6. How `testing.md` uses this file
