@@ -235,14 +235,14 @@ build roughly in order (later parts depend on earlier ones). Per `CLAUDE.md`: af
 change run `npm run check`, then the `code-optimizer` agent, and the agent-updater for
 DB/API changes.
 
-### Part 1 — Schema & migrations
+### Part 1 — Schema & migrations | Completed
 Create Drizzle schemas + indexes for: `channels`, `channel_members`, `messages`,
 `message_attachments`, `message_reactions`, `message_mentions`, `pinned_messages`,
 `notifications`. (Full definitions in [Database Schema](#database-schema).) Seed the initial
 channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …). Add Zod insert/validation
 schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes exist.
 
-### Part 2 — Access gate, channel routes, auto-join
+### Part 2 — Access gate, channel routes, auto-join | Completed
 - Wire `requireMastermind` (the `requireSub` chain above) onto a new `messages.routes.ts` /
   `channels.routes.ts`.
 - Channel CRUD: `GET /api/channels` (list channels the caller is in), admin-only
@@ -255,7 +255,7 @@ schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes e
 - Update `access-control.md` tables **first**, then write routes + access-control tests.
 **Done:** an eligible user lists channels; a no-role/no-sub user gets 403; unauth gets 401.
 
-### Part 3 — Message REST lifecycle
+### Part 3 — Message REST lifecycle | Completed
 - `GET /api/channels/:id/messages?cursor=&limit=` — paginated history (newest-first, cursor on
   `created_at` / `id`).
 - `GET /api/channels/:id/messages?since=<id|ts>` — reconnect backfill.
@@ -266,7 +266,7 @@ schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes e
 - Anti-spam: per-user post rate limit (e.g. burst cap) in the controller/service.
 **Done:** full CRUD with role rules enforced + tested; nothing is ever hard-deleted.
 
-### Part 4 — WebSocket layer
+### Part 4 — WebSocket layer | Completed
 - Attach `ws` to the existing Express HTTP server. Authenticate the upgrade via the session
   cookie; reject if not `canAccessApp`-eligible. Heartbeat ping ~30s.
 - Server broadcasts `message.created` / `message.updated` / `message.deleted` /
@@ -276,7 +276,7 @@ schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes e
 **Done:** two browsers in the same channel see each other's messages instantly; killing/restoring
 the socket backfills with no lost messages.
 
-### Part 5 — Frontend shell
+### Part 5 — Frontend shell | Completed
 - Page `client/src/pages/Mastermind.tsx` in the shared provider tree; nav entry gated on
   `canAccessApp`.
 - Layout: channel sidebar (list + unread badges) · message list (infinite scroll) · composer.
@@ -285,7 +285,7 @@ the socket backfills with no lost messages.
 **Done:** a member can open `/mastermind`, pick a channel, send a formatted message, and scroll
 history on desktop + mobile.
 
-### Part 6 — Mentions (`@user`, `@here`, `@channel`)
+### Part 6 — Mentions (`@user`, `@here`, `@channel`) | Completed
 - Autocomplete in the composer (reuse vendor mention machinery): `@` → user list (channel
   members), plus literal `@here` / `@channel`.
 - On send, parse mentions out of the TipTap HTML → write `message_mentions` rows
@@ -293,7 +293,7 @@ history on desktop + mobile.
 - Render mention chips as clickable.
 **Done:** mentioning a user records a mention; `@channel` targets everyone in the channel.
 
-### Part 7 — Unread indicators & badges
+### Part 7 — Unread indicators & badges | Completed
 - Track `channel_members.last_read_at` / `last_read_message_id`; advance it when a user views a
   channel (debounced).
 - Sidebar shows per-channel unread count; a **mention** in an unread channel gets a stronger
