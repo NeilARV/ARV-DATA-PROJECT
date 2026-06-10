@@ -10,7 +10,7 @@ export interface RelationshipManager {
 }
 
 export type DataAppStatus = 'in-renovation' | 'on-market' | 'wholesale' | 'sold';
-export type DealTypeFilter = 'wholesale' | 'agent' | 'sold';
+export type DealTypeFilter = 'wholesale' | 'agent' | 'sold' | 'reo';
 
 export interface NotificationPreferences {
     userId: string;

@@ -15,7 +15,7 @@ import {
 import { users } from './users.schema';
 import { msas } from './msas.schema';
 
-export const dealTypeEnum = pgEnum('deal_type', ['wholesale', 'agent', 'sold']);
+export const dealTypeEnum = pgEnum('deal_type', ['wholesale', 'agent', 'sold', 'reo']);
 
 export const deals = pgTable('deals', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),

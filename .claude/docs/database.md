@@ -26,7 +26,7 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | `claim_status` | `pending`, `approved`, `rejected` | companies.schema.ts |
 | `claim_type` | `claim`, `dispute` | companies.schema.ts |
 | `member_role` | `owner`, `member` | companies.schema.ts |
-| `deal_type` | `wholesale`, `agent`, `sold` | deals.schema.ts |
+| `deal_type` | `wholesale`, `agent`, `sold`, `reo` | deals.schema.ts |
 
 ---
 

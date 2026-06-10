@@ -3,7 +3,7 @@ import { z } from 'zod';
 const SUBSCRIPTION_TIERS = ['basic', 'pro', 'premium'] as const;
 
 const DATA_APP_STATUS_VALUES = ['in-renovation', 'on-market', 'wholesale', 'sold'] as const;
-const DEAL_TYPE_VALUES = ['wholesale', 'agent', 'sold'] as const;
+const DEAL_TYPE_VALUES = ['wholesale', 'agent', 'sold', 'reo'] as const;
 
 export const updateNotificationPreferencesSchema = z
     .object({

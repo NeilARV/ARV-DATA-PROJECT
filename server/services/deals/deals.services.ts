@@ -35,12 +35,17 @@ export class DealServiceError extends Error {
 }
 
 // ── Deal type display helpers ──────────────────────────────────────────────────
-function getDealTypeMeta(type: 'wholesale' | 'agent' | 'sold'): { label: string; color: string } {
+function getDealTypeMeta(type: 'wholesale' | 'agent' | 'sold' | 'reo'): {
+    label: string;
+    color: string;
+} {
     switch (type) {
         case 'wholesale':
             return { label: 'Wholesale', color: '#9333EA' };
         case 'sold':
             return { label: 'Sold', color: '#FF0000' };
+        case 'reo':
+            return { label: 'REO', color: '#6366F1' };
         default:
             return { label: 'Agent', color: '#F97316' };
     }
@@ -353,9 +358,9 @@ export async function createDeal(input: CreateDealInput) {
 
     const hasAddress = typeof address === 'string' && address.trim().length > 0;
 
-    const validDealTypes = ['wholesale', 'agent', 'sold'] as const;
+    const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
     const resolvedDealType = (validDealTypes as readonly string[]).includes(dealType ?? '')
-        ? (dealType as 'wholesale' | 'agent' | 'sold')
+        ? (dealType as 'wholesale' | 'agent' | 'sold' | 'reo')
         : ('agent' as const);
 
     const msaId = input.msaId;
@@ -766,7 +771,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
     const incomingAddress =
         address !== undefined && address !== null ? String(address).trim() : null;
 
-    const validDealTypes = ['wholesale', 'agent', 'sold'] as const;
+    const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
 
     const [updated] = await db
         .update(deals)

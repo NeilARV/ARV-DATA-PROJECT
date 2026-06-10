@@ -74,7 +74,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
         await UserServices.upsertUserNotificationPreferences(newUser.id, {
             dataAppStatusFilter: ['in-renovation', 'wholesale'],
-            dealTypeFilter: ['wholesale', 'agent', 'sold'],
+            dealTypeFilter: ['wholesale', 'agent', 'sold', 'reo'],
         });
 
         if (normalizedCounty) {

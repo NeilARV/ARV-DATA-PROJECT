@@ -503,7 +503,7 @@ CREATE INDEX idx_property_statuses_status_id   ON property_statuses(status_id);
 -- ============================================================================
 
 -- Deal types for type column in deals table
-CREATE TYPE deal_type AS ENUM ('wholesale', 'agent', 'sold');
+CREATE TYPE deal_type AS ENUM ('wholesale', 'agent', 'sold', 'reo');
 
 -- Deal table — decoupled from properties; address/details stored directly
 CREATE TABLE deals (

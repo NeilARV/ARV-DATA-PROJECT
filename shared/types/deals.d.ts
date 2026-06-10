@@ -1,4 +1,4 @@
-type DealType = 'wholesale' | 'agent' | 'sold';
+type DealType = 'wholesale' | 'agent' | 'sold' | 'reo';
 type DealTab = 'all' | 'mine';
 
 type TopBuyer = {

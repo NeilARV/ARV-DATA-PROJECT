@@ -444,6 +444,7 @@ Hardcoded in `DealCard2.tsx` — not tokenized. These are intentionally brand-sp
 | `wholesale` | `#9333EA` (purple) | "Wholesale" |
 | `sold` | `#FF0000` (red) | "Sold" |
 | `agent` | `#F97316` (orange) | "Agent" |
+| `reo` | `#6366F1` (indigo) | "REO" |
 
 ---
 

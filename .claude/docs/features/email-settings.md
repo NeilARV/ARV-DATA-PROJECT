@@ -37,7 +37,7 @@ userNotificationPreferences = {
   // Empty array = all statuses
   dataAppStatusFilter: text[] (default [])
 
-  // Deals filter: 'wholesale' | 'agent' | 'sold'
+  // Deals filter: 'wholesale' | 'agent' | 'sold' | 'reo'
   // Empty array = all deal types
   dealTypeFilter: text[] (default [])
 
@@ -77,7 +77,7 @@ Steps 1–3 are evaluated at the DB query level. Step 4 is applied in memory per
 - **Content**: Single deal card (address, price, specs, type)
 - **Recipients**: All users subscribed to that MSA with `dealNotificationsEnabled = true` and master notifications on; the poster is excluded
 - **Deal type filter** (`dealTypeFilter: text[]`):
-  - Values: `'wholesale' | 'agent' | 'sold'`
+  - Values: `'wholesale' | 'agent' | 'sold' | 'reo'`
   - Empty array = receive all deal types (default)
   - `sold` is a first-class filter value — users opt in to sold notifications explicitly
   - If filter is non-empty and deal type is NOT in filter → skip user
@@ -141,7 +141,7 @@ Updates the user's `user_notification_preferences` row (upsert).
   "vendorNotificationsEnabled": boolean,
   "analyticsEnabled": boolean,
   "dataAppStatusFilter": ["in-renovation", "wholesale", ...],
-  "dealTypeFilter": ["wholesale", "agent", "sold"]
+  "dealTypeFilter": ["wholesale", "agent", "sold", "reo"]
 }
 ```
 

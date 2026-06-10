@@ -17,6 +17,7 @@
         "db:seed": "tsx database/seed.ts",
         "db:push": "drizzle-kit push",
         "seed:sort-order": "tsx scripts/seed-sort-order.ts",
+        "backfill:reo": "tsx scripts/backfill-reo-deal-filter.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
