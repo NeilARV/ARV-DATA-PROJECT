@@ -305,6 +305,7 @@ read-state; they are not consulted for authorization in Phase 1.
 | Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/channels` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/channels/:id/read` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | POST | `/api/channels` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 | PATCH | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 | POST | `/api/channels/:id/archive` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
@@ -312,9 +313,15 @@ read-state; they are not consulted for authorization in Phase 1.
 | GET | `/api/channels/:id/members` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 
 **Behavior notes:**
-- `GET /api/channels` returns public, non-archived channels. Admin/owner may pass
-  `?includeArchived=true` to include archived channels (the archive view); the flag is ignored
-  for non-admin callers (controller-enforced), so they only ever see active channels.
+- `GET /api/channels` returns public, non-archived channels (enriched with per-caller
+  `unreadCount` / `hasMention`). Admin/owner may pass `?includeArchived=true` to include
+  archived channels (the archive view); the flag is ignored for non-admin callers
+  (controller-enforced), so they only ever see active channels.
+- `PATCH /api/channels/:id/read` advances the caller's `channel_members.last_read_at` /
+  `last_read_message_id` (the unread-badge clear). It upserts the caller's own
+  `channel_members` row — this is the **lazy membership join point** — and returns `204`.
+  It only ever touches the caller's own read-state, so no ownership check is needed beyond
+  `requireMastermind`.
 - `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
 - `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
   channel is **already archived** — otherwise it returns `409` ("archive the channel before

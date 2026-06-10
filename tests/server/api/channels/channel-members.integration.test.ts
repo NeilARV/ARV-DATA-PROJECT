@@ -7,6 +7,7 @@ import { assignRole, assignSubscription } from '../../../helpers/db';
 // requireMastermind run its real DB queries against the test branch.
 vi.mock('server/controllers/channels/channels.controllers', () => ({
     getChannelsController: vi.fn((_req, res) => res.status(200).json({ channels: [] })),
+    markChannelReadController: vi.fn((_req, res) => res.status(204).send()),
     createChannelController: vi.fn((_req, res) => res.status(201).json({})),
     updateChannelController: vi.fn((_req, res) => res.status(200).json({})),
     archiveChannelController: vi.fn((_req, res) => res.status(200).json({})),

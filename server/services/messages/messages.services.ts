@@ -21,15 +21,26 @@ const MAX_BACKFILL = 500;
 
 const PRIVILEGED_ROLES = ['admin', 'owner'] as const;
 
-// Sliding-window rate limit: 5 messages per 5 s per user.
+// Sliding-window rate limit: 5 messages per 10 s per user.
 // Single-server only — adequate for Phase 1 (Replit Reserved VM).
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX = 5;
 const sendTimestamps = new Map<string, number[]>();
 
+// Drops users whose entire window has expired so the map doesn't grow unbounded
+// over the life of the process (one entry per distinct sender otherwise).
+function pruneRateLimitMap(cutoff: number): void {
+    sendTimestamps.forEach((timestamps, userId) => {
+        if (timestamps.length === 0 || timestamps[timestamps.length - 1] <= cutoff) {
+            sendTimestamps.delete(userId);
+        }
+    });
+}
+
 function checkPostRateLimit(userId: string): void {
     const now = Date.now();
     const cutoff = now - RATE_WINDOW_MS;
+    pruneRateLimitMap(cutoff);
     const timestamps = (sendTimestamps.get(userId) ?? []).filter((t) => t > cutoff);
     if (timestamps.length >= RATE_MAX) {
         throw new MessageServiceError(429, 'You are sending messages too quickly. Please wait a moment.');

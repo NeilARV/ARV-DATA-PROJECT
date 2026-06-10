@@ -1334,9 +1334,30 @@ List public channels.
 |---|---|---|
 | `includeArchived` | boolean (`"true"`) | Include archived channels. **Honored only for admin/owner**; ignored for everyone else. |
 
-**Response `200`** `{ "channels": [ { "id": "uuid", "name": "san-diego-market", "description": "…", "type": "public", "isArchived": false, "createdBy": "uuid|null", "createdAt": "…", "updatedAt": "…" } ] }`
+**Response `200`** `{ "channels": [ { "id": "uuid", "name": "san-diego-market", "description": "…", "type": "public", "isArchived": false, "createdBy": "uuid|null", "createdAt": "…", "updatedAt": "…", "unreadCount": 3, "hasMention": false } ] }`
+
+`unreadCount` / `hasMention` are computed per-caller from `channel_members.last_read_at`: a
+channel the caller has never opened (no `channel_members` row) returns `unreadCount: 0`;
+`hasMention` reflects stored `@user` mention rows only (`@here`/`@channel` broadcasts are
+expanded at notify time — Part 8).
 
 **Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
+### `PATCH /api/channels/:id/read`
+Advance the caller's read-state for a channel (clears its unread badge). Upserts the caller's
+`channel_members` row — the **lazy membership join point** — setting `last_read_at = now()` and
+`last_read_message_id` to the channel's latest message. The client debounces this call while a
+channel is being viewed.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Response `204`** (no body)
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription
 
 ---
 
@@ -1430,7 +1451,10 @@ Soft-deleted messages are still returned, as blank tombstones (`isDeleted: true`
 ---
 
 ### `GET /api/channels/:id/members`
-List the members who have a row in `channel_members` for this channel (i.e. users whose read-state has been lazily written).
+List **mention candidates** for the channel's composer. Phase 1: returns **all
+Mastermind-eligible users** (any tier or any team role) — public channels all share the same
+pool, so the `:id` param is validated but not used to filter. Phase 2+ private/DM channels
+will narrow this to actual members.
 
 **Auth**: `requireMastermind`
 
@@ -1439,21 +1463,13 @@ List the members who have a row in `channel_members` for this channel (i.e. user
 **Response `200`**
 ```json
 {
-  "members": [
-    {
-      "userId": "uuid",
-      "firstName": "Jane",
-      "lastName": "Doe",
-      "profileImageUrl": "https://...|null",
-      "role": "member",
-      "lastReadAt": "2026-06-09T00:00:00Z|null"
-    }
-  ],
-  "count": 1
+  "users": [
+    { "id": "uuid", "firstName": "Jane", "lastName": "Doe" }
+  ]
 }
 ```
 
-**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription
 
 ---
 
@@ -1569,10 +1585,12 @@ notifications; cross-channel unread delivery is a Phase 2 TODO).
 **Server → client** (JSON) — each carries the same enriched message object the REST routes
 return (timestamps as ISO strings):
 ```json
-{ "type": "message.created", "message": { ...message } }
+{ "type": "message.created", "message": { ...message, "mentionedUserIds": ["uuid"], "mentionedEveryone": false } }
 { "type": "message.updated", "message": { ...message } }
 { "type": "message.deleted", "message": { ...tombstone } }
 ```
+`message.created` additionally carries `mentionedUserIds` / `mentionedEveryone` so clients can
+flag mention badges without re-parsing the HTML; the other events omit them.
 (`notification.created` is reserved for Part 8.)
 
 **Heartbeat**: the server pings every ~30s and terminates sockets that miss a pong.
