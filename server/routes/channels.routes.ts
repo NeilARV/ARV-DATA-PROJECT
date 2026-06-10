@@ -14,6 +14,11 @@ import {
     getChannelMessagesController,
     createMessageController,
 } from 'server/controllers/messages/messages.controllers';
+import {
+    getChannelPinController,
+    setChannelPinController,
+    removeChannelPinController,
+} from 'server/controllers/channels/pins.controllers';
 
 const router = Router();
 
@@ -31,6 +36,15 @@ router.get('/:id/messages', requireMastermind, getChannelMessagesController);
 
 // POST /api/channels/:id/messages — send a message
 router.post('/:id/messages', requireMastermind, createMessageController);
+
+// GET /api/channels/:id/pin — the channel's single pinned message (or null)
+router.get('/:id/pin', requireMastermind, getChannelPinController);
+
+// POST /api/channels/:id/pin — set/replace the channel pin (admin/owner only)
+router.post('/:id/pin', requireRole(['admin', 'owner']), setChannelPinController);
+
+// DELETE /api/channels/:id/pin — clear the channel pin (admin/owner only)
+router.delete('/:id/pin', requireRole(['admin', 'owner']), removeChannelPinController);
 
 // POST /api/channels — create a channel (admin/owner only)
 router.post('/', requireRole(['admin', 'owner']), createChannelController);

@@ -315,23 +315,24 @@ history on desktop + mobile.
 (newest ~30); older targets just open the channel (full jump-to-any waits on pagination).
 Bell lives in the global header, gated on `canAccessApp`, so mentions surface on every page.
 
-### Part 9 — Reactions, pins, attachments
-- **Reactions:** fixed emoji set; `POST/DELETE /api/messages/:id/reactions`; reaction counts
-  render under the message; changes broadcast over WS. (`UNIQUE(message_id,user_id,emoji)`.)
-- **Pin:** admin/owner (and optionally any member — open decision) pin **one** message per
-  channel; pinned message shows in a channel header bar; broadcast on change.
-- **Attachments:** image upload to Supabase Storage → inline render + lightbox (reuse vendor
-  flow). Non-image files (PDF/doc) store the file + show a **download link** (no in-app viewer
-  in Phase 1). Enforce type/size limits.
-**Done:** members react, admins pin, images render inline, docs download.
-
-### Part 10 — Email notifications (rate-limited)
-- When a user is mentioned (`@user` / `@here` / `@channel`) and isn't actively viewing, queue an
-  email via Postmark (new template, e.g. `mastermind-mention`) with deep link back to the message.
-- **Rate limit: ≤3 Mastermind emails per user per day.** Beyond the cap, suppress further emails
-  that day (in-app notifications still accrue); optionally fold the rest into a future digest.
-- Respect the existing per-user notification toggle; honor a Mastermind-specific opt-out.
-**Done:** a mention emails the user (with deep link), capped at 3/day, never spams `@channel`.
+### Part 9 — Reactions, pins, attachments | Completed
+- **Reactions:** fixed emoji set (👍 👎 😀 😢 😂 ✅); `POST/DELETE /api/messages/:id/reactions`;
+  reaction counts render as pills under the message; changes broadcast over WS as a per-user
+  `reaction.changed` delta so each client computes its own `reactedByMe`. (`UNIQUE(message_id,user_id,emoji)`.)
+- **Pin:** **admin/owner only** (decided) set/replace **one** message per channel via
+  `POST /api/channels/:id/pin`; `DELETE /api/channels/:id/pin` to unpin; `GET /api/channels/:id/pin`
+  for the header bar (shows who pinned it). Broadcast `message.pinned` on change.
+- **Attachments:** upload-first flow — `POST /api/mastermind/attachments` (multipart) uploads to
+  Supabase Storage and returns metadata; the metadata is sent back on `POST .../messages` (re-validated
+  against our bucket URL prefix). Images render inline + lightbox (reuse vendor `ImageLightbox`);
+  docs show a **download link**. Allowed types: JPEG, PNG, PDF, CSV, TXT (must match the Supabase
+  bucket config). Limits: **10 MB/file, 5/message**.
+**Done:** members react, admins pin (who-pinned shown), images render inline, docs download.
+**Notes:** message wire now carries `attachments[]` + `reactions[]`; the read pipeline hydrates
+both in two batched queries (no N+1). Edits/deletes merge field-wise on the client so live
+reaction/attachment state survives a `message.updated`. Soft-delete also drops the message's
+attachment storage objects, reaction rows, and pin. The per-message hover toolbar (react · pin ·
+edit · delete) was added here (edit/delete connect the Part 3 routes that previously had no UI).
 
 ---
 
@@ -355,6 +356,15 @@ High-value once the core community is live. Schema already anticipates most of t
   (`channel_members.is_muted` + a level column). Pairs with the email rate limit.
 - **Moderation** — admin/owner can remove or mute a specific user within a channel (beyond
   deleting individual messages).
+  
+
+### Part 1 — Email notifications (rate-limited)
+- When a user is mentioned (`@user` / `@here` / `@channel`) and isn't actively viewing, queue an
+  email via Postmark (new template, e.g. `mastermind-mention`) with deep link back to the message.
+- **Rate limit: ≤3 Mastermind emails per user per day.** Beyond the cap, suppress further emails
+  that day (in-app notifications still accrue); optionally fold the rest into a future digest.
+- Respect the existing per-user notification toggle; honor a Mastermind-specific opt-out.
+**Done:** a mention emails the user (with deep link), capped at 3/day, never spams `@channel`.
 
 ---
 

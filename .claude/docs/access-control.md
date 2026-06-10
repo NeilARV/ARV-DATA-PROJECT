@@ -311,12 +311,20 @@ read-state; they are not consulted for authorization in Phase 1.
 | POST | `/api/channels/:id/archive` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 | DELETE | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 | GET | `/api/channels/:id/members` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/channels/:id/pin` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/channels/:id/pin` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| DELETE | `/api/channels/:id/pin` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
 
 **Behavior notes:**
 - `GET /api/channels` returns public, non-archived channels (enriched with per-caller
   `unreadCount` / `hasMention`). Admin/owner may pass `?includeArchived=true` to include
   archived channels (the archive view); the flag is ignored for non-admin callers
   (controller-enforced), so they only ever see active channels.
+- **Pin** is **admin/owner only** (set/replace/clear). `GET /api/channels/:id/pin` returns the
+  single pinned message (or `null`) for any eligible caller and is what the channel pin bar reads;
+  the pinned payload includes who pinned it. There is one pin per channel
+  (`pinned_messages` `UNIQUE(channel_id)`); `POST` upserts (replaces) it. A pinned message that is
+  soft-deleted is cleared from the pin.
 - `PATCH /api/channels/:id/read` advances the caller's `channel_members.last_read_at` /
   `last_read_message_id` (the unread-badge clear). It upserts the caller's own
   `channel_members` row — this is the **lazy membership join point** — and returns `204`.
@@ -348,6 +356,8 @@ are enforced **inside the service**, mirroring the Vendors posts pattern:
 | POST | `/api/channels/:id/messages` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only in service) | 401 | 403 | ✓ own / 403 others | ✓ own / 403 others | ✓ own / **403 others** |
 | DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin in service) | 401 | 403 | ✓ own / 403 others | ✓ own / 403 others | ✓ **any** |
+| POST | `/api/messages/:id/reactions` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| DELETE | `/api/messages/:id/reactions` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 
 **Behavior notes:**
 - `GET …/messages` returns history newest-first via **keyset pagination** (`?cursor=<messageId>&limit=`,
@@ -360,6 +370,17 @@ are enforced **inside the service**, mirroring the Vendors posts pattern:
   server-side** (stored-XSS protection), and rejects content that is empty once sanitized
   (`400`). Posting to an archived channel → `403`. `parentMessageId` is ignored in Phase 1.
 - `PATCH /api/messages/:id` sets `is_edited = true`; editing a soft-deleted message → `409`.
+- `POST …/messages` also accepts an optional `attachments[]` (metadata from the upload endpoint
+  below). Each `fileUrl` is re-validated server-side to start with our Supabase bucket's public-URL
+  prefix (a client cannot attach an arbitrary URL). A message is valid with **text OR ≥1
+  attachment**; empty content with no attachment → `400`.
+- **Reactions** (`POST`/`DELETE /api/messages/:id/reactions`) take `{ emoji }` from the fixed set
+  (`👍 👎 😀 😢 😂 ✅`); off-set emoji → `400`. Add is idempotent (`UNIQUE(message_id,user_id,emoji)`),
+  remove is self-scoped (only the caller's own reaction). Both broadcast a `reaction.changed` delta.
+- **Attachment upload** (`POST /api/mastermind/attachments`, `requireMastermind`) is a multipart
+  endpoint (`multer`, field `file`, max 10 MB, allowlisted image/doc MIME types) that uploads to
+  Supabase Storage and returns `{ attachment }` metadata to send back with the message. Access
+  matrix is the standard `requireMastermind` chain (401 / 403 / ✓).
 
 **Real-time (`/ws`) upgrade gate:** the Mastermind WebSocket at `/ws` is **not** an Express
 route, so the middleware table above doesn't apply. The upgrade is authenticated manually in

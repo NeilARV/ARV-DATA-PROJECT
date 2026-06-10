@@ -6,6 +6,7 @@ import { Brain, Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 import { ChannelSidebar } from '@/components/mastermind/ChannelSidebar';
 import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
+import { ChannelPinBar } from '@/components/mastermind/ChannelPinBar';
 import { MessageList } from '@/components/mastermind/MessageList';
 import { MessageComposer } from '@/components/mastermind/MessageComposer';
 
@@ -292,6 +293,10 @@ function MastermindContent() {
                     {activeChannel ? (
                         <>
                             <ChannelHeader channel={activeChannel} />
+                            <ChannelPinBar
+                                channelId={activeChannel.id}
+                                onJump={(messageId) => setHighlightMessageId(messageId)}
+                            />
                             <MessageList
                                 channelId={activeChannel.id}
                                 highlightMessageId={highlightMessageId}

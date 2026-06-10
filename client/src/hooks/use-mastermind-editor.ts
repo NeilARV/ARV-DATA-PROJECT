@@ -23,6 +23,8 @@ type UseMastermindEditorOptions = {
     channelId: string;
     placeholder?: string;
     onSubmit?: () => void;
+    initialContent?: string;
+    autofocus?: boolean;
 };
 
 // Shown first when the user types "@", before any real users.
@@ -32,6 +34,8 @@ export function useMastermindEditor({
     channelId,
     placeholder = 'Type a message…',
     onSubmit,
+    initialContent,
+    autofocus = false,
 }: UseMastermindEditorOptions) {
     const onSubmitRef = useRef(onSubmit);
     onSubmitRef.current = onSubmit;
@@ -182,6 +186,8 @@ export function useMastermindEditor({
 
     // ── Editor ───────────────────────────────────────────────────────────────
     const editor = useEditor({
+        content: initialContent,
+        autofocus: autofocus ? 'end' : false,
         extensions: [
             StarterKit,
             Underline,

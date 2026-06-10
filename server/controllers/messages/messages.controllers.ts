@@ -35,9 +35,10 @@ export async function getChannelMessagesController(req: Request, res: Response):
             return;
         }
 
+        const viewerId = req.session.userId!;
         const since = typeof req.query.since === 'string' ? req.query.since : undefined;
         if (since) {
-            const result = await backfillMessages({ channelId: id, since });
+            const result = await backfillMessages({ channelId: id, viewerId, since });
             res.json(result);
             return;
         }
@@ -48,6 +49,7 @@ export async function getChannelMessagesController(req: Request, res: Response):
 
         const result = await listMessages({
             channelId: id,
+            viewerId,
             cursor,
             limit: Number.isNaN(limit) ? undefined : limit,
         });
@@ -75,7 +77,8 @@ export async function createMessageController(req: Request, res: Response): Prom
         const { message, mentionedUserIds, mentionedEveryone } = await createMessage({
             channelId: id,
             senderId: req.session.userId!,
-            content: parsed.data.content,
+            content: parsed.data.content ?? '',
+            attachments: parsed.data.attachments,
         });
         broadcastToChannel(message.channelId, {
             type: ServerToClient.MessageCreated,

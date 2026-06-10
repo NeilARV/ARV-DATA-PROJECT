@@ -4,7 +4,13 @@ import type { ReactNode } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 
 import { queryClient } from '@/lib/queryClient';
-import { messagesQueryKey, mergeMessages } from '@/lib/mastermind-messages';
+import {
+    messagesQueryKey,
+    pinQueryKey,
+    mergeMessages,
+    applyMessageMutation,
+    applyReactionDelta,
+} from '@/lib/mastermind-messages';
 import {
     NOTIFICATIONS_QUERY_KEY,
     type NotificationsResponse,
@@ -15,6 +21,7 @@ import {
     MASTERMIND_WS_PATH,
     type MastermindMessageWire,
     type NotificationWire,
+    type PinnedMessageWire,
 } from '@shared/mastermind/events';
 
 export { messagesQueryKey, mergeMessages };
@@ -33,9 +40,13 @@ const MastermindSocketContext = createContext<SocketContextValue | null>(null);
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export function MastermindSocketProvider({ children }: { children: ReactNode }) {
-    const { isAuthenticated, canAccessApp } = useAuth();
+    const { isAuthenticated, canAccessApp, user } = useAuth();
     const [status, setStatus] = useState<SocketStatus>('closed');
     const [lastCreatedMessage, setLastCreatedMessage] = useState<MastermindMessageWire | null>(null);
+
+    // Latest viewer id without re-subscribing the socket; read inside WS event handlers.
+    const viewerIdRef = useRef<string | undefined>(undefined);
+    viewerIdRef.current = user?.id;
     const apiRef = useRef<{
         subscribe: (channelId: string) => void;
         unsubscribe: (channelId: string) => void;
@@ -101,9 +112,28 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                 type?: string;
                 message?: MastermindMessageWire;
                 notification?: NotificationWire;
+                pinned?: PinnedMessageWire | null;
+                channelId?: string;
+                messageId?: string;
+                emoji?: string;
+                userId?: string;
+                action?: 'add' | 'remove';
             };
+
+            if (evt.type === ServerToClient.MessageCreated) {
+                const message = evt.message;
+                if (message && typeof message.channelId === 'string') {
+                    queryClient.setQueryData<MastermindMessageWire[]>(
+                        messagesQueryKey(message.channelId),
+                        (old) => mergeMessages(old ?? [], [message]),
+                    );
+                    setLastCreatedMessage(message);
+                }
+                return;
+            }
+
+            // Edits/deletes merge field-wise so live reaction/attachment state survives.
             if (
-                evt.type === ServerToClient.MessageCreated ||
                 evt.type === ServerToClient.MessageUpdated ||
                 evt.type === ServerToClient.MessageDeleted
             ) {
@@ -111,12 +141,50 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                 if (message && typeof message.channelId === 'string') {
                     queryClient.setQueryData<MastermindMessageWire[]>(
                         messagesQueryKey(message.channelId),
-                        (old) => mergeMessages(old ?? [], [message]),
+                        (old) => applyMessageMutation(old ?? [], message),
                     );
-                    if (evt.type === ServerToClient.MessageCreated) {
-                        setLastCreatedMessage(message);
+                    // A deleted message can never stay pinned.
+                    if (evt.type === ServerToClient.MessageDeleted) {
+                        queryClient.setQueryData<{ pinned: PinnedMessageWire | null }>(
+                            pinQueryKey(message.channelId),
+                            (old) =>
+                                old?.pinned?.message.id === message.id ? { pinned: null } : old,
+                        );
                     }
                 }
+                return;
+            }
+
+            if (
+                evt.type === ServerToClient.ReactionChanged &&
+                typeof evt.channelId === 'string' &&
+                typeof evt.messageId === 'string' &&
+                typeof evt.emoji === 'string' &&
+                typeof evt.userId === 'string' &&
+                (evt.action === 'add' || evt.action === 'remove')
+            ) {
+                queryClient.setQueryData<MastermindMessageWire[]>(
+                    messagesQueryKey(evt.channelId),
+                    (old) =>
+                        applyReactionDelta(
+                            old ?? [],
+                            {
+                                messageId: evt.messageId!,
+                                emoji: evt.emoji!,
+                                userId: evt.userId!,
+                                action: evt.action!,
+                            },
+                            viewerIdRef.current,
+                        ),
+                );
+                return;
+            }
+
+            if (evt.type === ServerToClient.MessagePinned && typeof evt.channelId === 'string') {
+                queryClient.setQueryData<{ pinned: PinnedMessageWire | null }>(
+                    pinQueryKey(evt.channelId),
+                    { pinned: evt.pinned ?? null },
+                );
                 return;
             }
 

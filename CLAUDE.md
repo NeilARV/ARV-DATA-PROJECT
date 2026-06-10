@@ -43,6 +43,14 @@ The following environment variables are required or used by the application. **N
 | `DEFAULT_CONTACT_RECIPIENT` | Default recipient address for contact/notification emails |
 | `DEFAULT_FROM_EMAIL` | Default sender address for outgoing emails |
 | `GOOGLE_API_KEY` | Google Maps / Geocoding API key |
+| `SUPABASE_URL` | Supabase project URL — required for all Storage uploads (posts, vendors, users, Mastermind) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key — server-side Storage auth (required for uploads) |
+| `SUPABASE_STORAGE_BUCKET` | Bucket for post images (default `post-images-dev`) |
+| `SUPABASE_VENDOR_STORAGE_BUCKET` | Bucket for vendor images (default `vendor-images-dev`) |
+| `SUPABASE_USER_STORAGE_BUCKET` | Bucket for user/avatar images (default `user-images-dev`) |
+| `SUPABASE_MASTERMIND_STORAGE_BUCKET` | Bucket for Mastermind message attachments — images + docs (default `mastermind-files-dev`) |
+
+> **Supabase Storage buckets must be public** and configured to allow the app's MIME types and size limits. The Mastermind bucket allows **JPEG, PNG, PDF, CSV, TXT at ≤10 MB** — this must match the server allowlist in `server/services/messages/attachments.services.ts` (`ALLOWED_ATTACHMENT_TYPES` / `MAX_ATTACHMENT_BYTES`).
 
 ---
 

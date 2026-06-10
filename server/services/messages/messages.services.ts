@@ -1,8 +1,28 @@
 import { db } from 'server/storage';
-import { messages, channels, messageMentions } from '@database/schemas/mastermind.schema';
+import {
+    messages,
+    channels,
+    messageMentions,
+    messageAttachments,
+    messageReactions,
+    pinnedMessages,
+} from '@database/schemas/mastermind.schema';
 import { users, userRoles, roles } from '@database/schemas/users.schema';
-import { eq, and, or, lt, gt, desc, asc, inArray } from 'drizzle-orm';
+import { eq, and, or, lt, gt, desc, asc, inArray, sql } from 'drizzle-orm';
 import { sanitizeMessageHtml, isHtmlEmpty } from 'server/utils/sanitizeHtml';
+import {
+    getSupabase,
+    mastermindStorageBucket,
+    mastermindPublicUrlPrefix,
+    storagePathFromUrl,
+} from 'server/lib/supabase';
+import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
+import type {
+    MessageAttachmentWire,
+    MessageReactionSummary,
+    MastermindMessageWire,
+} from '@shared/mastermind/events';
+import type { MessageAttachmentInput } from '@database/validation/mastermind.validation';
 
 export class MessageServiceError extends Error {
     constructor(
@@ -96,7 +116,7 @@ async function persistMentions(messageId: string, userIds: string[]): Promise<vo
         .onConflictDoNothing();
 }
 
-export type EnrichedMessage = {
+type EnrichedMessageRow = {
     id: string;
     channelId: string;
     senderId: string;
@@ -110,9 +130,119 @@ export type EnrichedMessage = {
     senderProfileImageUrl: string | null;
 };
 
-// Soft-deleted messages are returned as blank tombstones so the timeline has no gaps.
-function toEnriched(row: EnrichedMessage): EnrichedMessage {
-    return row.isDeleted ? { ...row, content: '' } : row;
+export type EnrichedMessage = EnrichedMessageRow & {
+    attachments: MessageAttachmentWire[];
+    reactions: MessageReactionSummary[];
+};
+
+// Serializes an EnrichedMessage to the wire shape (Date → ISO string). REST/WS responses get
+// this conversion implicitly via JSON.stringify; callers that embed a message inside a typed
+// wire payload (e.g. the pin) use this to satisfy the contract.
+export function toMessageWire(message: EnrichedMessage): MastermindMessageWire {
+    return {
+        ...message,
+        createdAt: message.createdAt.toISOString(),
+        updatedAt: message.updatedAt.toISOString(),
+    };
+}
+
+// Fixed display order for reaction pills, independent of insertion order.
+const EMOJI_ORDER = new Map<string, number>(MASTERMIND_REACTION_EMOJIS.map((e, i) => [e, i]));
+
+// Loads attachments + reaction aggregates for a page of messages in two batched queries
+// (no N+1). Soft-deleted messages become blank tombstones with no attachments/reactions.
+async function hydrateMessages(
+    rows: EnrichedMessageRow[],
+    viewerId?: string,
+): Promise<EnrichedMessage[]> {
+    const liveIds = rows.filter((r) => !r.isDeleted).map((r) => r.id);
+
+    const attachmentsByMessage = new Map<string, MessageAttachmentWire[]>();
+    const reactionsByMessage = new Map<string, Map<string, { count: number; mine: boolean }>>();
+
+    if (liveIds.length > 0) {
+        const attachmentRows = await db
+            .select({
+                id: messageAttachments.id,
+                messageId: messageAttachments.messageId,
+                fileUrl: messageAttachments.fileUrl,
+                fileName: messageAttachments.fileName,
+                fileType: messageAttachments.fileType,
+                fileSizeBytes: messageAttachments.fileSizeBytes,
+            })
+            .from(messageAttachments)
+            .where(inArray(messageAttachments.messageId, liveIds))
+            .orderBy(asc(messageAttachments.createdAt), asc(messageAttachments.id));
+
+        for (const row of attachmentRows) {
+            const list = attachmentsByMessage.get(row.messageId) ?? [];
+            list.push({
+                id: row.id,
+                fileUrl: row.fileUrl,
+                fileName: row.fileName,
+                fileType: row.fileType,
+                fileSizeBytes: row.fileSizeBytes,
+            });
+            attachmentsByMessage.set(row.messageId, list);
+        }
+
+        const aggregateRows = await db
+            .select({
+                messageId: messageReactions.messageId,
+                emoji: messageReactions.emoji,
+                count: sql<number>`COUNT(*)::int`,
+            })
+            .from(messageReactions)
+            .where(inArray(messageReactions.messageId, liveIds))
+            .groupBy(messageReactions.messageId, messageReactions.emoji);
+
+        for (const row of aggregateRows) {
+            const byEmoji = reactionsByMessage.get(row.messageId) ?? new Map();
+            byEmoji.set(row.emoji, { count: row.count, mine: false });
+            reactionsByMessage.set(row.messageId, byEmoji);
+        }
+
+        if (viewerId) {
+            const mineRows = await db
+                .select({
+                    messageId: messageReactions.messageId,
+                    emoji: messageReactions.emoji,
+                })
+                .from(messageReactions)
+                .where(
+                    and(
+                        inArray(messageReactions.messageId, liveIds),
+                        eq(messageReactions.userId, viewerId),
+                    ),
+                );
+            for (const row of mineRows) {
+                const entry = reactionsByMessage.get(row.messageId)?.get(row.emoji);
+                if (entry) entry.mine = true;
+            }
+        }
+    }
+
+    return rows.map((row) => {
+        if (row.isDeleted) {
+            return { ...row, content: '', attachments: [], reactions: [] };
+        }
+        const byEmoji = reactionsByMessage.get(row.id);
+        const reactions: MessageReactionSummary[] = byEmoji
+            ? Array.from(byEmoji, ([emoji, { count, mine }]) => ({
+                  emoji,
+                  count,
+                  reactedByMe: mine,
+              })).sort(
+                  (a, b) =>
+                      (EMOJI_ORDER.get(a.emoji) ?? 99) - (EMOJI_ORDER.get(b.emoji) ?? 99),
+              )
+            : [];
+        return {
+            ...row,
+            attachments: attachmentsByMessage.get(row.id) ?? [],
+            reactions,
+        };
+    });
 }
 
 async function callerIsPrivileged(callerId: string): Promise<boolean> {
@@ -139,14 +269,19 @@ const ENRICHED_COLUMNS = {
     senderProfileImageUrl: users.profileImageUrl,
 };
 
-async function getEnrichedMessageById(id: string): Promise<EnrichedMessage | null> {
+export async function getEnrichedMessageById(
+    id: string,
+    viewerId?: string,
+): Promise<EnrichedMessage | null> {
     const [row] = await db
         .select(ENRICHED_COLUMNS)
         .from(messages)
         .innerJoin(users, eq(users.id, messages.senderId))
         .where(eq(messages.id, id))
         .limit(1);
-    return row ? toEnriched(row) : null;
+    if (!row) return null;
+    const [hydrated] = await hydrateMessages([row], viewerId);
+    return hydrated;
 }
 
 // Phase 1: messages live only in public, non-archived channels. Archived/unknown → 404.
@@ -181,10 +316,12 @@ async function resolveCursor(
 // ── List history (newest-first, keyset pagination) ──────────────────────────────
 export async function listMessages({
     channelId,
+    viewerId,
     cursor,
     limit,
 }: {
     channelId: string;
+    viewerId: string;
     cursor?: string;
     limit?: number;
 }): Promise<{ messages: EnrichedMessage[]; nextCursor: string | null }> {
@@ -216,7 +353,7 @@ export async function listMessages({
     const page = hasMore ? rows.slice(0, pageSize) : rows;
 
     return {
-        messages: page.map(toEnriched),
+        messages: await hydrateMessages(page, viewerId),
         nextCursor: hasMore ? page[page.length - 1].id : null,
     };
 }
@@ -224,9 +361,11 @@ export async function listMessages({
 // ── Reconnect backfill (oldest-first, everything newer than `since`) ─────────────
 export async function backfillMessages({
     channelId,
+    viewerId,
     since,
 }: {
     channelId: string;
+    viewerId: string;
     since: string;
 }): Promise<{ messages: EnrichedMessage[]; hasMore: boolean }> {
     await getReadableChannelOrThrow(channelId);
@@ -252,7 +391,7 @@ export async function backfillMessages({
     const hasMore = rows.length > MAX_BACKFILL;
     const page = hasMore ? rows.slice(0, MAX_BACKFILL) : rows;
 
-    return { messages: page.map(toEnriched), hasMore };
+    return { messages: await hydrateMessages(page, viewerId), hasMore };
 }
 
 // ── Create ──────────────────────────────────────────────────────────────────────
@@ -260,10 +399,12 @@ export async function createMessage({
     channelId,
     senderId,
     content,
+    attachments = [],
 }: {
     channelId: string;
     senderId: string;
     content: string;
+    attachments?: MessageAttachmentInput[];
 }): Promise<CreateMessageResult> {
     checkPostRateLimit(senderId);
 
@@ -280,8 +421,15 @@ export async function createMessage({
         throw new MessageServiceError(403, 'This channel is archived');
     }
 
+    // Never trust a client-supplied file URL — it must point at our own storage bucket.
+    for (const attachment of attachments) {
+        if (!attachment.fileUrl.startsWith(mastermindPublicUrlPrefix())) {
+            throw new MessageServiceError(400, 'Invalid attachment');
+        }
+    }
+
     const sanitized = sanitizeMessageHtml(content);
-    if (isHtmlEmpty(sanitized)) {
+    if (isHtmlEmpty(sanitized) && attachments.length === 0) {
         throw new MessageServiceError(400, 'Message cannot be empty');
     }
 
@@ -289,6 +437,18 @@ export async function createMessage({
         .insert(messages)
         .values({ channelId, senderId, content: sanitized })
         .returning({ id: messages.id });
+
+    if (attachments.length > 0) {
+        await db.insert(messageAttachments).values(
+            attachments.map((a) => ({
+                messageId: created.id,
+                fileUrl: a.fileUrl,
+                fileName: a.fileName,
+                fileType: a.fileType,
+                fileSizeBytes: a.fileSizeBytes,
+            })),
+        );
+    }
 
     const mentionedUserIds = parseMentionedUserIds(sanitized);
     const mentionedEveryone = hasBroadcastMention(sanitized);
@@ -366,6 +526,12 @@ export async function softDeleteMessage(id: string, callerId: string): Promise<E
             .update(messages)
             .set({ isDeleted: true, content: '', updatedAt: new Date() })
             .where(eq(messages.id, id));
+
+        // A tombstone keeps no files, reactions, or pin. Drop storage objects first, then rows.
+        await removeAttachmentStorage(id);
+        await db.delete(messageAttachments).where(eq(messageAttachments.messageId, id));
+        await db.delete(messageReactions).where(eq(messageReactions.messageId, id));
+        await db.delete(pinnedMessages).where(eq(pinnedMessages.messageId, id));
     }
 
     const enriched = await getEnrichedMessageById(id);
@@ -373,4 +539,25 @@ export async function softDeleteMessage(id: string, callerId: string): Promise<E
         throw new MessageServiceError(500, 'Failed to load deleted message');
     }
     return enriched;
+}
+
+// Best-effort removal of a message's files from Supabase Storage. Storage failures are
+// logged but never block the delete — the DB tombstone is the source of truth.
+async function removeAttachmentStorage(messageId: string): Promise<void> {
+    const rows = await db
+        .select({ fileUrl: messageAttachments.fileUrl })
+        .from(messageAttachments)
+        .where(eq(messageAttachments.messageId, messageId));
+    if (rows.length === 0) return;
+
+    const paths = rows
+        .map((r) => storagePathFromUrl(r.fileUrl, mastermindStorageBucket))
+        .filter((p): p is string => p !== null);
+    if (paths.length === 0) return;
+
+    try {
+        await getSupabase().storage.from(mastermindStorageBucket).remove(paths);
+    } catch (err) {
+        console.error('Failed to remove mastermind attachment storage:', err);
+    }
 }

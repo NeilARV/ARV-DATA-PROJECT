@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 import { MessageItem } from './MessageItem';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
+import { useAuth } from '@/hooks/use-auth';
 import { messagesQueryKey, mergeMessages } from '@/lib/mastermind-messages';
 
 import type { MastermindMessageWire } from '@shared/mastermind/events';
@@ -27,6 +28,8 @@ type MessageListProps = {
 
 export function MessageList({ channelId, highlightMessageId, onHighlightDone }: MessageListProps) {
     const { subscribeToChannel, unsubscribeFromChannel } = useMastermindSocket();
+    const { user, isAdmin, isOwner } = useAuth();
+    const canPin = isAdmin || isOwner;
     const bottomRef = useRef<HTMLDivElement>(null);
     const prevLengthRef = useRef(0);
     const onHighlightDoneRef = useRef(onHighlightDone);
@@ -98,6 +101,8 @@ export function MessageList({ channelId, highlightMessageId, onHighlightDone }: 
                     message={message}
                     showHeader={shouldShowHeader(messageList, i)}
                     isHighlighted={message.id === highlightMessageId}
+                    currentUserId={user?.id}
+                    canPin={canPin}
                 />
             ))}
             <div ref={bottomRef} className="h-2" />

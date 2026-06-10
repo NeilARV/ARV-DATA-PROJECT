@@ -536,10 +536,14 @@ channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …), real-ti
 @mentions, reactions, pins, and notifications, scoped to paying members and the ARV team. Full
 design and phased build plan: `.claude/docs/mastermind.md`.
 
-> **Status:** under construction. **Phase 1 Parts 1–8** are built (schema, access gate +
+> **Status:** under construction. **Phase 1 Parts 1–9** are built (schema, access gate +
 > channel routes, message REST lifecycle, WebSocket layer, frontend shell, mentions + user
-> tagging, unread indicators, in-app notifications/bell). Reactions/pins/attachments (Part 9)
-> and email notifications (Part 10) are later parts.
+> tagging, unread indicators, in-app notifications/bell, and reactions/pins/attachments). Part 9
+> added emoji reactions (fixed set, `reaction.changed` delta broadcast), admin/owner-only pins
+> (one per channel, `message.pinned` broadcast, pin bar showing who pinned), and message
+> attachments (upload-first to Supabase; images inline + lightbox, docs as download links), plus
+> the per-message hover toolbar (react · pin · edit · delete). Email notifications (Part 10) are
+> the remaining Phase 1 part.
 
 ## Page Entry Point
 `/mastermind` (`client/src/pages/Mastermind.tsx`). Nav entry is gated on `canAccessApp`.
@@ -575,7 +579,13 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | POST | `/api/channels/:id/messages` | `requireMastermind` | Send; content sanitized server-side; `parentMessageId` ignored (Phase 1); `403` if channel archived |
 | PATCH | `/api/channels/:id/read` | `requireMastermind` | Advance caller's read-state (lazy `channel_members` upsert) → `204` |
 | PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message; admins **cannot** edit others'; sets `isEdited` |
-| DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin) | Soft delete (author or admin/owner) |
+| DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin) | Soft delete (author or admin/owner); also clears its attachments/reactions/pin |
+| POST | `/api/messages/:id/reactions` | `requireMastermind` | Add a fixed-set reaction (idempotent); broadcasts `reaction.changed` |
+| DELETE | `/api/messages/:id/reactions` | `requireMastermind` | Remove own reaction; broadcasts `reaction.changed` |
+| GET | `/api/channels/:id/pin` | `requireMastermind` | The channel's single pinned message (or `null`), with who pinned it |
+| POST | `/api/channels/:id/pin` | `requireRole(["admin","owner"])` | Set/replace the one pin; broadcasts `message.pinned` |
+| DELETE | `/api/channels/:id/pin` | `requireRole(["admin","owner"])` | Clear the pin; broadcasts `message.pinned` (null) |
+| POST | `/api/mastermind/attachments` | `requireMastermind` | Multipart upload (10MB; JPEG/PNG/PDF/CSV/TXT) → metadata for the message `attachments[]` |
 | GET | `/api/notifications` | `requireMastermind` | Bell feed (newest-first, capped at 30) + `unreadCount`; self-scoped to the caller |
 | PATCH | `/api/notifications/read-all` | `requireMastermind` | Marks all of the caller's unread read → `{ updated }` |
 | PATCH | `/api/notifications/:id/read` | `requireMastermind` | Marks one read → `204`; `404` if not found **or owned by another user** |
@@ -632,10 +642,11 @@ Deleting a channel cascades to its messages, members, reactions, mentions, pins,
 notifications. See `.claude/docs/database.md` (Mastermind section) for full column detail.
 
 ## Validation (`database/validation/mastermind.validation.ts`, `database/inserts/mastermind.insert.ts`)
-Request schemas: `createChannelSchema`, `updateChannelSchema` (and message/reaction/attachment
-schemas for later parts). `MASTERMIND_REACTION_EMOJIS` is the fixed reaction set
-(👍 👎 😀 😢 😂 ❤️). drizzle-zod insert schemas live in `database/inserts/mastermind.insert.ts`;
-types in `database/types/mastermind.d.ts`.
+Request schemas: `createChannelSchema`, `updateChannelSchema`, `createMessageSchema` (accepts
+optional `attachments[]`), `updateMessageSchema`, `reactionSchema`, `messageAttachmentSchema`,
+`pinMessageSchema`. `MASTERMIND_REACTION_EMOJIS` is the fixed reaction set (👍 👎 😀 😢 😂 ✅) and
+`MAX_ATTACHMENTS_PER_MESSAGE` (5) the per-message cap. drizzle-zod insert schemas live in
+`database/inserts/mastermind.insert.ts`; types in `database/types/mastermind.d.ts`.
 
 ## Key Files
 Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.routes.ts`,

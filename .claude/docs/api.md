@@ -1444,9 +1444,19 @@ Soft-deleted messages are still returned, as blank tombstones (`isDeleted: true`
   "content": "<p>sanitized TipTap HTML</p>",
   "isEdited": false, "isDeleted": false,
   "createdAt": "…", "updatedAt": "…",
-  "senderFirstName": "Jane", "senderLastName": "Doe", "senderProfileImageUrl": "url|null"
+  "senderFirstName": "Jane", "senderLastName": "Doe", "senderProfileImageUrl": "url|null",
+  "attachments": [
+    { "id": "uuid", "fileUrl": "url", "fileName": "deck.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 }
+  ],
+  "reactions": [
+    { "emoji": "👍", "count": 3, "reactedByMe": true }
+  ]
 }
 ```
+
+`attachments` and `reactions` are hydrated on every read (history + backfill); a tombstone
+carries empty arrays for both. `reactedByMe` is per-viewer. Reaction emoji come from the fixed
+set `👍 👎 😀 😢 😂 ✅`.
 
 ---
 
@@ -1504,17 +1514,25 @@ Send a message. Content is **sanitized server-side** before persistence (stored-
 
 **Body** (validated via `createMessageSchema`)
 ```json
-{ "content": "<p>Hello <strong>world</strong></p>" }
+{
+  "content": "<p>Hello <strong>world</strong></p>",
+  "attachments": [
+    { "fileUrl": "url", "fileName": "deck.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 }
+  ]
+}
 ```
 
-`content` is TipTap HTML, 1–10000 chars. `parentMessageId` is accepted by the schema but
-**ignored in Phase 1** (threads are Phase 2). A message that is empty once sanitized is rejected.
+`content` is TipTap HTML, up to 10000 chars. `parentMessageId` is accepted by the schema but
+**ignored in Phase 1** (threads are Phase 2). `attachments` (optional, max 5) is metadata from
+`POST /api/mastermind/attachments`; each `fileUrl` is re-validated server-side to start with our
+Supabase bucket's public-URL prefix. A message is valid with **text OR ≥1 attachment** — empty
+content with no attachment is rejected.
 
 **Response `201`** `{ "message": { ...message } }`
 
 **Side effect**: After the message is persisted, the service parses `@user` mention marks from the sanitized HTML and inserts a row into `message_mentions` for each unique mentioned user (UNIQUE constraint deduplicates).
 
-**Errors** `400` invalid id / invalid input / empty after sanitize · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found
+**Errors** `400` invalid id / invalid input / empty with no attachment / invalid attachment URL · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found
 
 ---
 
@@ -1551,7 +1569,108 @@ Allowed for the **author OR an admin/owner**. Idempotent on an already-deleted m
 
 **Response `200`** `{ "message": { ...tombstone message } }`
 
+**Side effect**: A soft-deleted message's attachment storage objects, attachment rows, reaction rows, and channel pin (if it was pinned) are all removed.
+
 **Errors** `400` invalid id · `401` not authenticated · `403` not the author and not admin/owner · `404` not found
+
+---
+
+### `POST /api/messages/:id/reactions`
+Add a reaction to a message.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+**Body** (validated via `reactionSchema`) `{ "emoji": "👍" }` — must be in the fixed set `👍 👎 😀 😢 😂 ✅`.
+
+**Response `201`** `{ "success": true }`. Idempotent: re-reacting with the same emoji is a no-op (and skips the broadcast). On a real change, broadcasts `reaction.changed` (`action: "add"`) to the channel.
+
+**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel
+
+---
+
+### `DELETE /api/messages/:id/reactions`
+Remove your reaction from a message.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+**Body** (validated via `reactionSchema`) `{ "emoji": "👍" }`
+
+**Response `200`** `{ "success": true }`. Self-scoped (only the caller's own reaction). Idempotent; broadcasts `reaction.changed` (`action: "remove"`) only on a real change.
+
+**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel
+
+---
+
+### `GET /api/channels/:id/pin`
+The channel's single pinned message (or `null`).
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Response `200`**
+```json
+{
+  "pinned": {
+    "message": { ...message },
+    "pinnedByUserId": "uuid|null",
+    "pinnedByFirstName": "Jane|null",
+    "pinnedByLastName": "Doe|null",
+    "pinnedAt": "…"
+  }
+}
+```
+`pinned` is `null` when there is no pin or the pinned message has since been deleted.
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived
+
+---
+
+### `POST /api/channels/:id/pin`
+Set or replace the channel's single pin. **Admin/owner only** (`requireRole(['admin','owner'])`).
+
+**Auth**: `requireRole(['admin','owner'])`
+
+**Params**: `id` — channel UUID
+
+**Body** (validated via `pinMessageSchema`) `{ "messageId": "uuid" }` — must belong to the channel and not be deleted.
+
+**Response `200`** `{ "pinned": { ...PinnedMessage } }`. One pin per channel (`pinned_messages` `UNIQUE(channel_id)`) — upserts/replaces. Broadcasts `message.pinned` to the channel.
+
+**Errors** `400` invalid channel id / invalid messageId · `401` not authenticated · `403` not admin/owner · `404` channel or message not found
+
+---
+
+### `DELETE /api/channels/:id/pin`
+Clear the channel pin. **Admin/owner only.**
+
+**Auth**: `requireRole(['admin','owner'])`
+
+**Params**: `id` — channel UUID
+
+**Response `200`** `{ "pinned": null }`. Broadcasts `message.pinned` (`pinned: null`).
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` not admin/owner · `404` channel not found
+
+---
+
+### `POST /api/mastermind/attachments`
+Upload one file for a message. Multipart (`multipart/form-data`, field `file`). Returns metadata to send back in the `attachments[]` of `POST /api/channels/:id/messages`.
+
+**Auth**: `requireMastermind`
+
+**Constraints**: max **10 MB**; allowlisted MIME types — `image/jpeg`, `image/png` (rendered inline) and `application/pdf`, `text/csv`, `text/plain` (download link). Must match the Supabase bucket's allowed types.
+
+**Response `201`**
+```json
+{ "attachment": { "fileUrl": "url", "fileName": "deck.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 } }
+```
+
+**Errors** `400` no file / unsupported type / empty / too large · `401` not authenticated · `403` no role and no subscription
 
 ---
 
@@ -1649,12 +1768,19 @@ return (timestamps as ISO strings):
 { "type": "message.created", "message": { ...message, "mentionedUserIds": ["uuid"], "mentionedEveryone": false } }
 { "type": "message.updated", "message": { ...message } }
 { "type": "message.deleted", "message": { ...tombstone } }
+{ "type": "reaction.changed", "messageId": "uuid", "channelId": "uuid", "emoji": "👍", "userId": "uuid", "action": "add" }
+{ "type": "message.pinned", "channelId": "uuid", "pinned": { ...PinnedMessage } | null }
 { "type": "notification.created", "notification": { ...notification } }
 ```
 `message.created` additionally carries `mentionedUserIds` / `mentionedEveryone` so clients can
 flag mention badges without re-parsing the HTML; the other message events omit them.
-`notification.created` carries the same notification object as `GET /api/notifications` and is
-delivered to all of the recipient's tabs (not channel-scoped).
+`reaction.changed` is a **per-user delta** (not an aggregate) — each client applies `action`
+for `userId` and sets its own `reactedByMe` only when `userId` is the viewer, so a single
+broadcast yields correct per-viewer counts. `message.updated` / `message.deleted` are
+**field-merged** on the client (content/flags update; reactions & attachments are preserved),
+since a channel-wide event can't carry per-viewer reaction state. `notification.created` carries
+the same notification object as `GET /api/notifications` and is delivered to all of the
+recipient's tabs (not channel-scoped).
 
 **Heartbeat**: the server pings every ~30s and terminates sockets that miss a pong.
 

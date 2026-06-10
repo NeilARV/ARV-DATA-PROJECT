@@ -15,8 +15,8 @@ vi.mock('server/controllers/channels/channels.controllers', () => ({
     getChannelMembersController: vi.fn((_req, res) => res.status(200).json({ users: [] })),
 }));
 
-const ACTING_USER_ID = '00000000-0000-0000-0000-000000000040';
-const OTHER_USER_ID = '00000000-0000-0000-0000-000000000041';
+const ACTING_USER_ID = '00000000-0000-0000-0000-000000000054';
+const OTHER_USER_ID = '00000000-0000-0000-0000-000000000055';
 const DUMMY_CHANNEL_ID = '55555555-5555-5555-5555-555555555551';
 
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, OTHER_USER_ID);

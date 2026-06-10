@@ -8,6 +8,9 @@ export const vendorStorageBucket =
 
 export const userStorageBucket = process.env.SUPABASE_USER_STORAGE_BUCKET ?? 'user-images-dev';
 
+export const mastermindStorageBucket =
+    process.env.SUPABASE_MASTERMIND_STORAGE_BUCKET ?? 'mastermind-files-dev';
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
@@ -26,6 +29,16 @@ export function getSupabase(): SupabaseClient {
         realtime: { transport: ws as any },
     });
     return _client;
+}
+
+/** Public URL prefix every Mastermind attachment must start with, used to validate
+ * client-supplied attachment URLs point at our own bucket. */
+export function mastermindPublicUrlPrefix(): string {
+    const url = process.env.SUPABASE_URL;
+    if (!url) {
+        throw new Error('SUPABASE_URL must be set');
+    }
+    return `${url}/storage/v1/object/public/${mastermindStorageBucket}/`;
 }
 
 /** Extract the storage path from a full Supabase public URL. */
