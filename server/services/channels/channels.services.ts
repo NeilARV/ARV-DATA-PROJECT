@@ -237,9 +237,9 @@ const MASTERMIND_BYPASS_ROLES = ['admin', 'owner', 'relationship-manager', 'memb
 
 export type MentionCandidate = { id: string; firstName: string; lastName: string };
 
-// Phase 1: every Mastermind-eligible user is a candidate for @mentions in any
-// public channel. In Phase 2+, private/DM channels can narrow this to actual members.
-export async function listChannelMentionCandidates(): Promise<MentionCandidate[]> {
+// Every Mastermind-eligible user id (any qualifying tier OR any bypass role).
+// Shared by mention autocomplete and @channel notification fan-out.
+export async function listEligibleUserIds(): Promise<string[]> {
     const [byRoleRows, bySubRows] = await Promise.all([
         db
             .select({ userId: userRoles.userId })
@@ -253,7 +253,13 @@ export async function listChannelMentionCandidates(): Promise<MentionCandidate[]
             .where(inArray(subscriptions.name, [...MASTERMIND_TIERS])),
     ]);
 
-    const eligibleIds = Array.from(new Set([...byRoleRows, ...bySubRows].map((r) => r.userId)));
+    return Array.from(new Set([...byRoleRows, ...bySubRows].map((r) => r.userId)));
+}
+
+// Phase 1: every Mastermind-eligible user is a candidate for @mentions in any
+// public channel. In Phase 2+, private/DM channels can narrow this to actual members.
+export async function listChannelMentionCandidates(): Promise<MentionCandidate[]> {
+    const eligibleIds = await listEligibleUserIds();
     if (eligibleIds.length === 0) return [];
 
     return db

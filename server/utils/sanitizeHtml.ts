@@ -56,11 +56,21 @@ export function sanitizeMessageHtml(dirty: string): string {
     return sanitizeHtml(dirty, SANITIZE_OPTIONS);
 }
 
+// Reduces HTML to its visible text (entities collapsed, whitespace normalized).
+export function htmlToPlainText(html: string): string {
+    return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 // True when the HTML carries no visible text (e.g. "<p></p>" or only stripped tags),
 // so callers can reject a message that is empty once sanitized.
 export function isHtmlEmpty(html: string): boolean {
-    const text = sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
-        .replace(/&nbsp;/g, ' ')
-        .trim();
-    return text.length === 0;
+    return htmlToPlainText(html).length === 0;
 }

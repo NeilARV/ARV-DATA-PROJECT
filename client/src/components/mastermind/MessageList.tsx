@@ -21,12 +21,16 @@ function shouldShowHeader(messages: MastermindMessageWire[], index: number): boo
 
 type MessageListProps = {
     channelId: string;
+    highlightMessageId?: string | null;
+    onHighlightDone?: () => void;
 };
 
-export function MessageList({ channelId }: MessageListProps) {
+export function MessageList({ channelId, highlightMessageId, onHighlightDone }: MessageListProps) {
     const { subscribeToChannel, unsubscribeFromChannel } = useMastermindSocket();
     const bottomRef = useRef<HTMLDivElement>(null);
     const prevLengthRef = useRef(0);
+    const onHighlightDoneRef = useRef(onHighlightDone);
+    onHighlightDoneRef.current = onHighlightDone;
 
     const { data: messages, isLoading } = useQuery<MastermindMessageWire[]>({
         queryKey: messagesQueryKey(channelId),
@@ -46,14 +50,26 @@ export function MessageList({ channelId }: MessageListProps) {
         return () => unsubscribeFromChannel(channelId);
     }, [channelId, subscribeToChannel, unsubscribeFromChannel]);
 
-    // Scroll to bottom when new messages arrive (not on every render)
+    const highlightLoaded =
+        !!highlightMessageId && (messages ?? []).some((m) => m.id === highlightMessageId);
+
+    // Scroll to bottom when new messages arrive (not on every render). A pending deep-link
+    // highlight owns the scroll position instead — don't fight its scroll-to-message.
     useEffect(() => {
         const len = messages?.length ?? 0;
         if (len !== prevLengthRef.current) {
             prevLengthRef.current = len;
+            if (highlightLoaded) return;
             bottomRef.current?.scrollIntoView({ behavior: len === 1 ? 'instant' : 'smooth' });
         }
-    }, [messages?.length]);
+    }, [messages?.length, highlightLoaded]);
+
+    // Let the highlight glow, then release it so the next deep-link can re-trigger.
+    useEffect(() => {
+        if (!highlightLoaded) return;
+        const timer = setTimeout(() => onHighlightDoneRef.current?.(), 2500);
+        return () => clearTimeout(timer);
+    }, [highlightLoaded]);
 
     if (isLoading) {
         return (
@@ -81,6 +97,7 @@ export function MessageList({ channelId }: MessageListProps) {
                     key={message.id}
                     message={message}
                     showHeader={shouldShowHeader(messageList, i)}
+                    isHighlighted={message.id === highlightMessageId}
                 />
             ))}
             <div ref={bottomRef} className="h-2" />

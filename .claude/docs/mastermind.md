@@ -302,7 +302,7 @@ history on desktop + mobile.
 **Done:** unread badges appear/clear correctly across tabs and reconnects.
 **Known Problem:** Unread messages does not appear until a user refreshes the screen. Fine for now but should be changed in the future 
 
-### Part 8 — In-app notifications (bell)
+### Part 8 — In-app notifications (bell) | Completed
 - `notifications` table rows created when a user is mentioned (or `@here`/`@channel` hits them).
 - `GET /api/notifications` (feed, unread count), `PATCH /api/notifications/:id/read`,
   `PATCH /api/notifications/read-all`.
@@ -310,6 +310,10 @@ history on desktop + mobile.
   channel + message (scroll-to + highlight).
 - New notifications also arrive over the WebSocket for instant badge updates.
 **Done:** getting mentioned lights the bell; clicking it jumps to the message.
+**Notes:** `@channel` fans out to **all eligible users** (minus the sender). Deep-link is
+**graceful**: the message is scrolled-to + highlighted only when it's within the loaded page
+(newest ~30); older targets just open the channel (full jump-to-any waits on pagination).
+Bell lives in the global header, gated on `canAccessApp`, so mentions surface on every page.
 
 ### Part 9 — Reactions, pins, attachments
 - **Reactions:** fixed emoji set; `POST/DELETE /api/messages/:id/reactions`; reaction counts

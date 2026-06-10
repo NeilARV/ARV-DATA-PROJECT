@@ -18,7 +18,7 @@ export const ServerToClient = {
     MessageCreated: 'message.created',
     MessageUpdated: 'message.updated',
     MessageDeleted: 'message.deleted',
-    // Reserved for later parts — the doorbell stream (Parts 7/8). No emitters yet.
+    // The doorbell stream — delivered to every tab of the recipient, channel-independent.
     NotificationCreated: 'notification.created',
 } as const;
 
@@ -48,6 +48,28 @@ export type ServerMessageEvent = {
         | typeof ServerToClient.MessageUpdated
         | typeof ServerToClient.MessageDeleted;
     message: MastermindMessageWire;
+};
+
+// A bell-feed notification as the client receives it (REST and socket share this shape;
+// dates serialized to ISO strings). Actor fields are null when the actor was deleted.
+export interface NotificationWire {
+    id: string;
+    type: 'mention' | 'channel_mention';
+    channelId: string | null;
+    channelName: string | null;
+    messageId: string | null;
+    messageExcerpt: string;
+    actorId: string | null;
+    actorFirstName: string | null;
+    actorLastName: string | null;
+    actorProfileImageUrl: string | null;
+    isRead: boolean;
+    createdAt: string;
+}
+
+export type ServerNotificationEvent = {
+    type: typeof ServerToClient.NotificationCreated;
+    notification: NotificationWire;
 };
 
 // The path the WebSocket upgrade is served on (kept off Vite's HMR socket).

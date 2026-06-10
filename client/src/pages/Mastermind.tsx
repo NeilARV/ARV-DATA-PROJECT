@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useSearch } from 'wouter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Brain, Loader2 } from 'lucide-react';
 
@@ -31,9 +32,13 @@ function MastermindContent() {
     const { openDialog } = useDialogs();
     const { lastCreatedMessage } = useMastermindSocket();
 
+    const search = useSearch();
+    const [, setLocation] = useLocation();
+
     const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
     const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());
+    const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
 
     // Prevents re-seeding unread state when TanStack refetches /api/channels (e.g. on window
     // refocus). Live state is owned by WS events after the first seed — don't remove this ref.
@@ -98,15 +103,40 @@ function MastermindContent() {
         );
     }, [channels]);
 
-    // Auto-select the first channel once the list loads; mark it as read.
+    // Auto-select the first channel once the list loads; mark it as read. Also self-heals
+    // an active id that isn't in the list (stale deep-link, channel archived mid-session).
     useEffect(() => {
-        if (!activeChannelId && channels.length > 0) {
-            const first = channels[0];
-            setActiveChannelId(first.id);
-            clearUnread(first.id);
-            scheduleMarkRead(first.id);
-        }
+        if (channels.length === 0) return;
+        if (activeChannelId && channels.some((c) => c.id === activeChannelId)) return;
+        const first = channels[0];
+        setActiveChannelId(first.id);
+        clearUnread(first.id);
+        scheduleMarkRead(first.id);
     }, [channels, activeChannelId, clearUnread, scheduleMarkRead]);
+
+    // Notification deep-link: /mastermind?c=<channelId>&m=<messageId>. Activate the target
+    // channel, remember the message to highlight, then strip the params so a refresh or
+    // history-back doesn't re-fire the jump.
+    useEffect(() => {
+        const params = new URLSearchParams(search);
+        const channelId = params.get('c');
+        if (!channelId) return;
+
+        setActiveChannelId(channelId);
+        setHighlightMessageId(params.get('m'));
+        setMobileTab('chat');
+        clearUnread(channelId);
+        scheduleMarkRead(channelId);
+        setLocation('/mastermind', { replace: true });
+    }, [search, clearUnread, scheduleMarkRead, setLocation]);
+
+    // Fallback release: a highlight whose target isn't in the loaded page (older message)
+    // would otherwise linger and glow unexpectedly if backfill later loads that message.
+    useEffect(() => {
+        if (!highlightMessageId) return;
+        const timer = setTimeout(() => setHighlightMessageId(null), 5000);
+        return () => clearTimeout(timer);
+    }, [highlightMessageId]);
 
     // React to incoming WS messages: skip badge for the active channel; increment for others.
     // NOTE: The client currently subscribes to one channel at a time, so lastCreatedMessage
@@ -262,7 +292,11 @@ function MastermindContent() {
                     {activeChannel ? (
                         <>
                             <ChannelHeader channel={activeChannel} />
-                            <MessageList channelId={activeChannel.id} />
+                            <MessageList
+                                channelId={activeChannel.id}
+                                highlightMessageId={highlightMessageId}
+                                onHighlightDone={() => setHighlightMessageId(null)}
+                            />
                             <MessageComposer
                                 channelId={activeChannel.id}
                                 channelName={activeChannel.name}

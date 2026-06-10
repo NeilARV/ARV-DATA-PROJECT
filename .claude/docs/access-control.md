@@ -371,6 +371,29 @@ causes the upgrade to be rejected with `401` (no socket opens). Once connected, 
 
 ---
 
+### 5.14 Mastermind — Notifications (`/api/notifications`)
+
+The in-app bell feed. All routes are gated by `requireMastermind` and are **self-scoped**: every
+query/update filters on the caller's `user_id`, so a user can only ever read or mark their own
+notifications — there is no admin view and no cross-user access at any role.
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/notifications` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/notifications/:id/read` | `requireMastermind` (+ self-scoped in service) | 401 | 403 | ✓ own / 404 others | ✓ own / 404 others | ✓ own / **404 others** |
+| PATCH | `/api/notifications/read-all` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+
+**Behavior notes:**
+- Notification rows are created server-side only (mention fan-out on message create — `@user`
+  rows get type `mention`, `@channel` expands to all eligible users as `channel_mention`,
+  excluding the sender). There is no `POST /api/notifications`.
+- `PATCH /api/notifications/:id/read` returns `404` (not `403`) when the row exists but belongs
+  to another user, so the route does not leak which notification ids exist.
+- New notifications are also pushed over the `/ws` socket (`notification.created`) to every
+  connected tab of the recipient — same upgrade gate as §5.13.
+
+---
+
 ## 6. How `testing.md` uses this file
 
 When generating the mandatory access-control integration tests for a new or changed route:

@@ -13,6 +13,7 @@ import postsRoutes from './posts.routes';
 import claimsRoutes from './claims.routes';
 import channelsRoutes from './channels.routes';
 import messagesRoutes from './messages.routes';
+import notificationsRoutes from './notifications.routes';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/vendors', vendorsRoutes);
 router.use('/posts', postsRoutes);
 router.use('/channels', channelsRoutes);
 router.use('/messages', messagesRoutes);
+router.use('/notifications', notificationsRoutes);
 
 export default router;

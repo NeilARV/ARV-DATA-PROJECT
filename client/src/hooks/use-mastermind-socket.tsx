@@ -6,10 +6,15 @@ import { useAuth } from '@/hooks/use-auth';
 import { queryClient } from '@/lib/queryClient';
 import { messagesQueryKey, mergeMessages } from '@/lib/mastermind-messages';
 import {
+    NOTIFICATIONS_QUERY_KEY,
+    type NotificationsResponse,
+} from '@/lib/mastermind-notifications';
+import {
     ClientToServer,
     ServerToClient,
     MASTERMIND_WS_PATH,
     type MastermindMessageWire,
+    type NotificationWire,
 } from '@shared/mastermind/events';
 
 export { messagesQueryKey, mergeMessages };
@@ -92,7 +97,11 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
             }
             if (!data || typeof data !== 'object') return;
 
-            const evt = data as { type?: string; message?: MastermindMessageWire };
+            const evt = data as {
+                type?: string;
+                message?: MastermindMessageWire;
+                notification?: NotificationWire;
+            };
             if (
                 evt.type === ServerToClient.MessageCreated ||
                 evt.type === ServerToClient.MessageUpdated ||
@@ -108,6 +117,25 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                         setLastCreatedMessage(message);
                     }
                 }
+                return;
+            }
+
+            if (evt.type === ServerToClient.NotificationCreated) {
+                const notification = evt.notification;
+                if (!notification || typeof notification.id !== 'string') return;
+                // Prepend into the bell-feed cache; the first GET seeds it if absent.
+                queryClient.setQueryData<NotificationsResponse>(
+                    NOTIFICATIONS_QUERY_KEY,
+                    (old) => {
+                        if (!old || old.notifications.some((n) => n.id === notification.id)) {
+                            return old;
+                        }
+                        return {
+                            notifications: [notification, ...old.notifications],
+                            unreadCount: old.unreadCount + 1,
+                        };
+                    },
+                );
             }
         };
 

@@ -11,7 +11,8 @@ import {
     createMessageSchema,
     updateMessageSchema,
 } from '@database/validation/mastermind.validation';
-import { broadcastToChannel } from 'server/websocket/registry';
+import { createMentionNotifications } from 'server/services/notifications/notifications.services';
+import { broadcastToChannel, broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,6 +81,26 @@ export async function createMessageController(req: Request, res: Response): Prom
             type: ServerToClient.MessageCreated,
             message: { ...message, mentionedUserIds, mentionedEveryone },
         });
+
+        // Notification fan-out is secondary to the send — never fail a delivered message.
+        try {
+            const created = await createMentionNotifications({
+                messageId: message.id,
+                channelId: message.channelId,
+                actorId: req.session.userId!,
+                mentionedUserIds,
+                mentionedEveryone,
+            });
+            for (const { recipientUserId, ...notification } of created) {
+                broadcastToUser(recipientUserId, {
+                    type: ServerToClient.NotificationCreated,
+                    notification,
+                });
+            }
+        } catch (err) {
+            console.error('Error creating mention notifications:', err);
+        }
+
         res.status(201).json({ message });
     } catch (err) {
         handleServiceError(res, err, 'Error creating message');

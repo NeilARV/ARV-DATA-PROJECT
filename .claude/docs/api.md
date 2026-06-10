@@ -1555,6 +1555,67 @@ Allowed for the **author OR an admin/owner**. Idempotent on an already-deleted m
 
 ---
 
+### Notifications (`/api/notifications`)
+
+The in-app bell feed. All routes use `requireMastermind` and are **self-scoped** — every query
+filters on the caller's `user_id`. Rows are created server-side only, by the mention fan-out on
+message create (`@user` → type `mention`; `@channel` → type `channel_mention` for every eligible
+user; the sender never notifies themself). See `access-control.md` §5.14.
+
+The notification object shape (REST and the `notification.created` socket event are identical):
+
+```json
+{
+  "id": "uuid",
+  "type": "mention | channel_mention",
+  "channelId": "uuid|null", "channelName": "san-diego-market|null",
+  "messageId": "uuid|null", "messageExcerpt": "plain-text excerpt (≤120 chars)",
+  "actorId": "uuid|null", "actorFirstName": "Jane|null", "actorLastName": "Doe|null",
+  "actorProfileImageUrl": "url|null",
+  "isRead": false, "createdAt": "…"
+}
+```
+
+`messageExcerpt` is the mention message's HTML stripped to plain text; it is empty when the
+message has since been soft-deleted (clients show a generic label instead).
+
+---
+
+#### `GET /api/notifications`
+The caller's notification feed (newest-first, capped at 30) plus their total unread count.
+
+**Auth**: `requireMastermind`
+
+**Response `200`** `{ "notifications": [ { ...notification } ], "unreadCount": 3 }`
+
+**Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
+#### `PATCH /api/notifications/:id/read`
+Mark one of the caller's notifications read.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — notification UUID
+
+**Response `204`** (no body)
+
+**Errors** `400` invalid id · `401` not authenticated · `403` no role and no subscription · `404` not found **or owned by another user** (no id-existence leak)
+
+---
+
+#### `PATCH /api/notifications/read-all`
+Mark all of the caller's unread notifications read.
+
+**Auth**: `requireMastermind`
+
+**Response `200`** `{ "updated": 4 }` — the number of rows flipped.
+
+**Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
 ### Real-Time — WebSocket (`/ws`)
 
 Mastermind's live layer. **REST is the source of truth; the WebSocket is only a notifier** —
@@ -1572,8 +1633,8 @@ on the same HTTP server (`ws://` in dev, `wss://` in prod). Vite's HMR socket is
 with `401` and no socket opens. See `access-control.md` §5.13.
 
 **Subscription model**: the client subscribes to the one channel it is viewing (the "firehose").
-A per-user `user:{id}` 'doorbell' stream is **built but not yet emitting** (reserved for Part 8
-notifications; cross-channel unread delivery is a Phase 2 TODO).
+The per-user 'doorbell' stream delivers `notification.created` to **every connected tab of the
+recipient**, independent of channel subscriptions — mentions reach users browsing other pages.
 
 **Client → server** (JSON):
 ```json
@@ -1588,10 +1649,12 @@ return (timestamps as ISO strings):
 { "type": "message.created", "message": { ...message, "mentionedUserIds": ["uuid"], "mentionedEveryone": false } }
 { "type": "message.updated", "message": { ...message } }
 { "type": "message.deleted", "message": { ...tombstone } }
+{ "type": "notification.created", "notification": { ...notification } }
 ```
 `message.created` additionally carries `mentionedUserIds` / `mentionedEveryone` so clients can
-flag mention badges without re-parsing the HTML; the other events omit them.
-(`notification.created` is reserved for Part 8.)
+flag mention badges without re-parsing the HTML; the other message events omit them.
+`notification.created` carries the same notification object as `GET /api/notifications` and is
+delivered to all of the recipient's tabs (not channel-scoped).
 
 **Heartbeat**: the server pings every ~30s and terminates sockets that miss a pong.
 

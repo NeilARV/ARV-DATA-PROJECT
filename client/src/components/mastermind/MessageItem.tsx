@@ -1,20 +1,8 @@
+import { useEffect, useRef } from 'react';
+
+import { getAvatarColor } from '@/utils/avatar';
+
 import type { MastermindMessageWire } from '@shared/mastermind/events';
-
-const AVATAR_COLORS = [
-    'hsl(var(--chart-1))',
-    'hsl(var(--chart-2))',
-    'hsl(var(--chart-3))',
-    'hsl(var(--chart-4))',
-    'hsl(var(--chart-5))',
-];
-
-function getAvatarColor(senderId: string): string {
-    let hash = 0;
-    for (let i = 0; i < senderId.length; i++) {
-        hash = senderId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 function formatTimestamp(iso: string): string {
     const date = new Date(iso);
@@ -31,19 +19,29 @@ function formatTimestamp(iso: string): string {
 type MessageItemProps = {
     message: MastermindMessageWire;
     showHeader: boolean;
+    isHighlighted?: boolean;
 };
 
-export function MessageItem({ message, showHeader }: MessageItemProps) {
+export function MessageItem({ message, showHeader, isHighlighted = false }: MessageItemProps) {
     const { senderFirstName, senderLastName, senderId, senderProfileImageUrl } = message;
+    const rootRef = useRef<HTMLDivElement>(null);
     const initials = `${senderFirstName.charAt(0)}${senderLastName.charAt(0)}`.toUpperCase();
     const avatarColor = getAvatarColor(senderId);
     const displayName = `${senderFirstName} ${senderLastName}`;
 
+    // Deep-link target: bring the message into view when the highlight lands on it.
+    useEffect(() => {
+        if (isHighlighted) {
+            rootRef.current?.scrollIntoView({ block: 'center' });
+        }
+    }, [isHighlighted]);
+
     return (
         <div
+            ref={rootRef}
             className={`flex gap-3 px-4 hover:bg-accent/30 transition-colors group ${
                 showHeader ? 'pt-3 pb-1' : 'py-0.5'
-            }`}
+            }${isHighlighted ? ' mm-message-highlight' : ''}`}
         >
             {/* Avatar column — fixed 36px width keeps message bodies aligned */}
             <div className="w-9 flex-shrink-0 flex justify-center pt-0.5">

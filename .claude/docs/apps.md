@@ -536,9 +536,9 @@ channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …), real-ti
 @mentions, reactions, pins, and notifications, scoped to paying members and the ARV team. Full
 design and phased build plan: `.claude/docs/mastermind.md`.
 
-> **Status:** under construction. **Phase 1 Parts 1–7** are built (schema, access gate +
+> **Status:** under construction. **Phase 1 Parts 1–8** are built (schema, access gate +
 > channel routes, message REST lifecycle, WebSocket layer, frontend shell, mentions + user
-> tagging, unread indicators). Notifications (Part 8), reactions/pins/attachments (Part 9),
+> tagging, unread indicators, in-app notifications/bell). Reactions/pins/attachments (Part 9)
 > and email notifications (Part 10) are later parts.
 
 ## Page Entry Point
@@ -562,7 +562,7 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | Delete **another user's** message | — | — | ✓ |
 | Create / rename / archive / delete channel | — | — | ✓ |
 
-## API Surface (`server/routes/channels.routes.ts`, `server/routes/messages.routes.ts`)
+## API Surface (`server/routes/channels.routes.ts`, `server/routes/messages.routes.ts`, `server/routes/notifications.routes.ts`)
 | Method | Route | Auth | Notes |
 |---|---|---|---|
 | GET | `/api/channels` | `requireMastermind` | Lists public, non-archived channels; admin/owner may pass `?includeArchived=true` |
@@ -570,14 +570,18 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | PATCH | `/api/channels/:id` | `requireRole(["admin","owner"])` | Rename / edit description |
 | POST | `/api/channels/:id/archive` | `requireRole(["admin","owner"])` | Soft archive (`is_archived = true`) |
 | DELETE | `/api/channels/:id` | `requireRole(["admin","owner"])` | Hard delete (cascade); `409` unless already archived |
-| GET | `/api/channels/:id/members` | `requireMastermind` | Users who have a `channel_members` row (lazily written read-state); returns `{ members, count }` |
+| GET | `/api/channels/:id/members` | `requireMastermind` | Mention candidates — all Mastermind-eligible users (Phase 1); returns `{ users }` |
 | GET | `/api/channels/:id/messages` | `requireMastermind` | History (`?cursor=&limit=`) → `{ messages, nextCursor }`; backfill (`?since=`) → `{ messages, hasMore }`. Soft-deleted = blank tombstones |
 | POST | `/api/channels/:id/messages` | `requireMastermind` | Send; content sanitized server-side; `parentMessageId` ignored (Phase 1); `403` if channel archived |
+| PATCH | `/api/channels/:id/read` | `requireMastermind` | Advance caller's read-state (lazy `channel_members` upsert) → `204` |
 | PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message; admins **cannot** edit others'; sets `isEdited` |
 | DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin) | Soft delete (author or admin/owner) |
+| GET | `/api/notifications` | `requireMastermind` | Bell feed (newest-first, capped at 30) + `unreadCount`; self-scoped to the caller |
+| PATCH | `/api/notifications/read-all` | `requireMastermind` | Marks all of the caller's unread read → `{ updated }` |
+| PATCH | `/api/notifications/:id/read` | `requireMastermind` | Marks one read → `204`; `404` if not found **or owned by another user** |
 
 Full request/response detail: `.claude/docs/api.md` §12. Permission tables:
-`.claude/docs/access-control.md` §5.12–§5.13.
+`.claude/docs/access-control.md` §5.12–§5.14.
 
 ## Backend
 Routes `server/routes/channels.routes.ts` · controller `server/controllers/channels/` ·
@@ -602,8 +606,9 @@ of truth; the socket is only a notifier** — the message controllers broadcast
 `?since=` backfill. One socket per tab, opened **app-wide** for eligible users; the upgrade is
 authenticated by the session cookie + `isMastermindEligible` (no Express middleware runs on a raw
 upgrade). The client subscribes to the one channel it is viewing (the "firehose"); a per-user
-`user:{id}` 'doorbell' stream is **built but not yet emitting** (reserved for Part 8 notifications;
-cross-channel unread delivery is a Phase 2 TODO). The in-memory connection registry is single-instance — horizontal scaling later needs
+'doorbell' stream delivers `notification.created` (same object as `GET /api/notifications`) to
+**every connected tab of the recipient**, independent of channel subscription, so mentions surface
+on any page (cross-channel unread delivery remains a Phase 2 TODO). The in-memory connection registry is single-instance — horizontal scaling later needs
 Redis pub/sub (see `.claude/docs/mastermind.md` Known Limitation). Vite's HMR socket is unaffected
 (upgrades routed by path). Client cache: live events and history both write a flat ascending
 `MastermindMessageWire[]` under `messagesQueryKey(channelId)`, de-duplicated by id.
@@ -634,14 +639,19 @@ types in `database/types/mastermind.d.ts`.
 
 ## Key Files
 Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.routes.ts`,
-`server/routes/messages.routes.ts` · controllers `server/controllers/channels/channels.controllers.ts`,
-`server/controllers/messages/messages.controllers.ts` · services
-`server/services/channels/channels.services.ts`, `server/services/messages/messages.services.ts` ·
+`server/routes/messages.routes.ts`, `server/routes/notifications.routes.ts` · controllers
+`server/controllers/channels/channels.controllers.ts`,
+`server/controllers/messages/messages.controllers.ts`,
+`server/controllers/notifications/notifications.controllers.ts` · services
+`server/services/channels/channels.services.ts`, `server/services/messages/messages.services.ts`,
+`server/services/notifications/notifications.services.ts` ·
 HTML sanitizer `server/utils/sanitizeHtml.ts` · real-time `server/websocket/` (`index.ts` bootstrap,
 `auth.ts` upgrade auth, `registry.ts` connections+broadcast, `connection.ts` per-socket handler),
 protocol `shared/mastermind/events.ts`, client socket `client/src/hooks/use-mastermind-socket.tsx`
-+ `client/src/lib/mastermind-messages.ts`, temporary harness `client/src/pages/Mastermind.tsx` ·
-schema `database/schemas/mastermind.schema.ts` · validation
-`database/validation/mastermind.validation.ts` · tests
-`tests/server/api/channels/`, `tests/server/api/messages/`, `tests/server/websocket/` · design doc
-`.claude/docs/mastermind.md`.
++ `client/src/lib/mastermind-messages.ts`, `client/src/lib/mastermind-notifications.ts` · page
+`client/src/pages/Mastermind.tsx`, bell `client/src/components/mastermind/NotificationBell.tsx`
+(rendered in the global `client/src/components/Header.tsx`), feed hook
+`client/src/hooks/use-notifications.ts` · schema `database/schemas/mastermind.schema.ts` ·
+validation `database/validation/mastermind.validation.ts` · tests
+`tests/server/api/channels/`, `tests/server/api/messages/`, `tests/server/api/notifications/`,
+`tests/server/websocket/` · design doc `.claude/docs/mastermind.md`.

@@ -24,6 +24,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import darkLogoUrl from '@assets/arv-data-logo-dark.png';
 import lightLogoUrl from '@assets/arv-data-logo-light.png';
+import { NotificationBell } from '@/components/mastermind/NotificationBell';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useView } from '@/hooks/useView';
@@ -355,6 +356,8 @@ export default function Header() {
                     </>
                 ) : (
                     <>
+                        {canAccessApp && <NotificationBell />}
+
                         <Button
                             variant="ghost"
                             size="icon"
