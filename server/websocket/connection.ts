@@ -7,7 +7,7 @@ import {
     unsubscribeFromChannel,
     type Client,
 } from './registry';
-import { getChannelById } from 'server/services/channels/channels.services';
+import { getChannelById, userIsAdminOrOwner } from 'server/services/channels/channels.services';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -57,6 +57,11 @@ async function handleClientMessage(client: Client, raw: RawData): Promise<void> 
             return;
         }
         if (channel && channel.type === 'public' && !channel.isArchived) {
+            // Admin-only channels deliver live events to admins/owners only — otherwise a
+            // non-admin who knows the id could receive its messages over the socket.
+            if (channel.isAdminOnly && !(await userIsAdminOrOwner(client.userId))) {
+                return;
+            }
             subscribeToChannel(client, channelId);
         }
         return;

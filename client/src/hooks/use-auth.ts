@@ -110,6 +110,14 @@ export function useAuth() {
     const canAccessApp =
         isAuthenticated && (isAdminStatusLoading || subscriptionTier !== null || hasTeamRole);
 
+    /**
+     * TEMPORARY: Mastermind is restricted to admin/owner only while it runs on the dev/Replit
+     * server (a pending database migration blocks general release). This intentionally does NOT
+     * stay true during admin-status loading, so non-admins never briefly see Mastermind UI.
+     * To make Mastermind generally available later, switch its consumers back to `canAccessApp`.
+     */
+    const canAccessMastermind = isOwner || isAdmin;
+
     // ── Raw string values ─────────────────────────────────────────────────────────
     /** The user's primary ARV team role (highest privilege), or null if none. */
     const role: Roles | null = ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
@@ -132,6 +140,7 @@ export function useAuth() {
         isPremium,
 
         canAccessApp,
+        canAccessMastermind,
         // ── Raw values ──────────────────────────────────────────────────────────────
         roles,
         role,

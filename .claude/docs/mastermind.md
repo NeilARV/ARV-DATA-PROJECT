@@ -422,6 +422,7 @@ channels
 ├── type (enum: 'public','private','dm','group_dm')   ← Phase 1 only 'public'
 ├── created_by (uuid, FK → users.id)
 ├── is_archived (boolean, default false)   ← archive safety-net
+├── is_admin_only (boolean, default false) ← admin/owner-only visibility (service-enforced)
 ├── created_at (timestamp)
 └── updated_at (timestamp)
 

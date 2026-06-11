@@ -1322,7 +1322,12 @@ Reverse geocode a coordinate pair to a US county name. Proxies the US Census Bur
 The first slices of the Mastermind app (4th app). Access = any subscription tier OR any team
 role, via `requireMastermind` (a configured `requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`). Channel management is admin/owner only.
 Membership is implicit in Phase 1: every eligible user can read every public, non-archived
-channel. See [`access-control.md` §5.12–§5.13](./access-control.md).
+channel. **Admin-only channels** (`channels.is_admin_only = true`, e.g. `#admin`) are the
+exception — visible/usable by `admin`/`owner` only. They are excluded from `GET /api/channels`
+for non-admins, and every per-channel route (`/messages` GET+POST, `/read`, `/members`, `/pin`
+GET, `/messages/:id/reactions` POST+DELETE) returns **404** for a non-admin caller (existence is
+never disclosed). This is enforced in the services, not the route middleware. See
+[`access-control.md` §5.12–§5.13](./access-control.md).
 
 ### `GET /api/channels`
 List public channels.
@@ -1334,7 +1339,11 @@ List public channels.
 |---|---|---|
 | `includeArchived` | boolean (`"true"`) | Include archived channels. **Honored only for admin/owner**; ignored for everyone else. |
 
-**Response `200`** `{ "channels": [ { "id": "uuid", "name": "san-diego-market", "description": "…", "type": "public", "isArchived": false, "createdBy": "uuid|null", "createdAt": "…", "updatedAt": "…", "unreadCount": 3, "hasMention": false } ] }`
+**Response `200`** `{ "channels": [ { "id": "uuid", "name": "san-diego-market", "description": "…", "type": "public", "isArchived": false, "isAdminOnly": false, "createdBy": "uuid|null", "createdAt": "…", "updatedAt": "…", "unreadCount": 3, "hasMention": false } ] }`
+
+Channels are returned in display order: `#general` first, then market channels (`…-market`),
+then everything else, then **admin-only channels last**. Admin-only channels are **omitted
+entirely** for non-admin callers.
 
 `unreadCount` / `hasMention` are computed per-caller from `channel_members.last_read_at`: a
 channel the caller has never opened (no `channel_members` row) returns `unreadCount: 0`;
@@ -1357,7 +1366,7 @@ channel is being viewed.
 
 **Response `204`** (no body)
 
-**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found, or admin-only and caller is not admin/owner
 
 ---
 
@@ -1463,8 +1472,9 @@ set `👍 👎 😀 😢 😂 ✅`.
 ### `GET /api/channels/:id/members`
 List **mention candidates** for the channel's composer. Phase 1: returns **all
 Mastermind-eligible users** (any tier or any team role) — public channels all share the same
-pool, so the `:id` param is validated but not used to filter. Phase 2+ private/DM channels
-will narrow this to actual members.
+pool. For an **admin-only** channel the pool narrows to **admins/owners** (so you can't
+`@mention` a user who can't see the channel). Phase 2+ private/DM channels will narrow this to
+actual members.
 
 **Auth**: `requireMastermind`
 
@@ -1479,7 +1489,7 @@ will narrow this to actual members.
 }
 ```
 
-**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found, or admin-only and caller is not admin/owner
 
 ---
 
@@ -1501,7 +1511,7 @@ Channel message history, **or** reconnect backfill when `since` is supplied.
 
 **Response `200` (backfill mode, `?since=`)** `{ "messages": [ { ...message } ], "hasMore": false }` — oldest-first; `hasMore` is `true` if more than 500 messages are pending (request again with the last `id`).
 
-**Errors** `400` invalid channel id or cursor · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived
+**Errors** `400` invalid channel id or cursor · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived, or admin-only and caller is not admin/owner
 
 ---
 
@@ -1532,7 +1542,7 @@ content with no attachment is rejected.
 
 **Side effect**: After the message is persisted, the service parses `@user` mention marks from the sanitized HTML and inserts a row into `message_mentions` for each unique mentioned user (UNIQUE constraint deduplicates).
 
-**Errors** `400` invalid id / invalid input / empty with no attachment / invalid attachment URL · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found
+**Errors** `400` invalid id / invalid input / empty with no attachment / invalid attachment URL · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found, or admin-only and caller is not admin/owner
 
 ---
 
@@ -1586,7 +1596,7 @@ Add a reaction to a message.
 
 **Response `201`** `{ "success": true }`. Idempotent: re-reacting with the same emoji is a no-op (and skips the broadcast). On a real change, broadcasts `reaction.changed` (`action: "add"`) to the channel.
 
-**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel
+**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel (includes an admin-only channel when the caller is not admin/owner)
 
 ---
 
@@ -1601,7 +1611,7 @@ Remove your reaction from a message.
 
 **Response `200`** `{ "success": true }`. Self-scoped (only the caller's own reaction). Idempotent; broadcasts `reaction.changed` (`action: "remove"`) only on a real change.
 
-**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel
+**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel (includes an admin-only channel when the caller is not admin/owner)
 
 ---
 
@@ -1626,7 +1636,7 @@ The channel's single pinned message (or `null`).
 ```
 `pinned` is `null` when there is no pin or the pinned message has since been deleted.
 
-**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived, or admin-only and caller is not admin/owner
 
 ---
 
@@ -1679,7 +1689,10 @@ Upload one file for a message. Multipart (`multipart/form-data`, field `file`). 
 The in-app bell feed. All routes use `requireMastermind` and are **self-scoped** — every query
 filters on the caller's `user_id`. Rows are created server-side only, by the mention fan-out on
 message create (`@user` → type `mention`; `@channel` → type `channel_mention` for every eligible
-user; the sender never notifies themself). See `access-control.md` §5.14.
+user; the sender never notifies themself). In an **admin-only** channel the fan-out is scoped to
+**admins/owners** only — `@channel` reaches admins/owners, and a direct `@user` of a non-admin is
+dropped (no bell/email deep-linking a user into a channel they can't open). See
+`access-control.md` §5.14.
 
 The notification object shape (REST and the `notification.created` socket event are identical):
 
@@ -1760,7 +1773,9 @@ recipient**, independent of channel subscriptions — mentions reach users brows
 { "type": "subscribe",   "channelId": "uuid" }
 { "type": "unsubscribe", "channelId": "uuid" }
 ```
-`subscribe` is honored only for a public, non-archived channel.
+`subscribe` is honored only for a public, non-archived channel — and for an **admin-only**
+channel only when the client is `admin`/`owner` (otherwise the subscribe is silently ignored, so
+no live events for that channel are delivered).
 
 **Server → client** (JSON) — each carries the same enriched message object the REST routes
 return (timestamps as ISO strings):

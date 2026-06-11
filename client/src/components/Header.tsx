@@ -63,7 +63,7 @@ export default function Header() {
     const menuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const [location, setLocation] = useLocation();
-    const { user, isAuthenticated, canAccessAdminPanel, canAccessApp, logout } = useAuth();
+    const { user, isAuthenticated, canAccessAdminPanel, canAccessMastermind, logout } = useAuth();
     const { toast } = useToast();
 
     // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -311,7 +311,7 @@ export default function Header() {
                     Vendors
                 </Button>
 
-                {canAccessApp && (
+                {canAccessMastermind && (
                     <Button
                         variant={location === '/mastermind' ? 'default' : 'outline'}
                         size="sm"
@@ -356,7 +356,7 @@ export default function Header() {
                     </>
                 ) : (
                     <>
-                        {canAccessApp && <NotificationBell />}
+                        {canAccessMastermind && <NotificationBell />}
 
                         <Button
                             variant="ghost"
@@ -422,7 +422,7 @@ export default function Header() {
                                                     <Store className="w-4 h-4" />
                                                     Vendors
                                                 </button>
-                                                {canAccessApp && (
+                                                {canAccessMastermind && (
                                                     <button
                                                         className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                                                         onClick={() => {

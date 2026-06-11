@@ -67,7 +67,7 @@ A change is **significant** and requires an agent update when it alters somethin
    - The file name
    - What section needs updating
    - A brief description of the change (one line)
-5. **Ask for approval** before making any edits
+5. **Ask for approval** before making any edits. If I approve the first edit, then assume the rest are okay for that given task. No need to ask more than once.
 6. On approval, make the updates and show a summary of what changed
 
 ---

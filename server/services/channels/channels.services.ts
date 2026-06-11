@@ -29,14 +29,42 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 // Short-term channel ordering until explicit reordering ships: #general first, then the market
-// channels (…-market), then everything else (e.g. #first-time-flippers). The secondary name sort
-// keeps a stable, alphabetical order within each group. Replace with a position column when
-// drag-to-reorder lands.
+// channels (…-market), then everything else (e.g. #first-time-flippers), and finally admin-only
+// channels at the very end. The secondary name sort keeps a stable, alphabetical order within
+// each group. Replace with a position column when drag-to-reorder lands.
 const CHANNEL_DISPLAY_ORDER = sql`CASE
+    WHEN ${channels.isAdminOnly} THEN 3
     WHEN ${channels.name} = 'general' THEN 0
     WHEN ${channels.name} LIKE '%-market' THEN 1
     ELSE 2
 END`;
+
+// Roles that may see/use an admin-only channel.
+const CHANNEL_ADMIN_ROLES = ['admin', 'owner'] as const;
+
+// True if the user holds an admin or owner team role. Gates admin-only channels across the
+// channel list, mark-read, mention candidates, message read/write, notification fan-out, and
+// the WebSocket subscribe.
+export async function userIsAdminOrOwner(userId: string): Promise<boolean> {
+    const rows = await db
+        .select({ roleName: roles.name })
+        .from(userRoles)
+        .innerJoin(roles, eq(roles.id, userRoles.roleId))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...CHANNEL_ADMIN_ROLES])))
+        .limit(1);
+    return rows.length > 0;
+}
+
+// Every user id holding an admin or owner role — the audience for an admin-only channel
+// (mention candidates + @channel notification fan-out).
+export async function listAdminOwnerUserIds(): Promise<string[]> {
+    const rows = await db
+        .select({ userId: userRoles.userId })
+        .from(userRoles)
+        .innerJoin(roles, eq(roles.id, userRoles.roleId))
+        .where(inArray(roles.name, [...CHANNEL_ADMIN_ROLES]));
+    return Array.from(new Set(rows.map((r) => r.userId)));
+}
 
 // Lists public channels. Archived channels are excluded unless includeArchived is set
 // (the controller only honors that flag for admin/owner callers).
@@ -57,13 +85,17 @@ export async function listChannels({
 export async function listChannelsWithUnread({
     userId,
     includeArchived = false,
+    includeAdminOnly = false,
 }: {
     userId: string;
     includeArchived?: boolean;
+    includeAdminOnly?: boolean;
 }): Promise<ChannelWithUnread[]> {
-    const where = includeArchived
-        ? eq(channels.type, 'public')
-        : and(eq(channels.type, 'public'), eq(channels.isArchived, false));
+    const conditions = [eq(channels.type, 'public')];
+    if (!includeArchived) conditions.push(eq(channels.isArchived, false));
+    // Admin-only channels are hidden from everyone except admins/owners.
+    if (!includeAdminOnly) conditions.push(eq(channels.isAdminOnly, false));
+    const where = and(...conditions);
 
     return db
         .select({
@@ -72,6 +104,7 @@ export async function listChannelsWithUnread({
             description: channels.description,
             type: channels.type,
             isArchived: channels.isArchived,
+            isAdminOnly: channels.isAdminOnly,
             createdBy: channels.createdBy,
             createdAt: channels.createdAt,
             updatedAt: channels.updatedAt,
@@ -125,6 +158,20 @@ export async function markChannelRead({
     channelId: string;
     userId: string;
 }): Promise<void> {
+    // A non-admin must not be able to advance read-state (or lazily create a member row) on an
+    // admin-only channel. Treat it as not-found so existence is never disclosed.
+    const [channel] = await db
+        .select({ type: channels.type, isArchived: channels.isArchived, isAdminOnly: channels.isAdminOnly })
+        .from(channels)
+        .where(eq(channels.id, channelId))
+        .limit(1);
+    if (!channel || channel.type !== 'public' || channel.isArchived) {
+        throw new ChannelServiceError(404, 'Channel not found');
+    }
+    if (channel.isAdminOnly && !(await userIsAdminOrOwner(userId))) {
+        throw new ChannelServiceError(404, 'Channel not found');
+    }
+
     const [latest] = await db
         .select({ id: messages.id })
         .from(messages)
@@ -266,10 +313,13 @@ export async function listEligibleUserIds(): Promise<string[]> {
     return Array.from(new Set([...byRoleRows, ...bySubRows].map((r) => r.userId)));
 }
 
-// Phase 1: every Mastermind-eligible user is a candidate for @mentions in any
-// public channel. In Phase 2+, private/DM channels can narrow this to actual members.
-export async function listChannelMentionCandidates(): Promise<MentionCandidate[]> {
-    const eligibleIds = await listEligibleUserIds();
+// Phase 1: every Mastermind-eligible user is a candidate for @mentions in any public channel.
+// For an admin-only channel the pool narrows to admins/owners, so you can't @mention a user who
+// can't see the channel. In Phase 2+, private/DM channels can narrow this to actual members.
+export async function listChannelMentionCandidates(
+    { adminOnly = false }: { adminOnly?: boolean } = {},
+): Promise<MentionCandidate[]> {
+    const eligibleIds = adminOnly ? await listAdminOwnerUserIds() : await listEligibleUserIds();
     if (eligibleIds.length === 0) return [];
 
     return db

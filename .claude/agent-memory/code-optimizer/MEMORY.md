@@ -11,3 +11,5 @@
 - [Mastermind eligibility duplicated](project_mastermind_eligibility_duplicated.md) — tiers+bypass-roles rule copy-pasted across requireMastermind and mention-candidate query; both must change together
 - [Mastermind WS delivery scope](project_mastermind_ws_delivery_scope.md) — MessageCreated only reaches subscribers of that channel; client subscribes to active channel only — cross-channel live features need broadcastToUser
 - [Mastermind reactions broadcast-only](project_mastermind_reactions_broadcast_only.md) — no optimistic update; idempotent add/remove drifts counts if WS delta is broadcast unconditionally without checking DB changed
+- [Message-id routes bypass channel guard](project_mastermind_message_id_routes_bypass_channel_guard.md) — /api/messages/:id edit/delete/reactions resolve by message id and skip getReadableChannelOrThrow; re-audit each when a channel-level rule (admin-only) ships
+- [Mastermind temp admin gate](project_mastermind_temp_admin_gate.md) — TEMPORARY canAccessMastermind=isOwner||isAdmin hides UI; socket+notifications queries left on broader canAccessApp on purpose

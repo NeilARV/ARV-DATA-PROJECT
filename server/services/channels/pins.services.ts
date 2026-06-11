@@ -2,6 +2,7 @@ import { db } from 'server/storage';
 import { messages, channels, pinnedMessages } from '@database/schemas/mastermind.schema';
 import { users } from '@database/schemas/users.schema';
 import { getEnrichedMessageById, toMessageWire } from 'server/services/messages/messages.services';
+import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
 import { eq } from 'drizzle-orm';
 import type { PinnedMessageWire } from '@shared/mastermind/events';
 
@@ -15,13 +16,22 @@ export class PinServiceError extends Error {
     }
 }
 
-async function getReadableChannelOrThrow(channelId: string): Promise<void> {
+// `viewerId` is supplied on reads (GET pin) to enforce admin-only visibility. Pin set/clear are
+// already `requireRole(['admin','owner'])` at the route, so they call without a viewer.
+async function getReadableChannelOrThrow(channelId: string, viewerId?: string): Promise<void> {
     const [channel] = await db
-        .select({ type: channels.type, isArchived: channels.isArchived })
+        .select({
+            type: channels.type,
+            isArchived: channels.isArchived,
+            isAdminOnly: channels.isAdminOnly,
+        })
         .from(channels)
         .where(eq(channels.id, channelId))
         .limit(1);
     if (!channel || channel.type !== 'public' || channel.isArchived) {
+        throw new PinServiceError(404, 'Channel not found');
+    }
+    if (channel.isAdminOnly && viewerId && !(await userIsAdminOrOwner(viewerId))) {
         throw new PinServiceError(404, 'Channel not found');
     }
 }
@@ -60,7 +70,7 @@ export async function getChannelPin(
     channelId: string,
     viewerId: string,
 ): Promise<PinnedMessageWire | null> {
-    await getReadableChannelOrThrow(channelId);
+    await getReadableChannelOrThrow(channelId, viewerId);
     return buildPinWire(channelId, viewerId);
 }
 

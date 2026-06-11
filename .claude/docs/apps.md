@@ -569,7 +569,7 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 ## API Surface (`server/routes/channels.routes.ts`, `server/routes/messages.routes.ts`, `server/routes/notifications.routes.ts`)
 | Method | Route | Auth | Notes |
 |---|---|---|---|
-| GET | `/api/channels` | `requireMastermind` | Lists public, non-archived channels; admin/owner may pass `?includeArchived=true` |
+| GET | `/api/channels` | `requireMastermind` | Lists public, non-archived channels (ordered general → markets → others → admin-only last); admin/owner may pass `?includeArchived=true`. Admin-only channels are excluded for non-admins; every per-channel route 404s a non-admin on an admin-only channel (service-enforced) |
 | POST | `/api/channels` | `requireRole(["admin","owner"])` | Create; `name` is a unique lowercase slug |
 | PATCH | `/api/channels/:id` | `requireRole(["admin","owner"])` | Rename / edit description |
 | POST | `/api/channels/:id/archive` | `requireRole(["admin","owner"])` | Soft archive (`is_archived = true`) |

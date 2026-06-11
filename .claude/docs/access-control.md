@@ -335,6 +335,33 @@ read-state; they are not consulted for authorization in Phase 1.
   channel is **already archived** — otherwise it returns `409` ("archive the channel before
   deleting"). This is the delete-twice safety net.
 
+**Admin-only channels (`channels.is_admin_only = true`, e.g. `#admin`):**
+A channel flagged `is_admin_only` is visible and usable by **`admin`/`owner` only** — *not*
+`member`, `relationship-manager`, or any subscriber, even though all of those pass
+`requireMastermind`. The flag is an **orthogonal, service-enforced** restriction layered on top
+of the route middleware in the tables above (the channel is still `type='public'`). Enforcement
+points (a non-admin caller is treated as if the channel does not exist → **404**, so existence is
+never disclosed):
+- `GET /api/channels` **excludes** admin-only channels for non-admins (so the channel never
+  appears in their sidebar, mention lists, or deep links).
+- `GET`/`POST /api/channels/:id/messages`, `PATCH /api/channels/:id/read`,
+  `GET /api/channels/:id/members`, and `GET /api/channels/:id/pin` all return **404** for a
+  non-admin caller. For admin/owner they behave normally.
+- The message-id-scoped routes (`POST`/`DELETE /api/messages/:id/reactions`) also **404** a
+  non-admin on an admin-only channel's message (the reaction service re-checks the channel).
+  Edit/delete (`PATCH`/`DELETE /api/messages/:id`) are already author-or-admin gated, and a
+  non-admin can never be the author of an admin-only message (they can't post), so they're
+  blocked there too.
+- `GET /api/channels/:id/members` additionally **scopes mention candidates to admins/owners** for
+  an admin-only channel (you cannot `@mention` a user who can't see the channel).
+- **Notification fan-out** is scoped: an `@channel` in an admin-only channel notifies
+  **admins/owners only**, and a direct `@user` of a non-admin is **dropped** (no bell/email
+  deep-linking a user into a channel they can't open).
+- **Real-time:** the `/ws` `subscribe` to an admin-only channel is rejected for a non-admin
+  client (see the WS note in §5.13).
+- Channel-management routes (`POST`/`PATCH`/archive/`DELETE`, pin set/clear) are already
+  `requireRole(['admin','owner'])`, so they need no extra check.
+
 ---
 
 ### 5.13 Mastermind — Messages (`/api/channels/:id/messages`, `/api/messages/:id`)
@@ -388,7 +415,9 @@ route, so the middleware table above doesn't apply. The upgrade is authenticated
 `SESSION_SECRET`, loads the session, and requires `isMastermindEligible(userId)` — the **same
 rule** as `requireMastermind`. A missing/invalid cookie, missing session, or ineligible user
 causes the upgrade to be rejected with `401` (no socket opens). Once connected, a client may only
-`subscribe` to public, non-archived channels.
+`subscribe` to public, non-archived channels — and to an **admin-only** channel only if the
+client is `admin`/`owner` (otherwise the subscribe is silently ignored, so no live events for that
+channel are delivered).
 
 ---
 

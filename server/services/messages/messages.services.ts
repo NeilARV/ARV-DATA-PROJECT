@@ -285,14 +285,24 @@ export async function getEnrichedMessageById(
 }
 
 // Phase 1: messages live only in public, non-archived channels. Archived/unknown → 404.
-async function getReadableChannelOrThrow(channelId: string): Promise<void> {
+// Admin-only channels are readable by admins/owners only; for anyone else they 404 (existence
+// is never disclosed).
+async function getReadableChannelOrThrow(channelId: string, viewerId: string): Promise<void> {
     const [channel] = await db
-        .select({ id: channels.id, type: channels.type, isArchived: channels.isArchived })
+        .select({
+            id: channels.id,
+            type: channels.type,
+            isArchived: channels.isArchived,
+            isAdminOnly: channels.isAdminOnly,
+        })
         .from(channels)
         .where(eq(channels.id, channelId))
         .limit(1);
 
     if (!channel || channel.type !== 'public' || channel.isArchived) {
+        throw new MessageServiceError(404, 'Channel not found');
+    }
+    if (channel.isAdminOnly && !(await callerIsPrivileged(viewerId))) {
         throw new MessageServiceError(404, 'Channel not found');
     }
 }
@@ -325,7 +335,7 @@ export async function listMessages({
     cursor?: string;
     limit?: number;
 }): Promise<{ messages: EnrichedMessage[]; nextCursor: string | null }> {
-    await getReadableChannelOrThrow(channelId);
+    await getReadableChannelOrThrow(channelId, viewerId);
 
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, limit ?? DEFAULT_PAGE_SIZE));
 
@@ -368,7 +378,7 @@ export async function backfillMessages({
     viewerId: string;
     since: string;
 }): Promise<{ messages: EnrichedMessage[]; hasMore: boolean }> {
-    await getReadableChannelOrThrow(channelId);
+    await getReadableChannelOrThrow(channelId, viewerId);
 
     const keyset = await resolveCursor(channelId, since);
 
@@ -409,12 +419,21 @@ export async function createMessage({
     checkPostRateLimit(senderId);
 
     const [channel] = await db
-        .select({ id: channels.id, type: channels.type, isArchived: channels.isArchived })
+        .select({
+            id: channels.id,
+            type: channels.type,
+            isArchived: channels.isArchived,
+            isAdminOnly: channels.isAdminOnly,
+        })
         .from(channels)
         .where(eq(channels.id, channelId))
         .limit(1);
 
     if (!channel || channel.type !== 'public') {
+        throw new MessageServiceError(404, 'Channel not found');
+    }
+    // Hide admin-only channels from non-admins (404 before the archived check leaks nothing).
+    if (channel.isAdminOnly && !(await callerIsPrivileged(senderId))) {
         throw new MessageServiceError(404, 'Channel not found');
     }
     if (channel.isArchived) {

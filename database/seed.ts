@@ -447,7 +447,14 @@ async function seed() {
             { name: 'port-st-lucie-market', description: 'Port St. Lucie market talk', type: 'public' },
             { name: 'riverside-market', description: 'Riverside MSA market talk', type: 'public' },
             { name: 'seattle-market', description: 'Seattle MSA market talk', type: 'public' },
-            { name: 'tampa-market', description: 'Tampa MSA market talk', type: 'public' }
+            { name: 'tampa-market', description: 'Tampa MSA market talk', type: 'public' },
+            // Admin/owner-only testing channel — hidden from members, RMs, and subscribers.
+            {
+                name: 'admin',
+                description: 'Admin & owner testing channel',
+                type: 'public',
+                isAdminOnly: true,
+            }
         ])
         .onConflictDoNothing();
     console.log('  ✓ channels');

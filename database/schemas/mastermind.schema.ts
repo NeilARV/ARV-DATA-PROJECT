@@ -33,6 +33,9 @@ export const channels = pgTable('channels', {
     // Keep the channel if its creator is deleted.
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     isArchived: boolean('is_archived').notNull().default(false), // archive safety-net
+    // When true, the channel is visible/usable by admin/owner ONLY (not member/RM/subscriber).
+    // Orthogonal to `type`; enforced in the services, not the route middleware.
+    isAdminOnly: boolean('is_admin_only').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

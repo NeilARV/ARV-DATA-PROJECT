@@ -997,6 +997,7 @@ A topic channel (e.g. `general`, `san-diego-market`).
 | `type` | `channel_type` enum | NOT NULL, default `'public'` |
 | `created_by` | `uuid` | FK → `users.id` (set null), nullable |
 | `is_archived` | `boolean` | NOT NULL, default false |
+| `is_admin_only` | `boolean` | NOT NULL, default false — admin/owner-only visibility (service-enforced, not middleware) |
 | `created_at` | `timestamp with time zone` | NOT NULL, default now |
 | `updated_at` | `timestamp with time zone` | NOT NULL, default now |
 

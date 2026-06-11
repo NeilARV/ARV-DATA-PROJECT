@@ -7,6 +7,7 @@ import {
     archiveChannel,
     deleteChannel,
     listChannelMentionCandidates,
+    getChannelById,
     ChannelServiceError,
 } from 'server/services/channels/channels.services';
 import {
@@ -45,10 +46,15 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
 export async function getChannelsController(req: Request, res: Response): Promise<void> {
     try {
         const callerId = req.session.userId!;
-        const wantsArchived = req.query.includeArchived === 'true';
-        const includeArchived = wantsArchived && (await callerIsChannelAdmin(callerId));
+        const isAdmin = await callerIsChannelAdmin(callerId);
+        const includeArchived = req.query.includeArchived === 'true' && isAdmin;
 
-        const channels = await listChannelsWithUnread({ userId: callerId, includeArchived });
+        // Admins/owners additionally see admin-only channels; everyone else has them hidden.
+        const channels = await listChannelsWithUnread({
+            userId: callerId,
+            includeArchived,
+            includeAdminOnly: isAdmin,
+        });
         res.json({ channels });
     } catch (err) {
         handleServiceError(res, err, 'Error fetching channels');
@@ -139,7 +145,20 @@ export async function getChannelMembersController(req: Request, res: Response): 
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
-        const members = await listChannelMentionCandidates();
+
+        // Hide admin-only channels (and their member list) from non-admins; scope the mention
+        // candidate pool to admins/owners when the channel is admin-only.
+        const channel = await getChannelById(id);
+        if (!channel || channel.type !== 'public' || channel.isArchived) {
+            res.status(404).json({ message: 'Channel not found' });
+            return;
+        }
+        if (channel.isAdminOnly && !(await callerIsChannelAdmin(req.session.userId!))) {
+            res.status(404).json({ message: 'Channel not found' });
+            return;
+        }
+
+        const members = await listChannelMentionCandidates({ adminOnly: channel.isAdminOnly });
         res.json({ users: members });
     } catch (err) {
         handleServiceError(res, err, 'Error fetching channel members');

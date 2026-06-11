@@ -29,7 +29,7 @@ type ChannelsResponse = { channels: ChannelSummary[] };
 type UnreadEntry = { count: number; hasMention: boolean };
 
 function MastermindContent() {
-    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessApp, user } = useAuth();
+    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessMastermind, user } = useAuth();
     const { openDialog } = useDialogs();
     const { lastCreatedMessage } = useMastermindSocket();
 
@@ -52,7 +52,7 @@ function MastermindContent() {
 
     const { data, isLoading: channelsLoading } = useQuery<ChannelsResponse>({
         queryKey: ['/api/channels'],
-        enabled: canAccessApp,
+        enabled: canAccessMastermind,
     });
     const channels = data?.channels ?? [];
 
@@ -228,16 +228,22 @@ function MastermindContent() {
         );
     }
 
-    if (!canAccessApp) {
+    // TEMPORARY: Mastermind is limited to admin/owner while it runs on the dev server (pending DB
+    // migration). Non-admins get an inform page with a way back, mirroring the Admin page gate.
+    if (!canAccessMastermind) {
         return (
             <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
                 <Brain className="w-10 h-10 text-muted-foreground" />
                 <div className="space-y-1">
-                    <p className="text-base font-semibold text-foreground">Subscription required</p>
+                    <p className="text-base font-semibold text-foreground">Admins &amp; owners only</p>
                     <p className="text-sm text-muted-foreground">
-                        Mastermind is available to ARV subscribers and team members.
+                        Mastermind is currently limited to ARV admins and owners while we finish
+                        setting it up. Check back soon.
                     </p>
                 </div>
+                <Button size="sm" onClick={() => setLocation('/')}>
+                    Back to Home
+                </Button>
             </div>
         );
     }

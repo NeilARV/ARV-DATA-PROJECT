@@ -1,7 +1,7 @@
 import { db } from 'server/storage';
 import { notifications, channels, messages } from '@database/schemas/mastermind.schema';
 import { users } from '@database/schemas/users.schema';
-import { listEligibleUserIds } from 'server/services/channels/channels.services';
+import { listEligibleUserIds, listAdminOwnerUserIds } from 'server/services/channels/channels.services';
 import { htmlToPlainText } from 'server/utils/sanitizeHtml';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 
@@ -69,12 +69,26 @@ export async function createMentionNotifications({
               ).map((r) => r.id)
             : [];
 
+    // In an admin-only channel, no one outside admin/owner may be notified — otherwise a member
+    // would get a bell/email deep-linking into a channel they can't open. Scope @channel fan-out
+    // to admins/owners and drop direct @user mentions of anyone else.
+    const [chan] = await db
+        .select({ isAdminOnly: channels.isAdminOnly })
+        .from(channels)
+        .where(eq(channels.id, channelId))
+        .limit(1);
+    const adminOwnerIds = chan?.isAdminOnly ? new Set(await listAdminOwnerUserIds()) : null;
+
     // A directly-mentioned user covered by @channel gets one row, preferring 'mention'.
     const recipients = new Map<string, 'mention' | 'channel_mention'>();
     if (mentionedEveryone) {
-        for (const id of await listEligibleUserIds()) recipients.set(id, 'channel_mention');
+        const everyone = adminOwnerIds ? Array.from(adminOwnerIds) : await listEligibleUserIds();
+        for (const id of everyone) recipients.set(id, 'channel_mention');
     }
-    for (const id of directIds) recipients.set(id, 'mention');
+    for (const id of directIds) {
+        if (adminOwnerIds && !adminOwnerIds.has(id)) continue;
+        recipients.set(id, 'mention');
+    }
     recipients.delete(actorId);
 
     if (recipients.size === 0) return [];
