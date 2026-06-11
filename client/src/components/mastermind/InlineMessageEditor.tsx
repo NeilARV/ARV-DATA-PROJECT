@@ -2,6 +2,7 @@ import { EditorContent } from '@tiptap/react';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { ComposerToolbar } from '@/components/mastermind/ComposerToolbar';
 import { MentionDropdownPortal } from '@/components/mastermind/MentionDropdownPortal';
 
 import { useMastermindEditor } from '@/hooks/use-mastermind-editor';
@@ -52,6 +53,9 @@ export function InlineMessageEditor({
                 >
                     <EditorContent editor={editor} />
                 </div>
+                <ComposerToolbar editor={editor} editorState={editorState}>
+                    <div className="flex-1" />
+                </ComposerToolbar>
             </div>
             <div className="flex items-center gap-2 mt-1.5">
                 <Button

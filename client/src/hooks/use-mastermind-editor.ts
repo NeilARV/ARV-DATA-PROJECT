@@ -200,7 +200,7 @@ export function useMastermindEditor({
             StarterKit,
             Underline,
             Link.configure({
-                autolink: true,
+                autolink: false,
                 linkOnPaste: true,
                 openOnClick: false,
                 HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
