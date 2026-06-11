@@ -282,6 +282,13 @@ the socket backfills with no lost messages.
 - Layout: channel sidebar (list + unread badges) · message list (infinite scroll) · composer.
 - Composer reuses the TipTap stack; messages render formatted HTML (reuse `PostCard` render).
 - Mobile: sidebar/messages tab-switch (mirror Vendors' Browse/Activity pattern).
+- **URL-based channel routing:** the open channel lives in the URL as a path param —
+  `/mastermind/:channelName` (keyed on the unique channel **name** slug, not the id), with both
+  `/mastermind` and `/mastermind/:channelName` rendering the same page (Wouter, not file-based).
+  Channel links are shareable and browser back/forward works. A bare `/mastermind` or an
+  unknown/archived name redirects to the first channel. Notification deep-links are
+  `/mastermind/<name>?m=<messageId>` (channel in the path, highlight target as the only query
+  param, stripped after it fires).
 **Done:** a member can open `/mastermind`, pick a channel, send a formatted message, and scroll
 history on desktop + mobile.
 

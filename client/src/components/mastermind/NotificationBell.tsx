@@ -50,11 +50,9 @@ export function NotificationBell() {
     function handleNotificationClick(n: NotificationWire) {
         if (!n.isRead) markRead(n.id);
         setOpen(false);
-        if (n.channelId) {
-            const target = n.messageId
-                ? `/mastermind?c=${n.channelId}&m=${n.messageId}`
-                : `/mastermind?c=${n.channelId}`;
-            setLocation(target);
+        if (n.channelName) {
+            const base = `/mastermind/${encodeURIComponent(n.channelName)}`;
+            setLocation(n.messageId ? `${base}?m=${n.messageId}` : base);
         }
     }
 

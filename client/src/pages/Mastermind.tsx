@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useSearch } from 'wouter';
+import { useLocation, useRoute, useSearch } from 'wouter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Brain, Loader2 } from 'lucide-react';
 
@@ -34,9 +34,12 @@ function MastermindContent() {
     const { lastCreatedMessage } = useMastermindSocket();
 
     const search = useSearch();
-    const [, setLocation] = useLocation();
+    const [locationPath, setLocation] = useLocation();
+    const [, routeParams] = useRoute('/mastermind/:channelName');
+    const channelNameParam = routeParams?.channelName
+        ? decodeURIComponent(routeParams.channelName)
+        : null;
 
-    const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
     const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());
     const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
@@ -52,6 +55,13 @@ function MastermindContent() {
         enabled: canAccessApp,
     });
     const channels = data?.channels ?? [];
+
+    // The open channel is derived from the URL (/mastermind/<name>), not local state, so links
+    // are shareable and browser back/forward works. Resolve the name to the loaded channel.
+    const activeChannel = channelNameParam
+        ? channels.find((c) => c.name === channelNameParam) ?? null
+        : null;
+    const activeChannelId = activeChannel?.id ?? null;
 
     const markReadMutation = useMutation({
         mutationFn: (channelId: string) =>
@@ -104,32 +114,32 @@ function MastermindContent() {
         );
     }, [channels]);
 
-    // Auto-select the first channel once the list loads; mark it as read. Also self-heals
-    // an active id that isn't in the list (stale deep-link, channel archived mid-session).
+    // Resolve the URL to a channel. A bare /mastermind or an unknown/archived channel name
+    // redirects to the first channel, so the view is never empty and the URL always names the
+    // open channel (this also self-heals stale deep-links).
     useEffect(() => {
         if (channels.length === 0) return;
-        if (activeChannelId && channels.some((c) => c.id === activeChannelId)) return;
-        const first = channels[0];
-        setActiveChannelId(first.id);
-        clearUnread(first.id);
-        scheduleMarkRead(first.id);
-    }, [channels, activeChannelId, clearUnread, scheduleMarkRead]);
+        if (activeChannel) return;
+        setLocation(`/mastermind/${encodeURIComponent(channels[0].name)}`, { replace: true });
+    }, [channels, activeChannel, setLocation]);
 
-    // Notification deep-link: /mastermind?c=<channelId>&m=<messageId>. Activate the target
-    // channel, remember the message to highlight, then strip the params so a refresh or
-    // history-back doesn't re-fire the jump.
+    // Opening a channel (via URL change) clears its unread badge and advances read state.
     useEffect(() => {
-        const params = new URLSearchParams(search);
-        const channelId = params.get('c');
-        if (!channelId) return;
+        if (!activeChannelId) return;
+        clearUnread(activeChannelId);
+        scheduleMarkRead(activeChannelId);
+    }, [activeChannelId, clearUnread, scheduleMarkRead]);
 
-        setActiveChannelId(channelId);
-        setHighlightMessageId(params.get('m'));
+    // Notification deep-link: /mastermind/<name>?m=<messageId>. The channel comes from the path;
+    // only the highlight target rides as a query param. Capture it, switch to the chat pane on
+    // mobile, then strip the query so a refresh or history-back doesn't re-fire the jump.
+    useEffect(() => {
+        const messageId = new URLSearchParams(search).get('m');
+        if (!messageId) return;
+        setHighlightMessageId(messageId);
         setMobileTab('chat');
-        clearUnread(channelId);
-        scheduleMarkRead(channelId);
-        setLocation('/mastermind', { replace: true });
-    }, [search, clearUnread, scheduleMarkRead, setLocation]);
+        setLocation(locationPath, { replace: true });
+    }, [search, locationPath, setLocation]);
 
     // Fallback release: a highlight whose target isn't in the loaded page (older message)
     // would otherwise linger and glow unexpectedly if backfill later loads that message.
@@ -167,13 +177,11 @@ function MastermindContent() {
         });
     }, [lastCreatedMessage, activeChannelId, user?.id, scheduleMarkRead]);
 
-    const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
-
     function handleSelectChannel(id: string) {
-        setActiveChannelId(id);
+        const channel = channels.find((c) => c.id === id);
+        if (!channel) return;
         setMobileTab('chat');
-        clearUnread(id);
-        scheduleMarkRead(id);
+        setLocation(`/mastermind/${encodeURIComponent(channel.name)}`);
     }
 
     // Merge live unread state into the channels list for the sidebar.
