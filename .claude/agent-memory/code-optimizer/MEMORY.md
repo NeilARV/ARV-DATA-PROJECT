@@ -13,3 +13,4 @@
 - [Mastermind reactions broadcast-only](project_mastermind_reactions_broadcast_only.md) — no optimistic update; idempotent add/remove drifts counts if WS delta is broadcast unconditionally without checking DB changed
 - [Message-id routes bypass channel guard](project_mastermind_message_id_routes_bypass_channel_guard.md) — /api/messages/:id edit/delete/reactions resolve by message id and skip getReadableChannelOrThrow; re-audit each when a channel-level rule (admin-only) ships
 - [Mastermind temp admin gate](project_mastermind_temp_admin_gate.md) — TEMPORARY canAccessMastermind=isOwner||isAdmin hides UI; socket+notifications queries left on broader canAccessApp on purpose
+- [Mastermind edit attachments authoritative](project_mastermind_edit_attachments_authoritative.md) — edit sends full desired attachment set, server reconciles by fileUrl; cache no longer preserves cached attachments on MessageUpdated

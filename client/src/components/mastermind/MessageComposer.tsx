@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { FileText, Loader2, Paperclip, X } from 'lucide-react';
+import { Loader2, Paperclip } from 'lucide-react';
 import { EditorContent } from '@tiptap/react';
 
 import { Button } from '@/components/ui/button';
 import { ComposerToolbar } from '@/components/mastermind/ComposerToolbar';
 import { MentionDropdownPortal } from '@/components/mastermind/MentionDropdownPortal';
+import { AttachmentChip } from '@/components/mastermind/AttachmentChip';
 
 import { useMastermindEditor } from '@/hooks/use-mastermind-editor';
 import { useToast } from '@/hooks/use-toast';
@@ -96,35 +97,14 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
                     {/* Pending attachments */}
                     {pendingFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-3 pt-3">
-                            {pendingFiles.map((file, i) => {
-                                const previewUrl = previewUrls[i];
-                                return (
-                                    <div
-                                        key={`${file.name}-${i}`}
-                                        className="relative flex items-center gap-2 rounded-md border border-border bg-muted px-2 py-1.5 max-w-[180px]"
-                                    >
-                                        {previewUrl ? (
-                                            <img
-                                                src={previewUrl}
-                                                alt=""
-                                                className="w-8 h-8 rounded object-cover flex-shrink-0"
-                                            />
-                                        ) : (
-                                            <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                        )}
-                                        <span className="text-xs text-foreground truncate">
-                                            {file.name}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeFile(i)}
-                                            className="flex-shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-                                        >
-                                            <X className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                );
-                            })}
+                            {pendingFiles.map((file, i) => (
+                                <AttachmentChip
+                                    key={`${file.name}-${i}`}
+                                    previewUrl={previewUrls[i]}
+                                    fileName={file.name}
+                                    onRemove={() => removeFile(i)}
+                                />
+                            ))}
                         </div>
                     )}
 

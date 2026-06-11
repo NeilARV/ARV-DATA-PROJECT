@@ -1555,16 +1555,23 @@ Edit your own message. **Author-only — even admins cannot edit another user's 
 
 **Body** (validated via `updateMessageSchema`)
 ```json
-{ "content": "<p>Edited text</p>" }
+{
+  "content": "<p>Edited text</p>",
+  "attachments": [
+    { "fileUrl": "https://…/mastermind/…", "fileName": "spec.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 }
+  ]
+}
 ```
 
-Sets `isEdited = true`. Content is sanitized server-side.
+Sets `isEdited = true`. Content is sanitized server-side. A message is valid with text **OR** at least one attachment.
+
+**`attachments`** (optional) is the **full desired set** for the message: kept attachments (with their existing `fileUrl`) plus any newly uploaded ones (uploaded first via `POST /api/mastermind/attachments`). The server reconciles by `fileUrl` — attachments no longer present are deleted (rows **and** their Supabase Storage objects), and new ones are inserted (max `MAX_ATTACHMENTS_PER_MESSAGE`; each `fileUrl` must point at the Mastermind bucket). Omitting the key leaves existing attachments untouched.
 
 **Side effect**: `message_mentions` rows for this message are rebuilt on every edit — previous mention rows are deleted and re-inserted from the updated content.
 
 **Response `200`** `{ "message": { ...message } }`
 
-**Errors** `400` invalid id / invalid input / empty after sanitize · `401` not authenticated · `403` not the author · `404` not found · `409` message is deleted
+**Errors** `400` invalid id / invalid input / empty after sanitize with no attachment / invalid attachment URL / too many attachments · `401` not authenticated · `403` not the author · `404` not found · `409` message is deleted
 
 ---
 

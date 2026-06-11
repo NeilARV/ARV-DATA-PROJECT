@@ -45,9 +45,20 @@ export const createMessageSchema = z
         { message: 'Message must have text or an attachment' },
     );
 
-export const updateMessageSchema = z.object({
-    content: z.string().min(1, 'Message cannot be empty').max(10000, 'Message is too long'),
-});
+// Edits carry the full desired attachment set: kept attachments plus any newly uploaded ones.
+// Like createMessageSchema, a message stays valid with text OR at least one attachment.
+export const updateMessageSchema = z
+    .object({
+        content: z.string().max(10000, 'Message is too long').optional(),
+        attachments: z
+            .array(messageAttachmentSchema)
+            .max(MAX_ATTACHMENTS_PER_MESSAGE, 'Too many attachments')
+            .optional(),
+    })
+    .refine(
+        (data) => (data.content?.trim().length ?? 0) > 0 || (data.attachments?.length ?? 0) > 0,
+        { message: 'Message must have text or an attachment' },
+    );
 
 export const reactionSchema = z.object({
     emoji: z.enum(MASTERMIND_REACTION_EMOJIS, { message: 'Unsupported reaction' }),

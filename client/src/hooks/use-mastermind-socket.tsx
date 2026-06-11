@@ -134,7 +134,7 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                 return;
             }
 
-            // Edits/deletes merge field-wise so live reaction/attachment state survives.
+            // Edits/deletes take attachments from the event; live reaction state survives.
             if (
                 evt.type === ServerToClient.MessageUpdated ||
                 evt.type === ServerToClient.MessageDeleted

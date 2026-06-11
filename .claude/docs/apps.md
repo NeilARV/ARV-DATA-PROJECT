@@ -578,7 +578,7 @@ exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindE
 | GET | `/api/channels/:id/messages` | `requireMastermind` | History (`?cursor=&limit=`) → `{ messages, nextCursor }`; backfill (`?since=`) → `{ messages, hasMore }`. Soft-deleted = blank tombstones |
 | POST | `/api/channels/:id/messages` | `requireMastermind` | Send; content sanitized server-side; `parentMessageId` ignored (Phase 1); `403` if channel archived |
 | PATCH | `/api/channels/:id/read` | `requireMastermind` | Advance caller's read-state (lazy `channel_members` upsert) → `204` |
-| PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message; admins **cannot** edit others'; sets `isEdited` |
+| PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message (text **and** attachments — `attachments[]` is the full desired set, reconciled by `fileUrl`); admins **cannot** edit others'; sets `isEdited` |
 | DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin) | Soft delete (author or admin/owner); also clears its attachments/reactions/pin |
 | POST | `/api/messages/:id/reactions` | `requireMastermind` | Add a fixed-set reaction (idempotent); broadcasts `reaction.changed` |
 | DELETE | `/api/messages/:id/reactions` | `requireMastermind` | Remove own reaction; broadcasts `reaction.changed` |
@@ -643,7 +643,7 @@ notifications. See `.claude/docs/database.md` (Mastermind section) for full colu
 
 ## Validation (`database/validation/mastermind.validation.ts`, `database/inserts/mastermind.insert.ts`)
 Request schemas: `createChannelSchema`, `updateChannelSchema`, `createMessageSchema` (accepts
-optional `attachments[]`), `updateMessageSchema`, `reactionSchema`, `messageAttachmentSchema`,
+optional `attachments[]`), `updateMessageSchema` (also accepts optional `attachments[]` — the full desired set), `reactionSchema`, `messageAttachmentSchema`,
 `pinMessageSchema`. `MASTERMIND_REACTION_EMOJIS` is the fixed reaction set (👍 👎 😀 😢 😂 ✅) and
 `MAX_ATTACHMENTS_PER_MESSAGE` (5) the per-message cap. drizzle-zod insert schemas live in
 `database/inserts/mastermind.insert.ts`; types in `database/types/mastermind.d.ts`.

@@ -43,9 +43,10 @@ export function mergeMessages(
     return result;
 }
 
-// Applies an edit/delete to the cached list WITHOUT clobbering reactions/attachments. A
-// channel-wide update can't carry per-viewer reaction state, so we merge content/flags only
-// and keep the existing reactions & attachments. Unknown messages are ignored (not inserted).
+// Applies an edit/delete to the cached list. Attachments come from the event (an edit may add
+// or remove them; a delete clears them). Reactions are kept from the cache because a
+// channel-wide broadcast can't carry per-viewer reactedByMe state. Unknown messages are
+// ignored (not inserted).
 export function applyMessageMutation(
     existing: MastermindMessageWire[],
     incoming: MastermindMessageWire,
@@ -55,7 +56,6 @@ export function applyMessageMutation(
             ? {
                   ...incoming,
                   reactions: m.reactions,
-                  attachments: incoming.isDeleted ? [] : m.attachments,
               }
             : m,
     );

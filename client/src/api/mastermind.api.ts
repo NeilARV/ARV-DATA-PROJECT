@@ -16,8 +16,14 @@ export async function removeReaction(messageId: string, emoji: string): Promise<
     await apiRequest('DELETE', `/api/messages/${messageId}/reactions`, { emoji });
 }
 
-export async function editMessage(messageId: string, content: string): Promise<void> {
-    await apiRequest('PATCH', `/api/messages/${messageId}`, { content });
+// `attachments` is the full desired set (kept + newly uploaded). Omit it to leave a message's
+// existing attachments untouched.
+export async function editMessage(
+    messageId: string,
+    content: string,
+    attachments?: UploadedAttachment[],
+): Promise<void> {
+    await apiRequest('PATCH', `/api/messages/${messageId}`, { content, attachments });
 }
 
 export async function deleteMessage(messageId: string): Promise<void> {

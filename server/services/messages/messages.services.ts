@@ -485,6 +485,7 @@ export async function updateMessage(
     id: string,
     callerId: string,
     content: string,
+    attachments?: MessageAttachmentInput[],
 ): Promise<EnrichedMessage> {
     const [existing] = await db
         .select({ id: messages.id, senderId: messages.senderId, isDeleted: messages.isDeleted })
@@ -503,7 +504,20 @@ export async function updateMessage(
     }
 
     const sanitized = sanitizeMessageHtml(content);
-    if (isHtmlEmpty(sanitized)) {
+
+    // When the client manages attachments it sends the full desired set, which is authoritative.
+    // If the key is omitted entirely, existing attachments are left untouched. Validate the set
+    // up front so an invalid edit fails before any write.
+    if (attachments !== undefined) {
+        for (const attachment of attachments) {
+            if (!attachment.fileUrl.startsWith(mastermindPublicUrlPrefix())) {
+                throw new MessageServiceError(400, 'Invalid attachment');
+            }
+        }
+        if (isHtmlEmpty(sanitized) && attachments.length === 0) {
+            throw new MessageServiceError(400, 'Message cannot be empty');
+        }
+    } else if (isHtmlEmpty(sanitized)) {
         throw new MessageServiceError(400, 'Message cannot be empty');
     }
 
@@ -517,6 +531,12 @@ export async function updateMessage(
     // A crash here leaves stale mention rows — acceptable for Phase 1 at this scale.
     await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
     await persistMentions(id, parseMentionedUserIds(sanitized));
+
+    // Reconcile attachments last: it deletes Supabase storage objects irreversibly, so it must
+    // not run ahead of the content update — otherwise a failed edit would still destroy files.
+    if (attachments !== undefined) {
+        await reconcileAttachments(id, attachments);
+    }
 
     const enriched = await getEnrichedMessageById(id);
     if (!enriched) {
@@ -560,6 +580,50 @@ export async function softDeleteMessage(id: string, callerId: string): Promise<E
     return enriched;
 }
 
+// Reconciles a message's attachments to the desired set: drops rows (and their storage objects)
+// no longer present, then inserts the newly uploaded ones. Matching is by fileUrl, which is
+// unique per upload. Not transactional — neon-http is connectionless — but each step is
+// idempotent enough for Phase 1.
+async function reconcileAttachments(
+    messageId: string,
+    desired: MessageAttachmentInput[],
+): Promise<void> {
+    const existingRows = await db
+        .select({ id: messageAttachments.id, fileUrl: messageAttachments.fileUrl })
+        .from(messageAttachments)
+        .where(eq(messageAttachments.messageId, messageId));
+
+    const desiredUrls = new Set(desired.map((a) => a.fileUrl));
+    const existingUrls = new Set(existingRows.map((r) => r.fileUrl));
+
+    const removed = existingRows.filter((r) => !desiredUrls.has(r.fileUrl));
+    const added = desired.filter((a) => !existingUrls.has(a.fileUrl));
+
+    if (removed.length > 0) {
+        await removeAttachmentStorageByUrls(
+            removed.map((r) => r.fileUrl),
+            messageId,
+        );
+        await db.delete(messageAttachments).where(
+            inArray(
+                messageAttachments.id,
+                removed.map((r) => r.id),
+            ),
+        );
+    }
+    if (added.length > 0) {
+        await db.insert(messageAttachments).values(
+            added.map((a) => ({
+                messageId,
+                fileUrl: a.fileUrl,
+                fileName: a.fileName,
+                fileType: a.fileType,
+                fileSizeBytes: a.fileSizeBytes,
+            })),
+        );
+    }
+}
+
 // Best-effort removal of a message's files from Supabase Storage. Storage failures are
 // logged but never block the delete — the DB tombstone is the source of truth.
 async function removeAttachmentStorage(messageId: string): Promise<void> {
@@ -567,17 +631,26 @@ async function removeAttachmentStorage(messageId: string): Promise<void> {
         .select({ fileUrl: messageAttachments.fileUrl })
         .from(messageAttachments)
         .where(eq(messageAttachments.messageId, messageId));
-    if (rows.length === 0) return;
+    await removeAttachmentStorageByUrls(
+        rows.map((r) => r.fileUrl),
+        messageId,
+    );
+}
 
-    const paths = rows
-        .map((r) => storagePathFromUrl(r.fileUrl, mastermindStorageBucket))
+// Removes a specific set of attachment URLs from Supabase Storage. Shared by the delete and
+// edit paths. Failures are logged, never thrown — the DB rows are the source of truth.
+async function removeAttachmentStorageByUrls(fileUrls: string[], messageId: string): Promise<void> {
+    if (fileUrls.length === 0) return;
+
+    const paths = fileUrls
+        .map((url) => storagePathFromUrl(url, mastermindStorageBucket))
         .filter((p): p is string => p !== null);
 
     // A stored URL that doesn't map to a storage path can never be deleted — surface it
     // instead of silently leaking the object.
-    if (paths.length !== rows.length) {
+    if (paths.length !== fileUrls.length) {
         console.error(
-            `Mastermind delete: ${rows.length - paths.length} attachment URL(s) on message ${messageId} ` +
+            `Mastermind attachment cleanup: ${fileUrls.length - paths.length} URL(s) on message ${messageId} ` +
                 `did not map to a storage path; those objects may be orphaned.`,
         );
     }

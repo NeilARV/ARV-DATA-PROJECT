@@ -4,7 +4,10 @@ import { useMutation } from '@tanstack/react-query';
 import { MessageActions } from '@/components/mastermind/MessageActions';
 import { MessageAttachments } from '@/components/mastermind/MessageAttachments';
 import { MessageReactions } from '@/components/mastermind/MessageReactions';
-import { InlineMessageEditor } from '@/components/mastermind/InlineMessageEditor';
+import {
+    InlineMessageEditor,
+    type EditMessagePayload,
+} from '@/components/mastermind/InlineMessageEditor';
 
 import { useToast } from '@/hooks/use-toast';
 
@@ -15,6 +18,8 @@ import {
     editMessage,
     deleteMessage,
     setChannelPin,
+    uploadAttachment,
+    type UploadedAttachment,
 } from '@/api/mastermind.api';
 
 import type { MastermindMessageWire } from '@shared/mastermind/events';
@@ -73,7 +78,22 @@ export function MessageItem({
     });
 
     const editMutation = useMutation({
-        mutationFn: (content: string) => editMessage(message.id, content),
+        mutationFn: async ({ content, keptAttachments, newFiles }: EditMessagePayload) => {
+            const uploaded =
+                newFiles.length > 0
+                    ? await Promise.all(newFiles.map((file) => uploadAttachment(file)))
+                    : [];
+            const attachments: UploadedAttachment[] = [
+                ...keptAttachments.map((a) => ({
+                    fileUrl: a.fileUrl,
+                    fileName: a.fileName,
+                    fileType: a.fileType,
+                    fileSizeBytes: a.fileSizeBytes,
+                })),
+                ...uploaded,
+            ];
+            await editMessage(message.id, content, attachments);
+        },
         onSuccess: () => setIsEditing(false),
         onError: () =>
             toast({ title: 'Edit failed', description: 'Please try again.', variant: 'destructive' }),
@@ -140,8 +160,9 @@ export function MessageItem({
                     <InlineMessageEditor
                         channelId={message.channelId}
                         initialContent={message.content}
+                        initialAttachments={message.attachments}
                         isSaving={editMutation.isPending}
-                        onSave={(content) => editMutation.mutate(content)}
+                        onSave={(payload) => editMutation.mutate(payload)}
                         onCancel={() => setIsEditing(false)}
                     />
                 ) : (

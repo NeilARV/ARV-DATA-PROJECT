@@ -125,7 +125,12 @@ export async function updateMessageController(req: Request, res: Response): Prom
             return;
         }
 
-        const message = await updateMessage(id, req.session.userId!, parsed.data.content);
+        const message = await updateMessage(
+            id,
+            req.session.userId!,
+            parsed.data.content ?? '',
+            parsed.data.attachments,
+        );
         broadcastToChannel(message.channelId, { type: ServerToClient.MessageUpdated, message });
         res.json({ message });
     } catch (err) {
