@@ -24,7 +24,7 @@ export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: C
             {/* Community header */}
             <div className="flex items-center gap-2.5 px-4 py-4 border-b border-sidebar-border flex-shrink-0">
                 <Brain className="w-5 h-5 text-primary flex-shrink-0" />
-                <span className="text-sm font-semibold text-foreground truncate">ARV Mastermind</span>
+                <span className="text-base lg:text-lg font-semibold text-foreground truncate">ARV Mastermind</span>
             </div>
 
             {/* Scrollable channel list */}

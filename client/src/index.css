@@ -434,6 +434,14 @@ select.font-size-select option {
     background: hsl(38 92% 50% / 0.12);
 }
 
+/* Clickable links in rendered Mastermind messages */
+.mastermind-message a {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+    overflow-wrap: break-word;
+    word-break: break-all;
+}
+
 /* Prose formatting for post content in PostCard */
 .post-content p {
     margin: 0;
