@@ -101,7 +101,7 @@ export function MessageItem({
         <div
             ref={rootRef}
             className={`relative flex gap-3 px-4 hover:bg-accent/30 transition-colors group ${
-                showHeader ? 'pt-3 pb-1' : 'py-0.5'
+                showHeader ? 'pt-3 pb-2' : 'py-0.5'
             }${isHighlighted ? ' mm-message-highlight' : ''}`}
         >
             {/* Avatar column — fixed 36px width keeps message bodies aligned */}

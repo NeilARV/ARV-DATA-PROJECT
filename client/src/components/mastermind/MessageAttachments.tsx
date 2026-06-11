@@ -30,7 +30,7 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
     }));
 
     return (
-        <div className="mt-1 space-y-1.5">
+        <div className="mt-1 mb-1 space-y-1.5">
             {images.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                     {images.map((image, i) => (
@@ -57,7 +57,7 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     download={file.fileName}
-                    className="inline-flex items-center gap-2 rounded-md border border-border bg-muted hover:bg-accent transition-colors px-3 py-2 max-w-sm"
+                    className="flex w-fit items-center gap-2 rounded-md border border-border bg-muted hover:bg-accent transition-colors px-3 py-2 max-w-sm"
                 >
                     <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     <span className="flex flex-col min-w-0">
