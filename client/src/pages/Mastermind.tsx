@@ -241,17 +241,19 @@ function MastermindContent() {
         );
     }
 
-    // TEMPORARY: Mastermind is limited to admin/owner while it runs on the dev server (pending DB
-    // migration). Non-admins get an inform page with a way back, mirroring the Admin page gate.
+    // Authenticated users without a subscription or an ARV team role can't access Mastermind.
+    // They get an inform page with a way back home, mirroring the Admin page gate.
     if (!canAccessMastermind) {
         return (
             <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
                 <Brain className="w-10 h-10 text-muted-foreground" />
                 <div className="space-y-1">
-                    <p className="text-base font-semibold text-foreground">Admins &amp; owners only</p>
+                    <p className="text-base font-semibold text-foreground">
+                        Subscription required
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                        Mastermind is currently limited to ARV admins and owners while we finish
-                        setting it up. Check back soon.
+                        Mastermind is available to ARV subscribers and team members. Upgrade your
+                        account to join the conversation.
                     </p>
                 </div>
                 <Button size="sm" onClick={() => setLocation('/')}>

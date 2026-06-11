@@ -311,17 +311,15 @@ export default function Header() {
                     Vendors
                 </Button>
 
-                {canAccessMastermind && (
-                    <Button
-                        variant={location === '/mastermind' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setLocation('/mastermind')}
-                        data-testid="button-mastermind"
-                    >
-                        <Brain className="w-4 h-4 mr-1" />
-                        Mastermind
-                    </Button>
-                )}
+                <Button
+                    variant={location === '/mastermind' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setLocation('/mastermind')}
+                    data-testid="button-mastermind"
+                >
+                    <Brain className="w-4 h-4 mr-1" />
+                    Mastermind
+                </Button>
             </div>
 
             {/* Right: Theme + Hamburger */}
@@ -422,19 +420,17 @@ export default function Header() {
                                                     <Store className="w-4 h-4" />
                                                     Vendors
                                                 </button>
-                                                {canAccessMastermind && (
-                                                    <button
-                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                                                        onClick={() => {
-                                                            setLocation('/mastermind');
-                                                            setShowMenu(false);
-                                                        }}
-                                                        data-testid="menu-item-mastermind"
-                                                    >
-                                                        <Brain className="w-4 h-4" />
-                                                        Mastermind
-                                                    </button>
-                                                )}
+                                                <button
+                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                                    onClick={() => {
+                                                        setLocation('/mastermind');
+                                                        setShowMenu(false);
+                                                    }}
+                                                    data-testid="menu-item-mastermind"
+                                                >
+                                                    <Brain className="w-4 h-4" />
+                                                    Mastermind
+                                                </button>
                                                 <div className="border-t border-border mx-2 my-1" />
                                             </div>
 

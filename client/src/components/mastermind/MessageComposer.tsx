@@ -138,7 +138,7 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
                         />
                         <div className="flex-1" />
                         <span className="text-xs text-muted-foreground mr-2 hidden sm:inline select-none">
-                            Ctrl+↵ to send
+                            ↵ to send · Shift+↵ for newline
                         </span>
                         <Button
                             size="sm"

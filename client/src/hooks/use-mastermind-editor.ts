@@ -180,7 +180,13 @@ export function useMastermindEditor({
                                 onKeyDown: ({ event }: { event: KeyboardEvent }) => {
                                     if (event.key === 'ArrowDown') return moveMentionRef.current(1);
                                     if (event.key === 'ArrowUp') return moveMentionRef.current(-1);
-                                    if (event.key === 'Enter') return selectMentionRef.current();
+                                    // Always own Enter while the suggestion is active — even with
+                                    // zero matches — so it never falls through to submit the
+                                    // message mid-mention (e.g. an unmatched "@xyz" query).
+                                    if (event.key === 'Enter') {
+                                        selectMentionRef.current();
+                                        return true;
+                                    }
                                     return false;
                                 },
                                 onExit: () => closeMentionRef.current(),
@@ -211,7 +217,9 @@ export function useMastermindEditor({
         editorProps: {
             attributes: { class: 'mastermind-composer-editor focus:outline-none' },
             handleKeyDown: (_view, event) => {
-                if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                // Enter submits; Shift+Enter inserts a newline. (While the mention dropdown is
+                // open, its suggestion plugin handles Enter first and this never fires.)
+                if (event.key === 'Enter' && !event.shiftKey) {
                     onSubmitRef.current?.();
                     return true;
                 }

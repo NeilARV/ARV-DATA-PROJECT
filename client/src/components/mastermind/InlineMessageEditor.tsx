@@ -186,7 +186,7 @@ export function InlineMessageEditor({
                     Cancel
                 </Button>
                 <span className="text-xs text-muted-foreground hidden sm:inline select-none">
-                    Esc to cancel · Ctrl+↵ to save
+                    Esc to cancel · ↵ to save
                 </span>
             </div>
             <MentionDropdownPortal dropdown={dropdown} />

@@ -111,12 +111,13 @@ export function useAuth() {
         isAuthenticated && (isAdminStatusLoading || subscriptionTier !== null || hasTeamRole);
 
     /**
-     * TEMPORARY: Mastermind is restricted to admin/owner only while it runs on the dev/Replit
-     * server (a pending database migration blocks general release). This intentionally does NOT
-     * stay true during admin-status loading, so non-admins never briefly see Mastermind UI.
-     * To make Mastermind generally available later, switch its consumers back to `canAccessApp`.
+     * True when the authenticated user may access Mastermind. Granted to any subscription tier
+     * (basic, pro, premium) OR any ARV team role (member, relationship-manager, admin, owner).
+     * Mirrors `canAccessApp` and stays true while admin status is loading to avoid blocking
+     * during hydration. Unauthenticated users and authenticated users with neither a
+     * subscription nor a role are not granted access.
      */
-    const canAccessMastermind = isOwner || isAdmin;
+    const canAccessMastermind = canAccessApp;
 
     // ── Raw string values ─────────────────────────────────────────────────────────
     /** The user's primary ARV team role (highest privilege), or null if none. */
