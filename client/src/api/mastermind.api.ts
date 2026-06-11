@@ -8,6 +8,22 @@ import type {
 // Metadata returned by the upload endpoint, sent back when creating the message.
 export type UploadedAttachment = Omit<MessageAttachmentWire, 'id'>;
 
+export type ChannelInput = { name: string; description: string | null };
+
+export async function createChannel(input: ChannelInput): Promise<void> {
+    await apiRequest('POST', '/api/channels', input);
+}
+
+export async function updateChannel(channelId: string, input: ChannelInput): Promise<void> {
+    await apiRequest('PATCH', `/api/channels/${channelId}`, input);
+}
+
+// The server only hard-deletes an already-archived channel, so archive first, then delete.
+export async function deleteChannel(channelId: string): Promise<void> {
+    await apiRequest('POST', `/api/channels/${channelId}/archive`);
+    await apiRequest('DELETE', `/api/channels/${channelId}`);
+}
+
 export async function addReaction(messageId: string, emoji: string): Promise<void> {
     await apiRequest('POST', `/api/messages/${messageId}/reactions`, { emoji });
 }

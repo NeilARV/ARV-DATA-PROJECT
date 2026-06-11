@@ -29,7 +29,8 @@ type ChannelsResponse = { channels: ChannelSummary[] };
 type UnreadEntry = { count: number; hasMention: boolean };
 
 function MastermindContent() {
-    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessMastermind, user } = useAuth();
+    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessMastermind, isOwner, isAdmin, user } =
+        useAuth();
     const { openDialog } = useDialogs();
     const { lastCreatedMessage } = useMastermindSocket();
 
@@ -184,6 +185,18 @@ function MastermindContent() {
         setLocation(`/mastermind/${encodeURIComponent(channel.name)}`);
     }
 
+    // The open channel is derived from the URL by name, so when the active channel is renamed or
+    // deleted we must move the URL off the stale name (otherwise the user is stranded / bounced).
+    function handleChannelRenamed(channelId: string, newName: string) {
+        if (channelId !== activeChannelId) return;
+        setLocation(`/mastermind/${encodeURIComponent(newName)}`, { replace: true });
+    }
+
+    function handleChannelDeleted(channelId: string) {
+        if (channelId !== activeChannelId) return;
+        setLocation('/mastermind', { replace: true });
+    }
+
     // Merge live unread state into the channels list for the sidebar.
     const channelsWithUnread = channels.map((c) => {
         const live = unreadState.get(c.id);
@@ -294,6 +307,9 @@ function MastermindContent() {
                             channels={channelsWithUnread}
                             activeChannelId={activeChannelId}
                             onSelectChannel={handleSelectChannel}
+                            canManageChannels={isOwner || isAdmin}
+                            onChannelRenamed={handleChannelRenamed}
+                            onChannelDeleted={handleChannelDeleted}
                         />
                     )}
                 </div>

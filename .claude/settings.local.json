@@ -18,7 +18,8 @@
       "Bash(Out-Null)",
       "Bash(Move-Item \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\\\\*\" \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\assets\\\\email\\\\templates\\\\\"; Remove-Item -Force \"c:\\\\Github\\\\ARV-DATA-Project\\\\server\\\\jobs\\\\email\\\\templates\")",
       "Bash(rm \"c:/Github/ARV-DATA-Project/client/src/components/data/property/StatusTag.tsx\")",
-      "PowerShell(head -20)"
+      "PowerShell(head -20)",
+      "PowerShell(npm run check)"
     ]
   }
 }

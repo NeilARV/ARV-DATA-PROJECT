@@ -1,4 +1,15 @@
-import { Brain, Hash } from 'lucide-react';
+import { useState } from 'react';
+import { Brain, Hash, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { AddChannelDialog } from '@/components/mastermind/AddChannelDialog';
+import { EditChannelDialog } from '@/components/mastermind/EditChannelDialog';
+import { DeleteChannelDialog } from '@/components/mastermind/DeleteChannelDialog';
 
 import type { ChannelSummary } from '@/types/mastermind';
 
@@ -6,6 +17,9 @@ type ChannelSidebarProps = {
     channels: ChannelSummary[];
     activeChannelId: string | null;
     onSelectChannel: (id: string) => void;
+    canManageChannels: boolean;
+    onChannelRenamed: (channelId: string, newName: string) => void;
+    onChannelDeleted: (channelId: string) => void;
 };
 
 function UnreadBadge({ count, hasMention }: { count: number; hasMention: boolean }) {
@@ -18,7 +32,18 @@ function UnreadBadge({ count, hasMention }: { count: number; hasMention: boolean
     );
 }
 
-export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: ChannelSidebarProps) {
+export function ChannelSidebar({
+    channels,
+    activeChannelId,
+    onSelectChannel,
+    canManageChannels,
+    onChannelRenamed,
+    onChannelDeleted,
+}: ChannelSidebarProps) {
+    const [addOpen, setAddOpen] = useState(false);
+    const [channelToEdit, setChannelToEdit] = useState<ChannelSummary | null>(null);
+    const [channelToDelete, setChannelToDelete] = useState<ChannelSummary | null>(null);
+
     return (
         <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border w-full md:w-60 lg:w-64 flex-shrink-0">
             {/* Community header */}
@@ -29,10 +54,20 @@ export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: C
 
             {/* Scrollable channel list */}
             <div className="flex-1 overflow-y-auto py-2 min-h-0">
-                <div className="px-3 mb-1">
+                <div className="flex items-center justify-between px-3 mb-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Channels
                     </span>
+                    {canManageChannels && (
+                        <button
+                            onClick={() => setAddOpen(true)}
+                            className="p-0.5 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
+                            aria-label="Add channel"
+                            title="Add channel"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
 
                 <ul>
@@ -40,10 +75,10 @@ export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: C
                         const isActive = activeChannelId === c.id;
                         const hasUnread = c.unreadCount > 0;
                         return (
-                            <li key={c.id}>
+                            <li key={c.id} className="group relative">
                                 <button
                                     onClick={() => onSelectChannel(c.id)}
-                                    className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
+                                    className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''} ${canManageChannels ? 'pr-8' : ''}`}
                                 >
                                     <Hash className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
                                     <span
@@ -58,6 +93,32 @@ export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: C
                                         />
                                     )}
                                 </button>
+
+                                {canManageChannels && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <button
+                                                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 data-[state=open]:bg-sidebar-accent"
+                                                aria-label={`Manage #${c.name}`}
+                                            >
+                                                <MoreVertical className="w-4 h-4" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onSelect={() => setChannelToEdit(c)}>
+                                                <Pencil className="w-4 h-4" />
+                                                Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onSelect={() => setChannelToDelete(c)}
+                                                className="text-destructive focus:text-destructive"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
                             </li>
                         );
                     })}
@@ -71,6 +132,28 @@ export function ChannelSidebar({ channels, activeChannelId, onSelectChannel }: C
                 </div>
                 <p className="px-3 text-xs text-muted-foreground italic">Coming soon</p>
             </div>
+
+            {canManageChannels && (
+                <>
+                    <AddChannelDialog open={addOpen} onClose={() => setAddOpen(false)} />
+                    {channelToEdit && (
+                        <EditChannelDialog
+                            open
+                            channel={channelToEdit}
+                            onClose={() => setChannelToEdit(null)}
+                            onRenamed={(newName) => onChannelRenamed(channelToEdit.id, newName)}
+                        />
+                    )}
+                    {channelToDelete && (
+                        <DeleteChannelDialog
+                            open
+                            channel={channelToDelete}
+                            onClose={() => setChannelToDelete(null)}
+                            onDeleted={() => onChannelDeleted(channelToDelete.id)}
+                        />
+                    )}
+                </>
+            )}
         </div>
     );
 }
