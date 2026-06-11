@@ -9,10 +9,12 @@ import Profile from '@/pages/Profile';
 import Analytics from '@/pages/Analytics';
 import Vendors from '@/pages/Vendors';
 import Deals from '@/pages/Deals';
+import Mastermind from '@/pages/Mastermind';
 import NotFound from '@/pages/not-found';
 import { useEffect } from 'react';
 import { ViewProvider } from '@/hooks/useView';
 import { DialogsProvider, useDialogs } from '@/hooks/useDialogs';
+import { MastermindSocketProvider } from '@/hooks/use-mastermind-socket';
 import AppDialog from '@/components/modals/Dialog';
 import LoginContent from '@/components/modals/Login';
 import SignupContent from '@/components/modals/Signup';
@@ -48,6 +50,8 @@ function Router() {
             <Route path="/analytics" component={Analytics} />
             <Route path="/vendors" component={Vendors} />
             <Route path="/deals" component={Deals} />
+            <Route path="/mastermind" component={Mastermind} />
+            <Route path="/mastermind/:channelName" component={Mastermind} />
             <Route component={NotFound} />
         </Switch>
     );
@@ -64,15 +68,17 @@ function App() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-                <Toaster />
-                <ViewProvider>
-                    <DialogsProvider>
-                        <GlobalDialogs />
-                        <Router />
-                    </DialogsProvider>
-                </ViewProvider>
-            </TooltipProvider>
+            <MastermindSocketProvider>
+                <TooltipProvider>
+                    <Toaster />
+                    <ViewProvider>
+                        <DialogsProvider>
+                            <GlobalDialogs />
+                            <Router />
+                        </DialogsProvider>
+                    </ViewProvider>
+                </TooltipProvider>
+            </MastermindSocketProvider>
         </QueryClientProvider>
     );
 }

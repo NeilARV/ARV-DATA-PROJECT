@@ -15,6 +15,7 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 - [Statuses](#statuses)
 - [Deals](#deals)
 - [Vendors & Community](#vendors--community)
+- [Mastermind](#mastermind)
 
 ---
 
@@ -26,7 +27,10 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | `claim_status` | `pending`, `approved`, `rejected` | companies.schema.ts |
 | `claim_type` | `claim`, `dispute` | companies.schema.ts |
 | `member_role` | `owner`, `member` | companies.schema.ts |
-| `deal_type` | `wholesale`, `agent`, `sold`, `reo` | deals.schema.ts |
+| `deal_type` | `wholesale`, `agent`, `sold` | deals.schema.ts |
+| `channel_type` | `public`, `private`, `dm`, `group_dm` | mastermind.schema.ts (Phase 1 uses only `public`) |
+| `channel_member_role` | `owner`, `admin`, `member` | mastermind.schema.ts |
+| `notification_type` | `mention`, `channel_mention` | mastermind.schema.ts |
 
 ---
 
@@ -973,3 +977,157 @@ Users tagged/mentioned in a post.
 | `created_at` | `timestamp with time zone` | NOT NULL, default now |
 
 **PK:** `(post_id, tagged_user_id)`
+
+---
+
+## Mastermind
+
+Schema for the Mastermind community app (`database/schemas/mastermind.schema.ts`). Phase 1 uses
+all eight tables; only `public` channels are active. Messages are **soft-deleted only**
+(`is_deleted` flag) — never hard-deleted. Deleting a channel cascades to all child rows.
+
+### `channels`
+A topic channel (e.g. `general`, `san-diego-market`).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `name` | `text` | NOT NULL, UNIQUE — lowercase slug |
+| `description` | `text` | nullable — channel topic |
+| `type` | `channel_type` enum | NOT NULL, default `'public'` |
+| `created_by` | `uuid` | FK → `users.id` (set null), nullable |
+| `is_archived` | `boolean` | NOT NULL, default false |
+| `is_admin_only` | `boolean` | NOT NULL, default false — admin/owner-only visibility (service-enforced, not middleware) |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+| `updated_at` | `timestamp with time zone` | NOT NULL, default now |
+
+---
+
+### `channel_members`
+Per-user membership / read-state. Written lazily in Phase 1 (membership is otherwise implicit);
+not consulted for authorization.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `channel_id` | `uuid` | NOT NULL, FK → `channels.id` (cascade) |
+| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `role` | `channel_member_role` enum | NOT NULL, default `'member'` |
+| `last_read_at` | `timestamp with time zone` | nullable — unread calculation |
+| `last_read_message_id` | `uuid` | nullable (no FK) |
+| `is_muted` | `boolean` | NOT NULL, default false |
+| `joined_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Unique:** `uq_channel_members_channel_user` on `(channel_id, user_id)`
+
+**Indexes:**
+- `idx_channel_members_user_id` on `(user_id)`
+
+---
+
+### `messages`
+A channel message. `content` stores TipTap HTML.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `channel_id` | `uuid` | NOT NULL, FK → `channels.id` (cascade) |
+| `sender_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `parent_message_id` | `uuid` | FK → `messages.id` (cascade), nullable — threads (Phase 2) |
+| `content` | `text` | NOT NULL |
+| `is_edited` | `boolean` | NOT NULL, default false |
+| `is_deleted` | `boolean` | NOT NULL, default false — soft delete only |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+| `updated_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Indexes:**
+- `idx_messages_channel_created` on `(channel_id, created_at DESC)` — history pagination + backfill
+- `idx_messages_parent_id` on `(parent_message_id)` — thread loading (Phase 2)
+
+---
+
+### `message_attachments`
+Files attached to a message. Images render inline; other types are download links.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `message_id` | `uuid` | NOT NULL, FK → `messages.id` (cascade) |
+| `file_url` | `text` | NOT NULL — Supabase Storage URL |
+| `file_name` | `text` | NOT NULL |
+| `file_type` | `text` | NOT NULL — `image/*` inline, else download |
+| `file_size_bytes` | `integer` | NOT NULL |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Indexes:**
+- `idx_message_attachments_message_id` on `(message_id)`
+
+---
+
+### `message_reactions`
+Emoji reactions from the fixed set (👍 👎 😀 😢 😂 ❤️).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `message_id` | `uuid` | NOT NULL, FK → `messages.id` (cascade) |
+| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `emoji` | `text` | NOT NULL |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Unique:** `uq_message_reactions_message_user_emoji` on `(message_id, user_id, emoji)`
+
+**Indexes:**
+- `idx_message_reactions_message_id` on `(message_id)`
+
+---
+
+### `message_mentions`
+A user mentioned in a message. `@here`/`@channel` are expanded to concrete users at notify time.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `message_id` | `uuid` | NOT NULL, FK → `messages.id` (cascade) |
+| `mentioned_user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Unique:** `uq_message_mentions_message_user` on `(message_id, mentioned_user_id)`
+
+**Indexes:**
+- `idx_message_mentions_user_created` on `(mentioned_user_id, created_at DESC)` — mention feed
+
+---
+
+### `pinned_messages`
+One pinned message per channel.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `message_id` | `uuid` | NOT NULL, FK → `messages.id` (cascade) |
+| `channel_id` | `uuid` | NOT NULL, FK → `channels.id` (cascade) |
+| `pinned_by` | `uuid` | FK → `users.id` (set null), nullable |
+| `pinned_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Unique:** `uq_pinned_messages_channel` on `(channel_id)` — one pin per channel
+
+---
+
+### `notifications`
+The in-app bell feed. A row is created when a user is mentioned (or covered by `@here`/`@channel`).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) — recipient |
+| `type` | `notification_type` enum | NOT NULL |
+| `channel_id` | `uuid` | FK → `channels.id` (cascade), nullable |
+| `message_id` | `uuid` | FK → `messages.id` (cascade), nullable — deep-link target |
+| `actor_id` | `uuid` | FK → `users.id` (set null), nullable — who triggered it |
+| `is_read` | `boolean` | NOT NULL, default false |
+| `emailed_at` | `timestamp with time zone` | nullable — supports the ≤3/day email cap |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Indexes:**
+- `idx_notifications_user_read_created` on `(user_id, is_read, created_at DESC)` — bell feed + unread count

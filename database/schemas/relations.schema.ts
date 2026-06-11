@@ -29,6 +29,16 @@ import {
     currentSales,
     propertyTransactions,
 } from './properties.schema';
+import {
+    channels,
+    channelMembers,
+    messages,
+    messageAttachments,
+    messageReactions,
+    messageMentions,
+    pinnedMessages,
+    notifications,
+} from './mastermind.schema';
 
 export const propertiesRelations = relations(properties, ({ one, many }) => ({
     address: one(addresses, {
@@ -297,5 +307,113 @@ export const postUserTagsRelations = relations(postUserTags, ({ one }) => ({
     taggedUser: one(users, {
         fields: [postUserTags.taggedUserId],
         references: [users.id],
+    }),
+}));
+
+// ─── Mastermind Relations ───────────────────────────────────────────────────────
+
+export const channelsRelations = relations(channels, ({ one, many }) => ({
+    creator: one(users, {
+        fields: [channels.createdBy],
+        references: [users.id],
+    }),
+    members: many(channelMembers),
+    messages: many(messages),
+    pin: one(pinnedMessages),
+}));
+
+export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
+    channel: one(channels, {
+        fields: [channelMembers.channelId],
+        references: [channels.id],
+    }),
+    user: one(users, {
+        fields: [channelMembers.userId],
+        references: [users.id],
+    }),
+}));
+
+export const messagesRelations = relations(messages, ({ one, many }) => ({
+    channel: one(channels, {
+        fields: [messages.channelId],
+        references: [channels.id],
+    }),
+    sender: one(users, {
+        fields: [messages.senderId],
+        references: [users.id],
+    }),
+    parent: one(messages, {
+        fields: [messages.parentMessageId],
+        references: [messages.id],
+        relationName: 'messageReplies',
+    }),
+    replies: many(messages, { relationName: 'messageReplies' }),
+    attachments: many(messageAttachments),
+    reactions: many(messageReactions),
+    mentions: many(messageMentions),
+}));
+
+export const messageAttachmentsRelations = relations(messageAttachments, ({ one }) => ({
+    message: one(messages, {
+        fields: [messageAttachments.messageId],
+        references: [messages.id],
+    }),
+}));
+
+export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
+    message: one(messages, {
+        fields: [messageReactions.messageId],
+        references: [messages.id],
+    }),
+    user: one(users, {
+        fields: [messageReactions.userId],
+        references: [users.id],
+    }),
+}));
+
+export const messageMentionsRelations = relations(messageMentions, ({ one }) => ({
+    message: one(messages, {
+        fields: [messageMentions.messageId],
+        references: [messages.id],
+    }),
+    mentionedUser: one(users, {
+        fields: [messageMentions.mentionedUserId],
+        references: [users.id],
+    }),
+}));
+
+export const pinnedMessagesRelations = relations(pinnedMessages, ({ one }) => ({
+    channel: one(channels, {
+        fields: [pinnedMessages.channelId],
+        references: [channels.id],
+    }),
+    message: one(messages, {
+        fields: [pinnedMessages.messageId],
+        references: [messages.id],
+    }),
+    pinnedByUser: one(users, {
+        fields: [pinnedMessages.pinnedBy],
+        references: [users.id],
+    }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+    recipient: one(users, {
+        fields: [notifications.userId],
+        references: [users.id],
+        relationName: 'notificationRecipient',
+    }),
+    actor: one(users, {
+        fields: [notifications.actorId],
+        references: [users.id],
+        relationName: 'notificationActor',
+    }),
+    channel: one(channels, {
+        fields: [notifications.channelId],
+        references: [channels.id],
+    }),
+    message: one(messages, {
+        fields: [notifications.messageId],
+        references: [messages.id],
     }),
 }));

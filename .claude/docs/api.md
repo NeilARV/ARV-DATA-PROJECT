@@ -21,6 +21,7 @@ For access control rules (which roles/tiers can call what), see [`access-control
 9. [Categories (`/api/categories`)](#9-categories-apicategories)
 10. [Contact (`/api/contact`)](#10-contact-apicontact)
 11. [Geocoding (`/api/geocoding`)](#11-geocoding-apigeooding)
+12. [Mastermind — Channels & Messages (`/api/channels`, `/api/messages`)](#12-mastermind--channels--messages-apichannels-apimessages)
 
 ---
 
@@ -1313,6 +1314,490 @@ Reverse geocode a coordinate pair to a US county name. Proxies the US Census Bur
 **Response `200`** `{ "county": "San Diego" }`
 
 **Errors** `400` missing or invalid params · `404` no county found for coordinates · `500` Census API error
+
+---
+
+## 12. Mastermind — Channels & Messages `/api/channels`, `/api/messages`
+
+The first slices of the Mastermind app (4th app). Access = any subscription tier OR any team
+role, via `requireMastermind` (a configured `requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`). Channel management is admin/owner only.
+Membership is implicit in Phase 1: every eligible user can read every public, non-archived
+channel. **Admin-only channels** (`channels.is_admin_only = true`, e.g. `#admin`) are the
+exception — visible/usable by `admin`/`owner` only. They are excluded from `GET /api/channels`
+for non-admins, and every per-channel route (`/messages` GET+POST, `/read`, `/members`, `/pin`
+GET, `/messages/:id/reactions` POST+DELETE) returns **404** for a non-admin caller (existence is
+never disclosed). This is enforced in the services, not the route middleware. See
+[`access-control.md` §5.12–§5.13](./access-control.md).
+
+### `GET /api/channels`
+List public channels.
+
+**Auth**: `requireMastermind`
+
+**Query params** (optional)
+| Param | Type | Description |
+|---|---|---|
+| `includeArchived` | boolean (`"true"`) | Include archived channels. **Honored only for admin/owner**; ignored for everyone else. |
+
+**Response `200`** `{ "channels": [ { "id": "uuid", "name": "san-diego-market", "description": "…", "type": "public", "isArchived": false, "isAdminOnly": false, "createdBy": "uuid|null", "createdAt": "…", "updatedAt": "…", "unreadCount": 3, "hasMention": false } ] }`
+
+Channels are returned in display order: `#general` first, then market channels (`…-market`),
+then everything else, then **admin-only channels last**. Admin-only channels are **omitted
+entirely** for non-admin callers.
+
+`unreadCount` / `hasMention` are computed per-caller from `channel_members.last_read_at`: a
+channel the caller has never opened (no `channel_members` row) returns `unreadCount: 0`;
+`hasMention` reflects stored `@user` mention rows only (`@here`/`@channel` broadcasts are
+expanded at notify time — Part 8).
+
+**Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
+### `PATCH /api/channels/:id/read`
+Advance the caller's read-state for a channel (clears its unread badge). Upserts the caller's
+`channel_members` row — the **lazy membership join point** — setting `last_read_at = now()` and
+`last_read_message_id` to the channel's latest message. The client debounces this call while a
+channel is being viewed.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Response `204`** (no body)
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found, or admin-only and caller is not admin/owner
+
+---
+
+### `POST /api/channels`
+Create a public channel.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body** (validated via `createChannelSchema`)
+```json
+{
+  "name": "san-diego-market",
+  "description": "San Diego MSA market talk"
+}
+```
+
+`name` must be a lowercase slug (`^[a-z0-9-]+$`, ≤80 chars) and unique. `description` is optional (≤500 chars).
+
+**Response `201`** `{ "message": "Channel created", "channel": { ...channel } }`
+
+**Errors** `400` invalid input · `401` not authenticated · `403` not admin/owner · `409` name already exists
+
+---
+
+### `PATCH /api/channels/:id`
+Rename a channel or edit its description.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — channel UUID
+
+**Body** (validated via `updateChannelSchema`; both fields optional)
+```json
+{
+  "name": "san-diego-flips",
+  "description": "Updated topic"
+}
+```
+
+**Response `200`** `{ "message": "Channel updated", "channel": { ...channel } }`
+
+**Errors** `400` invalid id or input · `401` not authenticated · `403` not admin/owner · `404` not found · `409` name already exists
+
+---
+
+### `POST /api/channels/:id/archive`
+Soft-archive a channel (`is_archived = true`). The first "delete" — reversible safety net.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — channel UUID
+
+**Response `200`** `{ "message": "Channel archived", "channel": { ...channel } }`
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not admin/owner · `404` not found
+
+---
+
+### `DELETE /api/channels/:id`
+Hard-delete a channel (cascades to its messages, members, etc.). Permitted **only when the
+channel is already archived** — the delete-twice safety net.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — channel UUID
+
+**Response `200`** `{ "message": "Channel deleted", "id": "uuid" }`
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not admin/owner · `404` not found · `409` channel is not archived yet
+
+---
+
+### Messages
+
+All message routes are gated by `requireMastermind`. There is no `requireRole` on them — the
+author-vs-admin rules live in the service: **edit is author-only** (admins may delete but never
+edit another user's message); **delete is author OR admin/owner** and is a **soft delete**.
+Soft-deleted messages are still returned, as blank tombstones (`isDeleted: true`, empty
+`content`). The message object shape is:
+
+```json
+{
+  "id": "uuid", "channelId": "uuid", "senderId": "uuid",
+  "content": "<p>sanitized TipTap HTML</p>",
+  "isEdited": false, "isDeleted": false,
+  "createdAt": "…", "updatedAt": "…",
+  "senderFirstName": "Jane", "senderLastName": "Doe", "senderProfileImageUrl": "url|null",
+  "attachments": [
+    { "id": "uuid", "fileUrl": "url", "fileName": "deck.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 }
+  ],
+  "reactions": [
+    { "emoji": "👍", "count": 3, "reactedByMe": true }
+  ]
+}
+```
+
+`attachments` and `reactions` are hydrated on every read (history + backfill); a tombstone
+carries empty arrays for both. `reactedByMe` is per-viewer. Reaction emoji come from the fixed
+set `👍 👎 😀 😢 😂 ✅`.
+
+---
+
+### `GET /api/channels/:id/members`
+List **mention candidates** for the channel's composer. Phase 1: returns **all
+Mastermind-eligible users** (any tier or any team role) — public channels all share the same
+pool. For an **admin-only** channel the pool narrows to **admins/owners** (so you can't
+`@mention` a user who can't see the channel). Phase 2+ private/DM channels will narrow this to
+actual members.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Response `200`**
+```json
+{
+  "users": [
+    { "id": "uuid", "firstName": "Jane", "lastName": "Doe" }
+  ]
+}
+```
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found, or admin-only and caller is not admin/owner
+
+---
+
+### `GET /api/channels/:id/messages`
+Channel message history, **or** reconnect backfill when `since` is supplied.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Query params** (optional)
+| Param | Type | Description |
+|---|---|---|
+| `cursor` | uuid | Keyset cursor — the `id` of the oldest message already loaded. Returns the next older page. |
+| `limit` | number | Page size, default `30`, max `50`. |
+| `since` | uuid | **Backfill mode.** The `id` of the newest message the client already has; returns everything newer, oldest-first. Takes precedence over `cursor`. |
+
+**Response `200` (history mode)** `{ "messages": [ { ...message } ], "nextCursor": "uuid|null" }` — newest-first; `nextCursor` is `null` on the last page.
+
+**Response `200` (backfill mode, `?since=`)** `{ "messages": [ { ...message } ], "hasMore": false }` — oldest-first; `hasMore` is `true` if more than 500 messages are pending (request again with the last `id`).
+
+**Errors** `400` invalid channel id or cursor · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived, or admin-only and caller is not admin/owner
+
+---
+
+### `POST /api/channels/:id/messages`
+Send a message. Content is **sanitized server-side** before persistence (stored-XSS protection).
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Body** (validated via `createMessageSchema`)
+```json
+{
+  "content": "<p>Hello <strong>world</strong></p>",
+  "attachments": [
+    { "fileUrl": "url", "fileName": "deck.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 }
+  ]
+}
+```
+
+`content` is TipTap HTML, up to 10000 chars. `parentMessageId` is accepted by the schema but
+**ignored in Phase 1** (threads are Phase 2). `attachments` (optional, max 5) is metadata from
+`POST /api/mastermind/attachments`; each `fileUrl` is re-validated server-side to start with our
+Supabase bucket's public-URL prefix. A message is valid with **text OR ≥1 attachment** — empty
+content with no attachment is rejected.
+
+**Response `201`** `{ "message": { ...message } }`
+
+**Side effect**: After the message is persisted, the service parses `@user` mention marks from the sanitized HTML and inserts a row into `message_mentions` for each unique mentioned user (UNIQUE constraint deduplicates).
+
+**Errors** `400` invalid id / invalid input / empty with no attachment / invalid attachment URL · `401` not authenticated · `403` no role and no subscription, or channel is archived · `404` channel not found, or admin-only and caller is not admin/owner
+
+---
+
+### `PATCH /api/messages/:id`
+Edit your own message. **Author-only — even admins cannot edit another user's message.**
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+**Body** (validated via `updateMessageSchema`)
+```json
+{ "content": "<p>Edited text</p>" }
+```
+
+Sets `isEdited = true`. Content is sanitized server-side.
+
+**Side effect**: `message_mentions` rows for this message are rebuilt on every edit — previous mention rows are deleted and re-inserted from the updated content.
+
+**Response `200`** `{ "message": { ...message } }`
+
+**Errors** `400` invalid id / invalid input / empty after sanitize · `401` not authenticated · `403` not the author · `404` not found · `409` message is deleted
+
+---
+
+### `DELETE /api/messages/:id`
+Soft-delete a message (`isDeleted = true`, content blanked). Never hard-deleted.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+Allowed for the **author OR an admin/owner**. Idempotent on an already-deleted message.
+
+**Response `200`** `{ "message": { ...tombstone message } }`
+
+**Side effect**: A soft-deleted message's attachment storage objects, attachment rows, reaction rows, and channel pin (if it was pinned) are all removed.
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not the author and not admin/owner · `404` not found
+
+---
+
+### `POST /api/messages/:id/reactions`
+Add a reaction to a message.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+**Body** (validated via `reactionSchema`) `{ "emoji": "👍" }` — must be in the fixed set `👍 👎 😀 😢 😂 ✅`.
+
+**Response `201`** `{ "success": true }`. Idempotent: re-reacting with the same emoji is a no-op (and skips the broadcast). On a real change, broadcasts `reaction.changed` (`action: "add"`) to the channel.
+
+**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel (includes an admin-only channel when the caller is not admin/owner)
+
+---
+
+### `DELETE /api/messages/:id/reactions`
+Remove your reaction from a message.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — message UUID
+
+**Body** (validated via `reactionSchema`) `{ "emoji": "👍" }`
+
+**Response `200`** `{ "success": true }`. Self-scoped (only the caller's own reaction). Idempotent; broadcasts `reaction.changed` (`action: "remove"`) only on a real change.
+
+**Errors** `400` invalid id / unsupported emoji · `401` not authenticated · `403` no role and no subscription · `404` message not found / deleted / in an unreadable channel (includes an admin-only channel when the caller is not admin/owner)
+
+---
+
+### `GET /api/channels/:id/pin`
+The channel's single pinned message (or `null`).
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — channel UUID
+
+**Response `200`**
+```json
+{
+  "pinned": {
+    "message": { ...message },
+    "pinnedByUserId": "uuid|null",
+    "pinnedByFirstName": "Jane|null",
+    "pinnedByLastName": "Doe|null",
+    "pinnedAt": "…"
+  }
+}
+```
+`pinned` is `null` when there is no pin or the pinned message has since been deleted.
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found / archived, or admin-only and caller is not admin/owner
+
+---
+
+### `POST /api/channels/:id/pin`
+Set or replace the channel's single pin. **Admin/owner only** (`requireRole(['admin','owner'])`).
+
+**Auth**: `requireRole(['admin','owner'])`
+
+**Params**: `id` — channel UUID
+
+**Body** (validated via `pinMessageSchema`) `{ "messageId": "uuid" }` — must belong to the channel and not be deleted.
+
+**Response `200`** `{ "pinned": { ...PinnedMessage } }`. One pin per channel (`pinned_messages` `UNIQUE(channel_id)`) — upserts/replaces. Broadcasts `message.pinned` to the channel.
+
+**Errors** `400` invalid channel id / invalid messageId · `401` not authenticated · `403` not admin/owner · `404` channel or message not found
+
+---
+
+### `DELETE /api/channels/:id/pin`
+Clear the channel pin. **Admin/owner only.**
+
+**Auth**: `requireRole(['admin','owner'])`
+
+**Params**: `id` — channel UUID
+
+**Response `200`** `{ "pinned": null }`. Broadcasts `message.pinned` (`pinned: null`).
+
+**Errors** `400` invalid channel id · `401` not authenticated · `403` not admin/owner · `404` channel not found
+
+---
+
+### `POST /api/mastermind/attachments`
+Upload one file for a message. Multipart (`multipart/form-data`, field `file`). Returns metadata to send back in the `attachments[]` of `POST /api/channels/:id/messages`.
+
+**Auth**: `requireMastermind`
+
+**Constraints**: max **10 MB**; allowlisted MIME types — `image/jpeg`, `image/png` (rendered inline) and `application/pdf`, `text/csv`, `text/plain` (download link). Must match the Supabase bucket's allowed types.
+
+**Response `201`**
+```json
+{ "attachment": { "fileUrl": "url", "fileName": "deck.pdf", "fileType": "application/pdf", "fileSizeBytes": 12345 } }
+```
+
+**Errors** `400` no file / unsupported type / empty / too large · `401` not authenticated · `403` no role and no subscription
+
+---
+
+### Notifications (`/api/notifications`)
+
+The in-app bell feed. All routes use `requireMastermind` and are **self-scoped** — every query
+filters on the caller's `user_id`. Rows are created server-side only, by the mention fan-out on
+message create (`@user` → type `mention`; `@channel` → type `channel_mention` for every eligible
+user; the sender never notifies themself). In an **admin-only** channel the fan-out is scoped to
+**admins/owners** only — `@channel` reaches admins/owners, and a direct `@user` of a non-admin is
+dropped (no bell/email deep-linking a user into a channel they can't open). See
+`access-control.md` §5.14.
+
+The notification object shape (REST and the `notification.created` socket event are identical):
+
+```json
+{
+  "id": "uuid",
+  "type": "mention | channel_mention",
+  "channelId": "uuid|null", "channelName": "san-diego-market|null",
+  "messageId": "uuid|null", "messageExcerpt": "plain-text excerpt (≤120 chars)",
+  "actorId": "uuid|null", "actorFirstName": "Jane|null", "actorLastName": "Doe|null",
+  "actorProfileImageUrl": "url|null",
+  "isRead": false, "createdAt": "…"
+}
+```
+
+`messageExcerpt` is the mention message's HTML stripped to plain text; it is empty when the
+message has since been soft-deleted (clients show a generic label instead).
+
+---
+
+#### `GET /api/notifications`
+The caller's notification feed (newest-first, capped at 30) plus their total unread count.
+
+**Auth**: `requireMastermind`
+
+**Response `200`** `{ "notifications": [ { ...notification } ], "unreadCount": 3 }`
+
+**Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
+#### `PATCH /api/notifications/:id/read`
+Mark one of the caller's notifications read.
+
+**Auth**: `requireMastermind`
+
+**Params**: `id` — notification UUID
+
+**Response `204`** (no body)
+
+**Errors** `400` invalid id · `401` not authenticated · `403` no role and no subscription · `404` not found **or owned by another user** (no id-existence leak)
+
+---
+
+#### `PATCH /api/notifications/read-all`
+Mark all of the caller's unread notifications read.
+
+**Auth**: `requireMastermind`
+
+**Response `200`** `{ "updated": 4 }` — the number of rows flipped.
+
+**Errors** `401` not authenticated · `403` no role and no subscription
+
+---
+
+### Real-Time — WebSocket (`/ws`)
+
+Mastermind's live layer. **REST is the source of truth; the WebSocket is only a notifier** —
+every mutation persists over the REST routes above, then the server broadcasts the resulting
+message over the socket. No new data lives only on the socket; a dropped connection is recovered
+by the `?since=` backfill on `GET /api/channels/:id/messages`.
+
+**Connection**: one socket per browser tab, opened app-wide for eligible users. Served at `/ws`
+on the same HTTP server (`ws://` in dev, `wss://` in prod). Vite's HMR socket is left untouched
+(upgrades are routed by path).
+
+**Upgrade auth**: the upgrade request's `connect.sid` session cookie is parsed, unsigned with
+`SESSION_SECRET`, and resolved through the session store; the user must pass
+`isMastermindEligible` (the same rule as `requireMastermind`). A failed check rejects the upgrade
+with `401` and no socket opens. See `access-control.md` §5.13.
+
+**Subscription model**: the client subscribes to the one channel it is viewing (the "firehose").
+The per-user 'doorbell' stream delivers `notification.created` to **every connected tab of the
+recipient**, independent of channel subscriptions — mentions reach users browsing other pages.
+
+**Client → server** (JSON):
+```json
+{ "type": "subscribe",   "channelId": "uuid" }
+{ "type": "unsubscribe", "channelId": "uuid" }
+```
+`subscribe` is honored only for a public, non-archived channel — and for an **admin-only**
+channel only when the client is `admin`/`owner` (otherwise the subscribe is silently ignored, so
+no live events for that channel are delivered).
+
+**Server → client** (JSON) — each carries the same enriched message object the REST routes
+return (timestamps as ISO strings):
+```json
+{ "type": "message.created", "message": { ...message, "mentionedUserIds": ["uuid"], "mentionedEveryone": false } }
+{ "type": "message.updated", "message": { ...message } }
+{ "type": "message.deleted", "message": { ...tombstone } }
+{ "type": "reaction.changed", "messageId": "uuid", "channelId": "uuid", "emoji": "👍", "userId": "uuid", "action": "add" }
+{ "type": "message.pinned", "channelId": "uuid", "pinned": { ...PinnedMessage } | null }
+{ "type": "notification.created", "notification": { ...notification } }
+```
+`message.created` additionally carries `mentionedUserIds` / `mentionedEveryone` so clients can
+flag mention badges without re-parsing the HTML; the other message events omit them.
+`reaction.changed` is a **per-user delta** (not an aggregate) — each client applies `action`
+for `userId` and sets its own `reactedByMe` only when `userId` is the viewer, so a single
+broadcast yields correct per-viewer counts. `message.updated` / `message.deleted` are
+**field-merged** on the client (content/flags update; reactions & attachments are preserved),
+since a channel-wide event can't carry per-viewer reaction state. `notification.created` carries
+the same notification object as `GET /api/notifications` and is delivered to all of the
+recipient's tabs (not channel-scoped).
+
+**Heartbeat**: the server pings every ~30s and terminates sockets that miss a pong.
 
 ---
 

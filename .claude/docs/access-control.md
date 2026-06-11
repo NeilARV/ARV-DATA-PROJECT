@@ -287,6 +287,163 @@ All public — no auth required.
 
 ---
 
+### 5.12 Mastermind — Channels (`/api/channels`)
+
+Mastermind access = **any subscription tier OR any team role**. The read/list route is gated
+by `requireMastermind` — a configured instance of `requireSub(['basic','pro','premium'], { bypassRoles: ['admin','owner','relationship-manager','member'] })` exported from
+`server/middleware/requireMastermind.ts`. This is equivalent in meaning to the frontend
+`canAccessApp` flag. The same file exports `isMastermindEligible(userId)` (the boolean form,
+for the WebSocket upgrade handshake).
+
+Channel **management** (create / rename / archive / delete) is admin/owner only and uses
+`requireRole(['admin','owner'])` — stricter than `requireMastermind`, so it is not stacked.
+
+Membership is **implicit**: every eligible user can read every public, non-archived channel
+(no `channel_members` row required). `channel_members` rows are written lazily later to carry
+read-state; they are not consulted for authorization in Phase 1.
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/channels` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/channels/:id/read` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/channels` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| PATCH | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| POST | `/api/channels/:id/archive` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| DELETE | `/api/channels/:id` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| GET | `/api/channels/:id/members` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/channels/:id/pin` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/channels/:id/pin` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+| DELETE | `/api/channels/:id/pin` | `requireRole(['admin','owner'])` | 401 | 403 | 403 | 403 | ✓ |
+
+**Behavior notes:**
+- `GET /api/channels` returns public, non-archived channels (enriched with per-caller
+  `unreadCount` / `hasMention`). Admin/owner may pass `?includeArchived=true` to include
+  archived channels (the archive view); the flag is ignored for non-admin callers
+  (controller-enforced), so they only ever see active channels.
+- **Pin** is **admin/owner only** (set/replace/clear). `GET /api/channels/:id/pin` returns the
+  single pinned message (or `null`) for any eligible caller and is what the channel pin bar reads;
+  the pinned payload includes who pinned it. There is one pin per channel
+  (`pinned_messages` `UNIQUE(channel_id)`); `POST` upserts (replaces) it. A pinned message that is
+  soft-deleted is cleared from the pin.
+- `PATCH /api/channels/:id/read` advances the caller's `channel_members.last_read_at` /
+  `last_read_message_id` (the unread-badge clear). It upserts the caller's own
+  `channel_members` row — this is the **lazy membership join point** — and returns `204`.
+  It only ever touches the caller's own read-state, so no ownership check is needed beyond
+  `requireMastermind`.
+- `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
+- `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
+  channel is **already archived** — otherwise it returns `409` ("archive the channel before
+  deleting"). This is the delete-twice safety net.
+
+**Admin-only channels (`channels.is_admin_only = true`, e.g. `#admin`):**
+A channel flagged `is_admin_only` is visible and usable by **`admin`/`owner` only** — *not*
+`member`, `relationship-manager`, or any subscriber, even though all of those pass
+`requireMastermind`. The flag is an **orthogonal, service-enforced** restriction layered on top
+of the route middleware in the tables above (the channel is still `type='public'`). Enforcement
+points (a non-admin caller is treated as if the channel does not exist → **404**, so existence is
+never disclosed):
+- `GET /api/channels` **excludes** admin-only channels for non-admins (so the channel never
+  appears in their sidebar, mention lists, or deep links).
+- `GET`/`POST /api/channels/:id/messages`, `PATCH /api/channels/:id/read`,
+  `GET /api/channels/:id/members`, and `GET /api/channels/:id/pin` all return **404** for a
+  non-admin caller. For admin/owner they behave normally.
+- The message-id-scoped routes (`POST`/`DELETE /api/messages/:id/reactions`) also **404** a
+  non-admin on an admin-only channel's message (the reaction service re-checks the channel).
+  Edit/delete (`PATCH`/`DELETE /api/messages/:id`) are already author-or-admin gated, and a
+  non-admin can never be the author of an admin-only message (they can't post), so they're
+  blocked there too.
+- `GET /api/channels/:id/members` additionally **scopes mention candidates to admins/owners** for
+  an admin-only channel (you cannot `@mention` a user who can't see the channel).
+- **Notification fan-out** is scoped: an `@channel` in an admin-only channel notifies
+  **admins/owners only**, and a direct `@user` of a non-admin is **dropped** (no bell/email
+  deep-linking a user into a channel they can't open).
+- **Real-time:** the `/ws` `subscribe` to an admin-only channel is rejected for a non-admin
+  client (see the WS note in §5.13).
+- Channel-management routes (`POST`/`PATCH`/archive/`DELETE`, pin set/clear) are already
+  `requireRole(['admin','owner'])`, so they need no extra check.
+
+---
+
+### 5.13 Mastermind — Messages (`/api/channels/:id/messages`, `/api/messages/:id`)
+
+All message routes are gated by `requireMastermind` (same rule as channels: any subscription
+tier OR any team role). There is **no** `requireRole` on these routes — author-vs-admin rules
+are enforced **inside the service**, mirroring the Vendors posts pattern:
+
+- **Edit (`PATCH /api/messages/:id`)** is **author-only** — a non-author is `403` *even for
+  admin/owner*. This enforces the Mastermind design rule: admins may delete a message but may
+  **never edit** what someone else said.
+- **Delete (`DELETE /api/messages/:id`)** is allowed for the **author OR an admin/owner**.
+  Delete is a **soft delete** (`is_deleted = true`, content blanked to a tombstone); messages
+  are never hard-deleted.
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/channels/:id/messages` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/channels/:id/messages` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only in service) | 401 | 403 | ✓ own / 403 others | ✓ own / 403 others | ✓ own / **403 others** |
+| DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin in service) | 401 | 403 | ✓ own / 403 others | ✓ own / 403 others | ✓ **any** |
+| POST | `/api/messages/:id/reactions` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| DELETE | `/api/messages/:id/reactions` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+
+**Behavior notes:**
+- `GET …/messages` returns history newest-first via **keyset pagination** (`?cursor=<messageId>&limit=`,
+  default 30, max 50) → `{ messages, nextCursor }`. Passing `?since=<messageId>` switches to
+  **reconnect backfill** mode (messages newer than that id, oldest-first). Reads target public,
+  non-archived channels only (archived/unknown → `404`).
+- Soft-deleted messages are still returned, as **blank tombstones** (`isDeleted: true`, content
+  stripped), so the timeline has no gaps.
+- `POST …/messages` validates content with `createMessageSchema`, **sanitizes the TipTap HTML
+  server-side** (stored-XSS protection), and rejects content that is empty once sanitized
+  (`400`). Posting to an archived channel → `403`. `parentMessageId` is ignored in Phase 1.
+- `PATCH /api/messages/:id` sets `is_edited = true`; editing a soft-deleted message → `409`.
+- `POST …/messages` also accepts an optional `attachments[]` (metadata from the upload endpoint
+  below). Each `fileUrl` is re-validated server-side to start with our Supabase bucket's public-URL
+  prefix (a client cannot attach an arbitrary URL). A message is valid with **text OR ≥1
+  attachment**; empty content with no attachment → `400`.
+- **Reactions** (`POST`/`DELETE /api/messages/:id/reactions`) take `{ emoji }` from the fixed set
+  (`👍 👎 😀 😢 😂 ✅`); off-set emoji → `400`. Add is idempotent (`UNIQUE(message_id,user_id,emoji)`),
+  remove is self-scoped (only the caller's own reaction). Both broadcast a `reaction.changed` delta.
+- **Attachment upload** (`POST /api/mastermind/attachments`, `requireMastermind`) is a multipart
+  endpoint (`multer`, field `file`, max 10 MB, allowlisted image/doc MIME types) that uploads to
+  Supabase Storage and returns `{ attachment }` metadata to send back with the message. Access
+  matrix is the standard `requireMastermind` chain (401 / 403 / ✓).
+
+**Real-time (`/ws`) upgrade gate:** the Mastermind WebSocket at `/ws` is **not** an Express
+route, so the middleware table above doesn't apply. The upgrade is authenticated manually in
+`server/websocket/auth.ts`: it reads the `connect.sid` session cookie, unsigns it with
+`SESSION_SECRET`, loads the session, and requires `isMastermindEligible(userId)` — the **same
+rule** as `requireMastermind`. A missing/invalid cookie, missing session, or ineligible user
+causes the upgrade to be rejected with `401` (no socket opens). Once connected, a client may only
+`subscribe` to public, non-archived channels — and to an **admin-only** channel only if the
+client is `admin`/`owner` (otherwise the subscribe is silently ignored, so no live events for that
+channel are delivered).
+
+---
+
+### 5.14 Mastermind — Notifications (`/api/notifications`)
+
+The in-app bell feed. All routes are gated by `requireMastermind` and are **self-scoped**: every
+query/update filters on the caller's `user_id`, so a user can only ever read or mark their own
+notifications — there is no admin view and no cross-user access at any role.
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/notifications` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/notifications/:id/read` | `requireMastermind` (+ self-scoped in service) | 401 | 403 | ✓ own / 404 others | ✓ own / 404 others | ✓ own / **404 others** |
+| PATCH | `/api/notifications/read-all` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+
+**Behavior notes:**
+- Notification rows are created server-side only (mention fan-out on message create — `@user`
+  rows get type `mention`, `@channel` expands to all eligible users as `channel_mention`,
+  excluding the sender). There is no `POST /api/notifications`.
+- `PATCH /api/notifications/:id/read` returns `404` (not `403`) when the row exists but belongs
+  to another user, so the route does not leak which notification ids exist.
+- New notifications are also pushed over the `/ws` socket (`notification.created`) to every
+  connected tab of the recipient — same upgrade gate as §5.13.
+
+---
+
 ## 6. How `testing.md` uses this file
 
 When generating the mandatory access-control integration tests for a new or changed route:

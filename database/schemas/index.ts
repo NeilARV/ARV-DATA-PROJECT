@@ -7,3 +7,4 @@ export * from './relations.schema';
 export * from './statuses.schema';
 export * from './deals.schema';
 export * from './vendors.schema';
+export * from './mastermind.schema';

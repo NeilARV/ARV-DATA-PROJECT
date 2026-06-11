@@ -235,14 +235,14 @@ build roughly in order (later parts depend on earlier ones). Per `CLAUDE.md`: af
 change run `npm run check`, then the `code-optimizer` agent, and the agent-updater for
 DB/API changes.
 
-### Part 1 — Schema & migrations
+### Part 1 — Schema & migrations | Completed
 Create Drizzle schemas + indexes for: `channels`, `channel_members`, `messages`,
 `message_attachments`, `message_reactions`, `message_mentions`, `pinned_messages`,
 `notifications`. (Full definitions in [Database Schema](#database-schema).) Seed the initial
 channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …). Add Zod insert/validation
 schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes exist.
 
-### Part 2 — Access gate, channel routes, auto-join
+### Part 2 — Access gate, channel routes, auto-join | Completed
 - Wire `requireMastermind` (the `requireSub` chain above) onto a new `messages.routes.ts` /
   `channels.routes.ts`.
 - Channel CRUD: `GET /api/channels` (list channels the caller is in), admin-only
@@ -255,7 +255,7 @@ schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes e
 - Update `access-control.md` tables **first**, then write routes + access-control tests.
 **Done:** an eligible user lists channels; a no-role/no-sub user gets 403; unauth gets 401.
 
-### Part 3 — Message REST lifecycle
+### Part 3 — Message REST lifecycle | Completed
 - `GET /api/channels/:id/messages?cursor=&limit=` — paginated history (newest-first, cursor on
   `created_at` / `id`).
 - `GET /api/channels/:id/messages?since=<id|ts>` — reconnect backfill.
@@ -266,7 +266,7 @@ schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes e
 - Anti-spam: per-user post rate limit (e.g. burst cap) in the controller/service.
 **Done:** full CRUD with role rules enforced + tested; nothing is ever hard-deleted.
 
-### Part 4 — WebSocket layer
+### Part 4 — WebSocket layer | Completed
 - Attach `ws` to the existing Express HTTP server. Authenticate the upgrade via the session
   cookie; reject if not `canAccessApp`-eligible. Heartbeat ping ~30s.
 - Server broadcasts `message.created` / `message.updated` / `message.deleted` /
@@ -276,16 +276,23 @@ schemas in `/database`. **Done:** `npm run db:push` succeeds; tables + indexes e
 **Done:** two browsers in the same channel see each other's messages instantly; killing/restoring
 the socket backfills with no lost messages.
 
-### Part 5 — Frontend shell
+### Part 5 — Frontend shell | Completed
 - Page `client/src/pages/Mastermind.tsx` in the shared provider tree; nav entry gated on
   `canAccessApp`.
 - Layout: channel sidebar (list + unread badges) · message list (infinite scroll) · composer.
 - Composer reuses the TipTap stack; messages render formatted HTML (reuse `PostCard` render).
 - Mobile: sidebar/messages tab-switch (mirror Vendors' Browse/Activity pattern).
+- **URL-based channel routing:** the open channel lives in the URL as a path param —
+  `/mastermind/:channelName` (keyed on the unique channel **name** slug, not the id), with both
+  `/mastermind` and `/mastermind/:channelName` rendering the same page (Wouter, not file-based).
+  Channel links are shareable and browser back/forward works. A bare `/mastermind` or an
+  unknown/archived name redirects to the first channel. Notification deep-links are
+  `/mastermind/<name>?m=<messageId>` (channel in the path, highlight target as the only query
+  param, stripped after it fires).
 **Done:** a member can open `/mastermind`, pick a channel, send a formatted message, and scroll
 history on desktop + mobile.
 
-### Part 6 — Mentions (`@user`, `@here`, `@channel`)
+### Part 6 — Mentions (`@user`, `@here`, `@channel`) | Completed
 - Autocomplete in the composer (reuse vendor mention machinery): `@` → user list (channel
   members), plus literal `@here` / `@channel`.
 - On send, parse mentions out of the TipTap HTML → write `message_mentions` rows
@@ -293,15 +300,16 @@ history on desktop + mobile.
 - Render mention chips as clickable.
 **Done:** mentioning a user records a mention; `@channel` targets everyone in the channel.
 
-### Part 7 — Unread indicators & badges
+### Part 7 — Unread indicators & badges | Completed
 - Track `channel_members.last_read_at` / `last_read_message_id`; advance it when a user views a
   channel (debounced).
 - Sidebar shows per-channel unread count; a **mention** in an unread channel gets a stronger
   highlight (red dot) vs. plain unread (bold).
 - Unread count = messages in channel newer than `last_read_*`.
 **Done:** unread badges appear/clear correctly across tabs and reconnects.
+**Known Problem:** Unread messages does not appear until a user refreshes the screen. Fine for now but should be changed in the future 
 
-### Part 8 — In-app notifications (bell)
+### Part 8 — In-app notifications (bell) | Completed
 - `notifications` table rows created when a user is mentioned (or `@here`/`@channel` hits them).
 - `GET /api/notifications` (feed, unread count), `PATCH /api/notifications/:id/read`,
   `PATCH /api/notifications/read-all`.
@@ -309,24 +317,29 @@ history on desktop + mobile.
   channel + message (scroll-to + highlight).
 - New notifications also arrive over the WebSocket for instant badge updates.
 **Done:** getting mentioned lights the bell; clicking it jumps to the message.
+**Notes:** `@channel` fans out to **all eligible users** (minus the sender). Deep-link is
+**graceful**: the message is scrolled-to + highlighted only when it's within the loaded page
+(newest ~30); older targets just open the channel (full jump-to-any waits on pagination).
+Bell lives in the global header, gated on `canAccessApp`, so mentions surface on every page.
 
-### Part 9 — Reactions, pins, attachments
-- **Reactions:** fixed emoji set; `POST/DELETE /api/messages/:id/reactions`; reaction counts
-  render under the message; changes broadcast over WS. (`UNIQUE(message_id,user_id,emoji)`.)
-- **Pin:** admin/owner (and optionally any member — open decision) pin **one** message per
-  channel; pinned message shows in a channel header bar; broadcast on change.
-- **Attachments:** image upload to Supabase Storage → inline render + lightbox (reuse vendor
-  flow). Non-image files (PDF/doc) store the file + show a **download link** (no in-app viewer
-  in Phase 1). Enforce type/size limits.
-**Done:** members react, admins pin, images render inline, docs download.
-
-### Part 10 — Email notifications (rate-limited)
-- When a user is mentioned (`@user` / `@here` / `@channel`) and isn't actively viewing, queue an
-  email via Postmark (new template, e.g. `mastermind-mention`) with deep link back to the message.
-- **Rate limit: ≤3 Mastermind emails per user per day.** Beyond the cap, suppress further emails
-  that day (in-app notifications still accrue); optionally fold the rest into a future digest.
-- Respect the existing per-user notification toggle; honor a Mastermind-specific opt-out.
-**Done:** a mention emails the user (with deep link), capped at 3/day, never spams `@channel`.
+### Part 9 — Reactions, pins, attachments | Completed
+- **Reactions:** fixed emoji set (👍 👎 😀 😢 😂 ✅); `POST/DELETE /api/messages/:id/reactions`;
+  reaction counts render as pills under the message; changes broadcast over WS as a per-user
+  `reaction.changed` delta so each client computes its own `reactedByMe`. (`UNIQUE(message_id,user_id,emoji)`.)
+- **Pin:** **admin/owner only** (decided) set/replace **one** message per channel via
+  `POST /api/channels/:id/pin`; `DELETE /api/channels/:id/pin` to unpin; `GET /api/channels/:id/pin`
+  for the header bar (shows who pinned it). Broadcast `message.pinned` on change.
+- **Attachments:** upload-first flow — `POST /api/mastermind/attachments` (multipart) uploads to
+  Supabase Storage and returns metadata; the metadata is sent back on `POST .../messages` (re-validated
+  against our bucket URL prefix). Images render inline + lightbox (reuse vendor `ImageLightbox`);
+  docs show a **download link**. Allowed types: JPEG, PNG, PDF, CSV, TXT (must match the Supabase
+  bucket config). Limits: **10 MB/file, 5/message**.
+**Done:** members react, admins pin (who-pinned shown), images render inline, docs download.
+**Notes:** message wire now carries `attachments[]` + `reactions[]`; the read pipeline hydrates
+both in two batched queries (no N+1). Edits/deletes merge field-wise on the client so live
+reaction/attachment state survives a `message.updated`. Soft-delete also drops the message's
+attachment storage objects, reaction rows, and pin. The per-message hover toolbar (react · pin ·
+edit · delete) was added here (edit/delete connect the Part 3 routes that previously had no UI).
 
 ---
 
@@ -350,6 +363,15 @@ High-value once the core community is live. Schema already anticipates most of t
   (`channel_members.is_muted` + a level column). Pairs with the email rate limit.
 - **Moderation** — admin/owner can remove or mute a specific user within a channel (beyond
   deleting individual messages).
+  
+
+### Part 1 — Email notifications (rate-limited)
+- When a user is mentioned (`@user` / `@here` / `@channel`) and isn't actively viewing, queue an
+  email via Postmark (new template, e.g. `mastermind-mention`) with deep link back to the message.
+- **Rate limit: ≤3 Mastermind emails per user per day.** Beyond the cap, suppress further emails
+  that day (in-app notifications still accrue); optionally fold the rest into a future digest.
+- Respect the existing per-user notification toggle; honor a Mastermind-specific opt-out.
+**Done:** a mention emails the user (with deep link), capped at 3/day, never spams `@channel`.
 
 ---
 
@@ -400,6 +422,7 @@ channels
 ├── type (enum: 'public','private','dm','group_dm')   ← Phase 1 only 'public'
 ├── created_by (uuid, FK → users.id)
 ├── is_archived (boolean, default false)   ← archive safety-net
+├── is_admin_only (boolean, default false) ← admin/owner-only visibility (service-enforced)
 ├── created_at (timestamp)
 └── updated_at (timestamp)
 

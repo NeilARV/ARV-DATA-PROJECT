@@ -108,6 +108,9 @@ tests/
         ├── companies/
         ├── geocoding/
         ├── deals/
+        ├── channels/
+        ├── messages/
+        ├── notifications/
         └── contact/
 ```
 

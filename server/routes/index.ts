@@ -11,6 +11,10 @@ import categoriesRoutes from './categories.routes';
 import vendorsRoutes from './vendors.routes';
 import postsRoutes from './posts.routes';
 import claimsRoutes from './claims.routes';
+import channelsRoutes from './channels.routes';
+import messagesRoutes from './messages.routes';
+import notificationsRoutes from './notifications.routes';
+import mastermindRoutes from './mastermind.routes';
 
 const router = Router();
 
@@ -26,5 +30,9 @@ router.use('/contact', contactRoutes);
 router.use('/categories', categoriesRoutes);
 router.use('/vendors', vendorsRoutes);
 router.use('/posts', postsRoutes);
+router.use('/channels', channelsRoutes);
+router.use('/messages', messagesRoutes);
+router.use('/notifications', notificationsRoutes);
+router.use('/mastermind', mastermindRoutes);
 
 export default router;

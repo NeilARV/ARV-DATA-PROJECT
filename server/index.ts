@@ -5,6 +5,7 @@ import { db } from './storage';
 import { sessions } from '@database/schemas/users.schema';
 import { startScheduledJobs } from './jobs';
 import { createApp } from './app';
+import { initWebSocket } from './websocket';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -52,7 +53,10 @@ if (!process.env.SESSION_SECRET) {
 
     const server = createServer(app);
 
-    if (app.get('env') === 'development') {
+    const isDevelopment = app.get('env') === 'development';
+    initWebSocket(server, sessionStore, { isDevelopment });
+
+    if (isDevelopment) {
         await setupVite(app, server);
     } else {
         serveStatic(app);

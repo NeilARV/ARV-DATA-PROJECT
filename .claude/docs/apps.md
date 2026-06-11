@@ -1,4 +1,4 @@
-# Apps — Overview & Reference (Data · Deals · Vendors)
+# Apps — Overview & Reference (Data · Deals · Vendors · Mastermind)
 
 ARV is organized as three feature areas that function like separate apps on a shared
 foundation (auth, providers, backend). Each has its own page entry point, nav hook, routes,
@@ -525,3 +525,144 @@ Page `client/src/pages/Vendors.tsx` · API client `client/src/api/vendors.api.ts
 `categories.routes.ts` · controllers/services under `server/controllers/` and
 `server/services/` (`vendors/`, `posts/`, `categories/`) · schema
 `database/schemas/vendors.schema.ts` · validation `database/validation/vendors.validation.ts`.
+
+---
+
+# 4. Mastermind App
+
+## What It Is
+A Slack-style real-time community — the live layer of the mastermind subscription. Topic
+channels (`#general`, `#first-time-flippers`, `#san-diego-market`, …), real-time messages,
+@mentions, reactions, pins, and notifications, scoped to paying members and the ARV team. Full
+design and phased build plan: `.claude/docs/mastermind.md`.
+
+> **Status:** under construction. **Phase 1 Parts 1–9** are built (schema, access gate +
+> channel routes, message REST lifecycle, WebSocket layer, frontend shell, mentions + user
+> tagging, unread indicators, in-app notifications/bell, and reactions/pins/attachments). Part 9
+> added emoji reactions (fixed set, `reaction.changed` delta broadcast), admin/owner-only pins
+> (one per channel, `message.pinned` broadcast, pin bar showing who pinned), and message
+> attachments (upload-first to Supabase; images inline + lightbox, docs as download links), plus
+> the per-message hover toolbar (react · pin · edit · delete). Email notifications (Part 10) are
+> the remaining Phase 1 part.
+
+## Page Entry Point
+`/mastermind` (`client/src/pages/Mastermind.tsx`). Nav entry is gated on `canAccessApp`.
+
+## Access Model
+Access = **any subscription tier OR any team role** (mirrors the frontend `canAccessApp` flag).
+Server gate is `requireMastermind` — a configured instance of
+`requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] })`
+exported from `server/middleware/requireMastermind.ts`, alongside `isMastermindEligible(userId)`
+(the boolean form, used for the WebSocket upgrade handshake). Channel management
+(create/rename/archive/delete) is admin/owner only via `requireRole(["admin","owner"])`.
+
+| Action | Subscriber (basic/pro/premium) | Member / RM | Admin / Owner |
+|---|---|---|---|
+| List & read channels | ✓ | ✓ | ✓ |
+| Read & send messages | ✓ | ✓ | ✓ |
+| Edit **own** message | ✓ | ✓ | ✓ |
+| Delete **own** message | ✓ | ✓ | ✓ |
+| Edit **another user's** message | — | — | — (never, by design) |
+| Delete **another user's** message | — | — | ✓ |
+| Create / rename / archive / delete channel | — | — | ✓ |
+
+## API Surface (`server/routes/channels.routes.ts`, `server/routes/messages.routes.ts`, `server/routes/notifications.routes.ts`)
+| Method | Route | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/channels` | `requireMastermind` | Lists public, non-archived channels (ordered general → markets → others → admin-only last); admin/owner may pass `?includeArchived=true`. Admin-only channels are excluded for non-admins; every per-channel route 404s a non-admin on an admin-only channel (service-enforced) |
+| POST | `/api/channels` | `requireRole(["admin","owner"])` | Create; `name` is a unique lowercase slug |
+| PATCH | `/api/channels/:id` | `requireRole(["admin","owner"])` | Rename / edit description |
+| POST | `/api/channels/:id/archive` | `requireRole(["admin","owner"])` | Soft archive (`is_archived = true`) |
+| DELETE | `/api/channels/:id` | `requireRole(["admin","owner"])` | Hard delete (cascade); `409` unless already archived |
+| GET | `/api/channels/:id/members` | `requireMastermind` | Mention candidates — all Mastermind-eligible users (Phase 1); returns `{ users }` |
+| GET | `/api/channels/:id/messages` | `requireMastermind` | History (`?cursor=&limit=`) → `{ messages, nextCursor }`; backfill (`?since=`) → `{ messages, hasMore }`. Soft-deleted = blank tombstones |
+| POST | `/api/channels/:id/messages` | `requireMastermind` | Send; content sanitized server-side; `parentMessageId` ignored (Phase 1); `403` if channel archived |
+| PATCH | `/api/channels/:id/read` | `requireMastermind` | Advance caller's read-state (lazy `channel_members` upsert) → `204` |
+| PATCH | `/api/messages/:id` | `requireMastermind` (+ author-only) | Edit own message; admins **cannot** edit others'; sets `isEdited` |
+| DELETE | `/api/messages/:id` | `requireMastermind` (+ author-or-admin) | Soft delete (author or admin/owner); also clears its attachments/reactions/pin |
+| POST | `/api/messages/:id/reactions` | `requireMastermind` | Add a fixed-set reaction (idempotent); broadcasts `reaction.changed` |
+| DELETE | `/api/messages/:id/reactions` | `requireMastermind` | Remove own reaction; broadcasts `reaction.changed` |
+| GET | `/api/channels/:id/pin` | `requireMastermind` | The channel's single pinned message (or `null`), with who pinned it |
+| POST | `/api/channels/:id/pin` | `requireRole(["admin","owner"])` | Set/replace the one pin; broadcasts `message.pinned` |
+| DELETE | `/api/channels/:id/pin` | `requireRole(["admin","owner"])` | Clear the pin; broadcasts `message.pinned` (null) |
+| POST | `/api/mastermind/attachments` | `requireMastermind` | Multipart upload (10MB; JPEG/PNG/PDF/CSV/TXT) → metadata for the message `attachments[]` |
+| GET | `/api/notifications` | `requireMastermind` | Bell feed (newest-first, capped at 30) + `unreadCount`; self-scoped to the caller |
+| PATCH | `/api/notifications/read-all` | `requireMastermind` | Marks all of the caller's unread read → `{ updated }` |
+| PATCH | `/api/notifications/:id/read` | `requireMastermind` | Marks one read → `204`; `404` if not found **or owned by another user** |
+
+Full request/response detail: `.claude/docs/api.md` §12. Permission tables:
+`.claude/docs/access-control.md` §5.12–§5.14.
+
+## Backend
+Routes `server/routes/channels.routes.ts` · controller `server/controllers/channels/` ·
+service `server/services/channels/` (`ChannelServiceError` carries `statusCode`, mirroring
+`DealServiceError`; duplicate-name writes are mapped to `409`) · gate
+`server/middleware/requireMastermind.ts`.
+
+Membership is **implicit** in Phase 1: every eligible user can read every public channel — no
+`channel_members` row is required, and that table is not consulted for authorization. It exists
+to carry per-user read-state (`last_read_at`) later (unread badges, Part 7).
+
+**Mention persistence:** `POST /api/channels/:id/messages` and `PATCH /api/messages/:id` both
+parse `@user` mention marks from the sanitized TipTap HTML after the message is saved. On
+create, a `message_mentions` row is inserted for each unique mentioned user. On edit, the
+existing mention rows for the message are deleted and re-inserted from the updated content
+(full rebuild). The UNIQUE constraint on `(messageId, mentionedUserId)` prevents duplicates.
+
+## Real-Time (`server/websocket/`, `/ws`)
+A WebSocket layer attached to the same HTTP server delivers live messages. **REST is the source
+of truth; the socket is only a notifier** — the message controllers broadcast
+`message.created/updated/deleted` after each REST write, and a dropped socket is reconciled by the
+`?since=` backfill. One socket per tab, opened **app-wide** for eligible users; the upgrade is
+authenticated by the session cookie + `isMastermindEligible` (no Express middleware runs on a raw
+upgrade). The client subscribes to the one channel it is viewing (the "firehose"); a per-user
+'doorbell' stream delivers `notification.created` (same object as `GET /api/notifications`) to
+**every connected tab of the recipient**, independent of channel subscription, so mentions surface
+on any page (cross-channel unread delivery remains a Phase 2 TODO). The in-memory connection registry is single-instance — horizontal scaling later needs
+Redis pub/sub (see `.claude/docs/mastermind.md` Known Limitation). Vite's HMR socket is unaffected
+(upgrades routed by path). Client cache: live events and history both write a flat ascending
+`MastermindMessageWire[]` under `messagesQueryKey(channelId)`, de-duplicated by id.
+
+## Database Schema (`database/schemas/mastermind.schema.ts`)
+Enums: `channel_type` (`public`/`private`/`dm`/`group_dm` — Phase 1 uses only `public`),
+`channel_member_role` (`owner`/`admin`/`member`), `notification_type` (`mention`/`channel_mention`).
+
+| Table | Key Columns | Notes |
+|---|---|---|
+| `channels` | id (uuid), name (unique), description, type, createdBy (FK users, set null), isArchived | Seeded with starter channels |
+| `channel_members` | id, channelId, userId, role, lastReadAt, lastReadMessageId, isMuted | UNIQUE(channelId, userId); written lazily for read-state |
+| `messages` | id, channelId, senderId, parentMessageId (self-FK, threads/Phase 2), content (HTML), isEdited, isDeleted | Soft-delete only; index (channelId, createdAt DESC) |
+| `message_attachments` | id, messageId, fileUrl, fileName, fileType, fileSizeBytes | Supabase Storage URLs |
+| `message_reactions` | id, messageId, userId, emoji | UNIQUE(messageId, userId, emoji); fixed emoji set |
+| `message_mentions` | id, messageId, mentionedUserId | UNIQUE(messageId, mentionedUserId); index (mentionedUserId, createdAt DESC) |
+| `pinned_messages` | id, messageId, channelId, pinnedBy | UNIQUE(channelId) — one pin per channel |
+| `notifications` | id, userId (recipient), type, channelId, messageId, actorId, isRead, emailedAt | Bell feed; index (userId, isRead, createdAt DESC) |
+
+Deleting a channel cascades to its messages, members, reactions, mentions, pins, and
+notifications. See `.claude/docs/database.md` (Mastermind section) for full column detail.
+
+## Validation (`database/validation/mastermind.validation.ts`, `database/inserts/mastermind.insert.ts`)
+Request schemas: `createChannelSchema`, `updateChannelSchema`, `createMessageSchema` (accepts
+optional `attachments[]`), `updateMessageSchema`, `reactionSchema`, `messageAttachmentSchema`,
+`pinMessageSchema`. `MASTERMIND_REACTION_EMOJIS` is the fixed reaction set (👍 👎 😀 😢 😂 ✅) and
+`MAX_ATTACHMENTS_PER_MESSAGE` (5) the per-message cap. drizzle-zod insert schemas live in
+`database/inserts/mastermind.insert.ts`; types in `database/types/mastermind.d.ts`.
+
+## Key Files
+Gate `server/middleware/requireMastermind.ts` · routes `server/routes/channels.routes.ts`,
+`server/routes/messages.routes.ts`, `server/routes/notifications.routes.ts` · controllers
+`server/controllers/channels/channels.controllers.ts`,
+`server/controllers/messages/messages.controllers.ts`,
+`server/controllers/notifications/notifications.controllers.ts` · services
+`server/services/channels/channels.services.ts`, `server/services/messages/messages.services.ts`,
+`server/services/notifications/notifications.services.ts` ·
+HTML sanitizer `server/utils/sanitizeHtml.ts` · real-time `server/websocket/` (`index.ts` bootstrap,
+`auth.ts` upgrade auth, `registry.ts` connections+broadcast, `connection.ts` per-socket handler),
+protocol `shared/mastermind/events.ts`, client socket `client/src/hooks/use-mastermind-socket.tsx`
++ `client/src/lib/mastermind-messages.ts`, `client/src/lib/mastermind-notifications.ts` · page
+`client/src/pages/Mastermind.tsx`, bell `client/src/components/mastermind/NotificationBell.tsx`
+(rendered in the global `client/src/components/Header.tsx`), feed hook
+`client/src/hooks/use-notifications.ts` · schema `database/schemas/mastermind.schema.ts` ·
+validation `database/validation/mastermind.validation.ts` · tests
+`tests/server/api/channels/`, `tests/server/api/messages/`, `tests/server/api/notifications/`,
+`tests/server/websocket/` · design doc `.claude/docs/mastermind.md`.

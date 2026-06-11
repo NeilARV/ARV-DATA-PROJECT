@@ -17,11 +17,14 @@ import {
     Mail,
     Store,
     X,
+    Brain,
+    Database,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import darkLogoUrl from '@assets/arv-data-logo-dark.png';
 import lightLogoUrl from '@assets/arv-data-logo-light.png';
+import { NotificationBell } from '@/components/mastermind/NotificationBell';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useView } from '@/hooks/useView';
@@ -60,7 +63,7 @@ export default function Header() {
     const menuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const [location, setLocation] = useLocation();
-    const { user, isAuthenticated, canAccessAdminPanel, logout } = useAuth();
+    const { user, isAuthenticated, canAccessAdminPanel, canAccessMastermind, logout } = useAuth();
     const { toast } = useToast();
 
     // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -165,11 +168,11 @@ export default function Header() {
 
     return (
         <header
-            className="h-16 border-b border-border bg-background flex items-center justify-between px-4 gap-4"
+            className="h-16 border-b border-border bg-background flex items-center px-4 gap-4 relative"
             data-testid="header-main"
         >
-            {/* Left Section */}
-            <div className="flex items-center gap-4 flex-1 min-w-0">
+            {/* Left: Logo */}
+            <div className="flex-1 flex items-center min-w-0">
                 <button
                     className="flex items-center hover:opacity-80 transition-opacity cursor-pointer flex-shrink-0"
                     onClick={onLogoClick}
@@ -181,9 +184,17 @@ export default function Header() {
                         className="h-16 w-auto"
                         data-testid="img-logo"
                     />
-                    <h1 className="text-xl lg:text-2xl font-semibold hidden sm:block">ARV Data</h1>
+                    <h1 className="text-xl lg:text-2xl font-semibold hidden lg:block">ARV Data</h1>
                 </button>
 
+                {/* Mobile: centered brand title */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none lg:hidden">
+                    <span className="text-base font-semibold text-foreground">ARV Finance</span>
+                </div>
+            </div>
+
+            {/* Center: Nav buttons — desktop only */}
+            <div className="hidden lg:flex items-center gap-3">
                 <Button
                     variant={location === '/deals' ? 'default' : 'outline'}
                     size="sm"
@@ -191,122 +202,130 @@ export default function Header() {
                     data-testid="button-deals"
                 >
                     <Handshake className="w-4 h-4 mr-1" />
-                    <span className="hidden sm:inline">Deal Room</span>
+                    Deal Room
                 </Button>
 
-                <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="flex items-center border border-border rounded-md">
+                <div className="flex items-center border border-border rounded-md">
+                    <Button
+                        variant={
+                            location === '/' && view === 'buyers-feed' ? 'default' : 'ghost'
+                        }
+                        size="sm"
+                        onClick={onBuyersFeedClick}
+                        className="rounded-r-none"
+                        data-testid="button-buyers-feed"
+                    >
+                        <Users className="w-4 h-4 mr-1" />
+                        Buyers Feed
+                    </Button>
+                    <span className="w-px h-5 bg-border shrink-0" />
+                    <Button
+                        variant={location === '/' && view === 'wholesale' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={onWholesaleClick}
+                        className="rounded-none"
+                        data-testid="button-wholesale"
+                    >
+                        <DollarSign className="w-4 h-4 mr-1" />
+                        Wholesale
+                    </Button>
+                    <span className="w-px h-5 bg-border shrink-0" />
+                    <Button
+                        variant={location === '/' && view === 'map' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => {
+                            setView('map');
+                            const county = filters?.county ?? 'San Diego';
+                            const center = getCountyCenter(county) ?? getDefaultMapCenter();
+                            setMapCenter(center);
+                            setMapZoom(MAP_ZOOM_COUNTY);
+                        }}
+                        className="rounded-none"
+                        data-testid="button-view-map"
+                    >
+                        <Map className="w-4 h-4 mr-1" />
+                        Map
+                    </Button>
+                    <span className="w-px h-5 bg-border shrink-0" />
+                    <div className="relative" ref={moreMenuRef}>
                         <Button
                             variant={
-                                location === '/' && view === 'buyers-feed' ? 'default' : 'ghost'
+                                location === '/' && (view === 'grid' || view === 'table')
+                                    ? 'default'
+                                    : 'ghost'
                             }
                             size="sm"
-                            onClick={onBuyersFeedClick}
-                            className="rounded-r-none"
-                            data-testid="button-buyers-feed"
+                            className="rounded-l-none gap-1"
+                            data-testid="button-view-more"
+                            onClick={() => setShowMoreMenu(!showMoreMenu)}
                         >
-                            <Users className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Buyers Feed</span>
+                            {view === 'grid' ? (
+                                <Grid3x3 className="w-4 h-4 mr-1" />
+                            ) : view === 'table' ? (
+                                <Table2 className="w-4 h-4 mr-1" />
+                            ) : null}
+                            {view === 'grid' ? 'Grid' : view === 'table' ? 'Table' : 'More'}
+                            <ChevronDown className="w-3 h-3" />
                         </Button>
-                        <span className="w-px h-5 bg-border shrink-0" />
-                        <Button
-                            variant={location === '/' && view === 'wholesale' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={onWholesaleClick}
-                            className="rounded-none"
-                            data-testid="button-wholesale"
-                        >
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Wholesale Transactions</span>
-                        </Button>
-                        <span className="w-px h-5 bg-border shrink-0" />
-                        <Button
-                            variant={location === '/' && view === 'map' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => {
-                                setView('map');
-                                const county = filters?.county ?? 'San Diego';
-                                const center = getCountyCenter(county) ?? getDefaultMapCenter();
-                                setMapCenter(center);
-                                setMapZoom(MAP_ZOOM_COUNTY);
-                            }}
-                            className="rounded-none"
-                            data-testid="button-view-map"
-                        >
-                            <Map className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Map</span>
-                        </Button>
-                        <span className="w-px h-5 bg-border shrink-0" />
-                        <div className="relative" ref={moreMenuRef}>
-                            <Button
-                                variant={
-                                    location === '/' && (view === 'grid' || view === 'table')
-                                        ? 'default'
-                                        : 'ghost'
-                                }
-                                size="sm"
-                                className="rounded-l-none gap-1"
-                                data-testid="button-view-more"
-                                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                            >
-                                {view === 'grid' ? (
-                                    <Grid3x3 className="w-4 h-4 mr-1" />
-                                ) : view === 'table' ? (
-                                    <Table2 className="w-4 h-4 mr-1" />
-                                ) : null}
-                                <span className="hidden sm:inline">
-                                    {view === 'grid' ? 'Grid' : view === 'table' ? 'Table' : 'More'}
-                                </span>
-                                <ChevronDown className="w-3 h-3" />
-                            </Button>
-                            {showMoreMenu && (
-                                <div className="absolute right-0 mt-2 w-36 bg-background border border-border rounded-md shadow-lg z-[502]">
-                                    <div className="py-1">
-                                        <button
-                                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                                            data-testid="button-view-grid"
-                                            onClick={() => {
-                                                requireSubscription(() => {
-                                                    setView('grid');
-                                                    if (!company) clearFilters();
-                                                });
-                                                setShowMoreMenu(false);
-                                            }}
-                                        >
-                                            <Grid3x3 className="w-4 h-4" />
-                                            Grid
-                                        </button>
-                                        <button
-                                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                                            data-testid="button-view-table"
-                                            onClick={() => {
-                                                onTableViewClick();
-                                                setShowMoreMenu(false);
-                                            }}
-                                        >
-                                            <Table2 className="w-4 h-4" />
-                                            Table
-                                        </button>
-                                    </div>
+                        {showMoreMenu && (
+                            <div className="absolute right-0 mt-2 w-36 bg-background border border-border rounded-md shadow-lg z-[502]">
+                                <div className="py-1">
+                                    <button
+                                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                        data-testid="button-view-grid"
+                                        onClick={() => {
+                                            requireSubscription(() => {
+                                                setView('grid');
+                                                if (!company) clearFilters();
+                                            });
+                                            setShowMoreMenu(false);
+                                        }}
+                                    >
+                                        <Grid3x3 className="w-4 h-4" />
+                                        Grid
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                        data-testid="button-view-table"
+                                        onClick={() => {
+                                            onTableViewClick();
+                                            setShowMoreMenu(false);
+                                        }}
+                                    >
+                                        <Table2 className="w-4 h-4" />
+                                        Table
+                                    </button>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
-
-                    <Button
-                        variant={location === '/vendors' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setLocation('/vendors')}
-                        data-testid="button-vendors"
-                    >
-                        <Store className="w-4 h-4 mr-1" />
-                        <span className="hidden sm:inline">Vendors</span>
-                    </Button>
                 </div>
+
+                <Button
+                    variant={location === '/vendors' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setLocation('/vendors')}
+                    data-testid="button-vendors"
+                >
+                    <Store className="w-4 h-4 mr-1" />
+                    Vendors
+                </Button>
+
+                {canAccessMastermind && (
+                    <Button
+                        variant={location === '/mastermind' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setLocation('/mastermind')}
+                        data-testid="button-mastermind"
+                    >
+                        <Brain className="w-4 h-4 mr-1" />
+                        Mastermind
+                    </Button>
+                )}
             </div>
 
-            {/* Right Section */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Right: Theme + Hamburger */}
+            <div className="flex-1 flex items-center justify-end gap-2">
                 {!isAuthenticated ? (
                     <>
                         <Button
@@ -337,6 +356,8 @@ export default function Header() {
                     </>
                 ) : (
                     <>
+                        {canAccessMastermind && <NotificationBell />}
+
                         <Button
                             variant="ghost"
                             size="icon"
@@ -366,6 +387,57 @@ export default function Header() {
                                         data-testid="menu-dropdown"
                                     >
                                         <div className="py-1">
+                                            {/* Mobile-only navigation links — hidden on lg+ where header buttons are visible */}
+                                            <div className="lg:hidden">
+                                                <button
+                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                                    onClick={() => {
+                                                        onLogoClick();
+                                                        setShowMenu(false);
+                                                    }}
+                                                    data-testid="menu-item-data"
+                                                >
+                                                    <Database className="w-4 h-4" />
+                                                    Data App
+                                                </button>
+                                                <button
+                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                                    onClick={() => {
+                                                        setLocation('/deals');
+                                                        setShowMenu(false);
+                                                    }}
+                                                    data-testid="menu-item-deals"
+                                                >
+                                                    <Handshake className="w-4 h-4" />
+                                                    Deal Room
+                                                </button>
+                                                <button
+                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                                    onClick={() => {
+                                                        setLocation('/vendors');
+                                                        setShowMenu(false);
+                                                    }}
+                                                    data-testid="menu-item-vendors"
+                                                >
+                                                    <Store className="w-4 h-4" />
+                                                    Vendors
+                                                </button>
+                                                {canAccessMastermind && (
+                                                    <button
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                                                        onClick={() => {
+                                                            setLocation('/mastermind');
+                                                            setShowMenu(false);
+                                                        }}
+                                                        data-testid="menu-item-mastermind"
+                                                    >
+                                                        <Brain className="w-4 h-4" />
+                                                        Mastermind
+                                                    </button>
+                                                )}
+                                                <div className="border-t border-border mx-2 my-1" />
+                                            </div>
+
                                             <button
                                                 className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                                                 onClick={() => {

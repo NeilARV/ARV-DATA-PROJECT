@@ -1,0 +1,48 @@
+@layer components {
+    /* ── Channel sidebar items ─────────────────────────────────────── */
+    .mm-channel-item {
+        @apply flex items-center w-full gap-2 px-3 py-1.5 rounded-md text-sm
+               text-sidebar-foreground cursor-pointer transition-colors text-left
+               hover:bg-sidebar-accent;
+    }
+
+    .mm-channel-item-active {
+        @apply bg-sidebar-accent text-sidebar-primary font-medium;
+    }
+
+    /* ── Unread badges ────────────────────────────────────────────── */
+    .mm-unread-badge {
+        @apply ml-auto flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center
+               rounded-full text-xs font-semibold px-1
+               bg-muted text-muted-foreground;
+    }
+
+    .mm-unread-badge-mention {
+        @apply bg-destructive text-destructive-foreground;
+    }
+
+    /* ── Composer toolbar buttons ─────────────────────────────────── */
+    .mm-toolbar-btn {
+        @apply p-1.5 rounded transition-colors text-muted-foreground
+               hover:text-foreground hover:bg-accent;
+    }
+
+    .mm-toolbar-btn-active {
+        @apply bg-accent text-foreground;
+    }
+
+    /* ── Notification deep-link highlight ─────────────────────────── */
+    .mm-message-highlight {
+        animation: mm-highlight-fade 2.5s ease-out forwards;
+    }
+}
+
+@keyframes mm-highlight-fade {
+    0%,
+    40% {
+        background-color: hsl(var(--primary) / 0.15);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
