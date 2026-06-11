@@ -7,7 +7,7 @@ controllers, and services.
 | App | Route | Purpose | Backend |
 |---|---|---|---|
 | **Data** | `/` | Property intelligence — browse SFR transaction data by MSA | `properties.*`, `companies.*` |
-| **Deals** | `/deals` | Deal marketplace — post/browse wholesale, agent, sold deals | `deals.*` |
+| **Deals** | `/deals` | Deal marketplace — post/browse wholesale, agent, REO, sold deals | `deals.*` |
 | **Vendors** | `/vendors` | Community hub — activity feed + vendor directory | `vendors.*`, `posts.*`, `categories.*` |
 
 All three pages wrap their content in the same 5 shared context providers:
@@ -265,7 +265,7 @@ subscription (with bypass for team roles).
   RequestDealInfoDialog (`RequestDealInfoForm`), BestBuyersDialog (top 3 buyers for a zip).
 
 **DealCard2 collapsed:** street view image, address, deal-type badge (Wholesale purple /
-Agent orange / Sold red), ARV Exclusive badge (admin-set), relative posted date, beds/baths/
+Agent orange / Sold red / REO indigo), ARV Exclusive badge (admin-set), relative posted date, beds/baths/
 sqft, financial grid (Purchase Price, Potential ARV, Est. Budget, Close of Escrow), Request
 More Info + 3-dot Edit/Delete menu.
 **Expanded:** notes, photo album link, up to 3 comparable sale links (domain-extracted
@@ -331,8 +331,8 @@ price change on PATCH → fires notification email; validates POST `userId` matc
   Estimated Budget *(opt)* → Deal Type → Notes *(opt)* → up to 3 Comparable Links *(opt)* →
   Photo Album URL *(opt)*. Admin-only fields (Internal Note, On Behalf Of, ARV Exclusive)
   appear below a divider, visible to admin/owner/RM only.
-- **Add vs Edit:** Add defaults to `agent` and can't post `sold`; Edit exposes `sold`,
-  enabling the sold transition that fires the deal-sold notification.
+- **Add vs Edit:** Add defaults to `agent` (`agent`/`wholesale`/`reo`) and can't post `sold`;
+  Edit exposes `sold`, enabling the sold transition that fires the deal-sold notification.
 
 ## Companion MSA Notifications
 Some cities near MSA boundaries interest a neighboring market. The static map
@@ -355,7 +355,7 @@ const COMPANION_NOTIFICATION_MSAS: Record<string, string[]> = {
 ## Database Schema (`database/schemas/deals.schema.ts`)
 **`deals`:** `id` (bigserial PK), `userId` (FK→users, poster), `msaId` (FK→msas, resolved on
 create/update), `sfrPropertyId` (bigint nullable, always null), `type` (`wholesale`/`agent`/
-`sold`), `address` (nullable, optional), `city`/`state`/`zipCode`/`county` (city/state/zip
+`sold`/`reo`), `address` (nullable, optional), `city`/`state`/`zipCode`/`county` (city/state/zip
 required, county resolved server-side), `price`/`potentialARV` (decimal, optional),
 `beds`/`baths`/`sqft` (required, manual), `propertyType` (required), `notes`, `adminNotes`
 (admin/owner only), `showingTime` (timestamp, ISO string no tz), `estimatedBudget`,
@@ -366,7 +366,7 @@ redirects contact requests).
 ## Validation (`database/inserts/deals.insert.ts`)
 `dealFormSchema` (Zod): city/state(2)/zip required; beds/baths/sqft/propertyType always
 required (no conditional logic on address); baths `z.coerce.number().positive()`; dealType
-default `"agent"`, `"sold"` only on edit; showingDate optional (`MM/DD/YYYY`) + showingTimeStr
+default `"agent"` (`agent`/`wholesale`/`reo` on add), `"sold"` only on edit; showingDate optional (`MM/DD/YYYY`) + showingTimeStr
 (`HH:MM`) + showingAmPm (`AM`/`PM`) combine into ISO `YYYY-MM-DDThh:mm:00`; links URL-validated
 max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-privileged callers.
 

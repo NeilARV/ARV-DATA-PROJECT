@@ -26,7 +26,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
         }
 
         // Verify password
-        const isValidPassword = SessionServices.isValidPassword(password, user.passwordHash);
+        const isValidPassword = await SessionServices.isValidPassword(password, user.passwordHash);
 
         if (!isValidPassword) {
             res.status(401).json({ message: 'Invalid email or password' });

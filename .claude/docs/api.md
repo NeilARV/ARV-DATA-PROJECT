@@ -101,7 +101,7 @@ Return the currently authenticated user with enriched data. Returns `{ user: nul
       "vendorNotificationsEnabled": false,
       "analyticsEnabled": false,
       "dataAppStatusFilter": ["in-renovation", "wholesale"],
-      "dealTypeFilter": ["wholesale", "agent", "sold"],
+      "dealTypeFilter": ["wholesale", "agent", "sold", "reo"],
       "createdAt": "2024-01-01T00:00:00Z",
       "updatedAt": null
     }
@@ -177,12 +177,12 @@ Update the authenticated user's notification preferences.
   "vendorNotificationsEnabled": false,
   "analyticsEnabled": false,
   "dataAppStatusFilter": ["in-renovation", "wholesale"],
-  "dealTypeFilter": ["wholesale", "agent", "sold"]
+  "dealTypeFilter": ["wholesale", "agent", "sold", "reo"]
 }
 ```
 
 `dataAppStatusFilter` values: `"in-renovation" | "on-market" | "wholesale" | "sold"` — empty array means all statuses.
-`dealTypeFilter` values: `"wholesale" | "agent" | "sold"` — empty array means all types.
+`dealTypeFilter` values: `"wholesale" | "agent" | "sold" | "reo"` — empty array means all types.
 
 **Response `200`** `{ "success": true, "preferences": { ...notificationPreferences } }`
 
@@ -900,7 +900,7 @@ Create a new deal.
 
 `userId` must match the authenticated session user. `isArvExclusive` and `onBehalfOfEmail` are silently stripped for non-privileged callers.
 
-`dealType` values: `"wholesale" | "agent" | "sold"`
+`dealType` values: `"wholesale" | "agent" | "sold" | "reo"`
 
 **Response `201`** `{ "message": "Deal posted successfully", "deal": { ...deal } }`
 

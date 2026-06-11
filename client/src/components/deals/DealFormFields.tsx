@@ -31,11 +31,13 @@ export const PROPERTY_TYPES = [
 export const ADD_DEAL_TYPES = [
     { value: 'agent', label: 'Agent Deal' },
     { value: 'wholesale', label: 'Wholesale Deal' },
+    { value: 'reo', label: 'REO Deal' },
 ];
 
 export const EDIT_DEAL_TYPES = [
     { value: 'agent', label: 'Agent Deal' },
     { value: 'wholesale', label: 'Wholesale Deal' },
+    { value: 'reo', label: 'REO Deal' },
     { value: 'sold', label: 'Sold Deal' },
 ];
 

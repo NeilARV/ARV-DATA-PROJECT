@@ -126,7 +126,7 @@ export const userNotificationPreferences = pgTable('user_notification_preference
     // Empty array = all statuses
     dataAppStatusFilter: text('data_app_status_filter').array().notNull().default([]),
 
-    // Deals: which deal types to receive ('wholesale' | 'agent' | 'sold')
+    // Deals: which deal types to receive ('wholesale' | 'agent' | 'sold' | 'reo')
     // Empty array = all types
     dealTypeFilter: text('deal_type_filter').array().notNull().default([]),
 

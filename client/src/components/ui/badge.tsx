@@ -21,6 +21,7 @@ const badgeVariants = cva(
                 red: 'border-transparent bg-[#FF0000] text-white shadow-xs',
                 purple: 'border-transparent bg-[#9333EA] text-white shadow-xs',
                 orange: 'border-transparent bg-[#F97316] text-white shadow-xs',
+                indigo: 'border-transparent bg-[#6366F1] text-white shadow-xs',
                 white: 'border-transparent bg-white text-black shadow-xs',
             },
             size: {

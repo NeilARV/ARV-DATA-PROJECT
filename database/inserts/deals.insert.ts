@@ -13,7 +13,7 @@ export const dealFormSchema = z.object({
             .positive('Price must be greater than 0')
             .optional(),
     ),
-    dealType: z.enum(['wholesale', 'agent', 'sold']).default('agent'),
+    dealType: z.enum(['wholesale', 'agent', 'sold', 'reo']).default('agent'),
     beds: z.coerce.number().int().positive('Beds required'),
     baths: z.coerce.number().positive('Baths required'),
     sqft: z.coerce.number().int().positive('Square feet required'),

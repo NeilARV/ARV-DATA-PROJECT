@@ -71,10 +71,14 @@ function formatDatePosted(dateStr: string): string {
     return posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const DEAL_TYPE_MAP: Record<string, { variant: 'purple' | 'red' | 'orange'; label: string }> = {
+const DEAL_TYPE_MAP: Record<
+    string,
+    { variant: 'purple' | 'red' | 'orange' | 'indigo'; label: string }
+> = {
     wholesale: { variant: 'purple', label: 'Wholesale' },
     sold: { variant: 'red', label: 'Sold' },
     agent: { variant: 'orange', label: 'Agent' },
+    reo: { variant: 'indigo', label: 'REO' },
 };
 
 export default function DealCard2({
