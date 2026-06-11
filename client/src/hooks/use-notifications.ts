@@ -25,11 +25,13 @@ function setCache(updater: (old: NotificationsResponse) => NotificationsResponse
 }
 
 export function useNotifications(): UseNotificationsValue {
-    const { isAuthenticated, canAccessApp } = useAuth();
+    // TEMPORARY: notifications are Mastermind-only, and Mastermind is admin/owner-only for now —
+    // don't fetch the feed for non-admins. Revert to `canAccessApp` when Mastermind opens up.
+    const { isAuthenticated, canAccessMastermind } = useAuth();
 
     const { data, isLoading } = useQuery<NotificationsResponse>({
         queryKey: NOTIFICATIONS_QUERY_KEY,
-        enabled: isAuthenticated && canAccessApp,
+        enabled: isAuthenticated && canAccessMastermind,
         staleTime: Infinity, // live socket events keep this cache current
     });
 

@@ -40,7 +40,9 @@ const MastermindSocketContext = createContext<SocketContextValue | null>(null);
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export function MastermindSocketProvider({ children }: { children: ReactNode }) {
-    const { isAuthenticated, canAccessApp, user } = useAuth();
+    // TEMPORARY: Mastermind is admin/owner-only for now, so only open the WS for admins/owners.
+    // Revert to `canAccessApp` when Mastermind becomes generally available.
+    const { isAuthenticated, canAccessMastermind, user } = useAuth();
     const [status, setStatus] = useState<SocketStatus>('closed');
     const [lastCreatedMessage, setLastCreatedMessage] = useState<MastermindMessageWire | null>(null);
 
@@ -53,7 +55,7 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
     } | null>(null);
 
     useEffect(() => {
-        if (!isAuthenticated || !canAccessApp) return;
+        if (!isAuthenticated || !canAccessMastermind) return;
 
         let socket: WebSocket | null = null;
         let activeChannel: string | null = null;
@@ -266,7 +268,7 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
             socket = null;
             setStatus('closed');
         };
-    }, [isAuthenticated, canAccessApp]);
+    }, [isAuthenticated, canAccessMastermind]);
 
     const subscribeToChannel = useCallback((channelId: string) => {
         apiRef.current?.subscribe(channelId);
