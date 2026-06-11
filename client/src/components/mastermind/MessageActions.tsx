@@ -40,15 +40,25 @@ export function MessageActions({
     const actionBtn =
         'w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors';
 
+    // Keep the toolbar mounted while a menu derived from it is open. Otherwise the message row
+    // loses :hover the moment the cursor moves onto the portaled picker, `group-hover:flex` flips
+    // the toolbar to `display:none`, the Radix PopoverTrigger (anchor) disappears, and the popover
+    // snaps closed/reopens — the on/off flicker that forced a double-click.
+    const menuOpen = pickerOpen || confirmOpen;
+
     return (
-        <div className="absolute -top-3 right-4 hidden group-hover:flex items-center gap-0.5 rounded-md border border-border bg-background shadow-sm p-0.5">
+        <div
+            className={`absolute -top-3 right-4 items-center gap-0.5 rounded-md border border-border bg-background shadow-sm p-0.5 ${
+                menuOpen ? 'flex' : 'hidden group-hover:flex'
+            }`}
+        >
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
                 <PopoverTrigger asChild>
                     <button type="button" className={actionBtn} title="Add reaction">
                         <SmilePlus className="w-4 h-4" />
                     </button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-auto p-1">
+                <PopoverContent align="end" className="w-auto p-1 z-[10000]">
                     <div className="flex items-center gap-0.5">
                         {MASTERMIND_REACTION_EMOJIS.map((emoji) => (
                             <button
