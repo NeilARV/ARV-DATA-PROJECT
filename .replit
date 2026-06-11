@@ -45,5 +45,6 @@ integrations = ["javascript_mem_db:1.0.0"]
 [userenv]
 
 [userenv.shared]
+SUPABASE_MASTERMIND_STORAGE_BUCKET = "mastermind-prod"
 
 [userenv.development]
