@@ -311,6 +311,7 @@ function MastermindContent() {
                                 onHighlightDone={() => setHighlightMessageId(null)}
                             />
                             <MessageComposer
+                                key={activeChannel.id}
                                 channelId={activeChannel.id}
                                 channelName={activeChannel.name}
                             />

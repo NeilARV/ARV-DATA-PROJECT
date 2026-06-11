@@ -28,6 +28,16 @@ function isUniqueViolation(err: unknown): boolean {
     return typeof err === 'object' && err !== null && 'code' in err && err.code === PG_UNIQUE_VIOLATION;
 }
 
+// Short-term channel ordering until explicit reordering ships: #general first, then the market
+// channels (…-market), then everything else (e.g. #first-time-flippers). The secondary name sort
+// keeps a stable, alphabetical order within each group. Replace with a position column when
+// drag-to-reorder lands.
+const CHANNEL_DISPLAY_ORDER = sql`CASE
+    WHEN ${channels.name} = 'general' THEN 0
+    WHEN ${channels.name} LIKE '%-market' THEN 1
+    ELSE 2
+END`;
+
 // Lists public channels. Archived channels are excluded unless includeArchived is set
 // (the controller only honors that flag for admin/owner callers).
 export async function listChannels({
@@ -39,7 +49,7 @@ export async function listChannels({
         ? eq(channels.type, 'public')
         : and(eq(channels.type, 'public'), eq(channels.isArchived, false));
 
-    return db.select().from(channels).where(where).orderBy(channels.name);
+    return db.select().from(channels).where(where).orderBy(CHANNEL_DISPLAY_ORDER, asc(channels.name));
 }
 
 // Returns channels enriched with per-user unread counts and mention flags.
@@ -103,7 +113,7 @@ export async function listChannelsWithUnread({
             ),
         )
         .where(where)
-        .orderBy(channels.name);
+        .orderBy(CHANNEL_DISPLAY_ORDER, asc(channels.name));
 }
 
 // Upserts the caller's channel_members row to advance last_read_at to now.

@@ -553,11 +553,31 @@ async function removeAttachmentStorage(messageId: string): Promise<void> {
     const paths = rows
         .map((r) => storagePathFromUrl(r.fileUrl, mastermindStorageBucket))
         .filter((p): p is string => p !== null);
+
+    // A stored URL that doesn't map to a storage path can never be deleted — surface it
+    // instead of silently leaking the object.
+    if (paths.length !== rows.length) {
+        console.error(
+            `Mastermind delete: ${rows.length - paths.length} attachment URL(s) on message ${messageId} ` +
+                `did not map to a storage path; those objects may be orphaned.`,
+        );
+    }
     if (paths.length === 0) return;
 
+    // Supabase .remove() resolves with { data, error } rather than throwing on an API-level
+    // failure (bad path, permissions, RLS). The try/catch only covers transport errors, so the
+    // returned error must be inspected too — otherwise a failed delete leaks files with no signal.
     try {
-        await getSupabase().storage.from(mastermindStorageBucket).remove(paths);
+        const { error } = await getSupabase()
+            .storage.from(mastermindStorageBucket)
+            .remove(paths);
+        if (error) {
+            console.error(
+                `Failed to remove mastermind attachment storage for message ${messageId}:`,
+                error.message,
+            );
+        }
     } catch (err) {
-        console.error('Failed to remove mastermind attachment storage:', err);
+        console.error(`Failed to remove mastermind attachment storage for message ${messageId}:`, err);
     }
 }
