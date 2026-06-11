@@ -120,6 +120,14 @@ export function useMastermindEditor({
         () =>
             Mention.extend({
                 name: 'userMention',
+                // Stored mentions are rendered as <span data-type="mention">. TipTap's default
+                // parseHTML keys off this.name ('userMention'), so without this override the edit
+                // editor wouldn't recognize a stored mention — it would degrade to plain text,
+                // dropping the data-id (the notify target) and the `mention` class (the colored
+                // chip). Match what renderHTML actually emits so mentions survive an edit.
+                parseHTML(): any {
+                    return [{ tag: 'span[data-type="mention"]' }];
+                },
                 addOptions(): any {
                     return {
                         ...this.parent?.(),
