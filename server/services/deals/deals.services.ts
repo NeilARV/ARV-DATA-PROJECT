@@ -1185,6 +1185,125 @@ export async function deleteDealBid(
     return { id: bidId };
 }
 
+// ── Offer email notification ───────────────────────────────────────────────────
+// Routing mirrors requestDealInfo, with the bidder playing the requester's role:
+//   On-behalf deal: To = client email, Cc = poster's RM (or default) + bidder email
+//   Normal deal:    To = poster email, Cc = bidder's RM (or default) + bidder email
+//   From = bidder's RM (if a confirmed sender), else default. Reply-To = bidder email.
+export async function sendDealOfferNotification(
+    dealId: number,
+    bid: typeof dealBids.$inferSelect,
+): Promise<void> {
+    const label = '[dealsService.sendDealOfferNotification]';
+
+    const offerTemplateAlias = process.env.POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS;
+    if (!offerTemplateAlias) {
+        console.warn(`${label} POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS not set — skipping`);
+        return;
+    }
+
+    const [dealRow] = await db
+        .select({
+            id: deals.id,
+            address: deals.address,
+            city: deals.city,
+            state: deals.state,
+            county: deals.county,
+            onBehalfOfEmail: deals.onBehalfOfEmail,
+            posterUserId: deals.userId,
+            posterEmail: users.email,
+            posterFirstName: users.firstName,
+            posterLastName: users.lastName,
+        })
+        .from(deals)
+        .leftJoin(users, eq(deals.userId, users.id))
+        .where(eq(deals.id, dealId))
+        .limit(1);
+
+    if (!dealRow) {
+        console.warn(`${label} Deal not found — skipping: dealId=${dealId}`);
+        return;
+    }
+
+    const DEFAULT_CONTACT = process.env.DEFAULT_CONTACT_RECIPIENT || 'justin@arvfinance.com';
+
+    // From = bidder's RM (when a confirmed sender), else the default address
+    let fromAddress = getDefaultFromEmail();
+    const bidderRmMap = await getRmEmailsByUserIds([bid.bidderUserId]);
+    const bidderRmEmail = bidderRmMap.get(bid.bidderUserId);
+    if (bidderRmEmail) {
+        const senders = await getConfirmedSenders();
+        fromAddress = resolveFromAddress(senders, bidderRmEmail);
+    }
+
+    // ── Routing: on-behalf-of vs. direct poster ────────────────────────────────
+    let toAddress: string;
+    let ccBase: string;
+
+    if (dealRow.onBehalfOfEmail) {
+        toAddress = dealRow.onBehalfOfEmail;
+        const posterRmMap = await getRmEmailsByUserIds([dealRow.posterUserId]);
+        const posterRmEmail = posterRmMap.get(dealRow.posterUserId);
+        ccBase = posterRmEmail ?? DEFAULT_CONTACT;
+        console.log(`${label} On-behalf-of routing: to=${toAddress}, cc=${ccBase}`);
+    } else {
+        if (!dealRow.posterEmail) {
+            console.warn(`${label} Poster has no email — skipping: dealId=${dealId}`);
+            return;
+        }
+        toAddress = dealRow.posterEmail;
+        ccBase = bidderRmEmail ?? DEFAULT_CONTACT;
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // Cc = RM/default contact + bidder's email, deduped, never duplicating To
+    const ccCandidates = [ccBase, bid.email].filter(
+        (addr): addr is string => Boolean(addr) && addr !== toAddress,
+    );
+    const ccList = Array.from(new Set(ccCandidates));
+    const cc = ccList.length > 0 ? ccList.join(', ') : undefined;
+
+    const APP_BASE_URL = (() => {
+        const u = process.env.APP_URL || 'https://data.arvfinance.com';
+        return /^https?:\/\//i.test(u) ? u : `http://${u}`;
+    })();
+    const dealUrlParams = new URLSearchParams({ dealId: String(dealRow.id) });
+    if (dealRow.county && dealRow.state) {
+        dealUrlParams.set('filterType', 'county');
+        dealUrlParams.set('filterValue', dealRow.county);
+        dealUrlParams.set('filterState', dealRow.state);
+    }
+    const dealUrl = `${APP_BASE_URL}/deals?${dealUrlParams.toString()}`;
+
+    const bidderName = [bid.firstName, bid.lastName].filter(Boolean).join(' ');
+
+    await sendEmailWithTemplate({
+        From: fromAddress,
+        To: toAddress,
+        ReplyTo: bid.email,
+        Cc: cc,
+        TemplateAlias: offerTemplateAlias,
+        TemplateModel: {
+            poster_name:
+                [dealRow.posterFirstName, dealRow.posterLastName].filter(Boolean).join(' ') || null,
+            bidder_name: bidderName || null,
+            bidder_email: bid.email,
+            bidder_phone: bid.phone || null,
+            offer_amount: Number(bid.amount).toLocaleString('en-US'),
+            address: dealRow.address || 'Undisclosed Address',
+            city: dealRow.city ?? '',
+            state: dealRow.state ?? '',
+            deal_url: dealUrl,
+            year: new Date().getFullYear(),
+            company_name: 'ARV Finance',
+        },
+    });
+
+    console.log(
+        `${label} Sent offer email: dealId=${dealId}, to=${toAddress}${cc ? `, cc=${cc}` : ''}`,
+    );
+}
+
 // Batch offer counts for a set of deals (used to badge the poster's own deal cards).
 export async function getBidCountsForDealIds(dealIds: number[]): Promise<Map<number, number>> {
     if (dealIds.length === 0) return new Map();

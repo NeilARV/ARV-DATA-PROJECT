@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>New Offer</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table width="650" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:40px 0; border-radius:6px; overflow:hidden;">
+
+            <!-- Header -->
+            <tr>
+              <td style="background-color:#69C9E1; padding:24px; text-align:center;">
+                <h1 style="margin:0; color:#ffffff; font-size:22px;">New Offer Received</h1>
+              </td>
+            </tr>
+
+            <!-- Intro -->
+            <tr>
+              <td style="padding:28px 32px 20px; color:#333333; text-align:center;">
+                {{#poster_name}}
+                <p style="margin:0; font-size:16px; line-height:1.6;">Hey <strong>{{.}}!</strong></p>
+                {{/poster_name}}
+                <p style="margin:0; font-size:16px; line-height:1.6;">
+                  <strong>{{bidder_name}}</strong> submitted an offer on your deal at <strong>{{address}}, {{city}}, {{state}}</strong>.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Offer Amount (hero) -->
+            <tr>
+              <td style="padding:0 32px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fbfd; border:1px solid #cdeef5; border-radius:6px;">
+                  <tr>
+                    <td style="padding:22px 20px; text-align:center;">
+                      <p style="margin:0 0 6px; font-size:11px; font-weight:600; color:#5a8a96; text-transform:uppercase; letter-spacing:0.5px;">Offer Amount</p>
+                      <p style="margin:0; font-size:34px; font-weight:bold; color:#1a1a1a; line-height:1.2;">${{offer_amount}}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Buyer Contact Card -->
+            <tr>
+              <td style="padding:0 32px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e6e6e6; border-radius:6px; overflow:hidden;">
+                  <tr>
+                    <td style="padding:18px 20px;">
+                      <p style="margin:0 0 14px; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Buyer Contact</p>
+                      <table cellpadding="0" cellspacing="0" style="font-size:14px; width:100%;">
+                        {{#bidder_name}}
+                        <tr>
+                          <td style="padding:4px 16px 4px 0; color:#999999; white-space:nowrap; vertical-align:top; width:60px;"><strong>Name</strong></td>
+                          <td style="padding:4px 0; color:#1a1a1a;">{{.}}</td>
+                        </tr>
+                        {{/bidder_name}}
+                        <tr>
+                          <td style="padding:4px 16px 4px 0; color:#999999; white-space:nowrap; vertical-align:top; width:60px;"><strong>Email</strong></td>
+                          <td style="padding:4px 0; color:#1a1a1a;">
+                            <a href="mailto:{{bidder_email}}" style="color:#69C9E1; text-decoration:none;">{{bidder_email}}</a>
+                          </td>
+                        </tr>
+                        {{#bidder_phone}}
+                        <tr>
+                          <td style="padding:4px 16px 4px 0; color:#999999; white-space:nowrap; vertical-align:top; width:60px;"><strong>Phone</strong></td>
+                          <td style="padding:4px 0; color:#1a1a1a;">{{.}}</td>
+                        </tr>
+                        {{/bidder_phone}}
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Reply note -->
+            <tr>
+              <td style="padding:0 32px 24px; text-align:center;">
+                <p style="margin:0; font-size:15px; font-weight:600; color:#333333;">Reply to this email to respond to {{bidder_name}}.</p>
+                <p style="margin:6px 0 0; font-size:13px; color:#999999;">This is a non-binding offer shared directly with you.</p>
+              </td>
+            </tr>
+
+            <!-- CTA Button -->
+            <tr>
+              <td align="center" style="padding:8px 32px 28px;">
+                <a href="{{deal_url}}" style="background-color:#69C9E1; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:4px; font-size:16px; font-weight:bold; display:inline-block;">
+                  View Deal
+                </a>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:16px; text-align:center; color:#999; font-size:12px; border-top:1px solid #eeeeee;">
+                You're receiving this email because someone made an offer on your deal.<br />
+                &#169; {{year}} {{company_name}}
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

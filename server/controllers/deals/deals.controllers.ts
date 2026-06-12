@@ -10,6 +10,7 @@ import {
     createDealBid,
     getBidsForDeal,
     deleteDealBid,
+    sendDealOfferNotification,
     DealServiceError,
 } from 'server/services/deals/deals.services';
 import { createDealBidNotification } from 'server/services/notifications/notifications.services';
@@ -360,6 +361,15 @@ export async function submitDealOfferController(req: Request, res: Response): Pr
                 }
             } catch (err) {
                 console.error('[dealsController.submitDealOffer] notification fan-out failed:', err);
+            }
+        })();
+
+        // Fire-and-forget offer email (poster or on-behalf-of client). Independent of the bell.
+        void (async () => {
+            try {
+                await sendDealOfferNotification(id, bid);
+            } catch (err) {
+                console.error('[dealsController.submitDealOffer] offer email failed:', err);
             }
         })();
     } catch (err) {

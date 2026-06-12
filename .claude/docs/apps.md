@@ -404,7 +404,11 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
 - **Request info** → `RequestDealInfoForm` (firstName/lastName/email) → with onBehalfOfEmail:
   email to client, CC poster's RM; without: email to poster, CC requester's RM.
 - **Submit offer** → `SendOfferForm` (amount + name/email/phone) → insert `deal_bids` row (full
-  history) → fire-and-forget `deal_bid` bell notification to the poster (no email). Poster reads
+  history) → two fire-and-forget side-effects: a `deal_bid` bell notification to the poster, and an
+  offer email (`sendDealOfferNotification`, `POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS`). The email mirrors
+  request-info routing — on-behalf-of deal: To = client, Cc = poster's RM/default + bidder; normal
+  deal: To = poster, Cc = bidder's RM/default + bidder; From = bidder's RM (or default), Reply-To =
+  bidder. Always sent on submit (not gated by the subscriber-notification system). Poster reads
   offers via the owner-only "Offers (N)" action (`GET /api/deals/:id/offers`).
 - **Edit → sold** → type wholesale/agent → sold → `deal-sold` email to primary + companion subs.
 - **Price update** → controller detects old vs new → `price-update` email to primary + companion subs.
