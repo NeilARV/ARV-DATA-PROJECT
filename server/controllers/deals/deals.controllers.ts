@@ -7,9 +7,14 @@ import {
     deleteDeal,
     requestDealInfo,
     sendDealNotification,
+    createDealBid,
+    getBidsForDeal,
     DealServiceError,
 } from 'server/services/deals/deals.services';
-import { requestDealInfoSchema } from '@database/validation/deals.validation';
+import { createDealBidNotification } from 'server/services/notifications/notifications.services';
+import { broadcastToUser } from 'server/websocket/registry';
+import { ServerToClient } from '@shared/mastermind/events';
+import { requestDealInfoSchema, submitOfferSchema } from '@database/validation/deals.validation';
 import { db } from 'server/storage';
 import { userRoles, roles } from '@database/schemas/users.schema';
 import { msas } from '@database/schemas/msas.schema';
@@ -62,7 +67,15 @@ export async function getDealsController(req: Request, res: Response): Promise<v
         const state = typeof req.query.state === 'string' ? req.query.state : undefined;
         const zipCode = typeof req.query.zipCode === 'string' ? req.query.zipCode : undefined;
 
-        const results = await getDeals({ userId, msaName, county, city, state, zipCode });
+        const results = await getDeals({
+            userId,
+            msaName,
+            county,
+            city,
+            state,
+            zipCode,
+            callerId: req.session?.userId,
+        });
         res.json(results);
     } catch (err) {
         handleServiceError(res, err, 'Error fetching deals');
@@ -296,6 +309,82 @@ export async function requestDealInfoController(req: Request, res: Response): Pr
         res.json({ message: 'Request sent successfully' });
     } catch (err) {
         handleServiceError(res, err, 'Error sending deal info request');
+    }
+}
+
+// ── POST /api/deals/:id/offers ─────────────────────────────────────────────────
+export async function submitDealOfferController(req: Request, res: Response): Promise<void> {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            res.status(400).json({ message: 'Invalid deal id' });
+            return;
+        }
+
+        const callerId = req.session?.userId;
+        if (!callerId) {
+            res.status(401).json({ message: 'Not authenticated' });
+            return;
+        }
+
+        const parsed = submitOfferSchema.safeParse(req.body ?? {});
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid request', errors: parsed.error.errors });
+            return;
+        }
+
+        const { bid, deal } = await createDealBid(id, callerId, parsed.data);
+        res.status(201).json({ message: 'Offer submitted successfully' });
+
+        // Fire-and-forget bell notification to the poster after the response is sent.
+        void (async () => {
+            try {
+                const address =
+                    deal.address ||
+                    [deal.city, deal.state].filter(Boolean).join(', ') ||
+                    'your deal';
+                const created = await createDealBidNotification({
+                    dealId: id,
+                    posterUserId: deal.userId,
+                    bidderUserId: callerId,
+                    amount: bid.amount,
+                    address,
+                });
+                if (created) {
+                    const { recipientUserId, ...notification } = created;
+                    broadcastToUser(recipientUserId, {
+                        type: ServerToClient.NotificationCreated,
+                        notification,
+                    });
+                }
+            } catch (err) {
+                console.error('[dealsController.submitDealOffer] notification fan-out failed:', err);
+            }
+        })();
+    } catch (err) {
+        handleServiceError(res, err, 'Error submitting offer');
+    }
+}
+
+// ── GET /api/deals/:id/offers ──────────────────────────────────────────────────
+export async function getDealOffersController(req: Request, res: Response): Promise<void> {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            res.status(400).json({ message: 'Invalid deal id' });
+            return;
+        }
+
+        const callerId = req.session?.userId;
+        if (!callerId) {
+            res.status(401).json({ message: 'Not authenticated' });
+            return;
+        }
+
+        const offers = await getBidsForDeal(id, callerId);
+        res.json({ offers });
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching offers');
     }
 }
 

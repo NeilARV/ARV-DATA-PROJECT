@@ -7,6 +7,8 @@ import {
     updateDealController,
     deleteDealController,
     requestDealInfoController,
+    submitDealOfferController,
+    getDealOffersController,
     getMsasController,
 } from 'server/controllers/deals/deals.controllers';
 
@@ -50,5 +52,17 @@ router.delete(
 
 // POST /api/deals/:id/request-info — send deal details to the requester's RM
 router.post('/:id/request-info', requestDealInfoController);
+
+// POST /api/deals/:id/offers — submit a non-binding offer (basic+ subscription or team role)
+router.post(
+    '/:id/offers',
+    requireSub(['basic', 'pro', 'premium'], {
+        bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
+    }),
+    submitDealOfferController,
+);
+
+// GET /api/deals/:id/offers — poster (or privileged team) views offers on a deal
+router.get('/:id/offers', getDealOffersController);
 
 export default router;

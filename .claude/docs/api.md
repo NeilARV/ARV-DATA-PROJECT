@@ -854,7 +854,7 @@ List all deals with optional filters.
 | `state` | string | Filter by state |
 | `zipCode` | string | Filter by zip code |
 
-**Response `200`** Array of deal objects.
+**Response `200`** Array of deal objects. Each deal the authenticated caller owns also carries a `bidCount` (number of offers received); it is omitted on deals the caller does not own (offers are poster-private).
 
 ---
 
@@ -951,6 +951,57 @@ Request contact info for a deal — sends an email to the deal poster's RM (or d
 **Response `200`** `{ "message": "Request sent successfully" }`
 
 **Errors** `400` invalid id or body · `401` not authenticated
+
+---
+
+### `POST /api/deals/:id/offers`
+Submit a non-binding offer ("bid") on a deal. Records the offer (full history — repeat offers are allowed) and sends a bell notification to the deal's poster (no email). Contact fields are a snapshot of what the bidder entered.
+
+**Auth**: `requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] })` — any subscription tier or any team role.
+
+**Body** (validated via `submitOfferSchema`)
+```json
+{
+  "amount": 325000,
+  "firstName": "Jane",
+  "lastName": "Investor",
+  "email": "jane@example.com",
+  "phone": "(555) 111-2222"
+}
+```
+`phone` is optional; `amount` must be greater than 0.
+
+**Response `201`** `{ "message": "Offer submitted successfully" }`
+
+**Errors** `400` invalid id or body · `401` not authenticated · `403` no qualifying tier/role · `404` deal not found
+
+---
+
+### `GET /api/deals/:id/offers`
+List the offers submitted on a deal, newest first. Offers are poster-private.
+
+**Auth**: Authenticated; the service allows only the deal owner or an `admin`/`owner`/`relationship-manager`.
+
+**Response `200`**
+```json
+{
+  "offers": [
+    {
+      "id": 12,
+      "dealId": 5,
+      "bidderUserId": "…",
+      "amount": "325000.00",
+      "firstName": "Jane",
+      "lastName": "Investor",
+      "email": "jane@example.com",
+      "phone": "(555) 111-2222",
+      "createdAt": "2026-06-12T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not the owner or privileged · `404` deal not found
 
 ---
 
@@ -1694,21 +1745,26 @@ Upload one file for a message. Multipart (`multipart/form-data`, field `file`). 
 ### Notifications (`/api/notifications`)
 
 The in-app bell feed. All routes use `requireMastermind` and are **self-scoped** — every query
-filters on the caller's `user_id`. Rows are created server-side only, by the mention fan-out on
-message create (`@user` → type `mention`; `@channel` → type `channel_mention` for every eligible
-user; the sender never notifies themself). In an **admin-only** channel the fan-out is scoped to
-**admins/owners** only — `@channel` reaches admins/owners, and a direct `@user` of a non-admin is
-dropped (no bell/email deep-linking a user into a channel they can't open). See
-`access-control.md` §5.14.
+filters on the caller's `user_id`. Rows are created server-side only. Two producers exist today:
+the Mastermind mention fan-out on message create (`@user` → type `mention`; `@channel` → type
+`channel_mention` for every eligible user; the sender never notifies themself), and the deals app
+(`deal_bid` → the deal's poster when an investor submits an offer). In an **admin-only** channel
+the mention fan-out is scoped to **admins/owners** only — `@channel` reaches admins/owners, and a
+direct `@user` of a non-admin is dropped (no bell/email deep-linking a user into a channel they
+can't open). See `access-control.md` §5.14.
 
-The notification object shape (REST and the `notification.created` socket event are identical):
+The notification object shape (REST and the `notification.created` socket event are identical).
+`channelId`/`channelName`/`messageId` populate for mention types; `dealId`/`metadata` populate for
+`deal_bid`. `actorId` is the message sender (mentions) or the bidder (`deal_bid`):
 
 ```json
 {
   "id": "uuid",
-  "type": "mention | channel_mention",
+  "type": "mention | channel_mention | deal_bid",
   "channelId": "uuid|null", "channelName": "san-diego-market|null",
   "messageId": "uuid|null", "messageExcerpt": "plain-text excerpt (≤120 chars)",
+  "dealId": 5,
+  "metadata": { "amount": "325000.00", "address": "123 Main St" },
   "actorId": "uuid|null", "actorFirstName": "Jane|null", "actorLastName": "Doe|null",
   "actorProfileImageUrl": "url|null",
   "isRead": false, "createdAt": "…"
@@ -1716,7 +1772,8 @@ The notification object shape (REST and the `notification.created` socket event 
 ```
 
 `messageExcerpt` is the mention message's HTML stripped to plain text; it is empty when the
-message has since been soft-deleted (clients show a generic label instead).
+message has since been soft-deleted (clients show a generic label instead). `dealId` and `metadata`
+are `null` for mention types.
 
 ---
 

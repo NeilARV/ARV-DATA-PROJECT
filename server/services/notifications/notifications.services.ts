@@ -4,6 +4,7 @@ import { users } from '@database/schemas/users.schema';
 import { listEligibleUserIds, listAdminOwnerUserIds } from 'server/services/channels/channels.services';
 import { htmlToPlainText } from 'server/utils/sanitizeHtml';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
+import type { DealBidNotificationMetadata } from '@shared/mastermind/events';
 
 export class NotificationServiceError extends Error {
     constructor(
@@ -20,11 +21,13 @@ const EXCERPT_MAX_LENGTH = 120;
 
 export type EnrichedNotification = {
     id: string;
-    type: 'mention' | 'channel_mention';
+    type: 'mention' | 'channel_mention' | 'deal_bid';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
     messageExcerpt: string;
+    dealId: number | null;
+    metadata: DealBidNotificationMetadata | null;
     actorId: string | null;
     actorFirstName: string | null;
     actorLastName: string | null;
@@ -134,6 +137,8 @@ export async function createMentionNotifications({
         channelName: context?.channelName ?? null,
         messageId,
         messageExcerpt: toExcerpt(context?.messageContent ?? null),
+        dealId: null,
+        metadata: null,
         actorId,
         actorFirstName: context?.actorFirstName ?? null,
         actorLastName: context?.actorLastName ?? null,
@@ -142,6 +147,71 @@ export async function createMentionNotifications({
         createdAt: row.createdAt,
         recipientUserId: row.userId,
     }));
+}
+
+// ── Create (a deal_bid notification for the deal's poster) ──────────────────────────
+export async function createDealBidNotification({
+    dealId,
+    posterUserId,
+    bidderUserId,
+    amount,
+    address,
+}: {
+    dealId: number;
+    posterUserId: string;
+    bidderUserId: string;
+    amount: string;
+    address: string;
+}): Promise<CreatedNotification | null> {
+    // A poster bidding on their own deal shouldn't notify themselves.
+    if (posterUserId === bidderUserId) return null;
+
+    const metadata: DealBidNotificationMetadata = { amount, address };
+
+    const [inserted] = await db
+        .insert(notifications)
+        .values({
+            userId: posterUserId,
+            type: 'deal_bid',
+            dealId,
+            metadata,
+            actorId: bidderUserId,
+        })
+        .returning({
+            id: notifications.id,
+            userId: notifications.userId,
+            type: notifications.type,
+            isRead: notifications.isRead,
+            createdAt: notifications.createdAt,
+        });
+
+    const [actor] = await db
+        .select({
+            firstName: users.firstName,
+            lastName: users.lastName,
+            profileImageUrl: users.profileImageUrl,
+        })
+        .from(users)
+        .where(eq(users.id, bidderUserId))
+        .limit(1);
+
+    return {
+        id: inserted.id,
+        type: inserted.type,
+        channelId: null,
+        channelName: null,
+        messageId: null,
+        messageExcerpt: '',
+        dealId,
+        metadata,
+        actorId: bidderUserId,
+        actorFirstName: actor?.firstName ?? null,
+        actorLastName: actor?.lastName ?? null,
+        actorProfileImageUrl: actor?.profileImageUrl ?? null,
+        isRead: inserted.isRead,
+        createdAt: inserted.createdAt,
+        recipientUserId: inserted.userId,
+    };
 }
 
 // ── Feed + unread count ───────────────────────────────────────────────────────────
@@ -162,6 +232,8 @@ export async function listNotifications({
                 messageId: notifications.messageId,
                 messageContent: messages.content,
                 messageIsDeleted: messages.isDeleted,
+                dealId: notifications.dealId,
+                metadata: notifications.metadata,
                 actorId: notifications.actorId,
                 actorFirstName: users.firstName,
                 actorLastName: users.lastName,
@@ -191,6 +263,8 @@ export async function listNotifications({
             messageId: row.messageId,
             // A soft-deleted message yields an empty excerpt; the client falls back to a label.
             messageExcerpt: row.messageIsDeleted ? '' : toExcerpt(row.messageContent),
+            dealId: row.dealId,
+            metadata: row.metadata,
             actorId: row.actorId,
             actorFirstName: row.actorFirstName,
             actorLastName: row.actorLastName,

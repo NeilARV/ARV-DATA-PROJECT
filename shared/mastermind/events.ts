@@ -100,15 +100,24 @@ export type MessagePinnedEvent = {
     pinned: PinnedMessageWire | null;
 };
 
+// Display payload for a deal_bid notification, denormalized so the bell needs no extra fetch.
+export interface DealBidNotificationMetadata {
+    amount: string;
+    address: string;
+}
+
 // A bell-feed notification as the client receives it (REST and socket share this shape;
 // dates serialized to ISO strings). Actor fields are null when the actor was deleted.
+// Mention types carry channel/message context; deal_bid carries dealId + metadata instead.
 export interface NotificationWire {
     id: string;
-    type: 'mention' | 'channel_mention';
+    type: 'mention' | 'channel_mention' | 'deal_bid';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
     messageExcerpt: string;
+    dealId: number | null;
+    metadata: DealBidNotificationMetadata | null;
     actorId: string | null;
     actorFirstName: string | null;
     actorLastName: string | null;

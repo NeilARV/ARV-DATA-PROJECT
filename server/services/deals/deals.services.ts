@@ -1,5 +1,5 @@
 import { db } from 'server/storage';
-import { deals, dealLinks } from '@database/schemas/deals.schema';
+import { deals, dealLinks, dealBids } from '@database/schemas/deals.schema';
 import {
     users,
     userRoles,
@@ -18,7 +18,7 @@ import {
     sendTemplateToUsers,
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
-import { eq, desc, and, inArray, gte, isNotNull, ilike, SQL } from 'drizzle-orm';
+import { eq, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -168,6 +168,8 @@ type GetDealsFilters = {
     city?: string;
     state?: string;
     zipCode?: string;
+    // When set, offer counts are attached only to deals this user owns (offers are poster-private).
+    callerId?: string;
 };
 
 export async function getDeals(filters: GetDealsFilters) {
@@ -179,6 +181,7 @@ export async function getDeals(filters: GetDealsFilters) {
         city: filterCity,
         state: filterState,
         zipCode: filterZipCode,
+        callerId: filterCallerId,
     } = filters;
 
     let filterMsaId: number | undefined;
@@ -291,17 +294,27 @@ export async function getDeals(filters: GetDealsFilters) {
         linksByDealId.set(row.dealId, arr);
     }
 
+    // Offer counts are poster-private — only fetch them for deals the caller owns.
+    const ownDealIds = filterCallerId
+        ? results.filter((d) => d.userId === filterCallerId).map((d) => d.id)
+        : [];
+    const bidCountByDealId = await getBidCountsForDealIds(ownDealIds);
+
     return Promise.all(
         results.map(async (deal) => {
             const topBuyers = topBuyersByZip.get(deal.zipCode ?? '') ?? [];
             const links = linksByDealId.get(deal.id) ?? [];
+            const bidCount =
+                filterCallerId && deal.userId === filterCallerId
+                    ? (bidCountByDealId.get(deal.id) ?? 0)
+                    : undefined;
             const url = buildDealStreetViewUrl(
                 deal.address,
                 deal.city,
                 deal.state,
                 deal.sfrPropertyId,
             );
-            if (!url) return { ...deal, streetViewUrl: null, topBuyers, links };
+            if (!url) return { ...deal, streetViewUrl: null, topBuyers, links, bidCount };
 
             try {
                 const result = await getStreetviewImage({
@@ -316,9 +329,10 @@ export async function getDeals(filters: GetDealsFilters) {
                     streetViewUrl: 'imageData' in result ? url : null,
                     topBuyers,
                     links,
+                    bidCount,
                 };
             } catch {
-                return { ...deal, streetViewUrl: null, topBuyers, links };
+                return { ...deal, streetViewUrl: null, topBuyers, links, bidCount };
             }
         }),
     );
@@ -1030,4 +1044,110 @@ export async function deleteDeal(id: number, callerId: string) {
 
     console.log(`${label} Deal deleted: id=${id}`);
     return { id: deal.id };
+}
+
+// ── Deal offers (bids) ───────────────────────────────────────────────────────────
+type CreateDealBidInput = {
+    amount: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+};
+
+// Records a non-binding offer and returns the bid plus the minimal deal context the
+// caller needs to notify the poster.
+export async function createDealBid(
+    dealId: number,
+    bidderUserId: string,
+    input: CreateDealBidInput,
+): Promise<{
+    bid: typeof dealBids.$inferSelect;
+    deal: { id: number; userId: string; address: string | null; city: string | null; state: string | null };
+}> {
+    const label = '[dealsService.createDealBid]';
+
+    const [deal] = await db
+        .select({
+            id: deals.id,
+            userId: deals.userId,
+            address: deals.address,
+            city: deals.city,
+            state: deals.state,
+        })
+        .from(deals)
+        .where(eq(deals.id, dealId))
+        .limit(1);
+
+    if (!deal) throw new DealServiceError(404, 'Deal not found');
+
+    const [bid] = await db
+        .insert(dealBids)
+        .values({
+            dealId,
+            bidderUserId,
+            amount: String(input.amount),
+            firstName: input.firstName.trim(),
+            lastName: input.lastName.trim(),
+            email: input.email.trim(),
+            phone: input.phone?.trim() || null,
+        })
+        .returning();
+
+    console.log(`${label} Offer submitted: dealId=${dealId}, bidder=${bidderUserId}`);
+    return { bid, deal };
+}
+
+// Returns every offer on a deal, newest first. Offers are poster-private: only the deal
+// owner or a privileged team member may read them.
+export async function getBidsForDeal(
+    dealId: number,
+    callerId: string,
+): Promise<(typeof dealBids.$inferSelect)[]> {
+    const [deal] = await db
+        .select({ id: deals.id, userId: deals.userId })
+        .from(deals)
+        .where(eq(deals.id, dealId))
+        .limit(1);
+
+    if (!deal) throw new DealServiceError(404, 'Deal not found');
+
+    if (deal.userId !== callerId) {
+        const callerIsPrivileged = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, callerId),
+                    inArray(roles.name, ['admin', 'owner', 'relationship-manager']),
+                ),
+            )
+            .limit(1);
+
+        if (callerIsPrivileged.length === 0) {
+            throw new DealServiceError(403, 'You can only view offers on your own deals');
+        }
+    }
+
+    return db
+        .select()
+        .from(dealBids)
+        .where(eq(dealBids.dealId, dealId))
+        .orderBy(desc(dealBids.createdAt));
+}
+
+// Batch offer counts for a set of deals (used to badge the poster's own deal cards).
+export async function getBidCountsForDealIds(dealIds: number[]): Promise<Map<number, number>> {
+    if (dealIds.length === 0) return new Map();
+
+    const rows = await db
+        .select({ dealId: dealBids.dealId, count: sql<number>`COUNT(*)::int` })
+        .from(dealBids)
+        .where(inArray(dealBids.dealId, dealIds))
+        .groupBy(dealBids.dealId);
+
+    const counts = new Map<number, number>();
+    for (const row of rows) counts.set(row.dealId, row.count);
+    return counts;
 }

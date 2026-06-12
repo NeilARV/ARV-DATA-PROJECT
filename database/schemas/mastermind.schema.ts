@@ -4,13 +4,16 @@ import {
     uuid,
     text,
     integer,
+    bigint,
     boolean,
     timestamp,
+    jsonb,
     index,
     unique,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.schema';
+import { deals } from './deals.schema';
 
 // ─── Enums ──────────────────────────────────────────────────────────────────────
 
@@ -20,8 +23,12 @@ export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm'
 // Channel-scoped role (distinct from the platform-wide ARV team roles).
 export const channelMemberRoleEnum = pgEnum('channel_member_role', ['owner', 'admin', 'member']);
 
-// Phase 1 notifications fire only for mentions; more types arrive with their features.
-export const notificationTypeEnum = pgEnum('notification_type', ['mention', 'channel_mention']);
+// Bell-feed notification kinds. Mentions come from Mastermind; deal_bid from the deals app.
+export const notificationTypeEnum = pgEnum('notification_type', [
+    'mention',
+    'channel_mention',
+    'deal_bid',
+]);
 
 // ─── Channels ─────────────────────────────────────────────────────────────────
 
@@ -183,6 +190,12 @@ export const notifications = pgTable(
         type: notificationTypeEnum('type').notNull(),
         channelId: uuid('channel_id').references(() => channels.id, { onDelete: 'cascade' }),
         messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }), // deep-link target
+        // Non-Mastermind targets reuse this row: deal_bid points at a deal instead of a message.
+        dealId: bigint('deal_id', { mode: 'number' }).references(() => deals.id, {
+            onDelete: 'cascade',
+        }),
+        // Type-specific display payload denormalized at creation (e.g. deal_bid: { amount, address }).
+        metadata: jsonb('metadata').$type<{ amount: string; address: string }>(),
         actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }), // who triggered it
         isRead: boolean('is_read').notNull().default(false),
         emailedAt: timestamp('emailed_at', { withTimezone: true }), // supports the ≤3/day email cap

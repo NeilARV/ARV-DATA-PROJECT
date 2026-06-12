@@ -19,6 +19,8 @@ type DealsGridProps = {
     onDelete: (deal: Deal) => void;
     onEdit: (deal: Deal) => void;
     onRequestInfo: (deal: Deal) => void;
+    onSubmitOffer: (deal: Deal) => void;
+    onViewOffers: (deal: Deal) => void;
     onTopBuyers: (deal: Deal) => void;
 };
 
@@ -38,6 +40,8 @@ export default function DealsGrid({
     onDelete,
     onEdit,
     onRequestInfo,
+    onSubmitOffer,
+    onViewOffers,
     onTopBuyers,
 }: DealsGridProps) {
     const [mobileColumn, setMobileColumn] = useState<'new' | 'sold'>('new');
@@ -77,6 +81,7 @@ export default function DealsGrid({
                     canDelete={canManageDeals || isOwnerOfDeal}
                     canEdit={userId === deal.userId || isAdmin || isOwner}
                     canRequestContact={deal.dealType !== 'sold' && !isOwnerOfDeal}
+                    canSubmitOffer={canAccessApp && deal.dealType !== 'sold' && !isOwnerOfDeal}
                     isOwner={isOwnerOfDealForTopBuyers}
                     canViewPoster={isAdmin || isOwner || isRelationshipManager}
                     expanded={expandedDealId === deal.id}
@@ -86,6 +91,8 @@ export default function DealsGrid({
                     onDelete={() => onDelete(deal)}
                     onEdit={() => onEdit(deal)}
                     onRequestInfo={() => onRequestInfo(deal)}
+                    onSubmitOffer={() => onSubmitOffer(deal)}
+                    onViewOffers={() => onViewOffers(deal)}
                     onTopBuyers={() => onTopBuyers(deal)}
                 />
             </div>

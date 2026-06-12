@@ -24,6 +24,8 @@ import {
     ChevronDown,
     ChevronsUp,
     Link2,
+    HandCoins,
+    Inbox,
 } from 'lucide-react';
 import { formatAddress } from '@shared/utils/formatAddress';
 
@@ -32,6 +34,7 @@ type DealCardProps = {
     canDelete: boolean;
     canEdit: boolean;
     canRequestContact: boolean;
+    canSubmitOffer: boolean;
     isOwner: boolean;
     canViewPoster: boolean;
     expanded: boolean;
@@ -41,6 +44,8 @@ type DealCardProps = {
     onDelete: () => void;
     onEdit: () => void;
     onRequestInfo: () => void;
+    onSubmitOffer: () => void;
+    onViewOffers: () => void;
     onTopBuyers: () => void;
 };
 
@@ -86,6 +91,7 @@ export default function DealCard2({
     canDelete,
     canEdit,
     canRequestContact,
+    canSubmitOffer,
     isOwner,
     canViewPoster,
     expanded,
@@ -95,6 +101,8 @@ export default function DealCard2({
     onDelete,
     onEdit,
     onRequestInfo,
+    onSubmitOffer,
+    onViewOffers,
     onTopBuyers,
 }: DealCardProps) {
     const [imageUrl, setImageUrl] = useState('');
@@ -186,6 +194,19 @@ export default function DealCard2({
                             <span className="text-xs text-muted-foreground whitespace-nowrap pr-4">
                                 {formatDatePosted(deal.createdAt)}
                             </span>
+                            {canSubmitOffer && (
+                                <div onClick={(e) => e.stopPropagation()}>
+                                    <Button
+                                        variant="outline"
+                                        size="base"
+                                        onClick={onSubmitOffer}
+                                        className="hidden md:inline-flex gap-1.5 mr-1.5"
+                                    >
+                                        <HandCoins className="deal-card-sub-icon" />
+                                        Send Offer
+                                    </Button>
+                                </div>
+                            )}
                             {canRequestContact && (
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <Button
@@ -369,37 +390,58 @@ export default function DealCard2({
                             </div>
                         </div>
                     )}
-                    {(canRequestContact || isOwner) && (
-                        <div className="flex items-center gap-3 flex-wrap">
-                            {canRequestContact && (
+                    {(canRequestContact || canSubmitOffer || isOwner) && (
+                        <div className="flex items-center gap-6 flex-wrap">
+                            {(canRequestContact || canSubmitOffer) && (
                                 <div className="md:hidden">
                                     <p className="deal-card-label mb-1.5">Contact</p>
-                                    <button
-                                        onClick={onRequestInfo}
-                                        disabled={isRequestingInfo}
-                                        className="deal-card-link disabled:opacity-50"
-                                    >
-                                        {isRequestingInfo ? (
-                                            <Loader2 className="deal-card-sub-icon animate-spin" />
-                                        ) : (
-                                            <Phone className="deal-card-sub-icon" />
+                                    <div className="flex flex-col gap-1.5">
+                                        {canSubmitOffer && (
+                                            <button
+                                                onClick={onSubmitOffer}
+                                                className="deal-card-link"
+                                            >
+                                                <HandCoins className="deal-card-sub-icon" />
+                                                Send Offer
+                                            </button>
                                         )}
-                                        Request More Info
-                                    </button>
+                                        {canRequestContact && (
+                                            <button
+                                                onClick={onRequestInfo}
+                                                disabled={isRequestingInfo}
+                                                className="deal-card-link disabled:opacity-50"
+                                            >
+                                                {isRequestingInfo ? (
+                                                    <Loader2 className="deal-card-sub-icon animate-spin" />
+                                                ) : (
+                                                    <Phone className="deal-card-sub-icon" />
+                                                )}
+                                                Request More Info
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                             {isOwner && (
                                 <div>
                                     <p className="deal-card-label mb-1.5">Actions</p>
-
-                                    <button
-                                        onClick={onTopBuyers}
-                                        rel="noopener noreferrer"
-                                        className="deal-card-link"
-                                    >
-                                        <Trophy className="deal-card-sub-icon text-amber-500" />
-                                        Top Potential Buyers
-                                    </button>
+                                    <div className="flex flex-col gap-1.5">
+                                        <button
+                                            onClick={onViewOffers}
+                                            className="deal-card-link"
+                                        >
+                                            <Inbox className="deal-card-sub-icon text-primary" />
+                                            Offers{deal.bidCount ? ` (${deal.bidCount})` : ''}
+                                        </button>
+                                        <button
+                                            onClick={onTopBuyers}
+                                            rel="noopener noreferrer"
+                                            className="deal-card-link"
+                                        >
+                                            <Trophy className="deal-card-sub-icon text-amber-500" />
+                                            Top Potential Buyers
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

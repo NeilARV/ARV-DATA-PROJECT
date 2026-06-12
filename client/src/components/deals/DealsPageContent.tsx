@@ -16,8 +16,13 @@ import AddDealDialog from '@/components/deals/AddDealDialog';
 import EditDealDialog from '@/components/deals/EditDealDialog';
 import DeleteDealDialog from '@/components/deals/DeleteDealDialog';
 import RequestDealInfoDialog from '@/components/deals/RequestDealInfoDialog';
+import SendOfferDialog from '@/components/deals/SendOfferDialog';
+import DealOffersDialog from '@/components/deals/DealOffersDialog';
 import { useDealsNav } from '@/hooks/useDealsNav';
-import type { RequestDealInfoFormValues } from '@database/validation/deals.validation';
+import type {
+    RequestDealInfoFormValues,
+    SubmitOfferFormValues,
+} from '@database/validation/deals.validation';
 
 export default function DealsPageContent() {
     const [showAddDeal, setShowAddDeal] = useState(false);
@@ -26,6 +31,9 @@ export default function DealsPageContent() {
     );
     const [confirmRequestDeal, setConfirmRequestDeal] = useState<Deal | null>(null);
     const [requestInfoSucceeded, setRequestInfoSucceeded] = useState(false);
+    const [offerDeal, setOfferDeal] = useState<Deal | null>(null);
+    const [offerSucceeded, setOfferSucceeded] = useState(false);
+    const [viewOffersDeal, setViewOffersDeal] = useState<Deal | null>(null);
     const [editDeal, setEditDeal] = useState<DealToEdit | null>(null);
     const [bestBuyersDeal, setBestBuyersDeal] = useState<Deal | null>(null);
 
@@ -131,6 +139,23 @@ export default function DealsPageContent() {
         },
     });
 
+    const submitOffer = useMutation({
+        mutationFn: async ({ dealId, ...body }: { dealId: number } & SubmitOfferFormValues) => {
+            const res = await apiRequest('POST', `/api/deals/${dealId}/offers`, body);
+            return res.json();
+        },
+        onSuccess: () => {
+            setOfferSucceeded(true);
+        },
+        onError: (err: any) => {
+            toast({
+                title: 'Error',
+                description: err?.message || 'Failed to send offer. Please try again.',
+                variant: 'destructive',
+            });
+        },
+    });
+
     const newDeals = dealsWithPinned.filter((d) => d.dealType !== 'sold');
     const soldDeals = dealsWithPinned.filter((d) => d.dealType === 'sold');
 
@@ -204,6 +229,8 @@ export default function DealsPageContent() {
                                 : undefined
                         }
                         onRequestInfo={(deal) => requireAuth(() => setConfirmRequestDeal(deal))}
+                        onSubmitOffer={(deal) => requireAuth(() => setOfferDeal(deal))}
+                        onViewOffers={(deal) => setViewOffersDeal(deal)}
                         onTopBuyers={(deal) => setBestBuyersDeal(deal)}
                     />
                 </div>
@@ -249,6 +276,44 @@ export default function DealsPageContent() {
                     requestDealInfo.mutate({ dealId: confirmRequestDeal.id, ...formData })
                 }
             />
+
+            <SendOfferDialog
+                open={!!offerDeal}
+                address={
+                    formatAddress(offerDeal?.address) ||
+                    [formatAddress(offerDeal?.city), offerDeal?.state].filter(Boolean).join(', ') ||
+                    'this property'
+                }
+                isLoading={submitOffer.isPending}
+                succeeded={offerSucceeded}
+                user={user}
+                onClose={() => {
+                    setOfferDeal(null);
+                    setOfferSucceeded(false);
+                }}
+                onConfirm={(formData) =>
+                    offerDeal && submitOffer.mutate({ dealId: offerDeal.id, ...formData })
+                }
+            />
+
+            <AppDialog
+                open={!!viewOffersDeal}
+                onClose={() => setViewOffersDeal(null)}
+                className="max-w-md"
+            >
+                {viewOffersDeal && (
+                    <DealOffersDialog
+                        dealId={viewOffersDeal.id}
+                        address={
+                            formatAddress(viewOffersDeal.address) ||
+                            [formatAddress(viewOffersDeal.city), viewOffersDeal.state]
+                                .filter(Boolean)
+                                .join(', ') ||
+                            'this property'
+                        }
+                    />
+                )}
+            </AppDialog>
 
             <AppDialog
                 open={!!bestBuyersDeal}

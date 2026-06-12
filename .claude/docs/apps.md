@@ -269,8 +269,15 @@ Agent orange / Sold red / REO indigo), ARV Exclusive badge (admin-set), relative
 sqft, financial grid (Purchase Price, Potential ARV, Est. Budget, Close of Escrow), Request
 More Info + 3-dot Edit/Delete menu.
 **Expanded:** notes, photo album link, up to 3 comparable sale links (domain-extracted
-labels), Request More Info (mobile), Top Potential Buyers (owner only), admin footer
-(admin/owner/RM): poster name/email/phone, On Behalf Of, Internal Note.
+labels), Send Offer + Request More Info (mobile), Offers (N) + Top Potential Buyers (owner
+only), admin footer (admin/owner/RM): poster name/email/phone, On Behalf Of, Internal Note.
+
+**Offers (bids):** any subscriber (basic+) or team member can submit a non-binding offer on a
+non-sold deal via the Send Offer dialog (`SendOfferDialog`/`SendOfferForm` — amount + auto-filled
+name/email/phone). Offers are full-history (repeat offers allowed) and **poster-private**: only
+the deal owner (or admin/owner/RM) reads them, via the owner-only "Offers (N)" card action
+(`DealOffersDialog`). Each submission sends the poster a `deal_bid` bell notification (no email) —
+see the Mastermind/notifications section.
 
 ## State Management
 **`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `locationFilter` (`?filterType`
@@ -294,9 +301,11 @@ filtered list). Deals split client-side into `newDeals` (type !== "sold") and `s
 | PATCH | `/api/deals/:id` | requireSub (pro/premium) | Update deal (ownership enforced in service) |
 | DELETE | `/api/deals/:id` | requireSub (pro/premium) | Delete deal |
 | POST | `/api/deals/:id/request-info` | Auth required | Send deal inquiry |
+| POST | `/api/deals/:id/offers` | requireSub (basic/pro/premium) | Submit a non-binding offer; notifies poster |
+| GET | `/api/deals/:id/offers` | Auth required | List offers (owner or admin/owner/RM only) |
 
 **Subscription bypass:** `admin`, `owner`, `relationship-manager`, `member` skip the
-pro/premium requirement.
+pro/premium requirement (and the basic+ requirement on `POST /offers`).
 
 ## Backend
 **Controller** (`deals.controllers.ts`) — strips admin-only fields (`isArvExclusive`,
@@ -362,6 +371,9 @@ required, county resolved server-side), `price`/`potentialARV` (decimal, optiona
 `photosUrl`, `isArvExclusive` (default false, admin-set), `onBehalfOfEmail` (RM-posted deals,
 redirects contact requests).
 **`dealLinks`:** `dealId` (cascade delete), `sortOrder` (1–3), `url`, `domain` (extracted label).
+**`dealBids`:** `id`, `dealId` (cascade delete), `bidderUserId` (cascade), `amount` (decimal),
+`firstName`/`lastName`/`email`/`phone` (contact snapshot), `createdAt`; index (dealId, createdAt
+DESC). Full history — one row per submission.
 
 ## Validation (`database/inserts/deals.insert.ts`)
 `dealFormSchema` (Zod): city/state(2)/zip required; beds/baths/sqft/propertyType always
@@ -389,6 +401,9 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
   companion MSA subscribers, whitelist recipients deduped).
 - **Request info** → `RequestDealInfoForm` (firstName/lastName/email) → with onBehalfOfEmail:
   email to client, CC poster's RM; without: email to poster, CC requester's RM.
+- **Submit offer** → `SendOfferForm` (amount + name/email/phone) → insert `deal_bids` row (full
+  history) → fire-and-forget `deal_bid` bell notification to the poster (no email). Poster reads
+  offers via the owner-only "Offers (N)" action (`GET /api/deals/:id/offers`).
 - **Edit → sold** → type wholesale/agent → sold → `deal-sold` email to primary + companion subs.
 - **Price update** → controller detects old vs new → `price-update` email to primary + companion subs.
 
@@ -625,7 +640,8 @@ Redis pub/sub (see `.claude/docs/mastermind.md` Known Limitation). Vite's HMR so
 
 ## Database Schema (`database/schemas/mastermind.schema.ts`)
 Enums: `channel_type` (`public`/`private`/`dm`/`group_dm` — Phase 1 uses only `public`),
-`channel_member_role` (`owner`/`admin`/`member`), `notification_type` (`mention`/`channel_mention`).
+`channel_member_role` (`owner`/`admin`/`member`), `notification_type`
+(`mention`/`channel_mention`/`deal_bid`).
 
 | Table | Key Columns | Notes |
 |---|---|---|
@@ -636,7 +652,7 @@ Enums: `channel_type` (`public`/`private`/`dm`/`group_dm` — Phase 1 uses only 
 | `message_reactions` | id, messageId, userId, emoji | UNIQUE(messageId, userId, emoji); fixed emoji set |
 | `message_mentions` | id, messageId, mentionedUserId | UNIQUE(messageId, mentionedUserId); index (mentionedUserId, createdAt DESC) |
 | `pinned_messages` | id, messageId, channelId, pinnedBy | UNIQUE(channelId) — one pin per channel |
-| `notifications` | id, userId (recipient), type, channelId, messageId, actorId, isRead, emailedAt | Bell feed; index (userId, isRead, createdAt DESC) |
+| `notifications` | id, userId (recipient), type, channelId, messageId, dealId (FK deals, cascade), metadata (jsonb), actorId, isRead, emailedAt | Bell feed; mention rows use channel/message, `deal_bid` rows use dealId + metadata `{ amount, address }`; index (userId, isRead, createdAt DESC) |
 
 Deleting a channel cascades to its messages, members, reactions, mentions, pins, and
 notifications. See `.claude/docs/database.md` (Mastermind section) for full column detail.

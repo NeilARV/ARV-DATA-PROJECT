@@ -23,10 +23,21 @@ function formatRelativeTime(iso: string): string {
 }
 
 function notificationText(n: NotificationWire): string {
+    if (n.type === 'deal_bid') {
+        const amount = n.metadata?.amount
+            ? `$${Number(n.metadata.amount).toLocaleString()}`
+            : 'an offer';
+        return `submitted an offer of ${amount}`;
+    }
     const channel = n.channelName ? `#${n.channelName}` : 'a channel';
     return n.type === 'channel_mention'
         ? `mentioned everyone in ${channel}`
         : `mentioned you in ${channel}`;
+}
+
+// Secondary line under the actor row: the deal address for offers, else the message excerpt.
+function notificationDetail(n: NotificationWire): string {
+    return n.type === 'deal_bid' ? (n.metadata?.address ?? '') : n.messageExcerpt;
 }
 
 export function NotificationBell() {
@@ -50,6 +61,10 @@ export function NotificationBell() {
     function handleNotificationClick(n: NotificationWire) {
         if (!n.isRead) markRead(n.id);
         setOpen(false);
+        if (n.type === 'deal_bid' && n.dealId != null) {
+            setLocation(`/deals?dealId=${n.dealId}`);
+            return;
+        }
         if (n.channelName) {
             const base = `/mastermind/${encodeURIComponent(n.channelName)}`;
             setLocation(n.messageId ? `${base}?m=${n.messageId}` : base);
@@ -130,6 +145,7 @@ function NotificationItem({ notification, onClick }: NotificationItemProps) {
             : 'Someone';
     const initials =
         `${(actorFirstName ?? '?').charAt(0)}${(actorLastName ?? '').charAt(0)}`.toUpperCase();
+    const detail = notificationDetail(notification);
 
     return (
         <button
@@ -157,10 +173,8 @@ function NotificationItem({ notification, onClick }: NotificationItemProps) {
                     <span className="font-semibold">{actorName}</span>{' '}
                     {notificationText(notification)}
                 </p>
-                {notification.messageExcerpt && (
-                    <p className="text-sm text-muted-foreground truncate">
-                        {notification.messageExcerpt}
-                    </p>
+                {detail && (
+                    <p className="text-sm text-muted-foreground truncate">{detail}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-0.5">
                     {formatRelativeTime(notification.createdAt)}

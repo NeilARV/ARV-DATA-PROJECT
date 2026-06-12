@@ -7,6 +7,19 @@ type TopBuyer = {
     contactName: string | null;
 };
 
+// A non-binding offer on a deal, as returned by GET /api/deals/:id/offers (poster-only).
+type DealOffer = {
+    id: number;
+    dealId: number;
+    bidderUserId: string;
+    amount: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    createdAt: string;
+};
+
 // API response shape returned by GET /api/deals
 type Deal = DealProperty & {
     id: number;
@@ -23,6 +36,9 @@ type Deal = DealProperty & {
     links: { url: string; domain: string }[];
     photosUrl?: string | null;
     adminNotes?: string | null;
+
+    // Count of offers received — present only on the caller's own deals.
+    bidCount?: number;
 
     // Fields that may be null in the database
     sfrPropertyId?: number | null;

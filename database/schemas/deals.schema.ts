@@ -11,6 +11,7 @@ import {
     decimal,
     primaryKey,
     boolean,
+    index,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.schema';
 import { msas } from './msas.schema';
@@ -69,4 +70,27 @@ export const dealLinks = pgTable(
         updatedAt: timestamp('updated_at').defaultNow(),
     },
     (t) => [primaryKey({ columns: [t.dealId, t.sortOrder] })],
+);
+
+// Non-binding offers an investor submits on a deal. Full history: a user may submit
+// multiple offers on the same deal over time, each a separate row. Contact fields are a
+// snapshot of what the bidder entered, so later profile edits don't rewrite past offers.
+export const dealBids = pgTable(
+    'deal_bids',
+    {
+        id: bigserial('id', { mode: 'number' }).primaryKey(),
+        dealId: bigint('deal_id', { mode: 'number' })
+            .notNull()
+            .references(() => deals.id, { onDelete: 'cascade' }),
+        bidderUserId: uuid('bidder_user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
+        firstName: text('first_name').notNull(),
+        lastName: text('last_name').notNull(),
+        email: text('email').notNull(),
+        phone: text('phone'),
+        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    },
+    (t) => [index('idx_deal_bids_deal_created').on(t.dealId, t.createdAt.desc())],
 );
