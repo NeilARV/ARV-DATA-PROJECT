@@ -308,7 +308,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
             </AppDialog>
 
             <AppDialog
-                hideOverlay
+                nested
                 open={showContact}
                 onClose={() => setShowContact(false)}
                 className="max-w-lg"

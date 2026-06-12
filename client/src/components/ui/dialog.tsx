@@ -53,15 +53,20 @@ const DialogContent = React.forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
-/** Same as DialogContent but renders no backdrop overlay — use for dialogs nested inside another dialog. */
-const NoOverlayDialogContent = React.forwardRef<
+/**
+ * For dialogs that open on top of another dialog. The overlay and content sit above the base
+ * dialog's content (z-[10000]) so the dialog underneath is dimmed too — a plain overlay (z-[999])
+ * renders below the base content and can't darken it.
+ */
+const NestedDialogContent = React.forwardRef<
     React.ElementRef<typeof DialogPrimitive.Content>,
     React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
     <DialogPortal>
+        <DialogOverlay className="z-[10001]" />
         <DialogPrimitive.Content
             ref={ref}
-            className={cn(DIALOG_CONTENT_CLASSES, className)}
+            className={cn(DIALOG_CONTENT_CLASSES, 'z-[10002]', className)}
             {...props}
         >
             {children}
@@ -72,7 +77,7 @@ const NoOverlayDialogContent = React.forwardRef<
         </DialogPrimitive.Content>
     </DialogPortal>
 ));
-NoOverlayDialogContent.displayName = 'NoOverlayDialogContent';
+NestedDialogContent.displayName = 'NestedDialogContent';
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div
@@ -121,7 +126,7 @@ export {
     DialogClose,
     DialogTrigger,
     DialogContent,
-    NoOverlayDialogContent,
+    NestedDialogContent,
     DialogHeader,
     DialogFooter,
     DialogTitle,

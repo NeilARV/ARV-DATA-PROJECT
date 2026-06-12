@@ -130,7 +130,7 @@ export default function DealOffersDialog({ dealId, address }: DealOffersDialogPr
             </div>
 
             <AppDialog
-                hideOverlay
+                nested
                 open={confirmDeleteId !== null}
                 onClose={() => !deleteOffer.isPending && setConfirmDeleteId(null)}
                 className="sm:max-w-sm"

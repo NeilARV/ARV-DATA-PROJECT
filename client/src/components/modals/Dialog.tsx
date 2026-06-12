@@ -1,7 +1,7 @@
 import {
     Dialog as RadixDialog,
     DialogContent,
-    NoOverlayDialogContent,
+    NestedDialogContent,
 } from '@/components/ui/dialog';
 import { cn } from '@/utils/merge';
 
@@ -13,8 +13,8 @@ interface AppDialogProps {
     forced?: boolean;
     /** Tailwind classes forwarded to DialogContent (use for sizing, overflow, etc.) */
     className?: string;
-    /** When true: suppresses the backdrop overlay — use when this dialog opens on top of another dialog */
-    hideOverlay?: boolean;
+    /** When true: renders the overlay above the base dialog — use when this dialog opens on top of another dialog so the one underneath is dimmed too */
+    nested?: boolean;
 }
 
 export default function AppDialog({
@@ -23,9 +23,9 @@ export default function AppDialog({
     children,
     forced = false,
     className,
-    hideOverlay = false,
+    nested = false,
 }: AppDialogProps) {
-    const Content = hideOverlay ? NoOverlayDialogContent : DialogContent;
+    const Content = nested ? NestedDialogContent : DialogContent;
     return (
         <RadixDialog
             open={open}

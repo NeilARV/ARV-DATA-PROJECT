@@ -43,10 +43,10 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
             />
 
             <AppDialog
-                hideOverlay
+                nested
                 open={showEditDialog}
                 onClose={() => setShowEditDialog(false)}
-                className="max-w-md z-[10001]"
+                className="max-w-md"
             >
                 <UpdatePropertyDialog
                     onClose={() => setShowEditDialog(false)}
@@ -61,7 +61,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
             </AppDialog>
 
             <AppDialog
-                hideOverlay
+                nested
                 open={showDeleteDialog}
                 onClose={() => setShowDeleteDialog(false)}
                 className="max-w-md"

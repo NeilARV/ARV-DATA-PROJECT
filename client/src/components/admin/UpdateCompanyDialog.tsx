@@ -332,7 +332,7 @@ export function UpdateCompanyDialog({
 
             {/* Add / Edit contact dialog */}
             <AppDialog
-                hideOverlay
+                nested
                 open={showAddContact || !!editContact}
                 onClose={() => {
                     setShowAddContact(false);
@@ -355,7 +355,7 @@ export function UpdateCompanyDialog({
 
             {/* Delete confirmation dialog */}
             <AppDialog
-                hideOverlay
+                nested
                 open={!!contactToDelete}
                 onClose={() => setContactToDelete(null)}
                 className="max-w-md"
