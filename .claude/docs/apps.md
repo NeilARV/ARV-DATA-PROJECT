@@ -276,8 +276,9 @@ only), admin footer (admin/owner/RM): poster name/email/phone, On Behalf Of, Int
 non-sold deal via the Send Offer dialog (`SendOfferDialog`/`SendOfferForm` — amount + auto-filled
 name/email/phone). Offers are full-history (repeat offers allowed) and **poster-private**: only
 the deal owner (or admin/owner/RM) reads them, via the owner-only "Offers (N)" card action
-(`DealOffersDialog`). Each submission sends the poster a `deal_bid` bell notification (no email) —
-see the Mastermind/notifications section.
+(`DealOffersDialog`), where each offer can also be deleted (trash icon → confirmation). Each
+submission sends the poster a `deal_bid` bell notification (no email) — see the
+Mastermind/notifications section.
 
 ## State Management
 **`useDealsNav`** (URL-driven): `tab: "all" | "mine"` (`?tab=`), `locationFilter` (`?filterType`
@@ -303,6 +304,7 @@ filtered list). Deals split client-side into `newDeals` (type !== "sold") and `s
 | POST | `/api/deals/:id/request-info` | Auth required | Send deal inquiry |
 | POST | `/api/deals/:id/offers` | requireSub (basic/pro/premium) | Submit a non-binding offer; notifies poster |
 | GET | `/api/deals/:id/offers` | Auth required | List offers (owner or admin/owner/RM only) |
+| DELETE | `/api/deals/:id/offers/:offerId` | Auth required | Remove an offer (owner or admin/owner/RM only) |
 
 **Subscription bypass:** `admin`, `owner`, `relationship-manager`, `member` skip the
 pro/premium requirement (and the basic+ requirement on `POST /offers`).

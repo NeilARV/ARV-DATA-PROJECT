@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { setupIntegrationUsers } from '../../../helpers/setup';
 import { assignRole, assignSubscription, getTestDb } from '../../../helpers/db';
-import { deals } from '@database/schemas/deals.schema';
+import { deals, dealBids } from '@database/schemas/deals.schema';
 import { msas } from '@database/schemas/msas.schema';
 import { eq } from 'drizzle-orm';
 
@@ -63,6 +63,27 @@ function postOffer(actingUserId: string | null, body: Record<string, unknown> = 
 
 function getOffers(actingUserId: string | null) {
     const req = request(getApp()).get(`/api/deals/${seededDealId}/offers`);
+    if (actingUserId) req.set('x-test-user-id', actingUserId);
+    return req;
+}
+
+async function seedBid(): Promise<number> {
+    const [bid] = await getTestDb()
+        .insert(dealBids)
+        .values({
+            dealId: seededDealId,
+            bidderUserId: BIDDER_USER_ID,
+            amount: '300000',
+            firstName: 'Jane',
+            lastName: 'Investor',
+            email: 'jane@example.com',
+        })
+        .returning();
+    return bid.id;
+}
+
+function deleteOffer(actingUserId: string | null, offerId: number) {
+    const req = request(getApp()).delete(`/api/deals/${seededDealId}/offers/${offerId}`);
     if (actingUserId) req.set('x-test-user-id', actingUserId);
     return req;
 }
@@ -149,5 +170,35 @@ describe('GET /api/deals/:id/offers — ownership enforcement (integration)', ()
 
     it('returns 401 when there is no session', async () => {
         expect((await getOffers(null)).status).toBe(401);
+    });
+});
+
+// ── DELETE /api/deals/:id/offers/:offerId — ownership enforcement ─────────────
+
+describe('DELETE /api/deals/:id/offers/:offerId — ownership enforcement (integration)', () => {
+    it('returns 200 when caller is the deal owner', async () => {
+        const offerId = await seedBid();
+        expect((await deleteOffer(DEAL_OWNER_ID, offerId)).status).toBe(200);
+    });
+
+    it('returns 200 when caller has admin role', async () => {
+        const offerId = await seedBid();
+        await assignRole(BIDDER_USER_ID, 'admin');
+        expect((await deleteOffer(BIDDER_USER_ID, offerId)).status).toBe(200);
+    });
+
+    it('returns 403 when caller is neither owner nor privileged', async () => {
+        const offerId = await seedBid();
+        await assignRole(BIDDER_USER_ID, 'member');
+        expect((await deleteOffer(BIDDER_USER_ID, offerId)).status).toBe(403);
+    });
+
+    it('returns 404 when the offer does not exist', async () => {
+        expect((await deleteOffer(DEAL_OWNER_ID, 99999999)).status).toBe(404);
+    });
+
+    it('returns 401 when there is no session', async () => {
+        const offerId = await seedBid();
+        expect((await deleteOffer(null, offerId)).status).toBe(401);
     });
 });

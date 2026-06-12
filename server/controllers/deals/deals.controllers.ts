@@ -9,6 +9,7 @@ import {
     sendDealNotification,
     createDealBid,
     getBidsForDeal,
+    deleteDealBid,
     DealServiceError,
 } from 'server/services/deals/deals.services';
 import { createDealBidNotification } from 'server/services/notifications/notifications.services';
@@ -385,6 +386,29 @@ export async function getDealOffersController(req: Request, res: Response): Prom
         res.json({ offers });
     } catch (err) {
         handleServiceError(res, err, 'Error fetching offers');
+    }
+}
+
+// ── DELETE /api/deals/:id/offers/:offerId ──────────────────────────────────────
+export async function deleteDealOfferController(req: Request, res: Response): Promise<void> {
+    try {
+        const id = Number(req.params.id);
+        const offerId = Number(req.params.offerId);
+        if (isNaN(id) || isNaN(offerId)) {
+            res.status(400).json({ message: 'Invalid id' });
+            return;
+        }
+
+        const callerId = req.session?.userId;
+        if (!callerId) {
+            res.status(401).json({ message: 'Not authenticated' });
+            return;
+        }
+
+        const result = await deleteDealBid(id, offerId, callerId);
+        res.json({ message: 'Offer removed successfully', id: result.id });
+    } catch (err) {
+        handleServiceError(res, err, 'Error removing offer');
     }
 }
 

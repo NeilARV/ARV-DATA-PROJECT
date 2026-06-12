@@ -1,9 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
-import { Loader2, Mail, Phone, HandCoins } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Loader2, Mail, Phone, HandCoins, Trash2 } from 'lucide-react';
 
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import AppDialog from '@/components/modals/Dialog';
+import ConfirmationContent from '@/components/modals/Confirmation';
 
-import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 type DealOffersDialogProps = {
     dealId: number;
@@ -19,12 +24,36 @@ function formatOfferDate(iso: string): string {
 }
 
 export default function DealOffersDialog({ dealId, address }: DealOffersDialogProps) {
+    const { toast } = useToast();
+    const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
     const { data, isLoading, isError } = useQuery<{ offers: DealOffer[] }>({
         queryKey: ['/api/deals', dealId, 'offers'],
         staleTime: 0,
         queryFn: async () => {
             const res = await apiRequest('GET', `/api/deals/${dealId}/offers`);
             return res.json();
+        },
+    });
+
+    const deleteOffer = useMutation({
+        mutationFn: async (offerId: number) => {
+            const res = await apiRequest('DELETE', `/api/deals/${dealId}/offers/${offerId}`);
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({ title: 'Offer Removed', description: 'The offer has been deleted.' });
+            queryClient.invalidateQueries({ queryKey: ['/api/deals', dealId, 'offers'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
+            setConfirmDeleteId(null);
+        },
+        onError: (err: any) => {
+            toast({
+                title: 'Error',
+                description: err?.message || 'Failed to remove offer. Please try again.',
+                variant: 'destructive',
+            });
+            setConfirmDeleteId(null);
         },
     });
 
@@ -64,9 +93,19 @@ export default function DealOffersDialog({ dealId, address }: DealOffersDialogPr
                                     <span className="text-lg font-semibold text-foreground">
                                         ${Number(offer.amount).toLocaleString()}
                                     </span>
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                        {formatOfferDate(offer.createdAt)}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                            {formatOfferDate(offer.createdAt)}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmDeleteId(offer.id)}
+                                            aria-label="Remove offer"
+                                            className="text-muted-foreground hover:text-destructive transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                                 <span className="text-sm font-medium text-foreground">
                                     {[offer.firstName, offer.lastName].filter(Boolean).join(' ') ||
@@ -89,6 +128,26 @@ export default function DealOffersDialog({ dealId, address }: DealOffersDialogPr
                     </ul>
                 )}
             </div>
+
+            <AppDialog
+                hideOverlay
+                open={confirmDeleteId !== null}
+                onClose={() => !deleteOffer.isPending && setConfirmDeleteId(null)}
+                className="sm:max-w-sm"
+            >
+                <ConfirmationContent
+                    onClose={() => setConfirmDeleteId(null)}
+                    onConfirm={() =>
+                        confirmDeleteId !== null && deleteOffer.mutate(confirmDeleteId)
+                    }
+                    title="Remove Offer"
+                    description="Remove this offer? This cannot be undone."
+                    confirmText="Remove"
+                    cancelText="Cancel"
+                    variant="destructive"
+                    isLoading={deleteOffer.isPending}
+                />
+            </AppDialog>
         </>
     );
 }

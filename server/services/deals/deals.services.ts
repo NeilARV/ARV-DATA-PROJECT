@@ -1137,6 +1137,54 @@ export async function getBidsForDeal(
         .orderBy(desc(dealBids.createdAt));
 }
 
+// Removes a single offer. Only the deal owner or a privileged team member may delete.
+export async function deleteDealBid(
+    dealId: number,
+    bidId: number,
+    callerId: string,
+): Promise<{ id: number }> {
+    const label = '[dealsService.deleteDealBid]';
+
+    const [bid] = await db
+        .select({ id: dealBids.id, dealId: dealBids.dealId })
+        .from(dealBids)
+        .where(eq(dealBids.id, bidId))
+        .limit(1);
+
+    if (!bid || bid.dealId !== dealId) throw new DealServiceError(404, 'Offer not found');
+
+    const [deal] = await db
+        .select({ userId: deals.userId })
+        .from(deals)
+        .where(eq(deals.id, dealId))
+        .limit(1);
+
+    if (!deal) throw new DealServiceError(404, 'Deal not found');
+
+    if (deal.userId !== callerId) {
+        const callerIsPrivileged = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(
+                and(
+                    eq(userRoles.userId, callerId),
+                    inArray(roles.name, ['admin', 'owner', 'relationship-manager']),
+                ),
+            )
+            .limit(1);
+
+        if (callerIsPrivileged.length === 0) {
+            throw new DealServiceError(403, 'You can only delete offers on your own deals');
+        }
+    }
+
+    await db.delete(dealBids).where(eq(dealBids.id, bidId));
+
+    console.log(`${label} Offer deleted: dealId=${dealId}, bidId=${bidId}`);
+    return { id: bidId };
+}
+
 // Batch offer counts for a set of deals (used to badge the poster's own deal cards).
 export async function getBidCountsForDealIds(dealIds: number[]): Promise<Map<number, number>> {
     if (dealIds.length === 0) return new Map();

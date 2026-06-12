@@ -1005,6 +1005,17 @@ List the offers submitted on a deal, newest first. Offers are poster-private.
 
 ---
 
+### `DELETE /api/deals/:id/offers/:offerId`
+Remove a single offer from a deal.
+
+**Auth**: Authenticated; the service allows only the deal owner or an `admin`/`owner`/`relationship-manager`.
+
+**Response `200`** `{ "message": "Offer removed successfully", "id": 12 }`
+
+**Errors** `400` invalid id · `401` not authenticated · `403` not the owner or privileged · `404` offer or deal not found (also `404` when the offer belongs to a different deal)
+
+---
+
 ## 7. Vendors `/api/vendors`
 
 ### `GET /api/vendors`

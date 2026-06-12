@@ -30,7 +30,7 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | `deal_type` | `wholesale`, `agent`, `sold` | deals.schema.ts |
 | `channel_type` | `public`, `private`, `dm`, `group_dm` | mastermind.schema.ts (Phase 1 uses only `public`) |
 | `channel_member_role` | `owner`, `admin`, `member` | mastermind.schema.ts |
-| `notification_type` | `mention`, `channel_mention` | mastermind.schema.ts |
+| `notification_type` | `mention`, `channel_mention`, `deal_bid` | mastermind.schema.ts |
 
 ---
 
@@ -818,6 +818,29 @@ Links attached to a deal (e.g. MLS, photos). Ordered by `sort_order`.
 
 ---
 
+### `deal_bids`
+Non-binding offers ("bids") an investor submits on a deal. Full history — a user may submit
+multiple offers on the same deal, each a separate row. Contact fields snapshot what the bidder
+entered, so later profile edits don't rewrite past offers. Poster-private (read/delete gated to the
+deal owner or `admin`/`owner`/`relationship-manager` in the service).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `bigserial` | PK |
+| `deal_id` | `bigint` | NOT NULL, FK → `deals.id` (cascade) |
+| `bidder_user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `amount` | `decimal(15,2)` | NOT NULL |
+| `first_name` | `text` | NOT NULL |
+| `last_name` | `text` | NOT NULL |
+| `email` | `text` | NOT NULL |
+| `phone` | `text` | nullable |
+| `created_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Indexes:**
+- `idx_deal_bids_deal_created` on `(deal_id, created_at DESC)` — poster's offer list
+
+---
+
 ## Vendors & Community
 
 ### `categories`
@@ -1115,16 +1138,20 @@ One pinned message per channel.
 ---
 
 ### `notifications`
-The in-app bell feed. A row is created when a user is mentioned (or covered by `@here`/`@channel`).
+The in-app bell feed. A row is created when a user is mentioned (or covered by `@here`/`@channel`),
+or when an investor submits an offer on a deal (`deal_bid` → the deal's poster). Mention rows use
+`channel_id`/`message_id`; `deal_bid` rows use `deal_id` + `metadata` instead.
 
 | Column | Type | Constraints |
 |--------|------|-------------|
 | `id` | `uuid` | PK, default random |
 | `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) — recipient |
-| `type` | `notification_type` enum | NOT NULL |
+| `type` | `notification_type` enum | NOT NULL — `mention` / `channel_mention` / `deal_bid` |
 | `channel_id` | `uuid` | FK → `channels.id` (cascade), nullable |
 | `message_id` | `uuid` | FK → `messages.id` (cascade), nullable — deep-link target |
-| `actor_id` | `uuid` | FK → `users.id` (set null), nullable — who triggered it |
+| `deal_id` | `bigint` | FK → `deals.id` (cascade), nullable — `deal_bid` deep-link target |
+| `metadata` | `jsonb` | nullable — `deal_bid` display payload `{ amount, address }` |
+| `actor_id` | `uuid` | FK → `users.id` (set null), nullable — who triggered it (sender or bidder) |
 | `is_read` | `boolean` | NOT NULL, default false |
 | `emailed_at` | `timestamp with time zone` | nullable — supports the ≤3/day email cap |
 | `created_at` | `timestamp with time zone` | NOT NULL, default now |

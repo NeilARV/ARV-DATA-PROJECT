@@ -9,6 +9,7 @@ import {
     requestDealInfoController,
     submitDealOfferController,
     getDealOffersController,
+    deleteDealOfferController,
     getMsasController,
 } from 'server/controllers/deals/deals.controllers';
 
@@ -64,5 +65,8 @@ router.post(
 
 // GET /api/deals/:id/offers — poster (or privileged team) views offers on a deal
 router.get('/:id/offers', getDealOffersController);
+
+// DELETE /api/deals/:id/offers/:offerId — poster (or privileged team) removes an offer
+router.delete('/:id/offers/:offerId', deleteDealOfferController);
 
 export default router;
