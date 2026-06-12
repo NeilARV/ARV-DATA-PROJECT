@@ -197,7 +197,7 @@ export default function DealCard2({
                             {canSubmitOffer && (
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <Button
-                                        variant="outline"
+                                        variant="default"
                                         size="base"
                                         onClick={onSubmitOffer}
                                         className="hidden md:inline-flex gap-1.5 mr-1.5"
