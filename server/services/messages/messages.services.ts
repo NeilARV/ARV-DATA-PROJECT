@@ -10,12 +10,8 @@ import {
 import { users, userRoles, roles } from '@database/schemas/users.schema';
 import { eq, and, or, lt, gt, desc, asc, inArray, sql } from 'drizzle-orm';
 import { sanitizeMessageHtml, isHtmlEmpty } from 'server/utils/sanitizeHtml';
-import {
-    getSupabase,
-    mastermindStorageBucket,
-    mastermindPublicUrlPrefix,
-    storagePathFromUrl,
-} from 'server/lib/supabase';
+import { mastermindPublicUrlPrefix } from 'server/lib/supabase';
+import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
 import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
 import type {
     MessageAttachmentWire,
@@ -602,7 +598,7 @@ async function reconcileAttachments(
     if (removed.length > 0) {
         await removeAttachmentStorageByUrls(
             removed.map((r) => r.fileUrl),
-            messageId,
+            `message ${messageId}`,
         );
         await db.delete(messageAttachments).where(
             inArray(
@@ -633,43 +629,6 @@ async function removeAttachmentStorage(messageId: string): Promise<void> {
         .where(eq(messageAttachments.messageId, messageId));
     await removeAttachmentStorageByUrls(
         rows.map((r) => r.fileUrl),
-        messageId,
+        `message ${messageId}`,
     );
-}
-
-// Removes a specific set of attachment URLs from Supabase Storage. Shared by the delete and
-// edit paths. Failures are logged, never thrown — the DB rows are the source of truth.
-async function removeAttachmentStorageByUrls(fileUrls: string[], messageId: string): Promise<void> {
-    if (fileUrls.length === 0) return;
-
-    const paths = fileUrls
-        .map((url) => storagePathFromUrl(url, mastermindStorageBucket))
-        .filter((p): p is string => p !== null);
-
-    // A stored URL that doesn't map to a storage path can never be deleted — surface it
-    // instead of silently leaking the object.
-    if (paths.length !== fileUrls.length) {
-        console.error(
-            `Mastermind attachment cleanup: ${fileUrls.length - paths.length} URL(s) on message ${messageId} ` +
-                `did not map to a storage path; those objects may be orphaned.`,
-        );
-    }
-    if (paths.length === 0) return;
-
-    // Supabase .remove() resolves with { data, error } rather than throwing on an API-level
-    // failure (bad path, permissions, RLS). The try/catch only covers transport errors, so the
-    // returned error must be inspected too — otherwise a failed delete leaks files with no signal.
-    try {
-        const { error } = await getSupabase()
-            .storage.from(mastermindStorageBucket)
-            .remove(paths);
-        if (error) {
-            console.error(
-                `Failed to remove mastermind attachment storage for message ${messageId}:`,
-                error.message,
-            );
-        }
-    } catch (err) {
-        console.error(`Failed to remove mastermind attachment storage for message ${messageId}:`, err);
-    }
 }

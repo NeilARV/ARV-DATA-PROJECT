@@ -14,3 +14,4 @@
 - [Message-id routes bypass channel guard](project_mastermind_message_id_routes_bypass_channel_guard.md) — /api/messages/:id edit/delete/reactions resolve by message id and skip getReadableChannelOrThrow; re-audit each when a channel-level rule (admin-only) ships
 - [Mastermind temp admin gate](project_mastermind_temp_admin_gate.md) — TEMPORARY canAccessMastermind=isOwner||isAdmin hides UI; socket+notifications queries left on broader canAccessApp on purpose
 - [Mastermind edit attachments authoritative](project_mastermind_edit_attachments_authoritative.md) — edit sends full desired attachment set, server reconciles by fileUrl; cache no longer preserves cached attachments on MessageUpdated
+- [Supabase .remove() batch cap](project_supabase_remove_batch_cap.md) — removeAttachmentStorageByUrls sends all paths in one .remove() call; channel-delete cleanup is unbounded and can exceed the per-request object cap

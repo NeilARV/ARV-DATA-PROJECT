@@ -1,8 +1,14 @@
 import { db } from 'server/storage';
-import { channels, channelMembers, messages } from '@database/schemas/mastermind.schema';
+import {
+    channels,
+    channelMembers,
+    messages,
+    messageAttachments,
+} from '@database/schemas/mastermind.schema';
 import { users, subscriptions, userRoles, roles } from '@database/schemas/users.schema';
 import type { Channel } from '@database/types/mastermind';
 import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
+import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
 
 export type ChannelWithUnread = Channel & {
     unreadCount: number;
@@ -338,6 +344,19 @@ export async function deleteChannel(id: string): Promise<{ id: string }> {
     if (!channel.isArchived) {
         throw new ChannelServiceError(409, 'Archive the channel before deleting it');
     }
+
+    // The DB cascade drops messages + attachment rows but not their Supabase objects. Collect every
+    // attachment URL in the channel and remove the files first; best-effort, so a storage failure is
+    // logged (orphaning a file) rather than blocking the delete.
+    const attachmentRows = await db
+        .select({ fileUrl: messageAttachments.fileUrl })
+        .from(messageAttachments)
+        .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
+        .where(eq(messages.channelId, id));
+    await removeAttachmentStorageByUrls(
+        attachmentRows.map((r) => r.fileUrl),
+        `channel ${id}`,
+    );
 
     await db.delete(channels).where(eq(channels.id, id));
     return { id };
