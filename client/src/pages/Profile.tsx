@@ -3,10 +3,11 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, User, UserCircle, Building2, Mail } from 'lucide-react';
+import { ArrowLeft, Loader2, User, UserCircle, Building2, Mail, Shield } from 'lucide-react';
 import AccountInfoTab from '@/components/profile/AccountInfoTab';
 import MyCompaniesTab from '@/components/profile/MyCompaniesTab';
 import EmailPreferencesTab from '@/components/profile/EmailPreferencesTab';
+import SecurityTab from '@/components/profile/SecurityTab';
 
 export default function Profile() {
     const [, setLocation] = useLocation();
@@ -56,7 +57,7 @@ export default function Profile() {
             </div>
 
             <Tabs defaultValue="account" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-8">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-8">
                     <TabsTrigger value="account">
                         <UserCircle className="w-4 h-4 mr-2" />
                         Account Info
@@ -68,6 +69,10 @@ export default function Profile() {
                     <TabsTrigger value="email">
                         <Mail className="w-4 h-4 mr-2" />
                         Email Preferences
+                    </TabsTrigger>
+                    <TabsTrigger value="security">
+                        <Shield className="w-4 h-4 mr-2" />
+                        Security
                     </TabsTrigger>
                 </TabsList>
 
@@ -81,6 +86,10 @@ export default function Profile() {
 
                 <TabsContent value="email">
                     <EmailPreferencesTab />
+                </TabsContent>
+
+                <TabsContent value="security">
+                    <SecurityTab />
                 </TabsContent>
             </Tabs>
         </div>

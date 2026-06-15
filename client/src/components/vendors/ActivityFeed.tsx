@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { PostCard } from './PostCard';
 import { PostComposer } from './PostComposer';
 import { fetchPosts } from '@/api/vendors.api';
 import type { PostFilters } from '@/hooks/useVendorNav';
 import { useAuth } from '@/hooks/use-auth';
-import { useDialogs } from '@/hooks/useDialogs';
 import { LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -14,7 +14,7 @@ type ActivityFeedProps = {
 
 export function ActivityFeed({ postFilters }: ActivityFeedProps) {
     const { isAuthenticated } = useAuth();
-    const { openDialog } = useDialogs();
+    const [, setLocation] = useLocation();
 
     const { data: posts, isLoading } = useQuery({
         queryKey: ['posts', postFilters],
@@ -53,11 +53,14 @@ export function ActivityFeed({ postFilters }: ActivityFeedProps) {
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openDialog({ type: 'login' })}
+                            onClick={() => setLocation('/login?redirect=%2Fvendors')}
                         >
                             Log In
                         </Button>
-                        <Button size="sm" onClick={() => openDialog({ type: 'signup' })}>
+                        <Button
+                            size="sm"
+                            onClick={() => setLocation('/signup?redirect=%2Fvendors')}
+                        >
                             Sign Up
                         </Button>
                     </div>

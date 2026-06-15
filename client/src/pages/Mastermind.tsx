@@ -16,7 +16,6 @@ import { CompaniesProvider } from '@/hooks/useCompanies';
 import { PropertiesProvider } from '@/hooks/useProperties';
 import { PropertyProvider } from '@/hooks/useProperty';
 import { useAuth } from '@/hooks/use-auth';
-import { useDialogs } from '@/hooks/useDialogs';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
 
 import { Button } from '@/components/ui/button';
@@ -31,7 +30,6 @@ type UnreadEntry = { count: number; hasMention: boolean };
 function MastermindContent() {
     const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessMastermind, isOwner, isAdmin, user } =
         useAuth();
-    const { openDialog } = useDialogs();
     const { lastCreatedMessage } = useMastermindSocket();
 
     const search = useSearch();
@@ -229,11 +227,11 @@ function MastermindContent() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openDialog({ type: 'login' })}
+                        onClick={() => setLocation('/login?redirect=%2Fmastermind')}
                     >
                         Log In
                     </Button>
-                    <Button size="sm" onClick={() => openDialog({ type: 'signup' })}>
+                    <Button size="sm" onClick={() => setLocation('/signup?redirect=%2Fmastermind')}>
                         Sign Up
                     </Button>
                 </div>

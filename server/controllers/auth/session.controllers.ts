@@ -1,7 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import { loginSchema } from '@database/validation/users.validation';
+import {
+    loginSchema,
+    changePasswordSchema,
+    forgotPasswordSchema,
+} from '@database/validation/users.validation';
 import { updateUserProfileSchema, updateNotificationPreferencesSchema } from '@database/updates';
 import { SessionServices, UserServices } from 'server/services/auth';
+import { generateTempPassword } from 'server/utils/generateTempPassword';
+import { sendTempPasswordEmail } from 'server/services/postmark/passwordReset.services';
 
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -186,5 +192,88 @@ export async function updateNotifications(
     } catch (error) {
         console.error('Error updating notification preferences:', error);
         res.status(500).json({ message: 'Error updating notification preferences' });
+    }
+}
+
+export async function changePassword(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+): Promise<void> {
+    try {
+        if (!req.session.userId) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
+
+        const validation = changePasswordSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({
+                message: 'Invalid password data',
+                errors: validation.error.errors,
+            });
+            return;
+        }
+
+        const { currentPassword, newPassword } = validation.data;
+
+        const [user] = await UserServices.getUserById(req.session.userId);
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        const isValidPassword = await SessionServices.isValidPassword(
+            currentPassword,
+            user.passwordHash,
+        );
+        if (!isValidPassword) {
+            res.status(400).json({ message: 'Current password is incorrect' });
+            return;
+        }
+
+        await UserServices.changeUserPassword(user.id, newPassword);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ message: 'Error changing password' });
+    }
+}
+
+export async function forgotPassword(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+): Promise<void> {
+    // Always responds with the same generic message regardless of whether the
+    // email exists, to avoid leaking which addresses have accounts.
+    const genericResponse = {
+        message: 'If an account exists for that email, a temporary password has been sent.',
+    };
+
+    try {
+        const validation = forgotPasswordSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({
+                message: 'Invalid email',
+                errors: validation.error.errors,
+            });
+            return;
+        }
+
+        const { email } = validation.data;
+        const [user] = await UserServices.getUserByEmail(email);
+
+        if (user) {
+            const tempPassword = generateTempPassword();
+            await UserServices.resetUserPassword(user.email, tempPassword);
+            await sendTempPasswordEmail(user.email, tempPassword);
+        }
+
+        res.json(genericResponse);
+    } catch (error) {
+        console.error('Error processing forgot-password request:', error);
+        res.json(genericResponse);
     }
 }

@@ -69,6 +69,7 @@ Lookup table for subscription tiers (basic, pro, premium).
 | `phone` | `text` | NOT NULL |
 | `email` | `text` | NOT NULL, UNIQUE |
 | `password_hash` | `text` | NOT NULL |
+| `must_reset_password` | `boolean` | NOT NULL, default false |
 | `notifications` | `boolean` | NOT NULL, default true |
 | `subscription_id` | `integer` | FK → `subscriptions.id` (set null) |
 | `county` | `text` | default `'San Diego'` |

@@ -49,6 +49,7 @@ export const users = pgTable(
         phone: text('phone').notNull(),
         email: text('email').unique().notNull(),
         passwordHash: text('password_hash').notNull(),
+        mustResetPassword: boolean('must_reset_password').notNull().default(false),
         createdAt: timestamp('created_at').notNull().defaultNow(),
         notifications: boolean('notifications').notNull().default(true),
         updatedAt: timestamp('updated_at').defaultNow(),

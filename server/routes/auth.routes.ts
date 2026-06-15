@@ -32,6 +32,12 @@ router.patch('/me', Session.updateProfile);
 // Update current user notification preferences
 router.patch('/me/notifications', Session.updateNotifications);
 
+// Change password (authenticated; also used by the forced post-login reset)
+router.patch('/me/password', requireAuth, Session.changePassword);
+
+// Request a temporary password by email (public)
+router.post('/forgot-password', Session.forgotPassword);
+
 // User signup
 router.post('/signup', Registration.signup);
 

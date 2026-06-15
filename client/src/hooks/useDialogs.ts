@@ -1,7 +1,11 @@
 import { useState, createContext, useContext } from 'react';
 import React from 'react';
 
-export type DialogState = null | { type: 'login' } | { type: 'signup' };
+export type DialogState =
+    | null
+    | { type: 'login' }
+    | { type: 'signup' }
+    | { type: 'authGate'; redirect?: string };
 
 export interface UseDialogsResult {
     dialog: DialogState;

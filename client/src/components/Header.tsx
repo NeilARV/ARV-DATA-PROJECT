@@ -30,7 +30,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useView } from '@/hooks/useView';
 import { useFilters } from '@/hooks/useFilters';
 import { useRequireSubscription } from '@/hooks/useRequireSubscription';
-import { useDialogs } from '@/hooks/useDialogs';
 import { BUYERS_FEED_STATUS_FILTERS } from '@/constants/propertyStatus.constants';
 import { WHOLESALE_VIEW_STATUS_FILTERS } from '@/constants/propertyStatus.constants';
 import { useCompanies } from '@/hooks/useCompanies';
@@ -40,7 +39,6 @@ import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
 import { useProperty } from '@/hooks/useProperty';
 
 export default function Header() {
-    const { openDialog } = useDialogs();
     const { filters, setFilters, setSortBy, clearFilters } = useFilters();
     const { view, setView, setSidebarView } = useView();
     const { setProperty } = useProperty();
@@ -329,7 +327,7 @@ export default function Header() {
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openDialog({ type: 'login' })}
+                            onClick={() => setLocation('/login')}
                             data-testid="button-login"
                         >
                             <LogIn className="w-4 h-4 mr-1" />
@@ -337,7 +335,7 @@ export default function Header() {
                         </Button>
                         <Button
                             size="sm"
-                            onClick={() => openDialog({ type: 'signup' })}
+                            onClick={() => setLocation('/signup')}
                             data-testid="button-signup"
                         >
                             Sign up

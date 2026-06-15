@@ -121,6 +121,8 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | GET | `/api/auth/me` | (public) | Returns `{ user: null }` if unauthenticated |
 | PATCH | `/api/auth/me` | (public) | Session userId read from session if present |
 | PATCH | `/api/auth/me/notifications` | (public) | Session userId read from session if present |
+| PATCH | `/api/auth/me/password` | `requireAuth` | Change password; verifies current password (400 if wrong), clears `must_reset_password`. Also used by the forced post-login reset |
+| POST | `/api/auth/forgot-password` | (public) | Emails a temp password and flags `must_reset_password`; always returns 200 (no email enumeration) |
 | POST | `/api/auth/signup` | (public) | |
 | POST | `/api/auth/me/avatar` | `requireAuth` | Upload or replace profile image (multipart/form-data) |
 | DELETE | `/api/auth/me/avatar` | `requireAuth` | Remove profile image |

@@ -188,6 +188,43 @@ Update the authenticated user's notification preferences.
 
 ---
 
+### `PATCH /api/auth/me/password`
+Change the authenticated user's password. Also used by the forced post-login reset screen. On success, clears the `must_reset_password` flag.
+
+**Auth**: `requireAuth`
+
+**Body**
+```json
+{
+  "currentPassword": "string (required)",
+  "newPassword": "string (min 6)"
+}
+```
+
+**Response `200`** `{ "success": true }`
+
+**Errors** `400` validation failed or current password incorrect · `401` not authenticated · `404` user not found · `500` server error
+
+---
+
+### `POST /api/auth/forgot-password`
+Request a temporary password by email. If an account exists for the email, a temporary password is generated, the account is flagged (`must_reset_password = true`), and the password is emailed. Always returns the same generic `200` regardless of whether the email exists (no account enumeration).
+
+**Auth**: Public
+
+**Body**
+```json
+{
+  "email": "string (valid email)"
+}
+```
+
+**Response `200`** `{ "message": "If an account exists for that email, a temporary password has been sent." }`
+
+**Errors** `400` invalid email
+
+---
+
 ### `POST /api/auth/me/avatar`
 Upload or replace the authenticated user's profile image.
 

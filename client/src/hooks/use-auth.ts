@@ -32,6 +32,7 @@ export interface AuthUser {
     email: string;
     isAdmin: boolean;
     notifications: boolean;
+    mustResetPassword: boolean;
     createdAt: string;
     county?: string | null;
     state?: string | null;

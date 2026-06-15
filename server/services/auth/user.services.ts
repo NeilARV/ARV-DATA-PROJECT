@@ -145,9 +145,10 @@ export async function removeUserRelationshipManager(
 }
 
 /**
- * Hashes a new password and writes it to the user with the given email.
+ * Hashes a temporary password, writes it to the user with the given email, and
+ * flags the account so the user is forced to set a new password on next login.
  * Returns the updated user (without the password hash), or null if no user matched.
- * Intended for the manual reset-one-user script until self-serve reset ships.
+ * Used by both the self-serve forgot-password flow and the manual reset-one-user script.
  */
 export async function resetUserPassword(email: string, newPassword: string) {
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -155,7 +156,7 @@ export async function resetUserPassword(email: string, newPassword: string) {
     const normalizedEmail = email.toLowerCase().trim();
     const [updatedUser] = await db
         .update(users)
-        .set({ passwordHash, updatedAt: sql`now()` })
+        .set({ passwordHash, mustResetPassword: true, updatedAt: sql`now()` })
         .where(sql`lower(trim(${users.email})) = ${normalizedEmail}`)
         .returning();
 
@@ -165,8 +166,33 @@ export async function resetUserPassword(email: string, newPassword: string) {
     return userWithoutPassword;
 }
 
+/**
+ * Hashes a new password for the given user and clears the forced-reset flag.
+ * Used by both the voluntary change-password flow and the forced post-login reset.
+ * Returns the updated user (without the password hash), or null if no user matched.
+ */
+export async function changeUserPassword(userId: string, newPassword: string) {
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    const [updatedUser] = await db
+        .update(users)
+        .set({ passwordHash, mustResetPassword: false, updatedAt: sql`now()` })
+        .where(eq(users.id, userId))
+        .returning();
+
+    if (!updatedUser) return null;
+
+    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    return userWithoutPassword;
+}
+
 export async function getUserByEmail(email: string) {
-    const user = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await db
+        .select()
+        .from(users)
+        .where(sql`lower(trim(${users.email})) = ${normalizedEmail}`)
+        .limit(1);
 
     return user;
 }

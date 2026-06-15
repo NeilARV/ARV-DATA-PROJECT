@@ -16,7 +16,7 @@ function DealsInner() {
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            openDialog({ type: 'login' });
+            openDialog({ type: 'authGate', redirect: '/deals' });
         }
     }, [isLoading, isAuthenticated]);
 
