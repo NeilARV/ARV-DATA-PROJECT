@@ -183,15 +183,15 @@ Ownership is enforced in the service layer (not middleware), returning `403` if 
 |---|---|---|---|---|---|---|---|
 | GET | `/api/deals` | (public) | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/deals/:id` | (public) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| POST | `/api/deals` | `requireSub(["pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
-| PATCH | `/api/deals/:id` | `requireSub(["pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
-| DELETE | `/api/deals/:id` | `requireSub(["pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
+| POST | `/api/deals` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| PATCH | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
+| DELETE | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 | POST | `/api/deals/:id/request-info` | (public) | ✓ | ✓ | ✓ | ✓ | ✓ |
 | POST | `/api/deals/:id/offers` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | GET | `/api/deals/:id/offers` | auth + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 | DELETE | `/api/deals/:id/offers/:offerId` | auth + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 
-> `POST /offers` is the only deals route gated at the **basic** tier (any subscription) rather than pro/premium — any subscriber or team member may submit an offer. `no-sub/no-role` is `403`. The `pro or premium` column above reads `✓` for it because those tiers also qualify.
+> All deal write routes (create, edit, delete, and `POST /offers`) are gated at the **basic** tier (any subscription) — any subscriber or team member may post or manage deals and submit offers. `no-sub/no-role` is always `403`. The `pro or premium` column above reads `✓` for these because those tiers also qualify.
 
 **Ownership rules in service (confirmed):**
 - `updateDeal`: owner of the deal, or `admin`/`owner` role. RM cannot edit another user's deal.

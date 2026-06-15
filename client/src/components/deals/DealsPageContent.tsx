@@ -162,7 +162,7 @@ export default function DealsPageContent() {
     const handleAddDeal = () =>
         requireAuth(() =>
             requireSubscription(() => setShowAddDeal(true), {
-                tiers: ['pro', 'premium'],
+                tiers: ['basic', 'pro', 'premium'],
                 subject: 'Request Access',
                 message: 'I would like to request access to post deals on the ARV data application',
             }),

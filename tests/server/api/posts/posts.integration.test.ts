@@ -5,8 +5,10 @@ import { assignRole, assignSubscription, getTestDb } from '../../../helpers/db';
 import { posts } from '@database/schemas/vendors.schema';
 
 // ── Test user IDs ──────────────────────────────────────────────────────────
-const ACTING_USER_ID = '00000000-0000-0000-0000-000000000020';
-const POST_OWNER_ID = '00000000-0000-0000-0000-000000000021';
+// Unique suffixes so this file can run concurrently with other integration
+// files. (60/61 — the deals offers file already owns 20/21.)
+const ACTING_USER_ID = '00000000-0000-0000-0000-000000000060';
+const POST_OWNER_ID = '00000000-0000-0000-0000-000000000061';
 
 // Seeds both users, clears ACTING_USER_ID roles + subscription before each test.
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, POST_OWNER_ID);

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import request from 'supertest';
 import { setupIntegrationUsers } from '../../../helpers/setup';
-import { assignRole, getTestDb } from '../../../helpers/db';
+import { assignRole, assignSubscription, getTestDb } from '../../../helpers/db';
 import { resolveMsaId } from 'server/utils/resolveMsa';
 import { deals } from '@database/schemas/deals.schema';
 import { msas } from '@database/schemas/msas.schema';
@@ -24,6 +24,7 @@ const DEAL_OWNER_ID = '00000000-0000-0000-0000-000000000011';
 const { getApp } = setupIntegrationUsers(ACTING_USER_ID, DEAL_OWNER_ID);
 
 let seededDealId: number;
+let seededMsaId: number;
 
 const MSA_NAME = 'San Diego-Chula Vista-Carlsbad, CA';
 
@@ -41,6 +42,7 @@ beforeAll(async () => {
     // Point the mock at the real MSA id so the FK on deals is satisfied and
     // the updateDeal service doesn't reject with a 422.
     vi.mocked(resolveMsaId).mockResolvedValue(msa.id);
+    seededMsaId = msa.id;
 
     // Give DEAL_OWNER_ID the minimum role needed to pass requireSub's bypass
     // list on the PATCH route, without granting any admin privileges.
@@ -112,6 +114,67 @@ describe('PATCH /api/deals/:id — ownership enforcement (integration)', () => {
         // the seeded deal — the service skips the privilege check entirely.
         it('returns 200 when caller is the deal owner', async () => {
             expect((await patchDeal(DEAL_OWNER_ID)).status).toBe(200);
+        });
+    });
+
+    // A basic-tier subscriber with NO bypass role now passes requireSub on every
+    // deal write route (previously gated at pro/premium). They can create a deal
+    // and manage their own: middleware passes via subscription, service passes via
+    // ownership. `setupIntegrationUsers`' beforeEach clears ACTING_USER_ID's roles
+    // before each test, so the 2xx is reached via the basic subscription — not a
+    // leaked bypass role from an earlier test.
+    describe('basic-tier subscriber managing own deals', () => {
+        // Seed a deal owned by ACTING_USER_ID. Cascade-deleted in afterAll.
+        async function seedOwnDeal(): Promise<number> {
+            const [ownDeal] = await getTestDb()
+                .insert(deals)
+                .values({
+                    userId: ACTING_USER_ID,
+                    msaId: seededMsaId,
+                    type: 'wholesale',
+                    city: 'San Diego',
+                    state: 'CA',
+                    zipCode: '92101',
+                    price: '350000',
+                })
+                .returning();
+            return ownDeal.id;
+        }
+
+        it('returns 201 when a basic subscriber creates a deal', async () => {
+            await assignSubscription(ACTING_USER_ID, 'basic');
+            const res = await request(getApp())
+                .post('/api/deals')
+                .set('x-test-user-id', ACTING_USER_ID)
+                .send({
+                    userId: ACTING_USER_ID,
+                    msaId: seededMsaId,
+                    dealType: 'wholesale',
+                    city: 'San Diego',
+                    state: 'CA',
+                    zipCode: '92101',
+                    price: 350000,
+                });
+            expect(res.status).toBe(201);
+        });
+
+        it('returns 200 when a basic subscriber edits their own deal', async () => {
+            await assignSubscription(ACTING_USER_ID, 'basic');
+            const dealId = await seedOwnDeal();
+            const res = await request(getApp())
+                .patch(`/api/deals/${dealId}`)
+                .set('x-test-user-id', ACTING_USER_ID)
+                .send({ notes: 'Updated by basic subscriber' });
+            expect(res.status).toBe(200);
+        });
+
+        it('returns 200 when a basic subscriber deletes their own deal', async () => {
+            await assignSubscription(ACTING_USER_ID, 'basic');
+            const dealId = await seedOwnDeal();
+            const res = await request(getApp())
+                .delete(`/api/deals/${dealId}`)
+                .set('x-test-user-id', ACTING_USER_ID);
+            expect(res.status).toBe(200);
         });
     });
 

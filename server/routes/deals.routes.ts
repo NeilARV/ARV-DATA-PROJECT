@@ -24,10 +24,10 @@ router.get('/msas', getMsasController);
 // GET /api/deals/:id — fetch a single deal by id
 router.get('/:id', getDealByIdController);
 
-// POST /api/deals — create a deal (pro/premium subscription, or team member bypass)
+// POST /api/deals — create a deal (any subscription tier, or team member bypass)
 router.post(
     '/',
-    requireSub(['pro', 'premium'], {
+    requireSub(['basic', 'pro', 'premium'], {
         bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
     }),
     createDealController,
@@ -36,16 +36,16 @@ router.post(
 // PATCH /api/deals/:id — edit own deal (ownership enforced in service)
 router.patch(
     '/:id',
-    requireSub(['pro', 'premium'], {
+    requireSub(['basic', 'pro', 'premium'], {
         bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
     }),
     updateDealController,
 );
 
-// DELETE /api/deals/:id — delete own deal or any deal (pro/premium or team member)
+// DELETE /api/deals/:id — delete own deal or any deal (any subscription tier or team member)
 router.delete(
     '/:id',
-    requireSub(['pro', 'premium'], {
+    requireSub(['basic', 'pro', 'premium'], {
         bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
     }),
     deleteDealController,

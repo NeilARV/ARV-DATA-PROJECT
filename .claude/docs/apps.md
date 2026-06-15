@@ -249,8 +249,8 @@ Page `client/src/pages/Home.tsx` · components `client/src/components/data/` · 
 A marketplace for real estate investment deals — wholesale, agent-listed, and completed sales.
 Users post deals, others browse and request contact info, and the system routes inquiries to
 the appropriate relationship manager. It's an internal deal board layered on the Data app's
-property/company data. Publicly viewable, but creating deals requires a pro/premium
-subscription (with bypass for team roles).
+property/company data. Publicly viewable, but creating deals requires any active
+subscription (basic/pro/premium, with bypass for team roles).
 
 ## Page Entry Point
 `client/src/pages/Deals.tsx` wraps `DealsInner`, which checks auth and renders `Header` +
@@ -298,16 +298,16 @@ filtered list). Deals split client-side into `newDeals` (type !== "sold") and `s
 |---|---|---|---|
 | GET | `/api/deals` | Public | List deals; `userId`, `county`, `city`, `state`, `zipCode`, `msaName` |
 | GET | `/api/deals/:id` | Public | Single deal |
-| POST | `/api/deals` | requireSub (pro/premium) | Create deal |
-| PATCH | `/api/deals/:id` | requireSub (pro/premium) | Update deal (ownership enforced in service) |
-| DELETE | `/api/deals/:id` | requireSub (pro/premium) | Delete deal |
+| POST | `/api/deals` | requireSub (basic/pro/premium) | Create deal |
+| PATCH | `/api/deals/:id` | requireSub (basic/pro/premium) | Update deal (ownership enforced in service) |
+| DELETE | `/api/deals/:id` | requireSub (basic/pro/premium) | Delete deal |
 | POST | `/api/deals/:id/request-info` | Auth required | Send deal inquiry |
 | POST | `/api/deals/:id/offers` | requireSub (basic/pro/premium) | Submit a non-binding offer; notifies poster |
 | GET | `/api/deals/:id/offers` | Auth required | List offers (owner or admin/owner/RM only) |
 | DELETE | `/api/deals/:id/offers/:offerId` | Auth required | Remove an offer (owner or admin/owner/RM only) |
 
 **Subscription bypass:** `admin`, `owner`, `relationship-manager`, `member` skip the
-pro/premium requirement (and the basic+ requirement on `POST /offers`).
+subscription requirement on all deal write routes (create/edit/delete and `POST /offers`).
 
 ## Backend
 **Controller** (`deals.controllers.ts`) — strips admin-only fields (`isArvExclusive`,
@@ -389,7 +389,7 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
 |---|---|---|---|---|
 | View deals | ✓ | ✓ | ✓ | ✓ |
 | Request deal info | — | ✓ | ✓ | ✓ |
-| Create deal | — | Pro/Premium | ✓ (bypass) | ✓ |
+| Create deal | — | Basic/Pro/Premium | ✓ (bypass) | ✓ |
 | Edit own deal | — | — | ✓ (own) | ✓ (any) |
 | Delete own deal | — | — | ✓ (own) | ✓ (any) |
 | Delete any deal | — | — | RM only | ✓ |
