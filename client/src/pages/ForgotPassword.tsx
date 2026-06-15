@@ -41,14 +41,10 @@ export default function ForgotPassword() {
         return (
             <AuthPageShell
                 title="Check your email"
-                description="If an account exists for that email, we've sent a temporary password."
+                description="If an account exists for that email, we've sent a temporary password to sign in."
             >
                 <div className="flex flex-col items-center gap-4 py-2 text-center">
                     <MailCheck className="w-10 h-10 text-primary" />
-                    <p className="text-sm text-muted-foreground">
-                        Log in with the temporary password from your email. You'll be asked to
-                        choose a new password right away.
-                    </p>
                     <Button className="w-full" onClick={() => setLocation('/login')}>
                         Back to Sign In
                     </Button>
