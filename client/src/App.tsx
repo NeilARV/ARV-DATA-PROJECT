@@ -21,38 +21,17 @@ import { ViewProvider } from '@/hooks/useView';
 import { DialogsProvider, useDialogs } from '@/hooks/useDialogs';
 import { useAuth } from '@/hooks/use-auth';
 import { MastermindSocketProvider } from '@/hooks/use-mastermind-socket';
-import AppDialog from '@/components/modals/Dialog';
-import LoginContent from '@/components/modals/Login';
-import SignupContent from '@/components/modals/Signup';
 import { AuthGateDialog } from '@/components/auth/AuthGateDialog';
 
 function GlobalDialogs() {
-    const { dialog, openDialog, closeDialog } = useDialogs();
-    const isAuthDialog = dialog?.type === 'login' || dialog?.type === 'signup';
+    const { dialog, closeDialog } = useDialogs();
 
     return (
-        <>
-            <AppDialog open={isAuthDialog} onClose={closeDialog} className="sm:max-w-md">
-                {dialog?.type === 'login' && (
-                    <LoginContent
-                        onSuccess={closeDialog}
-                        onSwitchToSignup={() => openDialog({ type: 'signup' })}
-                    />
-                )}
-                {dialog?.type === 'signup' && (
-                    <SignupContent
-                        onSuccess={closeDialog}
-                        onSwitchToLogin={() => openDialog({ type: 'login' })}
-                    />
-                )}
-            </AppDialog>
-
-            <AuthGateDialog
-                open={dialog?.type === 'authGate'}
-                onClose={closeDialog}
-                redirect={dialog?.type === 'authGate' ? dialog.redirect : undefined}
-            />
-        </>
+        <AuthGateDialog
+            open={dialog?.type === 'authGate'}
+            onClose={closeDialog}
+            redirect={dialog?.type === 'authGate' ? dialog.redirect : undefined}
+        />
     );
 }
 

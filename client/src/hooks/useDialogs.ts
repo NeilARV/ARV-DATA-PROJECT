@@ -1,20 +1,12 @@
 import { useState, createContext, useContext } from 'react';
 import React from 'react';
 
-export type DialogState =
-    | null
-    | { type: 'login' }
-    | { type: 'signup' }
-    | { type: 'authGate'; redirect?: string };
+export type DialogState = null | { type: 'authGate'; redirect?: string };
 
 export interface UseDialogsResult {
     dialog: DialogState;
     openDialog: (d: NonNullable<DialogState>) => void;
     closeDialog: () => void;
-    headerDialogHandlers: {
-        onLoginClick: () => void;
-        onSignupClick: () => void;
-    };
 }
 
 const DialogsContext = createContext<UseDialogsResult | null>(null);
@@ -29,10 +21,6 @@ function useDialogsState(): UseDialogsResult {
         dialog,
         openDialog,
         closeDialog,
-        headerDialogHandlers: {
-            onLoginClick: () => setDialog({ type: 'login' }),
-            onSignupClick: () => setDialog({ type: 'signup' }),
-        },
     };
 }
 
