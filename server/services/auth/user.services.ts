@@ -144,6 +144,27 @@ export async function removeUserRelationshipManager(
         );
 }
 
+/**
+ * Hashes a new password and writes it to the user with the given email.
+ * Returns the updated user (without the password hash), or null if no user matched.
+ * Intended for the manual reset-one-user script until self-serve reset ships.
+ */
+export async function resetUserPassword(email: string, newPassword: string) {
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const [updatedUser] = await db
+        .update(users)
+        .set({ passwordHash, updatedAt: sql`now()` })
+        .where(sql`lower(trim(${users.email})) = ${normalizedEmail}`)
+        .returning();
+
+    if (!updatedUser) return null;
+
+    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    return userWithoutPassword;
+}
+
 export async function getUserByEmail(email: string) {
     const user = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
 
