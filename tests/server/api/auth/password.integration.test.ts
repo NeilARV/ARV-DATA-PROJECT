@@ -14,24 +14,54 @@ const TEST_USER_ID = '00000000-0000-0000-0000-0000000000b1';
 const TEST_EMAIL = `${TEST_USER_ID}@integration.test.internal`;
 const CURRENT_PASSWORD = 'current-correct-password';
 
+// Separate user that has must_reset_password = true, for the complete-reset route.
+const RESET_USER_ID = '00000000-0000-0000-0000-0000000000b3';
+const RESET_EMAIL = `${RESET_USER_ID}@integration.test.internal`;
+// User authenticated but WITHOUT a pending reset, to prove complete-reset is flag-gated.
+const NO_RESET_USER_ID = '00000000-0000-0000-0000-0000000000b4';
+const NO_RESET_EMAIL = `${NO_RESET_USER_ID}@integration.test.internal`;
+
 let app: Express;
 
 beforeAll(async () => {
     app = createTestApp();
     await deleteTestUser(TEST_USER_ID);
+    await deleteTestUser(RESET_USER_ID);
+    await deleteTestUser(NO_RESET_USER_ID);
     const passwordHash = await bcrypt.hash(CURRENT_PASSWORD, 10);
-    await getTestDb().insert(users).values({
-        id: TEST_USER_ID,
-        firstName: 'Integration',
-        lastName: 'Password',
-        email: TEST_EMAIL,
-        phone: '(555) 000-0000',
-        passwordHash,
-    });
+    await getTestDb().insert(users).values([
+        {
+            id: TEST_USER_ID,
+            firstName: 'Integration',
+            lastName: 'Password',
+            email: TEST_EMAIL,
+            phone: '(555) 000-0000',
+            passwordHash,
+        },
+        {
+            id: RESET_USER_ID,
+            firstName: 'Integration',
+            lastName: 'Reset',
+            email: RESET_EMAIL,
+            phone: '(555) 000-0000',
+            passwordHash,
+            mustResetPassword: true,
+        },
+        {
+            id: NO_RESET_USER_ID,
+            firstName: 'Integration',
+            lastName: 'NoReset',
+            email: NO_RESET_EMAIL,
+            phone: '(555) 000-0000',
+            passwordHash,
+        },
+    ]);
 });
 
 afterAll(async () => {
     await deleteTestUser(TEST_USER_ID);
+    await deleteTestUser(RESET_USER_ID);
+    await deleteTestUser(NO_RESET_USER_ID);
 });
 
 describe('PATCH /api/auth/me/password — change password (integration)', () => {
@@ -115,5 +145,52 @@ describe('POST /api/auth/forgot-password — request temp password (integration)
             expect(res.status).toBe(200);
             expect(res.body.message).toBeTruthy();
         });
+    });
+});
+
+describe('POST /api/auth/me/complete-reset — finish forced reset (integration)', () => {
+    describe('access control', () => {
+        it('returns 401 when unauthenticated', async () => {
+            const res = await request(app)
+                .post('/api/auth/me/complete-reset')
+                .send({ newPassword: 'a-new-password' });
+            expect(res.status).toBe(401);
+        });
+
+        it('returns 409 when the caller has no pending reset', async () => {
+            const res = await request(app)
+                .post('/api/auth/me/complete-reset')
+                .set('x-test-user-id', NO_RESET_USER_ID)
+                .send({ newPassword: 'a-new-password' });
+            expect(res.status).toBe(409);
+        });
+    });
+
+    describe('input validation', () => {
+        it('returns 400 when newPassword is missing', async () => {
+            const res = await request(app)
+                .post('/api/auth/me/complete-reset')
+                .set('x-test-user-id', RESET_USER_ID)
+                .send({});
+            expect(res.status).toBe(400);
+        });
+
+        it('returns 400 when newPassword is shorter than 6 characters', async () => {
+            const res = await request(app)
+                .post('/api/auth/me/complete-reset')
+                .set('x-test-user-id', RESET_USER_ID)
+                .send({ newPassword: 'abc' });
+            expect(res.status).toBe(400);
+        });
+    });
+
+    // Clears the pending reset for RESET_USER_ID — keep last.
+    it('returns 200 and completes the reset for a flagged user', async () => {
+        const res = await request(app)
+            .post('/api/auth/me/complete-reset')
+            .set('x-test-user-id', RESET_USER_ID)
+            .send({ newPassword: 'a-brand-new-password' });
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
     });
 });

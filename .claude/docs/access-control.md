@@ -121,8 +121,9 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | GET | `/api/auth/me` | (public) | Returns `{ user: null }` if unauthenticated |
 | PATCH | `/api/auth/me` | (public) | Session userId read from session if present |
 | PATCH | `/api/auth/me/notifications` | (public) | Session userId read from session if present |
-| PATCH | `/api/auth/me/password` | `requireAuth` | Change password; verifies current password (400 if wrong), clears `must_reset_password`. Also used by the forced post-login reset |
-| POST | `/api/auth/forgot-password` | (public) | Emails a temp password and flags `must_reset_password`; always returns 200 (no email enumeration) |
+| PATCH | `/api/auth/me/password` | `requireAuth` | Voluntary password change; verifies current password (400 if wrong), clears `must_reset_password`, and invalidates the user's other sessions |
+| POST | `/api/auth/me/complete-reset` | `requireAuth` | Completes a forced reset: only valid when `must_reset_password` is set (409 otherwise); takes `newPassword` only (no current password — the session proves possession of the temp password) |
+| POST | `/api/auth/forgot-password` | (public) | Rate-limited. Emails a temp password, flags `must_reset_password`, and invalidates all of the user's existing sessions; always returns 200 (no email enumeration) |
 | POST | `/api/auth/signup` | (public) | |
 | POST | `/api/auth/me/avatar` | `requireAuth` | Upload or replace profile image (multipart/form-data) |
 | DELETE | `/api/auth/me/avatar` | `requireAuth` | Remove profile image |

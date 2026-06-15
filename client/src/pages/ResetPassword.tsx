@@ -25,7 +25,6 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 
 const resetPasswordSchema = z
     .object({
-        currentPassword: z.string().min(1, 'Temporary password is required'),
         newPassword: z.string().min(6, 'Password must be at least 6 characters'),
         confirmPassword: z.string().min(1, 'Please confirm your password'),
     })
@@ -43,7 +42,7 @@ export default function ResetPassword() {
 
     const form = useForm<ResetPasswordData>({
         resolver: zodResolver(resetPasswordSchema),
-        defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+        defaultValues: { newPassword: '', confirmPassword: '' },
     });
 
     useEffect(() => {
@@ -57,8 +56,7 @@ export default function ResetPassword() {
 
     const resetMutation = useMutation({
         mutationFn: async (data: ResetPasswordData) => {
-            const response = await apiRequest('PATCH', '/api/auth/me/password', {
-                currentPassword: data.currentPassword,
+            const response = await apiRequest('POST', '/api/auth/me/complete-reset', {
                 newPassword: data.newPassword,
             });
             return response.json();
@@ -84,32 +82,13 @@ export default function ResetPassword() {
     return (
         <AuthPageShell
             title="Set a new password"
-            description="Enter the temporary password from your email, then choose a new one."
+            description="Choose a new password to finish signing in."
         >
             <Form {...form}>
                 <form
                     onSubmit={form.handleSubmit((d) => resetMutation.mutate(d))}
                     className="space-y-4"
                 >
-                    <FormField
-                        control={form.control}
-                        name="currentPassword"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Temporary Password</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        type="password"
-                                        placeholder="From your email"
-                                        {...field}
-                                        data-testid="input-reset-current"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
                     <FormField
                         control={form.control}
                         name="newPassword"

@@ -189,7 +189,7 @@ Update the authenticated user's notification preferences.
 ---
 
 ### `PATCH /api/auth/me/password`
-Change the authenticated user's password. Also used by the forced post-login reset screen. On success, clears the `must_reset_password` flag.
+Voluntary password change for the authenticated user (the Security tab). Verifies the current password, sets the new one, clears the `must_reset_password` flag, and invalidates the user's other sessions (the current session is kept).
 
 **Auth**: `requireAuth`
 
@@ -207,10 +207,28 @@ Change the authenticated user's password. Also used by the forced post-login res
 
 ---
 
-### `POST /api/auth/forgot-password`
-Request a temporary password by email. If an account exists for the email, a temporary password is generated, the account is flagged (`must_reset_password = true`), and the password is emailed. Always returns the same generic `200` regardless of whether the email exists (no account enumeration).
+### `POST /api/auth/me/complete-reset`
+Completes a forced password reset for a user who logged in with a temporary password. Takes only the new password — the active session (created by logging in with the temp password) is the proof of possession, so the current password is not required. Only valid while `must_reset_password` is set; clears the flag on success.
 
-**Auth**: Public
+**Auth**: `requireAuth`
+
+**Body**
+```json
+{
+  "newPassword": "string (min 6)"
+}
+```
+
+**Response `200`** `{ "success": true }`
+
+**Errors** `400` validation failed · `401` not authenticated · `404` user not found · `409` no password reset is pending · `500` server error
+
+---
+
+### `POST /api/auth/forgot-password`
+Request a temporary password by email. If an account exists for the email, a temporary password is generated, the account is flagged (`must_reset_password = true`), the password is emailed, and all of the user's existing sessions are invalidated. Always returns the same generic `200` regardless of whether the email exists (no account enumeration). Rate-limited per IP and per email.
+
+**Auth**: Public (rate-limited)
 
 **Body**
 ```json
@@ -221,7 +239,7 @@ Request a temporary password by email. If an account exists for the email, a tem
 
 **Response `200`** `{ "message": "If an account exists for that email, a temporary password has been sent." }`
 
-**Errors** `400` invalid email
+**Errors** `400` invalid email · `429` too many requests
 
 ---
 

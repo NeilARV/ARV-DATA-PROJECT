@@ -14,5 +14,10 @@ export const forgotPasswordSchema = z.object({
     email: z.string().email('Please enter a valid email address'),
 });
 
+export const completeResetSchema = z.object({
+    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
 export type ChangePasswordData = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
+export type CompleteResetData = z.infer<typeof completeResetSchema>;

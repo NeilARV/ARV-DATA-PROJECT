@@ -2,6 +2,7 @@ import { Session, Registration, Avatar } from '../controllers/auth/index.js';
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from 'server/middleware/requireAuth.js';
+import { forgotPasswordRateLimit } from 'server/middleware/forgotPasswordRateLimit.js';
 
 const router = Router();
 
@@ -32,11 +33,14 @@ router.patch('/me', Session.updateProfile);
 // Update current user notification preferences
 router.patch('/me/notifications', Session.updateNotifications);
 
-// Change password (authenticated; also used by the forced post-login reset)
+// Voluntary password change (authenticated; requires current password)
 router.patch('/me/password', requireAuth, Session.changePassword);
 
-// Request a temporary password by email (public)
-router.post('/forgot-password', Session.forgotPassword);
+// Complete a forced reset (authenticated; only valid when must_reset_password is set)
+router.post('/me/complete-reset', requireAuth, Session.completeReset);
+
+// Request a temporary password by email (public, rate-limited)
+router.post('/forgot-password', forgotPasswordRateLimit, Session.forgotPassword);
 
 // User signup
 router.post('/signup', Registration.signup);

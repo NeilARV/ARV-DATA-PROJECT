@@ -3,6 +3,7 @@ import {
     loginSchema,
     changePasswordSchema,
     forgotPasswordSchema,
+    completeResetSchema,
 } from '@database/validation/users.validation';
 import { updateUserProfileSchema, updateNotificationPreferencesSchema } from '@database/updates';
 import { SessionServices, UserServices } from 'server/services/auth';
@@ -234,10 +235,57 @@ export async function changePassword(
 
         await UserServices.changeUserPassword(user.id, newPassword);
 
+        // Log the user out of every other device after a voluntary password change.
+        await UserServices.destroyOtherUserSessions(user.id, req.sessionID);
+
         res.json({ success: true });
     } catch (error) {
         console.error('Error changing password:', error);
         res.status(500).json({ message: 'Error changing password' });
+    }
+}
+
+export async function completeReset(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+): Promise<void> {
+    try {
+        if (!req.session.userId) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
+
+        const validation = completeResetSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({
+                message: 'Invalid password data',
+                errors: validation.error.errors,
+            });
+            return;
+        }
+
+        const [user] = await UserServices.getUserById(req.session.userId);
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        // This endpoint only completes a pending forced reset. It must never be a way
+        // to set a new password without the current one — that path stays on
+        // PATCH /me/password. The session reaching here was created by logging in with
+        // the temporary password, which is the proof of possession.
+        if (!user.mustResetPassword) {
+            res.status(409).json({ message: 'No password reset is pending' });
+            return;
+        }
+
+        await UserServices.changeUserPassword(user.id, validation.data.newPassword);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error completing password reset:', error);
+        res.status(500).json({ message: 'Error completing password reset' });
     }
 }
 

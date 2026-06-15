@@ -6,10 +6,11 @@ import {
     userNotificationPreferences,
     emailSubscriptionList,
     subscriptions,
+    sessions,
 } from '@database/schemas/users.schema';
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { db } from 'server/storage';
-import { eq, sql, inArray, and, ilike } from 'drizzle-orm';
+import { eq, ne, sql, inArray, and, ilike } from 'drizzle-orm';
 import type { UpdateNotificationPreferences } from '@database/updates';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
@@ -162,8 +163,45 @@ export async function resetUserPassword(email: string, newPassword: string) {
 
     if (!updatedUser) return null;
 
+    // Invalidate every existing session: the only way back in is the temp password,
+    // which also guarantees the forced-reset screen can only be reached by someone
+    // who proved possession of it.
+    await destroyUserSessions(updatedUser.id);
+
     const { passwordHash: _, ...userWithoutPassword } = updatedUser;
     return userWithoutPassword;
+}
+
+/**
+ * Deletes all express-session rows belonging to a user (sessions store the user id
+ * in the serialized JSON blob). Used to force re-authentication after a password reset.
+ * Best-effort: session cleanup must never fail the password operation that triggered it.
+ */
+export async function destroyUserSessions(userId: string): Promise<void> {
+    try {
+        await db.delete(sessions).where(sql`(${sessions.sess}::jsonb ->> 'userId') = ${userId}`);
+    } catch (error) {
+        console.error('[sessions] Failed to destroy user sessions:', error);
+    }
+}
+
+/**
+ * Deletes all of a user's sessions except the one identified by keepSid. Used on a
+ * voluntary password change to log the user out of every other device. Best-effort.
+ */
+export async function destroyOtherUserSessions(userId: string, keepSid: string): Promise<void> {
+    try {
+        await db
+            .delete(sessions)
+            .where(
+                and(
+                    sql`(${sessions.sess}::jsonb ->> 'userId') = ${userId}`,
+                    ne(sessions.sid, keepSid),
+                ),
+            );
+    } catch (error) {
+        console.error('[sessions] Failed to destroy other user sessions:', error);
+    }
 }
 
 /**
