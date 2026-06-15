@@ -22,9 +22,6 @@ import { getDefaultFromEmail, sendPlainEmail } from 'server/services/postmark/em
 const TARGET_EMAIL: string = '';
 const TEMP_PASSWORD: string = '';
 
-// const TARGET_EMAIL: string = 'justin@arvfinance.com';
-// const TEMP_PASSWORD: string = '';
-
 // ─── Email template ───────────────────────────────────────────────────────────
 
 function buildHtml(tempPassword: string): string {
