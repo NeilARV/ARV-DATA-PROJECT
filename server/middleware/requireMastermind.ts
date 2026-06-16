@@ -2,15 +2,15 @@ import { db } from 'server/storage';
 import { users, subscriptions, userRoles, roles } from '@database/schemas/users.schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { requireSub } from 'server/middleware/requireSub';
+import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 
 // Mastermind access = any subscription tier OR any team role.
 // This pairing is the server-side equivalent of the frontend `canAccessApp` flag.
 const MASTERMIND_TIERS = ['basic', 'pro', 'premium'] as const;
-const MASTERMIND_BYPASS_ROLES = ['admin', 'owner', 'relationship-manager', 'member'] as const;
 
 // REST gate for every Mastermind read/write route.
 export const requireMastermind = requireSub([...MASTERMIND_TIERS], {
-    bypassRoles: [...MASTERMIND_BYPASS_ROLES],
+    bypassRoles: [...ALL_TEAM_ROLES],
 });
 
 // Boolean form of the same rule, for contexts without an Express middleware chain
@@ -21,7 +21,7 @@ export async function isMastermindEligible(userId: string): Promise<boolean> {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...MASTERMIND_BYPASS_ROLES])))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ALL_TEAM_ROLES])))
         .limit(1);
     if (roleRows.length > 0) return true;
 

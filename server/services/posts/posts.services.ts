@@ -12,6 +12,8 @@ import {
 } from '@database/schemas/vendors.schema';
 import { users, userRoles, roles } from '@database/schemas/users.schema';
 import { eq, desc, and, inArray, count } from 'drizzle-orm';
+import { ADMIN_ROLES } from 'server/constants/roles.constants';
+import { clampLimit } from 'server/utils/clampLimit';
 import { getSupabase, storageBucket, storagePathFromUrl } from 'server/lib/supabase';
 
 export class PostServiceError extends Error {
@@ -157,7 +159,7 @@ async function callerIsPrivileged(callerId: string): Promise<boolean> {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, ['admin', 'owner'])))
+        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...ADMIN_ROLES])))
         .limit(1);
     return rows.length > 0;
 }
@@ -175,7 +177,7 @@ type GetPostsFilters = {
 export async function getPosts(filters: GetPostsFilters) {
     const { categoryId, vendorId, userId } = filters;
     const page = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(50, Math.max(1, filters.limit ?? 20));
+    const limit = clampLimit(filters.limit, { fallback: 20, max: 50 });
     const offset = (page - 1) * limit;
 
     // Resolve IDs from junction tables when filtering by category or vendor

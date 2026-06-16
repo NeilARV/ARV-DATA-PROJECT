@@ -9,6 +9,7 @@ import {
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { resolveCountyFromZip } from 'server/utils/resolveCounty';
 import { normalizePropertyType } from 'server/utils/normalization';
+import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 import {
     sendEmailWithTemplate,
     getDefaultFromEmail,
@@ -729,7 +730,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             .select({ roleName: roles.name })
             .from(userRoles)
             .innerJoin(roles, eq(userRoles.roleId, roles.id))
-            .where(and(eq(userRoles.userId, callerId), inArray(roles.name, ['admin', 'owner'])))
+            .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...ADMIN_ROLES])))
             .limit(1);
 
         if (callerIsPrivileged.length === 0) {
@@ -1031,7 +1032,7 @@ export async function deleteDeal(id: number, callerId: string) {
         .where(
             and(
                 eq(userRoles.userId, callerId),
-                inArray(roles.name, ['admin', 'owner', 'relationship-manager']),
+                inArray(roles.name, [...PRIVILEGED_ROLES]),
             ),
         )
         .limit(1);
@@ -1120,7 +1121,7 @@ export async function getBidsForDeal(
             .where(
                 and(
                     eq(userRoles.userId, callerId),
-                    inArray(roles.name, ['admin', 'owner', 'relationship-manager']),
+                    inArray(roles.name, [...PRIVILEGED_ROLES]),
                 ),
             )
             .limit(1);
@@ -1169,7 +1170,7 @@ export async function deleteDealBid(
             .where(
                 and(
                     eq(userRoles.userId, callerId),
-                    inArray(roles.name, ['admin', 'owner', 'relationship-manager']),
+                    inArray(roles.name, [...PRIVILEGED_ROLES]),
                 ),
             )
             .limit(1);

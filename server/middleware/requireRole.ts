@@ -9,8 +9,8 @@ import { eq, and, inArray } from 'drizzle-orm';
  *
  * For subscription tier gating use requireSub instead.
  */
-export function requireRole(roleOrRoles: Roles | Roles[]) {
-    const allowedRoles = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
+export function requireRole(roleOrRoles: Roles | readonly Roles[]) {
+    const allowedRoles: Roles[] = Array.isArray(roleOrRoles) ? [...roleOrRoles] : [roleOrRoles];
     if (allowedRoles.length === 0) {
         throw new Error('requireRole: at least one role must be provided');
     }

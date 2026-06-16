@@ -10,6 +10,7 @@ import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { companyContacts } from '@database/schemas/companies.schema';
 import { trimCompanyName } from 'server/utils/normalization';
 import { calculateSpread } from 'server/utils/orderTransactions';
+import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { formatContactName } from '@shared/utils/formatContactName';
@@ -655,7 +656,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
         const isFinancedByARV =
             prop.isArvFunded ||
-            latestArmsLengthTx?.firstMtgLenderName?.trim().toUpperCase() === 'ARV FINANCE INC';
+            latestArmsLengthTx?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
 
         return {
             id: prop.id,

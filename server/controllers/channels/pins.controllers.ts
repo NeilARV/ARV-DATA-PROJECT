@@ -8,8 +8,7 @@ import {
 import { pinMessageSchema } from '@database/validation/mastermind.validation';
 import { broadcastToChannel } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from 'server/utils/uuid';
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
     if (err instanceof PinServiceError) {
@@ -24,7 +23,7 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
 export async function getChannelPinController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -40,7 +39,7 @@ export async function getChannelPinController(req: Request, res: Response): Prom
 export async function setChannelPinController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -63,7 +62,7 @@ export async function setChannelPinController(req: Request, res: Response): Prom
 export async function removeChannelPinController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }

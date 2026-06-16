@@ -16,6 +16,8 @@ import { OpenCorporatesService } from 'server/services/opencorporates';
 import type { z } from 'zod';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { formatContactName } from '@shared/utils/formatContactName';
+import { clampLimit } from 'server/utils/clampLimit';
+import { normalizeDateToYMD } from 'server/utils/normalization';
 
 export const CONTACTS_PAGE_SIZE = 50;
 export const CONTACTS_SORT_OPTIONS = [
@@ -128,7 +130,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
         search,
     } = params;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || CONTACTS_PAGE_SIZE));
+    const limitNum = clampLimit(limit, { fallback: CONTACTS_PAGE_SIZE, max: 100 });
     const sortOption = (CONTACTS_SORT_OPTIONS as readonly string[]).includes(sort)
         ? (sort as ContactsSortOption)
         : 'most-properties';
@@ -166,7 +168,7 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
     const normalizedCountyForProps = county ? county.trim().toLowerCase() : null;
     const now = new Date();
     const ytdStartStr = `${now.getFullYear()}-01-01`;
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = normalizeDateToYMD(now)!;
 
     const canPaginateInDb = sortOption === 'new-buyers';
     type CompanyRow = typeof companies.$inferSelect;
@@ -621,10 +623,10 @@ export async function getCompanyById(id: string, county?: string) {
 
     const now = new Date();
     const ytdStartStr = `${now.getFullYear()}-01-01`;
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = normalizeDateToYMD(now)!;
     const ninetyDaysAgo = new Date(now);
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().slice(0, 10);
+    const ninetyDaysAgoStr = normalizeDateToYMD(ninetyDaysAgo)!;
 
     const countyCondition = normalizedCounty
         ? (or(
@@ -743,12 +745,7 @@ export async function getCompanyById(id: string, county?: string) {
     }
     acquisitions90Day.forEach((row) => {
         const raw = row.recordingDate as string | Date | null;
-        const dateStr =
-            typeof raw === 'string'
-                ? raw
-                : raw instanceof Date
-                  ? raw.toISOString().slice(0, 10)
-                  : null;
+        const dateStr = normalizeDateToYMD(raw);
         if (dateStr) {
             const [, m] = dateStr.split('-').map(Number);
             const monthKey = monthNames[m - 1];

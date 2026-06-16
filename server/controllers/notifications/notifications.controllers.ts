@@ -5,8 +5,7 @@ import {
     markAllNotificationsRead,
     NotificationServiceError,
 } from 'server/services/notifications/notifications.services';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from 'server/utils/uuid';
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
     if (err instanceof NotificationServiceError) {
@@ -34,7 +33,7 @@ export async function markNotificationReadController(
 ): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid notification id' });
             return;
         }

@@ -1,7 +1,6 @@
 import type { PropertyWithStatus } from './resolve-status';
 import type { TransactionWithIds } from './resolve-ids';
-
-const ARV_LENDER = 'ARV FINANCE INC';
+import { ARV_LENDER } from 'server/constants/transactions.constants';
 
 function getTxStr(r: Record<string, unknown>, upper: string, lower: string): string {
     const v = r[upper] ?? r[lower];

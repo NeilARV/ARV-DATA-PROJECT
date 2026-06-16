@@ -9,6 +9,7 @@ import {
 } from '@database/schemas/users.schema';
 import { db } from 'server/storage';
 import { desc, asc, eq, and, inArray, ilike, sql } from 'drizzle-orm';
+import { PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 
 export async function getUserList(options: { domain?: string; excludeDomain?: string }) {
     const { domain, excludeDomain } = options;
@@ -132,7 +133,7 @@ export async function getCallerTeamRoleRows(callerId: string) {
         .where(
             and(
                 eq(userRoles.userId, callerId),
-                inArray(roles.name, ['owner', 'admin', 'relationship-manager']),
+                inArray(roles.name, [...PRIVILEGED_ROLES]),
             ),
         );
 }

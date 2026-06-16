@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireSub } from 'server/middleware/requireSub';
+import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 import {
     getDealsController,
     getDealByIdController,
@@ -28,7 +29,7 @@ router.get('/:id', getDealByIdController);
 router.post(
     '/',
     requireSub(['basic', 'pro', 'premium'], {
-        bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
+        bypassRoles: [...ALL_TEAM_ROLES],
     }),
     createDealController,
 );
@@ -37,7 +38,7 @@ router.post(
 router.patch(
     '/:id',
     requireSub(['basic', 'pro', 'premium'], {
-        bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
+        bypassRoles: [...ALL_TEAM_ROLES],
     }),
     updateDealController,
 );
@@ -46,7 +47,7 @@ router.patch(
 router.delete(
     '/:id',
     requireSub(['basic', 'pro', 'premium'], {
-        bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
+        bypassRoles: [...ALL_TEAM_ROLES],
     }),
     deleteDealController,
 );
@@ -58,7 +59,7 @@ router.post('/:id/request-info', requestDealInfoController);
 router.post(
     '/:id/offers',
     requireSub(['basic', 'pro', 'premium'], {
-        bypassRoles: ['admin', 'owner', 'relationship-manager', 'member'],
+        bypassRoles: [...ALL_TEAM_ROLES],
     }),
     submitDealOfferController,
 );

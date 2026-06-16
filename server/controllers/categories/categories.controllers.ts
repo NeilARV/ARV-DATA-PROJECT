@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { CategoriesServices } from 'server/services/categories';
 import { PostsServices } from 'server/services/posts';
 import { categoryInputSchema } from '@database/validation/vendors.validation';
+import { isUniqueViolation } from 'server/utils/dbErrors';
 
 export async function getAllCategoriesHandler(req: Request, res: Response) {
     try {
@@ -37,7 +38,7 @@ export async function createCategoryHandler(req: Request, res: Response) {
         return res.status(201).json({ message: 'Category created', category });
     } catch (error: any) {
         if (error?.statusCode === 400) return res.status(400).json({ message: error.message });
-        if (error?.code === '23505') {
+        if (isUniqueViolation(error)) {
             return res
                 .status(409)
                 .json({ message: 'A category with that name or a similar name already exists' });
@@ -63,7 +64,7 @@ export async function updateCategoryHandler(req: Request, res: Response) {
         if (error?.statusCode === 400) return res.status(400).json({ message: error.message });
         if (error?.statusCode === 404)
             return res.status(404).json({ message: 'Category not found' });
-        if (error?.code === '23505') {
+        if (isUniqueViolation(error)) {
             return res
                 .status(409)
                 .json({ message: 'A category with that name or a similar name already exists' });

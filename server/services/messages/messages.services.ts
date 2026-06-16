@@ -10,6 +10,8 @@ import {
 import { users } from '@database/schemas/users.schema';
 import { eq, and, or, lt, gt, desc, asc, inArray, sql } from 'drizzle-orm';
 import { sanitizeMessageHtml, isHtmlEmpty } from 'server/utils/sanitizeHtml';
+import { isUuid } from 'server/utils/uuid';
+import { clampLimit } from 'server/utils/clampLimit';
 import { mastermindPublicUrlPrefix } from 'server/lib/supabase';
 import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
 import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
@@ -57,7 +59,6 @@ function checkPostRateLimit(userId: string): void {
     sendTimestamps.set(userId, timestamps);
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATA_ID_RE = /data-id="([^"]+)"/g;
 
 // Extracts real user IDs from sanitized message HTML. Broadcast sentinel IDs
@@ -67,7 +68,7 @@ function parseMentionedUserIds(html: string): string[] {
     let match;
     DATA_ID_RE.lastIndex = 0;
     while ((match = DATA_ID_RE.exec(html)) !== null) {
-        if (UUID_RE.test(match[1])) ids.add(match[1]);
+        if (isUuid(match[1])) ids.add(match[1]);
     }
     return Array.from(ids);
 }
@@ -78,7 +79,7 @@ function hasBroadcastMention(html: string): boolean {
     DATA_ID_RE.lastIndex = 0;
     let match;
     while ((match = DATA_ID_RE.exec(html)) !== null) {
-        if (!UUID_RE.test(match[1])) return true;
+        if (!isUuid(match[1])) return true;
     }
     return false;
 }
@@ -315,7 +316,7 @@ export async function listMessages({
 }): Promise<{ messages: EnrichedMessage[]; nextCursor: string | null }> {
     await getReadableChannelOrThrow(channelId, viewerId);
 
-    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, limit ?? DEFAULT_PAGE_SIZE));
+    const pageSize = clampLimit(limit, { fallback: DEFAULT_PAGE_SIZE, max: MAX_PAGE_SIZE });
 
     const keyset = cursor ? await resolveCursor(channelId, cursor) : null;
     const where = keyset

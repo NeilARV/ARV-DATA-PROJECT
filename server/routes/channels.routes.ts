@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireMastermind } from 'server/middleware/requireMastermind';
 import { requireRole } from 'server/middleware/requireRole';
+import { ADMIN_ROLES } from 'server/constants/roles.constants';
 import {
     getChannelsController,
     markChannelReadController,
@@ -41,21 +42,21 @@ router.post('/:id/messages', requireMastermind, createMessageController);
 router.get('/:id/pin', requireMastermind, getChannelPinController);
 
 // POST /api/channels/:id/pin — set/replace the channel pin (admin/owner only)
-router.post('/:id/pin', requireRole(['admin', 'owner']), setChannelPinController);
+router.post('/:id/pin', requireRole(ADMIN_ROLES), setChannelPinController);
 
 // DELETE /api/channels/:id/pin — clear the channel pin (admin/owner only)
-router.delete('/:id/pin', requireRole(['admin', 'owner']), removeChannelPinController);
+router.delete('/:id/pin', requireRole(ADMIN_ROLES), removeChannelPinController);
 
 // POST /api/channels — create a channel (admin/owner only)
-router.post('/', requireRole(['admin', 'owner']), createChannelController);
+router.post('/', requireRole(ADMIN_ROLES), createChannelController);
 
 // PATCH /api/channels/:id — rename / edit description (admin/owner only)
-router.patch('/:id', requireRole(['admin', 'owner']), updateChannelController);
+router.patch('/:id', requireRole(ADMIN_ROLES), updateChannelController);
 
 // POST /api/channels/:id/archive — soft archive (admin/owner only)
-router.post('/:id/archive', requireRole(['admin', 'owner']), archiveChannelController);
+router.post('/:id/archive', requireRole(ADMIN_ROLES), archiveChannelController);
 
 // DELETE /api/channels/:id — hard delete; only allowed once archived (admin/owner only)
-router.delete('/:id', requireRole(['admin', 'owner']), deleteChannelController);
+router.delete('/:id', requireRole(ADMIN_ROLES), deleteChannelController);
 
 export default router;

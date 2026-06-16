@@ -8,8 +8,7 @@ import {
     type Client,
 } from './registry';
 import { getChannelById, userIsAdminOrOwner } from 'server/services/channels/channels.services';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from 'server/utils/uuid';
 
 // Wires up a freshly authenticated socket: registers it, handles subscribe/unsubscribe,
 // tracks liveness for the heartbeat, and cleans up on close.
@@ -47,7 +46,7 @@ async function handleClientMessage(client: Client, raw: RawData): Promise<void> 
     if (typeof channelId !== 'string') return;
 
     if (type === ClientToServer.Subscribe) {
-        if (!UUID_REGEX.test(channelId)) return;
+        if (!isUuid(channelId)) return;
         // Subscribing only requires the channel to be readable; eligibility was proven at upgrade.
         let channel;
         try {

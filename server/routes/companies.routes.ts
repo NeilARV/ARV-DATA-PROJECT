@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from 'server/middleware/requireAuth';
 import { requireRole } from 'server/middleware/requireRole';
+import { ADMIN_ROLES } from 'server/constants/roles.constants';
 import { CompaniesController } from 'server/controllers/companies';
 import { ClaimsController } from 'server/controllers/claims';
 
@@ -22,29 +23,29 @@ router.get('/leaderboard', CompaniesController.getLeaderboardHandler);
 router.get('/:id', CompaniesController.getCompanyByIdHandler);
 
 // Edit company by id
-router.patch('/:id', requireRole(['admin', 'owner']), CompaniesController.updateCompanyHandler);
+router.patch('/:id', requireRole(ADMIN_ROLES), CompaniesController.updateCompanyHandler);
 
 // Company contacts
 router.post(
     '/:id/contacts',
-    requireRole(['admin', 'owner']),
+    requireRole(ADMIN_ROLES),
     CompaniesController.addContactHandler,
 );
 router.patch(
     '/:id/contacts/:contactId',
-    requireRole(['admin', 'owner']),
+    requireRole(ADMIN_ROLES),
     CompaniesController.updateContactHandler,
 );
 router.delete(
     '/:id/contacts/:contactId',
-    requireRole(['admin', 'owner']),
+    requireRole(ADMIN_ROLES),
     CompaniesController.deleteContactHandler,
 );
 
 // Enrich company data from OpenCorporates
 router.post(
     '/:id/enrich',
-    requireRole(['admin', 'owner']),
+    requireRole(ADMIN_ROLES),
     CompaniesController.enrichCompanyHandler,
 );
 

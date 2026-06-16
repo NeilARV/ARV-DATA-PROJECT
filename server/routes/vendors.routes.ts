@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireRole } from 'server/middleware/requireRole';
+import { ADMIN_ROLES } from 'server/constants/roles.constants';
 import { VendorsController } from 'server/controllers/vendors';
 
 const router = Router();
 
-const adminOrOwner = requireRole(['admin', 'owner']);
+const adminOrOwner = requireRole(ADMIN_ROLES);
 
 const upload = multer({
     storage: multer.memoryStorage(),

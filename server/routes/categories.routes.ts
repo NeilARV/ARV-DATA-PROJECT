@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { requireRole } from 'server/middleware/requireRole';
+import { ADMIN_ROLES } from 'server/constants/roles.constants';
 import { CategoriesController } from 'server/controllers/categories';
 
 const router = Router();
 
-const adminOrOwner = requireRole(['admin', 'owner']);
+const adminOrOwner = requireRole(ADMIN_ROLES);
 
 // Public reads
 router.get('/', CategoriesController.getAllCategoriesHandler);

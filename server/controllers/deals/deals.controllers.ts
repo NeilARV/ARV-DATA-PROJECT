@@ -21,10 +21,8 @@ import { db } from 'server/storage';
 import { userRoles, roles } from '@database/schemas/users.schema';
 import { msas } from '@database/schemas/msas.schema';
 import { eq, inArray, and } from 'drizzle-orm';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const PRIVILEGED_DEAL_ROLES = ['admin', 'owner', 'relationship-manager'] as const;
+import { isUuid } from 'server/utils/uuid';
+import { PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 
 /** Returns true if the given userId holds at least one privileged deal role. */
 async function callerIsPrivileged(userId: string): Promise<boolean> {
@@ -32,7 +30,7 @@ async function callerIsPrivileged(userId: string): Promise<boolean> {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...PRIVILEGED_DEAL_ROLES])))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...PRIVILEGED_ROLES])))
         .limit(1);
     return rows.length > 0;
 }
@@ -139,7 +137,7 @@ export async function createDealController(req: Request, res: Response): Promise
             });
             return;
         }
-        if (!UUID_REGEX.test(userId)) {
+        if (!isUuid(userId)) {
             res.status(400).json({ message: 'Invalid userId — must be a valid UUID' });
             return;
         }

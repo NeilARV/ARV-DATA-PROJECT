@@ -7,6 +7,7 @@ import { eq, asc, and, gte, inArray, sql } from 'drizzle-orm';
 import { trimCompanyName } from 'server/utils/normalization';
 import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
+import { ARV_LENDER } from 'server/constants/transactions.constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,6 @@ async function upsertCompanyByName(
 // ─── Reprocess ───────────────────────────────────────────────────────────────
 
 const WHOLESALE_DAYS = 30;
-const ARV_LENDER = 'ARV FINANCE INC';
 
 function isArmsLength(type: string | null): boolean {
     return (type ?? '').trim().toLowerCase() === 'arms length';

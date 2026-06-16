@@ -9,6 +9,8 @@ import { users, subscriptions, userRoles, roles } from '@database/schemas/users.
 import type { Channel } from '@database/types/mastermind';
 import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
 import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
+import { isUniqueViolation } from 'server/utils/dbErrors';
+import { ADMIN_ROLES, ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 
 export type ChannelWithUnread = Channel & {
     unreadCount: number;
@@ -25,15 +27,6 @@ export class ChannelServiceError extends Error {
     }
 }
 
-// Postgres unique_violation — the channels.name unique constraint. The pre-checks
-// below give a clean 409 in the common case; this guards the concurrent race where
-// two writers pass the pre-check and one loses at the DB level.
-const PG_UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(err: unknown): boolean {
-    return typeof err === 'object' && err !== null && 'code' in err && err.code === PG_UNIQUE_VIOLATION;
-}
-
 // Short-term channel ordering until explicit reordering ships: #general first, then the market
 // channels (…-market), then everything else (e.g. #first-time-flippers), and finally admin-only
 // channels at the very end. The secondary name sort keeps a stable, alphabetical order within
@@ -45,9 +38,6 @@ const CHANNEL_DISPLAY_ORDER = sql`CASE
     ELSE 2
 END`;
 
-// Roles that may see/use an admin-only channel.
-const CHANNEL_ADMIN_ROLES = ['admin', 'owner'] as const;
-
 // True if the user holds an admin or owner team role. Gates admin-only channels across the
 // channel list, mark-read, mention candidates, message read/write, notification fan-out, and
 // the WebSocket subscribe.
@@ -56,7 +46,7 @@ export async function userIsAdminOrOwner(userId: string): Promise<boolean> {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(roles.id, userRoles.roleId))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...CHANNEL_ADMIN_ROLES])))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ADMIN_ROLES])))
         .limit(1);
     return rows.length > 0;
 }
@@ -68,7 +58,7 @@ export async function listAdminOwnerUserIds(): Promise<string[]> {
         .select({ userId: userRoles.userId })
         .from(userRoles)
         .innerJoin(roles, eq(roles.id, userRoles.roleId))
-        .where(inArray(roles.name, [...CHANNEL_ADMIN_ROLES]));
+        .where(inArray(roles.name, [...ADMIN_ROLES]));
     return Array.from(new Set(rows.map((r) => r.userId)));
 }
 
@@ -296,7 +286,6 @@ export async function archiveChannel(id: string): Promise<Channel> {
 // ── Mention candidates ────────────────────────────────────────────────────────
 
 const MASTERMIND_TIERS = ['basic', 'pro', 'premium'] as const;
-const MASTERMIND_BYPASS_ROLES = ['admin', 'owner', 'relationship-manager', 'member'] as const;
 
 export type MentionCandidate = { id: string; firstName: string; lastName: string };
 
@@ -308,7 +297,7 @@ export async function listEligibleUserIds(): Promise<string[]> {
             .select({ userId: userRoles.userId })
             .from(userRoles)
             .innerJoin(roles, eq(roles.id, userRoles.roleId))
-            .where(inArray(roles.name, [...MASTERMIND_BYPASS_ROLES])),
+            .where(inArray(roles.name, [...ALL_TEAM_ROLES])),
         db
             .select({ userId: users.id })
             .from(users)

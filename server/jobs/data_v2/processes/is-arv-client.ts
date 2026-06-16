@@ -2,8 +2,7 @@ import { db } from 'server/storage';
 import { companies } from '@database/schemas/companies.schema';
 import { inArray } from 'drizzle-orm';
 import type { PropertyWithStatus } from './resolve-status';
-
-const ARV_LENDER = 'ARV FINANCE INC';
+import { ARV_LENDER } from 'server/constants/transactions.constants';
 
 /**
  * Pipeline step: marks companies as ARV clients when they appear as buyer or

@@ -7,6 +7,7 @@ import {
     getRmEmailsByUserIds,
     getDefaultFromEmail,
 } from 'server/services/postmark/email.services';
+import { isUniqueViolation } from 'server/utils/dbErrors';
 
 // ─── Claim notification email ─────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ export async function submitClaim(
         return { status: 'ok', claimId: inserted.id };
     } catch (err: unknown) {
         // Unique constraint violation — concurrent request beat us to the insert
-        if (err && typeof err === 'object' && 'code' in err && err.code === '23505') {
+        if (isUniqueViolation(err)) {
             return { status: 'already-claimed-by-user' };
         }
         throw err;

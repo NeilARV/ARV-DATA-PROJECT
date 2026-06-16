@@ -16,6 +16,8 @@ import {
     normalizeDateToYMD,
 } from 'server/utils/normalization';
 import { sortTransactionsDesc, calculateSpread } from 'server/utils/orderTransactions';
+import { ARV_LENDER } from 'server/constants/transactions.constants';
+import { isUniqueViolation } from 'server/utils/dbErrors';
 import { insertPropertyRelatedData, SfrPropertyData } from 'server/utils/propertyDataHelpers';
 import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
@@ -276,7 +278,7 @@ export async function getPropertyById(id: string) {
     // DB column is the authoritative manual override; fall back to transaction lender check
     const isFinancedByARV =
         result.isArvFunded ||
-        latest?.firstMtgLenderName?.trim().toUpperCase() === 'ARV FINANCE INC';
+        latest?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
 
     const lat = result.latitude ? Number(result.latitude) : null;
     const lon = result.longitude ? Number(result.longitude) : null;
@@ -458,10 +460,7 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
             if (newCompany) contactsMap.set(name, newCompany);
             return newCompany?.id ?? null;
         } catch (companyError: any) {
-            if (
-                !companyError?.message?.includes('duplicate') &&
-                !companyError?.code?.includes('23505')
-            ) {
+            if (!companyError?.message?.includes('duplicate') && !isUniqueViolation(companyError)) {
                 console.error('Error creating company:', companyError);
                 return null;
             }

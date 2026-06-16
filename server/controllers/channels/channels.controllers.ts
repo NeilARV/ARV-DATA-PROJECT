@@ -17,10 +17,8 @@ import {
 import { db } from 'server/storage';
 import { userRoles, roles } from '@database/schemas/users.schema';
 import { eq, and, inArray } from 'drizzle-orm';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const CHANNEL_ADMIN_ROLES = ['admin', 'owner'] as const;
+import { isUuid } from 'server/utils/uuid';
+import { ADMIN_ROLES } from 'server/constants/roles.constants';
 
 /** Returns true if the given userId holds an admin or owner role. */
 async function callerIsChannelAdmin(userId: string): Promise<boolean> {
@@ -28,7 +26,7 @@ async function callerIsChannelAdmin(userId: string): Promise<boolean> {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...CHANNEL_ADMIN_ROLES])))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ADMIN_ROLES])))
         .limit(1);
     return rows.length > 0;
 }
@@ -65,7 +63,7 @@ export async function getChannelsController(req: Request, res: Response): Promis
 export async function markChannelReadController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -100,7 +98,7 @@ export async function createChannelController(req: Request, res: Response): Prom
 export async function updateChannelController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -122,7 +120,7 @@ export async function updateChannelController(req: Request, res: Response): Prom
 export async function archiveChannelController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -141,7 +139,7 @@ export async function archiveChannelController(req: Request, res: Response): Pro
 export async function getChannelMembersController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -169,7 +167,7 @@ export async function getChannelMembersController(req: Request, res: Response): 
 export async function deleteChannelController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }

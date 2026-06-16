@@ -8,9 +8,7 @@ import {
 } from '@database/schemas/users.schema';
 import { msas } from '@database/schemas';
 import { eq, and, inArray } from 'drizzle-orm';
-
-/** Roles that grant access to the admin panel. */
-export const ADMIN_PANEL_ROLES = ['admin', 'owner', 'relationship-manager', 'member'] as const;
+import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 
 export interface AdminStatusResult {
     authenticated: boolean;
@@ -25,7 +23,7 @@ export async function getAdminStatus(userId: string): Promise<AdminStatusResult>
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ADMIN_PANEL_ROLES])));
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ALL_TEAM_ROLES])));
 
     // Fetch subscription tier by joining users -> subscriptions
     const [userRow] = await db
@@ -38,7 +36,7 @@ export async function getAdminStatus(userId: string): Promise<AdminStatusResult>
     const subscriptionTier = userRow?.subscriptionTier ?? null;
     const rolesList = teamRoleRows.map((r) => r.roleName);
 
-    const isAdmin = rolesList.some((r) => (ADMIN_PANEL_ROLES as readonly string[]).includes(r));
+    const isAdmin = rolesList.some((r) => (ALL_TEAM_ROLES as readonly string[]).includes(r));
     return { authenticated: true, isAdmin, roles: rolesList, subscriptionTier };
 }
 
