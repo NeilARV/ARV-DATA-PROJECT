@@ -18,3 +18,5 @@
 - [Supabase .remove() batch cap](project_supabase_remove_batch_cap.md) — removeAttachmentStorageByUrls sends all paths in one .remove() call; channel-delete cleanup is unbounded and can exceed the per-request object cap
 - [Shared serviceError/uuid utils](project_shared_serviceerror_uuid_utils.md) — utils/serviceError.ts + uuid.ts adopted only in messages domain; 5 domains keep identical copies; migrate error class + handleServiceError together
 - [Global error handler migration](project_global_error_handler_migration.md) — Phase 0 done (utils only); validation body is { message, errors:zod.error.errors }; MulterError -> 500 until attachments migration adds a branch
+- [Link-token foundation Phase 0](project_link_token_foundation_phase0.md) — auth_tokens single-use system; consumeToken must stay one atomic UPDATE; rateLimiter factory not wired in yet
+- [Link email HTML builder unescaped](project_link_token_html_builder_unescaped.md) — sendLinkEmail buildHtml interpolates fields/url raw; all future verify/reset/invite emails inherit injection risk

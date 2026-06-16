@@ -109,7 +109,7 @@ Indexes: `tokenHash`, `(type, userId)`.
 - `server/services/auth/tokens.services.ts` — core token service
 - `server/services/postmark/linkEmail.services.ts` — generic link-email builder/sender
 - `server/middleware/rateLimiter.ts` — reusable limiter factory
-- `scripts/add-auth-tokens-and-email-verified.ts` — one-off migration (create table, add column, backfill)
+- `scripts/grandfather-email-verified.ts` — one-off backfill stamping existing users as verified (run after `db:push` creates the table + column)
 - Unit test for `tokens.services.ts` (hash / expiry / single-use / atomicity)
 
 **Modified**
