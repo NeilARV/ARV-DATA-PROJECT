@@ -12,6 +12,7 @@ import PropertyModalContent from '@/components/data/property/PropertyModal';
 import AppDialog from '@/components/modals/Dialog';
 import { InfoDialog } from '@/components/data/InfoDialog';
 import { LeaderboardDialog } from '@/components/data/LeaderboardDialog';
+import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 import { useAuth } from '@/hooks/use-auth';
 import { FiltersProvider, useFilters } from '@/hooks/useFilters';
 import { useView } from '@/hooks/useView';
@@ -29,7 +30,7 @@ function HomeContent() {
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [showProperty, setShowProperty] = useState(false);
-    const { user } = useAuth();
+    const { user, canAccessApp, isLoading: authLoading, isAdminStatusLoading } = useAuth();
     const { property, setProperty, fetchProperty } = useProperty();
     const nav = useDataNav();
 
@@ -124,10 +125,17 @@ function HomeContent() {
                                 <PropertyMap />
                             </div>
                         </>
+                    ) : authLoading || isAdminStatusLoading ? (
+                        // Don't decide access until auth resolves, so a subscriber deep-linking to
+                        // a gated view doesn't flash the locked panel.
+                        <div className="flex-1 flex items-center justify-center">
+                            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : !canAccessApp ? (
+                        // Map + directory stay public; the feeds and table require app access.
+                        <AppAccessLocked />
                     ) : view === 'table' ? (
                         <TableView />
-                    ) : view === 'buyers-feed' ? (
-                        <GridView sideBarView="none" />
                     ) : (
                         <GridView sideBarView="none" />
                     )}

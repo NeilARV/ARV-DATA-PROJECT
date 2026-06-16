@@ -6,7 +6,7 @@ import { updateUserProfileSchema } from '@database/updates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Edit, Save, X } from 'lucide-react';
+import { Edit, Save, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
 import { COUNTIES } from '@/constants/filters.constants';
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { AvatarUpload } from '@/components/profile/AvatarUpload';
 import { RMCard } from '@/components/profile/RMCard';
+import { ResendVerificationModal } from '@/components/auth/ResendVerificationModal';
 
 const UNIQUE_STATES = Array.from(new Set(COUNTIES.map((c) => c.state))).sort();
 
@@ -27,6 +28,7 @@ export default function AccountInfoTab() {
     const { user, subscription, role } = useAuth();
     const { toast } = useToast();
     const [isEditing, setIsEditing] = useState(false);
+    const [resendOpen, setResendOpen] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [formData, setFormData] = useState({
         firstName: '',
@@ -156,6 +158,28 @@ export default function AccountInfoTab() {
                                         {fieldErrors.email}
                                     </p>
                                 )}
+                                {!isEditing &&
+                                    (user.emailVerifiedAt ? (
+                                        <p className="flex items-center gap-1.5 text-xs text-status-online mt-1.5">
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                            Verified
+                                        </p>
+                                    ) : (
+                                        <div className="flex items-center gap-2 mt-1.5">
+                                            <span className="flex items-center gap-1.5 text-xs text-destructive">
+                                                <AlertTriangle className="w-3.5 h-3.5" />
+                                                Not verified
+                                            </span>
+                                            <button
+                                                type="button"
+                                                className="text-xs font-medium text-primary hover:underline"
+                                                onClick={() => setResendOpen(true)}
+                                                data-testid="button-account-resend-verification"
+                                            >
+                                                Resend verification
+                                            </button>
+                                        </div>
+                                    ))}
                             </div>
                             <div>
                                 <label className="profile-field-label">Phone</label>
@@ -402,6 +426,8 @@ export default function AccountInfoTab() {
             </Card>
 
             {user.relationshipManager && <RMCard {...user.relationshipManager} />}
+
+            <ResendVerificationModal open={resendOpen} onClose={() => setResendOpen(false)} />
         </div>
     );
 }

@@ -61,7 +61,7 @@ export default function Header() {
     const menuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const [location, setLocation] = useLocation();
-    const { user, isAuthenticated, canAccessAdminPanel, canAccessMastermind, logout } = useAuth();
+    const { user, isAuthenticated, canAccessAdminPanel, logout } = useAuth();
     const { toast } = useToast();
 
     // Sync with DOM changes on mount (e.g., if theme was set elsewhere)
@@ -352,7 +352,7 @@ export default function Header() {
                     </>
                 ) : (
                     <>
-                        {canAccessMastermind && <NotificationBell />}
+                        <NotificationBell />
 
                         <Button
                             variant="ghost"

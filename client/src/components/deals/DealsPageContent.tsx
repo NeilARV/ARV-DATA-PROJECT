@@ -228,7 +228,14 @@ export default function DealsPageContent() {
                                 ? requestDealInfo.variables?.dealId
                                 : undefined
                         }
-                        onRequestInfo={(deal) => requireAuth(() => setConfirmRequestDeal(deal))}
+                        onRequestInfo={(deal) =>
+                            requireAuth(() =>
+                                requireSubscription(() => setConfirmRequestDeal(deal), {
+                                    tiers: ['basic', 'pro', 'premium'],
+                                    subject: 'Request Access',
+                                }),
+                            )
+                        }
                         onSubmitOffer={(deal) => requireAuth(() => setOfferDeal(deal))}
                         onViewOffers={(deal) => setViewOffersDeal(deal)}
                         onTopBuyers={(deal) => setBestBuyersDeal(deal)}

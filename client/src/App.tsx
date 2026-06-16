@@ -14,6 +14,7 @@ import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
+import VerifyEmail from '@/pages/VerifyEmail';
 import NotFound from '@/pages/not-found';
 import { useEffect } from 'react';
 import { useLocation } from 'wouter';
@@ -68,6 +69,7 @@ function Router() {
             <Route path="/signup" component={Signup} />
             <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/reset-password" component={ResetPassword} />
+            <Route path="/verify-email" component={VerifyEmail} />
             <Route path="/admin" component={Admin} />
             <Route path="/profile" component={Profile} />
             <Route path="/analytics" component={Analytics} />

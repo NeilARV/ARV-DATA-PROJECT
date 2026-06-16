@@ -27,7 +27,14 @@ export default function Signup() {
             description="Sign up to access all property listings and save your searches."
         >
             <SignupForm
-                onSuccess={() => setLocation(redirectTarget)}
+                onSuccess={() => {
+                    toast({
+                        title: 'Check your inbox',
+                        description:
+                            "We sent a link to verify your email. Verify it to unlock posting deals, offers, and community features.",
+                    });
+                    setLocation(redirectTarget);
+                }}
                 onSwitchToLogin={() => setLocation(`/login${search ? `?${search}` : ''}`)}
                 onRequestAccess={() =>
                     toast({

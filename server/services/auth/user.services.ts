@@ -10,7 +10,7 @@ import {
 } from '@database/schemas/users.schema';
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { db } from 'server/storage';
-import { eq, ne, sql, inArray, and, ilike } from 'drizzle-orm';
+import { eq, ne, sql, inArray, and, ilike, isNull } from 'drizzle-orm';
 import type { UpdateNotificationPreferences } from '@database/updates';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
@@ -216,6 +216,24 @@ export async function changeUserPassword(userId: string, newPassword: string) {
         .update(users)
         .set({ passwordHash, mustResetPassword: false, updatedAt: sql`now()` })
         .where(eq(users.id, userId))
+        .returning();
+
+    if (!updatedUser) return null;
+
+    const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+    return userWithoutPassword;
+}
+
+/**
+ * Stamps the user as email-verified. Only writes when currently unverified, so re-verifying
+ * (idempotent / grandfathered users) preserves the original verification time.
+ * Returns the updated user (without password hash), or null if no update occurred.
+ */
+export async function markEmailVerified(userId: string) {
+    const [updatedUser] = await db
+        .update(users)
+        .set({ emailVerifiedAt: sql`now()`, updatedAt: sql`now()` })
+        .where(and(eq(users.id, userId), isNull(users.emailVerifiedAt)))
         .returning();
 
     if (!updatedUser) return null;

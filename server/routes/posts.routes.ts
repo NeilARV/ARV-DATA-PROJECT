@@ -29,7 +29,7 @@ const upload = multer({
 router.get('/', getPostsController);
 router.get('/:postId', getPostByIdController);
 
-// pro/premium subscription required; all team roles bypass
+// Auth required to create a community post
 router.post('/', requireAuth, createPostController);
 
 // Auth required; ownership enforced in service (admin/owner can override)

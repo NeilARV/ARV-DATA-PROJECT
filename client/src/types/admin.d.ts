@@ -29,6 +29,7 @@ export type AdminUser = {
     phone: string;
     email: string;
     createdAt: string;
+    emailVerifiedAt: string | null;
     roles: string[];
     subscriptionTier: string | null;
     relationshipManagers?: RelationshipManagerAssignment[];

@@ -1,5 +1,8 @@
 # Memory Index
 
+- [Deals request-info now gated](project_deals_request_info_now_gated.md) — request-info is requireSub+bypassRoles (verify-email gate removed); client still gates requireAuth-only, but AppAccessGate now fronts the page
+- [requireAccess engine](project_require_access_engine.md) — requireAccess.ts is the single engine; requireRole/requireSub are thin wrappers preserving exact 403/500 strings + role-before-tier ordering
+- [App-access gating](project_app_access_gating.md) — Data feeds/table + whole Deals page gated (any tier OR team role); map/detail/zip-counts/suggestions/streetview stay public
 - [No DB transactions in services](project_no_db_transactions.md) — server has zero db.transaction usage; multi-write flows are non-atomic, flag missing transactions as real risk
 - [Property filter feeds three endpoints](project_property_filter_three_endpoints.md) — one query builder feeds list/map/zip-counts; new filters must be honored in all three services or views diverge
 - [companyMembers.role is nullable](project_companymembers_nullable_role.md) — admin-set memberships insert null role; consumers reading m.role must handle null

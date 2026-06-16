@@ -26,6 +26,7 @@ export async function getUserList(options: { domain?: string; excludeDomain?: st
             phone: users.phone,
             email: users.email,
             createdAt: users.createdAt,
+            emailVerifiedAt: users.emailVerifiedAt,
             subscriptionTier: subscriptions.name,
         })
         .from(users)

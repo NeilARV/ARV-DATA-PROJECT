@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { insertUserSchema } from '@database/inserts';
-import { UserServices } from 'server/services/auth';
+import { UserServices, EmailVerificationServices } from 'server/services/auth';
 import { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
 import { db } from 'server/storage';
 import { msas } from '@database/schemas/msas.schema';
@@ -92,6 +92,14 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         }
 
         req.session.userId = newUser.id;
+
+        // Best-effort: a failed verification email must not fail signup (auto-login stays).
+        // The user can resend from the banner / profile if it doesn't arrive.
+        try {
+            await EmailVerificationServices.issueVerificationEmail(newUser.id, newUser.email);
+        } catch (emailError) {
+            console.error('[signup] verification email failed:', emailError);
+        }
 
         res.status(201).json({
             success: true,

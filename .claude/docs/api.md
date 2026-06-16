@@ -84,6 +84,7 @@ Return the currently authenticated user with enriched data. Returns `{ user: nul
     "state": "CA",
     "profileImageUrl": "https://...",
     "subscriptionId": 1,
+    "emailVerifiedAt": "2024-01-01T00:00:00Z",
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z",
     "msaSubscriptions": ["San Diego"],
@@ -131,7 +132,36 @@ Create a new user account.
 
 **Errors** `400` validation failed · `409` email already registered
 
-**Side effects**: If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, the corresponding MSA subscription is auto-created.
+**Side effects**: Auto-logs in the new user (sets the session). If the email is on the subscription whitelist, the user is granted a `basic` subscription, linked to their RM, and the whitelist entry is removed. Default notification preferences are created. If a county is provided, the corresponding MSA subscription is auto-created. A 24h `email_verification` token is minted and the verification link emailed (best-effort — a send failure is logged but does not fail signup).
+
+---
+
+### `POST /api/auth/verify-email`
+Redeem an email-verification link. The raw token (delivered in the email URL) is the proof of inbox control, so no session is required. Consumes the token atomically (single-use), then stamps `users.email_verified_at`. An already-verified user with a still-valid token still returns success (idempotent).
+
+**Auth**: Public
+
+**Body**
+```json
+{
+  "token": "string (required)"
+}
+```
+
+**Response `200`** `{ "success": true }`
+
+**Errors** `400` missing token, or token invalid / expired / already used · `500` server error
+
+---
+
+### `POST /api/auth/resend-verification`
+Re-issue and email a fresh verification link to the authenticated user. Invalidates any prior live verification token first. If the user is already verified, it is a no-op success. Rate-limited per IP.
+
+**Auth**: `requireAuth` (rate-limited)
+
+**Response `200`** `{ "success": true }` · already verified: `{ "success": true, "alreadyVerified": true }`
+
+**Errors** `401` not authenticated · `404` user not found · `429` too many requests · `500` server error
 
 ---
 
@@ -391,6 +421,7 @@ List all users with their roles, subscription tier, relationship managers, and a
     "email": "jane@example.com",
     "phone": "555-123-4567",
     "createdAt": "2024-01-01T00:00:00Z",
+    "emailVerifiedAt": "2024-01-01T00:00:00Z",
     "roles": ["member"],
     "subscriptionTier": "basic",
     "relationshipManagers": [
@@ -524,9 +555,9 @@ Permanently delete a user account. Cannot delete yourself or a user with equal/h
 ## 4. Properties `/api/properties`
 
 ### `GET /api/properties`
-List properties with filtering, pagination, and sorting. Accepts many query params passed directly to the service layer.
+List properties with filtering, pagination, and sorting. Accepts many query params passed directly to the service layer. Powers the buyers/wholesale feeds and table.
 
-**Auth**: Public
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role. 401 unauth, 403 no-sub/no-role. (The map, detail, suggestions, street view, zip-counts, and transactions endpoints stay public.)
 
 **Key query params**
 | Param | Type | Description |
@@ -897,7 +928,7 @@ Get all approved company memberships for the currently authenticated user.
 ### `GET /api/deals`
 List all deals with optional filters.
 
-**Auth**: Public
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role. (The whole Deals experience is gated.)
 
 **Query params** (all optional)
 | Param | Type | Description |
@@ -916,7 +947,7 @@ List all deals with optional filters.
 ### `GET /api/deals/:id`
 Get a single deal by integer ID.
 
-**Auth**: Public
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role.
 
 **Response `200`** Full deal object · `400` invalid id · `404` not found
 
@@ -994,7 +1025,7 @@ Delete a deal. Ownership enforced in service.
 ### `POST /api/deals/:id/request-info`
 Request contact info for a deal — sends an email to the deal poster's RM (or default contact).
 
-**Auth**: Public (but must be authenticated — handler checks session)
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role. (Previously public.)
 
 **Body** (validated via `requestDealInfoSchema`)
 ```json

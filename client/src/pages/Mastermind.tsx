@@ -18,7 +18,7 @@ import { PropertyProvider } from '@/hooks/useProperty';
 import { useAuth } from '@/hooks/use-auth';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
 
-import { Button } from '@/components/ui/button';
+import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 import { apiRequest } from '@/lib/queryClient';
 
 import type { ChannelSummary } from '@/types/mastermind';
@@ -28,7 +28,7 @@ type ChannelsResponse = { channels: ChannelSummary[] };
 type UnreadEntry = { count: number; hasMention: boolean };
 
 function MastermindContent() {
-    const { isLoading, isAdminStatusLoading, isAuthenticated, canAccessMastermind, isOwner, isAdmin, user } =
+    const { isLoading, isAdminStatusLoading, canAccessMastermind, isOwner, isAdmin, user } =
         useAuth();
     const { lastCreatedMessage } = useMastermindSocket();
 
@@ -211,52 +211,16 @@ function MastermindContent() {
         );
     }
 
-    if (!isAuthenticated) {
-        return (
-            <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
-                <Brain className="w-10 h-10 text-muted-foreground" />
-                <div className="space-y-1">
-                    <p className="text-base font-semibold text-foreground">
-                        Sign in to access Mastermind
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                        Join the ARV community and connect with other investors.
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setLocation('/login?redirect=%2Fmastermind')}
-                    >
-                        Log In
-                    </Button>
-                    <Button size="sm" onClick={() => setLocation('/signup?redirect=%2Fmastermind')}>
-                        Sign Up
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
-    // Authenticated users without a subscription or an ARV team role can't access Mastermind.
-    // They get an inform page with a way back home, mirroring the Admin page gate.
+    // Unauthenticated and authenticated-no-access both land here (canAccessMastermind covers both).
+    // The shared panel branches internally: Log In / Sign Up for guests, Back + Contact Us for
+    // signed-in users without a subscription or team role.
     if (!canAccessMastermind) {
         return (
-            <div className="min-h-dvh flex flex-col items-center justify-center gap-4 p-6 text-center">
-                <Brain className="w-10 h-10 text-muted-foreground" />
-                <div className="space-y-1">
-                    <p className="text-base font-semibold text-foreground">
-                        Subscription required
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                        Mastermind is available to ARV subscribers and team members. Upgrade your
-                        account to join the conversation.
-                    </p>
+            <div className="h-dvh flex flex-col">
+                <Header />
+                <div className="flex-1 overflow-hidden min-h-0">
+                    <AppAccessLocked icon={Brain} redirect="/mastermind" />
                 </div>
-                <Button size="sm" onClick={() => setLocation('/')}>
-                    Back to Home
-                </Button>
             </div>
         );
     }

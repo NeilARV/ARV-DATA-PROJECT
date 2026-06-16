@@ -14,6 +14,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { useCompanies } from './useCompanies';
 import { useFilters } from './useFilters';
 import { useView } from './useView';
+import { useAuth } from './use-auth';
 import type { Property } from '@/types/property';
 
 export type PropertiesResponse = {
@@ -48,6 +49,9 @@ export function PropertiesProvider({ children }: PropertiesProviderProps) {
     const { company } = useCompanies();
     const { view } = useView();
     const { filters, sortBy } = useFilters();
+    // Feeds/table are app-access gated (server enforces too); don't fire the list query for
+    // users without access — the map and directory remain public.
+    const { canAccessApp } = useAuth();
     const [propertiesPage, setPropertiesPage] = useState(1);
     const [allProperties, setAllProperties] = useState<Property[]>([]);
     const [propertiesHasMore, setPropertiesHasMore] = useState(true);
@@ -108,7 +112,7 @@ export function PropertiesProvider({ children }: PropertiesProviderProps) {
             }
             return res.json();
         },
-        enabled: view !== 'map',
+        enabled: view !== 'map' && canAccessApp,
         staleTime: 5 * 60 * 1000,
     });
 

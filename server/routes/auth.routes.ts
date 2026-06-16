@@ -1,10 +1,18 @@
-import { Session, Registration, Avatar } from '../controllers/auth/index.js';
+import { Session, Registration, Avatar, EmailVerification } from '../controllers/auth/index.js';
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from 'server/middleware/requireAuth.js';
 import { forgotPasswordRateLimit } from 'server/middleware/forgotPasswordRateLimit.js';
+import { createRateLimiter } from 'server/middleware/rateLimiter.js';
 
 const router = Router();
+
+// Resend caps abuse of the verification-email send. Per-IP window only — the authenticated
+// request carries no body.email for the factory's email cooldown.
+const resendVerificationRateLimit = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    maxPerIp: 5,
+});
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -44,6 +52,15 @@ router.post('/forgot-password', forgotPasswordRateLimit, Session.forgotPassword)
 
 // User signup
 router.post('/signup', Registration.signup);
+
+// Email verification: redeem a link (public) and resend (authenticated, rate-limited)
+router.post('/verify-email', EmailVerification.verifyEmail);
+router.post(
+    '/resend-verification',
+    requireAuth,
+    resendVerificationRateLimit,
+    EmailVerification.resendVerification,
+);
 
 // Avatar upload / removal (authenticated users only)
 router.post('/me/avatar', requireAuth, upload.single('image'), Avatar.uploadAvatar);

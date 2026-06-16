@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { CleanCache } from './clean-cache';
+import { cleanAuthTokens } from './clean-auth-tokens';
 import { sendDenverEmail } from './email/denver-email';
 import { sendMiamiEmail } from './email/miami-email';
 import { sendLosAngelesEmail } from './email/los-angeles-email';
@@ -38,6 +39,11 @@ export function startScheduledJobs() {
 
     // Clean market scan queue (older than 90 days with status = 'complete') at 11:50 PM
     cron.schedule('50 23 * * *', cleanMarketCache, {
+        timezone: 'America/Los_Angeles',
+    });
+
+    // Clean used/expired auth tokens at 11:25 PM
+    cron.schedule('25 23 * * *', cleanAuthTokens, {
         timezone: 'America/Los_Angeles',
     });
 

@@ -33,6 +33,7 @@ export interface AuthUser {
     isAdmin: boolean;
     notifications: boolean;
     mustResetPassword: boolean;
+    emailVerifiedAt: string | null;
     createdAt: string;
     county?: string | null;
     state?: string | null;
@@ -54,6 +55,11 @@ export function useAuth() {
     });
 
     const isAuthenticated = !!data?.user;
+
+    // Email verification: null emailVerifiedAt = unverified. Existing users were grandfathered
+    // to verified at rollout, so this only ever flags new signups who haven't clicked the link.
+    const isEmailVerified = isAuthenticated && !!data?.user?.emailVerifiedAt;
+    const hasUnverifiedEmail = isAuthenticated && !isLoading && !data?.user?.emailVerifiedAt;
 
     const { data: adminStatus, isLoading: isAdminStatusLoading } = useQuery<{
         authenticated: boolean;
@@ -143,6 +149,9 @@ export function useAuth() {
 
         canAccessApp,
         canAccessMastermind,
+        // ── Email verification ────────────────────────────────────────────────────────
+        isEmailVerified,
+        hasUnverifiedEmail,
         // ── Raw values ──────────────────────────────────────────────────────────────
         roles,
         role,

@@ -16,14 +16,19 @@ import {
 
 const router = Router();
 
+// App access (any subscription tier or team role) — the whole deals experience is gated.
+const requireDealAccess = requireSub(['basic', 'pro', 'premium'], {
+    bypassRoles: [...ALL_TEAM_ROLES],
+});
+
 // GET /api/deals — fetch deals; filter by ?userId= or ?msaName=
-router.get('/', getDealsController);
+router.get('/', requireDealAccess, getDealsController);
 
 // GET /api/deals/msas — fetch all MSAs for the deal form dropdown (must be before /:id)
-router.get('/msas', getMsasController);
+router.get('/msas', requireDealAccess, getMsasController);
 
 // GET /api/deals/:id — fetch a single deal by id
-router.get('/:id', getDealByIdController);
+router.get('/:id', requireDealAccess, getDealByIdController);
 
 // POST /api/deals — create a deal (any subscription tier, or team member bypass)
 router.post(
@@ -53,7 +58,14 @@ router.delete(
 );
 
 // POST /api/deals/:id/request-info — send deal details to the requester's RM
-router.post('/:id/request-info', requestDealInfoController);
+// (basic+ subscription or team role). No longer public.
+router.post(
+    '/:id/request-info',
+    requireSub(['basic', 'pro', 'premium'], {
+        bypassRoles: [...ALL_TEAM_ROLES],
+    }),
+    requestDealInfoController,
+);
 
 // POST /api/deals/:id/offers — submit a non-binding offer (basic+ subscription or team role)
 router.post(

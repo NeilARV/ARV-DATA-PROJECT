@@ -17,7 +17,15 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, Mail, MoreVertical, Phone, Users } from 'lucide-react';
+import {
+    Loader2,
+    Mail,
+    MoreVertical,
+    Phone,
+    Users,
+    CheckCircle2,
+    AlertTriangle,
+} from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
@@ -139,6 +147,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                                         <TableHead>Relationship Manager</TableHead>
                                         <TableHead>Account Tier</TableHead>
                                         <TableHead>Account Types</TableHead>
+                                        <TableHead>Email Verified</TableHead>
                                         {canDeleteUser && <TableHead />}
                                     </TableRow>
                                 </TableHeader>
@@ -204,6 +213,19 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                                                     </div>
                                                 ) : (
                                                     <span className="rm-label">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {user.emailVerifiedAt ? (
+                                                    <span className="flex items-center gap-1.5 text-sm text-status-online">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                                        Verified
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1.5 text-sm text-destructive">
+                                                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                                        Unverified
+                                                    </span>
                                                 )}
                                             </TableCell>
                                             {canDeleteUser && (

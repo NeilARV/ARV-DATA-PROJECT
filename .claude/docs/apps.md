@@ -104,7 +104,7 @@ view change; page 1 replaces, page >1 appends with ID dedup. Page size 10 (grid)
 ### Properties (`/api/properties`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/api/properties` | Public | List with filters (county, zip, city, status, price, beds, baths, type, company, sort, page, limit) |
+| GET | `/api/properties` | requireSub (basic/pro/premium) or team role | List with filters — powers the buyers/wholesale feeds + table; app-access gated |
 | GET | `/api/properties/map` | Public | Map pins (id, lat, lng, address, status, companyId, etc.) |
 | GET | `/api/properties/suggestions` | Public | Address autocomplete |
 | GET | `/api/properties/streetview` | Public | Google Street View proxy |
@@ -113,6 +113,11 @@ view change; page 1 replaces, page >1 appends with ID dedup. Page size 10 (grid)
 | PATCH | `/api/properties/:id` | relationship-manager+ | Update isArvFunded, status |
 | POST | `/api/properties` | admin/owner | Add property |
 | DELETE | `/api/properties/:id` | admin/owner | Delete property |
+
+**App-access split:** the **map, detail, suggestions, street view, zip-counts, and transactions
+stay public** (the anonymous teaser); only the property **list** (`GET /api/properties`, powering
+the buyers/wholesale feeds + table) requires any subscription tier or team role. `Home` renders the
+map + company directory to everyone and shows a locked panel for the feeds/table when `!canAccessApp`.
 
 ### Companies (`/api/companies`)
 | Method | Route | Auth | Description |
@@ -296,18 +301,22 @@ filtered list). Deals split client-side into `newDeals` (type !== "sold") and `s
 ## API Surface (`server/routes/deals.routes.ts`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/api/deals` | Public | List deals; `userId`, `county`, `city`, `state`, `zipCode`, `msaName` |
-| GET | `/api/deals/:id` | Public | Single deal |
+| GET | `/api/deals` | requireSub (basic/pro/premium) | List deals; `userId`, `county`, `city`, `state`, `zipCode`, `msaName` |
+| GET | `/api/deals/msas` | requireSub (basic/pro/premium) | MSA list for the deal form dropdown |
+| GET | `/api/deals/:id` | requireSub (basic/pro/premium) | Single deal |
 | POST | `/api/deals` | requireSub (basic/pro/premium) | Create deal |
 | PATCH | `/api/deals/:id` | requireSub (basic/pro/premium) | Update deal (ownership enforced in service) |
 | DELETE | `/api/deals/:id` | requireSub (basic/pro/premium) | Delete deal |
-| POST | `/api/deals/:id/request-info` | Auth required | Send deal inquiry |
+| POST | `/api/deals/:id/request-info` | requireSub (basic/pro/premium) | Send deal inquiry (no longer public) |
 | POST | `/api/deals/:id/offers` | requireSub (basic/pro/premium) | Submit a non-binding offer; notifies poster |
 | GET | `/api/deals/:id/offers` | Auth required | List offers (owner or admin/owner/RM only) |
 | DELETE | `/api/deals/:id/offers/:offerId` | Auth required | Remove an offer (owner or admin/owner/RM only) |
 
-**Subscription bypass:** `admin`, `owner`, `relationship-manager`, `member` skip the
-subscription requirement on all deal write routes (create/edit/delete and `POST /offers`).
+**App-access gated:** the whole Deals experience (reads included) requires any subscription tier
+**or** any team role. `admin`, `owner`, `relationship-manager`, `member` skip the subscription
+requirement (the `bypassRoles`); `request-info` was previously public and now carries the same
+gate. The Deals page mirrors this with a whole-page `AppAccessGate`. Email verification is **not**
+part of any deal gate.
 
 ## Backend
 **Controller** (`deals.controllers.ts`) — strips admin-only fields (`isArvExclusive`,

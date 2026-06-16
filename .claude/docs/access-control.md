@@ -4,11 +4,16 @@
 > across the entire app.** When writing backend routes or frontend components
 > that gate on auth state, always check this file first.
 >
-> The three core files that implement access control are:
+> The core files that implement access control are:
 > - `server/middleware/requireAuth.ts` — session check (401 if no session)
-> - `server/middleware/requireRole.ts` — team role check (401 if no session, 403 if wrong role)
-> - `server/middleware/requireSub.ts` — subscription tier check with optional role bypass (401 if no session, 403 if wrong tier and no bypass)
-> - `client/src/hooks/use-auth.ts` — frontend auth state (roles, subscription flags, `canAccessApp`)
+> - `server/middleware/requireAccess.ts` — the single engine: pass if the user has ANY allowed role OR ANY allowed tier (401 if no session, 403 otherwise)
+> - `server/middleware/requireRole.ts` — role-only wrapper over `requireAccess` (401 if no session, 403 if wrong role)
+> - `server/middleware/requireSub.ts` — tier + role-bypass wrapper over `requireAccess` (401 if no session, 403 if wrong tier and no bypass)
+> - `client/src/hooks/use-auth.ts` — frontend auth state (roles, subscription flags, `canAccessApp`, `isEmailVerified`)
+>
+> **Email verification is NOT an access gate.** It is surfaced as a soft nudge only (banner/bell,
+> profile + admin indicators); `isEmailVerified` never blocks a route or page. Authorization is by
+> role/tier exclusively.
 
 ---
 
@@ -22,9 +27,21 @@ Checks `req.session.userId`. Returns `401` if no session. No role or subscriptio
 router.post("/", requireAuth, handler);
 ```
 
+### `requireAccess({ roles?, tiers? })`
+The single access-control engine. A request passes when the signed-in user has **ANY** of the
+allowed team roles **OR ANY** of the allowed subscription tiers (roles checked first, short-circuit).
+Returns `401` if no session, `403` otherwise. `requireRole` and `requireSub` are thin wrappers over
+it that pass their own 403/500 message strings, so their contracts are unchanged.
+
+```ts
+// "App access" (any subscription tier OR any team role) — used for the property list + deals reads:
+router.get("/", requireSub(["basic","pro","premium"], { bypassRoles: ["admin","owner","relationship-manager","member"] }), handler);
+// equivalently: requireAccess({ tiers: ["basic","pro","premium"], roles: ["admin","owner","relationship-manager","member"] })
+```
+
 ### `requireRole(roleOrRoles)`
 Membership-based — **not hierarchical**. Every allowed role must be listed explicitly.
-Checks `req.session.userId` first (returns `401` if missing), then queries `user_roles` for a matching role (returns `403` if none found).
+Thin wrapper over `requireAccess` (role-only). Checks `req.session.userId` first (returns `401` if missing), then queries `user_roles` for a matching role (returns `403` if none found).
 
 ```ts
 // Usage — single role
@@ -35,7 +52,7 @@ router.get("/", requireRole(["admin", "owner", "relationship-manager", "member"]
 ```
 
 ### `requireSub(tierOrTiers, options?)`
-Checks `req.session.userId` first (returns `401` if missing).
+Thin wrapper over `requireAccess` (tiers + role bypass). Checks `req.session.userId` first (returns `401` if missing).
 If `bypassRoles` are provided, checks those roles first — a matching role skips the subscription check entirely.
 If no bypass match, queries the user's subscription. Returns `403` if no matching tier.
 
@@ -124,7 +141,9 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | PATCH | `/api/auth/me/password` | `requireAuth` | Voluntary password change; verifies current password (400 if wrong), clears `must_reset_password`, and invalidates the user's other sessions |
 | POST | `/api/auth/me/complete-reset` | `requireAuth` | Completes a forced reset: only valid when `must_reset_password` is set (409 otherwise); takes `newPassword` only (no current password — the session proves possession of the temp password) |
 | POST | `/api/auth/forgot-password` | (public) | Rate-limited. Emails a temp password, flags `must_reset_password`, and invalidates all of the user's existing sessions; always returns 200 (no email enumeration) |
-| POST | `/api/auth/signup` | (public) | |
+| POST | `/api/auth/signup` | (public) | Auto-logs in; also mints a 24h `email_verification` token and emails the link (best-effort — a send failure does not fail signup) |
+| POST | `/api/auth/verify-email` | (public) | Redeems a verification link `{ token }`; the token is the proof of inbox control. 400 on missing/invalid/expired/used token; idempotent success for an already-verified valid token |
+| POST | `/api/auth/resend-verification` | `requireAuth` | Rate-limited (per-IP window). Re-issues + emails a fresh link; already-verified is a no-op `200 { alreadyVerified: true }` |
 | POST | `/api/auth/me/avatar` | `requireAuth` | Upload or replace profile image (multipart/form-data) |
 | DELETE | `/api/auth/me/avatar` | `requireAuth` | Remove profile image |
 
@@ -134,7 +153,7 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 
 | Method | Route | Middleware chain | unauth | member | RM | admin/owner |
 |---|---|---|---|---|---|---|
-| GET | `/api/properties` | (public) | ✓ | ✓ | ✓ | ✓ |
+| GET | `/api/properties` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | ✓ | ✓ | ✓ |
 | GET | `/api/properties/map` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/properties/zip-counts` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/properties/suggestions` | (public) | ✓ | ✓ | ✓ | ✓ |
@@ -144,6 +163,13 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 | PATCH | `/api/properties/:id` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
 | POST | `/api/properties` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
 | DELETE | `/api/properties/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+
+> **`GET /api/properties` is app-access gated** (the buyers/wholesale feeds + table): any
+> subscription tier (basic/pro/premium) **or** any team role passes; everyone else (unauth or
+> authenticated-no-sub-no-role) gets `401`/`403`. The **map, detail, suggestions, street view,
+> zip-counts, and transactions stay public** as the anonymous teaser. The client mirrors this:
+> `Home` shows the map + company directory to everyone and renders a locked panel for the
+> feeds/table when `!canAccessApp`.
 
 ---
 
@@ -182,17 +208,24 @@ Ownership is enforced in the service layer (not middleware), returning `403` if 
 
 | Method | Route | Middleware chain | unauth | no-sub/no-role | pro or premium | member/RM | admin/owner |
 |---|---|---|---|---|---|---|---|
-| GET | `/api/deals` | (public) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| GET | `/api/deals/:id` | (public) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| GET | `/api/deals` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/deals/msas` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | POST | `/api/deals` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | PATCH | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 | DELETE | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
-| POST | `/api/deals/:id/request-info` | (public) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| POST | `/api/deals/:id/request-info` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | POST | `/api/deals/:id/offers` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | GET | `/api/deals/:id/offers` | auth + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 | DELETE | `/api/deals/:id/offers/:offerId` | auth + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 
-> All deal write routes (create, edit, delete, and `POST /offers`) are gated at the **basic** tier (any subscription) — any subscriber or team member may post or manage deals and submit offers. `no-sub/no-role` is always `403`. The `pro or premium` column above reads `✓` for these because those tiers also qualify.
+> **The entire Deals experience is app-access gated** — `GET /api/deals`, `/api/deals/msas`, and
+> `/api/deals/:id` now require any subscription tier **or** any team role (they were previously
+> public). The Deals page mirrors this with a whole-page `AppAccessGate`. All deal write routes
+> (create, edit, delete, `POST /offers`, and `request-info`) carry the same gate; `no-sub/no-role`
+> is always `403`. **`request-info` is no longer public** — it previously required no auth and now
+> requires the subscription/role gate like the other deal actions. Email verification is **not**
+> part of any of these gates.
 
 **Ownership rules in service (confirmed):**
 - `updateDeal`: owner of the deal, or `admin`/`owner` role. RM cannot edit another user's deal.

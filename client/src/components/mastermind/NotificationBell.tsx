@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
-import { Bell, Check } from 'lucide-react';
+import { Bell, Check, AlertTriangle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { ResendVerificationModal } from '@/components/auth/ResendVerificationModal';
 
+import { useAuth } from '@/hooks/use-auth';
 import { useNotifications } from '@/hooks/use-notifications';
 
 import { getAvatarColor } from '@/utils/avatar';
@@ -42,8 +44,10 @@ function notificationDetail(n: NotificationWire): string {
 
 export function NotificationBell() {
     const [, setLocation] = useLocation();
+    const { hasUnverifiedEmail } = useAuth();
     const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
     const [open, setOpen] = useState(false);
+    const [resendOpen, setResendOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -71,7 +75,10 @@ export function NotificationBell() {
         }
     }
 
-    const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount);
+    // A critical alert (unverified email) outranks the numeric unread count: the badge shows
+    // "!" instead of a number so it reads as action-required, not just "you have messages".
+    const showBadge = hasUnverifiedEmail || unreadCount > 0;
+    const badgeLabel = hasUnverifiedEmail ? '!' : unreadCount > 99 ? '99+' : String(unreadCount);
 
     return (
         <div className="relative" ref={dropdownRef}>
@@ -80,11 +87,15 @@ export function NotificationBell() {
                 size="icon"
                 className="relative"
                 onClick={() => setOpen(!open)}
-                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+                aria-label={
+                    hasUnverifiedEmail
+                        ? 'Notifications (action required: verify your email)'
+                        : `Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`
+                }
                 data-testid="button-notification-bell"
             >
                 <Bell className="w-4 h-4" />
-                {unreadCount > 0 && (
+                {showBadge && (
                     <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none">
                         {badgeLabel}
                     </span>
@@ -112,7 +123,36 @@ export function NotificationBell() {
                     </div>
 
                     <div className="max-h-96 overflow-y-auto py-1">
-                        {notifications.length === 0 ? (
+                        {hasUnverifiedEmail && (
+                            <div
+                                className="flex items-start gap-2.5 px-3 py-2 border-b border-border bg-destructive/5"
+                                data-testid="notification-verify-email"
+                            >
+                                <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-foreground">
+                                        Verify your email
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Confirm your email to post deals, submit offers, and join
+                                        the community.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="mt-1 text-xs font-medium text-primary hover:underline"
+                                        onClick={() => {
+                                            setOpen(false);
+                                            setResendOpen(true);
+                                        }}
+                                        data-testid="button-verify-email-resend"
+                                    >
+                                        Resend verification email
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {notifications.length === 0 && !hasUnverifiedEmail ? (
                             <p className="px-3 py-6 text-sm text-muted-foreground text-center">
                                 No notifications yet
                             </p>
@@ -128,6 +168,8 @@ export function NotificationBell() {
                     </div>
                 </div>
             )}
+
+            <ResendVerificationModal open={resendOpen} onClose={() => setResendOpen(false)} />
         </div>
     );
 }

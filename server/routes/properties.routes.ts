@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireRole } from 'server/middleware/requireRole';
-import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
+import { requireSub } from 'server/middleware/requireSub';
+import { ADMIN_ROLES, PRIVILEGED_ROLES, ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 import {
     MapsController,
     ZipCountsController,
@@ -12,8 +13,13 @@ import {
 
 const router = Router();
 
-// Get all properties
-router.get('/', PropertiesController.getProperties);
+// Get all properties (buyers/wholesale feeds + table) — app access required (any subscription
+// tier or team role). The map, detail, suggestions, street view, and zip counts stay public.
+router.get(
+    '/',
+    requireSub(['basic', 'pro', 'premium'], { bypassRoles: [...ALL_TEAM_ROLES] }),
+    PropertiesController.getProperties,
+);
 
 // Add a property
 router.post('/', requireRole(ADMIN_ROLES), PropertyController.postProperty);
