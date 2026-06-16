@@ -1,17 +1,10 @@
 import { db } from 'server/storage';
 import { messages, channels, messageReactions } from '@database/schemas/mastermind.schema';
 import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
+import { ServiceError } from 'server/utils/serviceError';
 import { eq, and } from 'drizzle-orm';
 
-export class ReactionServiceError extends Error {
-    constructor(
-        public statusCode: number,
-        message: string,
-    ) {
-        super(message);
-        this.name = 'ReactionServiceError';
-    }
-}
+export class ReactionServiceError extends ServiceError {}
 
 // Resolves the channel of a reactable message: it must exist, not be deleted, and live in a
 // readable (public, non-archived) channel. Admin-only channels are reactable by admins/owners

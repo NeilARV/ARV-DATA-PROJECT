@@ -2,16 +2,9 @@ import crypto from 'crypto';
 import path from 'path';
 import { getSupabase, mastermindStorageBucket, storagePathFromUrl } from 'server/lib/supabase';
 import type { MessageAttachmentInput } from '@database/validation/mastermind.validation';
+import { ServiceError } from 'server/utils/serviceError';
 
-export class AttachmentServiceError extends Error {
-    constructor(
-        public statusCode: number,
-        message: string,
-    ) {
-        super(message);
-        this.name = 'AttachmentServiceError';
-    }
-}
+export class AttachmentServiceError extends ServiceError {}
 
 // image/* render inline; everything else is offered as a download link (Phase 1).
 // Must stay in sync with the Supabase bucket's allowed MIME types — uploads of any type the

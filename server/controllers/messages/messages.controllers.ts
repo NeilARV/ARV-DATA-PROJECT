@@ -5,7 +5,6 @@ import {
     createMessage,
     updateMessage,
     softDeleteMessage,
-    MessageServiceError,
 } from 'server/services/messages/messages.services';
 import {
     createMessageSchema,
@@ -14,23 +13,14 @@ import {
 import { createMentionNotifications } from 'server/services/notifications/notifications.services';
 import { broadcastToChannel, broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
-    if (err instanceof MessageServiceError) {
-        res.status(err.statusCode).json({ message: err.message });
-    } else {
-        console.error(fallbackMessage, err);
-        res.status(500).json({ message: fallbackMessage });
-    }
-}
+import { isUuid } from 'server/utils/uuid';
+import { handleServiceError } from 'server/utils/serviceError';
 
 // ── GET /api/channels/:id/messages ───────────────────────────────────────────────
 export async function getChannelMessagesController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -63,7 +53,7 @@ export async function getChannelMessagesController(req: Request, res: Response):
 export async function createMessageController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid channel id' });
             return;
         }
@@ -114,7 +104,7 @@ export async function createMessageController(req: Request, res: Response): Prom
 export async function updateMessageController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid message id' });
             return;
         }
@@ -142,7 +132,7 @@ export async function updateMessageController(req: Request, res: Response): Prom
 export async function deleteMessageController(req: Request, res: Response): Promise<void> {
     try {
         const { id } = req.params;
-        if (!UUID_REGEX.test(id)) {
+        if (!isUuid(id)) {
             res.status(400).json({ message: 'Invalid message id' });
             return;
         }

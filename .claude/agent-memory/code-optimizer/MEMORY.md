@@ -16,3 +16,4 @@
 - [Mastermind temp admin gate](project_mastermind_temp_admin_gate.md) — TEMPORARY canAccessMastermind=isOwner||isAdmin hides UI; socket+notifications queries left on broader canAccessApp on purpose
 - [Mastermind edit attachments authoritative](project_mastermind_edit_attachments_authoritative.md) — edit sends full desired attachment set, server reconciles by fileUrl; cache no longer preserves cached attachments on MessageUpdated
 - [Supabase .remove() batch cap](project_supabase_remove_batch_cap.md) — removeAttachmentStorageByUrls sends all paths in one .remove() call; channel-delete cleanup is unbounded and can exceed the per-request object cap
+- [Shared serviceError/uuid utils](project_shared_serviceerror_uuid_utils.md) — utils/serviceError.ts + uuid.ts adopted only in messages domain; 5 domains keep identical copies; migrate error class + handleServiceError together

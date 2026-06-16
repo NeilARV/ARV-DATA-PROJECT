@@ -7,12 +7,14 @@ import {
     messageReactions,
     pinnedMessages,
 } from '@database/schemas/mastermind.schema';
-import { users, userRoles, roles } from '@database/schemas/users.schema';
+import { users } from '@database/schemas/users.schema';
 import { eq, and, or, lt, gt, desc, asc, inArray, sql } from 'drizzle-orm';
 import { sanitizeMessageHtml, isHtmlEmpty } from 'server/utils/sanitizeHtml';
 import { mastermindPublicUrlPrefix } from 'server/lib/supabase';
 import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
 import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
+import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
+import { ServiceError } from 'server/utils/serviceError';
 import type {
     MessageAttachmentWire,
     MessageReactionSummary,
@@ -20,22 +22,12 @@ import type {
 } from '@shared/mastermind/events';
 import type { MessageAttachmentInput } from '@database/validation/mastermind.validation';
 
-export class MessageServiceError extends Error {
-    constructor(
-        public statusCode: number,
-        message: string,
-    ) {
-        super(message);
-        this.name = 'MessageServiceError';
-    }
-}
+export class MessageServiceError extends ServiceError {}
 
 // Default + ceiling for history pages; backfill is capped separately.
 const DEFAULT_PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 50;
 const MAX_BACKFILL = 500;
-
-const PRIVILEGED_ROLES = ['admin', 'owner'] as const;
 
 // Sliding-window rate limit: 5 messages per 10 s per user.
 // Single-server only — adequate for Phase 1 (Replit Reserved VM).
@@ -241,16 +233,6 @@ async function hydrateMessages(
     });
 }
 
-async function callerIsPrivileged(callerId: string): Promise<boolean> {
-    const rows = await db
-        .select({ roleName: roles.name })
-        .from(userRoles)
-        .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])))
-        .limit(1);
-    return rows.length > 0;
-}
-
 const ENRICHED_COLUMNS = {
     id: messages.id,
     channelId: messages.channelId,
@@ -298,7 +280,7 @@ async function getReadableChannelOrThrow(channelId: string, viewerId: string): P
     if (!channel || channel.type !== 'public' || channel.isArchived) {
         throw new MessageServiceError(404, 'Channel not found');
     }
-    if (channel.isAdminOnly && !(await callerIsPrivileged(viewerId))) {
+    if (channel.isAdminOnly && !(await userIsAdminOrOwner(viewerId))) {
         throw new MessageServiceError(404, 'Channel not found');
     }
 }
@@ -429,7 +411,7 @@ export async function createMessage({
         throw new MessageServiceError(404, 'Channel not found');
     }
     // Hide admin-only channels from non-admins (404 before the archived check leaks nothing).
-    if (channel.isAdminOnly && !(await callerIsPrivileged(senderId))) {
+    if (channel.isAdminOnly && !(await userIsAdminOrOwner(senderId))) {
         throw new MessageServiceError(404, 'Channel not found');
     }
     if (channel.isArchived) {
@@ -552,7 +534,7 @@ export async function softDeleteMessage(id: string, callerId: string): Promise<E
     if (!existing) {
         throw new MessageServiceError(404, 'Message not found');
     }
-    if (existing.senderId !== callerId && !(await callerIsPrivileged(callerId))) {
+    if (existing.senderId !== callerId && !(await userIsAdminOrOwner(callerId))) {
         throw new MessageServiceError(403, 'You can only delete your own messages');
     }
 
