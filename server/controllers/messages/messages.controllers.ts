@@ -14,7 +14,7 @@ import { createMentionNotifications } from 'server/services/notifications/notifi
 import { broadcastToChannel, broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { isUuid } from 'server/utils/uuid';
-import { handleServiceError } from 'server/utils/serviceError';
+import { handleServiceError } from 'server/middleware/errorHandler';
 
 // ── GET /api/channels/:id/messages ───────────────────────────────────────────────
 export async function getChannelMessagesController(req: Request, res: Response): Promise<void> {

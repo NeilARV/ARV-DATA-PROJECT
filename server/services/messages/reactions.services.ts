@@ -1,7 +1,7 @@
 import { db } from 'server/storage';
 import { messages, channels, messageReactions } from '@database/schemas/mastermind.schema';
 import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
-import { ServiceError } from 'server/utils/serviceError';
+import { ServiceError } from 'server/lib/error';
 import { eq, and } from 'drizzle-orm';
 
 export class ReactionServiceError extends ServiceError {}

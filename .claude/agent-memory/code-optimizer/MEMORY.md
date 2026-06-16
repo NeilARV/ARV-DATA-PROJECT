@@ -17,3 +17,4 @@
 - [Mastermind edit attachments authoritative](project_mastermind_edit_attachments_authoritative.md) — edit sends full desired attachment set, server reconciles by fileUrl; cache no longer preserves cached attachments on MessageUpdated
 - [Supabase .remove() batch cap](project_supabase_remove_batch_cap.md) — removeAttachmentStorageByUrls sends all paths in one .remove() call; channel-delete cleanup is unbounded and can exceed the per-request object cap
 - [Shared serviceError/uuid utils](project_shared_serviceerror_uuid_utils.md) — utils/serviceError.ts + uuid.ts adopted only in messages domain; 5 domains keep identical copies; migrate error class + handleServiceError together
+- [Global error handler migration](project_global_error_handler_migration.md) — Phase 0 done (utils only); validation body is { message, errors:zod.error.errors }; MulterError -> 500 until attachments migration adds a branch

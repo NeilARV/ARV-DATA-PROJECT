@@ -1,6 +1,7 @@
-import express, { type Request, Response, NextFunction, RequestHandler } from 'express';
+import express, { type Request, type RequestHandler } from 'express';
 import session from 'express-session';
 import apiRoutes from './routes/index';
+import { errorHandler } from './middleware/errorHandler';
 
 declare module 'express-session' {
     interface SessionData {
@@ -91,21 +92,7 @@ export function createApp(options: AppOptions = {}) {
 
     app.use('/api', apiRoutes);
 
-    app.use(
-        (
-            err: Error & { status?: number; statusCode?: number },
-            _req: Request,
-            res: Response,
-            _next: NextFunction,
-        ) => {
-            const status =
-                (err as { status?: number }).status ??
-                (err as { statusCode?: number }).statusCode ??
-                500;
-            const message = err.message || 'Internal Server Error';
-            res.status(status).json({ message });
-        },
-    );
+    app.use(errorHandler);
 
     return app;
 }

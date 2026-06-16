@@ -4,7 +4,7 @@ import { reactionSchema } from '@database/validation/mastermind.validation';
 import { broadcastToChannel } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { isUuid } from 'server/utils/uuid';
-import { handleServiceError } from 'server/utils/serviceError';
+import { handleServiceError } from 'server/middleware/errorHandler';
 
 // ── POST /api/messages/:id/reactions ───────────────────────────────────────────────
 export async function addReactionController(req: Request, res: Response): Promise<void> {

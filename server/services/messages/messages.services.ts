@@ -14,7 +14,7 @@ import { mastermindPublicUrlPrefix } from 'server/lib/supabase';
 import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
 import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
 import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
-import { ServiceError } from 'server/utils/serviceError';
+import { ServiceError } from 'server/lib/error';
 import type {
     MessageAttachmentWire,
     MessageReactionSummary,

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { getSupabase, mastermindStorageBucket, storagePathFromUrl } from 'server/lib/supabase';
 import type { MessageAttachmentInput } from '@database/validation/mastermind.validation';
-import { ServiceError } from 'server/utils/serviceError';
+import { ServiceError } from 'server/lib/error';
 
 export class AttachmentServiceError extends ServiceError {}
 

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { uploadAttachment } from 'server/services/messages/attachments.services';
-import { handleServiceError } from 'server/utils/serviceError';
+import { handleServiceError } from 'server/middleware/errorHandler';
 
 // ── POST /api/mastermind/attachments ───────────────────────────────────────────────
 export async function uploadAttachmentController(req: Request, res: Response): Promise<void> {
