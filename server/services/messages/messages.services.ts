@@ -59,27 +59,36 @@ function checkPostRateLimit(userId: string): void {
     sendTimestamps.set(userId, timestamps);
 }
 
-const DATA_ID_RE = /data-id="([^"]+)"/g;
+const SPAN_TAG_RE = /<span\b[^>]*>/g;
+const DATA_ID_ATTR_RE = /data-id="([^"]+)"/;
+
+// Only user-mention chips (data-type="mention") drive notifications. Vendor chips
+// (data-type="vendorMention") share the "@" trigger and the data-id="<uuid>" shape but are
+// display-only, so they must be excluded here — otherwise a vendor UUID would be processed as
+// a phantom user mention.
+function userMentionSpans(html: string): string[] {
+    return (html.match(SPAN_TAG_RE) ?? []).filter((span) =>
+        span.includes('data-type="mention"'),
+    );
+}
 
 // Extracts real user IDs from sanitized message HTML. Broadcast sentinel IDs
 // (@here, @channel) are skipped — they expand at notification time (Part 8).
 function parseMentionedUserIds(html: string): string[] {
     const ids = new Set<string>();
-    let match;
-    DATA_ID_RE.lastIndex = 0;
-    while ((match = DATA_ID_RE.exec(html)) !== null) {
-        if (isUuid(match[1])) ids.add(match[1]);
+    for (const span of userMentionSpans(html)) {
+        const match = DATA_ID_ATTR_RE.exec(span);
+        if (match && isUuid(match[1])) ids.add(match[1]);
     }
     return Array.from(ids);
 }
 
 // Returns true if the HTML contains any broadcast-mention sentinel (@here / @channel).
-// Sentinels are non-UUID data-id values written by the TipTap mention node.
+// Sentinels are non-UUID data-id values written by the TipTap user-mention node.
 function hasBroadcastMention(html: string): boolean {
-    DATA_ID_RE.lastIndex = 0;
-    let match;
-    while ((match = DATA_ID_RE.exec(html)) !== null) {
-        if (!isUuid(match[1])) return true;
+    for (const span of userMentionSpans(html)) {
+        const match = DATA_ID_ATTR_RE.exec(span);
+        if (match && !isUuid(match[1])) return true;
     }
     return false;
 }

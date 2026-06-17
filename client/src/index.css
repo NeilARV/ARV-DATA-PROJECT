@@ -434,6 +434,19 @@ select.font-size-select option {
     background: hsl(38 92% 50% / 0.12);
 }
 
+/* Vendor mentions use violet to distinguish them from users (primary) and @channel (amber).
+   Selected by data-type and scoped to the Mastermind composer/message containers so they win
+   the equal-specificity tie against the Vendors-app `[data-type='vendorMention']` rules above. */
+.mastermind-composer-editor span[data-type='vendorMention'],
+.mastermind-message span[data-type='vendorMention'] {
+    color: hsl(258 90% 74%);
+    background: hsl(258 90% 74% / 0.15);
+    border-radius: 3px;
+    padding: 0 3px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
 /* Clickable links in rendered Mastermind messages */
 .mastermind-message a {
     color: hsl(var(--primary));

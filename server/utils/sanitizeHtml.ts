@@ -37,9 +37,10 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
         // TipTap mention nodes render as <span data-type="mention" data-id="…">.
         span: ['data-type', 'data-id', 'data-label'],
     },
-    // Restrict span classes to the mention marker so stored content can't hook arbitrary CSS.
+    // Restrict span classes to the mention markers so stored content can't hook arbitrary CSS.
+    // `mention` = user/@channel chips; `mention-vendor` = vendor chips (data-type="vendorMention").
     allowedClasses: {
-        span: ['mention'],
+        span: ['mention', 'mention-vendor'],
     },
     allowedSchemes: ['http', 'https', 'mailto'],
     // Force safe link behavior regardless of what the client sent.

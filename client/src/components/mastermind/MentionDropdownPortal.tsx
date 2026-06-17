@@ -24,10 +24,16 @@ export function MentionDropdownPortal({ dropdown }: MentionDropdownPortalProps) 
                 Mention someone
             </div>
             {dropdown.items.map((item, i) => {
-                const isBroadcast = item.id === '@channel';
+                const isBroadcast = item.kind === 'broadcast';
+                const isVendor = item.kind === 'vendor';
+                const atColor = isBroadcast
+                    ? 'text-amber-500'
+                    : isVendor
+                      ? 'text-violet-400'
+                      : 'text-primary';
                 return (
                     <button
-                        key={item.id}
+                        key={`${item.kind}-${item.id}`}
                         type="button"
                         className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors ${
                             i === dropdown.selectedIndex ? 'bg-accent' : 'hover:bg-accent'
@@ -37,17 +43,18 @@ export function MentionDropdownPortal({ dropdown }: MentionDropdownPortalProps) 
                             dropdown.command(item);
                         }}
                     >
-                        <span
-                            className={`text-xs font-semibold ${
-                                isBroadcast ? 'text-amber-500' : 'text-primary'
-                            }`}
-                        >
-                            @
+                        <span className={`text-xs font-semibold ${atColor}`}>@</span>
+                        <span className={isBroadcast ? 'font-medium' : 'truncate'}>
+                            {item.label}
                         </span>
-                        <span className={isBroadcast ? 'font-medium' : ''}>{item.label}</span>
                         {isBroadcast && (
                             <span className="ml-auto text-xs text-muted-foreground">
                                 all members
+                            </span>
+                        )}
+                        {isVendor && (
+                            <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">
+                                vendor
                             </span>
                         )}
                     </button>

@@ -9,8 +9,9 @@ import { mergeAttributes } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { fetchVendors } from '@/api/vendors.api';
 
-export type MentionItem = { id: string; label: string };
+export type MentionItem = { id: string; label: string; kind: 'broadcast' | 'user' | 'vendor' };
 
 export type MentionDropdown = {
     items: MentionItem[];
@@ -28,7 +29,7 @@ type UseMastermindEditorOptions = {
 };
 
 // Shown first when the user types "@", before any real users.
-const BROADCAST_ITEMS: MentionItem[] = [{ id: '@channel', label: 'channel' }];
+const BROADCAST_ITEMS: MentionItem[] = [{ id: '@channel', label: 'channel', kind: 'broadcast' }];
 
 export function useMastermindEditor({
     channelId,
@@ -112,8 +113,27 @@ export function useMastermindEditor({
         allUsersRef.current = (membersData?.users ?? []).map((u) => ({
             id: u.id,
             label: `${u.firstName} ${u.lastName}`,
+            kind: 'user' as const,
         }));
     }, [membersData]);
+
+    // ── Vendor query (mention candidates) ────────────────────────────────────
+    // Vendors are mentionable under the same "@" as users. The list is a public read,
+    // shared with the Vendors app, and cached briefly so reopening the composer is instant.
+    const { data: vendorsData } = useQuery({
+        queryKey: ['vendors'],
+        queryFn: () => fetchVendors(),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const allVendorsRef = useRef<MentionItem[]>([]);
+    useEffect(() => {
+        allVendorsRef.current = (vendorsData ?? []).map((v) => ({
+            id: v.id,
+            label: v.name,
+            kind: 'vendor' as const,
+        }));
+    }, [vendorsData]);
 
     // ── UserMention extension ────────────────────────────────────────────────
     const UserMention = useMemo(
@@ -145,6 +165,9 @@ export function useMastermindEditor({
                         suggestion: {
                             pluginKey: new PluginKey('userMentionSuggestion'),
                             char: '@',
+                            // A single "@" suggestion lists broadcasts, then channel members, then
+                            // vendors. Vendors share the trigger but insert a distinct node type
+                            // (see `command` below) because their IDs are UUIDs like users'.
                             items: ({ query }: { query: string }) => {
                                 const q = query.toLowerCase();
                                 const broadcasts = BROADCAST_ITEMS.filter(
@@ -152,8 +175,29 @@ export function useMastermindEditor({
                                 );
                                 const realUsers = allUsersRef.current
                                     .filter((i) => i.label.toLowerCase().includes(q))
-                                    .slice(0, 8);
-                                return [...broadcasts, ...realUsers].slice(0, 10);
+                                    .slice(0, 6);
+                                const vendors = allVendorsRef.current
+                                    .filter((i) => i.label.toLowerCase().includes(q))
+                                    .slice(0, 6);
+                                return [...broadcasts, ...realUsers, ...vendors].slice(0, 12);
+                            },
+                            // Insert a vendorMention node for vendor items and a userMention node
+                            // otherwise. Mirrors TipTap's default mention command (swallow trailing
+                            // space, insert node + space, collapse cursor) but picks the node type.
+                            command: ({ editor, range, props }: any) => {
+                                const nodeType =
+                                    props.kind === 'vendor' ? 'vendorMention' : 'userMention';
+                                const nodeAfter = editor.view.state.selection.$to.nodeAfter;
+                                if (nodeAfter?.text?.startsWith(' ')) range.to += 1;
+                                editor
+                                    .chain()
+                                    .focus()
+                                    .insertContentAt(range, [
+                                        { type: nodeType, attrs: { id: props.id, label: props.label } },
+                                        { type: 'text', text: ' ' },
+                                    ])
+                                    .run();
+                                window.getSelection()?.collapseToEnd();
                             },
                             render: () => ({
                                 onStart: (props: any) => {
@@ -162,7 +206,11 @@ export function useMastermindEditor({
                                     openMentionRef.current({
                                         items: props.items,
                                         command: (item: MentionItem) =>
-                                            props.command({ id: item.id, label: item.label }),
+                                            props.command({
+                                                id: item.id,
+                                                label: item.label,
+                                                kind: item.kind,
+                                            }),
                                         rect,
                                         selectedIndex: 0,
                                     });
@@ -174,7 +222,11 @@ export function useMastermindEditor({
                                         props.items,
                                         rect,
                                         (item: MentionItem) =>
-                                            props.command({ id: item.id, label: item.label }),
+                                            props.command({
+                                                id: item.id,
+                                                label: item.label,
+                                                kind: item.kind,
+                                            }),
                                     );
                                 },
                                 onKeyDown: ({ event }: { event: KeyboardEvent }) => {
@@ -198,6 +250,40 @@ export function useMastermindEditor({
         [],
     ); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // ── VendorMention node ───────────────────────────────────────────────────
+    // Render/parse only: it contributes NO suggestion plugin (the single userMention
+    // suggestion above drives insertion of both node types), so it never creates a
+    // competing "@" trigger. parseHTML matches the stored chip so it survives an edit.
+    const VendorMention = useMemo(
+        () =>
+            Mention.extend({
+                name: 'vendorMention',
+                addProseMirrorPlugins(): any {
+                    return [];
+                },
+                parseHTML(): any {
+                    return [{ tag: 'span[data-type="vendorMention"]' }];
+                },
+                addOptions(): any {
+                    return {
+                        ...this.parent?.(),
+                        HTMLAttributes: { class: 'mention-vendor' },
+                        renderHTML: ({ node }: { options: any; node: any }) => [
+                            'span',
+                            mergeAttributes(
+                                { 'data-type': 'vendorMention', class: 'mention-vendor' },
+                                { 'data-id': node.attrs.id, 'data-label': node.attrs.label },
+                            ),
+                            `@${node.attrs.label ?? node.attrs.id}`,
+                        ],
+                        renderText: ({ node }: { options: any; node: any }) =>
+                            `@${node.attrs.label ?? node.attrs.id}`,
+                    };
+                },
+            }),
+        [],
+    ); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Editor ───────────────────────────────────────────────────────────────
     const editor = useEditor({
         content: initialContent,
@@ -213,6 +299,7 @@ export function useMastermindEditor({
             }),
             Placeholder.configure({ placeholder }),
             UserMention,
+            VendorMention,
         ],
         editorProps: {
             attributes: { class: 'mastermind-composer-editor focus:outline-none' },
