@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 
 import { MessageActions } from '@/components/mastermind/MessageActions';
-import { MessageAttachments } from '@/components/mastermind/MessageAttachments';
-import { MessageLinkPreview } from '@/components/mastermind/MessageLinkPreview';
+import { MessageMedia } from '@/components/mastermind/MessageMedia';
 import { MessageReactions } from '@/components/mastermind/MessageReactions';
 import {
     InlineMessageEditor,
@@ -174,8 +173,10 @@ export function MessageItem({
                                 <span className="text-xs text-muted-foreground ml-1">(edited)</span>
                             )}
                         </div>
-                        <MessageAttachments attachments={message.attachments} />
-                        <MessageLinkPreview previews={message.linkPreviews} />
+                        <MessageMedia
+                            attachments={message.attachments}
+                            previews={message.linkPreviews}
+                        />
                         <MessageReactions
                             reactions={message.reactions}
                             onToggle={handleToggleReaction}

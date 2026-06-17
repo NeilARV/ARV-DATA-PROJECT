@@ -23,3 +23,4 @@
 - [Global error handler migration](project_global_error_handler_migration.md) — Phase 0 done (utils only); validation body is { message, errors:zod.error.errors }; MulterError -> 500 until attachments migration adds a branch
 - [Link-token foundation Phase 0](project_link_token_foundation_phase0.md) — auth_tokens single-use system; consumeToken must stay one atomic UPDATE; rateLimiter factory not wired in yet
 - [Link email HTML builder unescaped](project_link_token_html_builder_unescaped.md) — sendLinkEmail buildHtml interpolates fields/url raw; all future verify/reset/invite emails inherit injection risk
+- [MessageMedia section keys](project_message_media_section_keys.md) — MessageMedia sections[] outer wrapper keyed by index; can leak per-preview useState when unfurl/reconcile shifts positions — prefer stable keys
