@@ -9,16 +9,12 @@ import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
 import { ChannelPinBar } from '@/components/mastermind/ChannelPinBar';
 import { MessageList } from '@/components/mastermind/MessageList';
 import { MessageComposer } from '@/components/mastermind/MessageComposer';
+import { DataProviders } from '@/components/DataProviders';
+import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 
-import { MapProvider } from '@/hooks/useMap';
-import { FiltersProvider } from '@/hooks/useFilters';
-import { CompaniesProvider } from '@/hooks/useCompanies';
-import { PropertiesProvider } from '@/hooks/useProperties';
-import { PropertyProvider } from '@/hooks/useProperty';
 import { useAuth } from '@/hooks/use-auth';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
 
-import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 import { apiRequest } from '@/lib/queryClient';
 
 import type { ChannelSummary } from '@/types/mastermind';
@@ -315,16 +311,8 @@ function MastermindContent() {
 
 export default function Mastermind() {
     return (
-        <MapProvider>
-            <FiltersProvider>
-                <CompaniesProvider>
-                    <PropertiesProvider>
-                        <PropertyProvider>
-                            <MastermindContent />
-                        </PropertyProvider>
-                    </PropertiesProvider>
-                </CompaniesProvider>
-            </FiltersProvider>
-        </MapProvider>
+        <DataProviders>
+            <MastermindContent />
+        </DataProviders>
     );
 }

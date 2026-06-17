@@ -1,9 +1,5 @@
 import Header from '@/components/Header';
-import { MapProvider } from '@/hooks/useMap';
-import { FiltersProvider } from '@/hooks/useFilters';
-import { CompaniesProvider } from '@/hooks/useCompanies';
-import { PropertiesProvider } from '@/hooks/useProperties';
-import { PropertyProvider } from '@/hooks/useProperty';
+import { DataProviders } from '@/components/DataProviders';
 
 function AnalyticsContent() {
     return (
@@ -18,16 +14,8 @@ function AnalyticsContent() {
 
 export default function Analytics() {
     return (
-        <MapProvider>
-            <FiltersProvider>
-                <CompaniesProvider>
-                    <PropertiesProvider>
-                        <PropertyProvider>
-                            <AnalyticsContent />
-                        </PropertyProvider>
-                    </PropertiesProvider>
-                </CompaniesProvider>
-            </FiltersProvider>
-        </MapProvider>
+        <DataProviders>
+            <AnalyticsContent />
+        </DataProviders>
     );
 }

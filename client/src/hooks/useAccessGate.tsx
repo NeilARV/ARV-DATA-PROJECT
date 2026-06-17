@@ -1,8 +1,13 @@
 import { useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'wouter';
+
 import AppDialog from '@/components/modals/Dialog';
 import ContactContent from '@/components/modals/Contact';
+
+import { useAuth } from '@/hooks/use-auth';
+import { useDialogs } from '@/hooks/useDialogs';
+import { useToast } from '@/hooks/use-toast';
+
 import type { ContactSubject } from '@database/validation/contactMessages.validation';
 
 type RequireSubOptions = {
@@ -11,9 +16,15 @@ type RequireSubOptions = {
     message?: string;
 };
 
-export function useRequireSubscription() {
+/**
+ * Client-side access gating. `requireAuth` wraps an action behind login (opening the auth-gate
+ * dialog when signed out); `requireSubscription` wraps it behind a subscription tier / team role
+ * (surfacing the contact dialog when blocked). Render `ContactDialog` once where the hook is used.
+ */
+export function useAccessGate() {
     const {
         isAuthenticated,
+        isLoading,
         isAdminStatusLoading,
         role,
         isBasic,
@@ -22,12 +33,29 @@ export function useRequireSubscription() {
         subscriptionTier,
         user,
     } = useAuth();
+    const { openDialog } = useDialogs();
     const { toast } = useToast();
+    const [location] = useLocation();
+
     const [showContact, setShowContact] = useState(false);
     const [contactSubject, setContactSubject] = useState<ContactSubject>('Request Access');
     const [contactMessage, setContactMessage] = useState(
         'I would like to request more access to the ARV data application',
     );
+
+    const requireAuth = (action: () => void) => {
+        // Allow through while auth is loading to avoid blocking during hydration
+        if (isLoading) return;
+        if (!isAuthenticated) {
+            toast({
+                title: 'Sign in to continue',
+                description: 'Log in or create an account to access this feature.',
+            });
+            openDialog({ type: 'authGate', redirect: location });
+            return;
+        }
+        action();
+    };
 
     const block = (
         subject: ContactSubject,
@@ -109,5 +137,5 @@ export function useRequireSubscription() {
         </AppDialog>
     );
 
-    return { requireSubscription, ContactDialog, showContact, setShowContact };
+    return { requireAuth, requireSubscription, ContactDialog, showContact, setShowContact };
 }

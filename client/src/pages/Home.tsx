@@ -14,13 +14,12 @@ import { InfoDialog } from '@/components/data/InfoDialog';
 import { LeaderboardDialog } from '@/components/data/LeaderboardDialog';
 import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 import { useAuth } from '@/hooks/use-auth';
-import { FiltersProvider, useFilters } from '@/hooks/useFilters';
+import { useFilters } from '@/hooks/useFilters';
 import { useView } from '@/hooks/useView';
-import { useDataNav } from '@/hooks/useDataNav';
-import { PropertiesProvider } from '@/hooks/useProperties';
-import { CompaniesProvider, useCompanies } from '@/hooks/useCompanies';
-import { MapProvider, useGeoMap } from '@/hooks/useMap';
-import { PropertyProvider, useProperty } from '@/hooks/useProperty';
+import { useDataNav } from '@/hooks/useNav';
+import { useCompanies } from '@/hooks/useCompanies';
+import { useProperty } from '@/hooks/useProperty';
+import { DataProviders } from '@/components/DataProviders';
 
 function HomeContent() {
     const { filters, setFilters } = useFilters();
@@ -194,17 +193,9 @@ export default function Home() {
     const defaultCounty = urlCounty ?? user?.county ?? 'San Diego';
 
     return (
-        <MapProvider>
-            <FiltersProvider defaultOverrides={{ county: defaultCounty }}>
-                <CompaniesProvider>
-                    <PropertiesProvider>
-                        <PropertyProvider>
-                            <HomeContent />
-                        </PropertyProvider>
-                    </PropertiesProvider>
-                </CompaniesProvider>
-            </FiltersProvider>
-        </MapProvider>
+        <DataProviders filtersDefaultOverrides={{ county: defaultCounty }}>
+            <HomeContent />
+        </DataProviders>
     );
 }
 

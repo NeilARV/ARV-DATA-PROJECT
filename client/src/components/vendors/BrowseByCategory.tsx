@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import type { Category, Vendor } from '@/types/vendors';
-import type { VendorNavView } from '@/hooks/useVendorNav';
+import type { VendorNavView } from '@/hooks/useNav';
 
 type BrowseByCategoryProps = {
     view: VendorNavView;

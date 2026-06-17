@@ -58,9 +58,8 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-import { useRequireSubscription } from '@/hooks/useRequireSubscription';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useDataNav } from '@/hooks/useDataNav';
+import { useAccessGate } from '@/hooks/useAccessGate';
+import { useDataNav } from '@/hooks/useNav';
 
 // Profile data for known companies
 const companyProfiles: Record<
@@ -106,8 +105,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         companyId: string;
         companyName: string;
     } | null>(null);
-    const { requireSubscription, ContactDialog } = useRequireSubscription();
-    const { requireAuth } = useRequireAuth();
+    const { requireAuth, requireSubscription, ContactDialog } = useAccessGate();
     const { view, setView } = useView();
     const nav = useDataNav();
     const {

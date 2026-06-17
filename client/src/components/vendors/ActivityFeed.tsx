@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { PostCard } from './PostCard';
 import { PostComposer } from './PostComposer';
 import { fetchPosts } from '@/api/vendors.api';
-import type { PostFilters } from '@/hooks/useVendorNav';
+import type { PostFilters } from '@/hooks/useNav';
 import { useAuth } from '@/hooks/use-auth';
 import { LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';

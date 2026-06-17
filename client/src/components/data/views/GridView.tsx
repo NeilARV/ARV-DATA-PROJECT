@@ -13,7 +13,7 @@ import { useFilters } from '@/hooks/useFilters';
 import { useProperties } from '@/hooks/useProperties';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useAccessGate } from '@/hooks/useAccessGate';
 import { useMemo } from 'react';
 
 export default function GridView({ sideBarView }: GridViewProps) {
@@ -30,7 +30,7 @@ export default function GridView({ sideBarView }: GridViewProps) {
     } = useProperties();
     const { fetchProperty, setProperty } = useProperty();
     const { company, setCompany } = useCompanies();
-    const { requireAuth } = useRequireAuth();
+    const { requireAuth } = useAccessGate();
 
     // Show loader when initially loading and no properties yet
     const showInitialLoader = isLoading && properties.length === 0;

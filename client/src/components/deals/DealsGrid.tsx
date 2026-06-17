@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import DealCard from '@/components/deals/DealCard2';
 import DealsColumn from '@/components/deals/DealsColumn';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useAccessGate } from '@/hooks/useAccessGate';
 
 type DealsGridProps = {
     newDeals: Deal[];
@@ -45,7 +45,7 @@ export default function DealsGrid({
     onTopBuyers,
 }: DealsGridProps) {
     const [mobileColumn, setMobileColumn] = useState<'new' | 'sold'>('new');
-    const { requireAuth } = useRequireAuth();
+    const { requireAuth } = useAccessGate();
 
     const totalDeals = newDeals.length + soldDeals.length;
 

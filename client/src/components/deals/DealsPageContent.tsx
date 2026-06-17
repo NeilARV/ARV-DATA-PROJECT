@@ -6,8 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { useRequireSubscription } from '@/hooks/useRequireSubscription';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useAccessGate } from '@/hooks/useAccessGate';
 import { formatAddress } from '@shared/utils/formatAddress';
 import DealsHeader from '@/components/deals/DealsHeader';
 import DealsGrid from '@/components/deals/DealsGrid';
@@ -18,7 +17,7 @@ import DeleteDealDialog from '@/components/deals/DeleteDealDialog';
 import RequestDealInfoDialog from '@/components/deals/RequestDealInfoDialog';
 import SendOfferDialog from '@/components/deals/SendOfferDialog';
 import DealOffersDialog from '@/components/deals/DealOffersDialog';
-import { useDealsNav } from '@/hooks/useDealsNav';
+import { useDealsNav } from '@/hooks/useNav';
 import type {
     RequestDealInfoFormValues,
     SubmitOfferFormValues,
@@ -39,8 +38,7 @@ export default function DealsPageContent() {
 
     const { toast } = useToast();
     const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
-    const { requireSubscription, ContactDialog } = useRequireSubscription();
-    const { requireAuth } = useRequireAuth();
+    const { requireAuth, requireSubscription, ContactDialog } = useAccessGate();
     const { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId } = useDealsNav();
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;

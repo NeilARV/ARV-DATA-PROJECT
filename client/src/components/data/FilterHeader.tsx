@@ -28,7 +28,7 @@ import {
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
 import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
-import { useDataNav } from '@/hooks/useDataNav';
+import { useDataNav } from '@/hooks/useNav';
 import { useZipCounts } from '@/hooks/useZipCounts';
 import { useProperty } from '@/hooks/useProperty';
 import { useGeoMap } from '@/hooks/useMap';

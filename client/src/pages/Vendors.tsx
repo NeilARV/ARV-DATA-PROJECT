@@ -1,15 +1,11 @@
 import { useState } from 'react';
 import { Store } from 'lucide-react';
 import Header from '@/components/Header';
-import { MapProvider } from '@/hooks/useMap';
-import { FiltersProvider } from '@/hooks/useFilters';
-import { CompaniesProvider } from '@/hooks/useCompanies';
-import { PropertiesProvider } from '@/hooks/useProperties';
-import { PropertyProvider } from '@/hooks/useProperty';
+import { DataProviders } from '@/components/DataProviders';
 import { ActivityFeed } from '@/components/vendors/ActivityFeed';
 import { BrowseByCategory } from '@/components/vendors/BrowseByCategory';
 import { AppAccessGate } from '@/components/auth/AppAccessGate';
-import { useVendorNav } from '@/hooks/useVendorNav';
+import { useVendorNav } from '@/hooks/useNav';
 
 function VendorsContent() {
     const nav = useVendorNav();
@@ -80,16 +76,8 @@ function VendorsContent() {
 
 export default function Vendors() {
     return (
-        <MapProvider>
-            <FiltersProvider>
-                <CompaniesProvider>
-                    <PropertiesProvider>
-                        <PropertyProvider>
-                            <VendorsContent />
-                        </PropertyProvider>
-                    </PropertiesProvider>
-                </CompaniesProvider>
-            </FiltersProvider>
-        </MapProvider>
+        <DataProviders>
+            <VendorsContent />
+        </DataProviders>
     );
 }
