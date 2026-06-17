@@ -304,9 +304,15 @@ export function useMastermindEditor({
         editorProps: {
             attributes: { class: 'mastermind-composer-editor focus:outline-none' },
             handleKeyDown: (_view, event) => {
-                // Enter submits; Shift+Enter inserts a newline. (While the mention dropdown is
-                // open, its suggestion plugin handles Enter first and this never fires.)
+                // Enter submits; Shift+Enter inserts a newline.
+                //
+                // ProseMirror checks this direct `handleKeyDown` BEFORE any plugin's
+                // handleKeyDown (direct props first, then plugins). So while the mention
+                // dropdown is open we must bail out here and return false, letting the
+                // suggestion plugin own Enter to select the highlighted mention. Otherwise
+                // Enter would submit the message mid-mention.
                 if (event.key === 'Enter' && !event.shiftKey) {
+                    if (mentionRef.current) return false;
                     onSubmitRef.current?.();
                     return true;
                 }

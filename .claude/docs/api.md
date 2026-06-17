@@ -1632,10 +1632,13 @@ actual members.
 ```json
 {
   "users": [
-    { "id": "uuid", "firstName": "Jane", "lastName": "Doe" }
+    { "id": "uuid", "firstName": "Jane", "lastName": "Doe", "profileImageUrl": "https://..." }
   ]
 }
 ```
+
+`profileImageUrl` is `null` when the user has no avatar. It powers the avatar on the profile
+card shown when a `@user` mention chip is clicked in a rendered message.
 
 **Errors** `400` invalid channel id · `401` not authenticated · `403` no role and no subscription · `404` channel not found, or admin-only and caller is not admin/owner
 

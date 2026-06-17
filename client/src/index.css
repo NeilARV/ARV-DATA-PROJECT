@@ -447,6 +447,13 @@ select.font-size-select option {
     white-space: nowrap;
 }
 
+/* User and vendor chips in rendered messages open a profile card on click. @channel has no
+   card, so it keeps the default cursor. (Composer chips are not clickable.) */
+.mastermind-message .mention:not([data-id='@channel']),
+.mastermind-message span[data-type='vendorMention'] {
+    cursor: pointer;
+}
+
 /* Clickable links in rendered Mastermind messages */
 .mastermind-message a {
     color: hsl(var(--primary));

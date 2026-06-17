@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { MessageItem } from './MessageItem';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
 import { useAuth } from '@/hooks/use-auth';
+import { useMentionCard } from '@/hooks/use-mention-card';
 import { messagesQueryKey, mergeMessages } from '@/lib/mastermind-messages';
 
 import type { MastermindMessageWire } from '@shared/mastermind/events';
@@ -30,6 +31,7 @@ export function MessageList({ channelId, highlightMessageId, onHighlightDone }: 
     const { subscribeToChannel, unsubscribeFromChannel } = useMastermindSocket();
     const { user, isAdmin, isOwner } = useAuth();
     const canPin = isAdmin || isOwner;
+    const { onContainerClick, closeCard, cardNode } = useMentionCard(channelId);
     const bottomRef = useRef<HTMLDivElement>(null);
     const prevLengthRef = useRef(0);
     const onHighlightDoneRef = useRef(onHighlightDone);
@@ -94,7 +96,11 @@ export function MessageList({ channelId, highlightMessageId, onHighlightDone }: 
     }
 
     return (
-        <div className="flex-1 overflow-y-auto py-2 min-h-0">
+        <div
+            className="flex-1 overflow-y-auto py-2 min-h-0"
+            onClick={onContainerClick}
+            onScroll={closeCard}
+        >
             {messageList.map((message, i) => (
                 <MessageItem
                     key={message.id}
@@ -106,6 +112,7 @@ export function MessageList({ channelId, highlightMessageId, onHighlightDone }: 
                 />
             ))}
             <div ref={bottomRef} className="h-2" />
+            {cardNode}
         </div>
     );
 }

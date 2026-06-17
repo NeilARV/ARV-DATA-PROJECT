@@ -15,9 +15,9 @@ export function MentionDropdownPortal({ dropdown }: MentionDropdownPortalProps) 
             data-mention-dropdown="true"
             style={{
                 bottom: window.innerHeight - dropdown.rect.top + 6,
-                left: Math.max(8, Math.min(dropdown.rect.left, window.innerWidth - 252)),
-                minWidth: 200,
-                maxWidth: 280,
+                left: Math.max(8, Math.min(dropdown.rect.left, window.innerWidth - 368)),
+                minWidth: 260,
+                maxWidth: 360,
             }}
         >
             <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
@@ -26,6 +26,7 @@ export function MentionDropdownPortal({ dropdown }: MentionDropdownPortalProps) 
             {dropdown.items.map((item, i) => {
                 const isBroadcast = item.kind === 'broadcast';
                 const isVendor = item.kind === 'vendor';
+                const isUser = item.kind === 'user';
                 const atColor = isBroadcast
                     ? 'text-amber-500'
                     : isVendor
@@ -55,6 +56,11 @@ export function MentionDropdownPortal({ dropdown }: MentionDropdownPortalProps) 
                         {isVendor && (
                             <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">
                                 vendor
+                            </span>
+                        )}
+                        {isUser && (
+                            <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">
+                                user
                             </span>
                         )}
                     </button>

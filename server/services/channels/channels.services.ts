@@ -287,7 +287,12 @@ export async function archiveChannel(id: string): Promise<Channel> {
 
 const MASTERMIND_TIERS = ['basic', 'pro', 'premium'] as const;
 
-export type MentionCandidate = { id: string; firstName: string; lastName: string };
+export type MentionCandidate = {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profileImageUrl: string | null;
+};
 
 // Every Mastermind-eligible user id (any qualifying tier OR any bypass role).
 // Shared by mention autocomplete and @channel notification fan-out.
@@ -318,7 +323,12 @@ export async function listChannelMentionCandidates(
     if (eligibleIds.length === 0) return [];
 
     return db
-        .select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+        .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            profileImageUrl: users.profileImageUrl,
+        })
         .from(users)
         .where(inArray(users.id, eligibleIds))
         .orderBy(asc(users.firstName), asc(users.lastName));
