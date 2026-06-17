@@ -43,6 +43,7 @@ The following environment variables are required or used by the application. **N
 | `DEFAULT_CONTACT_RECIPIENT` | Default recipient address for contact/notification emails |
 | `DEFAULT_FROM_EMAIL` | Default sender address for outgoing emails |
 | `GOOGLE_API_KEY` | Google Maps / Geocoding API key |
+| `MICROLINK_API_KEY` | Microlink link-preview API key (optional — the free public endpoint works without it; a key raises rate/concurrency limits) |
 | `SUPABASE_URL` | Supabase project URL — required for all Storage uploads (posts, vendors, users, Mastermind) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key — server-side Storage auth (required for uploads) |
 | `SUPABASE_STORAGE_BUCKET` | Bucket for post images (default `post-images-dev`) |

@@ -178,6 +178,22 @@ export const pinnedMessages = pgTable(
     (t) => [unique('uq_pinned_messages_channel').on(t.channelId)], // one pin per channel
 );
 
+// ─── Link previews (URL → metadata cache) ─────────────────────────────────────
+
+// A global, write-once cache of unfurled link metadata keyed by normalized URL. Messages
+// reference previews implicitly through the URLs in their HTML — there is no per-message join,
+// so editing a message to add/remove a link needs no reconciliation here.
+export const linkPreviews = pgTable('link_previews', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    url: text('url').notNull().unique(), // normalized: lowercase host, no #fragment
+    title: text('title'),
+    description: text('description'),
+    image: text('image'), // og:image URL (remote)
+    logo: text('logo'), // favicon URL (remote)
+    publisher: text('publisher'), // site name, e.g. "YouTube"
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Notifications (the bell feed) ────────────────────────────────────────────
 
 export const notifications = pgTable(

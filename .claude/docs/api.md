@@ -1607,13 +1607,18 @@ Soft-deleted messages are still returned, as blank tombstones (`isDeleted: true`
   ],
   "reactions": [
     { "emoji": "👍", "count": 3, "reactedByMe": true }
+  ],
+  "linkPreviews": [
+    { "url": "https://youtube.com/watch?v=…", "title": "…", "description": "…", "image": "url|null", "logo": "url|null", "publisher": "YouTube" }
   ]
 }
 ```
 
-`attachments` and `reactions` are hydrated on every read (history + backfill); a tombstone
-carries empty arrays for both. `reactedByMe` is per-viewer. Reaction emoji come from the fixed
-set `👍 👎 😀 😢 😂 ✅`.
+`attachments`, `reactions`, and `linkPreviews` are hydrated on every read (history + backfill); a
+tombstone carries empty arrays for all three. `reactedByMe` is per-viewer. Reaction emoji come from
+the fixed set `👍 👎 😀 😢 😂 ✅`. `linkPreviews` holds up to 2 cards, one per unique `<a href>` in the
+message HTML, sourced from the `link_previews` cache; it is empty until the background unfurl
+populates the cache, after which a follow-up `message.updated` carries the filled-in previews.
 
 ---
 

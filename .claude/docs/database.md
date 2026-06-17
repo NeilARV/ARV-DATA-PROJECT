@@ -1138,6 +1138,26 @@ One pinned message per channel.
 
 ---
 
+### `link_previews`
+Global URL→metadata cache for message link unfurling. Write-once, kept forever. Not joined to
+messages — a message references previews implicitly through the `<a href>` anchors in its sanitized
+HTML, matched against this table by normalized URL at hydration time.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `url` | `text` | NOT NULL, UNIQUE — normalized (lowercase host, no `#fragment`) |
+| `title` | `text` | nullable |
+| `description` | `text` | nullable |
+| `image` | `text` | nullable — og:image URL (remote) |
+| `logo` | `text` | nullable — favicon URL (remote) |
+| `publisher` | `text` | nullable — site name |
+| `fetched_at` | `timestamp with time zone` | NOT NULL, default now |
+
+**Unique:** `(url)` — both enforces write-once and indexes the cache-first lookup / batch hydration.
+
+---
+
 ### `notifications`
 The in-app bell feed. A row is created when a user is mentioned (or covered by `@here`/`@channel`),
 or when an investor submits an offer on a deal (`deal_bid` → the deal's poster). Mention rows use

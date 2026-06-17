@@ -37,6 +37,17 @@ export interface MessageAttachmentWire {
     fileSizeBytes: number;
 }
 
+// Unfurled metadata for a link in a message. Sourced from the link_previews cache and matched
+// to the message by URL at hydration time; absent until the background unfurl populates the cache.
+export interface LinkPreviewWire {
+    url: string;
+    title: string | null;
+    description: string | null;
+    image: string | null;
+    logo: string | null;
+    publisher: string | null;
+}
+
 // Aggregated reaction state for a single emoji on a message. `reactedByMe` is per-viewer,
 // which is why reaction events carry a per-user delta rather than this summary (see below).
 export interface MessageReactionSummary {
@@ -60,6 +71,7 @@ export interface MastermindMessageWire {
     senderProfileImageUrl: string | null;
     attachments: MessageAttachmentWire[];
     reactions: MessageReactionSummary[];
+    linkPreviews: LinkPreviewWire[];
     // Present on message.created events; omitted on message.updated / message.deleted.
     mentionedUserIds?: string[];
     mentionedEveryone?: boolean;

@@ -14,6 +14,11 @@ import { isUuid } from 'server/utils/uuid';
 import { clampLimit } from 'server/utils/clampLimit';
 import { mastermindPublicUrlPrefix } from 'server/lib/supabase';
 import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
+import {
+    extractPreviewUrls,
+    getPreviewsForUrls,
+    ensurePreviewsFetched,
+} from 'server/services/messages/linkPreviews.services';
 import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
 import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
 import { ServiceError } from 'server/lib/error';
@@ -21,6 +26,7 @@ import type {
     MessageAttachmentWire,
     MessageReactionSummary,
     MastermindMessageWire,
+    LinkPreviewWire,
 } from '@shared/mastermind/events';
 import type { MessageAttachmentInput } from '@database/validation/mastermind.validation';
 
@@ -131,6 +137,7 @@ type EnrichedMessageRow = {
 export type EnrichedMessage = EnrichedMessageRow & {
     attachments: MessageAttachmentWire[];
     reactions: MessageReactionSummary[];
+    linkPreviews: LinkPreviewWire[];
 };
 
 // Serializes an EnrichedMessage to the wire shape (Date → ISO string). REST/WS responses get
@@ -153,10 +160,24 @@ async function hydrateMessages(
     rows: EnrichedMessageRow[],
     viewerId?: string,
 ): Promise<EnrichedMessage[]> {
-    const liveIds = rows.filter((r) => !r.isDeleted).map((r) => r.id);
+    const liveRows = rows.filter((r) => !r.isDeleted);
+    const liveIds = liveRows.map((r) => r.id);
 
     const attachmentsByMessage = new Map<string, MessageAttachmentWire[]>();
     const reactionsByMessage = new Map<string, Map<string, { count: number; mine: boolean }>>();
+
+    // Link previews: map each message to the URLs in its HTML, then resolve all of them against
+    // the cache in a single batched query (no per-message lookup).
+    const urlsByMessage = new Map<string, string[]>();
+    const allUrls = new Set<string>();
+    for (const row of liveRows) {
+        const urls = extractPreviewUrls(row.content);
+        if (urls.length > 0) {
+            urlsByMessage.set(row.id, urls);
+            urls.forEach((url) => allUrls.add(url));
+        }
+    }
+    const previewsByUrl = await getPreviewsForUrls(Array.from(allUrls));
 
     if (liveIds.length > 0) {
         const attachmentRows = await db
@@ -222,8 +243,11 @@ async function hydrateMessages(
 
     return rows.map((row) => {
         if (row.isDeleted) {
-            return { ...row, content: '', attachments: [], reactions: [] };
+            return { ...row, content: '', attachments: [], reactions: [], linkPreviews: [] };
         }
+        const linkPreviews = (urlsByMessage.get(row.id) ?? [])
+            .map((url) => previewsByUrl.get(url))
+            .filter((preview): preview is LinkPreviewWire => preview !== undefined);
         const byEmoji = reactionsByMessage.get(row.id);
         const reactions: MessageReactionSummary[] = byEmoji
             ? Array.from(byEmoji, ([emoji, { count, mine }]) => ({
@@ -239,6 +263,7 @@ async function hydrateMessages(
             ...row,
             attachments: attachmentsByMessage.get(row.id) ?? [],
             reactions,
+            linkPreviews,
         };
     });
 }
@@ -610,6 +635,29 @@ async function reconcileAttachments(
             })),
         );
     }
+}
+
+// Background unfurl: ensures every link in a message is cached, then returns the re-hydrated
+// message ONLY if a new preview was actually fetched (so the caller broadcasts a follow-up update
+// just once, not on every message that merely repeats an already-cached link). Returns null when
+// there is nothing new to show — including for deleted messages.
+export async function refreshMessageLinkPreviews(
+    messageId: string,
+): Promise<EnrichedMessage | null> {
+    const [row] = await db
+        .select({ content: messages.content, isDeleted: messages.isDeleted })
+        .from(messages)
+        .where(eq(messages.id, messageId))
+        .limit(1);
+    if (!row || row.isDeleted) return null;
+
+    const urls = extractPreviewUrls(row.content);
+    if (urls.length === 0) return null;
+
+    const fetchedAny = await ensurePreviewsFetched(urls);
+    if (!fetchedAny) return null;
+
+    return getEnrichedMessageById(messageId);
 }
 
 // Best-effort removal of a message's files from Supabase Storage. Storage failures are

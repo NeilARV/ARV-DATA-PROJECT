@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 
 import { MessageActions } from '@/components/mastermind/MessageActions';
 import { MessageAttachments } from '@/components/mastermind/MessageAttachments';
+import { MessageLinkPreview } from '@/components/mastermind/MessageLinkPreview';
 import { MessageReactions } from '@/components/mastermind/MessageReactions';
 import {
     InlineMessageEditor,
@@ -174,6 +175,7 @@ export function MessageItem({
                             )}
                         </div>
                         <MessageAttachments attachments={message.attachments} />
+                        <MessageLinkPreview previews={message.linkPreviews} />
                         <MessageReactions
                             reactions={message.reactions}
                             onToggle={handleToggleReaction}

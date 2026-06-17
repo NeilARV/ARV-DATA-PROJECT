@@ -341,6 +341,24 @@ reaction/attachment state survives a `message.updated`. Soft-delete also drops t
 attachment storage objects, reaction rows, and pin. The per-message hover toolbar (react · pin ·
 edit · delete) was added here (edit/delete connect the Part 3 routes that previously had no UI).
 
+### Part 10 — Link previews (unfurling) | Completed
+- **What:** any `<a href>` in a message's sanitized HTML gets a Slack-style preview card (image +
+  publisher/favicon + title + description), capped at **2 per message** (`MAX_LINK_PREVIEWS_PER_MESSAGE`).
+- **Provider:** **Microlink** metadata API (`server/lib/microlink.ts` — the only place the provider
+  is named; swapping is a one-file change). Optional `MICROLINK_API_KEY` env var (free public
+  endpoint works without it). Microlink fetches the target URL on its infra, so server-side SSRF is
+  out of scope; `image`/`logo` URLs are still scheme-validated before storage.
+- **Cache:** `link_previews` table, keyed by **normalized** URL (lowercase host, no #fragment, query
+  kept), write-once and kept forever. `getOrFetchPreview` is **cache-first** — it hits Microlink only
+  on a never-before-seen URL, so a request is spent per unique URL, never per user or per view. The
+  rare simultaneous-first-paste race is absorbed by `UNIQUE(url)` + `onConflictDoNothing`.
+- **Flow:** send is never blocked — `createMessage`/`updateMessage` broadcast immediately, then a
+  fire-and-forget `unfurlMessageLinks` (controller) ensures the previews are cached and re-broadcasts
+  `message.updated` **only if** a new preview was actually fetched. `hydrateMessages` attaches
+  previews to each message by matching its anchor URLs against the cache (one batched query).
+**Notes:** message wire now also carries `linkPreviews[]`. No per-message join table — edits add or
+drop previews implicitly via the message's anchors, so no reconciliation is needed.
+
 ---
 
 ## Phase 2 — Should Have
@@ -410,9 +428,9 @@ Out of scope for this product at any planned phase: **shared channels** (cross-o
 ## Database Schema
 
 Phase 1 uses `channels` (public only), `channel_members`, `messages`, `message_attachments`,
-`message_reactions`, `message_mentions`, `pinned_messages`, `notifications`. Phase 2+ adds the
-`dm`/`group_dm`/`private` channel types, `parent_message_id` threads, search index, and link
-unfurl cache. Follow `/database` conventions (Drizzle schema + Zod inserts + types).
+`message_reactions`, `message_mentions`, `pinned_messages`, `link_previews`, `notifications`.
+Phase 2+ adds the `dm`/`group_dm`/`private` channel types, `parent_message_id` threads, and the
+search index. Follow `/database` conventions (Drizzle schema + Zod inserts + types).
 
 ```
 channels
@@ -478,6 +496,18 @@ pinned_messages
 ├── channel_id (uuid, FK → channels.id)   ← UNIQUE(channel_id): one pin per channel
 ├── pinned_by (uuid, FK → users.id)
 └── pinned_at (timestamp)
+
+link_previews                             ← global URL→metadata cache, write-once, kept forever
+├── id (uuid, PK)
+├── url (text, UNIQUE)                    ← normalized: lowercase host, no #fragment
+├── title (text, nullable)
+├── description (text, nullable)
+├── image (text, nullable)               ← og:image URL (remote)
+├── logo (text, nullable)                ← favicon URL (remote)
+├── publisher (text, nullable)           ← site name, e.g. "YouTube"
+└── fetched_at (timestamp)
+    NOTE: no per-message FK — messages reference previews implicitly via <a href> anchors in
+    their sanitized HTML, so editing a message to add/remove a link needs no reconciliation.
 
 notifications
 ├── id (uuid, PK)

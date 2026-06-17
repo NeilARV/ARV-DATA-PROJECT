@@ -5,6 +5,8 @@ import {
     createMessage,
     updateMessage,
     softDeleteMessage,
+    refreshMessageLinkPreviews,
+    toMessageWire,
 } from 'server/services/messages/messages.services';
 import {
     createMessageSchema,
@@ -15,6 +17,23 @@ import { broadcastToChannel, broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { isUuid } from 'server/utils/uuid';
 import { handleServiceError } from 'server/middleware/errorHandler';
+
+// Unfurls a message's links in the background and, if a new preview was fetched, broadcasts a
+// follow-up update so the card appears without delaying the original send. Fire-and-forget:
+// failures are logged, never surfaced to the sender.
+async function unfurlMessageLinks(messageId: string): Promise<void> {
+    try {
+        const updated = await refreshMessageLinkPreviews(messageId);
+        if (updated) {
+            broadcastToChannel(updated.channelId, {
+                type: ServerToClient.MessageUpdated,
+                message: toMessageWire(updated),
+            });
+        }
+    } catch (err) {
+        console.error('Error unfurling message links:', err);
+    }
+}
 
 // ── GET /api/channels/:id/messages ───────────────────────────────────────────────
 export async function getChannelMessagesController(req: Request, res: Response): Promise<void> {
@@ -74,6 +93,7 @@ export async function createMessageController(req: Request, res: Response): Prom
             type: ServerToClient.MessageCreated,
             message: { ...message, mentionedUserIds, mentionedEveryone },
         });
+        void unfurlMessageLinks(message.id);
 
         // Notification fan-out is secondary to the send — never fail a delivered message.
         try {
@@ -122,6 +142,7 @@ export async function updateMessageController(req: Request, res: Response): Prom
             parsed.data.attachments,
         );
         broadcastToChannel(message.channelId, { type: ServerToClient.MessageUpdated, message });
+        void unfurlMessageLinks(message.id);
         res.json({ message });
     } catch (err) {
         handleServiceError(res, err, 'Error updating message');
