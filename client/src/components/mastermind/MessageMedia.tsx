@@ -153,7 +153,7 @@ function LinkPreviewCard({ preview }: { preview: LinkPreviewWire }) {
                     src={preview.image!}
                     alt=""
                     onError={() => setImageFailed(true)}
-                    className="h-full w-28 flex-shrink-0 object-cover"
+                    className="h-full hidden sm:flex w-38 flex-shrink-0 object-scale-down"
                 />
             )}
             <div className="flex flex-col justify-center min-w-0 gap-1 px-3 py-2">
