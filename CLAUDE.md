@@ -40,6 +40,9 @@ The following environment variables are required or used by the application. **N
 | `SFR_API_KEY` | Auth key for the SFR API (used in data pipeline) |
 | `POSTMARK_SERVER_API_KEY` | Postmark transactional email — server API key |
 | `POSTMARK_ACCOUNT_TOKEN` | Postmark account-level token |
+| `POSTMARK_TEMPLATE_ALIAS` | Postmark template for property updates |
+| `POSTMARK_DEAL_TEMPLATE_ALIAS` | Postmark template for deal notifications |
+| `POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS` | Postmark template for deal inquiries |
 | `DEFAULT_CONTACT_RECIPIENT` | Default recipient address for contact/notification emails |
 | `DEFAULT_FROM_EMAIL` | Default sender address for outgoing emails |
 | `GOOGLE_API_KEY` | Google Maps / Geocoding API key |

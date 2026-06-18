@@ -455,6 +455,11 @@ export default function DealFormFields({
                         )}
                     />
                 </div>
+            </div>
+
+            {/* ── Additional info ──────────────────────────────────────────────── */}
+            <div className="space-y-4">
+                <FormSectionLabel>Additional Info</FormSectionLabel>
 
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -535,11 +540,6 @@ export default function DealFormFields({
                         )}
                     />
                 </div>
-            </div>
-
-            {/* ── Additional info ──────────────────────────────────────────────── */}
-            <div className="space-y-4">
-                <FormSectionLabel>Additional Info</FormSectionLabel>
 
                 <FormField
                     control={control}

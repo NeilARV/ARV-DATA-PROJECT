@@ -408,7 +408,11 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
     const sfrResponse = await fetch(sfrApiUrl, {
         method: 'GET',
-        headers: { 'X-API-TOKEN': API_KEY },
+        headers: {
+            'X-API-TOKEN': API_KEY,
+            Accept: 'application/json',
+            'User-Agent': 'PostmanRuntime/7.41.0',
+        },
     });
 
     if (!sfrResponse.ok) {
@@ -625,12 +629,18 @@ export async function lookupPropertyByAddress(
 
     const sfrResponse = await fetch(sfrApiUrl, {
         method: 'GET',
-        headers: { 'X-API-TOKEN': API_KEY },
+        headers: {
+            'X-API-TOKEN': API_KEY,
+            Accept: 'application/json',
+            'User-Agent': 'PostmanRuntime/7.41.0',
+        },
     });
 
     if (!sfrResponse.ok) {
         const errorText = await sfrResponse.text();
-        console.error(`[lookupPropertyByAddress] SFR API error: ${sfrResponse.status}`);
+        console.error(
+            `[lookupPropertyByAddress] SFR API error: ${sfrResponse.status} - ${errorText}`,
+        );
         return { status: 'sfr-error', httpStatus: sfrResponse.status, error: errorText };
     }
 
