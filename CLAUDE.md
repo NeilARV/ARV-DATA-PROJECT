@@ -3,9 +3,9 @@ Express + Vite full-stack app for ARV (After Repair Value) / real estate finance
 
 ## Architecture
 - `/client` — React SPA (Vite): pages, components, hooks, `lib`, UI (Radix + Tailwind)
-- `/server` — Express API: routes (auth, admin, properties, companies, geocoding, users), controllers, services, jobs (cron data sync, email, cache cleanup)
+- `/server` — Express API: routes (auth, admin, properties, companies, geocoding, users, deals, vendors, posts, categories, channels, messages, notifications), controllers, services, jobs (cron data sync, email, cache cleanup), websocket layer
 - `/database` — Drizzle schemas, inserts, updates, types; also contains Zod validation schemas used for data migration and runtime validation
-- `/shared` — Shared utilities (formatting, etc.)
+- `/shared` — Shared utilities (formatting, Mastermind event protocol, etc.)
 
 ## Tech Stack
 - TypeScript (strict mode, ES modules)
@@ -14,6 +14,8 @@ Express + Vite full-stack app for ARV (After Repair Value) / real estate finance
 - Drizzle ORM + PostgreSQL (Neon)
 - Zod (schema validation; schemas live in `/database`)
 - Tailwind CSS, Radix UI, Recharts, Leaflet, react-hook-form + Zod
+- `ws` (WebSocket) for the Mastermind real-time layer
+- Supabase Storage (image + file uploads)
 
 ## Commands
 - `npm run dev` — Start dev server (Express + Vite HMR)
@@ -35,14 +37,15 @@ The following environment variables are required or used by the application. **N
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | Drizzle ORM + Neon PostgreSQL connection |
-| `SESSION_SECRET` | Express session signing (server exits if unset) |
+| `SESSION_SECRET` | Express session signing (server exits if unset); also used to unsign the session cookie on the WebSocket upgrade |
 | `SFR_API_URL` | Base URL for the SFR external property data API |
 | `SFR_API_KEY` | Auth key for the SFR API (used in data pipeline) |
 | `POSTMARK_SERVER_API_KEY` | Postmark transactional email — server API key |
-| `POSTMARK_ACCOUNT_TOKEN` | Postmark account-level token |
+| `POSTMARK_ACCOUNT_TOKEN` | Postmark account-level token (used to create RM sender signatures) |
 | `POSTMARK_TEMPLATE_ALIAS` | Postmark template for property updates |
 | `POSTMARK_DEAL_TEMPLATE_ALIAS` | Postmark template for deal notifications |
-| `POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS` | Postmark template for deal inquiries |
+| `POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS` | Postmark template for deal inquiries (request-info) |
+| `POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS` | Postmark template for deal offer (bid) notifications |
 | `DEFAULT_CONTACT_RECIPIENT` | Default recipient address for contact/notification emails |
 | `DEFAULT_FROM_EMAIL` | Default sender address for outgoing emails |
 | `GOOGLE_API_KEY` | Google Maps / Geocoding API key |
@@ -66,7 +69,7 @@ The following environment variables are required or used by the application. **N
 
 ## Apps
 
-The application is organized as three distinct feature areas that function like separate apps, all sharing the some code like auth, providers, and backend. All three are documented in a single reference: `.claude/docs/apps.md`. You MUST read the relevant section of that document when working on the corresponding side of the application.
+The application is organized as four distinct feature areas that function like separate apps, all sharing common code (auth, providers, backend). All four are documented in a single reference: `.claude/docs/apps.md`. You MUST read the relevant section of that document when working on the corresponding side of the application.
 
 ### Data
 Property intelligence platform. Browse SFR transaction data by MSA, filter by company/status/price/location, view a Leaflet map, company directory, and property detail. Powered by the SFR data pipeline that syncs external property data into the database.
@@ -74,7 +77,7 @@ Property intelligence platform. Browse SFR transaction data by MSA, filter by co
 > **Full reference**: `.claude/docs/apps.md` (Data section) | `/` | `properties.services.ts`, `companies.services.ts`
 
 ### Deals
-Deal marketplace. Users post wholesale, agent, and sold deals; other investors browse, filter by location, and request contact info. Subscription-gated for deal creation.
+Deal marketplace. Users post wholesale, agent, sold, and REO deals; other investors browse, filter by location, request contact info, and submit offers. App-access gated (any subscription tier — basic/pro/premium — or any team role).
 
 > **Full reference**: `.claude/docs/apps.md` (Deals section) | `/deals` | `deals.services.ts`, `deals.controllers.ts`, `deals.routes.ts`
 
@@ -83,19 +86,24 @@ Community hub. Two-panel layout: an activity feed for community posts (with rich
 
 > **Full reference**: `.claude/docs/apps.md` (Vendors section) | `/vendors` | `vendors.services.ts`, `posts.services.ts`, `categories.services.ts`
 
+### Mastermind
+Slack-style real-time community (the live layer of the mastermind subscription): topic channels, real-time messages, @mentions, reactions, pins, attachments, and in-app notifications. App-access gated (any subscription tier or team role); channel management is admin/owner only. Under construction — Phase 1 Parts 1–9 built; email notifications (Part 10) remaining.
+
+> **Full reference**: `.claude/docs/apps.md` (Mastermind section) + `.claude/docs/mastermind.md` (design + phased plan) | `/mastermind` | `channels.services.ts`, `messages.services.ts`, `notifications.services.ts`
+
 ---
 
 ## Access Control
-Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`. It is the single source of truth for what each route requires. The three files that implement access control are `server/middleware/requireAuth.ts`, `server/middleware/requireRole.ts`, and `client/src/hooks/use-auth.ts`.
+Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`. It is the single source of truth for what each route requires. The middleware that implements access control is `server/middleware/requireAuth.ts`, `server/middleware/requireAccess.ts`, `server/middleware/requireRole.ts`, `server/middleware/requireSub.ts`, and `server/middleware/requireMastermind.ts`; the frontend mirror is `client/src/hooks/use-auth.ts`.
 
-> **Full reference**: `.claude/docs/access-control.md` — canonical route permission tables, middleware behavior, status code contract, and guidance for writing access-control tests.
+> **Full reference**: `.claude/docs/access-control.md` — canonical route permission tables, middleware behavior, status code contract, and guidance for writing access-control tests. Where any other doc disagrees with it on auth, this file wins.
 
 ---
 
 ## Coding Style
 Before adding or modifying ANY code, read `.claude/docs/code-standards.md` and follow it. This is the authoritative source for naming, file organization, component structure, route/controller/service patterns, and error handling.
 
-> **Full reference**: `.claude/docs/code-standards.md` — authoritative source for all coding conventions (naming, file organization, component structure, route/controller/service patterns, error handling, formatting, and more). Apply these standards when adding or updating any code.
+> **Full reference**: `.claude/docs/code-standards.md` — authoritative source for all coding conventions.
 
 ---
 
@@ -109,27 +117,30 @@ Before adding or modifying ANY UI (components, pages, styling), read `.claude/do
 ## Testing
 Before writing or running ANY test, read `.claude/docs/testing.md`. For new API routes, the access-control and validation integration tests described there are mandatory.
 
-> **Full reference**: `.claude/docs/testing.md` — read this before writing any test. For new API routes, the access-control and validation integration tests described there are mandatory.
+> **Full reference**: `.claude/docs/testing.md`.
 
 ---
 
-## Automated Agents
+## Automated Agents (run automatically — do not invoke manually)
 
-The following subagents MUST be invoked via the `Agent` tool at the end of every task where files were modified. This is mandatory — not optional, not skippable. Run `npm run check` first, fix any errors, then invoke both agents before finishing.
+Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json` and fire automatically whenever a session has uncommitted changes. You do not need to remember to invoke them; the hook does. They are documented here so you know what they do:
 
-- **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues. Pass it the list of modified files and instruct it to run `git diff HEAD~1` to orient itself.
-- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks if code changes made any agent documentation stale. Will ask for approval before modifying any agent files. This document can run as you see fit, but it 100% MUST run when we make database and API changes so those changes can be reflected in the markdown documentation
+- **Code Optimizer** (`.claude/agents/code-optimizer.md`) — reviews all changed files for bugs, security, and performance issues.
+- **Agent Updater** (`.claude/docs/agent-updater.md`) — checks whether code changes made any agent documentation stale and asks for approval before editing docs. It MUST run for database and API changes so the markdown docs stay in sync.
 
 ---
 
 ## References
-- `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params)
+- `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params). Auth notes are summarized per route; `access-control.md` is canonical for auth.
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
 - `.claude/docs/code-standards.md` — coding conventions for the entire codebase
 - `.claude/docs/design-guidelines.md` — UI design system (colors, typography, components, dark mode)
 - `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
-- `.claude/docs/apps.md` — Combined overview of all three apps: Data (property intelligence, map, company directory, SFR pipeline), Deals (marketplace, subscription gate, email notifications), and Vendors (vendor directory, community posts, mentions)
-- `.claude/docs/new-msa.md` — Documentation on how to add a new MSA to the application
+- `.claude/docs/apps.md` — combined overview of all four apps (Data, Deals, Vendors, Mastermind)
+- `.claude/docs/database.md` — full database schema reference (tables, columns, constraints, indexes)
+- `.claude/docs/mastermind.md` — Mastermind design doc and phased build plan
+- `.claude/docs/agent-updater.md` — detection rules for keeping agent docs in sync
+- `.claude/docs/new-msa.md` — how to add a new MSA to the application
 
 ---
 
@@ -137,13 +148,13 @@ The following subagents MUST be invoked via the `Agent` tool at the end of every
 1. You must refer to the Data section of `.claude/docs/apps.md` when working on the data side of the application
 2. You must refer to the Deals section of `.claude/docs/apps.md` when working on the deals side of the application
 3. You must refer to the Vendors section of `.claude/docs/apps.md` when working on the vendors side of the application
-4. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`
-5. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
-6. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md`
-7. Before writing or running ANY test, read `.claude/docs/testing.md`
-8. After modifying any files, you MUST invoke the `code-optimizer` agent via the `Agent` tool before finishing. No exceptions.
+4. You must refer to the Mastermind section of `.claude/docs/apps.md` (and `.claude/docs/mastermind.md`) when working on the mastermind side of the application
+5. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`
+6. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
+7. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md`
+8. Before writing or running ANY test, read `.claude/docs/testing.md`
 
 ---
 
 ## Verification
-Before completing any task, run: `npm run check`
+Before completing any task, run: `npm run check` (also enforced by the `Stop` hook — fix any type errors before finishing).
