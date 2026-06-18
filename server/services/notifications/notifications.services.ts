@@ -16,7 +16,7 @@ export class NotificationServiceError extends Error {
     }
 }
 
-const FEED_LIMIT = 30;
+const FEED_LIMIT = 10;
 const EXCERPT_MAX_LENGTH = 120;
 
 export type EnrichedNotification = {

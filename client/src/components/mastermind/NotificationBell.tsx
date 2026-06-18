@@ -12,6 +12,10 @@ import { getAvatarColor } from '@/utils/avatar';
 
 import type { NotificationWire } from '@shared/mastermind/events';
 
+// Cap the dropdown at the 10 most recent; matches the server feed limit and guards against
+// real-time pushes growing the in-memory list beyond what we want to display.
+const MAX_VISIBLE_NOTIFICATIONS = 10;
+
 function formatRelativeTime(iso: string): string {
     const diffMs = Date.now() - new Date(iso).getTime();
     const minutes = Math.floor(diffMs / 60_000);
@@ -158,7 +162,7 @@ export function NotificationBell() {
                                 No notifications yet
                             </p>
                         ) : (
-                            notifications.map((n) => (
+                            notifications.slice(0, MAX_VISIBLE_NOTIFICATIONS).map((n) => (
                                 <NotificationItem
                                     key={n.id}
                                     notification={n}
