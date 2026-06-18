@@ -76,10 +76,12 @@ type DealToEdit = DealProperty & {
     onBehalfOfEmail?: string | null;
 };
 
-// Input for POST /api/deals
+// Input for POST /api/deals — msaId is derived server-side from the location (client sends it
+// only as a fallback); structural fields + sfrPropertyId are fetched server-side from SFR when
+// an address is provided, and supplied by the client only for an undisclosed address.
 type CreateDealInput = DealProperty & {
     userId: string;
-    msaId: number;
+    msaId?: number;
     sendNotifications?: boolean;
     links?: string[];
     adminNotes?: string | null;

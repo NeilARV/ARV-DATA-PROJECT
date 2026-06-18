@@ -587,6 +587,78 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
     return { status: 'created', id: newProperty.id, sfrPropertyId: Number(sfrPropertyId) };
 }
 
+// ─── Lightweight structural lookup (no DB writes) ──────────────────────────────
+
+export interface LookupPropertyInput {
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+}
+
+export type LookupPropertyResult =
+    | {
+          status: 'found';
+          sfrPropertyId: number;
+          beds: number | null;
+          baths: number | null;
+          sqft: number | null;
+          propertyType: string | null;
+      }
+    | { status: 'not-found' }
+    | { status: 'missing-config' }
+    | { status: 'sfr-error'; httpStatus: number; error: string };
+
+// Fetches a property's structural details from SFR by address without touching the database.
+// Used by the deal form to auto-fill beds/baths/sqft/property type for a disclosed address.
+export async function lookupPropertyByAddress(
+    input: LookupPropertyInput,
+): Promise<LookupPropertyResult> {
+    const { address, city, state, zipCode } = input;
+
+    const API_KEY = process.env.SFR_API_KEY;
+    const API_URL = process.env.SFR_API_URL;
+    if (!API_KEY || !API_URL) return { status: 'missing-config' };
+
+    const formattedAddress = `${address.toUpperCase()}, ${city.toUpperCase()}, ${state.toUpperCase()} ${zipCode}`;
+    const sfrApiUrl = `${API_URL}/properties/by-address?address=${encodeURIComponent(formattedAddress)}`;
+
+    const sfrResponse = await fetch(sfrApiUrl, {
+        method: 'GET',
+        headers: { 'X-API-TOKEN': API_KEY },
+    });
+
+    if (!sfrResponse.ok) {
+        const errorText = await sfrResponse.text();
+        console.error(`[lookupPropertyByAddress] SFR API error: ${sfrResponse.status}`);
+        return { status: 'sfr-error', httpStatus: sfrResponse.status, error: errorText };
+    }
+
+    let propertyData: SfrPropertyData;
+    try {
+        propertyData = (await sfrResponse.json()) as SfrPropertyData;
+    } catch {
+        console.error('[lookupPropertyByAddress] SFR API returned a non-JSON body');
+        return { status: 'sfr-error', httpStatus: sfrResponse.status, error: 'Malformed response' };
+    }
+    if (!propertyData?.property_id) return { status: 'not-found' };
+
+    const struct = propertyData.structure;
+    const baths =
+        struct?.baths != null
+            ? Number(struct.baths) + (struct.partial_baths_count ?? 0) * 0.5
+            : null;
+
+    return {
+        status: 'found',
+        sfrPropertyId: Number(propertyData.property_id),
+        beds: struct?.beds_count ?? null,
+        baths: Number.isFinite(baths) ? baths : null,
+        sqft: struct?.living_area_sqft ?? struct?.total_area_sq_ft ?? null,
+        propertyType: normalizePropertyType(propertyData.property_type),
+    };
+}
+
 // ─── Patch ────────────────────────────────────────────────────────────────────
 
 async function upsertCompanyByName(

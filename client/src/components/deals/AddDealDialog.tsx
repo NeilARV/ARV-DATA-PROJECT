@@ -24,7 +24,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { Textarea } from '@/components/ui/textarea';
 import AppDialog from '@/components/modals/Dialog';
 import ContactContent from '@/components/modals/Contact';
-import DealFormFields, { ADD_DEAL_TYPES } from '@/components/deals/DealFormFields';
+import DealFormFields, {
+    ADD_DEAL_TYPES,
+    FormSectionLabel,
+} from '@/components/deals/DealFormFields';
 
 type AddDealDialogProps = {
     open: boolean;
@@ -39,11 +42,13 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
     const [showContact, setShowContact] = useState(false);
     const [links, setLinks] = useState<string[]>([]);
     const [photosUrl, setPhotosUrl] = useState('');
+    const [showMsaFallback, setShowMsaFallback] = useState(false);
 
     const form = useForm<DealFormValues>({
         resolver: zodResolver(dealFormSchema),
         defaultValues: {
             address: '',
+            addressUndisclosed: false,
             city: '',
             state: '',
             zipCode: '',
@@ -70,7 +75,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
     const postDeal = useMutation({
         mutationFn: async (data: DealFormValues) => {
             const res = await apiRequest('POST', '/api/deals', {
-                address: data.address?.trim() || undefined,
+                address: data.addressUndisclosed ? undefined : data.address?.trim() || undefined,
                 city: data.city,
                 state: data.state,
                 zipCode: data.zipCode,
@@ -120,11 +125,23 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
             form.reset();
             setLinks([]);
             setPhotosUrl('');
+            setShowMsaFallback(false);
             onClose();
         },
         onError: (err: any) => {
             const is403 = typeof err?.message === 'string' && err.message.startsWith('403:');
-            if (is403) {
+            const isMarketUnresolved =
+                typeof err?.message === 'string' &&
+                err.message.startsWith('422:') &&
+                err.message.toLowerCase().includes('market');
+            if (isMarketUnresolved) {
+                setShowMsaFallback(true);
+                toast({
+                    title: 'Select a market',
+                    description: 'We could not determine the market for this address.',
+                    variant: 'destructive',
+                });
+            } else if (is403) {
                 toast({
                     title: 'Upgrade Required',
                     description: 'Upgrade your account to access this feature.',
@@ -150,6 +167,7 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
         form.reset();
         setLinks([]);
         setPhotosUrl('');
+        setShowMsaFallback(false);
         onClose();
     };
 
@@ -175,19 +193,20 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                     >
                         <div className="dialog-scrollable-body">
                             <DealFormFields
-                                control={form.control}
+                                form={form}
                                 dealTypes={ADD_DEAL_TYPES}
                                 links={links}
                                 onLinksChange={setLinks}
                                 photosUrl={photosUrl}
                                 onPhotosUrlChange={setPhotosUrl}
+                                showMsaFallback={showMsaFallback}
                             />
 
                             <FormField
                                 control={form.control}
                                 name="sendNotifications"
                                 render={({ field }) => (
-                                    <FormItem className="flex items-center gap-2 space-y-0">
+                                    <FormItem className="flex items-center gap-2 space-y-0 mt-6">
                                         <FormControl>
                                             <Checkbox
                                                 checked={field.value}
@@ -202,13 +221,8 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                             />
 
                             {(canEditAdminNotes || canEditPrivilegedFields) && (
-                                <div className="space-y-4 pt-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                                            Admin Only
-                                        </span>
-                                        <div className="flex-1 h-px bg-border" />
-                                    </div>
+                                <div className="space-y-4 pt-4">
+                                    <FormSectionLabel>Admin Only</FormSectionLabel>
 
                                     {canEditAdminNotes && (
                                         <FormField
