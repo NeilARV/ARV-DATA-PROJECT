@@ -427,9 +427,11 @@ select.font-size-select option {
     white-space: nowrap;
 }
 
-/* @channel broadcast mention uses amber to signal "notifies everyone" */
+/* @channel / @announcement broadcast mentions use amber to signal "notifies everyone" */
 .ProseMirror .mention[data-id='@channel'],
-.mastermind-message .mention[data-id='@channel'] {
+.ProseMirror .mention[data-id='@announcement'],
+.mastermind-message .mention[data-id='@channel'],
+.mastermind-message .mention[data-id='@announcement'] {
     color: hsl(38 92% 40%);
     background: hsl(38 92% 50% / 0.12);
 }
@@ -447,9 +449,10 @@ select.font-size-select option {
     white-space: nowrap;
 }
 
-/* User and vendor chips in rendered messages open a profile card on click. @channel has no
-   card, so it keeps the default cursor. (Composer chips are not clickable.) */
-.mastermind-message .mention:not([data-id='@channel']),
+/* User and vendor chips in rendered messages open a profile card on click. Broadcast chips
+   (@channel / @announcement) have no card, so they keep the default cursor. (Composer chips
+   are not clickable.) */
+.mastermind-message .mention:not([data-id='@channel']):not([data-id='@announcement']),
 .mastermind-message span[data-type='vendorMention'] {
     cursor: pointer;
 }

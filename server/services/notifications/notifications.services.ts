@@ -21,7 +21,7 @@ const EXCERPT_MAX_LENGTH = 120;
 
 export type EnrichedNotification = {
     id: string;
-    type: 'mention' | 'channel_mention' | 'deal_bid';
+    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
@@ -51,14 +51,17 @@ export async function createMentionNotifications({
     channelId,
     actorId,
     mentionedUserIds,
-    mentionedEveryone,
+    mentionedChannel,
+    mentionedAnnouncement,
 }: {
     messageId: string;
     channelId: string;
     actorId: string;
     mentionedUserIds: string[];
-    mentionedEveryone: boolean;
+    mentionedChannel: boolean;
+    mentionedAnnouncement: boolean;
 }): Promise<CreatedNotification[]> {
+    const mentionedEveryone = mentionedChannel || mentionedAnnouncement;
     if (mentionedUserIds.length === 0 && !mentionedEveryone) return [];
 
     // mentionedUserIds come from parsing client HTML — keep only users that exist.
@@ -82,11 +85,14 @@ export async function createMentionNotifications({
         .limit(1);
     const adminOwnerIds = chan?.isAdminOnly ? new Set(await listAdminOwnerUserIds()) : null;
 
-    // A directly-mentioned user covered by @channel gets one row, preferring 'mention'.
-    const recipients = new Map<string, 'mention' | 'channel_mention'>();
+    // Type precedence: a direct @user mention ('mention') outranks either broadcast, and an
+    // @announcement broadcast outranks @channel when both appear. Setting broadcast rows first,
+    // then overwriting with direct mentions, yields mention > announcement > channel_mention.
+    const recipients = new Map<string, 'mention' | 'channel_mention' | 'announcement'>();
     if (mentionedEveryone) {
         const everyone = adminOwnerIds ? Array.from(adminOwnerIds) : await listEligibleUserIds();
-        for (const id of everyone) recipients.set(id, 'channel_mention');
+        const broadcastType = mentionedAnnouncement ? 'announcement' : 'channel_mention';
+        for (const id of everyone) recipients.set(id, broadcastType);
     }
     for (const id of directIds) {
         if (adminOwnerIds && !adminOwnerIds.has(id)) continue;

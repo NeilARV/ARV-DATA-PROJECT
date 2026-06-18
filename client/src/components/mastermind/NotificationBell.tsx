@@ -32,6 +32,7 @@ function notificationText(n: NotificationWire): string {
         return `submitted an offer of ${amount}`;
     }
     const channel = n.channelName ? `#${n.channelName}` : 'a channel';
+    if (n.type === 'announcement') return `made an announcement in ${channel}`;
     return n.type === 'channel_mention'
         ? `mentioned everyone in ${channel}`
         : `mentioned you in ${channel}`;

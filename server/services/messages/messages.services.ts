@@ -68,6 +68,18 @@ function checkPostRateLimit(userId: string): void {
 const SPAN_TAG_RE = /<span\b[^>]*>/g;
 const DATA_ID_ATTR_RE = /data-id="([^"]+)"/;
 
+// Broadcast-mention sentinels — non-UUID data-id values written by the TipTap user-mention node.
+// Both fan out to everyone; `@announcement` is admin/owner-only (gated below) and notifies as a
+// distinct `announcement` type, while `@channel` is open to all senders.
+const CHANNEL_SENTINEL = '@channel';
+const ANNOUNCEMENT_SENTINEL = '@announcement';
+
+// Matches a whole @announcement chip element. Mention chips never nest, so a non-greedy match to
+// the first </span> is safe. [\s\S] (not .) so a chip whose text contains a newline is still
+// stripped — otherwise a tampered multi-line chip would survive and fan out. Used to neutralize a
+// tampered @announcement from a non-privileged author (the chip is never offered to them in the UI).
+const ANNOUNCEMENT_CHIP_RE = /<span\b[^>]*\bdata-id="@announcement"[^>]*>[\s\S]*?<\/span>/gi;
+
 // Only user-mention chips (data-type="mention") drive notifications. Vendor chips
 // (data-type="vendorMention") share the "@" trigger and the data-id="<uuid>" shape but are
 // display-only, so they must be excluded here — otherwise a vendor UUID would be processed as
@@ -79,7 +91,7 @@ function userMentionSpans(html: string): string[] {
 }
 
 // Extracts real user IDs from sanitized message HTML. Broadcast sentinel IDs
-// (@here, @channel) are skipped — they expand at notification time (Part 8).
+// (@channel, @announcement) are skipped — they expand at notification time.
 function parseMentionedUserIds(html: string): string[] {
     const ids = new Set<string>();
     for (const span of userMentionSpans(html)) {
@@ -89,20 +101,29 @@ function parseMentionedUserIds(html: string): string[] {
     return Array.from(ids);
 }
 
-// Returns true if the HTML contains any broadcast-mention sentinel (@here / @channel).
-// Sentinels are non-UUID data-id values written by the TipTap user-mention node.
-function hasBroadcastMention(html: string): boolean {
+// Collects the broadcast-mention sentinels present (the non-UUID data-id values on user-mention
+// chips, e.g. "@channel" / "@announcement"). Real user mentions (UUID ids) are excluded.
+function parseBroadcastSentinels(html: string): Set<string> {
+    const sentinels = new Set<string>();
     for (const span of userMentionSpans(html)) {
         const match = DATA_ID_ATTR_RE.exec(span);
-        if (match && !isUuid(match[1])) return true;
+        if (match && !isUuid(match[1])) sentinels.add(match[1]);
     }
-    return false;
+    return sentinels;
+}
+
+// Removes every @announcement chip from sanitized HTML (the admin/owner-only gate).
+function stripAnnouncementChips(html: string): string {
+    return html.replace(ANNOUNCEMENT_CHIP_RE, '');
 }
 
 export type CreateMessageResult = {
     message: EnrichedMessage;
     mentionedUserIds: string[];
-    mentionedEveryone: boolean;
+    // @channel broadcast present (open to all senders).
+    mentionedChannel: boolean;
+    // @announcement broadcast present (only ever true for an admin/owner author, post-gate).
+    mentionedAnnouncement: boolean;
 };
 
 // Writes message_mentions rows for the given set of user IDs. Filters to only
@@ -465,9 +486,19 @@ export async function createMessage({
         throw new MessageServiceError(400, 'Message cannot be empty');
     }
 
+    // @announcement is admin/owner-only. In an admin-only channel the sender is already known to
+    // be admin/owner (404 gate above); elsewhere verify before honoring the chip. A non-privileged
+    // author can't select it in the UI, so its presence means tampering — strip it so it neither
+    // renders for others nor fans out.
+    let finalContent = sanitized;
+    if (parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL)) {
+        const isPrivileged = channel.isAdminOnly || (await userIsAdminOrOwner(senderId));
+        if (!isPrivileged) finalContent = stripAnnouncementChips(sanitized);
+    }
+
     const [created] = await db
         .insert(messages)
-        .values({ channelId, senderId, content: sanitized })
+        .values({ channelId, senderId, content: finalContent })
         .returning({ id: messages.id });
 
     if (attachments.length > 0) {
@@ -482,15 +513,20 @@ export async function createMessage({
         );
     }
 
-    const mentionedUserIds = parseMentionedUserIds(sanitized);
-    const mentionedEveryone = hasBroadcastMention(sanitized);
+    const mentionedUserIds = parseMentionedUserIds(finalContent);
+    const sentinels = parseBroadcastSentinels(finalContent);
     await persistMentions(created.id, mentionedUserIds);
 
     const enriched = await getEnrichedMessageById(created.id);
     if (!enriched) {
         throw new MessageServiceError(500, 'Failed to load created message');
     }
-    return { message: enriched, mentionedUserIds, mentionedEveryone };
+    return {
+        message: enriched,
+        mentionedUserIds,
+        mentionedChannel: sentinels.has(CHANNEL_SENTINEL),
+        mentionedAnnouncement: sentinels.has(ANNOUNCEMENT_SENTINEL),
+    };
 }
 
 // ── Edit (author only — admins may NOT edit another user's message) ──────────────
@@ -534,16 +570,27 @@ export async function updateMessage(
         throw new MessageServiceError(400, 'Message cannot be empty');
     }
 
+    // @announcement is admin/owner-only. Edits are author-only, so a non-privileged author can
+    // never legitimately carry one — strip a tampered chip (also covers admin-only channels,
+    // since only admins/owners can author there).
+    let finalContent = sanitized;
+    if (
+        parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL) &&
+        !(await userIsAdminOrOwner(callerId))
+    ) {
+        finalContent = stripAnnouncementChips(sanitized);
+    }
+
     await db
         .update(messages)
-        .set({ content: sanitized, isEdited: true, updatedAt: new Date() })
+        .set({ content: finalContent, isEdited: true, updatedAt: new Date() })
         .where(eq(messages.id, id));
 
     // Replace mentions: delete the old set then insert the new one. Not wrapped in
     // a transaction because neon-http is connectionless and doesn't support them.
     // A crash here leaves stale mention rows — acceptable for Phase 1 at this scale.
     await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
-    await persistMentions(id, parseMentionedUserIds(sanitized));
+    await persistMentions(id, parseMentionedUserIds(finalContent));
 
     // Reconcile attachments last: it deletes Supabase storage objects irreversibly, so it must
     // not run ahead of the content update — otherwise a failed edit would still destroy files.

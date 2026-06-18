@@ -121,9 +121,10 @@ export interface DealBidNotificationMetadata {
 // A bell-feed notification as the client receives it (REST and socket share this shape;
 // dates serialized to ISO strings). Actor fields are null when the actor was deleted.
 // Mention types carry channel/message context; deal_bid carries dealId + metadata instead.
+// `announcement` is the admin/owner @announcement broadcast (same context as channel_mention).
 export interface NotificationWire {
     id: string;
-    type: 'mention' | 'channel_mention' | 'deal_bid';
+    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;

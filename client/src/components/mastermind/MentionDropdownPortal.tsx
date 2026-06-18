@@ -50,7 +50,7 @@ export function MentionDropdownPortal({ dropdown }: MentionDropdownPortalProps) 
                         </span>
                         {isBroadcast && (
                             <span className="ml-auto text-xs text-muted-foreground">
-                                all members
+                                {item.id === '@announcement' ? 'admin only' : 'admin only'}
                             </span>
                         )}
                         {isVendor && (

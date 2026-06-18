@@ -1852,11 +1852,14 @@ Upload one file for a message. Multipart (`multipart/form-data`, field `file`). 
 The in-app bell feed. All routes use `requireMastermind` and are **self-scoped** — every query
 filters on the caller's `user_id`. Rows are created server-side only. Two producers exist today:
 the Mastermind mention fan-out on message create (`@user` → type `mention`; `@channel` → type
-`channel_mention` for every eligible user; the sender never notifies themself), and the deals app
-(`deal_bid` → the deal's poster when an investor submits an offer). In an **admin-only** channel
-the mention fan-out is scoped to **admins/owners** only — `@channel` reaches admins/owners, and a
-direct `@user` of a non-admin is dropped (no bell/email deep-linking a user into a channel they
-can't open). See `access-control.md` §5.14.
+`channel_mention` for every eligible user; the admin/owner-only `@announcement` → type
+`announcement` for every eligible user; the sender never notifies themself), and the deals app
+(`deal_bid` → the deal's poster when an investor submits an offer). `@announcement` is gated in the
+message service — a non-admin/owner author's chip is stripped before persistence. When a message
+carries both broadcasts, type precedence is `mention` (direct) > `announcement` > `channel_mention`.
+In an **admin-only** channel the mention fan-out is scoped to **admins/owners** only — broadcasts
+reach admins/owners, and a direct `@user` of a non-admin is dropped (no bell/email deep-linking a
+user into a channel they can't open). See `access-control.md` §5.14.
 
 The notification object shape (REST and the `notification.created` socket event are identical).
 `channelId`/`channelName`/`messageId` populate for mention types; `dealId`/`metadata` populate for

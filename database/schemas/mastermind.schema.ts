@@ -24,9 +24,12 @@ export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm'
 export const channelMemberRoleEnum = pgEnum('channel_member_role', ['owner', 'admin', 'member']);
 
 // Bell-feed notification kinds. Mentions come from Mastermind; deal_bid from the deals app.
+// `announcement` is the admin/owner-only @announcement broadcast — same everyone fan-out as
+// `channel_mention` today, but kept distinct because its behavior diverges with email (Part 10).
 export const notificationTypeEnum = pgEnum('notification_type', [
     'mention',
     'channel_mention',
+    'announcement',
     'deal_bid',
 ]);
 

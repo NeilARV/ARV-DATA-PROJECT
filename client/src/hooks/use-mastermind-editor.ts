@@ -8,6 +8,9 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { mergeAttributes } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 import { useQuery } from '@tanstack/react-query';
+
+import { useAuth } from '@/hooks/use-auth';
+
 import { apiRequest } from '@/lib/queryClient';
 import { fetchVendors } from '@/api/vendors.api';
 
@@ -28,8 +31,14 @@ type UseMastermindEditorOptions = {
     autofocus?: boolean;
 };
 
-// Shown first when the user types "@", before any real users.
-const BROADCAST_ITEMS: MentionItem[] = [{ id: '@channel', label: 'channel', kind: 'broadcast' }];
+// Shown first when the user types "@", before any real users. @channel is open to everyone;
+// @announcement is appended only for admins/owners (see broadcastItemsRef below).
+const CHANNEL_BROADCAST: MentionItem = { id: '@channel', label: 'channel', kind: 'broadcast' };
+const ANNOUNCEMENT_BROADCAST: MentionItem = {
+    id: '@announcement',
+    label: 'announcement',
+    kind: 'broadcast',
+};
 
 export function useMastermindEditor({
     channelId,
@@ -38,6 +47,9 @@ export function useMastermindEditor({
     initialContent,
     autofocus = false,
 }: UseMastermindEditorOptions) {
+    const { isAdmin, isOwner } = useAuth();
+    const canAnnounce = isAdmin || isOwner;
+
     const onSubmitRef = useRef(onSubmit);
     onSubmitRef.current = onSubmit;
 
@@ -135,6 +147,16 @@ export function useMastermindEditor({
         }));
     }, [vendorsData]);
 
+    // ── Broadcast items (role-gated) ─────────────────────────────────────────
+    // Read inside the suggestion's items() closure so role changes take effect without
+    // rebuilding the memoized extension.
+    const broadcastItemsRef = useRef<MentionItem[]>([CHANNEL_BROADCAST]);
+    useEffect(() => {
+        broadcastItemsRef.current = canAnnounce
+            ? [CHANNEL_BROADCAST, ANNOUNCEMENT_BROADCAST]
+            : [CHANNEL_BROADCAST];
+    }, [canAnnounce]);
+
     // ── UserMention extension ────────────────────────────────────────────────
     const UserMention = useMemo(
         () =>
@@ -170,7 +192,7 @@ export function useMastermindEditor({
                             // (see `command` below) because their IDs are UUIDs like users'.
                             items: ({ query }: { query: string }) => {
                                 const q = query.toLowerCase();
-                                const broadcasts = BROADCAST_ITEMS.filter(
+                                const broadcasts = broadcastItemsRef.current.filter(
                                     (i) => !q || i.label.startsWith(q),
                                 );
                                 const realUsers = allUsersRef.current

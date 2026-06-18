@@ -83,15 +83,21 @@ export async function createMessageController(req: Request, res: Response): Prom
             return;
         }
 
-        const { message, mentionedUserIds, mentionedEveryone } = await createMessage({
-            channelId: id,
-            senderId: req.session.userId!,
-            content: parsed.data.content ?? '',
-            attachments: parsed.data.attachments,
-        });
+        const { message, mentionedUserIds, mentionedChannel, mentionedAnnouncement } =
+            await createMessage({
+                channelId: id,
+                senderId: req.session.userId!,
+                content: parsed.data.content ?? '',
+                attachments: parsed.data.attachments,
+            });
         broadcastToChannel(message.channelId, {
             type: ServerToClient.MessageCreated,
-            message: { ...message, mentionedUserIds, mentionedEveryone },
+            message: {
+                ...message,
+                mentionedUserIds,
+                // The unread "mention" badge fires for either everyone-broadcast.
+                mentionedEveryone: mentionedChannel || mentionedAnnouncement,
+            },
         });
         void unfurlMessageLinks(message.id);
 
@@ -102,7 +108,8 @@ export async function createMessageController(req: Request, res: Response): Prom
                 channelId: message.channelId,
                 actorId: req.session.userId!,
                 mentionedUserIds,
-                mentionedEveryone,
+                mentionedChannel,
+                mentionedAnnouncement,
             });
             for (const { recipientUserId, ...notification } of created) {
                 broadcastToUser(recipientUserId, {

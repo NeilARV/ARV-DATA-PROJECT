@@ -24,3 +24,4 @@
 - [Link-token foundation Phase 0](project_link_token_foundation_phase0.md) — auth_tokens single-use system; consumeToken must stay one atomic UPDATE; rateLimiter factory not wired in yet
 - [Link email HTML builder unescaped](project_link_token_html_builder_unescaped.md) — sendLinkEmail buildHtml interpolates fields/url raw; all future verify/reset/invite emails inherit injection risk
 - [MessageMedia section keys](project_message_media_section_keys.md) — MessageMedia sections[] outer wrapper keyed by index; can leak per-preview useState when unfurl/reconcile shifts positions — prefer stable keys
+- [Announcement chip strip newline gap](project_announcement_chip_strip_newline_gap.md) — ANNOUNCEMENT_CHIP_RE .*? has no dotall flag; a chip with a newline survives the strip yet is still detected as broadcast — non-admin @announcement bypass

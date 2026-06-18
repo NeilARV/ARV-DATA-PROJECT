@@ -639,6 +639,16 @@ create, a `message_mentions` row is inserted for each unique mentioned user. On 
 existing mention rows for the message are deleted and re-inserted from the updated content
 (full rebuild). The UNIQUE constraint on `(messageId, mentionedUserId)` prevents duplicates.
 
+**Broadcast mentions (`@channel` / `@announcement`):** both are non-UUID sentinel chips that fan
+out to everyone (admins/owners only in an admin-only channel) and are skipped by user-mention
+parsing. `@channel` is open to every sender and notifies as `channel_mention`. `@announcement` is
+**admin/owner-only** — the chip is only offered to admins/owners in the composer, and the server
+**strips it from a non-privileged author's content** (create and edit) so it can't be spoofed or
+trigger a fan-out; it notifies as the distinct `announcement` type. Both behave identically today
+(everyone fan-out); `announcement` is kept separate because its behavior diverges with email
+(Part 10). When a message carries both, the notification type precedence is
+`mention` (direct) > `announcement` > `channel_mention`.
+
 ## Real-Time (`server/websocket/`, `/ws`)
 A WebSocket layer attached to the same HTTP server delivers live messages. **REST is the source
 of truth; the socket is only a notifier** — the message controllers broadcast
@@ -656,7 +666,7 @@ Redis pub/sub (see `.claude/docs/mastermind.md` Known Limitation). Vite's HMR so
 ## Database Schema (`database/schemas/mastermind.schema.ts`)
 Enums: `channel_type` (`public`/`private`/`dm`/`group_dm` — Phase 1 uses only `public`),
 `channel_member_role` (`owner`/`admin`/`member`), `notification_type`
-(`mention`/`channel_mention`/`deal_bid`).
+(`mention`/`channel_mention`/`announcement`/`deal_bid`).
 
 | Table | Key Columns | Notes |
 |---|---|---|

@@ -477,8 +477,11 @@ notifications — there is no admin view and no cross-user access at any role.
 
 **Behavior notes:**
 - Notification rows are created server-side only (mention fan-out on message create — `@user`
-  rows get type `mention`, `@channel` expands to all eligible users as `channel_mention`,
-  excluding the sender). There is no `POST /api/notifications`.
+  rows get type `mention`, `@channel` expands to all eligible users as `channel_mention`, and the
+  admin/owner-only `@announcement` expands the same way as the distinct `announcement` type,
+  excluding the sender). `@announcement` is gated in the message service: a non-admin/owner
+  author's `@announcement` chip is stripped before persistence, so they can never fan one out.
+  There is no `POST /api/notifications`.
 - `PATCH /api/notifications/:id/read` returns `404` (not `403`) when the row exists but belongs
   to another user, so the route does not leak which notification ids exist.
 - New notifications are also pushed over the `/ws` socket (`notification.created`) to every
