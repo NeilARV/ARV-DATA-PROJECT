@@ -119,56 +119,58 @@ export default function DealFormFields({
         });
     }
 
+    // Shared so the toggle can sit beside the "Street Address" label when disclosed,
+    // and stay visible (right-aligned) when the address field is hidden.
+    const undisclosedCheckbox = (
+        <FormField
+            control={control}
+            name="addressUndisclosed"
+            render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormControl>
+                        <Checkbox
+                            checked={field.value}
+                            onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                if (checked) {
+                                    form.setValue('address', '');
+                                    form.clearErrors('address');
+                                }
+                            }}
+                        />
+                    </FormControl>
+                    <FormLabel className="font-normal cursor-pointer text-sm text-muted-foreground">
+                        Undisclosed address
+                    </FormLabel>
+                </FormItem>
+            )}
+        />
+    );
+
     return (
         <div className="space-y-6">
             {/* ── Location ─────────────────────────────────────────────────────── */}
             <div className="space-y-4">
                 <FormSectionLabel>Location</FormSectionLabel>
 
-                {disclosed && (
-                    <FormField
-                        control={control}
-                        name="address"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Street Address *</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        {...field}
-                                        value={field.value ?? ''}
-                                        placeholder="123 Main St"
-                                    />
-                                </FormControl>
-                                <p className="text-xs text-muted-foreground">
-                                    Beds, baths, square feet & property type are pulled from the
-                                    address automatically.
-                                </p>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                )}
-
                 <FormField
                     control={control}
-                    name="addressUndisclosed"
+                    name="address"
                     render={({ field }) => (
-                        <FormItem className="flex items-center gap-2 space-y-0">
+                        <FormItem>
+                            <div className="flex items-center justify-between gap-2">
+                                <FormLabel>Street Address {disclosed && '*'}</FormLabel>
+                                {undisclosedCheckbox}
+                            </div>
                             <FormControl>
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={(checked) => {
-                                        field.onChange(checked);
-                                        if (checked) {
-                                            form.setValue('address', '');
-                                            form.clearErrors('address');
-                                        }
-                                    }}
+                                <Input
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    placeholder={disclosed ? '123 Main St' : 'Undisclosed address'}
+                                    disabled={!disclosed}
                                 />
                             </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">
-                                Undisclosed address
-                            </FormLabel>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
@@ -348,7 +350,7 @@ export default function DealFormFields({
 
             {/* ── Deal terms ───────────────────────────────────────────────────── */}
             <div className="space-y-4">
-                <FormSectionLabel>Deal Terms</FormSectionLabel>
+                <FormSectionLabel>Deal Terms (Optional)</FormSectionLabel>
 
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -380,12 +382,7 @@ export default function DealFormFields({
                         name="price"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>
-                                    Price{' '}
-                                    <span className="text-muted-foreground font-normal">
-                                        (optional)
-                                    </span>
-                                </FormLabel>
+                                <FormLabel>Price</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
@@ -408,12 +405,7 @@ export default function DealFormFields({
                         name="potentialARV"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>
-                                    Potential ARV{' '}
-                                    <span className="text-muted-foreground font-normal">
-                                        (optional)
-                                    </span>
-                                </FormLabel>
+                                <FormLabel>Potential ARV</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
@@ -433,12 +425,7 @@ export default function DealFormFields({
                         name="estimatedBudget"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>
-                                    Estimated Budget{' '}
-                                    <span className="text-muted-foreground font-normal">
-                                        (optional)
-                                    </span>
-                                </FormLabel>
+                                <FormLabel>Estimated Budget</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
@@ -459,7 +446,7 @@ export default function DealFormFields({
 
             {/* ── Additional info ──────────────────────────────────────────────── */}
             <div className="space-y-4">
-                <FormSectionLabel>Additional Info</FormSectionLabel>
+                <FormSectionLabel>Additional Info (Optional)</FormSectionLabel>
 
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -467,12 +454,7 @@ export default function DealFormFields({
                         name="showingDate"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>
-                                    Showing Date{' '}
-                                    <span className="text-muted-foreground font-normal">
-                                        (optional)
-                                    </span>
-                                </FormLabel>
+                                <FormLabel>Showing Date</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
@@ -492,12 +474,7 @@ export default function DealFormFields({
                         name="showingTimeStr"
                         render={({ field: timeField }) => (
                             <FormItem>
-                                <FormLabel>
-                                    Showing Time{' '}
-                                    <span className="text-muted-foreground font-normal">
-                                        (optional)
-                                    </span>
-                                </FormLabel>
+                                <FormLabel>Showing Time</FormLabel>
                                 <div className="flex gap-2">
                                     <Select
                                         value={timeField.value ?? ''}
@@ -546,10 +523,7 @@ export default function DealFormFields({
                     name="notes"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>
-                                Notes{' '}
-                                <span className="text-muted-foreground font-normal">(optional)</span>
-                            </FormLabel>
+                            <FormLabel>Notes</FormLabel>
                             <FormControl>
                                 <Textarea
                                     {...field}
@@ -567,9 +541,7 @@ export default function DealFormFields({
                     <div className="flex items-center justify-between">
                         <FormLabel>
                             Comparable Sale Links{' '}
-                            <span className="text-muted-foreground font-normal">
-                                (optional, max 3)
-                            </span>
+                            <span className="text-muted-foreground font-normal">(max 3)</span>
                         </FormLabel>
                         <Button
                             type="button"
@@ -614,10 +586,7 @@ export default function DealFormFields({
                 </div>
 
                 <div className="space-y-2">
-                    <FormLabel>
-                        Photo Album URL{' '}
-                        <span className="text-muted-foreground font-normal">(optional)</span>
-                    </FormLabel>
+                    <FormLabel>Photo Album URL</FormLabel>
                     <Input
                         value={photosUrl}
                         onChange={(e) => onPhotosUrlChange(e.target.value)}
