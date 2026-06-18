@@ -8,6 +8,7 @@ import {
 } from '@database/schemas/users.schema';
 import { msas, userMsaSubscriptions } from '@database/schemas/msas.schema';
 import { resolveCountyFromZip } from 'server/utils/resolveCounty';
+import { resolveMsaId } from 'server/utils/resolveMsa';
 import { normalizePropertyType } from 'server/utils/normalization';
 import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 import {
@@ -23,6 +24,7 @@ import { eq, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
+import { lookupPropertyByAddress } from 'server/services/properties/property.services';
 import { normalizeToTitleCase } from 'server/utils/normalization';
 
 export class DealServiceError extends Error {
@@ -373,19 +375,63 @@ export async function createDeal(input: CreateDealInput) {
 
     const hasAddress = typeof address === 'string' && address.trim().length > 0;
 
+    // Structural details come from SFR when an address is provided; for an undisclosed address
+    // they fall back to the values the poster entered manually.
+    let structBeds: number | null = beds != null ? Number(beds) : null;
+    let structBaths: number | null = baths != null ? Number(baths) : null;
+    let structSqft: number | null = sqft != null ? Number(sqft) : null;
+    let structPropertyType: string | null = normalizePropertyType(propertyType ?? null);
+    let structSfrPropertyId: number | null = null;
+
+    if (hasAddress) {
+        const lookup = await lookupPropertyByAddress({
+            address: (address as string).trim(),
+            city,
+            state,
+            zipCode: String(zipCode),
+        });
+        if (lookup.status === 'found') {
+            structBeds = lookup.beds;
+            structBaths = lookup.baths;
+            structSqft = lookup.sqft;
+            structPropertyType = lookup.propertyType;
+            structSfrPropertyId = lookup.sfrPropertyId;
+        } else {
+            structBeds = null;
+            structBaths = null;
+            structSqft = null;
+            structPropertyType = null;
+            console.warn(
+                `${label} SFR lookup returned '${lookup.status}' for "${address}" — storing null structural details`,
+            );
+        }
+    }
+
     const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
     const resolvedDealType = (validDealTypes as readonly string[]).includes(dealType ?? '')
         ? (dealType as 'wholesale' | 'agent' | 'sold' | 'reo')
         : ('agent' as const);
 
-    const msaId = input.msaId;
-    const [msaExists] = await db
-        .select({ id: msas.id })
-        .from(msas)
-        .where(eq(msas.id, msaId))
-        .limit(1);
-    if (!msaExists) {
-        throw new DealServiceError(422, 'Invalid MSA — please select a valid market.');
+    // MSA is derived from the location; the client-provided msaId is only a fallback for
+    // addresses that don't resolve to a tracked market.
+    const resolvedMsaId = await resolveMsaId(city, state, zipCode);
+    const msaId = resolvedMsaId ?? input.msaId;
+    if (msaId == null) {
+        throw new DealServiceError(
+            422,
+            'Could not determine the market for this address — please select one.',
+        );
+    }
+    // resolveMsaId already returns an id that exists in `msas`; only the client fallback needs checking.
+    if (resolvedMsaId == null) {
+        const [msaExists] = await db
+            .select({ id: msas.id })
+            .from(msas)
+            .where(eq(msas.id, msaId))
+            .limit(1);
+        if (!msaExists) {
+            throw new DealServiceError(422, 'Invalid market — please select a valid market.');
+        }
     }
 
     const county = await resolveCountyFromZip(zipCode, city, state);
@@ -396,7 +442,7 @@ export async function createDeal(input: CreateDealInput) {
             userId,
             msaId,
             type: resolvedDealType,
-            sfrPropertyId: null,
+            sfrPropertyId: structSfrPropertyId,
             address: hasAddress ? (address as string).trim() : null,
             city: city.trim(),
             state: state.toUpperCase().trim(),
@@ -406,10 +452,10 @@ export async function createDeal(input: CreateDealInput) {
             potentialARV: potentialARV != null ? String(potentialARV) : null,
             showingTime: showingTime ?? null,
             estimatedBudget: estimatedBudget != null ? Number(estimatedBudget) : null,
-            beds: beds != null ? Number(beds) : null,
-            baths: baths != null ? String(Number(baths)) : null,
-            sqft: sqft != null ? Number(sqft) : null,
-            propertyType: normalizePropertyType(propertyType ?? null),
+            beds: structBeds,
+            baths: structBaths != null ? String(structBaths) : null,
+            sqft: structSqft,
+            propertyType: structPropertyType,
             notes: notes ?? null,
             adminNotes: adminNotes ?? null,
             photosUrl: photosUrl ?? null,
@@ -740,6 +786,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
 
     const [current] = await db
         .select({
+            address: deals.address,
             city: deals.city,
             state: deals.state,
             zipCode: deals.zipCode,
@@ -779,12 +826,62 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         (state !== undefined ? String(state).toUpperCase().trim() : current.state) ?? '';
     const mergedZip = (zipCode !== undefined ? String(zipCode).trim() : current.zipCode) ?? '';
 
-    const newMsaId = msaId ?? current.msaId;
+    // Re-derive the MSA from the (possibly updated) location; fall back to a client-provided
+    // msaId, then the deal's existing market.
+    const resolvedMsaId = await resolveMsaId(mergedCity, mergedState, mergedZip);
+    const newMsaId = resolvedMsaId ?? msaId ?? current.msaId;
 
     const updatedCounty = await resolveCountyFromZip(mergedZip, mergedCity, mergedState);
 
     const incomingAddress =
         address !== undefined && address !== null ? String(address).trim() : null;
+
+    // Resolve structural details + sfrPropertyId from the address state:
+    //  • disclosed + address changed → re-fetch from SFR (or null on miss)
+    //  • disclosed + address unchanged → leave the stored values untouched
+    //  • undisclosed → use the manually-entered values, drop the SFR link
+    const finalAddress = address !== undefined ? incomingAddress : (current.address ?? null);
+    const addressChanged =
+        address !== undefined && (incomingAddress ?? null) !== (current.address ?? null);
+    const finalDisclosed = !!finalAddress && finalAddress.trim().length > 0;
+
+    let structSet: {
+        beds?: number | null;
+        baths?: string | null;
+        sqft?: number | null;
+        propertyType?: string | null;
+        sfrPropertyId?: number | null;
+    } = {};
+
+    if (finalDisclosed) {
+        if (addressChanged) {
+            const lookup = await lookupPropertyByAddress({
+                address: finalAddress!.trim(),
+                city: mergedCity,
+                state: mergedState,
+                zipCode: mergedZip,
+            });
+            structSet =
+                lookup.status === 'found'
+                    ? {
+                          beds: lookup.beds,
+                          baths: lookup.baths != null ? String(lookup.baths) : null,
+                          sqft: lookup.sqft,
+                          propertyType: lookup.propertyType,
+                          sfrPropertyId: lookup.sfrPropertyId,
+                      }
+                    : { beds: null, baths: null, sqft: null, propertyType: null, sfrPropertyId: null };
+        }
+    } else {
+        structSet = {
+            beds: beds !== undefined ? (beds != null ? Number(beds) : null) : undefined,
+            baths: baths !== undefined ? (baths != null ? String(baths) : null) : undefined,
+            sqft: sqft !== undefined ? (sqft != null ? Number(sqft) : null) : undefined,
+            propertyType:
+                propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined,
+            sfrPropertyId: null,
+        };
+    }
 
     const validDealTypes = ['wholesale', 'agent', 'sold', 'reo'] as const;
 
@@ -794,6 +891,7 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             updatedAt: new Date(),
             msaId: newMsaId,
             county: updatedCounty,
+            ...structSet,
             address: address !== undefined ? incomingAddress || null : undefined,
             city: city !== undefined ? mergedCity : undefined,
             state: state !== undefined ? mergedState : undefined,
@@ -816,13 +914,6 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
                 dealType !== undefined &&
                 validDealTypes.includes(dealType as (typeof validDealTypes)[number])
                     ? (dealType as (typeof validDealTypes)[number])
-                    : undefined,
-            beds: beds !== undefined ? (beds != null ? Number(beds) : null) : undefined,
-            baths: baths !== undefined ? (baths != null ? String(baths) : null) : undefined,
-            sqft: sqft !== undefined ? (sqft != null ? Number(sqft) : null) : undefined,
-            propertyType:
-                propertyType !== undefined
-                    ? normalizePropertyType(propertyType ?? null)
                     : undefined,
             notes: notes !== undefined ? (notes ?? null) : undefined,
             adminNotes: adminNotes !== undefined ? (adminNotes ?? null) : undefined,

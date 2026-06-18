@@ -22,7 +22,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Textarea } from '@/components/ui/textarea';
 import AppDialog from '@/components/modals/Dialog';
-import DealFormFields, { EDIT_DEAL_TYPES } from '@/components/deals/DealFormFields';
+import DealFormFields, {
+    EDIT_DEAL_TYPES,
+    FormSectionLabel,
+} from '@/components/deals/DealFormFields';
 
 type EditDealDialogProps = {
     deal: DealToEdit;
@@ -42,6 +45,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
         resolver: zodResolver(dealFormSchema),
         defaultValues: {
             address: deal.address ?? '',
+            addressUndisclosed: !deal.address,
             city: deal.city ?? '',
             state: deal.state ?? '',
             zipCode: deal.zipCode ?? '',
@@ -95,7 +99,7 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
     const updateDeal = useMutation({
         mutationFn: async (data: DealFormValues) => {
             const res = await apiRequest('PATCH', `/api/deals/${deal.id}`, {
-                address: data.address?.trim() || null,
+                address: data.addressUndisclosed ? null : data.address?.trim() || null,
                 city: data.city,
                 state: data.state,
                 zipCode: data.zipCode,
@@ -178,19 +182,20 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                 >
                     <div className="dialog-scrollable-body">
                         <DealFormFields
-                            control={form.control}
+                            form={form}
                             dealTypes={EDIT_DEAL_TYPES}
                             links={links}
                             onLinksChange={setLinks}
                             photosUrl={photosUrl}
                             onPhotosUrlChange={setPhotosUrl}
+                            showMsaFallback={false}
                         />
 
                         <FormField
                             control={form.control}
                             name="sendNotifications"
                             render={({ field }) => (
-                                <FormItem className="flex items-center gap-2 space-y-0">
+                                <FormItem className="flex items-center gap-2 space-y-0 mt-6">
                                     <FormControl>
                                         <Checkbox
                                             checked={field.value}
@@ -205,13 +210,8 @@ export default function EditDealDialog({ deal, open, onClose }: EditDealDialogPr
                         />
 
                         {(canEditAdminNotes || canEditPrivilegedFields) && (
-                            <div className="space-y-4 pt-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                                        Admin Only
-                                    </span>
-                                    <div className="flex-1 h-px bg-border" />
-                                </div>
+                            <div className="space-y-4 pt-4">
+                                <FormSectionLabel>Admin Only</FormSectionLabel>
 
                                 {canEditAdminNotes && (
                                     <FormField

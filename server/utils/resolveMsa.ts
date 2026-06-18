@@ -52,13 +52,27 @@ function zipToStaticMsaName(zip: string): string | null {
     return null;
 }
 
+// Boundary cities that physically sit in one county but whose deals are surfaced to a
+// different MSA's audience. Temecula/Murrieta are in Riverside County but close enough to
+// San Diego that the business announces those deals to the San Diego market. Key: "city|state".
+const CITY_MSA_OVERRIDE: Record<string, string> = {
+    'temecula|ca': 'San Diego-Chula Vista-Carlsbad, CA',
+    'murrieta|ca': 'San Diego-Chula Vista-Carlsbad, CA',
+};
+
+function overrideMsaName(city?: string | null, state?: string | null): string | null {
+    if (!city || !state) return null;
+    return CITY_MSA_OVERRIDE[`${city.trim().toLowerCase()}|${state.trim().toLowerCase()}`] ?? null;
+}
+
 /**
  * Resolves the internal msas.id for a given city/state/zip combination.
  *
  * Resolution order:
+ *  0. City/state override (boundary cities, e.g. Temecula → San Diego MSA)
  *  1. DB lookup by zip code  (join addresses → properties.msa → msas)
  *  2. DB lookup by city + state
- *  3. Static zip-prefix map for our 6 tracked MSAs
+ *  3. Static zip-prefix map for our tracked MSAs
  *
  * Returns null when the location cannot be matched to a tracked MSA.
  */
@@ -67,6 +81,17 @@ export async function resolveMsaId(
     state: string,
     zipCode?: string | null,
 ): Promise<number | null> {
+    // ── Tier 0: boundary-city override ────────────────────────────────────────
+    const overrideName = overrideMsaName(city, state);
+    if (overrideName) {
+        const [msaRow] = await db
+            .select({ id: msas.id })
+            .from(msas)
+            .where(eq(msas.name, overrideName))
+            .limit(1);
+        if (msaRow) return msaRow.id;
+    }
+
     const msaJoin = sql`lower(trim(${properties.msa})) = lower(trim(${msas.name}))`;
 
     // ── Tier 1: zip code match ────────────────────────────────────────────────
