@@ -13,6 +13,7 @@ import {
     updateMessageSchema,
 } from '@database/validation/mastermind.validation';
 import { createMentionNotifications } from 'server/services/notifications/notifications.services';
+import { sendMastermindMentionEmails } from 'server/services/notifications/notificationEmails.services';
 import { broadcastToChannel, broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { isUuid } from 'server/utils/uuid';
@@ -117,6 +118,12 @@ export async function createMessageController(req: Request, res: Response): Prom
                     notification,
                 });
             }
+
+            // Email is secondary to the in-app fan-out and may be slow for a wide @announcement,
+            // so it never blocks the 201 response.
+            void sendMastermindMentionEmails({ created, messageHtml: message.content }).catch(
+                (err) => console.error('Error sending mastermind mention emails:', err),
+            );
         } catch (err) {
             console.error('Error creating mention notifications:', err);
         }

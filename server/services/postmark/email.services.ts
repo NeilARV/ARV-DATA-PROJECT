@@ -5,7 +5,7 @@ import {
     userRelationshipManagers,
     emailSubscriptionList,
 } from '@database/schemas/users.schema';
-import { eq, inArray, and, sql } from 'drizzle-orm';
+import { eq, inArray, and, sql, isNotNull } from 'drizzle-orm';
 import {
     listSenderSignatures,
     findSignatureByEmail,
@@ -120,6 +120,26 @@ export async function getRmEmailsByUserIds(userIds: string[]): Promise<Map<strin
         }
     }
     return map;
+}
+
+// Given user IDs, returns those eligible for a transactional notification email: master
+// notifications flag on and a verified email. Skips opted-out / unverified recipients so we
+// never email an unsubscribed or bounce-prone address.
+export async function getEmailRecipientsByUserIds(
+    userIds: string[],
+): Promise<Array<{ userId: string; email: string }>> {
+    if (userIds.length === 0) return [];
+
+    return db
+        .select({ userId: users.id, email: users.email })
+        .from(users)
+        .where(
+            and(
+                inArray(users.id, userIds),
+                eq(users.notifications, true),
+                isNotNull(users.emailVerifiedAt),
+            ),
+        );
 }
 
 // Given RM user IDs (e.g. from email_whitelist), returns a map of rmId → email.

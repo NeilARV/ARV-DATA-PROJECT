@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>ARV Mastermind</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table width="650" cellpadding="0" cellspacing="0" style="background-color:#ffffff; margin:40px 0; border-radius:6px; overflow:hidden;">
+
+            <!-- Header -->
+            <tr>
+              <td style="background-color:#69C9E1; padding:24px; text-align:center;">
+                <h1 style="margin:0; color:#ffffff; font-size:22px;">
+                  {{#is_announcement}}New Announcement{{/is_announcement}}{{^is_announcement}}New Mention{{/is_announcement}}
+                </h1>
+                <p style="margin:6px 0 0; color:#ffffff; font-size:13px; opacity:0.9;">ARV Mastermind</p>
+              </td>
+            </tr>
+
+            <!-- Intro -->
+            <tr>
+              <td style="padding:28px 32px 20px; color:#333333; text-align:center;">
+                <p style="margin:0; font-size:16px; line-height:1.6;">
+                  <strong>{{name}}</strong> {{#is_announcement}}posted an announcement in{{/is_announcement}}{{^is_announcement}}mentioned you in{{/is_announcement}} <strong>{{channel_name}}</strong>.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Message -->
+            <tr>
+              <td style="padding:0 32px 24px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fa; border-left:3px solid #69C9E1; border-radius:0 4px 4px 0;">
+                  <tr>
+                    <td style="padding:14px 18px;">
+                      <p style="margin:0 0 6px; font-size:11px; font-weight:600; color:#999999; text-transform:uppercase; letter-spacing:0.5px;">Message</p>
+                      <p style="margin:0; font-size:14px; color:#333333; line-height:1.6;">{{message_text}}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- CTA Button -->
+            <tr>
+              <td align="center" style="padding:8px 32px 28px;">
+                <a href="{{message_url}}" style="background-color:#69C9E1; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:4px; font-size:16px; font-weight:bold; display:inline-block;">
+                  View Message
+                </a>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:16px; text-align:center; color:#999; font-size:12px; border-top:1px solid #eeeeee;">
+                You're receiving this email because you have notifications enabled for ARV Mastermind.<br />
+                &#169; {{year}} {{company_name}}
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
