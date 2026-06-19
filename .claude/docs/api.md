@@ -1451,7 +1451,7 @@ Submit a contact form message. Sends an email to the user's relationship manager
 }
 ```
 
-**Response `200`** `{ "message": "Contact message sent" }`
+**Response `204`** No Content (message sent)
 
 **Errors** `400` validation failed · `500` email sending error
 

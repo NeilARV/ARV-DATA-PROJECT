@@ -22,7 +22,7 @@ Every review follows this sequence:
 
 1. **Orient** — Run `git diff HEAD~1 --stat` (or the appropriate range) to see what changed and how much. If the diff is unclear, check `git log --oneline -5` for context.
 2. **Scope** — Identify the changed files and files effected by the changes. Ignore generated files, lock files, migration outputs, build artifacts, and vendored dependencies.
-3. **Read standards** — If `coding-standards.md` (or equivalent) exists in the project root, read it. Do not re-state rules it already covers unless they are actively being violated.
+3. **Read standards** — If `.claude/docs/standards/react.md`, `.claude/docs/standards/typescript.md`, or `.claude/docs/standards/express.md` (or equivalent) exists in the project root, read it. Do not re-state rules it already covers unless they are actively being violated.
 4. **Read the code** — Read each changed file in full. Also read closely related files (imports, shared types, callers) when needed to understand the change in context.
 5. **Review** — Apply the checklists below. Only flag findings you are confident about.
 6. **Report** — Output findings using the format below. If everything looks good, say so in one line.

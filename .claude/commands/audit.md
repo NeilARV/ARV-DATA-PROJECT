@@ -1,7 +1,7 @@
 ---
 description: Audit the whole codebase (.ts/.tsx) against the project standards and report drift, grouped by rule
 argument-hint: "[client|server|<path>|<file>] [--clean-code] [--gof]   # keyword, dir, or a single .ts/.tsx file; defaults to whole repo"
-allowed-tools: Glob, Grep, Read, Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(ls:*)
+allowed-tools: Glob, Grep, Read
 ---
 
 # /audit — Full codebase drift audit
@@ -12,10 +12,10 @@ You are auditing the codebase against the project standards. Unlike `/smell` (wh
 
 The authoritative rule definitions live in these files. Read them and cite IDs from them verbatim:
 
-- `@.claude/docs/standards/typescript.md`
-- `@.claude/docs/standards/react.md`
-- `@.claude/docs/standards/express.md`
-- `@.claude/docs/standards/database.md`
+@.claude/docs/standards/typescript.md
+@.claude/docs/standards/react.md
+@.claude/docs/standards/express.md
+@.claude/docs/standards/database.md
 
 > The grep patterns in Step 2 are **detection heuristics**, not the source of truth. If a pattern's label and the canonical file disagree on an ID name, the canonical file wins — cite that.
 
@@ -23,64 +23,23 @@ The authoritative rule definitions live in these files. Read them and cite IDs f
 
 ## Step 1 — Scope & inventory
 
-Resolve the scope keyword (or path) in `$ARGUMENTS`, validate it exists, and inventory the in-scope `.ts`/`.tsx` files. Scope keywords:
+Read `$ARGUMENTS` and resolve the scope yourself (don't shell out for this). The first non-`--` token is the scope; `--clean-code`/`--gof` are flags handled in Step 3.
 
-- **`client`** → audits `client/` (React side).
-- **`server`** → audits `server/` **and** `database/` (the backend; Drizzle schemas live under `database/`).
-- **`<path>`** → any explicit dir, e.g. `server/services` or `client/src/hooks`.
-- **`<file>`** → a single file, e.g. `client/src/components/AddDeal.tsx` (must be `.ts`/`.tsx`).
-- **(none)** → the whole repo.
+Map the scope token to glob roots:
 
-!`bash -c '
-ARGS="$1"
-SCOPE_KW=""
-for tok in $ARGS; do
-  case "$tok" in
-    --*) ;;                                   # flag, handled in Step 3
-    *) [ -z "$SCOPE_KW" ] && SCOPE_KW="$tok" ;;
-  esac
-done
-case "$SCOPE_KW" in
-  ""|all|repo) PATHS="." ;        LABEL="whole repo" ;;
-  client)      PATHS="client" ;   LABEL="client (React)" ;;
-  server)      PATHS="server database" ; LABEL="server + database (backend)" ;;
-  *)           PATHS="$SCOPE_KW" ; LABEL="$SCOPE_KW" ;;
-esac
-EXIST=""
-for p in $PATHS; do [ -e "$p" ] && EXIST="$EXIST $p"; done
-if [ -z "$EXIST" ]; then
-  echo "ERROR: none of [$PATHS] exist from $(pwd)."
-  echo "Pass a keyword (client|server), a dir, or a single file, e.g. /audit client/src/components/AddDeal.tsx"
-  exit 1
-fi
-set -- $EXIST
-if [ "$#" -eq 1 ] && [ -f "$1" ]; then
-  # Single-file scope
-  case "$1" in
-    *.ts|*.tsx)
-      echo "===== SCOPE: single file ($1) ====="
-      echo "$1" > /tmp/audit_files.txt
-      echo "Source files in scope: 1" ;;
-    *)
-      echo "ERROR: $1 is not a .ts/.tsx file; only those are audited."
-      exit 1 ;;
-  esac
-else
-  echo "===== SCOPE: $LABEL  ($EXIST) ====="
-  echo
-  find $EXIST -type f \( -name "*.ts" -o -name "*.tsx" \) \
-    -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/build/*" \
-    -not -path "*/.next/*" -not -name "*.d.ts" -not -name "*.gen.ts" \
-    > /tmp/audit_files.txt
-  wc -l < /tmp/audit_files.txt | xargs echo "Source files in scope:"
-  echo
-  echo "----- By layer (non-empty only) -----"
-  for L in "server/routes" "server/controllers" "server/services" "server/middleware" "database" "client/src/components" "client/src/hooks" "client/src/pages"; do
-    N=$(grep -c "/$L/" /tmp/audit_files.txt 2>/dev/null || echo 0)
-    [ "$N" -gt 0 ] && echo "  $L: $N"
-  done
-fi
-' -- "$ARGUMENTS"`
+| Scope token | Glob roots to inventory |
+|---|---|
+| `client` | `client/**/*.ts`, `client/**/*.tsx` |
+| `server` | `server/**/*.ts`, `database/**/*.ts` |
+| *(empty)* / `all` / `repo` | `**/*.ts`, `**/*.tsx` |
+| a directory, e.g. `server/services` | `<dir>/**/*.ts`, `<dir>/**/*.tsx` |
+| a single file ending in `.ts`/`.tsx` | the file itself |
+
+Then inventory with the **Glob** tool (not Bash):
+
+- **Single file** — if the scope token ends in `.ts`/`.tsx`, treat it as the only file in scope; skip the layer breakdown and go straight to Step 2 on that one file. If it ends in any other extension, stop and report that only `.ts`/`.tsx` files are audited.
+- **Directory / keyword / whole repo** — run the Glob roots above. Ignore `node_modules`, `dist`, `build`, `.next`, `*.d.ts`, and `*.gen.ts`. Report the file count and a per-layer breakdown (count of files under `server/routes`, `server/controllers`, `server/services`, `server/middleware`, `database`, `client/src/components`, `client/src/hooks`, `client/src/pages` — list only the non-empty ones).
+- If the Glob roots match **zero** files, stop and report that nothing was found for the given scope, suggesting a keyword (`client`/`server`), a directory, or a single file.
 
 > The scope determines which rule families matter: a **`client`** run only meaningfully triggers `RX.*` and `TS.*`; a **`server`** run triggers `EX.*`, `DB.*`, `TS.*`, and `ARV.*`. For a **single file**, infer the relevant families from its path and extension (a `.tsx` under `client/` → `RX.*`/`TS.*`; a `.ts` under `server/` or `database/` → `EX.*`/`DB.*`/`TS.*`/`ARV.*`). Skip families that can't apply rather than reporting them as clean.
 
@@ -92,7 +51,7 @@ fi
 
 Run these targeted searches across the in-scope `.ts`/`.tsx` files. Each row maps a textual signature to a canonical rule. Run them, collect `file:line` hits, and discard obvious false positives (note when you do). These are the high-signal, high-confidence findings.
 
-> Use `rg` with globs, e.g. `rg -n --glob '*.ts' --glob '*.tsx' -g '!node_modules' <pattern> <scope>`. Patterns are starting points — tighten per hit.
+> Run each search with the **Grep** tool (not Bash). Use its `glob` filter to stay in scope (`*.ts`, `*.tsx`) and its `path` filter for layer-specific rules (e.g. restrict `EX.NO-HTTP-IN-SERVICE` to `server/services`). Use output mode with line numbers so each hit is a `file:line`. Patterns are starting points — tighten per hit and discard false positives.
 
 ### TypeScript
 | Rule | Pattern (heuristic) | Notes |
