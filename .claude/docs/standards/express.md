@@ -181,7 +181,7 @@ Scope: **server architecture and data access only.** TypeScript language rules l
 ```
 - **EX.AWAIT-INDEPENDENT** — Parallelize genuinely independent awaits with `Promise.all`; don't serialize them. But don't bundle dependent/unrelated work into one `Promise.all` just to shorten code (see `typescript.md` TS.ASYNC-AWAIT).
 
-## Comments (Option A — defer to code-standards.md §18)
+## Comments
 
 - **EX.JSDOC-EXPORT** — Exported controllers and service functions get a short JSDoc with `@param`/`@returns` describing what they do, what they return, and any non-obvious side effect (e.g. "sends an email"). Inline `//` explains *why*.
 ```ts

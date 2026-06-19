@@ -11,7 +11,6 @@ Detects when code changes make agent documentation stale. Triggered automaticall
 | `CLAUDE.md` | Base | Top-level project instructions, file references, global rules |
 | `.claude/docs/api.md` | API | Complete route docs: paths, params, request/response shapes (auth summarized; access-control.md canonical) |
 | `.claude/docs/access-control.md` | Auth | **Canonical** route permission tables, middleware chains, role/tier rules |
-| `.claude/docs/code-standards.md` | Standards | Naming, file structure, patterns, conventions |
 | `.claude/docs/testing.md` | Workflow | Test structure, helpers, mandatory baseline, naming |
 | `.claude/docs/design-guidelines.md` | Design | Tokens, colors, typography, spacing, component styles |
 | `.claude/docs/apps.md` | App | Combined Data / Deals / Vendors / Mastermind reference: component tree, state, API surface, services, schema per app |

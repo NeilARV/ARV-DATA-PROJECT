@@ -1,5 +1,5 @@
 ---
-description: Scan git diff vs target branch for code smells (Clean Code + GoF + Python catalog)
+description: Scan git diff vs target branch for code smells (Clean Code + GoF + TypeScript/React/Express catalog)
 argument-hint: "[target-branch]"
 allowed-tools: Bash(git:*), Read, Grep, Glob
 ---
@@ -155,7 +155,7 @@ Walk every hunk. For each issue you find, cite **exactly one** catalog ID from t
 - **DS.OPACITY** — hard to understand
 
 ### TypeScript / React / Express / Drizzle IDs (this stack)
-Apply to `.ts` / `.tsx` files. Each maps to a rule in `code-standards.md`.
+Apply to `.ts` / `.tsx` files. Each maps to a rule in `.claude/docs/standards/react.md`, `.claude/docs/standards/typescript.md`, `.claude/docs/standards/express.md`, and `.claude/docs/standards/database.md` respectively.
 
 **TypeScript**
 - **TS.ANY** — `any` or `as any` used instead of `unknown` + narrowing (§2)

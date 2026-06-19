@@ -162,7 +162,7 @@ Scope: **React only** — component structure, hooks, props, JSX, client state, 
 - **RX.A11Y-SEMANTIC** — Use the semantic element (`<button>`, `<a>`, `<nav>`) over a `div` with an `onClick`. A clickable `div` needs `role` + keyboard handling — prefer the real element.
 - **RX.A11Y-ALT** — `<img>` needs `alt` (empty `alt=""` for decorative images).
 
-## Comments (defer to code-standards.md §18; Option A)
+## Comments
 
 - **RX.JSDOC-EXPORT** — Exported components and custom hooks get a short JSDoc describing what they render/return and any non-obvious prop. Inline `//` comments explain *why*, not *what*.
 ```tsx

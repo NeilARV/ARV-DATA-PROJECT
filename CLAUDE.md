@@ -101,9 +101,36 @@ Before building any backend route or frontend component that restricts access by
 ---
 
 ## Coding Style
-Before adding or modifying ANY code, read `.claude/docs/code-standards.md` and follow it. This is the authoritative source for naming, file organization, component structure, route/controller/service patterns, and error handling.
 
-> **Full reference**: `.claude/docs/code-standards.md` — authoritative source for all coding conventions.
+Before adding or modifying ANY code, read the standards file for the layer you're touching. These are authoritative; each owns a rule-ID prefix used by `/smell`.
+
+- **TypeScript (any code)** → `.claude/docs/standards/typescript.md` (`TS.*`)
+- **React / frontend** → `.claude/docs/standards/react.md` (`RX.*`)
+- **Express / backend / Drizzle** → `.claude/docs/standards/express.md` (`EX.*`, `DB.*`)
+
+Read the domain file directly for the layer you're in. The cross-cutting rules below apply everywhere and are not repeated in those files.
+
+### General principles (apply everywhere)
+- **Clarity over cleverness.** Code is read far more than written.
+- **Consistency over preference.** Match the surrounding pattern.
+- **One responsibility.** If you say "and" to describe it, split it.
+- **No dead code.** Remove unused vars/imports/functions/commented-out blocks; git is the history.
+- **No speculative abstraction.** Three similar lines beats a premature helper.
+- **Fail loudly.** Explicit errors and early returns over silent fallbacks.
+
+### Comments policy (Option A — encouraged)
+- Exported functions/components/hooks get a JSDoc describing *what* they do/return (`@param`/`@returns` where useful).
+- Inline `//` comments explain *why*, not what — a constraint, workaround, or invariant.
+- Delete dead/obsolete comments; a stale comment that contradicts code is worse than none.
+
+### Formatting
+Prettier owns all formatting and runs automatically via the `PostToolUse` hook. Don't fight it or restate its rules. Semantic choices it can't make (quote intent, `T[]` vs `Array<T>`, import order) live in `typescript.md`.
+
+### Project-specific rules
+- **ARV.RAW-COMPANY-NAME** — DB company names are ALL CAPS; always pass through `formatCompanyName` from `@shared/utils/formatCompanyName` before rendering in a component **or** returning in any user-facing API response. (Cards, modals, directory, table rows, search, tooltips.)
+- **ARV.SECRET-ACCESS** — Never read/print/access any `.env` or secret; reference env vars by NAME only. (Also hook-enforced.)
+
+### File & folder organization
 
 ---
 
@@ -133,7 +160,9 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 ## References
 - `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params). Auth notes are summarized per route; `access-control.md` is canonical for auth.
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
-- `.claude/docs/code-standards.md` — coding conventions for the entire codebase
+- `.claude/docs/standards/typescript.md` — Standards — TypeScript language rules (`TS.*`) |
+- `.claude/docs/standards/react.md` — Standards — React rules (`RX.*`) |
+- `.claude/docs/standards/express.md` — Standards — Express/Drizzle backend rules (`EX.*`, `DB.*`) |
 - `.claude/docs/design-guidelines.md` — UI design system (colors, typography, components, dark mode)
 - `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
 - `.claude/docs/apps.md` — combined overview of all four apps (Data, Deals, Vendors, Mastermind)

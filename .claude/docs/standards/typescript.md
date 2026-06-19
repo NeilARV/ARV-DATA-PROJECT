@@ -163,7 +163,7 @@ Scope: **TypeScript language only** — types, interfaces, generics, naming, mod
 ```
 - **TS.IMPORT-ORDER** — Group imports (blank line between groups): framework → third-party → `@/components` → `@/hooks` → `@/types` → `@/lib`/`@/utils`/`@/constants` → assets. (Client-facing detail; server files use the same ordering minus the React/asset groups.)
 
-## Comments & docs (Option A — defer to code-standards.md §18)
+## Comments & docs
 
 - **TS.JSDOC-EXPORT** — Exported functions get a short JSDoc describing **what** they do and return, and any non-obvious parameter or constraint. This is encouraged for reviewability and doubles as editor tooltips.
 ```ts
