@@ -43,7 +43,7 @@ This document is the authoritative reference for coding conventions across the e
 
 - Strict mode is always on — `"strict": true` in `tsconfig.json`.
 - Never use `any`. Use `unknown` and narrow with type guards, or define a proper type.
-- Prefer `interface` for object shapes that describe entities or component props. Use `type` for unions, intersections, and aliases.
+- Prefer `interface` for object shapes that describe **entities** (DB rows, domain models). Use `type` for **component props** (see §7), and for unions, intersections, and aliases.
 - Prefer `type` imports when importing only a type — `import type { Foo } from "..."`.
 - Use `$inferSelect` and `z.infer` to derive types from Drizzle schemas and Zod schemas rather than writing them by hand.
 - Always annotate function return types on exported functions; infer return types on internal/private functions when they are obvious.
@@ -51,12 +51,13 @@ This document is the authoritative reference for coding conventions across the e
 
 ```ts
 // Good
-interface UserProps {
-    userId: string;
-    role: Role;
+interface Company {
+    id: string;
+    name: string;
+    isArvClient: boolean;
 }
 
-type Role = "admin" | "owner" | "user";
+type Role = "owner" | "admin" | "relationship-manager" | "member";
 
 // Bad
 const role: any = getRole();
@@ -113,7 +114,7 @@ const menuRef = useRef<HTMLDivElement>(null);
 ### Server Constructs
 
 - Route files: `resource.routes.ts` (e.g., `auth.routes.ts`)
-- Controller files: `resource.controller.ts` (e.g., `users.controller.ts`)
+- Controller files: `resource.controllers.ts` (e.g., `users.controllers.ts`, `deals.controllers.ts`)
 - Service files: `resource.services.ts` (e.g., `users.services.ts`)
 - Middleware files: `camelCase.ts` (e.g., `requireAuth.ts`, `requireRole.ts`)
 
@@ -303,7 +304,7 @@ export function StatusBadge({ status }: StatusBadgeProps) { ... }
 ### Props
 
 - Define props with an `type`, not an inline type or `interface` alias.
-- Name the interface `<ComponentName>Props`.
+- Name the type `<ComponentName>Props`.
 - Keep prop interfaces in the same file as the component unless they are shared across multiple components, in which case they go in `client/src/types/`.
 
 ```tsx
@@ -483,9 +484,9 @@ Route files are **thin** — they only declare endpoints, attach middleware, and
 ```ts
 // server/routes/users.routes.ts
 import { Router } from "express";
-import { requireAuth } from "../middleware/requireAuth.js";
-import { requireRole } from "../middleware/requireRole.js";
-import * as UsersController from "../controllers/users/users.controller.js";
+import { requireAuth } from "../middleware/requireAuth.ts";
+import { requireRole } from "../middleware/requireRole.ts";
+import * as UsersController from "../controllers/users/users.controller.ts";
 
 const router = Router();
 
@@ -622,13 +623,21 @@ When the middleware needs configuration, use a factory function that returns the
 ```ts
 // server/middleware/requireRole.ts
 import type { Request, Response, NextFunction } from "express";
-import type { Role } from "@database/types/roles.js";
+import type { Role } from "@database/types/roles.ts";
 
+// Membership-based, NOT hierarchical. The real implementation queries `user_roles`
+// for the caller and passes if ANY of their roles is in `allowed`.
+// See access-control.md for exact semantics (401 no session, 403 wrong role).
 export function requireRole(roleOrRoles: Role | Role[]) {
     const allowed = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
 
-    return function requireRoleMiddleware(req: Request, res: Response, next: NextFunction): void {
-        if (!req.session.role || !allowed.includes(req.session.role)) {
+    return async function requireRoleMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
+        if (!req.session.userId) {
+            res.status(401).json({ message: "Unauthorized — please log in" });
+            return;
+        }
+        const userRoles = await getUserRoles(req.session.userId); // Role[]
+        if (!userRoles.some((r) => allowed.includes(r))) {
             res.status(403).json({ message: "Forbidden" });
             return;
         }
@@ -778,7 +787,7 @@ Additional conventions Prettier does not cover:
 
 - Prefer type narrowing and type guards over `as` casts. Never use `as any`.
 - Use ES module syntax (`import`/`export`) everywhere. No `require()`.
-- Server files use `.js` extensions in import paths (TypeScript compiles to `.js`, Node requires it for ESM).
+- Server files use `.ts` extensions in import paths (TypeScript compiles to `.ts`, Node requires it for ESM).
 - Short objects and arrays that fit on one line: keep on one line. Once they exceed ~80 characters or contain 3+ properties, split to multi-line.
 
 ---
