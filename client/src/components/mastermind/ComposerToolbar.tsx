@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bold, Italic, Link2, Underline } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
 
-type EditorState = {
+export type EditorState = {
     isBold: boolean;
     isItalic: boolean;
     isUnderline: boolean;

@@ -25,6 +25,8 @@ The authoritative rule definitions live in these files. Read them and cite IDs f
 
 Read `$ARGUMENTS` and resolve the scope yourself (don't shell out for this). The first non-`--` token is the scope; `--clean-code`/`--gof` are flags handled in Step 3.
 
+When working with util functions, hooks, components or other reusable functions, be sure to audit the files it touches. However, you may only go one import out. For example, `useProperties.ts` is a hook that is used in multiple places. If the hook is used in a React component, then we will audit the react component but only for areas that the original audit file effects.
+
 Map the scope token to glob roots:
 
 | Scope token | Glob roots to inventory |
