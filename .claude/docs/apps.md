@@ -1,6 +1,6 @@
 # Apps — Overview & Reference (Data · Deals · Vendors · Mastermind)
 
-ARV is organized as three feature areas that function like separate apps on a shared
+ARV is organized as four feature areas that function like separate apps on a shared
 foundation (auth, providers, backend). Each has its own page entry point, nav hook, routes,
 controllers, and services.
 
@@ -9,11 +9,11 @@ controllers, and services.
 | **Data** | `/` | Property intelligence — browse SFR transaction data by MSA | `properties.*`, `companies.*` |
 | **Deals** | `/deals` | Deal marketplace — post/browse wholesale, agent, REO, sold deals | `deals.*` |
 | **Vendors** | `/vendors` | Community hub — activity feed + vendor directory | `vendors.*`, `posts.*`, `categories.*` |
+| **Mastermind** | `/mastermind` | Slack-style real-time community (channels, messages, reactions, pins, notifications) | `channels.*`, `messages.*`, `notifications.*`, `/ws` |
 
-All three pages wrap their content in the same 5 shared context providers:
+The **Data, Deals, and Vendors** pages wrap their content in the same 5 shared context providers:
 `MapProvider → FiltersProvider → CompaniesProvider → PropertiesProvider → PropertyProvider`.
-
----
+**Mastermind** is a separate page (`/mastermind`) with its own socket + query state and does not use that provider tree.
 ---
 
 # 1. Data App
