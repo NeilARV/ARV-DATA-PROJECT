@@ -23,8 +23,8 @@ Scope: **React only** — component structure, hooks, props, JSX, client state, 
 ```tsx
     // Bad — Row is recreated every render
     function Table() {
-            function Row({ x }: RowProps) { return <td>{x}</td>; }
-            return <tbody>{rows.map(r => <Row x={r} />)}</tbody>;
+        function Row({ x }: RowProps) { return <td>{x}</td>; }
+        return <tbody>{rows.map(r => <Row x={r} />)}</tbody>;
     }
     // Good — Row defined at module scope, passed props
 ```
