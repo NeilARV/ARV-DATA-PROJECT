@@ -4,6 +4,8 @@ Complete reference for all HTTP API routes. Base path: `/api`.
 
 Auth is cookie-based (express-session). All authenticated routes require an active session cookie.
 
+> Each route below lists an **Auth** summary for convenience. `access-control.md` is the canonical source for authorization and **wins on any conflict** — if an Auth line here disagrees with the permission table there, the table is correct.
+
 For access control rules (which roles/tiers can call what), see [`access-control.md`](./access-control.md).
 
 ---
@@ -953,10 +955,19 @@ Get a single deal by integer ID.
 
 ---
 
+### `GET /api/deals/msas`
+List the MSAs available in the deal-form location dropdown.
+
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role.
+
+**Response `200`** Array of `{ id, name }` MSA objects.
+
+---
+
 ### `POST /api/deals`
 Create a new deal.
 
-**Auth**: `requireSub(["pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] })`
+**Auth**: `requireSub(["basic", "pro", "premium"], { bypassRoles: ["admin", "owner", "relationship-manager", "member"] })`
 
 **Body**
 ```json
@@ -1014,7 +1025,7 @@ Update an existing deal. Ownership enforced in service (own deal, or admin/owner
 ### `DELETE /api/deals/:id`
 Delete a deal. Ownership enforced in service.
 
-**Auth**: `requireSub(["pro", "premium"], { bypassRoles: [...all roles] })`
+**Auth**: `requireSub(["basic", "pro", "premium"], { bypassRoles: [...all roles] })`
 
 **Response `200`** `{ "message": "Deal deleted successfully", "id": 1 }`
 
@@ -1868,7 +1879,7 @@ The notification object shape (REST and the `notification.created` socket event 
 ```json
 {
   "id": "uuid",
-  "type": "mention | channel_mention | deal_bid",
+  "type": "mention | channel_mention | announcement | deal_bid",
   "channelId": "uuid|null", "channelName": "san-diego-market|null",
   "messageId": "uuid|null", "messageExcerpt": "plain-text excerpt (≤120 chars)",
   "dealId": 5,
