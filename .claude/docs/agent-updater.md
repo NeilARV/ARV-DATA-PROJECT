@@ -9,16 +9,18 @@ Detects when code changes make agent documentation stale. Triggered automaticall
 | File | Type | What it documents |
 |---|---|---|
 | `CLAUDE.md` | Base | Top-level project instructions, file references, global rules |
-| `.claude/docs/api.md` | API | Complete route docs: paths, params, request/response shapes for all endpoints |
-| `.claude/docs/access-control.md` | Auth | Route permission tables, middleware chains, role/tier rules |
-| `.claude/docs/coding-standards.md` | Standards | Naming, file structure, patterns, conventions |
+| `.claude/docs/api.md` | API | Complete route docs: paths, params, request/response shapes (auth summarized; access-control.md canonical) |
+| `.claude/docs/access-control.md` | Auth | **Canonical** route permission tables, middleware chains, role/tier rules |
+| `.claude/docs/code-standards.md` | Standards | Naming, file structure, patterns, conventions |
 | `.claude/docs/testing.md` | Workflow | Test structure, helpers, mandatory baseline, naming |
-| `.claude/docs/optimizer.md` | Workflow | Auto-review checklists, output format |
 | `.claude/docs/design-guidelines.md` | Design | Tokens, colors, typography, spacing, component styles |
-| `.claude/docs/apps.md` | App | Combined Data / Deals / Vendors reference: component tree, state, API surface, services, schema for each app |
-| `.claude/docs/features/email-settings.md` | Feature | Email/notification feature documentation |
-| `.claude/docs/database.md` | Workflow | Documentation  and explanation on our database | Should be changed every time a database change it made
+| `.claude/docs/apps.md` | App | Combined Data / Deals / Vendors / Mastermind reference: component tree, state, API surface, services, schema per app |
+| `.claude/docs/database.md` | Reference | Full DB schema: every table, column, constraint, index, enum. **Must update on every DB change.** |
+| `.claude/docs/mastermind.md` | App | Mastermind design doc + phased build plan |
+| `.claude/docs/new-msa.md` | Workflow | How to add a new MSA |
+| `.claude/docs/features/email-settings.md` | Feature | Email/notification feature docs ⚠️ verify this file exists; remove this row if it does not |
 | `.claude/docs/agent-updater.md` | Workflow | This file |
+| `.claude/agents/code-optimizer.md` | Agent | End-of-task review agent (bugs/security/perf). Not a doc — listed so renames/path changes get caught. |
 
 ---
 
@@ -28,18 +30,18 @@ A change is **significant** and requires an agent update when it alters somethin
 
 ### Always triggers an update
 
-- **New or removed API route** → update `api.md` (full route entry) + `access-control.md` (permission table) + the relevant app file (`data.md`, `deals.md`, or `vendors.md`)
+- **New or removed API route** → update `api.md` (full route entry) + `access-control.md` (permission table) + the relevant app's section in `apps.md`
 - **Changed request shape, query params, or response shape on an existing route** → update `api.md`
-- **Changed middleware on a route** (different `requireRole`, `requireSub`, or added/removed auth) → update `access-control.md` and the auth notes in `api.md`
-- **New or removed database table/column** used by a feature → update the relevant app file's schema section
-- **New or changed component in a component tree** → update the relevant app file's component tree
-- **New or changed state/hook** (new context, new URL param, renamed hook) → update the relevant app file's state management section
-- **New enum value, status, or type** added to a domain (e.g. new deal type, new property status) → update the relevant app file
-- **New or changed design token** (color, spacing, breakpoint added to `index.css` or `tailwind.config.ts`) → update `design-guidelines.md`
-- **New CSS component class** added to a `.components.css` file → update `design-guidelines.md`
+- **Changed middleware on a route** (different `requireRole`, `requireSub`, `requireMastermind`, or added/removed auth) → update `access-control.md` and the auth notes in `api.md`
+- **New or removed database table/column** → update `database.md` (always) + the relevant app section's schema notes in `apps.md`
+- **New or changed enum value** (deal type, notification type, channel type, etc.) → update `database.md` Enums table + every doc that lists that enum (`api.md`, `apps.md`)
+- **New or changed component in a component tree** → update the relevant app section in `apps.md`
+- **New or changed state/hook** (new context, new URL param, renamed hook) → update the relevant app section's state management in `apps.md`
+- **New or changed design token** (color, spacing, breakpoint in `index.css` or `tailwind.config.ts`) → update `design-guidelines.md`
+- **New CSS component class** added to a `*.components.css` file → update `design-guidelines.md`
 - **New or changed test helper or convention** → update `testing.md`
-- **New role or subscription tier** → update `access-control.md`
-- **New agent file created** → update the registry table above
+- **New role or subscription tier** → update `access-control.md` + `database.md`
+- **New agent file or doc created** → update the registry table above
 
 ### Never triggers an update
 
