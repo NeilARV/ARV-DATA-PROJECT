@@ -29,6 +29,11 @@
                         "type": "command",
                         "if": "Bash(git push -f *)",
                         "command": "echo 'Blocked: force push is not allowed' >&2; exit 2"
+                    },
+                    {
+                        "type": "command",
+                        "if": "Bash(*.env*)",
+                        "command": "echo 'Blocked: reading .env via shell is not allowed' >&2; exit 2"
                     }
                 ]
             }
@@ -38,7 +43,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "echo '## Git' && git branch --show-current && git status --short | head -10 && echo '' && git log --oneline -5"
+                        "command": "git rev-parse HEAD > /tmp/claude_session_start_sha 2>/dev/null || true; echo '## Git' && git branch --show-current && git status --short | head -10 && echo '' && git log --oneline -5"
                     }
                 ]
             }
@@ -49,7 +54,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write"
+                        "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write 2>/dev/null || true"
                     }
                 ]
             }
@@ -70,7 +75,11 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "changed=$(git status --porcelain 2>/dev/null); if [ -n \"$changed\" ]; then echo 'Code review required: Use the Agent tool to spawn a code-optimizer subagent to review all files changed this session for bugs, security issues, and performance problems. Pass it the list of modified files and tell it to run git diff HEAD~1 to orient itself.'; fi"
+                        "command": "if ! npm run check > /tmp/claude_tsc.log 2>&1; then echo 'Type check (npm run check) failed — fix before finishing:'; tail -40 /tmp/claude_tsc.log; exit 2; fi"
+                    },
+                    {
+                        "type": "command",
+                        "command": "changed=$(git status --porcelain 2>/dev/null); if [ -n \"$changed\" ]; then base=$(cat /tmp/claude_session_start_sha 2>/dev/null || echo HEAD); echo \"Code review required: Use the Agent tool to spawn a code-optimizer subagent to review all files changed this session for bugs, security issues, and performance problems. The session start commit was $base — run 'git diff $base' (and include uncommitted changes) to orient itself.\"; fi"
                     },
                     {
                         "type": "command",

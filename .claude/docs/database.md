@@ -27,10 +27,10 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | `claim_status` | `pending`, `approved`, `rejected` | companies.schema.ts |
 | `claim_type` | `claim`, `dispute` | companies.schema.ts |
 | `member_role` | `owner`, `member` | companies.schema.ts |
-| `deal_type` | `wholesale`, `agent`, `sold` | deals.schema.ts |
+| `deal_type` | `wholesale`, `agent`, `sold`, `reo` | deals.schema.ts |
 | `channel_type` | `public`, `private`, `dm`, `group_dm` | mastermind.schema.ts (Phase 1 uses only `public`) |
 | `channel_member_role` | `owner`, `admin`, `member` | mastermind.schema.ts |
-| `notification_type` | `mention`, `channel_mention`, `deal_bid` | mastermind.schema.ts |
+| `notification_type` | `mention`, `channel_mention`, `deal_bid`, `announcement`,  | mastermind.schema.ts |
 
 ---
 
@@ -1089,7 +1089,7 @@ Files attached to a message. Images render inline; other types are download link
 ---
 
 ### `message_reactions`
-Emoji reactions from the fixed set (👍 👎 😀 😢 😂 ❤️).
+Emoji reactions from the fixed set (👍 👎 😀 😢 😂 ✅).
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -1167,7 +1167,7 @@ or when an investor submits an offer on a deal (`deal_bid` → the deal's poster
 |--------|------|-------------|
 | `id` | `uuid` | PK, default random |
 | `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) — recipient |
-| `type` | `notification_type` enum | NOT NULL — `mention` / `channel_mention` / `deal_bid` |
+| `type` | `notification_type` enum | NOT NULL — `mention` / `channel_mention` / `deal_bid` / `announcement` |
 | `channel_id` | `uuid` | FK → `channels.id` (cascade), nullable |
 | `message_id` | `uuid` | FK → `messages.id` (cascade), nullable — deep-link target |
 | `deal_id` | `bigint` | FK → `deals.id` (cascade), nullable — `deal_bid` deep-link target |
