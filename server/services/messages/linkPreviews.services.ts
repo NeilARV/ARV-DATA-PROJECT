@@ -2,6 +2,7 @@ import { db } from 'server/storage';
 import { eq, inArray } from 'drizzle-orm';
 import { linkPreviews } from '@database/schemas/mastermind.schema';
 import { fetchLinkMetadata } from 'server/lib/microlink';
+import { isRealEstateUrl, buildRealEstatePreview } from 'server/lib/realEstatePreview';
 import type { LinkPreviewWire } from '@shared/mastermind/events';
 
 // Slack-style ceiling: a message with many links shows at most this many cards.
@@ -76,7 +77,12 @@ async function getOrFetchPreview(url: string): Promise<{ fetched: boolean }> {
         .limit(1);
     if (existing) return { fetched: false };
 
-    const meta = await fetchLinkMetadata(url);
+    // Redfin/Zillow bot-block the metadata provider, so we build the card from the URL ourselves
+    // and never call Microlink for those domains — even when the URL isn't a parseable listing
+    // (buildRealEstatePreview returns null and the link simply gets no card).
+    const meta = isRealEstateUrl(url)
+        ? buildRealEstatePreview(url)
+        : await fetchLinkMetadata(url);
     if (!meta) return { fetched: false };
 
     // ON CONFLICT guards the rare simultaneous-first-paste race: the UNIQUE(url) constraint keeps
