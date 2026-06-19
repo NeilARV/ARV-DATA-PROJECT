@@ -169,6 +169,7 @@ Scope: **TypeScript language only** — types, interfaces, generics, naming, mod
 ```ts
   /**
    * Look up a user by id.
+   * @params id
    * @returns the user, or null if no row matches.
    */
   export async function getUserById(id: string): Promise<User | null> { ... }
