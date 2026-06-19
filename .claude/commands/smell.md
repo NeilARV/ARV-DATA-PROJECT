@@ -154,38 +154,47 @@ Walk every hunk. For each issue you find, cite **exactly one** catalog ID from t
 - **DS.NEEDLESS-REPETITION** — same logic in multiple places
 - **DS.OPACITY** — hard to understand
 
-### Python-specific IDs (apply only to `.py` files; tool codes for cross-reference)
-- **PY.MUTABLE-DEFAULT** — `def f(x=[])` / `={}` shares one object across calls (B006)
-- **PY.CALL-IN-DEFAULT** — `def f(x=time.now())` evaluated once at def-time (B008)
-- **PY.BARE-EXCEPT** — `except:` swallows `KeyboardInterrupt`/`SystemExit` (E722)
-- **PY.BROAD-EXCEPT** — `except Exception:` hides bugs (BLE001)
-- **PY.EXCEPT-PASS** — silent swallow (S110 / TRY203)
-- **PY.RAISE-WITHOUT-FROM** — `raise X()` in except loses chain (B904)
-- **PY.NONE-EQ** — `== None` instead of `is None` (E711)
-- **PY.BOOL-EQ** — `== True` / `== False` (E712)
-- **PY.TYPE-EQ** — `type(x) == T` instead of `isinstance` (E721)
-- **PY.RANGE-LEN** — `for i in range(len(x))` (PLR1736)
-- **PY.STAR-IMPORT** — `from x import *` (F403)
-- **PY.UNUSED-IMPORT** (F401)
-- **PY.UNUSED-VAR** (F841)
-- **PY.LAMBDA-NAMED** — `f = lambda: ...` (E731)
-- **PY.AMBIG-NAME** — `l`, `O`, `I` (E741)
-- **PY.BUILTIN-SHADOW** — rebinding `list`, `dict`, `id`, etc. (A001/A002)
-- **PY.MUTABLE-CLASS-ATTR** — `class C: items = []` (RUF012)
-- **PY.FILE-NO-WITH** — open() without context manager (SIM115)
-- **PY.EVAL** — `eval()` on user input (S307)
-- **PY.EXEC** — `exec()` (S102)
-- **PY.ASSERT-RUNTIME** — `assert` for runtime validation (stripped under `-O`) (S101)
-- **PY.SHELL-TRUE** — `subprocess(..., shell=True)` (S602)
-- **PY.PICKLE-LOAD** — `pickle.load` on untrusted data (S301)
-- **PY.YAML-LOAD** — `yaml.load` without `SafeLoader` (S506)
-- **PY.LATE-BIND** — late-binding closure in loop (B023)
-- **PY.IS-LITERAL** — `is` with non-singleton literal (F632)
-- **PY.UNUSED-LOOP-VAR** — loop variable never used (B007)
-- **PY.PRINT-IN-LIB** — `print()` in non-CLI library code (T201)
-- **PY.BLOCKING-IN-ASYNC** — blocking I/O inside `async def` (ASYNC101)
-- **PY.DICT-KEYS-ITER** — `for k in d.keys():` (SIM118)
-- **PY.LOG-NO-EXC** — `except: logger.error(...)` without `.exception` (TRY400)
+### TypeScript / React / Express / Drizzle IDs (this stack)
+Apply to `.ts` / `.tsx` files. Each maps to a rule in `code-standards.md`.
+
+**TypeScript**
+- **TS.ANY** — `any` or `as any` used instead of `unknown` + narrowing (§2)
+- **TS.AS-CAST** — `as` cast where a type guard belongs (§2, §19)
+- **TS.NON-NULL** — `!` non-null assertion masking a real nullable (§2)
+- **TS.NO-RETURN-TYPE** — exported function missing an explicit return type (§2)
+- **TS.HAND-TYPED-SCHEMA** — type written by hand instead of `z.infer` / `$inferSelect` (§2, §16)
+- **TS.REQUIRE** — `require()` instead of ES `import` (§19)
+- **TS.MISSING-JS-EXT** — server-side import path missing the `.js` extension (§19)
+
+**React**
+- **RX.EFFECT-DEPS** — `useEffect` with missing/incorrect dependency array (§8)
+- **RX.EFFECT-NO-CLEANUP** — effect adds a timer/listener/subscription with no cleanup return (§8)
+- **RX.CONDITIONAL-HOOK** — a hook called conditionally or in a loop (rules of hooks)
+- **RX.INDEX-KEY** — array index as `key` in a reorderable/filterable list (§7)
+- **RX.SERVER-STATE-IN-STATE** — server data copied into `useState` instead of TanStack Query (§9)
+- **RX.RAW-FETCH** — `fetch()` in a component instead of `apiRequest` / TanStack Query (§10)
+- **RX.NO-PROVIDER-GUARD** — context hook that doesn't throw when used outside its Provider (§8)
+- **RX.MULTI-RESPONSIVE** — `sm:`/`md:`/`lg:` stacked on one property where one breakpoint would do (design-guidelines)
+- **RX.HARDCODED-COLOR** — hardcoded gray/hex instead of a design token (design-guidelines)
+
+**Express / controllers / services**
+- **EX.NO-TRY-CATCH** — controller body not wrapped in `try/catch` (§12, §17)
+- **EX.DOUBLE-SEND** — missing `return` after `res.json()` / `res.status().send()` (§12, §14)
+- **EX.NO-ZOD** — request body/params/query used without Zod `safeParse` (§16)
+- **EX.LEAK-ERROR** — internal error message or stack returned to the client on 500 (§17)
+- **EX.BIZ-IN-CONTROLLER** — business logic or DB query inside a controller (§12, §13)
+- **EX.HTTP-IN-SERVICE** — `req`/`res`/`next` referenced inside a service (§13)
+- **EX.AUTH-ORDER** — `requireRole`/`requireSub` applied before `requireAuth` (§11)
+- **EX.WRAPPED-RETURN** — service returns `{ success, data }` instead of raw data (§13)
+
+**Drizzle / DB**
+- **DB.RAW-SQL** — raw SQL string where the Drizzle query API would express it (§15)
+- **DB.NO-LIMIT1** — single-row query without `.limit(1)` + destructure (§13, §15)
+- **DB.NEW-CLIENT** — `db` client instantiated inline instead of the single export (§15)
+
+**Project-specific**
+- **ARV.RAW-COMPANY-NAME** — company name rendered/returned without `formatCompanyName` (§20)
+- **ARV.SECRET-ACCESS** — code reads `.env` / a secret file directly (security rules)
 
 ---
 
