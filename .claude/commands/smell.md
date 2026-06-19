@@ -154,43 +154,21 @@ Walk every hunk. For each issue you find, cite **exactly one** catalog ID from t
 - **DS.NEEDLESS-REPETITION** — same logic in multiple places
 - **DS.OPACITY** — hard to understand
 
-### TypeScript / React / Express / Drizzle IDs (this stack)
-Apply to `.ts` / `.tsx` files. Each maps to a rule in `.claude/docs/standards/react.md`, `.claude/docs/standards/typescript.md`, `.claude/docs/standards/express.md`, and `.claude/docs/standards/database.md` respectively.
+### TypeScript / React / Express / Drizzle IDs Stack Catalog (cite IDs verbatim — do not invent)
+Apply to `.ts` / `.tsx` files.
 
-**TypeScript**
-- **TS.ANY** — `any` or `as any` used instead of `unknown` + narrowing (§2)
-- **TS.AS-CAST** — `as` cast where a type guard belongs (§2, §19)
-- **TS.NON-NULL** — `!` non-null assertion masking a real nullable (§2)
-- **TS.NO-RETURN-TYPE** — exported function missing an explicit return type (§2)
-- **TS.HAND-TYPED-SCHEMA** — type written by hand instead of `z.infer` / `$inferSelect` (§2, §16)
-- **TS.REQUIRE** — `require()` instead of ES `import` (§19)
-- **TS.MISSING-JS-EXT** — server-side import path missing the `.js` extension (§19)
+- `@.claude/docs/standards/typescript.md`
+- `@.claude/docs/standards/react.md`
+- `@.claude/docs/standards/express.md`
+- `@.claude/docs/standards/database.md`
 
-**React**
-- **RX.EFFECT-DEPS** — `useEffect` with missing/incorrect dependency array (§8)
-- **RX.EFFECT-NO-CLEANUP** — effect adds a timer/listener/subscription with no cleanup return (§8)
-- **RX.CONDITIONAL-HOOK** — a hook called conditionally or in a loop (rules of hooks)
-- **RX.INDEX-KEY** — array index as `key` in a reorderable/filterable list (§7)
-- **RX.SERVER-STATE-IN-STATE** — server data copied into `useState` instead of TanStack Query (§9)
-- **RX.RAW-FETCH** — `fetch()` in a component instead of `apiRequest` / TanStack Query (§10)
-- **RX.NO-PROVIDER-GUARD** — context hook that doesn't throw when used outside its Provider (§8)
-- **RX.MULTI-RESPONSIVE** — `sm:`/`md:`/`lg:` stacked on one property where one breakpoint would do (design-guidelines)
-- **RX.HARDCODED-COLOR** — hardcoded gray/hex instead of a design token (design-guidelines)
-
-**Express / controllers / services**
-- **EX.NO-TRY-CATCH** — controller body not wrapped in `try/catch` (§12, §17)
-- **EX.DOUBLE-SEND** — missing `return` after `res.json()` / `res.status().send()` (§12, §14)
-- **EX.NO-ZOD** — request body/params/query used without Zod `safeParse` (§16)
-- **EX.LEAK-ERROR** — internal error message or stack returned to the client on 500 (§17)
-- **EX.BIZ-IN-CONTROLLER** — business logic or DB query inside a controller (§12, §13)
-- **EX.HTTP-IN-SERVICE** — `req`/`res`/`next` referenced inside a service (§13)
-- **EX.AUTH-ORDER** — `requireRole`/`requireSub` applied before `requireAuth` (§11)
-- **EX.WRAPPED-RETURN** — service returns `{ success, data }` instead of raw data (§13)
-
-**Drizzle / DB**
-- **DB.RAW-SQL** — raw SQL string where the Drizzle query API would express it (§15)
-- **DB.NO-LIMIT1** — single-row query without `.limit(1)` + destructure (§13, §15)
-- **DB.NEW-CLIENT** — `db` client instantiated inline instead of the single export (§15)
+When scanning a diff, prioritize rules that are *detectable from changed lines*:
+type safety (TS.NO-ANY, TS.NO-AS-CAST, TS.NO-NON-NULL), layering
+(EX.NO-DB-IN-CONTROLLER, EX.NO-HTTP-IN-SERVICE), data-access
+(DB.LIMIT1-DESTRUCTURE, DB.NO-NPLUS1), effects/keys
+(RX.EFFECT-DEPS, RX.EFFECT-CLEANUP, RX.STABLE-KEY), and validation/error
+(EX.ZOD-SAFEPARSE, EX.NO-LEAK-INTERNALS). Don't flag what Prettier/ESLint
+already enforce (import order, self-closing tags, boolean props).
 
 **Project-specific**
 - **ARV.RAW-COMPANY-NAME** — company name rendered/returned without `formatCompanyName` (§20)

@@ -40,7 +40,7 @@ and `CLAUDE.md`. Compare against Step 1 and report any mismatch in these categor
    canonical; if `api.md` disagrees, `api.md` is the one to fix.
 3. **Filenames** — every doc/agent path referenced in `agent-updater.md`'s registry and in
    `CLAUDE.md`'s References must exist in Step 1's file listing. Flag references to missing files
-   (e.g. `coding-standards.md`, `optimizer.md`, `data.md`/`deals.md`/`vendors.md`,
+   (e.g. `optimizer.md`, `data.md`/`deals.md`/`vendors.md`,
    `mastermind.md`, `features/email-settings.md`) and any real file not in the registry.
 
 ## Step 3 — Report
