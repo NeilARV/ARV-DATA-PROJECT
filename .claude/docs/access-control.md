@@ -510,4 +510,4 @@ When a route is added, changed, or removed:
 1. Update the matching table here **first**
 2. Then write/update the code and tests against it
 
-The per-app docs (`data.md`, `deals.md`, `vendors.md`) describe permissions at a high level for context. This file is the authoritative source and wins in any conflict.
+The combined apps reference (`apps.md`) describes permissions at a high level for context in each app's Access Control section. This file is the authoritative source and wins in any conflict — including over the per-route `Auth` lines in `api.md`.
