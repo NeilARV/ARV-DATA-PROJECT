@@ -1,15 +1,14 @@
 import {
-    useState,
-    useEffect,
     createContext,
-    useRef,
     useContext,
-    ReactNode,
     useMemo,
+    useRef,
+    type ReactNode,
     type RefObject,
 } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { buildPropertyQueryParams } from '@/lib/propertyQueryParams';
+import { apiRequest } from '@/lib/queryClient';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { useCompanies } from './useCompanies';
 import { useFilters } from './useFilters';
@@ -19,7 +18,7 @@ import type { Property } from '@/types/property';
 
 export type PropertiesResponse = {
     properties: Property[];
-    total: number | null; // null when server skips COUNT (page > 1); use stablePropertyCount instead
+    total: number | null; // null when the server skips COUNT (page > 1); page 1 carries the total
     hasMore: boolean;
 };
 
@@ -30,10 +29,8 @@ type PropertiesContextValue = {
     loadMorePropertiesRef: RefObject<HTMLDivElement | null>;
     isLoading: boolean;
     isFetching: boolean;
-    propertiesResponse: PropertiesResponse | undefined;
     totalProperties: number;
     stablePropertyCount: number;
-    stableCompanyPropertyCount: number;
 };
 
 const PropertiesContext = createContext<PropertiesContextValue | null>(null);
@@ -42,157 +39,119 @@ type PropertiesProviderProps = {
     children: ReactNode;
 };
 
-const propertiesListEnabled = (view: string) =>
-    view === 'grid' || view === 'table' || view === 'wholesale' || view === 'buyers-feed';
+/** Views that render the paginated property list (everything except the map). */
+function isPropertiesListView(view: string): boolean {
+    return view === 'grid' || view === 'table' || view === 'wholesale' || view === 'buyers-feed';
+}
 
-export function PropertiesProvider({ children }: PropertiesProviderProps) {
+/**
+ * Provides the paginated, filterable property list. Backed entirely by TanStack Query's
+ * infinite query — the list, page accumulation, and total count all derive from the query
+ * cache, so no server data is mirrored into local state. The query is disabled in map view
+ * and for users without app access (the server enforces the same gate).
+ */
+export function PropertiesProvider({ children }: PropertiesProviderProps): JSX.Element {
     const { company } = useCompanies();
     const { view } = useView();
     const { filters, sortBy } = useFilters();
     // Feeds/table are app-access gated (server enforces too); don't fire the list query for
     // users without access — the map and directory remain public.
     const { canAccessApp } = useAuth();
-    const [propertiesPage, setPropertiesPage] = useState(1);
-    const [allProperties, setAllProperties] = useState<Property[]>([]);
-    const [propertiesHasMore, setPropertiesHasMore] = useState(true);
-    const [isLoadingMoreProperties, setIsLoadingMoreProperties] = useState(false);
-    const [stablePropertyCount, setStablePropertyCount] = useState(0);
-    const [stableCompanyPropertyCount, setStableCompanyPropertyCount] = useState(0);
     const loadMorePropertiesRef = useRef<HTMLDivElement>(null);
+
     const hasDateSold = view === 'buyers-feed';
+    const limit = view === 'table' ? '20' : '10';
+    const isListView = isPropertiesListView(view);
+    // Key on company?.id (not the company object) so enriching a stub company (same id, new object
+    // reference) after fetchCompanyById does not restart the query and blank the grid.
+    const companyId = company?.id ?? null;
 
-    // Reset pagination when filters, sort, or company ID change so we fetch page 1 of the new result set.
-    // Intentionally uses company?.id (not company object) so that enriching a stub company (same id,
-    // different object reference) after fetchCompanyById does not reset allProperties and blank the grid.
-    useEffect(() => {
-        setPropertiesPage(1);
-        setAllProperties([]);
-        setPropertiesHasMore(true);
-        setIsLoadingMoreProperties(false);
-    }, [filters, sortBy, company?.id, view]);
-
-    const propertiesQueryParam = useMemo(
-        () => {
-            const base = buildPropertyQueryParams(
-                filters,
-                {
-                    page: propertiesPage,
-                    limit: view === 'table' ? '20' : '10',
-                    hasDateSold,
-                },
-                { company, sortBy },
-            );
-            // Skip COUNT query on pages after the first — we already have the total cached
-            if (propertiesPage > 1) {
-                const sep = base.includes('?') ? '&' : '?';
-                return `${base}${sep}skipCount=true`;
-            }
-            return base;
-        },
-        // Intentionally uses company?.id (not company object) — same reason as the reset effect above.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [filters, company?.id, propertiesPage, sortBy, view, hasDateSold],
-    );
-
-    const propertiesQueryUrl = useMemo(
-        () => `/api/properties${propertiesQueryParam}`,
-        [propertiesQueryParam],
-    );
-
-    const {
-        data: propertiesResponse,
-        isLoading,
-        isFetching,
-    } = useQuery<PropertiesResponse>({
-        queryKey: [propertiesQueryUrl],
-        queryFn: async () => {
-            const res = await fetch(propertiesQueryUrl, { credentials: 'include' });
-            if (!res.ok) {
-                throw new Error(`Failed to fetch properties: ${res.status}`);
-            }
-            return res.json();
-        },
-        enabled: view !== 'map' && canAccessApp,
-        staleTime: 5 * 60 * 1000,
-    });
-
-    const totalProperties = useMemo(() => {
-        if (view === 'map') return 0;
-        const propertiesTotal = propertiesResponse?.total;
-        return isLoading && propertiesTotal === undefined
-            ? stablePropertyCount
-            : (propertiesTotal ?? stablePropertyCount);
-    }, [view, propertiesResponse, isLoading, stablePropertyCount]);
-
-    // Accumulate paginated results: page 1 replaces list, page > 1 appends and dedupes by id.
-    useEffect(() => {
-        if (!propertiesResponse || !propertiesListEnabled(view)) return;
-        if (propertiesPage === 1) {
-            setAllProperties(propertiesResponse.properties);
-        } else {
-            setAllProperties((prev) => {
-                const existingIds = new Set(prev.map((p) => p.id));
-                const newItems = propertiesResponse.properties.filter(
-                    (p) => !existingIds.has(p.id),
+    const { data, isLoading, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage } =
+        useInfiniteQuery({
+            queryKey: ['/api/properties', { filters, sortBy, companyId, view, hasDateSold, limit }],
+            queryFn: async ({ pageParam }): Promise<PropertiesResponse> => {
+                const base = buildPropertyQueryParams(
+                    filters,
+                    { page: pageParam, limit, hasDateSold },
+                    { company, sortBy },
                 );
-                return [...prev, ...newItems];
-            });
+                // Skip the COUNT query after page 1 — page 1's total covers the whole result set.
+                const url =
+                    pageParam > 1
+                        ? `/api/properties${base}${base.includes('?') ? '&' : '?'}skipCount=true`
+                        : `/api/properties${base}`;
+                const res = await apiRequest('GET', url);
+                return res.json();
+            },
+            initialPageParam: 1,
+            getNextPageParam: (lastPage, allPages) =>
+                lastPage.hasMore ? allPages.length + 1 : undefined,
+            enabled: isListView && canAccessApp,
+            staleTime: 5 * 60 * 1000,
+            // Retain the previous result set while a new filter/sort/company query loads so the grid
+            // and count don't flash empty between changes.
+            placeholderData: keepPreviousData,
+        });
+
+    // Flatten the paginated results into one list, deduping by id (page boundaries can overlap).
+    const properties = useMemo(() => {
+        const seen = new Set<string>();
+        const result: Property[] = [];
+        for (const page of data?.pages ?? []) {
+            for (const property of page.properties) {
+                if (!seen.has(property.id)) {
+                    seen.add(property.id);
+                    result.push(property);
+                }
+            }
         }
-        setPropertiesHasMore(propertiesResponse.hasMore);
-        setIsLoadingMoreProperties(false);
-    }, [propertiesResponse, propertiesPage, view]);
+        return result;
+    }, [data]);
+
+    // Page 1 carries the COUNT; later pages report null. keepPreviousData retains the previous
+    // page-1 total during a refetch, so the count stays stable across filter changes.
+    const total = data?.pages[0]?.total ?? null;
+    const totalProperties = view === 'map' ? 0 : (total ?? 0);
 
     useInfiniteScroll({
         ref: loadMorePropertiesRef,
-        hasMore: propertiesHasMore,
-        loading: isLoadingMoreProperties,
+        hasMore: hasNextPage,
+        loading: isFetchingNextPage,
         isFetching,
         onLoadMore: () => {
-            setIsLoadingMoreProperties(true);
-            setPropertiesPage((prev) => prev + 1);
+            void fetchNextPage();
         },
-        enabled: propertiesListEnabled(view),
+        enabled: isListView,
         useScrollableRoot: true,
-        deps: [allProperties.length],
+        deps: [properties.length],
     });
 
-    // Stable counts: avoid flashing "0" during loading; update only when we have a real total.
-    // null means server skipped COUNT (page > 1) — keep the existing cached count in that case.
-    useEffect(() => {
-        if (view !== 'map' && propertiesResponse?.total != null && !isLoading) {
-            setStablePropertyCount(propertiesResponse.total);
-        }
-    }, [view, propertiesResponse?.total, isLoading]);
-
-    useEffect(() => {
-        if (company && company.propertyCount > 0) {
-            setStableCompanyPropertyCount(company.propertyCount);
-        } else if (!company) {
-            setStableCompanyPropertyCount(0);
-        }
-    }, [company]);
-
     const value = {
-        properties: allProperties,
-        propertiesHasMore,
-        isLoadingMoreProperties,
+        properties,
+        propertiesHasMore: hasNextPage,
+        isLoadingMoreProperties: isFetchingNextPage,
         loadMorePropertiesRef,
         isLoading,
         isFetching,
-        propertiesResponse,
         totalProperties,
-        stablePropertyCount,
-        stableCompanyPropertyCount,
+        // keepPreviousData already holds the prior total during a refetch, so the stable count is
+        // simply the current total; kept as a named field for the count-display consumers.
+        stablePropertyCount: totalProperties,
     };
 
     return <PropertiesContext.Provider value={value}>{children}</PropertiesContext.Provider>;
 }
 
+/**
+ * Access the property-list context.
+ * @returns the properties context value (list, counts, loading flags, infinite-scroll ref).
+ * @throws if used outside a PropertiesProvider.
+ */
 export function useProperties(): PropertiesContextValue {
     const ctx = useContext(PropertiesContext);
 
     if (!ctx) {
-        throw new Error(`Trouble getting property`);
+        throw new Error('useProperties must be used within a PropertiesProvider');
     }
 
     return ctx;
