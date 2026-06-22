@@ -1,7 +1,7 @@
 ---
 description: Scan git diff vs target branch for code smells (Clean Code + GoF + TypeScript/React/Express catalog)
 argument-hint: "[target-branch]"
-allowed-tools: Bash(git:*), Read, Grep, Glob
+allowed-tools: Bash(bash .claude/scripts/smell-diff.sh:*), Read, Grep, Glob
 ---
 
 # /smell — Code smell review
@@ -14,7 +14,7 @@ You are running a 5-step code-smell review. Follow the steps **in order**. Do no
 
 The diff below has already been collected. Read it carefully before proceeding. It contains both the committed changes vs the base (3-dot `base...HEAD`) **and** the working-tree changes (staged + unstaged).
 
-!`bash -c 'BASE="$1"; if [ -z "$BASE" ]; then BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed "s@^refs/remotes/@@"); [ -z "$BASE" ] && BASE="origin/main"; git rev-parse "$BASE" >/dev/null 2>&1 || BASE="main"; fi; if ! git rev-parse "$BASE" >/dev/null 2>&1; then echo "ERROR: base $BASE not found. Pass an explicit branch: /smell <branch>"; exit 1; fi; echo "===== BASE: $BASE ====="; echo; echo "----- Stat (committed vs $BASE) -----"; git diff --stat "$BASE"...HEAD || true; echo; echo "----- Stat (working tree, staged+unstaged) -----"; git diff --stat HEAD || true; echo; echo "===== Committed diff (vs $BASE, -U10) ====="; git diff -U10 "$BASE"...HEAD || true; echo; echo "===== Working-tree diff (staged + unstaged, -U10) ====="; git diff -U10 HEAD || true' -- "$ARGUMENTS"`
+!`bash .claude/scripts/smell-diff.sh "$ARGUMENTS"`
 
 ---
 
