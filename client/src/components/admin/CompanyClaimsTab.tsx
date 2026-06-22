@@ -19,7 +19,8 @@ import AppDialog from '@/components/modals/Dialog';
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-import ClaimDetailDialog, { type ClaimRow } from '@/components/admin/ClaimDetailDialog';
+import ClaimDetailDialog from '@/components/admin/ClaimDetailDialog';
+import type { ClaimRow } from '@/types/admin';
 
 type ReviewAction = 'approve' | 'reject';
 

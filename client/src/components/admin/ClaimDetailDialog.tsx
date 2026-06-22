@@ -4,24 +4,7 @@ import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/di
 import AppDialog from '@/components/modals/Dialog';
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-
-export interface ClaimRow {
-    id: string;
-    status: 'pending' | 'approved' | 'rejected';
-    userMessage: string | null;
-    adminNotes: string | null;
-    adminMessage: string | null;
-    reviewedAt: string | null;
-    createdAt: string;
-    userId: string;
-    userFirstName: string;
-    userLastName: string;
-    userEmail: string;
-    companyId: string;
-    companyName: string;
-    reviewerFirstName: string | null;
-    reviewerLastName: string | null;
-}
+import type { ClaimRow } from '@/types/admin';
 
 interface ClaimDetailDialogProps {
     claim: ClaimRow | null;

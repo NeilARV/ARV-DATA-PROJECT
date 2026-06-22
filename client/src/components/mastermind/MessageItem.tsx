@@ -4,10 +4,8 @@ import { useMutation } from '@tanstack/react-query';
 import { MessageActions } from '@/components/mastermind/MessageActions';
 import { MessageMedia } from '@/components/mastermind/MessageMedia';
 import { MessageReactions } from '@/components/mastermind/MessageReactions';
-import {
-    InlineMessageEditor,
-    type EditMessagePayload,
-} from '@/components/mastermind/InlineMessageEditor';
+import { InlineMessageEditor } from '@/components/mastermind/InlineMessageEditor';
+import type { EditMessagePayload } from '@/types/mastermind';
 
 import { useToast } from '@/hooks/use-toast';
 

@@ -27,7 +27,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
-import type { RelationshipManager } from '@/types/admin';
+import type { RelationshipManagerRow } from '@/types/admin';
 
 type WhitelistEntry = {
     id: number;
@@ -100,7 +100,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
     const whitelist = whitelistResponse?.data ?? [];
     const whitelistCount = whitelistResponse?.count ?? 0;
 
-    const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
+    const { data: relationshipManagers = [] } = useQuery<RelationshipManagerRow[]>({
         queryKey: ['/api/users/relationship-managers'],
         enabled: isAdmin,
     });

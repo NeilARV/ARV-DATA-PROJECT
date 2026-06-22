@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 
 import { getMsaNameFromCounty } from '@/lib/county';
 
-import type { LocationFilter } from '@/components/deals/DealsLocationSearch';
+import type { LocationFilter } from '@/types/deals';
 
 // ── Shared first-load default ───────────────────────────────────────────────
 /**

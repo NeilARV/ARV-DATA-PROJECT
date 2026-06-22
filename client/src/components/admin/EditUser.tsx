@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, X } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import type { AdminUser, AccountTypeOption, RelationshipManager } from '@/types/admin';
+import type { AdminUser, AccountTypeOption, RelationshipManagerRow } from '@/types/admin';
 
 interface CompanyOption {
     id: string;
@@ -26,7 +26,7 @@ const NO_VALUE = '__none__';
 
 export type EditUserContentProps = {
     user: AdminUser;
-    relationshipManagers: RelationshipManager[];
+    relationshipManagers: RelationshipManagerRow[];
     accountTypesList: AccountTypeOption[];
     onClose: () => void;
     onSuccess?: () => void;

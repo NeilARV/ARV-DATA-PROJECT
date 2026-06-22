@@ -8,12 +8,7 @@ import { useMastermindEditor } from '@/hooks/use-mastermind-editor';
 import { useAttachmentDrafts } from '@/hooks/use-attachment-drafts';
 
 import type { MessageAttachmentWire } from '@shared/mastermind/events';
-
-export type EditMessagePayload = {
-    content: string;
-    keptAttachments: MessageAttachmentWire[];
-    newFiles: File[];
-};
+import type { EditMessagePayload } from '@/types/mastermind';
 
 type InlineMessageEditorProps = {
     channelId: string;

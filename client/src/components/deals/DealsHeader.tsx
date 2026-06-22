@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
 import DealsLocationSearch, { msaShortName } from '@/components/deals/DealsLocationSearch';
-import type { LocationFilter } from '@/components/deals/DealsLocationSearch';
+import type { LocationFilter } from '@/types/deals';
 
 type DealsHeaderProps = {
     tab: DealTab;
