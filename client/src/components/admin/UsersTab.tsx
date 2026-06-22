@@ -32,13 +32,20 @@ import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import EditUserContent from '@/components/admin/EditUser';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
-import type {
-    AdminUser,
-    AccountTypeOption,
-    RelationshipManager,
-    UsersTabProps,
-    UserListResponse,
-} from '@/types/admin';
+import type { AdminUser, AccountTypeOption, RelationshipManager } from '@/types/admin';
+
+type UsersTabProps = {
+    isAdmin: boolean;
+    canDeleteUser?: boolean;
+    canManageSubscriptionTier?: boolean;
+    canManageRelationshipManagers?: boolean;
+    canManageAccountTypes?: boolean;
+};
+
+type UserListResponse = {
+    data: AdminUser[];
+    count: number;
+};
 
 function parseRoleApiError(error: unknown): string {
     let message = 'Something went wrong';

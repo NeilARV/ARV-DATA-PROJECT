@@ -1,6 +1,11 @@
 import { Card } from '@/components/ui/card';
-import { PropertyCardProps } from '@/types/property';
+import type { Property } from '@/types/property';
 import { PropertyContent } from './PropertyContent';
+
+type PropertyCardProps = {
+    property: Property;
+    onClick?: () => void;
+};
 
 export default function PropertyCard({ property, onClick }: PropertyCardProps) {
     return (

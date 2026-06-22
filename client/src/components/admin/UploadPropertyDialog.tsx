@@ -17,7 +17,11 @@ import { manualPropertyEntrySchema } from '@database/inserts/properties.insert';
 import type { ManualPropertyEntry } from '@database/types';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { UploadDialogProps } from '@/types/general';
+type UploadDialogProps = {
+    open: boolean;
+    onClose: () => void;
+    onSuccess?: () => void;
+};
 
 type UploadContentProps = Omit<UploadDialogProps, 'open' | 'onClose'> & {
     onClose: () => void;

@@ -22,7 +22,7 @@ import { isNegative } from '@/utils/isNegative';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { formatDate, calculateDaysOwned } from '@/utils/date';
 import { Button } from '@/components/ui/button';
-import { Section } from '@/types/options';
+type Section = 'panel' | 'modal' | 'card';
 
 const IMAGE_SIZES: Record<Section, string> = {
     card: '400x300',

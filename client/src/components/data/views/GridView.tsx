@@ -7,9 +7,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
-import type { SortOption } from '@/types/options';
-import { GridViewProps } from '@/types/views';
+import type { SortOption, SidebarView } from '@/types/options';
 import { useFilters } from '@/hooks/useFilters';
+
+type GridViewProps = {
+    sideBarView?: SidebarView;
+};
 import { useProperties } from '@/hooks/useProperties';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';

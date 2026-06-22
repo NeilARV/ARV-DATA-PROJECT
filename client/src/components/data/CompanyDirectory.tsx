@@ -41,10 +41,11 @@ import { useFilters } from '@/hooks/useFilters';
 import type {
     CompanyContactWithCounts,
     CompanyContactDetail,
-    CompanyDirectoryProps,
+    UpdateDialogInitialData,
 } from '@/types/companies';
 import { fetchCompanyById } from '@/api/companies.api';
-import type { UpdateDialogInitialData } from '@/types/general';
+
+type CompanyDirectoryProps = Record<string, never>;
 import type { DirectorySortOption } from '@/types/options';
 import {
     BUYERS_FEED_STATUS_FILTERS,

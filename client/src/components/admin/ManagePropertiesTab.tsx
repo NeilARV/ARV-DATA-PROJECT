@@ -37,7 +37,28 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
 import { COUNTIES } from '@/constants/filters.constants';
-import type { ManagePropertiesTabProps } from '@/types/admin';
+
+// Property rows used in the admin manage-properties table.
+type PropertyRow = {
+    id: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    county: string;
+    bedrooms: number;
+    bathrooms: number;
+    price: number;
+    propertyOwner: string | null;
+};
+
+type ManagePropertiesTabProps = {
+    properties: PropertyRow[];
+    isLoading: boolean;
+    onOpenUpload: () => void;
+    selectedCounty: string;
+    onCountyChange: (county: string) => void;
+};
 
 export default function ManagePropertiesTab({
     properties,

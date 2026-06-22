@@ -11,11 +11,28 @@ import { formatDate, calculateDaysOwned } from '@/utils/date';
 import { ArrowUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { formatAddress } from '@shared/utils/formatAddress';
-import type { PropertyTableProps } from '@/types/property';
-import type { SortColumn, SortDirection } from '@/types/options';
+import type { Property } from '@/types/property';
 import { useProperty } from '@/hooks/useProperty';
 import { useAccessGate } from '@/hooks/useAccessGate';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
+
+type PropertyTableProps = {
+    properties: Property[];
+};
+
+type SortColumn =
+    | 'address'
+    | 'city'
+    | 'price'
+    | 'bedrooms'
+    | 'bathrooms'
+    | 'squareFeet'
+    | 'propertyType'
+    | 'dateSold'
+    | 'propertyOwner'
+    | 'daysOwned';
+
+type SortDirection = 'asc' | 'desc';
 
 // Status dot colors match PropertyMap.tsx map ping colors
 const STATUS_COLORS = {

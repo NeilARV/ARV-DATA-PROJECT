@@ -1,6 +1,8 @@
 import { createContext, ReactNode, useContext, useState, useCallback } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { SidebarView, View } from '@/types/options';
+import { SidebarView } from '@/types/options';
+
+type View = 'map' | 'grid' | 'table' | 'buyers-feed' | 'wholesale' | 'deals';
 
 const VALID_VIEWS: View[] = ['map', 'table', 'grid', 'buyers-feed', 'wholesale'];
 const DEFAULT_VIEW: View = 'map';

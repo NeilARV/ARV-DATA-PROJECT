@@ -27,12 +27,24 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
-import type {
-    WhitelistEntry,
-    RelationshipManager,
-    EmailListTabProps,
-    WhitelistResponse,
-} from '@/types/admin';
+import type { RelationshipManager } from '@/types/admin';
+
+type WhitelistEntry = {
+    id: number;
+    email: string;
+    msaName: string | null;
+    relationshipManagerId: string | null;
+};
+
+type EmailListTabProps = {
+    isAdmin: boolean;
+    canEditEntries?: boolean;
+};
+
+type WhitelistResponse = {
+    data: WhitelistEntry[];
+    count: number;
+};
 
 function parseApiError(error: unknown): string {
     let message = 'Something went wrong';

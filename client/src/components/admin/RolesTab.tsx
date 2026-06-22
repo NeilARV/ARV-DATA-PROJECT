@@ -23,7 +23,18 @@ import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
-import type { AdminUser, RoleOption, RolesTabProps } from '@/types/admin';
+import type { AdminUser } from '@/types/admin';
+
+type RoleOption = {
+    id: number;
+    name: string;
+};
+
+type RolesTabProps = {
+    isAdmin: boolean;
+    isOwner?: boolean;
+    currentUserId?: string | null;
+};
 
 function parseRoleApiError(error: unknown): string {
     let message = 'Something went wrong';

@@ -1,4 +1,6 @@
-import type { DirectorySortOption, Status } from '@/types/options';
+import type { DirectorySortOption } from '@/types/options';
+
+type Status = 'in-renovation' | 'wholesale' | 'on-market' | 'sold';
 
 /** Property status string constants - use these instead of magic strings. */
 export const PROPERTY_STATUS = {

@@ -1,6 +1,4 @@
 import type { Company } from '@database/types/companies';
-import type { PropertyFilters } from '@/types/filters';
-import type { View } from '@/types/options';
 
 export type CompanyContact = {
     id: number;
@@ -44,4 +42,8 @@ export type CompanyContactDetail = Company & {
     phoneNumber?: string | null;
 };
 
-export type CompanyDirectoryProps = Record<string, never>;
+// Pre-fill payload for the company update dialog (shared by CompanyDirectory + UpdateCompanyDialog).
+export type UpdateDialogInitialData = {
+    companyName?: string;
+    isArvClient?: boolean;
+};

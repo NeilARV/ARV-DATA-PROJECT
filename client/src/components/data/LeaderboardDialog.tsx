@@ -3,7 +3,6 @@ import { Trophy, Building2, MapPin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCityForZipCode } from '@/lib/zipCodes';
-import type { LeaderboardData } from '@/types/modals';
 import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';
@@ -11,6 +10,11 @@ import { useView } from '@/hooks/useView';
 import { getDefaultFilters } from '@/lib/propertyFilters';
 import { useGeoMap } from '@/hooks/useMap';
 import { MAP_ZOOM_DEFAULT } from '@/constants/map.constants';
+
+type LeaderboardData = {
+    companies: Array<{ rank: number; name: string; count: number; contactName: string | null }>;
+    zipCodes: Array<{ rank: number; zipCode: string; count: number }>;
+};
 
 interface LeaderboardContentProps {
     onClose: () => void;

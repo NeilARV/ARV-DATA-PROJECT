@@ -49,13 +49,3 @@ export type Post = {
     userTags?: { id: string; firstName: string; lastName: string }[];
     images: PostImage[];
 };
-
-export type CreatePostInput = {
-    title: string;
-    content: string;
-    address?: string;
-    city?: string;
-    state?: string;
-    categoryIds?: number[];
-    vendorIds?: string[];
-};

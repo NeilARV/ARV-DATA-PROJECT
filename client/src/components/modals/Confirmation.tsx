@@ -1,7 +1,17 @@
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import type { ConfirmationDialogProps } from '@/types/modals';
+type ConfirmationDialogProps = {
+    open: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    title: string;
+    description: string;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'default' | 'destructive';
+    isLoading?: boolean;
+};
 
 type ConfirmationContentProps = Omit<ConfirmationDialogProps, 'open' | 'onClose'> & {
     onClose: () => void;

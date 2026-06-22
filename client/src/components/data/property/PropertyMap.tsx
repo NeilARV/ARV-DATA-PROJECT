@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import type { MapPin, PropertyMap } from '@/types/property';
+import type { MapPin } from '@/types/property';
 import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGeoMap } from '@/hooks/useMap';

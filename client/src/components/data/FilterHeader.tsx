@@ -33,11 +33,28 @@ import { useZipCounts } from '@/hooks/useZipCounts';
 import { useProperty } from '@/hooks/useProperty';
 import { useGeoMap } from '@/hooks/useMap';
 import { useView } from '@/hooks/useView';
-import type { ZipCodeWithCount, CityWithCount } from '@/types/filters';
-import type { PropertySuggestion } from '@/types/general';
 import { apiRequest } from '@/lib/queryClient';
 import { fetchPropertyById } from '@/api/properties.api';
 import { MAP_ZOOM_PROPERTY } from '@/constants/map.constants';
+
+type ZipCodeWithCount = {
+    zipCode: string;
+    count: number;
+    city?: string;
+};
+
+type CityWithCount = {
+    city: string;
+    count: number;
+};
+
+type PropertySuggestion = {
+    id: string;
+    address: string;
+    city: string;
+    state: string;
+    zipcode: string;
+};
 
 // ---- Price helper ----
 function formatPrice(val: number): string {

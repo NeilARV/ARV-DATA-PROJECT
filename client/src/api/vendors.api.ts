@@ -1,10 +1,21 @@
 import { apiRequest } from '@/lib/queryClient';
-import type { Category, Vendor, Post, CreatePostInput } from '@/types/vendors';
+import type { Category, Vendor, Post } from '@/types/vendors';
 import type {
     VendorInput,
     UpdateVendorInput,
     CategoryInput,
 } from '@database/validation/vendors.validation';
+
+// Input for POST /api/posts and PUT /api/posts/:id (partial). Shared-contract candidate for the server phase.
+type CreatePostInput = {
+    title: string;
+    content: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    categoryIds?: number[];
+    vendorIds?: string[];
+};
 
 export async function fetchCategories(): Promise<Category[]> {
     const res = await apiRequest('GET', '/api/categories');

@@ -25,11 +25,20 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, User, Mail, Phone, Pencil, Trash2, Plus, Briefcase } from 'lucide-react';
 import { updateCompanySchema } from '@database/updates/companies.update';
-import { UpdateDialogProps } from '@/types/general';
+import type { UpdateDialogInitialData } from '@/types/companies';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import { AddContactDialog } from './AddContactDialog';
+
+type UpdateDialogProps = {
+    open: boolean;
+    onClose: () => void;
+    companyId: string | null;
+    /** Pre-fill form from directory/list to avoid fetch; when provided, fetch is skipped on open */
+    initialData?: UpdateDialogInitialData | null;
+    onSuccess?: () => void;
+};
 
 type UpdateContentProps = Omit<UpdateDialogProps, 'open' | 'onClose'> & {
     onClose: () => void;
