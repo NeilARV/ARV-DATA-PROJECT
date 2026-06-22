@@ -13,6 +13,7 @@ import postsRoutes from './posts.routes';
 import claimsRoutes from './claims.routes';
 import channelsRoutes from './channels.routes';
 import messagesRoutes from './messages.routes';
+import dmsRoutes from './dms.routes';
 import notificationsRoutes from './notifications.routes';
 import mastermindRoutes from './mastermind.routes';
 
@@ -32,6 +33,7 @@ router.use('/vendors', vendorsRoutes);
 router.use('/posts', postsRoutes);
 router.use('/channels', channelsRoutes);
 router.use('/messages', messagesRoutes);
+router.use('/dms', dmsRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/mastermind', mastermindRoutes);
 

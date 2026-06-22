@@ -8,6 +8,7 @@ import {
     type Client,
 } from './registry';
 import { getChannelById, userIsAdminOrOwner } from 'server/services/channels/channels.services';
+import { isDmMember } from 'server/services/dms/dms.services';
 import { isUuid } from 'server/utils/uuid';
 
 // Wires up a freshly authenticated socket: registers it, handles subscribe/unsubscribe,
@@ -55,13 +56,19 @@ async function handleClientMessage(client: Client, raw: RawData): Promise<void> 
             console.error('[ws] subscribe channel lookup failed:', err);
             return;
         }
-        if (channel && channel.type === 'public' && !channel.isArchived) {
+        if (!channel) return;
+        if (channel.type === 'public' && !channel.isArchived) {
             // Admin-only channels deliver live events to admins/owners only — otherwise a
             // non-admin who knows the id could receive its messages over the socket.
             if (channel.isAdminOnly && !(await userIsAdminOrOwner(client.userId))) {
                 return;
             }
             subscribeToChannel(client, channelId);
+        } else if (channel.type === 'dm') {
+            // A DM delivers live events to its two members only.
+            if (await isDmMember(channelId, client.userId)) {
+                subscribeToChannel(client, channelId);
+            }
         }
         return;
     }

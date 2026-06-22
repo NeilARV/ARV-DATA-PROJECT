@@ -9,6 +9,7 @@ import { users, subscriptions, userRoles, roles } from '@database/schemas/users.
 import type { Channel } from '@database/types/mastermind';
 import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
 import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
+import { assertDmMembership } from 'server/services/dms/dms.services';
 import { isUniqueViolation } from 'server/utils/dbErrors';
 import { ADMIN_ROLES, ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 
@@ -49,6 +50,42 @@ export async function userIsAdminOrOwner(userId: string): Promise<boolean> {
         .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ADMIN_ROLES])))
         .limit(1);
     return rows.length > 0;
+}
+
+// The channel fields needed to authorize access: its type plus the two public-channel flags.
+export type ChannelAccess = Pick<Channel, 'type' | 'isArchived' | 'isAdminOnly'>;
+
+/**
+ * The single source of truth for "may this user touch this channel?", shared by the read,
+ * react, read-state, and write paths so the rules can never drift between them (a drift here is
+ * an access-control hole, not a style nit). Rules: a public channel is open to any eligible user
+ * — admin-only ones to admins/owners only — and, unless archived, reachable; a DM is open to its
+ * two members only; every other type is denied.
+ *
+ * The admin-only check runs before the archived check so a non-admin can't even learn that an
+ * admin-only channel exists. Each caller passes its own `notFound` error so it keeps its
+ * ServiceError subtype + resource wording; `archived` defaults to `notFound`, but the write path
+ * passes a 403 instead (an archived public channel is disclosed, just closed to new messages).
+ *
+ * @returns the DM counterparty's user id, or null for a public channel.
+ */
+export async function assertChannelAccessible(
+    channelId: string,
+    userId: string,
+    channel: ChannelAccess,
+    notFound: Error,
+    archived: Error = notFound,
+): Promise<string | null> {
+    if (channel.type === 'public') {
+        if (channel.isAdminOnly && !(await userIsAdminOrOwner(userId))) throw notFound;
+        if (channel.isArchived) throw archived;
+        return null;
+    }
+    if (channel.type === 'dm') {
+        // Membership is the only gate for a DM — non-members 404 (assertDmMembership throws it).
+        return assertDmMembership(channelId, userId);
+    }
+    throw notFound;
 }
 
 // Every user id holding an admin or owner role — the audience for an admin-only channel
@@ -155,18 +192,22 @@ export async function markChannelRead({
     userId: string;
 }): Promise<void> {
     // A non-admin must not be able to advance read-state (or lazily create a member row) on an
-    // admin-only channel. Treat it as not-found so existence is never disclosed.
+    // admin-only channel; a non-member must not on a DM. Treat either as not-found so existence is
+    // never disclosed.
     const [channel] = await db
         .select({ type: channels.type, isArchived: channels.isArchived, isAdminOnly: channels.isAdminOnly })
         .from(channels)
         .where(eq(channels.id, channelId))
         .limit(1);
-    if (!channel || channel.type !== 'public' || channel.isArchived) {
+    if (!channel) {
         throw new ChannelServiceError(404, 'Channel not found');
     }
-    if (channel.isAdminOnly && !(await userIsAdminOrOwner(userId))) {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
+    await assertChannelAccessible(
+        channelId,
+        userId,
+        channel,
+        new ChannelServiceError(404, 'Channel not found'),
+    );
 
     const [latest] = await db
         .select({ id: messages.id })
@@ -332,6 +373,13 @@ export async function listChannelMentionCandidates(
         .from(users)
         .where(inArray(users.id, eligibleIds))
         .orderBy(asc(users.firstName), asc(users.lastName));
+}
+
+// Candidates for starting a direct message: every Mastermind-eligible user except the caller
+// (you can't DM yourself). Backs the sidebar "New message" picker.
+export async function listDmCandidates(callerId: string): Promise<MentionCandidate[]> {
+    const candidates = await listChannelMentionCandidates();
+    return candidates.filter((u) => u.id !== callerId);
 }
 
 // Hard delete (cascade) — only permitted once the channel is already archived.

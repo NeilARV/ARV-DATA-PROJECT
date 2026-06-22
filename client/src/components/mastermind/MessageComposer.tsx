@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -12,15 +12,25 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { uploadAttachment, type UploadedAttachment } from '@/api/mastermind.api';
 
-type MessageComposerProps = {
-    channelId: string;
-    channelName: string;
-};
+// Channel mode posts to a channel and relies on the socket echo. DM mode posts to the DM endpoint
+// (creating the conversation on first send), disables mentions, and refreshes the DM list.
+type MessageComposerProps =
+    | { mode: 'channel'; channelId: string; channelName: string }
+    | { mode: 'dm'; otherUserId: string; otherUserName: string; channelId: string | null };
 
-/** Composer for sending a new message to a channel: rich text plus image/file attachments. */
-export function MessageComposer({ channelId, channelName }: MessageComposerProps) {
+/** Composer for sending a new message to a channel or a DM: rich text plus image/file attachments. */
+export function MessageComposer(props: MessageComposerProps) {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const attachments = useAttachmentDrafts();
+
+    const isDm = props.mode === 'dm';
+    const endpoint = isDm
+        ? `/api/dms/${props.otherUserId}/messages`
+        : `/api/channels/${props.channelId}/messages`;
+    const placeholder = isDm ? `Message ${props.otherUserName}…` : `Message #${props.channelName}…`;
+    // The editor's mention lookup is channel-scoped; DMs disable mentions so the id is unused there.
+    const editorChannelId = props.mode === 'channel' ? props.channelId : '';
 
     const mutation = useMutation({
         mutationFn: async () => {
@@ -28,7 +38,7 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
             if (attachments.newFiles.length > 0) {
                 uploaded = await Promise.all(attachments.newFiles.map((file) => uploadAttachment(file)));
             }
-            await apiRequest('POST', `/api/channels/${channelId}/messages`, {
+            await apiRequest('POST', endpoint, {
                 content: editor?.getHTML() ?? '',
                 attachments: uploaded.length > 0 ? uploaded : undefined,
             });
@@ -36,7 +46,17 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
         onSuccess: () => {
             editor?.commands.clearContent();
             attachments.reset();
-            // Socket broadcasts the new message back — no manual cache invalidation needed.
+            // Channel + existing-DM messages echo back over the socket — no manual cache update.
+            // For DMs, refresh the sidebar list (recency/unread); for a brand-new conversation
+            // (no channel yet) also re-resolve so its message list renders.
+            if (props.mode === 'dm') {
+                void queryClient.invalidateQueries({ queryKey: ['/api/dms'], exact: true });
+                if (props.channelId === null) {
+                    void queryClient.invalidateQueries({
+                        queryKey: ['/api/dms', props.otherUserId, 'resolve'],
+                    });
+                }
+            }
         },
         onError: () => {
             toast({
@@ -57,9 +77,10 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
     // Declared after handleSend on purpose: the editor takes handleSend as onSubmit, and handleSend
     // reads `editor` back — function-declaration hoisting makes the cycle safe.
     const { editor, editorState, dropdown } = useMastermindEditor({
-        channelId,
-        placeholder: `Message #${channelName}…`,
+        channelId: editorChannelId,
+        placeholder,
         onSubmit: handleSend,
+        enableMentions: !isDm,
     });
 
     const canSend = (editorState?.hasContent ?? false) || attachments.hasAttachments;
@@ -90,7 +111,7 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
                     </Button>
                 </MessageEditorSurface>
             </div>
-            <MentionDropdownPortal dropdown={dropdown} />
+            {!isDm && <MentionDropdownPortal dropdown={dropdown} />}
         </div>
     );
 }

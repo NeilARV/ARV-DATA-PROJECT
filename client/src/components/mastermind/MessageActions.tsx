@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Pin, SmilePlus, Trash2 } from 'lucide-react';
+import { MessageSquarePlus, Pencil, Pin, SmilePlus, Trash2 } from 'lucide-react';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -23,6 +23,8 @@ type MessageActionsProps = {
     onEdit: () => void;
     canDelete: boolean;
     onDelete: () => void;
+    // When provided, shows a "send direct message" action (opens a DM with the message's author).
+    onMessageUser?: () => void;
 };
 
 export function MessageActions({
@@ -33,6 +35,7 @@ export function MessageActions({
     onEdit,
     canDelete,
     onDelete,
+    onMessageUser,
 }: MessageActionsProps) {
     const [pickerOpen, setPickerOpen] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -76,6 +79,17 @@ export function MessageActions({
                     </div>
                 </PopoverContent>
             </Popover>
+
+            {onMessageUser && (
+                <button
+                    type="button"
+                    className={actionBtn}
+                    title="Send direct message"
+                    onClick={onMessageUser}
+                >
+                    <MessageSquarePlus className="w-4 h-4" />
+                </button>
+            )}
 
             {canPin && (
                 <button type="button" className={actionBtn} title="Pin message" onClick={onPin}>

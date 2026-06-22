@@ -26,8 +26,9 @@ import { handleServiceError } from 'server/middleware/errorHandler';
 
 // Unfurls a message's links in the background and, if a new preview was fetched, broadcasts a
 // follow-up update so the card appears without delaying the original send. Fire-and-forget:
-// failures are logged, never surfaced to the sender.
-async function unfurlMessageLinks(messageId: string): Promise<void> {
+// failures are logged, never surfaced to the sender. Exported so the DM controller reuses the
+// exact same link-preview path (it broadcasts to the message's channel either way).
+export async function unfurlMessageLinks(messageId: string): Promise<void> {
     try {
         const updated = await refreshMessageLinkPreviews(messageId);
         if (updated) {

@@ -127,9 +127,11 @@ export interface DealBidNotificationMetadata {
 // dates serialized to ISO strings). Actor fields are null when the actor was deleted.
 // Mention types carry channel/message context; deal_bid carries dealId + metadata instead.
 // `announcement` is the admin/owner @announcement broadcast (same context as channel_mention).
+// `direct_message` carries channel/message context but is routed by the actor (the DM sender),
+// since a DM channel has no human-facing name to deep-link by.
 export interface NotificationWire {
     id: string;
-    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
+    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid' | 'direct_message';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
@@ -148,6 +150,25 @@ export type ServerNotificationEvent = {
     type: typeof ServerToClient.NotificationCreated;
     notification: NotificationWire;
 };
+
+// A user as embedded in DM payloads — the counterparty on a conversation/list item/header.
+export interface DmUserWire {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profileImageUrl: string | null;
+}
+
+// One open direct-message conversation as the sidebar receives it (the `GET /api/dms` list item).
+// A DM has exactly one counterparty, denormalized here so the list needs no extra fetch. The
+// synthetic DM channel name is never sent — the UI keys off `otherUser` and routes by their id.
+// `lastMessageAt` is the most recent non-deleted message time (ISO string), used for ordering.
+export interface DirectMessageSummaryWire {
+    channelId: string;
+    otherUser: DmUserWire;
+    unreadCount: number;
+    lastMessageAt: string;
+}
 
 // The unread-relevant fields of a cross-channel activity doorbell. The client computes its own
 // per-viewer mention state from mentionedEveryone / mentionedUserIds — the body is never sent.

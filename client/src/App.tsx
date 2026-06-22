@@ -76,6 +76,7 @@ function Router() {
             <Route path="/vendors" component={Vendors} />
             <Route path="/deals" component={Deals} />
             <Route path="/mastermind" component={Mastermind} />
+            <Route path="/mastermind/dm/:userId" component={Mastermind} />
             <Route path="/mastermind/:channelName" component={Mastermind} />
             <Route component={NotFound} />
         </Switch>

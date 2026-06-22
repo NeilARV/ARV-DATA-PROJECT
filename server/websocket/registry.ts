@@ -97,6 +97,15 @@ export function broadcastToOtherUsers(
     });
 }
 
+// True if any of the user's connected tabs is currently subscribed to (viewing) the channel.
+// Drives DM bell suppression — a recipient actively viewing the conversation sees the message
+// live, so no notification is created.
+export function isUserSubscribedToChannel(userId: string, channelId: string): boolean {
+    const set = userClients.get(userId);
+    if (!set) return false;
+    return Array.from(set).some((client) => client.subscribedChannels.has(channelId));
+}
+
 // ── Introspection (tests / debugging) ───────────────────────────────────────────
 export function getChannelSubscriberCount(channelId: string): number {
     return channelSubscribers.get(channelId)?.size ?? 0;

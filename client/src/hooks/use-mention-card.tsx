@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Store } from 'lucide-react';
+import { MessageSquarePlus, Store } from 'lucide-react';
 
 import { MastermindCard } from '@/components/mastermind/MastermindCard';
+import { useAuth } from '@/hooks/use-auth';
 import { apiRequest } from '@/lib/queryClient';
 import { fetchVendor } from '@/api/vendors.api';
 import { getAvatarColor } from '@/utils/avatar';
@@ -43,6 +45,8 @@ function initialsFromName(name: string): string {
 export function useMentionCard(channelId: string) {
     const [active, setActive] = useState<ActiveCard | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
+    const [, setLocation] = useLocation();
+    const { user } = useAuth();
 
     const closeCard = useCallback(() => setActive(null), []);
 
@@ -132,12 +136,24 @@ export function useMentionCard(channelId: string) {
                     const name = member
                         ? `${member.firstName} ${member.lastName}`
                         : active.label;
+                    // No "Send message" on your own chip — you can't DM yourself.
+                    const isSelf = active.id === user?.id;
                     return (
                         <MastermindCard
                             name={name}
                             imageUrl={member?.profileImageUrl}
                             initials={initialsFromName(name)}
                             avatarColor={getAvatarColor(active.id)}
+                            actionLabel={isSelf ? undefined : 'Send message'}
+                            actionIcon={isSelf ? undefined : MessageSquarePlus}
+                            onAction={
+                                isSelf
+                                    ? undefined
+                                    : () => {
+                                          closeCard();
+                                          setLocation(`/mastermind/dm/${active.id}`);
+                                      }
+                            }
                             onClose={closeCard}
                         />
                     );

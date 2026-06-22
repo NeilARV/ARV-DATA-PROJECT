@@ -1,21 +1,21 @@
 import { db } from 'server/storage';
 import { messages, channels, messageReactions } from '@database/schemas/mastermind.schema';
-import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
+import { assertChannelAccessible } from 'server/services/channels/channels.services';
 import { ServiceError } from 'server/lib/error';
 import { eq, and } from 'drizzle-orm';
 
 export class ReactionServiceError extends ServiceError {}
 
-// Resolves the channel of a reactable message: it must exist, not be deleted, and live in a
-// readable (public, non-archived) channel. Admin-only channels are reactable by admins/owners
-// only (others 404 — same existence-hiding rule as the read/write paths). Returns the channel id
-// for the broadcast.
+// Resolves the channel of a reactable message: it must exist and not be deleted. A public channel
+// must be non-archived (admin-only ones reactable by admins/owners only); a DM is reactable only
+// by its two members. Anyone else 404s — the same existence-hiding rule as the read/write paths.
+// Returns the channel id for the broadcast.
 async function getReactableChannelId(messageId: string, userId: string): Promise<string> {
     const [row] = await db
         .select({
             channelId: messages.channelId,
             isDeleted: messages.isDeleted,
-            channelType: channels.type,
+            type: channels.type,
             isArchived: channels.isArchived,
             isAdminOnly: channels.isAdminOnly,
         })
@@ -24,12 +24,15 @@ async function getReactableChannelId(messageId: string, userId: string): Promise
         .where(eq(messages.id, messageId))
         .limit(1);
 
-    if (!row || row.isDeleted || row.channelType !== 'public' || row.isArchived) {
+    if (!row || row.isDeleted) {
         throw new ReactionServiceError(404, 'Message not found');
     }
-    if (row.isAdminOnly && !(await userIsAdminOrOwner(userId))) {
-        throw new ReactionServiceError(404, 'Message not found');
-    }
+    await assertChannelAccessible(
+        row.channelId,
+        userId,
+        row,
+        new ReactionServiceError(404, 'Message not found'),
+    );
     return row.channelId;
 }
 

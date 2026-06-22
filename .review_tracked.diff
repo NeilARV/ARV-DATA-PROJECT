@@ -1,0 +1,1555 @@
+diff --git a/.claude/docs/access-control.md b/.claude/docs/access-control.md
+index cf0438c..cb1fc83 100644
+--- a/.claude/docs/access-control.md
++++ b/.claude/docs/access-control.md
+@@ -371,7 +371,8 @@ read-state; they are not consulted for authorization in Phase 1.
+   `last_read_message_id` (the unread-badge clear). It upserts the caller's own
+   `channel_members` row — this is the **lazy membership join point** — and returns `204`.
+   It only ever touches the caller's own read-state, so no ownership check is needed beyond
+-  `requireMastermind`.
++  `requireMastermind`. It is **DM-aware**: for a `dm` channel id the caller must be one of the two
++  members (non-member → `404`, existence never disclosed); admin-only channels stay admin/owner-only.
+ - `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
+ - `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
+   channel is **already archived** — otherwise it returns `409` ("archive the channel before
+@@ -450,6 +451,12 @@ are enforced **inside the service**, mirroring the Vendors posts pattern:
+   endpoint (`multer`, field `file`, max 10 MB, allowlisted image/doc MIME types) that uploads to
+   Supabase Storage and returns `{ attachment }` metadata to send back with the message. Access
+   matrix is the standard `requireMastermind` chain (401 / 403 / ✓).
++- **DM messages (Phase 2):** the message-id-scoped routes above (`PATCH`/`DELETE /api/messages/:id`,
++  `POST`/`DELETE /api/messages/:id/reactions`) are not channel-scoped, so each resolves the
++  message's channel and, when it is a **DM**, requires the caller to be one of the two members
++  (`assertDmMembership`) — a non-member is **404**. Two DM-specific overrides to the table above:
++  **edit stays author-only** (as everywhere), and **delete is author-only in a DM** — the
++  admin/owner "delete any" power in the `DELETE` row does **not** apply to DM messages. See §5.15.
+ 
+ **Real-time (`/ws`) upgrade gate:** the Mastermind WebSocket at `/ws` is **not** an Express
+ route, so the middleware table above doesn't apply. The upgrade is authenticated manually in
+@@ -489,6 +496,49 @@ notifications — there is no admin view and no cross-user access at any role.
+ 
+ ---
+ 
++### 5.15 Mastermind — Direct Messages (`/api/dms`)
++
++1:1 direct messages (Phase 2). A DM is a `channels` row with `type='dm'` and exactly **two**
++`channel_members` rows; it reuses the entire message pipeline. All DM routes are gated by
++`requireMastermind` (same rule as channels/messages: any subscription tier OR any team role).
++**Authorization inside a DM is by membership, enforced in the service** (`assertDmMembership`) — a
++non-member is always **404** (existence is never disclosed), at **every role including admin/owner**.
++
++**DMs are fully private:** admins/owners have **no** elevated access — they cannot list, read, or
++delete a DM they are not a member of, and the "admin can delete any message" rule (§5.13) is
++**disabled** for DM messages (delete is author-only).
++
++| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
++|---|---|---|---|---|---|---|---|
++| GET | `/api/dms` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
++| GET | `/api/dms/candidates` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
++| POST | `/api/dms/:userId/messages` | `requireMastermind` (+ eligibility/membership in service) | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
++| GET | `/api/dms/:userId/messages` | `requireMastermind` (+ eligibility/membership in service) | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
++
++**Behavior notes:**
++- `GET /api/dms` lists the caller's DM conversations (counterparty profile + unread count +
++  last-activity), newest-first, **self-scoped**. Conversations with no surviving messages are omitted.
++- `GET /api/dms/candidates` lists Mastermind-eligible users to start a DM with (everyone but the
++  caller), for the sidebar "New message" picker.
++- `POST /api/dms/:userId/messages` **creates the DM channel on first use** (lazy) via
++  `getOrCreateDmChannel`, then posts. `:userId` must be a **different, Mastermind-eligible** user —
++  otherwise **404** (an ineligible/unknown counterparty is never disclosed); messaging yourself is
++  **400**. The channel name is the deterministic `dm:<lo>:<hi>` id pair, so a pair maps to exactly
++  one channel (`UNIQUE(channels.name)`); a second post joins the existing conversation.
++- `GET /api/dms/:userId/messages` resolves the caller↔`:userId` DM and returns its history (same
++  keyset/backfill contract as channel history), or an **empty draft** (no channel yet) for a pair
++  that has never messaged — it does **not** create the channel (creation is on first send). Same
++  `:userId` eligibility/`400`-self rules as the POST.
++- **No `@mentions` in a DM** — user/`@channel`/`@announcement` chips are not parsed, persisted, or
++  fanned out for DM messages (server-enforced).
++- **Notifications:** each DM message creates a `direct_message` bell notification for the recipient
++  **unless they are currently viewing that conversation** (subscribed to the DM channel over the
++  socket). Routed by actor (the sender) → `/mastermind/dm/:actorId`. **No email** for DMs.
++- **Real-time:** the `/ws` `subscribe` to a DM channel is accepted only for its two members (same
++  membership check); any other client's subscribe is ignored, so no DM events leak.
++
++---
++
+ ## 6. How `testing.md` uses this file
+ 
+ When generating the mandatory access-control integration tests for a new or changed route:
+diff --git a/.claude/docs/mastermind.md b/.claude/docs/mastermind.md
+index f50363f..27df005 100644
+--- a/.claude/docs/mastermind.md
++++ b/.claude/docs/mastermind.md
+@@ -375,6 +375,7 @@ High-value once the core community is live. Schema already anticipates most of t
+ 
+ - **DMs / Group DMs** — `channels.type` `dm` / `group_dm`; a DM is a channel with 2 members, a
+   group DM 3+. Reuse the entire message pipeline; add a DM-creation flow + DM list in the sidebar.
++  **1:1 DMs are specced + in progress — see Part 2 below. Group DMs remain deferred.**
+ - **Threads / replies** — reply to a message via `parent_message_id`; thread panel UI; thread
+   reply counts; notify thread participants.
+ - **Message search** — Postgres `tsvector` GIN index on `messages.content`; scoped to channels
+@@ -398,6 +399,76 @@ High-value once the core community is live. Schema already anticipates most of t
+ - Respect the existing per-user notification toggle; honor a Mastermind-specific opt-out.
+ **Done:** a mention emails the user (with deep link), capped at 3/day, never spams `@channel`.
+ 
++### Part 2 — Direct Messages (1:1) | In progress
++
++Private 1:1 conversations between two users, reusing the entire message pipeline. **Group DMs are
++explicitly out of scope for this part** (the `group_dm` channel type stays reserved for later).
++
++**Decisions (resolved with the product owner):**
++1. **Creation is lazy** — clicking "Send message" opens an empty composer; the conversation row
++   and both sidebar entries persist only when the **first message is sent**. The recipient sees the
++   conversation only once a real message exists. No ghost/empty conversations.
++2. **Audience is any Mastermind-eligible user**, discoverable three ways: the per-message hover
++   toolbar (a new message icon, on **channel** messages only), the user profile/mention card, and a
++   dedicated **"New message"** button + user search in the DM section of the sidebar.
++3. **Notify on every DM, but suppress when the recipient has that conversation open** (i.e. is
++   currently subscribed to the DM channel over the socket — they'll see it live). Bell only; **no
++   email** for DMs.
++4. **DMs are fully private** — admins/owners have **no** read/list/delete access. Delete is
++   **author-only** in a DM; the "admin can delete any message" power never reaches a DM.
++
++**Data model (no new tables):** a DM is a `channels` row with `type='dm'` and exactly two
++`channel_members` rows. The channel `name` is a deterministic, sorted pair `dm:<lo>:<hi>` of the
++two user ids, so the existing `UNIQUE(channels.name)` enforces "exactly one conversation per pair"
++and get-or-create is race-safe. The synthetic name is never shown to users (the UI keys off the
++counterparty and routes by their id). `notification_type` gains `direct_message` (applied as a
++targeted `ALTER TYPE … ADD VALUE`, per the db:push drift note — see `scripts/add-dm-notification-enum.ts`).
++
++**Routing:** `/mastermind/dm/:userId` — keyed on the **counterparty's** user id (clean, stable,
++doesn't leak the synthetic name). A bare/unknown id behaves like an unknown channel.
++
++**Backend (`server/services/dms/dms.services.ts`):**
++- `getOrCreateDmChannel(callerId, otherUserId)` — validates both are eligible + distinct; upserts the
++  `dm:` channel + both member rows; idempotent. Used lazily on first send.
++- `assertDmMembership(channelId, userId)` — the single guard the message/reaction/read paths reuse;
++  returns the counterparty id, 404s a non-member (existence never disclosed).
++- `listDirectMessages(userId)` — the sidebar list: counterparty profile + unread + last-activity,
++  newest-first, conversations with no surviving messages omitted.
++- **No mentions in a DM:** `createMessage`/`updateMessage` skip mention parsing/persistence and the
++  `@announcement` gate when the channel is a DM.
++
++**Routes (gated by `requireMastermind`; tables in `access-control.md` §5.15):**
++- `GET /api/dms` — the sidebar list.
++- `POST /api/dms/:userId/messages` — create-or-get the DM channel, then send (the lazy-create entry).
++- `GET /api/dms/:userId/messages?cursor=` — history (delegates to the existing list logic).
++- Edit/delete/react reuse the existing `/api/messages/:id*` routes — now membership-guarded.
++- Read-state reuses `PATCH /api/channels/:id/read` — now DM-aware.
++
++**Security hardening (mandatory):** the message-id-scoped routes (`PATCH`/`DELETE /api/messages/:id`,
++reactions) are not channel-scoped, so each now resolves the message's channel and, when it is a DM,
++calls `assertDmMembership` — a non-member 404s, and admin delete-any is disabled for DMs.
++
++**Real-time & notifications:** DM messages broadcast over the **same** `message.created/updated/
++deleted` + `reaction.changed` events (subscribed by `channelId`). The cross-channel activity
++doorbell and the bell are scoped to the single counterparty (never the all-eligible firehose). A
++`direct_message` notification is created for the recipient **unless** they are currently subscribed
++to that DM channel; clicking it deep-links to `/mastermind/dm/:actorId`.
++
++**Frontend:** DM list in `ChannelSidebar` (replaces the "Coming soon" stub) + "New message" picker;
++a message icon in `MessageActions` (channel messages only); a "Send message" action on the profile
++card; `ChannelHeader` renders the counterparty's avatar + name in DM mode; `MessageComposer`
++placeholder `Message {FirstName}…` with mentions disabled; `Mastermind.tsx` handles the
++`/mastermind/dm/:userId` route + the lazy draft-DM view.
++
++**Done:** two eligible users can open a private conversation from any of the three entry points;
++messages, reactions, edits, deletes, and attachments work live; the recipient gets a bell
++notification (suppressed while they're viewing it); no admin can read or delete a DM; no `@mentions`
++function in a DM.
++
++> **Build status:** schema/enum + backend services + the message-pipeline DM-awareness and security
++> guards are built. Remaining: DM controllers + `dms.routes.ts`, the WS `subscribe` gate for DM
++> members, the doorbell/notification wiring (suppress-when-viewing), and all frontend.
++
+ ---
+ 
+ ## Phase 3 — Could Have
+@@ -519,7 +590,7 @@ link_previews                             ← global URL→metadata cache, write
+ notifications
+ ├── id (uuid, PK)
+ ├── user_id (uuid, FK → users.id)      ← recipient
+-├── type (enum: 'mention','channel_mention', … )
++├── type (enum: 'mention','channel_mention','announcement','deal_bid','direct_message')
+ ├── channel_id (uuid, FK → channels.id)
+ ├── message_id (uuid, FK → messages.id)   ← deep-link target
+ ├── actor_id (uuid, FK → users.id)     ← who triggered it
+diff --git a/REVIEW.md b/REVIEW.md
+deleted file mode 100644
+index 3125b88..0000000
+--- a/REVIEW.md
++++ /dev/null
+@@ -1 +0,0 @@
+-### Review.md File ###
+\ No newline at end of file
+diff --git a/client/src/App.tsx b/client/src/App.tsx
+index 3cde47f..6abb4ac 100644
+--- a/client/src/App.tsx
++++ b/client/src/App.tsx
+@@ -76,6 +76,7 @@ function Router() {
+             <Route path="/vendors" component={Vendors} />
+             <Route path="/deals" component={Deals} />
+             <Route path="/mastermind" component={Mastermind} />
++            <Route path="/mastermind/dm/:userId" component={Mastermind} />
+             <Route path="/mastermind/:channelName" component={Mastermind} />
+             <Route component={NotFound} />
+         </Switch>
+diff --git a/client/src/components/mastermind/ChannelSidebar.tsx b/client/src/components/mastermind/ChannelSidebar.tsx
+index 92012cd..0b9fa98 100644
+--- a/client/src/components/mastermind/ChannelSidebar.tsx
++++ b/client/src/components/mastermind/ChannelSidebar.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react';
+-import { Brain, Hash, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
++import { Brain, Hash, MessageSquarePlus, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+ 
+ import {
+     DropdownMenu,
+@@ -10,8 +10,12 @@ import {
+ import { AddChannelDialog } from '@/components/mastermind/AddChannelDialog';
+ import { EditChannelDialog } from '@/components/mastermind/EditChannelDialog';
+ import { DeleteChannelDialog } from '@/components/mastermind/DeleteChannelDialog';
++import { NewDmDialog } from '@/components/mastermind/NewDmDialog';
++
++import { getAvatarColor } from '@/utils/avatar';
+ 
+ import type { ChannelSummary } from '@/types/mastermind';
++import type { DirectMessageSummaryWire } from '@shared/mastermind/events';
+ 
+ type ChannelSidebarProps = {
+     channels: ChannelSummary[];
+@@ -20,6 +24,9 @@ type ChannelSidebarProps = {
+     canManageChannels: boolean;
+     onChannelRenamed: (channelId: string, newName: string) => void;
+     onChannelDeleted: (channelId: string) => void;
++    dms: DirectMessageSummaryWire[];
++    activeDmUserId: string | null;
++    onSelectDm: (userId: string) => void;
+ };
+ 
+ function UnreadBadge({ count, hasMention }: { count: number; hasMention: boolean }) {
+@@ -39,8 +46,12 @@ export function ChannelSidebar({
+     canManageChannels,
+     onChannelRenamed,
+     onChannelDeleted,
++    dms,
++    activeDmUserId,
++    onSelectDm,
+ }: ChannelSidebarProps) {
+     const [addOpen, setAddOpen] = useState(false);
++    const [newDmOpen, setNewDmOpen] = useState(false);
+     const [channelToEdit, setChannelToEdit] = useState<ChannelSummary | null>(null);
+     const [channelToDelete, setChannelToDelete] = useState<ChannelSummary | null>(null);
+ 
+@@ -124,15 +135,70 @@ export function ChannelSidebar({
+                     })}
+                 </ul>
+ 
+-                {/* Direct Messages — Phase 2 stub */}
+-                <div className="px-3 mt-5 mb-1">
++                {/* Direct Messages */}
++                <div className="flex items-center justify-between px-3 mt-5 mb-1">
+                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                         Direct Messages
+                     </span>
++                    <button
++                        onClick={() => setNewDmOpen(true)}
++                        className="p-0.5 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
++                        aria-label="New message"
++                        title="New message"
++                    >
++                        <MessageSquarePlus className="w-4 h-4" />
++                    </button>
+                 </div>
+-                <p className="px-3 text-xs text-muted-foreground italic">Coming soon</p>
++
++                {dms.length === 0 ? (
++                    <p className="px-3 text-xs text-muted-foreground italic">No conversations yet</p>
++                ) : (
++                    <ul>
++                        {dms.map((dm) => {
++                            const isActive = activeDmUserId === dm.otherUser.id;
++                            const hasUnread = dm.unreadCount > 0;
++                            const name =
++                                `${dm.otherUser.firstName} ${dm.otherUser.lastName}`.trim();
++                            const initials =
++                                `${dm.otherUser.firstName.charAt(0)}${dm.otherUser.lastName.charAt(0)}`.toUpperCase();
++                            return (
++                                <li key={dm.channelId}>
++                                    <button
++                                        onClick={() => onSelectDm(dm.otherUser.id)}
++                                        className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
++                                    >
++                                        {dm.otherUser.profileImageUrl ? (
++                                            <img
++                                                src={dm.otherUser.profileImageUrl}
++                                                alt={name}
++                                                className="w-4 h-4 rounded-full object-cover flex-shrink-0"
++                                            />
++                                        ) : (
++                                            <div
++                                                className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-semibold flex-shrink-0"
++                                                style={{ backgroundColor: getAvatarColor(dm.otherUser.id) }}
++                                            >
++                                                {initials}
++                                            </div>
++                                        )}
++                                        <span
++                                            className={`truncate flex-1 ${hasUnread && !isActive ? 'font-semibold text-foreground' : ''}`}
++                                        >
++                                            {name}
++                                        </span>
++                                        {!isActive && (
++                                            <UnreadBadge count={dm.unreadCount} hasMention={false} />
++                                        )}
++                                    </button>
++                                </li>
++                            );
++                        })}
++                    </ul>
++                )}
+             </div>
+ 
++            <NewDmDialog open={newDmOpen} onClose={() => setNewDmOpen(false)} />
++
+             {canManageChannels && (
+                 <>
+                     <AddChannelDialog open={addOpen} onClose={() => setAddOpen(false)} />
+diff --git a/client/src/components/mastermind/MastermindCard.tsx b/client/src/components/mastermind/MastermindCard.tsx
+index a0e62f1..a320b28 100644
+--- a/client/src/components/mastermind/MastermindCard.tsx
++++ b/client/src/components/mastermind/MastermindCard.tsx
+@@ -1,6 +1,8 @@
+ import { Link } from 'wouter';
+ import { Loader2, Mail, Phone, Globe, X, type LucideIcon } from 'lucide-react';
+ 
++import { Button } from '@/components/ui/button';
++
+ type MastermindCardProps = {
+     /** Display name — callers compile first/last or pass a company name. */
+     name: string;
+@@ -21,6 +23,10 @@ type MastermindCardProps = {
+     isLoading?: boolean;
+     /** Card width in px. Vendors are given a wider card so the description reads well. */
+     width?: number;
++    /** Optional primary action rendered as a full-width button below the content (e.g. "Send message"). */
++    actionLabel?: string;
++    actionIcon?: LucideIcon;
++    onAction?: () => void;
+     onClose: () => void;
+ };
+ 
+@@ -55,6 +61,9 @@ export function MastermindCard({
+     website,
+     isLoading = false,
+     width = 288,
++    actionLabel,
++    actionIcon: ActionIcon,
++    onAction,
+     onClose,
+ }: MastermindCardProps) {
+     const hasContact = !!(email || phone || website);
+@@ -150,6 +159,18 @@ export function MastermindCard({
+                         Loading…
+                     </div>
+                 )}
++
++                {onAction && actionLabel && (
++                    <Button
++                        variant="outline"
++                        size="sm"
++                        className="w-full mt-3"
++                        onClick={onAction}
++                    >
++                        {ActionIcon && <ActionIcon />}
++                        {actionLabel}
++                    </Button>
++                )}
+             </div>
+         </div>
+     );
+diff --git a/client/src/components/mastermind/MessageActions.tsx b/client/src/components/mastermind/MessageActions.tsx
+index 58ef760..9979fa8 100644
+--- a/client/src/components/mastermind/MessageActions.tsx
++++ b/client/src/components/mastermind/MessageActions.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react';
+-import { Pencil, Pin, SmilePlus, Trash2 } from 'lucide-react';
++import { MessageSquarePlus, Pencil, Pin, SmilePlus, Trash2 } from 'lucide-react';
+ 
+ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+ import {
+@@ -23,6 +23,8 @@ type MessageActionsProps = {
+     onEdit: () => void;
+     canDelete: boolean;
+     onDelete: () => void;
++    // When provided, shows a "send direct message" action (opens a DM with the message's author).
++    onMessageUser?: () => void;
+ };
+ 
+ export function MessageActions({
+@@ -33,6 +35,7 @@ export function MessageActions({
+     onEdit,
+     canDelete,
+     onDelete,
++    onMessageUser,
+ }: MessageActionsProps) {
+     const [pickerOpen, setPickerOpen] = useState(false);
+     const [confirmOpen, setConfirmOpen] = useState(false);
+@@ -77,6 +80,17 @@ export function MessageActions({
+                 </PopoverContent>
+             </Popover>
+ 
++            {onMessageUser && (
++                <button
++                    type="button"
++                    className={actionBtn}
++                    title="Send direct message"
++                    onClick={onMessageUser}
++                >
++                    <MessageSquarePlus className="w-4 h-4" />
++                </button>
++            )}
++
+             {canPin && (
+                 <button type="button" className={actionBtn} title="Pin message" onClick={onPin}>
+                     <Pin className="w-4 h-4" />
+diff --git a/client/src/components/mastermind/MessageComposer.tsx b/client/src/components/mastermind/MessageComposer.tsx
+index 0767591..be6150b 100644
+--- a/client/src/components/mastermind/MessageComposer.tsx
++++ b/client/src/components/mastermind/MessageComposer.tsx
+@@ -1,4 +1,4 @@
+-import { useMutation } from '@tanstack/react-query';
++import { useMutation, useQueryClient } from '@tanstack/react-query';
+ import { Loader2 } from 'lucide-react';
+ 
+ import { Button } from '@/components/ui/button';
+@@ -12,23 +12,33 @@ import { useToast } from '@/hooks/use-toast';
+ import { apiRequest } from '@/lib/queryClient';
+ import { uploadAttachment, type UploadedAttachment } from '@/api/mastermind.api';
+ 
+-type MessageComposerProps = {
+-    channelId: string;
+-    channelName: string;
+-};
++// Channel mode posts to a channel and relies on the socket echo. DM mode posts to the DM endpoint
++// (creating the conversation on first send), disables mentions, and refreshes the DM list.
++type MessageComposerProps =
++    | { mode: 'channel'; channelId: string; channelName: string }
++    | { mode: 'dm'; otherUserId: string; otherUserName: string; channelId: string | null };
+ 
+-/** Composer for sending a new message to a channel: rich text plus image/file attachments. */
+-export function MessageComposer({ channelId, channelName }: MessageComposerProps) {
++/** Composer for sending a new message to a channel or a DM: rich text plus image/file attachments. */
++export function MessageComposer(props: MessageComposerProps) {
+     const { toast } = useToast();
++    const queryClient = useQueryClient();
+     const attachments = useAttachmentDrafts();
+ 
++    const isDm = props.mode === 'dm';
++    const endpoint = isDm
++        ? `/api/dms/${props.otherUserId}/messages`
++        : `/api/channels/${props.channelId}/messages`;
++    const placeholder = isDm ? `Message ${props.otherUserName}…` : `Message #${props.channelName}…`;
++    // The editor's mention lookup is channel-scoped; DMs disable mentions so the id is unused there.
++    const editorChannelId = props.mode === 'channel' ? props.channelId : '';
++
+     const mutation = useMutation({
+         mutationFn: async () => {
+             let uploaded: UploadedAttachment[] = [];
+             if (attachments.newFiles.length > 0) {
+                 uploaded = await Promise.all(attachments.newFiles.map((file) => uploadAttachment(file)));
+             }
+-            await apiRequest('POST', `/api/channels/${channelId}/messages`, {
++            await apiRequest('POST', endpoint, {
+                 content: editor?.getHTML() ?? '',
+                 attachments: uploaded.length > 0 ? uploaded : undefined,
+             });
+@@ -36,7 +46,17 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
+         onSuccess: () => {
+             editor?.commands.clearContent();
+             attachments.reset();
+-            // Socket broadcasts the new message back — no manual cache invalidation needed.
++            // Channel + existing-DM messages echo back over the socket — no manual cache update.
++            // For DMs, refresh the sidebar list (recency/unread); for a brand-new conversation
++            // (no channel yet) also re-resolve so its message list renders.
++            if (props.mode === 'dm') {
++                void queryClient.invalidateQueries({ queryKey: ['/api/dms'], exact: true });
++                if (props.channelId === null) {
++                    void queryClient.invalidateQueries({
++                        queryKey: ['/api/dms', props.otherUserId, 'resolve'],
++                    });
++                }
++            }
+         },
+         onError: () => {
+             toast({
+@@ -57,9 +77,10 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
+     // Declared after handleSend on purpose: the editor takes handleSend as onSubmit, and handleSend
+     // reads `editor` back — function-declaration hoisting makes the cycle safe.
+     const { editor, editorState, dropdown } = useMastermindEditor({
+-        channelId,
+-        placeholder: `Message #${channelName}…`,
++        channelId: editorChannelId,
++        placeholder,
+         onSubmit: handleSend,
++        enableMentions: !isDm,
+     });
+ 
+     const canSend = (editorState?.hasContent ?? false) || attachments.hasAttachments;
+@@ -90,7 +111,7 @@ export function MessageComposer({ channelId, channelName }: MessageComposerProps
+                     </Button>
+                 </MessageEditorSurface>
+             </div>
+-            <MentionDropdownPortal dropdown={dropdown} />
++            {!isDm && <MentionDropdownPortal dropdown={dropdown} />}
+         </div>
+     );
+ }
+diff --git a/client/src/components/mastermind/MessageItem.tsx b/client/src/components/mastermind/MessageItem.tsx
+index 7f1ac06..247e886 100644
+--- a/client/src/components/mastermind/MessageItem.tsx
++++ b/client/src/components/mastermind/MessageItem.tsx
+@@ -1,4 +1,5 @@
+ import { useEffect, useRef, useState } from 'react';
++import { useLocation } from 'wouter';
+ import { useMutation } from '@tanstack/react-query';
+ 
+ import { MessageActions } from '@/components/mastermind/MessageActions';
+@@ -40,6 +41,9 @@ type MessageItemProps = {
+     isHighlighted?: boolean;
+     currentUserId: string | undefined;
+     canPin: boolean;
++    // Whether to offer the per-message "send a direct message" action (false inside a DM, and
++    // never shown on your own messages).
++    canStartDm?: boolean;
+ };
+ 
+ export function MessageItem({
+@@ -48,9 +52,11 @@ export function MessageItem({
+     isHighlighted = false,
+     currentUserId,
+     canPin,
++    canStartDm = false,
+ }: MessageItemProps) {
+     const { senderFirstName, senderLastName, senderId, senderProfileImageUrl } = message;
+     const { toast } = useToast();
++    const [, setLocation] = useLocation();
+     const rootRef = useRef<HTMLDivElement>(null);
+     const [isEditing, setIsEditing] = useState(false);
+ 
+@@ -192,6 +198,11 @@ export function MessageItem({
+                     onEdit={() => setIsEditing(true)}
+                     canDelete={isAuthor || canPin}
+                     onDelete={() => deleteMutation.mutate()}
++                    onMessageUser={
++                        canStartDm && !isAuthor
++                            ? () => setLocation(`/mastermind/dm/${senderId}`)
++                            : undefined
++                    }
+                 />
+             )}
+         </div>
+diff --git a/client/src/components/mastermind/MessageList.tsx b/client/src/components/mastermind/MessageList.tsx
+index ff0d0c2..91f22db 100644
+--- a/client/src/components/mastermind/MessageList.tsx
++++ b/client/src/components/mastermind/MessageList.tsx
+@@ -25,9 +25,16 @@ type MessageListProps = {
+     channelId: string;
+     highlightMessageId?: string | null;
+     onHighlightDone?: () => void;
++    // True when rendering a DM — suppresses the per-message "start a DM" action (you're already in one).
++    isDm?: boolean;
+ };
+ 
+-export function MessageList({ channelId, highlightMessageId, onHighlightDone }: MessageListProps) {
++export function MessageList({
++    channelId,
++    highlightMessageId,
++    onHighlightDone,
++    isDm = false,
++}: MessageListProps) {
+     const { subscribeToChannel, unsubscribeFromChannel } = useMastermindSocket();
+     const { user, isAdmin, isOwner } = useAuth();
+     const canPin = isAdmin || isOwner;
+@@ -109,6 +116,7 @@ export function MessageList({ channelId, highlightMessageId, onHighlightDone }:
+                     isHighlighted={message.id === highlightMessageId}
+                     currentUserId={user?.id}
+                     canPin={canPin}
++                    canStartDm={!isDm}
+                 />
+             ))}
+             <div ref={bottomRef} className="h-2" />
+diff --git a/client/src/components/mastermind/NotificationBell.tsx b/client/src/components/mastermind/NotificationBell.tsx
+index d006487..49acaf0 100644
+--- a/client/src/components/mastermind/NotificationBell.tsx
++++ b/client/src/components/mastermind/NotificationBell.tsx
+@@ -35,6 +35,7 @@ function notificationText(n: NotificationWire): string {
+             : 'an offer';
+         return `submitted an offer of ${amount}`;
+     }
++    if (n.type === 'direct_message') return 'sent you a message';
+     const channel = n.channelName ? `#${n.channelName}` : 'a channel';
+     if (n.type === 'announcement') return `made an announcement in ${channel}`;
+     return n.type === 'channel_mention'
+@@ -74,6 +75,10 @@ export function NotificationBell() {
+             setLocation(`/deals?dealId=${n.dealId}`);
+             return;
+         }
++        if (n.type === 'direct_message' && n.actorId) {
++            setLocation(`/mastermind/dm/${n.actorId}`);
++            return;
++        }
+         if (n.channelName) {
+             const base = `/mastermind/${encodeURIComponent(n.channelName)}`;
+             setLocation(n.messageId ? `${base}?m=${n.messageId}` : base);
+diff --git a/client/src/hooks/use-mastermind-editor.ts b/client/src/hooks/use-mastermind-editor.ts
+index 987633d..315278b 100644
+--- a/client/src/hooks/use-mastermind-editor.ts
++++ b/client/src/hooks/use-mastermind-editor.ts
+@@ -29,6 +29,9 @@ type UseMastermindEditorOptions = {
+     onSubmit?: () => void;
+     initialContent?: string;
+     autofocus?: boolean;
++    // DMs are 1:1 — no @mentions. When false, the mention extensions and their candidate
++    // queries are omitted so the "@" trigger never fires and no member/vendor lists are fetched.
++    enableMentions?: boolean;
+ };
+ 
+ // Shown first when the user types "@", before any real users. @channel is open to everyone;
+@@ -46,6 +49,7 @@ export function useMastermindEditor({
+     onSubmit,
+     initialContent,
+     autofocus = false,
++    enableMentions = true,
+ }: UseMastermindEditorOptions) {
+     const { isAdmin, isOwner } = useAuth();
+     const canAnnounce = isAdmin || isOwner;
+@@ -117,7 +121,7 @@ export function useMastermindEditor({
+                 users: MemberRow[];
+             }>,
+         staleTime: 2 * 60 * 1000,
+-        enabled: !!channelId,
++        enabled: enableMentions && !!channelId,
+     });
+ 
+     const allUsersRef = useRef<MentionItem[]>([]);
+@@ -136,6 +140,7 @@ export function useMastermindEditor({
+         queryKey: ['vendors'],
+         queryFn: () => fetchVendors(),
+         staleTime: 5 * 60 * 1000,
++        enabled: enableMentions,
+     });
+ 
+     const allVendorsRef = useRef<MentionItem[]>([]);
+@@ -320,8 +325,8 @@ export function useMastermindEditor({
+                 HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
+             }),
+             Placeholder.configure({ placeholder }),
+-            UserMention,
+-            VendorMention,
++            // Mentions are omitted entirely in DM mode so the "@" trigger never activates.
++            ...(enableMentions ? [UserMention, VendorMention] : []),
+         ],
+         editorProps: {
+             attributes: { class: 'mastermind-composer-editor focus:outline-none' },
+diff --git a/client/src/hooks/use-mention-card.tsx b/client/src/hooks/use-mention-card.tsx
+index ac52d0d..0c9838e 100644
+--- a/client/src/hooks/use-mention-card.tsx
++++ b/client/src/hooks/use-mention-card.tsx
+@@ -1,9 +1,11 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ import { createPortal } from 'react-dom';
++import { useLocation } from 'wouter';
+ import { useQuery } from '@tanstack/react-query';
+-import { Store } from 'lucide-react';
++import { MessageSquarePlus, Store } from 'lucide-react';
+ 
+ import { MastermindCard } from '@/components/mastermind/MastermindCard';
++import { useAuth } from '@/hooks/use-auth';
+ import { apiRequest } from '@/lib/queryClient';
+ import { fetchVendor } from '@/api/vendors.api';
+ import { getAvatarColor } from '@/utils/avatar';
+@@ -43,6 +45,8 @@ function initialsFromName(name: string): string {
+ export function useMentionCard(channelId: string) {
+     const [active, setActive] = useState<ActiveCard | null>(null);
+     const cardRef = useRef<HTMLDivElement>(null);
++    const [, setLocation] = useLocation();
++    const { user } = useAuth();
+ 
+     const closeCard = useCallback(() => setActive(null), []);
+ 
+@@ -132,12 +136,24 @@ export function useMentionCard(channelId: string) {
+                     const name = member
+                         ? `${member.firstName} ${member.lastName}`
+                         : active.label;
++                    // No "Send message" on your own chip — you can't DM yourself.
++                    const isSelf = active.id === user?.id;
+                     return (
+                         <MastermindCard
+                             name={name}
+                             imageUrl={member?.profileImageUrl}
+                             initials={initialsFromName(name)}
+                             avatarColor={getAvatarColor(active.id)}
++                            actionLabel={isSelf ? undefined : 'Send message'}
++                            actionIcon={isSelf ? undefined : MessageSquarePlus}
++                            onAction={
++                                isSelf
++                                    ? undefined
++                                    : () => {
++                                          closeCard();
++                                          setLocation(`/mastermind/dm/${active.id}`);
++                                      }
++                            }
+                             onClose={closeCard}
+                         />
+                     );
+diff --git a/client/src/pages/Mastermind.tsx b/client/src/pages/Mastermind.tsx
+index 418defc..b5eb600 100644
+--- a/client/src/pages/Mastermind.tsx
++++ b/client/src/pages/Mastermind.tsx
+@@ -9,15 +9,17 @@ import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
+ import { ChannelPinBar } from '@/components/mastermind/ChannelPinBar';
+ import { MessageList } from '@/components/mastermind/MessageList';
+ import { MessageComposer } from '@/components/mastermind/MessageComposer';
++import { DmConversationView } from '@/components/mastermind/DmConversationView';
+ import { DataProviders } from '@/components/DataProviders';
+ import { AppAccessLocked } from '@/components/auth/AppAccessGate';
+ 
+ import { useAuth } from '@/hooks/use-auth';
+ import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
+ 
+-import { apiRequest } from '@/lib/queryClient';
++import { apiRequest, queryClient } from '@/lib/queryClient';
+ 
+ import type { ChannelSummary } from '@/types/mastermind';
++import type { DmListResponse } from '@/api/dms.api';
+ 
+ type ChannelsResponse = { channels: ChannelSummary[] };
+ 
+@@ -34,6 +36,10 @@ function MastermindContent() {
+     const channelNameParam = routeParams?.channelName
+         ? decodeURIComponent(routeParams.channelName)
+         : null;
++    // The DM route (/mastermind/dm/:userId) has two path segments, so it never matches the
++    // single-segment channel route above — the two are mutually exclusive.
++    const [, dmRouteParams] = useRoute('/mastermind/dm/:userId');
++    const dmUserId = dmRouteParams?.userId ?? null;
+ 
+     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
+     const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());
+@@ -51,6 +57,12 @@ function MastermindContent() {
+     });
+     const channels = data?.channels ?? [];
+ 
++    const { data: dmsData } = useQuery<DmListResponse>({
++        queryKey: ['/api/dms'],
++        enabled: canAccessMastermind,
++    });
++    const dms = dmsData?.conversations ?? [];
++
+     // The open channel is derived from the URL (/mastermind/<name>), not local state, so links
+     // are shareable and browser back/forward works. Resolve the name to the loaded channel.
+     const activeChannel = channelNameParam
+@@ -58,6 +70,14 @@ function MastermindContent() {
+         : null;
+     const activeChannelId = activeChannel?.id ?? null;
+ 
++    // A DM is identified in the URL by the counterparty; resolve its channel id from the list
++    // (null for a brand-new draft that has no channel yet).
++    const activeDmChannelId = dmUserId
++        ? dms.find((d) => d.otherUser.id === dmUserId)?.channelId ?? null
++        : null;
++    // The conversation currently open — channel or DM — keyed by channel id for unread/read-state.
++    const activeConversationId = activeChannelId ?? activeDmChannelId;
++
+     const markReadMutation = useMutation({
+         mutationFn: (channelId: string) =>
+             apiRequest('PATCH', `/api/channels/${channelId}/read`),
+@@ -109,21 +129,41 @@ function MastermindContent() {
+         );
+     }, [channels]);
+ 
++    // Merge DM unread into the same channel-id-keyed map. Unlike channels (seeded once), a DM
++    // conversation can appear later (a brand-new DM), so add any channel id not already tracked —
++    // without clobbering live state that WS events already advanced.
++    useEffect(() => {
++        if (dms.length === 0) return;
++        setUnreadState((prev) => {
++            let changed = false;
++            const next = new Map(prev);
++            for (const dm of dms) {
++                if (!next.has(dm.channelId)) {
++                    next.set(dm.channelId, { count: dm.unreadCount, hasMention: false });
++                    changed = true;
++                }
++            }
++            return changed ? next : prev;
++        });
++    }, [dms]);
++
+     // Resolve the URL to a channel. A bare /mastermind or an unknown/archived channel name
+     // redirects to the first channel, so the view is never empty and the URL always names the
+     // open channel (this also self-heals stale deep-links).
+     useEffect(() => {
++        if (dmUserId) return; // a DM route is a valid destination — don't bounce it to a channel
+         if (channels.length === 0) return;
+         if (activeChannel) return;
+         setLocation(`/mastermind/${encodeURIComponent(channels[0].name)}`, { replace: true });
+-    }, [channels, activeChannel, setLocation]);
++    }, [channels, activeChannel, setLocation, dmUserId]);
+ 
+-    // Opening a channel (via URL change) clears its unread badge and advances read state.
++    // Opening a conversation (channel or DM, via URL change) clears its unread badge and advances
++    // read state. A brand-new draft DM has no channel id yet, so there is nothing to clear.
+     useEffect(() => {
+-        if (!activeChannelId) return;
+-        clearUnread(activeChannelId);
+-        scheduleMarkRead(activeChannelId);
+-    }, [activeChannelId, clearUnread, scheduleMarkRead]);
++        if (!activeConversationId) return;
++        clearUnread(activeConversationId);
++        scheduleMarkRead(activeConversationId);
++    }, [activeConversationId, clearUnread, scheduleMarkRead]);
+ 
+     // Notification deep-link: /mastermind/<name>?m=<messageId>. The channel comes from the path;
+     // only the highlight target rides as a query param. Capture it, switch to the chat pane on
+@@ -150,25 +190,29 @@ function MastermindContent() {
+     // badge for the channel being viewed (advance its read state instead); bump unread for others.
+     useEffect(() => {
+         if (!lastChannelActivity) return;
+-        if (lastChannelActivity.channelId === activeChannelId) {
+-            // User is already viewing this channel — advance read state immediately.
+-            scheduleMarkRead(activeChannelId);
++        const { channelId } = lastChannelActivity;
++        if (channelId === activeConversationId) {
++            // User is already viewing this conversation — advance read state immediately.
++            scheduleMarkRead(activeConversationId);
+             return;
+         }
++        // Activity in a channel id we don't track yet is most likely a brand-new DM — refetch the
++        // DM list so the conversation surfaces in the sidebar (its server unread is authoritative).
++        const isKnownChannel = channels.some((c) => c.id === channelId);
++        if (!isKnownChannel) {
++            void queryClient.invalidateQueries({ queryKey: ['/api/dms'], exact: true });
++        }
+         const isMentioned =
+             lastChannelActivity.mentionedEveryone ||
+             lastChannelActivity.mentionedUserIds.includes(user?.id ?? '');
+         setUnreadState((prev) => {
+-            const current = prev.get(lastChannelActivity.channelId) ?? {
+-                count: 0,
+-                hasMention: false,
+-            };
+-            return new Map(prev).set(lastChannelActivity.channelId, {
++            const current = prev.get(channelId) ?? { count: 0, hasMention: false };
++            return new Map(prev).set(channelId, {
+                 count: current.count + 1,
+                 hasMention: current.hasMention || isMentioned,
+             });
+         });
+-    }, [lastChannelActivity, activeChannelId, user?.id, scheduleMarkRead]);
++    }, [lastChannelActivity, activeConversationId, channels, user?.id, scheduleMarkRead]);
+ 
+     function handleSelectChannel(id: string) {
+         const channel = channels.find((c) => c.id === id);
+@@ -177,6 +221,11 @@ function MastermindContent() {
+         setLocation(`/mastermind/${encodeURIComponent(channel.name)}`);
+     }
+ 
++    function handleSelectDm(userId: string) {
++        setMobileTab('chat');
++        setLocation(`/mastermind/dm/${userId}`);
++    }
++
+     // The open channel is derived from the URL by name, so when the active channel is renamed or
+     // deleted we must move the URL off the stale name (otherwise the user is stranded / bounced).
+     function handleChannelRenamed(channelId: string, newName: string) {
+@@ -195,6 +244,22 @@ function MastermindContent() {
+         return live ? { ...c, unreadCount: live.count, hasMention: live.hasMention } : c;
+     });
+ 
++    // Same live-unread merge for the DM list.
++    const dmsWithUnread = dms.map((dm) => {
++        const live = unreadState.get(dm.channelId);
++        return live ? { ...dm, unreadCount: live.count } : dm;
++    });
++
++    // Mobile chat-tab label: channel name, the DM counterparty's name, or a generic fallback.
++    const activeDm = dmUserId ? dms.find((d) => d.otherUser.id === dmUserId) : null;
++    const chatTabLabel = activeChannel
++        ? `# ${activeChannel.name}`
++        : activeDm
++          ? `${activeDm.otherUser.firstName} ${activeDm.otherUser.lastName}`.trim()
++          : dmUserId
++            ? 'Message'
++            : 'Chat';
++
+     // ── Gate states ────────────────────────────────────────────────────────────
+ 
+     if (isLoading || isAdminStatusLoading) {
+@@ -245,7 +310,7 @@ function MastermindContent() {
+                             : 'text-muted-foreground hover:text-foreground'
+                     }`}
+                 >
+-                    {activeChannel ? `# ${activeChannel.name}` : 'Chat'}
++                    {chatTabLabel}
+                 </button>
+             </div>
+ 
+@@ -268,6 +333,9 @@ function MastermindContent() {
+                             canManageChannels={isOwner || isAdmin}
+                             onChannelRenamed={handleChannelRenamed}
+                             onChannelDeleted={handleChannelDeleted}
++                            dms={dmsWithUnread}
++                            activeDmUserId={dmUserId}
++                            onSelectDm={handleSelectDm}
+                         />
+                     )}
+                 </div>
+@@ -278,7 +346,14 @@ function MastermindContent() {
+                         mobileTab === 'chat' ? 'flex' : 'hidden'
+                     } md:flex`}
+                 >
+-                    {activeChannel ? (
++                    {dmUserId ? (
++                        <DmConversationView
++                            key={`dm-${dmUserId}`}
++                            otherUserId={dmUserId}
++                            highlightMessageId={highlightMessageId}
++                            onHighlightDone={() => setHighlightMessageId(null)}
++                        />
++                    ) : activeChannel ? (
+                         <>
+                             <ChannelHeader channel={activeChannel} />
+                             <ChannelPinBar
+@@ -292,6 +367,7 @@ function MastermindContent() {
+                             />
+                             <MessageComposer
+                                 key={activeChannel.id}
++                                mode="channel"
+                                 channelId={activeChannel.id}
+                                 channelName={activeChannel.name}
+                             />
+diff --git a/database/schemas/mastermind.schema.ts b/database/schemas/mastermind.schema.ts
+index 9b32f8b..47ed93b 100644
+--- a/database/schemas/mastermind.schema.ts
++++ b/database/schemas/mastermind.schema.ts
+@@ -26,11 +26,13 @@ export const channelMemberRoleEnum = pgEnum('channel_member_role', ['owner', 'ad
+ // Bell-feed notification kinds. Mentions come from Mastermind; deal_bid from the deals app.
+ // `announcement` is the admin/owner-only @announcement broadcast — same everyone fan-out as
+ // `channel_mention` today, but kept distinct because its behavior diverges with email (Part 10).
++// `direct_message` is a 1:1 DM (Phase 2) — points at the DM channel + message, routed by actor.
+ export const notificationTypeEnum = pgEnum('notification_type', [
+     'mention',
+     'channel_mention',
+     'announcement',
+     'deal_bid',
++    'direct_message',
+ ]);
+ 
+ // ─── Channels ─────────────────────────────────────────────────────────────────
+diff --git a/server/controllers/messages/messages.controllers.ts b/server/controllers/messages/messages.controllers.ts
+index cdc2b9d..e4d9b64 100644
+--- a/server/controllers/messages/messages.controllers.ts
++++ b/server/controllers/messages/messages.controllers.ts
+@@ -26,8 +26,9 @@ import { handleServiceError } from 'server/middleware/errorHandler';
+ 
+ // Unfurls a message's links in the background and, if a new preview was fetched, broadcasts a
+ // follow-up update so the card appears without delaying the original send. Fire-and-forget:
+-// failures are logged, never surfaced to the sender.
+-async function unfurlMessageLinks(messageId: string): Promise<void> {
++// failures are logged, never surfaced to the sender. Exported so the DM controller reuses the
++// exact same link-preview path (it broadcasts to the message's channel either way).
++export async function unfurlMessageLinks(messageId: string): Promise<void> {
+     try {
+         const updated = await refreshMessageLinkPreviews(messageId);
+         if (updated) {
+diff --git a/server/routes/index.ts b/server/routes/index.ts
+index d11b634..606fdd2 100644
+--- a/server/routes/index.ts
++++ b/server/routes/index.ts
+@@ -13,6 +13,7 @@ import postsRoutes from './posts.routes';
+ import claimsRoutes from './claims.routes';
+ import channelsRoutes from './channels.routes';
+ import messagesRoutes from './messages.routes';
++import dmsRoutes from './dms.routes';
+ import notificationsRoutes from './notifications.routes';
+ import mastermindRoutes from './mastermind.routes';
+ 
+@@ -32,6 +33,7 @@ router.use('/vendors', vendorsRoutes);
+ router.use('/posts', postsRoutes);
+ router.use('/channels', channelsRoutes);
+ router.use('/messages', messagesRoutes);
++router.use('/dms', dmsRoutes);
+ router.use('/notifications', notificationsRoutes);
+ router.use('/mastermind', mastermindRoutes);
+ 
+diff --git a/server/services/channels/channels.services.ts b/server/services/channels/channels.services.ts
+index 51ed2fe..71dcd17 100644
+--- a/server/services/channels/channels.services.ts
++++ b/server/services/channels/channels.services.ts
+@@ -9,6 +9,7 @@ import { users, subscriptions, userRoles, roles } from '@database/schemas/users.
+ import type { Channel } from '@database/types/mastermind';
+ import { eq, and, inArray, asc, desc, sql } from 'drizzle-orm';
+ import { removeAttachmentStorageByUrls } from 'server/services/messages/attachments.services';
++import { assertDmMembership } from 'server/services/dms/dms.services';
+ import { isUniqueViolation } from 'server/utils/dbErrors';
+ import { ADMIN_ROLES, ALL_TEAM_ROLES } from 'server/constants/roles.constants';
+ 
+@@ -51,6 +52,42 @@ export async function userIsAdminOrOwner(userId: string): Promise<boolean> {
+     return rows.length > 0;
+ }
+ 
++// The channel fields needed to authorize access: its type plus the two public-channel flags.
++export type ChannelAccess = Pick<Channel, 'type' | 'isArchived' | 'isAdminOnly'>;
++
++/**
++ * The single source of truth for "may this user touch this channel?", shared by the read,
++ * react, read-state, and write paths so the rules can never drift between them (a drift here is
++ * an access-control hole, not a style nit). Rules: a public channel is open to any eligible user
++ * — admin-only ones to admins/owners only — and, unless archived, reachable; a DM is open to its
++ * two members only; every other type is denied.
++ *
++ * The admin-only check runs before the archived check so a non-admin can't even learn that an
++ * admin-only channel exists. Each caller passes its own `notFound` error so it keeps its
++ * ServiceError subtype + resource wording; `archived` defaults to `notFound`, but the write path
++ * passes a 403 instead (an archived public channel is disclosed, just closed to new messages).
++ *
++ * @returns the DM counterparty's user id, or null for a public channel.
++ */
++export async function assertChannelAccessible(
++    channelId: string,
++    userId: string,
++    channel: ChannelAccess,
++    notFound: Error,
++    archived: Error = notFound,
++): Promise<string | null> {
++    if (channel.type === 'public') {
++        if (channel.isAdminOnly && !(await userIsAdminOrOwner(userId))) throw notFound;
++        if (channel.isArchived) throw archived;
++        return null;
++    }
++    if (channel.type === 'dm') {
++        // Membership is the only gate for a DM — non-members 404 (assertDmMembership throws it).
++        return assertDmMembership(channelId, userId);
++    }
++    throw notFound;
++}
++
+ // Every user id holding an admin or owner role — the audience for an admin-only channel
+ // (mention candidates + @channel notification fan-out).
+ export async function listAdminOwnerUserIds(): Promise<string[]> {
+@@ -155,18 +192,22 @@ export async function markChannelRead({
+     userId: string;
+ }): Promise<void> {
+     // A non-admin must not be able to advance read-state (or lazily create a member row) on an
+-    // admin-only channel. Treat it as not-found so existence is never disclosed.
++    // admin-only channel; a non-member must not on a DM. Treat either as not-found so existence is
++    // never disclosed.
+     const [channel] = await db
+         .select({ type: channels.type, isArchived: channels.isArchived, isAdminOnly: channels.isAdminOnly })
+         .from(channels)
+         .where(eq(channels.id, channelId))
+         .limit(1);
+-    if (!channel || channel.type !== 'public' || channel.isArchived) {
+-        throw new ChannelServiceError(404, 'Channel not found');
+-    }
+-    if (channel.isAdminOnly && !(await userIsAdminOrOwner(userId))) {
++    if (!channel) {
+         throw new ChannelServiceError(404, 'Channel not found');
+     }
++    await assertChannelAccessible(
++        channelId,
++        userId,
++        channel,
++        new ChannelServiceError(404, 'Channel not found'),
++    );
+ 
+     const [latest] = await db
+         .select({ id: messages.id })
+@@ -334,6 +375,13 @@ export async function listChannelMentionCandidates(
+         .orderBy(asc(users.firstName), asc(users.lastName));
+ }
+ 
++// Candidates for starting a direct message: every Mastermind-eligible user except the caller
++// (you can't DM yourself). Backs the sidebar "New message" picker.
++export async function listDmCandidates(callerId: string): Promise<MentionCandidate[]> {
++    const candidates = await listChannelMentionCandidates();
++    return candidates.filter((u) => u.id !== callerId);
++}
++
+ // Hard delete (cascade) — only permitted once the channel is already archived.
+ export async function deleteChannel(id: string): Promise<{ id: string }> {
+     const channel = await getChannelById(id);
+diff --git a/server/services/messages/messages.services.ts b/server/services/messages/messages.services.ts
+index d4cbeee..016cb0c 100644
+--- a/server/services/messages/messages.services.ts
++++ b/server/services/messages/messages.services.ts
+@@ -20,7 +20,10 @@ import {
+     ensurePreviewsFetched,
+ } from 'server/services/messages/linkPreviews.services';
+ import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
+-import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
++import {
++    userIsAdminOrOwner,
++    assertChannelAccessible,
++} from 'server/services/channels/channels.services';
+ import { ServiceError } from 'server/lib/error';
+ import type {
+     MessageAttachmentWire,
+@@ -127,6 +130,11 @@ type CreateMessageResult = {
+     // Whether the message's channel is admin-only, so the controller can scope the cross-channel
+     // activity doorbell to admins/owners (non-admins must never learn about admin-only traffic).
+     isAdminOnly: boolean;
++    // True when the channel is a 1:1 DM. DMs never fan out mentions (the controller routes a
++    // single direct_message notification to the counterparty instead).
++    isDm: boolean;
++    // The DM counterparty's user id (the notification recipient); null for a public channel.
++    dmRecipientId: string | null;
+ };
+ 
+ // Writes message_mentions rows for the given set of user IDs. Filters to only
+@@ -321,13 +329,12 @@ export async function getEnrichedMessageById(
+     return hydrated;
+ }
+ 
+-// Phase 1: messages live only in public, non-archived channels. Archived/unknown → 404.
+-// Admin-only channels are readable by admins/owners only; for anyone else they 404 (existence
+-// is never disclosed).
++// Resolves a readable channel for the viewer or throws 404. Public channels are readable by any
++// eligible user (admin-only ones by admins/owners only); a DM is readable only by its two members.
++// Archived/unknown/unsupported types → 404 (existence is never disclosed).
+ async function getReadableChannelOrThrow(channelId: string, viewerId: string): Promise<void> {
+     const [channel] = await db
+         .select({
+-            id: channels.id,
+             type: channels.type,
+             isArchived: channels.isArchived,
+             isAdminOnly: channels.isAdminOnly,
+@@ -336,12 +343,15 @@ async function getReadableChannelOrThrow(channelId: string, viewerId: string): P
+         .where(eq(channels.id, channelId))
+         .limit(1);
+ 
+-    if (!channel || channel.type !== 'public' || channel.isArchived) {
+-        throw new MessageServiceError(404, 'Channel not found');
+-    }
+-    if (channel.isAdminOnly && !(await userIsAdminOrOwner(viewerId))) {
++    if (!channel) {
+         throw new MessageServiceError(404, 'Channel not found');
+     }
++    await assertChannelAccessible(
++        channelId,
++        viewerId,
++        channel,
++        new MessageServiceError(404, 'Channel not found'),
++    );
+ }
+ 
+ // Resolves a cursor/since message id to its ordering keys, scoped to the channel.
+@@ -447,11 +457,16 @@ export async function createMessage({
+     senderId,
+     content,
+     attachments = [],
++    allowDmChannel = false,
+ }: {
+     channelId: string;
+     senderId: string;
+     content: string;
+     attachments?: MessageAttachmentInput[];
++    // DM channels are reachable only through the DM controller (which sets this). The public
++    // channel send route leaves it false, so a DM channel id there 404s before any write — its
++    // all-users activity doorbell must never fan out a private conversation's existence.
++    allowDmChannel?: boolean;
+ }): Promise<CreateMessageResult> {
+     checkPostRateLimit(senderId);
+ 
+@@ -466,16 +481,25 @@ export async function createMessage({
+         .where(eq(channels.id, channelId))
+         .limit(1);
+ 
+-    if (!channel || channel.type !== 'public') {
++    if (!channel) {
+         throw new MessageServiceError(404, 'Channel not found');
+     }
+-    // Hide admin-only channels from non-admins (404 before the archived check leaks nothing).
+-    if (channel.isAdminOnly && !(await userIsAdminOrOwner(senderId))) {
++    // A DM is writable only by its two members; the counterparty is the notification recipient.
++    // The public channel send route never serves a DM id — treat it as not-found before any
++    // membership lookup so a private conversation's existence can't be probed.
++    const isDm = channel.type === 'dm';
++    if (isDm && !allowDmChannel) {
+         throw new MessageServiceError(404, 'Channel not found');
+     }
+-    if (channel.isArchived) {
+-        throw new MessageServiceError(403, 'This channel is archived');
+-    }
++    // An archived public channel is disclosed but closed to new messages (403), unlike the read
++    // paths where it 404s — so the write path passes its own archived error.
++    const dmRecipientId = await assertChannelAccessible(
++        channelId,
++        senderId,
++        channel,
++        new MessageServiceError(404, 'Channel not found'),
++        new MessageServiceError(403, 'This channel is archived'),
++    );
+ 
+     // Never trust a client-supplied file URL — it must point at our own storage bucket.
+     for (const attachment of attachments) {
+@@ -492,9 +516,9 @@ export async function createMessage({
+     // @announcement is admin/owner-only. In an admin-only channel the sender is already known to
+     // be admin/owner (404 gate above); elsewhere verify before honoring the chip. A non-privileged
+     // author can't select it in the UI, so its presence means tampering — strip it so it neither
+-    // renders for others nor fans out.
++    // renders for others nor fans out. DMs never fan out, so the gate is skipped there.
+     let finalContent = sanitized;
+-    if (parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL)) {
++    if (!isDm && parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL)) {
+         const isPrivileged = channel.isAdminOnly || (await userIsAdminOrOwner(senderId));
+         if (!isPrivileged) finalContent = stripAnnouncementChips(sanitized);
+     }
+@@ -516,9 +540,11 @@ export async function createMessage({
+         );
+     }
+ 
+-    const mentionedUserIds = parseMentionedUserIds(finalContent);
+-    const sentinels = parseBroadcastSentinels(finalContent);
+-    await persistMentions(created.id, mentionedUserIds);
++    // DMs are 1:1 — no @mentions / @channel / @announcement. Skip mention parsing + persistence;
++    // the controller sends a single direct_message notification to the counterparty instead.
++    const mentionedUserIds = isDm ? [] : parseMentionedUserIds(finalContent);
++    const sentinels = isDm ? new Set<string>() : parseBroadcastSentinels(finalContent);
++    if (!isDm) await persistMentions(created.id, mentionedUserIds);
+ 
+     const enriched = await getEnrichedMessageById(created.id);
+     if (!enriched) {
+@@ -530,6 +556,8 @@ export async function createMessage({
+         mentionedChannel: sentinels.has(CHANNEL_SENTINEL),
+         mentionedAnnouncement: sentinels.has(ANNOUNCEMENT_SENTINEL),
+         isAdminOnly: channel.isAdminOnly,
++        isDm,
++        dmRecipientId,
+     };
+ }
+ 
+@@ -541,8 +569,14 @@ export async function updateMessage(
+     attachments?: MessageAttachmentInput[],
+ ): Promise<EnrichedMessage> {
+     const [existing] = await db
+-        .select({ id: messages.id, senderId: messages.senderId, isDeleted: messages.isDeleted })
++        .select({
++            id: messages.id,
++            senderId: messages.senderId,
++            isDeleted: messages.isDeleted,
++            channelType: channels.type,
++        })
+         .from(messages)
++        .innerJoin(channels, eq(channels.id, messages.channelId))
+         .where(eq(messages.id, id))
+         .limit(1);
+ 
+@@ -555,6 +589,7 @@ export async function updateMessage(
+     if (existing.isDeleted) {
+         throw new MessageServiceError(409, 'Cannot edit a deleted message');
+     }
++    const isDm = existing.channelType === 'dm';
+ 
+     const sanitized = sanitizeMessageHtml(content);
+ 
+@@ -576,9 +611,10 @@ export async function updateMessage(
+ 
+     // @announcement is admin/owner-only. Edits are author-only, so a non-privileged author can
+     // never legitimately carry one — strip a tampered chip (also covers admin-only channels,
+-    // since only admins/owners can author there).
++    // since only admins/owners can author there). DMs never fan out, so the gate is skipped there.
+     let finalContent = sanitized;
+     if (
++        !isDm &&
+         parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL) &&
+         !(await userIsAdminOrOwner(callerId))
+     ) {
+@@ -593,8 +629,11 @@ export async function updateMessage(
+     // Replace mentions: delete the old set then insert the new one. Not wrapped in
+     // a transaction because neon-http is connectionless and doesn't support them.
+     // A crash here leaves stale mention rows — acceptable for Phase 1 at this scale.
+-    await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
+-    await persistMentions(id, parseMentionedUserIds(finalContent));
++    // DMs carry no mentions, so there is nothing to rebuild there.
++    if (!isDm) {
++        await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
++        await persistMentions(id, parseMentionedUserIds(finalContent));
++    }
+ 
+     // Reconcile attachments last: it deletes Supabase storage objects irreversibly, so it must
+     // not run ahead of the content update — otherwise a failed edit would still destroy files.
+@@ -612,15 +651,26 @@ export async function updateMessage(
+ // ── Soft delete (author OR admin/owner) ──────────────────────────────────────────
+ export async function softDeleteMessage(id: string, callerId: string): Promise<EnrichedMessage> {
+     const [existing] = await db
+-        .select({ id: messages.id, senderId: messages.senderId, isDeleted: messages.isDeleted })
++        .select({
++            id: messages.id,
++            senderId: messages.senderId,
++            isDeleted: messages.isDeleted,
++            channelType: channels.type,
++        })
+         .from(messages)
++        .innerJoin(channels, eq(channels.id, messages.channelId))
+         .where(eq(messages.id, id))
+         .limit(1);
+ 
+     if (!existing) {
+         throw new MessageServiceError(404, 'Message not found');
+     }
+-    if (existing.senderId !== callerId && !(await userIsAdminOrOwner(callerId))) {
++    // In a DM, delete is strictly author-only — the admin/owner "delete any message" power must
++    // never reach a private conversation. In public channels it still applies.
++    const isDm = existing.channelType === 'dm';
++    const canDelete =
++        existing.senderId === callerId || (!isDm && (await userIsAdminOrOwner(callerId)));
++    if (!canDelete) {
+         throw new MessageServiceError(403, 'You can only delete your own messages');
+     }
+ 
+diff --git a/server/services/messages/reactions.services.ts b/server/services/messages/reactions.services.ts
+index a2d6fdc..6fe0e5a 100644
+--- a/server/services/messages/reactions.services.ts
++++ b/server/services/messages/reactions.services.ts
+@@ -1,21 +1,21 @@
+ import { db } from 'server/storage';
+ import { messages, channels, messageReactions } from '@database/schemas/mastermind.schema';
+-import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
++import { assertChannelAccessible } from 'server/services/channels/channels.services';
+ import { ServiceError } from 'server/lib/error';
+ import { eq, and } from 'drizzle-orm';
+ 
+ export class ReactionServiceError extends ServiceError {}
+ 
+-// Resolves the channel of a reactable message: it must exist, not be deleted, and live in a
+-// readable (public, non-archived) channel. Admin-only channels are reactable by admins/owners
+-// only (others 404 — same existence-hiding rule as the read/write paths). Returns the channel id
+-// for the broadcast.
++// Resolves the channel of a reactable message: it must exist and not be deleted. A public channel
++// must be non-archived (admin-only ones reactable by admins/owners only); a DM is reactable only
++// by its two members. Anyone else 404s — the same existence-hiding rule as the read/write paths.
++// Returns the channel id for the broadcast.
+ async function getReactableChannelId(messageId: string, userId: string): Promise<string> {
+     const [row] = await db
+         .select({
+             channelId: messages.channelId,
+             isDeleted: messages.isDeleted,
+-            channelType: channels.type,
++            type: channels.type,
+             isArchived: channels.isArchived,
+             isAdminOnly: channels.isAdminOnly,
+         })
+@@ -24,12 +24,15 @@ async function getReactableChannelId(messageId: string, userId: string): Promise
+         .where(eq(messages.id, messageId))
+         .limit(1);
+ 
+-    if (!row || row.isDeleted || row.channelType !== 'public' || row.isArchived) {
+-        throw new ReactionServiceError(404, 'Message not found');
+-    }
+-    if (row.isAdminOnly && !(await userIsAdminOrOwner(userId))) {
++    if (!row || row.isDeleted) {
+         throw new ReactionServiceError(404, 'Message not found');
+     }
++    await assertChannelAccessible(
++        row.channelId,
++        userId,
++        row,
++        new ReactionServiceError(404, 'Message not found'),
++    );
+     return row.channelId;
+ }
+ 
+diff --git a/server/services/notifications/notifications.services.ts b/server/services/notifications/notifications.services.ts
+index 27ab690..b75131f 100644
+--- a/server/services/notifications/notifications.services.ts
++++ b/server/services/notifications/notifications.services.ts
+@@ -21,7 +21,7 @@ const EXCERPT_MAX_LENGTH = 120;
+ 
+ type EnrichedNotification = {
+     id: string;
+-    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
++    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid' | 'direct_message';
+     channelId: string | null;
+     channelName: string | null;
+     messageId: string | null;
+@@ -220,6 +220,71 @@ export async function createDealBidNotification({
+     };
+ }
+ 
++// ── Create (a direct_message notification for the DM recipient) ─────────────────────
++export async function createDirectMessageNotification({
++    messageId,
++    channelId,
++    recipientUserId,
++    actorId,
++}: {
++    messageId: string;
++    channelId: string;
++    recipientUserId: string;
++    actorId: string;
++}): Promise<CreatedNotification | null> {
++    // A user messaging themselves (shouldn't happen — DMs require two people) never self-notifies.
++    if (recipientUserId === actorId) return null;
++
++    const [inserted] = await db
++        .insert(notifications)
++        .values({
++            userId: recipientUserId,
++            type: 'direct_message',
++            channelId,
++            messageId,
++            actorId,
++        })
++        .returning({
++            id: notifications.id,
++            userId: notifications.userId,
++            type: notifications.type,
++            isRead: notifications.isRead,
++            createdAt: notifications.createdAt,
++        });
++
++    // The actor (DM sender) and a message excerpt power the bell row — one lookup.
++    const [context] = await db
++        .select({
++            messageContent: messages.content,
++            actorFirstName: users.firstName,
++            actorLastName: users.lastName,
++            actorProfileImageUrl: users.profileImageUrl,
++        })
++        .from(messages)
++        .innerJoin(users, eq(users.id, messages.senderId))
++        .where(eq(messages.id, messageId))
++        .limit(1);
++
++    return {
++        id: inserted.id,
++        type: inserted.type,
++        channelId,
++        // Never surface the DM's synthetic channel name — the bell deep-links a DM by its actor.
++        channelName: null,
++        messageId,
++        messageExcerpt: toExcerpt(context?.messageContent ?? null),
++        dealId: null,
++        metadata: null,
++        actorId,
++        actorFirstName: context?.actorFirstName ?? null,
++        actorLastName: context?.actorLastName ?? null,
++        actorProfileImageUrl: context?.actorProfileImageUrl ?? null,
++        isRead: inserted.isRead,
++        createdAt: inserted.createdAt,
++        recipientUserId: inserted.userId,
++    };
++}
++
+ // ── Feed + unread count ───────────────────────────────────────────────────────────
+ export async function listNotifications({
+     userId,
+@@ -265,7 +330,8 @@ export async function listNotifications({
+             id: row.id,
+             type: row.type,
+             channelId: row.channelId,
+-            channelName: row.channelName,
++            // A DM's synthetic channel name is never surfaced — the bell routes DMs by actor.
++            channelName: row.type === 'direct_message' ? null : row.channelName,
+             messageId: row.messageId,
+             // A soft-deleted message yields an empty excerpt; the client falls back to a label.
+             messageExcerpt: row.messageIsDeleted ? '' : toExcerpt(row.messageContent),
+diff --git a/server/websocket/connection.ts b/server/websocket/connection.ts
+index f61db47..82725cf 100644
+--- a/server/websocket/connection.ts
++++ b/server/websocket/connection.ts
+@@ -8,6 +8,7 @@ import {
+     type Client,
+ } from './registry';
+ import { getChannelById, userIsAdminOrOwner } from 'server/services/channels/channels.services';
++import { isDmMember } from 'server/services/dms/dms.services';
+ import { isUuid } from 'server/utils/uuid';
+ 
+ // Wires up a freshly authenticated socket: registers it, handles subscribe/unsubscribe,
+@@ -55,13 +56,19 @@ async function handleClientMessage(client: Client, raw: RawData): Promise<void>
+             console.error('[ws] subscribe channel lookup failed:', err);
+             return;
+         }
+-        if (channel && channel.type === 'public' && !channel.isArchived) {
++        if (!channel) return;
++        if (channel.type === 'public' && !channel.isArchived) {
+             // Admin-only channels deliver live events to admins/owners only — otherwise a
+             // non-admin who knows the id could receive its messages over the socket.
+             if (channel.isAdminOnly && !(await userIsAdminOrOwner(client.userId))) {
+                 return;
+             }
+             subscribeToChannel(client, channelId);
++        } else if (channel.type === 'dm') {
++            // A DM delivers live events to its two members only.
++            if (await isDmMember(channelId, client.userId)) {
++                subscribeToChannel(client, channelId);
++            }
+         }
+         return;
+     }
+diff --git a/server/websocket/registry.ts b/server/websocket/registry.ts
+index fb5cf74..008d2fe 100644
+--- a/server/websocket/registry.ts
++++ b/server/websocket/registry.ts
+@@ -97,6 +97,15 @@ export function broadcastToOtherUsers(
+     });
+ }
+ 
++// True if any of the user's connected tabs is currently subscribed to (viewing) the channel.
++// Drives DM bell suppression — a recipient actively viewing the conversation sees the message
++// live, so no notification is created.
++export function isUserSubscribedToChannel(userId: string, channelId: string): boolean {
++    const set = userClients.get(userId);
++    if (!set) return false;
++    return Array.from(set).some((client) => client.subscribedChannels.has(channelId));
++}
++
+ // ── Introspection (tests / debugging) ───────────────────────────────────────────
+ export function getChannelSubscriberCount(channelId: string): number {
+     return channelSubscribers.get(channelId)?.size ?? 0;
+diff --git a/shared/mastermind/events.ts b/shared/mastermind/events.ts
+index 1c5207c..0514339 100644
+--- a/shared/mastermind/events.ts
++++ b/shared/mastermind/events.ts
+@@ -127,9 +127,11 @@ export interface DealBidNotificationMetadata {
+ // dates serialized to ISO strings). Actor fields are null when the actor was deleted.
+ // Mention types carry channel/message context; deal_bid carries dealId + metadata instead.
+ // `announcement` is the admin/owner @announcement broadcast (same context as channel_mention).
++// `direct_message` carries channel/message context but is routed by the actor (the DM sender),
++// since a DM channel has no human-facing name to deep-link by.
+ export interface NotificationWire {
+     id: string;
+-    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
++    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid' | 'direct_message';
+     channelId: string | null;
+     channelName: string | null;
+     messageId: string | null;
+@@ -149,6 +151,25 @@ export type ServerNotificationEvent = {
+     notification: NotificationWire;
+ };
+ 
++// A user as embedded in DM payloads — the counterparty on a conversation/list item/header.
++export interface DmUserWire {
++    id: string;
++    firstName: string;
++    lastName: string;
++    profileImageUrl: string | null;
++}
++
++// One open direct-message conversation as the sidebar receives it (the `GET /api/dms` list item).
++// A DM has exactly one counterparty, denormalized here so the list needs no extra fetch. The
++// synthetic DM channel name is never sent — the UI keys off `otherUser` and routes by their id.
++// `lastMessageAt` is the most recent non-deleted message time (ISO string), used for ordering.
++export interface DirectMessageSummaryWire {
++    channelId: string;
++    otherUser: DmUserWire;
++    unreadCount: number;
++    lastMessageAt: string;
++}
++
+ // The unread-relevant fields of a cross-channel activity doorbell. The client computes its own
+ // per-viewer mention state from mentionedEveryone / mentionedUserIds — the body is never sent.
+ export interface ChannelActivityWire {
