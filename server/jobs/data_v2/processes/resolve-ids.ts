@@ -3,7 +3,7 @@ import { companies } from '@database/schemas/companies.schema';
 import { trimCompanyName } from 'server/utils/normalization';
 import type { MergedProperty } from './batch-lookup';
 
-export interface ResolvePropertyIdsParams {
+interface ResolvePropertyIdsParams {
     properties: MergedProperty[];
     cityCode: string;
 }

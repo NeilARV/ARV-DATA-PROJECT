@@ -19,7 +19,7 @@ export class NotificationServiceError extends Error {
 const FEED_LIMIT = 10;
 const EXCERPT_MAX_LENGTH = 120;
 
-export type EnrichedNotification = {
+type EnrichedNotification = {
     id: string;
     type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
     channelId: string | null;

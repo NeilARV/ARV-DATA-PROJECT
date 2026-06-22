@@ -400,7 +400,7 @@ export function transformPreForeclosureData(propertyId: string, propertyData: Sf
  * Data from /buyers/market for the sale we're syncing. Stored first; batch fills the rest.
  * Maps to: last_sales (sale_date, recording_date, price), current_sales (buyer_1, seller_1).
  */
-export interface BuyersMarketSaleData {
+interface BuyersMarketSaleData {
     saleDate?: string | null;
     recordingDate?: string | null;
     saleValue?: number | string | null;
@@ -501,7 +501,7 @@ export function transformCurrentSaleData(
 // Returns all property-related data as a single object for batch processing
 // ============================================================================
 
-export interface TransformedPropertyData {
+interface TransformedPropertyData {
     address: ReturnType<typeof transformAddressData>;
     structure: ReturnType<typeof transformStructureData>;
     assessment: ReturnType<typeof transformAssessmentData>;
@@ -609,7 +609,7 @@ export async function insertPropertyRelatedData(
 // For collecting and batch inserting property data (used by data.routes.ts)
 // ============================================================================
 
-export interface PropertyDataCollectors {
+interface PropertyDataCollectors {
     addresses: NonNullable<ReturnType<typeof transformAddressData>>[];
     structures: NonNullable<ReturnType<typeof transformStructureData>>[];
     assessments: NonNullable<ReturnType<typeof transformAssessmentData>>[];

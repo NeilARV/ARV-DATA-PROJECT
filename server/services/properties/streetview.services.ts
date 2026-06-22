@@ -2,23 +2,23 @@ import { db } from 'server/storage';
 import { streetviewCache } from '@database/schemas/properties.schema';
 import { eq, sql, and } from 'drizzle-orm';
 
-export interface StreetviewImageResult {
+interface StreetviewImageResult {
     imageData: Buffer;
     contentType: string;
     cached: boolean;
     imageSource: 'streetview' | 'satellite';
 }
 
-export interface StreetviewErrorResult {
+interface StreetviewErrorResult {
     message: string;
     status: string;
     reason?: string;
     cached: boolean;
 }
 
-export type StreetviewResult = StreetviewImageResult | StreetviewErrorResult;
+type StreetviewResult = StreetviewImageResult | StreetviewErrorResult;
 
-export interface StreetviewParams {
+interface StreetviewParams {
     address: string;
     city?: string;
     state?: string;

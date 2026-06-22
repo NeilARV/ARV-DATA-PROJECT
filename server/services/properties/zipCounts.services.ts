@@ -4,7 +4,7 @@ import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 
-export interface ZipCount {
+interface ZipCount {
     zipCode: string;
     count: number;
 }

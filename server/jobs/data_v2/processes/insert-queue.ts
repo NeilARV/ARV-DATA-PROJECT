@@ -6,14 +6,14 @@ import type { BuyersMarketRecord } from './get-market';
 import type { MarketScanWindow } from '@database/types/sync';
 import { MSA_STATE } from '../msa-states';
 
-export interface InsertQueueParams {
+interface InsertQueueParams {
     records: BuyersMarketRecord[];
     msaId: number;
     scanWindow: MarketScanWindow;
     msaName: string;
 }
 
-export interface InsertQueueResult {
+interface InsertQueueResult {
     attempted: number;
     inserted: number;
     skipped: number;

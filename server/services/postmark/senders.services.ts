@@ -9,7 +9,7 @@ export interface PostmarkSenderSignature {
     ID: number;
 }
 
-export interface ListSendersResponse {
+interface ListSendersResponse {
     TotalCount: number;
     SenderSignatures: PostmarkSenderSignature[];
 }

@@ -65,7 +65,7 @@ function formatAddressForBatch(record: BuyersMarketRecord): string {
     return zipCode ? `${address}, ${city}, ${state} ${zipCode}` : `${address}, ${city}, ${state}`;
 }
 
-export interface BatchLookupParams {
+interface BatchLookupParams {
     records: BuyersMarketRecord[];
     API_KEY: string;
     API_URL: string;

@@ -12,7 +12,7 @@ import { removeAttachmentStorageByUrls } from 'server/services/messages/attachme
 import { isUniqueViolation } from 'server/utils/dbErrors';
 import { ADMIN_ROLES, ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 
-export type ChannelWithUnread = Channel & {
+type ChannelWithUnread = Channel & {
     unreadCount: number;
     hasMention: boolean;
 };
@@ -287,7 +287,7 @@ export async function archiveChannel(id: string): Promise<Channel> {
 
 const MASTERMIND_TIERS = ['basic', 'pro', 'premium'] as const;
 
-export type MentionCandidate = {
+type MentionCandidate = {
     id: string;
     firstName: string;
     lastName: string;

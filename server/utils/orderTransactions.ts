@@ -8,7 +8,7 @@
  * transfers (e.g. individual → LLC) — to find the seller's true acquisition price.
  */
 
-export type TxRow = {
+type TxRow = {
     recordingDate: Date | string | null;
     saleDate?: Date | string | null;
     buyerId?: string | null;
@@ -151,7 +151,7 @@ function traceAcquisition<T extends TxRow>(
     return null;
 }
 
-export type SpreadResult<T extends TxRow> = {
+type SpreadResult<T extends TxRow> = {
     buyerPurchasePrice: number | null;
     buyerPurchaseDate: string | null;
     sellerPurchasePrice: number | null;

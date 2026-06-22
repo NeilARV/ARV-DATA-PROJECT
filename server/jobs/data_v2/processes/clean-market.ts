@@ -1,7 +1,7 @@
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
 import type { BuyersMarketRecord } from './get-market';
 
-export interface CleanMarketResult {
+interface CleanMarketResult {
     records: BuyersMarketRecord[];
     stats: { total: number; kept: number; removed: number };
 }

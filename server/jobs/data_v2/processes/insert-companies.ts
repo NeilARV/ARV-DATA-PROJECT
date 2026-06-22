@@ -7,7 +7,7 @@ import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 
 const BATCH_SIZE = 100;
 
-export interface InsertCompaniesParams {
+interface InsertCompaniesParams {
     companyNames: string[];
     msa: string;
     cityCode: string;
@@ -15,7 +15,7 @@ export interface InsertCompaniesParams {
     companyCounties?: Record<string, string[]>;
 }
 
-export interface InsertCompaniesResult {
+interface InsertCompaniesResult {
     companiesInserted: number;
     companyMsasAdded: number;
 }

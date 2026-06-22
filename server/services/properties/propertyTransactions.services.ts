@@ -11,9 +11,9 @@ import { ARV_LENDER } from 'server/constants/transactions.constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TransactionRow = typeof propertyTransactions.$inferSelect;
+type TransactionRow = typeof propertyTransactions.$inferSelect;
 
-export type GetTransactionsResult = {
+type GetTransactionsResult = {
     id: number;
     propertyId: string;
     transactionType: string | null;
@@ -232,7 +232,7 @@ export async function getPropertyTransactions(
 
 // ─── Append (called from patchProperty) ──────────────────────────────────────
 
-export type BulkTransactionInput = {
+type BulkTransactionInput = {
     transactionType?: string | null;
     recordingDate: string;
     buyerName?: string | null;

@@ -117,13 +117,16 @@ function stripAnnouncementChips(html: string): string {
     return html.replace(ANNOUNCEMENT_CHIP_RE, '');
 }
 
-export type CreateMessageResult = {
+type CreateMessageResult = {
     message: EnrichedMessage;
     mentionedUserIds: string[];
     // @channel broadcast present (open to all senders).
     mentionedChannel: boolean;
     // @announcement broadcast present (only ever true for an admin/owner author, post-gate).
     mentionedAnnouncement: boolean;
+    // Whether the message's channel is admin-only, so the controller can scope the cross-channel
+    // activity doorbell to admins/owners (non-admins must never learn about admin-only traffic).
+    isAdminOnly: boolean;
 };
 
 // Writes message_mentions rows for the given set of user IDs. Filters to only
@@ -155,7 +158,7 @@ type EnrichedMessageRow = {
     senderProfileImageUrl: string | null;
 };
 
-export type EnrichedMessage = EnrichedMessageRow & {
+type EnrichedMessage = EnrichedMessageRow & {
     attachments: MessageAttachmentWire[];
     reactions: MessageReactionSummary[];
     linkPreviews: LinkPreviewWire[];
@@ -526,6 +529,7 @@ export async function createMessage({
         mentionedUserIds,
         mentionedChannel: sentinels.has(CHANNEL_SENTINEL),
         mentionedAnnouncement: sentinels.has(ANNOUNCEMENT_SENTINEL),
+        isAdminOnly: channel.isAdminOnly,
     };
 }
 

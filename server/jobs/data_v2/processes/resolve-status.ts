@@ -2,14 +2,14 @@ import { normalizeDateToYMD } from 'server/utils/normalization';
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
 import type { PropertyWithIds, TransactionWithIds } from './resolve-ids';
 
-export type PropertyStatus = 'on-market' | 'in-renovation' | 'sold' | 'wholesale';
+type PropertyStatus = 'on-market' | 'in-renovation' | 'sold' | 'wholesale';
 
 /**
  * Extends PropertyWithIds with a resolved statuses array (multi-status).
  * `property.status` is also set to statuses[0] for backward compat with
  * cleanBeforeInsert and insert-properties (v1 shared functions).
  */
-export interface PropertyWithStatuses extends PropertyWithIds {
+interface PropertyWithStatuses extends PropertyWithIds {
     statuses: PropertyStatus[];
     property: PropertyWithIds['property'] & { status: PropertyStatus };
 }

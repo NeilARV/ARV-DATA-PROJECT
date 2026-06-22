@@ -1,6 +1,6 @@
 import { getDefaultFromEmail, sendPlainEmail } from './email.services.js';
 
-export interface SendLinkEmailParams {
+interface SendLinkEmailParams {
     to: string;
     // Auth/system emails default to the platform sender (not the recipient's RM).
     from?: string;

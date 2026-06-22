@@ -32,7 +32,7 @@ export async function issueVerificationEmail(userId: string, email: string): Pro
     });
 }
 
-export type VerifyEmailResult = 'verified' | 'invalid';
+type VerifyEmailResult = 'verified' | 'invalid';
 
 // Consumes the token (atomic single-use) and stamps the user verified. A consumed/expired/
 // unknown token yields 'invalid'. Stamping is idempotent for an already-verified user.

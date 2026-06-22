@@ -30,7 +30,7 @@ function getAddressForProperty(item: MergedProperty): string {
     return zip ? `${address}, ${city}, ${state} ${zip}` : `${address}, ${city}, ${state}`;
 }
 
-export interface GetTransactionsParams {
+interface GetTransactionsParams {
     properties: MergedProperty[];
     API_KEY: string;
     API_URL: string;

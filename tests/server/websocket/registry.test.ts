@@ -6,6 +6,7 @@ import {
     unsubscribeFromChannel,
     broadcastToChannel,
     broadcastToUser,
+    broadcastToOtherUsers,
     getChannelSubscriberCount,
     getUserClientCount,
     resetRegistry,
@@ -72,6 +73,59 @@ describe('registry — user broadcast (doorbell)', () => {
         expect(tab1.ws.send).toHaveBeenCalledTimes(1);
         expect(tab2.ws.send).toHaveBeenCalledTimes(1);
         expect(getUserClientCount('u1')).toBe(2);
+    });
+});
+
+describe('registry — cross-channel doorbell', () => {
+    it('delivers to every other user regardless of channel subscription, excluding the sender', () => {
+        const sender = makeClient('sender');
+        const viewerA = makeClient('u-a');
+        const viewerB = makeClient('u-b');
+        addClient(sender);
+        addClient(viewerA);
+        addClient(viewerB);
+        // The recipients are looking at unrelated channels — they aren't subscribed to chan-1.
+        subscribeToChannel(sender, 'chan-1');
+        subscribeToChannel(viewerA, 'chan-2');
+
+        broadcastToOtherUsers('sender', { type: 'channel.activity', channelId: 'chan-1' });
+
+        expect(sender.ws.send).not.toHaveBeenCalled();
+        expect(viewerA.ws.send).toHaveBeenCalledTimes(1);
+        expect(viewerB.ws.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('restricts delivery to the allow-list when one is given (admin-only channels)', () => {
+        const sender = makeClient('admin-sender');
+        const admin = makeClient('admin-2');
+        const member = makeClient('member-1');
+        addClient(sender);
+        addClient(admin);
+        addClient(member);
+
+        broadcastToOtherUsers(
+            'admin-sender',
+            { type: 'channel.activity', channelId: 'admin-chan' },
+            new Set(['admin-sender', 'admin-2']),
+        );
+
+        expect(admin.ws.send).toHaveBeenCalledTimes(1);
+        expect(member.ws.send).not.toHaveBeenCalled();
+        expect(sender.ws.send).not.toHaveBeenCalled();
+    });
+
+    it('reaches every tab of a recipient', () => {
+        const sender = makeClient('sender');
+        const tab1 = makeClient('u-a');
+        const tab2 = makeClient('u-a');
+        addClient(sender);
+        addClient(tab1);
+        addClient(tab2);
+
+        broadcastToOtherUsers('sender', { type: 'channel.activity', channelId: 'chan-1' });
+
+        expect(tab1.ws.send).toHaveBeenCalledTimes(1);
+        expect(tab2.ws.send).toHaveBeenCalledTimes(1);
     });
 });
 

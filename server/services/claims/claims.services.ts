@@ -95,7 +95,7 @@ async function notifyClaimReviewed(
 
 // ─── Submit claim ─────────────────────────────────────────────────────────────
 
-export type SubmitClaimResult =
+type SubmitClaimResult =
     | { status: 'ok'; claimId: string }
     | { status: 'company-not-found' }
     | { status: 'already-claimed-by-user' }; // user already has pending or approved claim
@@ -157,7 +157,7 @@ export async function submitClaim(
 
 // ─── List claims (admin) ──────────────────────────────────────────────────────
 
-export interface ClaimRow {
+interface ClaimRow {
     id: string;
     status: 'pending' | 'approved' | 'rejected';
     userMessage: string | null;
@@ -258,7 +258,7 @@ export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
 
 // ─── Review claim (approve / reject) ─────────────────────────────────────────
 
-export type ReviewClaimResult =
+type ReviewClaimResult =
     | { status: 'ok'; claim: typeof companyClaims.$inferSelect }
     | { status: 'not-found' }
     | { status: 'already-reviewed' };
@@ -344,7 +344,7 @@ export async function reviewClaim(
 
 // ─── Get members for a company ────────────────────────────────────────────────
 
-export interface MemberRow {
+interface MemberRow {
     userId: string;
 }
 
@@ -360,7 +360,7 @@ export async function getCompanyMembers(companyId: string): Promise<MemberRow[]>
 
 // ─── Get company memberships for a user ──────────────────────────────────────
 
-export interface UserMembershipRow {
+interface UserMembershipRow {
     companyId: string;
     companyName: string;
     role: 'owner' | 'member' | null;

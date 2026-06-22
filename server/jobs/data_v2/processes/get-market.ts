@@ -8,7 +8,7 @@ const RETRY_DELAY_MS = 5000;
 
 export type BuyersMarketRecord = Record<string, unknown>;
 
-export interface GetMarketParams {
+interface GetMarketParams {
     msaName: string;
     scanWindow: string;
     API_KEY: string;
@@ -19,7 +19,7 @@ export interface GetMarketParams {
     saleDateMax: string;
 }
 
-export interface GetMarketResult {
+interface GetMarketResult {
     records: BuyersMarketRecord[];
     totalFetched: number;
 }

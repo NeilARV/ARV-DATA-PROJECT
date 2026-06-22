@@ -26,7 +26,7 @@ import { formatContactName } from '@shared/utils/formatContactName';
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
-export interface PropertySuggestion {
+interface PropertySuggestion {
     id: string;
     address: string | null;
     city: string | null;
@@ -365,7 +365,7 @@ export async function getPropertyById(id: string) {
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
-export interface DeletePropertyResult {
+interface DeletePropertyResult {
     id: string;
     sfrPropertyId: number | null;
 }
@@ -379,14 +379,14 @@ export async function deleteProperty(id: string): Promise<DeletePropertyResult |
 
 // ─── Create / upsert ─────────────────────────────────────────────────────────
 
-export interface CreatePropertyInput {
+interface CreatePropertyInput {
     address: string;
     city: string;
     state: string;
     zipCode: string;
 }
 
-export type CreatePropertyResult =
+type CreatePropertyResult =
     | { status: 'created'; id: string; sfrPropertyId: number }
     | { status: 'updated'; id: string; sfrPropertyId: number }
     | { status: 'missing-config' }
@@ -593,14 +593,14 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
 
 // ─── Lightweight structural lookup (no DB writes) ──────────────────────────────
 
-export interface LookupPropertyInput {
+interface LookupPropertyInput {
     address: string;
     city: string;
     state: string;
     zipCode: string;
 }
 
-export type LookupPropertyResult =
+type LookupPropertyResult =
     | {
           status: 'found';
           sfrPropertyId: number;
@@ -734,7 +734,7 @@ async function upsertCompanyByName(
     return companyId;
 }
 
-export interface PatchPropertyResult {
+interface PatchPropertyResult {
     id: string;
     isArvFunded: boolean;
     statuses: string[];

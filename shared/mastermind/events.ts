@@ -24,6 +24,11 @@ export const ServerToClient = {
     MessagePinned: 'message.pinned',
     // The doorbell stream — delivered to every tab of the recipient, channel-independent.
     NotificationCreated: 'notification.created',
+    // Cross-channel unread doorbell — a new message landed in `channelId`. Delivered to every
+    // eligible user except the sender, regardless of which channel they're subscribed to, so
+    // sidebar unread badges update live without a refresh. Carries only unread-relevant fields;
+    // the message body rides MessageCreated to subscribers of that channel.
+    ChannelActivity: 'channel.activity',
 } as const;
 
 export type ServerToClientType = (typeof ServerToClient)[keyof typeof ServerToClient];
@@ -143,6 +148,18 @@ export type ServerNotificationEvent = {
     type: typeof ServerToClient.NotificationCreated;
     notification: NotificationWire;
 };
+
+// The unread-relevant fields of a cross-channel activity doorbell. The client computes its own
+// per-viewer mention state from mentionedEveryone / mentionedUserIds — the body is never sent.
+export interface ChannelActivityWire {
+    channelId: string;
+    mentionedUserIds: string[];
+    mentionedEveryone: boolean;
+}
+
+export type ServerChannelActivityEvent = {
+    type: typeof ServerToClient.ChannelActivity;
+} & ChannelActivityWire;
 
 // The path the WebSocket upgrade is served on (kept off Vite's HMR socket).
 export const MASTERMIND_WS_PATH = '/ws';

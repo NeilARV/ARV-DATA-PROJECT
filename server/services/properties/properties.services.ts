@@ -15,7 +15,7 @@ import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { formatContactName } from '@shared/utils/formatContactName';
 
-export interface GetPropertiesFilters {
+interface GetPropertiesFilters {
     zipcode?: string;
     city?: string;
     county?: string;
@@ -38,7 +38,7 @@ export interface GetPropertiesFilters {
     companyRole?: string; // 'buyer' | 'seller' — restricts companyId match to one transaction role
 }
 
-export interface GetPropertiesResult {
+interface GetPropertiesResult {
     properties: any[];
     total: number | null; // null when skipCount=true; client uses its cached stablePropertyCount
     hasMore: boolean;

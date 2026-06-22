@@ -2,7 +2,7 @@ import { normalizeCountyName, trimCompanyName } from 'server/utils/normalization
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
 import type { PropertyWithTransactions, TransactionRecord } from './get-transactions';
 
-export interface CleanTransactionsResult {
+interface CleanTransactionsResult {
     companyNames: string[];
     /** Map of company name (as stored, trimmed SFR) -> counties they own properties in (for company county array updates). */
     companyCounties: Record<string, string[]>;

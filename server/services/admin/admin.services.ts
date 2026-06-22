@@ -10,7 +10,7 @@ import { msas } from '@database/schemas';
 import { eq, and, inArray } from 'drizzle-orm';
 import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 
-export interface AdminStatusResult {
+interface AdminStatusResult {
     authenticated: boolean;
     isAdmin: boolean;
     roles: string[];
@@ -40,7 +40,7 @@ export async function getAdminStatus(userId: string): Promise<AdminStatusResult>
     return { authenticated: true, isAdmin, roles: rolesList, subscriptionTier };
 }
 
-export interface WhitelistRow {
+interface WhitelistRow {
     id: number;
     email: string;
     msaName: string | null;
@@ -76,13 +76,13 @@ export async function deleteWhitelistEntry(id: number): Promise<number | null> {
     return deleted.length > 0 ? deleted[0].id : null;
 }
 
-export interface UpdateWhitelistParams {
+interface UpdateWhitelistParams {
     id: number;
     msaName?: string;
     relationshipManagerId?: string | null;
 }
 
-export interface UpdateWhitelistResult {
+interface UpdateWhitelistResult {
     id: number;
     email: string;
     relationshipManagerId: string | null;
@@ -129,7 +129,7 @@ export async function updateWhitelistEntry(
     };
 }
 
-export interface AddWhitelistParams {
+interface AddWhitelistParams {
     email: string;
     msaName: string;
     relationshipManagerId?: string | null;

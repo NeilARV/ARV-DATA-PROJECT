@@ -28,7 +28,7 @@ interface OcDataDatum {
     };
 }
 
-export interface OcSearchCompany {
+interface OcSearchCompany {
     company: {
         name: string;
         company_number: string;
@@ -36,7 +36,7 @@ export interface OcSearchCompany {
     };
 }
 
-export interface OcCompanyDetail {
+interface OcCompanyDetail {
     name: string;
     company_number: string;
     jurisdiction_code: string;

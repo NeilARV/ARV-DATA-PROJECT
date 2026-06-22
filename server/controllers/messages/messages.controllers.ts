@@ -14,7 +14,12 @@ import {
 } from '@database/validation/mastermind.validation';
 import { createMentionNotifications } from 'server/services/notifications/notifications.services';
 import { sendMastermindMentionEmails } from 'server/services/notifications/notificationEmails.services';
-import { broadcastToChannel, broadcastToUser } from 'server/websocket/registry';
+import { listAdminOwnerUserIds } from 'server/services/channels/channels.services';
+import {
+    broadcastToChannel,
+    broadcastToUser,
+    broadcastToOtherUsers,
+} from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { isUuid } from 'server/utils/uuid';
 import { handleServiceError } from 'server/middleware/errorHandler';
@@ -84,22 +89,42 @@ export async function createMessageController(req: Request, res: Response): Prom
             return;
         }
 
-        const { message, mentionedUserIds, mentionedChannel, mentionedAnnouncement } =
+        const { message, mentionedUserIds, mentionedChannel, mentionedAnnouncement, isAdminOnly } =
             await createMessage({
                 channelId: id,
                 senderId: req.session.userId!,
                 content: parsed.data.content ?? '',
                 attachments: parsed.data.attachments,
             });
+        const mentionedEveryone = mentionedChannel || mentionedAnnouncement;
         broadcastToChannel(message.channelId, {
             type: ServerToClient.MessageCreated,
             message: {
                 ...message,
                 mentionedUserIds,
                 // The unread "mention" badge fires for either everyone-broadcast.
-                mentionedEveryone: mentionedChannel || mentionedAnnouncement,
+                mentionedEveryone,
             },
         });
+
+        // Cross-channel unread: clients subscribe only to the channel they're viewing, so the
+        // MessageCreated broadcast above never reaches a user looking at another channel. Deliver
+        // a lightweight activity doorbell to every other eligible connected user so their sidebar
+        // unread badges update live without a refresh. Admin-only channels reach admins/owners only.
+        const activityAudience = isAdminOnly
+            ? new Set(await listAdminOwnerUserIds())
+            : undefined;
+        broadcastToOtherUsers(
+            req.session.userId!,
+            {
+                type: ServerToClient.ChannelActivity,
+                channelId: message.channelId,
+                mentionedUserIds,
+                mentionedEveryone,
+            },
+            activityAudience,
+        );
+
         void unfurlMessageLinks(message.id);
 
         // Notification fan-out is secondary to the send — never fail a delivered message.

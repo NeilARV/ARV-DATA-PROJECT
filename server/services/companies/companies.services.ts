@@ -30,7 +30,7 @@ export const CONTACTS_SORT_OPTIONS = [
     'buys-wholesale',
     'wholesalers',
 ] as const;
-export type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
+type ContactsSortOption = (typeof CONTACTS_SORT_OPTIONS)[number];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ async function fetchPrimaryContacts(companyIds: string[]): Promise<Map<string, P
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
-export interface CompanySuggestion {
+interface CompanySuggestion {
     id: string;
     companyName: string;
     contactName: string | null;
@@ -106,7 +106,7 @@ export async function getCompanySuggestions(
 
 // ─── Contacts list ────────────────────────────────────────────────────────────
 
-export interface GetContactsParams {
+interface GetContactsParams {
     county?: string;
     page?: string;
     limit?: string;
@@ -114,7 +114,7 @@ export interface GetContactsParams {
     search?: string;
 }
 
-export interface GetContactsResult {
+interface GetContactsResult {
     companies: any[];
     total: number;
     page: number;
@@ -770,9 +770,9 @@ export async function getCompanyById(id: string, county?: string) {
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
+type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
 
-export type UpdateCompanyResult =
+type UpdateCompanyResult =
     | { status: 'ok'; company: typeof companies.$inferSelect }
     | { status: 'not-found' }
     | { status: 'duplicate-name' };
@@ -800,10 +800,10 @@ export async function updateCompany(
 
 // ─── Company Contacts ─────────────────────────────────────────────────────────
 
-export type AddContactInput = z.infer<typeof insertCompanyContactSchema>;
-export type UpdateContactInput = z.infer<typeof updateCompanyContactSchema>;
+type AddContactInput = z.infer<typeof insertCompanyContactSchema>;
+type UpdateContactInput = z.infer<typeof updateCompanyContactSchema>;
 
-export type ContactMutationResult =
+type ContactMutationResult =
     | { status: 'ok'; contact: typeof companyContacts.$inferSelect }
     | { status: 'company-not-found' }
     | { status: 'contact-not-found' };
@@ -870,7 +870,7 @@ export async function updateContact(
     return { status: 'ok', contact: updated };
 }
 
-export type DeleteContactResult = { status: 'ok' } | { status: 'contact-not-found' };
+type DeleteContactResult = { status: 'ok' } | { status: 'contact-not-found' };
 
 export async function deleteContact(
     companyId: string,
@@ -921,7 +921,7 @@ function formatAgentAddress(addr: {
         .join(', ');
 }
 
-export type EnrichCompanyResult =
+type EnrichCompanyResult =
     | { status: 'ok' }
     | { status: 'not-found' }
     | { status: 'unknown-jurisdiction'; state: string }

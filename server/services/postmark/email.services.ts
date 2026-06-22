@@ -35,7 +35,7 @@ export function getDefaultFromEmail(): string {
     return FROM_EMAIL;
 }
 
-export interface SendEmailWithTemplateParams {
+interface SendEmailWithTemplateParams {
     From: string;
     To: string;
     TemplateAlias: string;
@@ -50,7 +50,7 @@ export async function sendEmailWithTemplate(payload: SendEmailWithTemplateParams
     await client.sendEmailWithTemplate(payload);
 }
 
-export interface SendPlainEmailParams {
+interface SendPlainEmailParams {
     From: string;
     To: string;
     Subject: string;

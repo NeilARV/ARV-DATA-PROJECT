@@ -307,7 +307,14 @@ history on desktop + mobile.
   highlight (red dot) vs. plain unread (bold).
 - Unread count = messages in channel newer than `last_read_*`.
 **Done:** unread badges appear/clear correctly across tabs and reconnects.
-**Known Problem:** Unread messages does not appear until a user refreshes the screen. Fine for now but should be changed in the future 
+**Live cross-channel sync (resolved):** a client subscribes over WS to only the channel it's
+viewing, so `message.created` (a `broadcastToChannel` firehose) never reaches a user looking at a
+different channel — the original bug where unread badges didn't move until a refresh. Fixed by a
+per-user **activity doorbell**: on message create the controller also fans out a lightweight
+`channel.activity` event via `broadcastToOtherUsers` (every eligible connected user except the
+sender; admin-only channels scoped to admins/owners). It carries only `channelId` +
+mention flags — never the body — and `Mastermind.tsx` uses it to bump the sidebar unread badge
+for any non-active channel live, with no refresh.
 
 ### Part 8 — In-app notifications (bell) | Completed
 - `notifications` table rows created when a user is mentioned (or `@here`/`@channel` hits them).
@@ -542,7 +549,8 @@ read replicas needed for years.
   `connection → channelId` and fans out only relevant events. (Single instance keeps this in
   memory; multi-instance later needs Redis pub/sub — see Known Limitation.)
 - **Event types:** `message.created`, `message.updated`, `message.deleted`,
-  `reaction.changed`, `message.pinned`, `notification.created`, (Phase 3) `typing`, `presence`.
+  `reaction.changed`, `message.pinned`, `notification.created`, `channel.activity` (cross-channel
+  unread doorbell — per-user, body-less), (Phase 3) `typing`, `presence`.
 - **Delivery guarantee:** REST write → DB commit → broadcast. If the server dies between commit
   and broadcast, the client's reconnect backfill (`GET …?since=`) recovers the gap. The DB is
   always the source of truth; the socket is a notifier.

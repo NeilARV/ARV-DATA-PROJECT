@@ -10,7 +10,7 @@ declare module 'express-session' {
     }
 }
 
-export interface AppOptions {
+interface AppOptions {
     sessionStore?: session.Store;
     /** Middleware injected after session setup — used in tests to set req.session.userId */
     testMiddleware?: RequestHandler;

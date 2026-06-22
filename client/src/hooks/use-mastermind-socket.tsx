@@ -22,6 +22,7 @@ import {
     type MastermindMessageWire,
     type NotificationWire,
     type PinnedMessageWire,
+    type ChannelActivityWire,
 } from '@shared/mastermind/events';
 
 export { messagesQueryKey, mergeMessages };
@@ -32,7 +33,9 @@ type SocketContextValue = {
     status: SocketStatus;
     subscribeToChannel: (channelId: string) => void;
     unsubscribeFromChannel: (channelId: string) => void;
-    lastCreatedMessage: MastermindMessageWire | null;
+    // Latest cross-channel activity doorbell — drives live sidebar unread badges for channels
+    // the client isn't subscribed to. Null until the first message arrives this session.
+    lastChannelActivity: ChannelActivityWire | null;
 };
 
 const MastermindSocketContext = createContext<SocketContextValue | null>(null);
@@ -44,7 +47,7 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
     // Revert to `canAccessApp` when Mastermind becomes generally available.
     const { isAuthenticated, canAccessMastermind, user } = useAuth();
     const [status, setStatus] = useState<SocketStatus>('closed');
-    const [lastCreatedMessage, setLastCreatedMessage] = useState<MastermindMessageWire | null>(null);
+    const [lastChannelActivity, setLastChannelActivity] = useState<ChannelActivityWire | null>(null);
 
     // Latest viewer id without re-subscribing the socket; read inside WS event handlers.
     const viewerIdRef = useRef<string | undefined>(undefined);
@@ -120,6 +123,8 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                 emoji?: string;
                 userId?: string;
                 action?: 'add' | 'remove';
+                mentionedUserIds?: string[];
+                mentionedEveryone?: boolean;
             };
 
             if (evt.type === ServerToClient.MessageCreated) {
@@ -129,8 +134,18 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
                         messagesQueryKey(message.channelId),
                         (old) => mergeMessages(old ?? [], [message]),
                     );
-                    setLastCreatedMessage(message);
                 }
+                return;
+            }
+
+            // Cross-channel doorbell: bump unread badges for channels this client isn't viewing.
+            // Carries no body — the open channel renders its messages off MessageCreated instead.
+            if (evt.type === ServerToClient.ChannelActivity && typeof evt.channelId === 'string') {
+                setLastChannelActivity({
+                    channelId: evt.channelId,
+                    mentionedUserIds: evt.mentionedUserIds ?? [],
+                    mentionedEveryone: evt.mentionedEveryone ?? false,
+                });
                 return;
             }
 
@@ -279,7 +294,7 @@ export function MastermindSocketProvider({ children }: { children: ReactNode }) 
 
     return (
         <MastermindSocketContext.Provider
-            value={{ status, subscribeToChannel, unsubscribeFromChannel, lastCreatedMessage }}
+            value={{ status, subscribeToChannel, unsubscribeFromChannel, lastChannelActivity }}
         >
             {children}
         </MastermindSocketContext.Provider>

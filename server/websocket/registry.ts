@@ -9,7 +9,7 @@ export interface Client {
     isAlive: boolean;
 }
 
-export type OutboundEvent = { type: ServerToClientType } & Record<string, unknown>;
+type OutboundEvent = { type: ServerToClientType } & Record<string, unknown>;
 
 // In-memory only — correct for the single Reserved VM. Horizontal scaling later needs
 // Redis pub/sub to share these across instances (see mastermind.md Known Limitation).
@@ -79,6 +79,22 @@ export function broadcastToUser(userId: string, event: OutboundEvent): void {
     const set = userClients.get(userId);
     if (!set) return;
     set.forEach((client) => send(client, event));
+}
+
+// Cross-channel doorbell: deliver to every connected user except one (the sender), regardless of
+// which channel they're subscribed to. Pass `allowedUserIds` to restrict delivery to a known
+// audience (e.g. admins/owners for an admin-only channel). Used so a client viewing one channel
+// still learns about new messages in others and can update its unread badges live.
+export function broadcastToOtherUsers(
+    excludeUserId: string,
+    event: OutboundEvent,
+    allowedUserIds?: Set<string>,
+): void {
+    userClients.forEach((set, userId) => {
+        if (userId === excludeUserId) return;
+        if (allowedUserIds && !allowedUserIds.has(userId)) return;
+        set.forEach((client) => send(client, event));
+    });
 }
 
 // ── Introspection (tests / debugging) ───────────────────────────────────────────

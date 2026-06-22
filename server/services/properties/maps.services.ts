@@ -10,7 +10,7 @@ import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 
-export interface MapPropertyData {
+interface MapPropertyData {
     id: string;
     latitude: number | null;
     longitude: number | null;

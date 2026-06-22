@@ -34,13 +34,13 @@ import {
     transformCurrentSaleData,
 } from 'server/utils/propertyDataHelpers';
 
-export interface InsertPropertiesParams {
+interface InsertPropertiesParams {
     properties: PropertyWithStatus[];
     msa: string;
     cityCode: string;
 }
 
-export interface InsertPropertiesResult {
+interface InsertPropertiesResult {
     propertiesInserted: number;
     propertiesUpdated: number;
     transactionsInserted: number;

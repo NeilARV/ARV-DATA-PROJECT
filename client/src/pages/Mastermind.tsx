@@ -26,7 +26,7 @@ type UnreadEntry = { count: number; hasMention: boolean };
 function MastermindContent() {
     const { isLoading, isAdminStatusLoading, canAccessMastermind, isOwner, isAdmin, user } =
         useAuth();
-    const { lastCreatedMessage } = useMastermindSocket();
+    const { lastChannelActivity } = useMastermindSocket();
 
     const search = useSearch();
     const [locationPath, setLocation] = useLocation();
@@ -144,33 +144,31 @@ function MastermindContent() {
         return () => clearTimeout(timer);
     }, [highlightMessageId]);
 
-    // React to incoming WS messages: skip badge for the active channel; increment for others.
-    // NOTE: The client currently subscribes to one channel at a time, so lastCreatedMessage
-    // will always be for the active channel. Cross-channel badge updates will become live
-    // in Part 8 when broadcastToUser delivers notification events across all subscriptions.
+    // React to cross-channel activity: a new message landed somewhere. The server doorbell
+    // (broadcastToOtherUsers) already excludes the sender's own tabs and scopes admin-only
+    // channels to admins/owners, so any event here is for a channel this user can see. Skip the
+    // badge for the channel being viewed (advance its read state instead); bump unread for others.
     useEffect(() => {
-        if (!lastCreatedMessage) return;
-        // Never count the user's own messages as unread.
-        if (lastCreatedMessage.senderId === user?.id) return;
-        if (lastCreatedMessage.channelId === activeChannelId) {
+        if (!lastChannelActivity) return;
+        if (lastChannelActivity.channelId === activeChannelId) {
             // User is already viewing this channel — advance read state immediately.
             scheduleMarkRead(activeChannelId);
             return;
         }
         const isMentioned =
-            (lastCreatedMessage.mentionedEveryone ?? false) ||
-            (lastCreatedMessage.mentionedUserIds ?? []).includes(user?.id ?? '');
+            lastChannelActivity.mentionedEveryone ||
+            lastChannelActivity.mentionedUserIds.includes(user?.id ?? '');
         setUnreadState((prev) => {
-            const current = prev.get(lastCreatedMessage.channelId) ?? {
+            const current = prev.get(lastChannelActivity.channelId) ?? {
                 count: 0,
                 hasMention: false,
             };
-            return new Map(prev).set(lastCreatedMessage.channelId, {
+            return new Map(prev).set(lastChannelActivity.channelId, {
                 count: current.count + 1,
                 hasMention: current.hasMention || isMentioned,
             });
         });
-    }, [lastCreatedMessage, activeChannelId, user?.id, scheduleMarkRead]);
+    }, [lastChannelActivity, activeChannelId, user?.id, scheduleMarkRead]);
 
     function handleSelectChannel(id: string) {
         const channel = channels.find((c) => c.id === id);

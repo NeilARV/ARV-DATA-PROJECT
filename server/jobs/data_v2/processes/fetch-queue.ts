@@ -3,7 +3,7 @@ import { marketScanQueue } from '@database/schemas/sync.schema';
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import type { MarketScanQueue } from '@database/types/sync';
 
-export interface FetchQueueResult {
+interface FetchQueueResult {
     /** One deduplicated row per sfr_property_id (best recording_date → sale_date). */
     rows: MarketScanQueue[];
     /** All sfr_property_ids matched (including duplicates across scan windows). */
