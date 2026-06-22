@@ -73,7 +73,11 @@ for outbound. New violation matched to a known owner/user → fire a notificatio
 
 ## 4. Where do we start geographically — City vs County?
 
-This needs a decision; it materially changes the data source.
+> **DECIDED: City of San Diego first.** ✅ One jurisdiction, one data source. County and the
+> surrounding independent cities are deferred to later "source adapters." The rest of this
+> section is kept as the rationale.
+
+This materially changes the data source.
 
 - **City of San Diego** (~1.4M people): one jurisdiction, one code-enforcement system,
   one data source to crack. Cleanest place to start. The City runs an **open data portal**
@@ -92,21 +96,56 @@ This needs a decision; it materially changes the data source.
 
 ---
 
-## 5. Data source strategy (research before you build)
+## 5. Data source strategy — CONFIRMED: Accela Citizen Access (scrape)
 
-**Phase 0 spike (½–1 day, no infra):** before committing to a stack, manually answer:
-1. Does the City publish code-enforcement / code-violation cases as an **open dataset or
-   API** (Socrata `data.sandiego.gov`, an ArcGIS REST feature service, or an Accela API)?
-   → If yes, we skip scraping entirely and the cheapest serverless option wins.
-2. If not, what portal hosts the cases, and is it **server-rendered HTML** (scrape with a
-   plain HTTP client + parser — light) or a **JS app** like Accela Citizen Access
-   (needs a headless browser — heavier)?
-3. What fields are exposed? At minimum we need: **address**, **violation type/description**,
-   **case number**, **status**, **dates**. Owner is usually *not* published — that's fine,
-   we resolve the owner ourselves from our DB.
-4. Rate limits / terms of use / robots.txt — be a polite citizen, throttle, cache.
+> **CONFIRMED — there is no API.** The source is the City of San Diego's **Accela Citizen
+> Access** portal, Code Enforcement module:
+> `https://aca-prod.accela.com/SANDIEGO/Cap/CapHome.aspx?module=CE&TabName=CE...`
+> This settles the API-vs-scrape question: **we must scrape**, which **eliminates Option C
+> (Supabase Edge Functions)** and points at **Option A (TS worker + Playwright)**.
 
-Outcome of Phase 0 picks the stack in §7.
+### What we know about the portal
+- It's **Accela ACA**, an **ASP.NET WebForms** app (`.aspx`). This explains the behavior the
+  user observed:
+  - **Results don't appear from the URL alone.** You must load the page, fill the search form
+    (city = San Diego, etc.), and click **Search** — results come back via a server postback.
+  - **Pagination isn't in the URL.** Page 2/3/… are driven by **ViewState postbacks**, not
+    query params. So "go to the URL on page 3" can't be reproduced by URL alone — state lives
+    in the form/session, not the address bar. This is the classic ASP.NET WebForms pattern.
+- **There is a "Download results" button.** This is the key finding — it almost certainly
+  exports the current result set as a **CSV**. Driving that button is far more robust than
+  scraping HTML table rows, and it likely gives us the full record (address, description,
+  case #, status, dates) in one clean file.
+- Fields visible in the results (per the user): **addresses**, **complaint/violation
+  descriptions**, **records/status** — i.e. everything we need. Owner is not published; we
+  resolve owner ourselves from our DB.
+
+### Implications for how we acquire
+1. **Headless browser is required** (Playwright/Puppeteer): load page → fill search form →
+   click Search → click **Download results** → capture the CSV. We parse the CSV, not the HTML.
+   This is the most robust automation path and avoids fighting ViewState pagination row-by-row.
+2. If the download is gated or unreliable, fallback is to walk the paginated results via the
+   browser (clicking through ViewState postbacks) — slower and more fragile; prefer the CSV.
+3. **Be a polite citizen:** throttle, run off-hours, cache, don't hammer. Respect the portal's
+   terms of use. One scheduled run/day to start (see cadence question in §13).
+
+### Bootstrap before any scraper: manual CSV (user's own idea — do this first)
+The user can already search and hit **Download results** to get the CSV by hand. So the
+**zeroth deliverable** is a tiny **manual upload** path: each morning, download the CSV and
+upload it into our app; the **process → match → notify** pipeline runs on it exactly as it
+will for the automated feed. This:
+- De-risks and validates the *entire* downstream pipeline (parse → geocode → owner match →
+  notify) **before** we invest in the Playwright scraper.
+- Tells us, operationally, **when records actually appear** (the user will monitor whether
+  new violations land in the morning vs trickle in all day) — which sets the real polling
+  cadence for the automated version.
+- Gives us real sample CSVs to lock down the parser/schema against actual columns.
+
+> **Outstanding:** the user is sending a **screenshot of the current results** + will confirm
+> the exact CSV columns. Drop those into §6 to finalize the `cv_violations` field mapping.
+
+Outcome: stack is effectively decided → **Option A** (see §7). Phase 0 collapses into
+"confirm the CSV columns + confirm the download-button automation works headlessly."
 
 ---
 
@@ -131,49 +170,104 @@ re-notifies), **content_hash** to detect "this case changed" vs "already seen."
 
 ---
 
-## 7. Tech stack options (with rough pricing)
+## 7. Tech stack options (detailed breakdown)
 
-All three write to the **existing Neon Postgres**. They differ in *where the compute runs*
-and *whether they can run a headless browser*. The right pick depends on the Phase 0 result.
+All three write to the **existing Neon Postgres**. They differ in *where the compute runs*,
+*whether they can run a headless browser*, and *how much ops/setup they demand*. The right
+pick depends on the Phase 0 result (API vs scrape).
+
+### At-a-glance comparison
+
+| Dimension | A — TS worker (Fly/Railway) | B — AWS Lambda + EventBridge + Terraform | C — Supabase Edge Functions |
+|---|---|---|---|
+| **Language / runtime** | Node + TypeScript (our stack) | TS in Lambda, but config in HCL/Terraform | Deno + TypeScript (similar, minor API diffs) |
+| **Headless browser (scrape JS portals)** | ✅ First-class (Playwright in container) | ⚠️ Possible but painful (container image + Chromium layer, 1–2 GB) | ❌ Not possible (no Chromium, short timeouts) |
+| **Clean API fetch (no browser)** | ✅ Easy | ✅ Easy & ideal | ✅ Easy & ideal |
+| **Scheduling** | node-cron in-process, or platform cron | EventBridge Scheduler (managed cron) | pg_cron / Supabase scheduled functions |
+| **Execution time limit** | Unlimited (long crawls OK) | 15 min hard ceiling per invocation | Short (seconds) — fine for API, not big crawls |
+| **Cold starts** | None (warm worker) or fast container | Yes (container Lambdas slow to spin) | Minimal |
+| **State between runs** | Easy (in-memory + DB cursor) | Stateless — must persist cursor to DB each run | Stateless — cursor in DB |
+| **Logging / observability** | Platform logs + our own `cv_runs` table | CloudWatch (powerful, more setup) | Supabase logs (basic) + our `cv_runs` table |
+| **Infra-as-code** | Minimal (Dockerfile + one config) | Full IaC via Terraform (the main benefit) | Minimal (function + cron) |
+| **Setup / build effort** | **Low** — closest to what we already do | **High** — AWS account, IAM, VPC/NAT, Terraform | **Low–Medium** — if API-only |
+| **Ops burden ongoing** | Babysit one small box | Mostly managed, but more surface area | Mostly managed |
+| **Isolation from Replit** | ✅ Full | ✅ Full | ✅ Full |
+| **Vendor lock-in** | Low (portable container) | High (AWS-specific glue) | Medium (Supabase-specific) |
+| **Scales to many jurisdictions** | Good (add workers/queues) | Excellent (per-source Lambdas) | Good (API-only sources) |
+| **Cost at MVP volume** | ~$5–15/mo | ~$0–5/mo (eng time is the real cost) | ~$0 (free tier) / $25 if on Pro |
 
 ### Option A — Dedicated Node/TS worker on Fly.io or Railway  ⭐ (recommended for MVP)
-A small standalone TypeScript service (same language/skills as the rest of the team),
-running its own scheduler (node-cron) and, if needed, **Playwright** for scraping. Deploys
-as a container; can do *anything* (API fetch or full headless browser). Writes to Neon,
-calls our main app's notification endpoint (or shares the DB).
+A small standalone TypeScript service — same language and patterns as the rest of the team —
+running its own scheduler and, when needed, **Playwright** for scraping. Deploys as a
+container that can do *anything*: a clean API fetch or a full headless-browser crawl. Writes
+to Neon and triggers notifications by calling our main app's API or sharing the DB.
 
-- **Pros:** Same TS/Node skillset — fastest to build. Handles both API and headless-scrape
-  modes, so we don't have to know the answer to Phase 0 before starting. Persistent logs.
-  Trivial to run Playwright. Truly isolated from Replit.
-- **Cons:** A always-on (or scheduled) box to babysit. Less "infra-as-code" than AWS.
-- **Cost:** ~**$5–10/mo** (Fly.io shared-cpu-1x 256–512MB, or Railway hobby). Headless
-  browser wants ≥512MB–1GB → maybe ~$10–15/mo. Geocoding via Google billed separately
-  (see below). **Cheapest path to a working scraper.**
+- **What you actually build:** a Dockerfile, a `node-cron` (or platform-cron) entrypoint, the
+  source adapter, and the processing code. That's it. Deploy = `fly deploy` / `railway up`.
+- **Pros:**
+  - Fastest to build — it's the stack we already write every day.
+  - **Works regardless of Phase 0** (API *or* headless scrape), so we can start now without
+    knowing the answer.
+  - No execution-time ceiling — long, polite, paginated crawls are fine.
+  - Persistent process = easy to keep a warm browser, rate-limit politely, hold a cursor.
+- **Cons:**
+  - One small always-on (or scheduled) box to babysit and patch.
+  - Less formal infra-as-code than AWS (mitigated: it's just a Dockerfile + one config file).
+  - You manage your own retry/alerting plumbing (but we want a `cv_runs` table anyway).
+- **Cost:** ~**$5–10/mo** for a shared-CPU 256–512 MB instance (API-only). A headless browser
+  wants ≥512 MB–1 GB → ~**$10–15/mo**. Scheduled (not always-on) variants can be cheaper.
 
-### Option B — AWS, Terraform IaC, Lambda + EventBridge (your original idea)
-EventBridge Scheduler triggers a Lambda on a cron. Lambda fetches/processes, writes to Neon.
-Logs to CloudWatch. Terraform defines it all.
+### Option B — AWS: Terraform IaC + Lambda + EventBridge (your original idea)
+EventBridge Scheduler fires a Lambda on a cron; the Lambda fetches, processes, writes to Neon;
+CloudWatch captures logs/alarms; Terraform defines all of it.
 
-- **Pros:** Proper IaC, pay-per-invocation, scales to many jurisdictions cleanly, great if
-  the source is a clean **API** (light Lambda). Mature logging/alerting (CloudWatch + alarms).
-- **Cons:** **Headless browser on Lambda is the painful part** — you need a container-image
-  Lambda with a Chromium layer (`@sparticuz/chromium`), 1–2GB memory, and 15-min timeout
-  ceilings. More moving parts and setup time. Terraform overhead for a 1-jurisdiction MVP is
-  heavy. NAT/egress and Neon connection management add fiddliness.
-- **Cost:** At our volume, Lambda + EventBridge is effectively **free → a few $/mo** (well
-  inside free tier for light API polling). Container Lambdas for scraping cost a bit more but
-  still single-digit dollars. The real cost here is **engineering time**, not the bill.
+- **What you actually build:** an AWS account + IAM roles, a Terraform project, the Lambda
+  handler, EventBridge rules, CloudWatch alarms, and (for scraping) a **container-image Lambda
+  bundling Chromium** (`@sparticuz/chromium`) at 1–2 GB memory. Plus Neon connection handling
+  from Lambda (connection pooling / data API to avoid exhausting Postgres connections).
+- **Pros:**
+  - **Real infra-as-code** — reproducible, reviewable, the strongest long-term ops story.
+  - Pay-per-invocation; effectively free at our volume for light API polling.
+  - Managed cron, mature logging/alerting (CloudWatch), clean per-source scaling later.
+- **Cons:**
+  - **Headless scraping is the pain point** — container Lambdas, the 15-min ceiling, cold
+    starts, and bigger memory. If Phase 0 says "scrape," this is the most work.
+  - Heaviest setup for a 1-jurisdiction MVP — AWS account, IAM, VPC/NAT egress, Terraform
+    learning curve. The real cost is **engineering time, not the bill**.
+  - Highest vendor lock-in (AWS-specific glue).
+- **Cost:** Lambda + EventBridge is **~$0–few $/mo** (inside free tier for light polling);
+  container scraping Lambdas a bit more, still single digits. Eng time dominates.
 
 ### Option C — Supabase Edge Functions + pg_cron
-Deno edge functions on a schedule (pg_cron / Supabase scheduled functions), writing to
-Postgres.
+Deno edge functions on a schedule (`pg_cron` / Supabase scheduled functions) that fetch and
+process, writing to Postgres.
 
-- **Pros:** Very cheap, minimal infra, nice if we ever move storage to Supabase. Great for an
-  **API-only** source + lightweight processing.
-- **Cons:** **Cannot run a headless browser** (no Chromium in the edge runtime) and short
-  execution limits — so this only works if Phase 0 finds a clean API. If we have to scrape a
-  JS portal, Option C is out.
-- **Cost:** Effectively **$0 on the free tier**, ~$25/mo if we're already paying for Supabase Pro.
+- **What you actually build:** a Deno edge function (TS, slightly different APIs than Node), a
+  pg_cron schedule, and the processing code. Minimal infra.
+- **Pros:**
+  - Very cheap, minimal infra, tidy if we ever consolidate storage on Supabase.
+  - Great fit for an **API-only** source + light processing.
+- **Cons:**
+  - **Cannot run a headless browser** (no Chromium) and **short execution limits** — so this
+    is viable *only if Phase 0 finds a clean API*. If we must scrape a JS portal, Option C is out.
+  - Deno runtime differs slightly from our Node code (small porting friction).
+- **Cost:** **~$0** on the free tier; ~**$25/mo** if we move to / already pay for Supabase Pro.
+
+### How the Phase 0 result maps to the choice
+- **Clean API / open dataset found** → any option works; pick **C** (cheapest, simplest) or a
+  tiny **B** Lambda if we want the AWS/IaC foundation.
+- **Must scrape a JS portal** → realistically **A** (or a heavyweight container Lambda under B).
+  **C is eliminated.**
+- **Don't know yet / want to start now** → **A**, because it covers both outcomes and we can
+  migrate the *acquire* step to B or C later without touching process/notify.
+
+### → DECISION (given the Accela finding in §5)
+The source is an **ASP.NET WebForms portal requiring a headless browser** (form + Search +
+ViewState pagination + CSV download). That **eliminates Option C** and makes a container with
+Playwright the natural home. **Pick Option A (TS worker on Fly.io/Railway + Playwright).** It
+runs the browser trivially, has no execution-time ceiling for the crawl/download, and is our
+existing skillset. Option B stays a *later* possibility only if we want AWS IaC — but a
+container scraping Lambda is strictly more work than Option A for the same result.
 
 ### Cross-cutting cost: Google Geocoding
 Whatever stack we pick, geocoding addresses costs ~**$5 per 1,000 requests** (Google), with a
@@ -250,18 +344,24 @@ Because scrapers silently rot, this is first-class, not an afterthought:
 
 ## 12. Phased rollout
 
-- **Phase 0 — Spike (½–1 day):** Identify the City of San Diego data source + mode (API vs
-  scrape). Decide stack per §7. *No infra yet.* Deliverable: "here's the endpoint/portal and
-  the fields we get."
-- **Phase 1 — Acquire + Store MVP:** Stand up the chosen worker, fetch City of SD violations
-  on a schedule, land raw + normalized rows. No notifications yet. Prove we can reliably get
-  clean data. Dashboards/logs working.
-- **Phase 2 — Process / Match:** Geocode + match against our property DB, owner resolution,
+- **Phase 0 — Confirm CSV (no infra):** Source is already identified (Accela ACA, §5). Remaining
+  spike work: download the **Download results** CSV by hand, lock down the **exact columns**,
+  and confirm the download button can be driven headlessly. Deliverable: a sample CSV + the
+  field mapping for §6.
+- **Phase 1 — Manual CSV bootstrap (do this first):** A simple **CSV upload** screen/endpoint.
+  Each morning the user downloads the CSV from Accela and uploads it; the **process → match →
+  notify** pipeline runs on it. No scraper yet. This validates the *entire* downstream pipeline
+  on real data, surfaces the real publish cadence, and de-risks everything before we build the
+  browser automation.
+- **Phase 2 — Automated acquire (Playwright worker):** Stand up the Option A TS worker, drive
+  Accela headlessly (search → download CSV), land raw + normalized rows on a schedule. Replaces
+  the manual upload. Dashboards/logs (`cv_runs`) + "scraper went quiet" alarm working.
+- **Phase 3 — Process / Match:** Geocode + match against our property DB, owner resolution,
   confidence scoring, dedup. Surface matched violations **in-app only** (read-only view) so we
-  can eyeball quality before sending anything.
-- **Phase 3 — Notify (users only):** Wire WebSocket + Postmark for matched **users**, with
+  can eyeball quality before sending anything. (Built against Phase 1 data, hardened in Phase 2.)
+- **Phase 4 — Notify (users only):** Wire WebSocket + Postmark for matched **users**, with
   the idempotency ledger and a digest option. Compliance-safe scope.
-- **Phase 4+ — Expand:** More jurisdictions via source adapters; richer violation
+- **Phase 5+ — Expand:** More jurisdictions via source adapters; richer violation
   classification; opt-in for non-user owners (only if/when compliance is sorted).
 
 ---
