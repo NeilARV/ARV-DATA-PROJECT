@@ -176,14 +176,14 @@ Sort findings by severity (desc), then by file path. Emit **exactly this structu
 
 ## Findings
 
-### [BLOCKER] `PY.BARE-EXCEPT` — `path/file.py:142`
-```python
+### [BLOCKER] `TS.ASYNC-AWAIT` — `path/file.ts:142`
+```ts
 <smallest meaningful excerpt>
 ```
 **Why:** <one sentence>
 **Fix:** <one sentence>
 
-### [HIGH] `GOF.STRATEGY-MISSING` — `path/file.py:55-90`
+### [HIGH] `GOF.STRATEGY-MISSING` — `path/file.tsx:55-90`
 ...
 
 ## Synthesis
