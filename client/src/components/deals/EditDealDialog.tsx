@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { DealToEdit } from '@shared/types/deals';
 import { useMutation } from '@tanstack/react-query';
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';

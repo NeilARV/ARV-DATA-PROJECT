@@ -1,15 +1,9 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import type { Roles, SubscriptionTier, RelationshipManager } from '@shared/types/users';
+import type { PropertyStatus } from '@shared/types/properties';
 
-export interface RelationshipManager {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string | null;
-}
-
-export type DataAppStatus = 'in-renovation' | 'on-market' | 'wholesale' | 'sold';
+export type DataAppStatus = PropertyStatus;
 export type DealTypeFilter = 'wholesale' | 'agent' | 'sold' | 'reo';
 
 export interface NotificationPreferences {

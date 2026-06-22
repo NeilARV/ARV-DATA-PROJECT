@@ -8,6 +8,8 @@ export type PropertyFilters = {
     city?: string; // Optional city filter
     county?: string; // Optional county filter
     statusFilters: string[];
-    dateRange?: DateRange; // Shared ambient global (shared/types/filters.d.ts); imported explicitly in the shared phase
+    dateRange?: DateRange; // Property acquisition date-range filter
     companyRole?: 'buyer' | 'seller'; // Set on company selection; restricts tx role match in API
 };
+
+export type DateRange = '30d' | '60d' | '90d' | '180d' | '1y' | 'ytd' | 'all-time';

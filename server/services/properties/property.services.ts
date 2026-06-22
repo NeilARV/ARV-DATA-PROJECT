@@ -1,4 +1,5 @@
 import { db } from 'server/storage';
+import type { PropertySuggestion } from '@shared/types/properties';
 import {
     properties,
     addresses,
@@ -25,14 +26,6 @@ import { appendPropertyTransactions, reprocessProperty } from './propertyTransac
 import { formatContactName } from '@shared/utils/formatContactName';
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
-
-interface PropertySuggestion {
-    id: string;
-    address: string | null;
-    city: string | null;
-    state: string | null;
-    zipcode: string | null;
-}
 
 export async function getPropertySuggestions(
     search: string,

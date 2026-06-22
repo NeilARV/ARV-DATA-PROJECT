@@ -1,4 +1,5 @@
 import { db } from 'server/storage';
+import type { TopBuyer, DealType, CreateDealInput, UpdateDealInput } from '@shared/types/deals';
 import { deals, dealLinks, dealBids } from '@database/schemas/deals.schema';
 import {
     users,

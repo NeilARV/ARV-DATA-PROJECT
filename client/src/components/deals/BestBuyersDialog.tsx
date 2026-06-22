@@ -1,6 +1,7 @@
 import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Trophy } from 'lucide-react';
 import { useCompanies } from '@/hooks/useCompanies';
+import type { TopBuyer } from '@shared/types/deals';
 
 type BestBuyersContentProps = {
     buyers: TopBuyer[];

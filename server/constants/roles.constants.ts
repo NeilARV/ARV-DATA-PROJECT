@@ -1,5 +1,7 @@
+import type { Roles } from '@shared/types/users';
+
 // Canonical ARV team role groups. Use these instead of inlining role tuples at call sites so a
-// role's access surface changes in one place. Typed against the global `Roles` union so a typo or
+// role's access surface changes in one place. Typed against the shared `Roles` union so a typo or
 // a removed role fails the build.
 
 /** Full admin capabilities — owner and admin only. */

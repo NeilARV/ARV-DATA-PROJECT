@@ -2,6 +2,7 @@ import { users, subscriptions, userRoles, roles as rolesTable } from '@database/
 import { Request, Response, NextFunction } from 'express';
 import { db } from 'server/storage';
 import { eq, and, inArray } from 'drizzle-orm';
+import type { Roles, SubscriptionTier } from '@shared/types/users';
 
 type RequireAccessOptions = {
     roles?: readonly Roles[];

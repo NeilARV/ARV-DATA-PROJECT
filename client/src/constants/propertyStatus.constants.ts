@@ -1,6 +1,5 @@
 import type { DirectorySortOption } from '@/types/options';
-
-type Status = 'in-renovation' | 'wholesale' | 'on-market' | 'sold';
+import type { PropertyStatus as Status } from '@shared/types/properties';
 
 /** Property status string constants - use these instead of magic strings. */
 export const PROPERTY_STATUS = {

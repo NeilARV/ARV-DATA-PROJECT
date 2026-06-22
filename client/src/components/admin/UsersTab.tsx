@@ -32,7 +32,8 @@ import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import EditUserContent from '@/components/admin/EditUser';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
-import type { AdminUser, AccountTypeOption, RelationshipManagerRow } from '@/types/admin';
+import type { AdminUser, AccountTypeOption } from '@/types/admin';
+import type { RelationshipManager } from '@shared/types/users';
 
 type UsersTabProps = {
     isAdmin: boolean;
@@ -81,7 +82,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
     const users = usersResponse?.data;
     const userCount = usersResponse?.count ?? 0;
 
-    const { data: relationshipManagers = [] } = useQuery<RelationshipManagerRow[]>({
+    const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
         queryKey: ['/api/users/relationship-managers'],
         enabled: isAdmin,
     });

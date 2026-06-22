@@ -1,14 +1,14 @@
-type DealType = 'wholesale' | 'agent' | 'sold' | 'reo';
-type DealTab = 'all' | 'mine';
+export type DealType = 'wholesale' | 'agent' | 'sold' | 'reo';
+export type DealTab = 'all' | 'mine';
 
-type TopBuyer = {
+export type TopBuyer = {
     companyId: string | null;
     companyName: string;
     contactName: string | null;
 };
 
 // A non-binding offer on a deal, as returned by GET /api/deals/:id/offers (poster-only).
-type DealOffer = {
+export type DealOffer = {
     id: number;
     dealId: number;
     bidderUserId: string;
@@ -21,7 +21,7 @@ type DealOffer = {
 };
 
 // API response shape returned by GET /api/deals
-type Deal = DealProperty & {
+export type Deal = DealProperty & {
     id: number;
     createdAt: string;
     msaId: number;
@@ -49,7 +49,7 @@ type Deal = DealProperty & {
     onBehalfOfEmail?: string | null;
 };
 
-type DealProperty = {
+export type DealProperty = {
     address?: string;
     city: string;
     state: string;
@@ -67,7 +67,7 @@ type DealProperty = {
     photosUrl?: string | null;
 };
 
-type DealToEdit = DealProperty & {
+export type DealToEdit = DealProperty & {
     id: number;
     msaId: number;
     links?: string[];
@@ -79,7 +79,7 @@ type DealToEdit = DealProperty & {
 // Input for POST /api/deals — msaId is derived server-side from the location (client sends it
 // only as a fallback); structural fields + sfrPropertyId are fetched server-side from SFR when
 // an address is provided, and supplied by the client only for an undisclosed address.
-type CreateDealInput = DealProperty & {
+export type CreateDealInput = DealProperty & {
     userId: string;
     msaId?: number;
     sendNotifications?: boolean;
@@ -90,7 +90,7 @@ type CreateDealInput = DealProperty & {
 };
 
 // Input for PATCH /api/deals/:id (all fields optional except identity)
-type UpdateDealInput = DealProperty & {
+export type UpdateDealInput = DealProperty & {
     msaId?: number;
     links?: string[];
     adminNotes?: string | null;

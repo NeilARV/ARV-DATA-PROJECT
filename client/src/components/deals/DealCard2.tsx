@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { Deal } from '@shared/types/deals';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {

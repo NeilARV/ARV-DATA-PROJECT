@@ -1,4 +1,5 @@
 import { requireAccess } from 'server/middleware/requireAccess';
+import type { Roles } from '@shared/types/users';
 
 /**
  * Returns a middleware that requires the user to have at least one of the given ARV team roles.

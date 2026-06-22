@@ -20,7 +20,7 @@ import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/di
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import ClaimDetailDialog from '@/components/admin/ClaimDetailDialog';
-import type { ClaimRow } from '@/types/admin';
+import type { ClaimRow } from '@shared/types/claims';
 
 type ReviewAction = 'approve' | 'reject';
 

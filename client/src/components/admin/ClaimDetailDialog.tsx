@@ -4,7 +4,7 @@ import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/di
 import AppDialog from '@/components/modals/Dialog';
 import { format } from 'date-fns';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
-import type { ClaimRow } from '@/types/admin';
+import type { ClaimRow } from '@shared/types/claims';
 
 interface ClaimDetailDialogProps {
     claim: ClaimRow | null;

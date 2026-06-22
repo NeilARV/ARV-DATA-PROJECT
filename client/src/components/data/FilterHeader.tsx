@@ -36,6 +36,8 @@ import { useView } from '@/hooks/useView';
 import { apiRequest } from '@/lib/queryClient';
 import { fetchPropertyById } from '@/api/properties.api';
 import { MAP_ZOOM_PROPERTY } from '@/constants/map.constants';
+import type { DateRange } from '@/types/filters';
+import type { PropertySuggestion } from '@shared/types/properties';
 
 type ZipCodeWithCount = {
     zipCode: string;
@@ -46,14 +48,6 @@ type ZipCodeWithCount = {
 type CityWithCount = {
     city: string;
     count: number;
-};
-
-type PropertySuggestion = {
-    id: string;
-    address: string;
-    city: string;
-    state: string;
-    zipcode: string;
 };
 
 // ---- Price helper ----

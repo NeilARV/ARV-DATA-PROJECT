@@ -1,4 +1,5 @@
 import { requireAccess } from 'server/middleware/requireAccess';
+import type { Roles, SubscriptionTier } from '@shared/types/users';
 
 /**
  * Returns a middleware that requires the user to have one of the given subscription tiers.

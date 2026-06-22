@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useAccessGate } from '@/hooks/useAccessGate';
 import { formatAddress } from '@shared/utils/formatAddress';
+import type { Deal, DealToEdit } from '@shared/types/deals';
 import DealsHeader from '@/components/deals/DealsHeader';
 import DealsGrid from '@/components/deals/DealsGrid';
 import DealsEmptyState from '@/components/deals/DealsEmptyState';

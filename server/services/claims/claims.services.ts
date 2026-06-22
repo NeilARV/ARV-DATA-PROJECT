@@ -1,4 +1,5 @@
 import { db } from 'server/storage';
+import type { ClaimRow } from '@shared/types/claims';
 import { companyClaims, companyMembers, companies } from '@database/schemas/companies.schema';
 import { users } from '@database/schemas/users.schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
@@ -157,24 +158,6 @@ export async function submitClaim(
 
 // ─── List claims (admin) ──────────────────────────────────────────────────────
 
-interface ClaimRow {
-    id: string;
-    status: 'pending' | 'approved' | 'rejected';
-    userMessage: string | null;
-    adminNotes: string | null;
-    adminMessage: string | null;
-    reviewedAt: Date | null;
-    createdAt: Date;
-    userId: string;
-    userFirstName: string;
-    userLastName: string;
-    userEmail: string;
-    companyId: string;
-    companyName: string;
-    reviewerFirstName: string | null;
-    reviewerLastName: string | null;
-}
-
 export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
     const validStatuses = ['pending', 'approved', 'rejected'] as const;
     type ClaimStatus = (typeof validStatuses)[number];
@@ -242,8 +225,8 @@ export async function listClaims(statusFilter?: string): Promise<ClaimRow[]> {
             userMessage: r.userMessage,
             adminNotes: r.adminNotes,
             adminMessage: r.adminMessage,
-            reviewedAt: r.reviewedAt,
-            createdAt: r.createdAt,
+            reviewedAt: r.reviewedAt ? r.reviewedAt.toISOString() : null,
+            createdAt: r.createdAt.toISOString(),
             userId: r.userId,
             userFirstName: r.userFirstName,
             userLastName: r.userLastName,

@@ -14,7 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, X } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import type { AdminUser, AccountTypeOption, RelationshipManagerRow } from '@/types/admin';
+import type { AdminUser, AccountTypeOption } from '@/types/admin';
+import type { RelationshipManager } from '@shared/types/users';
 
 interface CompanyOption {
     id: string;
@@ -26,7 +27,7 @@ const NO_VALUE = '__none__';
 
 export type EditUserContentProps = {
     user: AdminUser;
-    relationshipManagers: RelationshipManagerRow[];
+    relationshipManagers: RelationshipManager[];
     accountTypesList: AccountTypeOption[];
     onClose: () => void;
     onSuccess?: () => void;
@@ -165,7 +166,7 @@ export default function EditUserContent({
                                 .filter((rm) => rm.id !== user.id)
                                 .map((rm) => (
                                     <SelectItem key={rm.id} value={rm.id}>
-                                        {rm.first_name} {rm.last_name}
+                                        {rm.firstName} {rm.lastName}
                                     </SelectItem>
                                 ))}
                         </SelectContent>

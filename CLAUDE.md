@@ -132,6 +132,66 @@ Prettier owns all formatting and runs automatically via the `PostToolUse` hook. 
 
 ### File & folder organization
 
+Four top-level layers, split by responsibility. **Dependencies point inward:** `client` and `server` may import from `shared` and `database`; `shared` and `database` never import from `client`/`server`, and `client`/`server` never import from each other.
+
+```
+ARV-DATA-PROJECT/
+├── client/               # React SPA (Vite) — the frontend; nothing server-side runs here
+│   └── src/
+│       ├── api/          # Typed fetch wrappers, one file per domain (properties.api.ts, …)
+│       ├── components/   # React components grouped by app: admin, auth, data, deals,
+│       │                 #   mastermind, modals, profile, vendors + ui/ (Radix primitives)
+│       ├── constants/    # Client-only constant values (filter options, status colors, map zoom)
+│       ├── hooks/        # React hooks + context providers (use-auth, useFilters, useView, …)
+│       ├── lib/          # Client utilities with logic (query-param builders, queryClient)
+│       ├── pages/        # Route-level page components (Wouter)
+│       ├── types/        # Types reused across 2+ CLIENT files only (see "Where types live")
+│       └── utils/        # Small pure client helpers (date, avatar, …)
+│
+├── server/               # Express API — the backend; never imported by the client
+│   ├── controllers/      # HTTP layer: parse req → call service → shape res. Per-domain + index.ts barrels
+│   ├── routes/           # Route tables wiring paths + middleware → controllers
+│   ├── services/         # Business logic + DB access (Drizzle). Per-domain; owns its own I/O types
+│   ├── middleware/       # Cross-cutting request handling (requireAuth/Access/Role/Sub, errorHandler)
+│   ├── jobs/             # Background work: data_v2/ sync pipeline, email, cache cleanup
+│   ├── websocket/        # Mastermind real-time layer (ws): registry, auth, connection
+│   ├── lib/              # Server integrations (supabase, microlink)
+│   ├── utils/            # Server pure helpers (data transforms, validate, asyncHandler)
+│   ├── constants/        # Server-only constants (role groups)
+│   └── assets/           # Static assets (email .mustache templates)
+│                         #   (no types/ folder by design — see "Where types live")
+│
+├── database/             # Source of truth for data shapes — Drizzle + Zod, imported by both sides
+│   ├── schemas/          # Drizzle table definitions (users, properties, deals, …)
+│   ├── inserts/          # Insert schemas
+│   ├── updates/          # Update schemas
+│   ├── validation/       # Zod request-validation schemas (posts, vendors, users, mastermind)
+│   └── types/            # Types DERIVED from the above ($inferSelect / z.infer) — never hand-written
+│
+└── shared/               # Code imported by BOTH client and server (the only neutral layer)
+    ├── types/            # Cross-tier contracts: deals, users, properties, claims (see below)
+    ├── utils/            # Isomorphic helpers (formatCompanyName, formatPhoneNumber, formatAddress)
+    ├── constants/        # Cross-tier constants (state defaults)
+    └── mastermind/       # The Mastermind WebSocket event protocol (events.ts) — client + server
+```
+
+(`tests/` mirrors the `server`/`client` tree for unit + integration tests; `.claude/` holds agent docs, standards, and settings.)
+
+#### Where types live (and why)
+
+A type lives in the **narrowest** place that still holds all its consumers, and moves outward only when a consumer in a wider scope appears. Rule of thumb: **used in one spot → define it there; used in 2+ spots → a types folder.** Type files are plain `.ts` modules with explicit `export` (never `.d.ts`, never ambient globals).
+
+| Where | What goes there | Why here |
+|---|---|---|
+| **co-located** (in the component / hook / service file) | A type used by only that one file — props, local state, a service's I/O type | Keeps the type next to its only user; no indirection for something nobody else reads |
+| **`client/src/types/`** | Types reused across 2+ **client** files that the server never touches (filters, view options, UI view-models) | Client-only — keeping them out of `shared` keeps `shared` meaning "crosses the wire," not "every type" |
+| **`shared/types/`** | Types used by **both** client and server — API request/response/wire contracts (`Deal`, `Roles`, `ClaimRow`, …) | The boundary's neutral home: both sides import *inward*, so neither depends on the other and the two can't silently drift |
+| **`database/types/`** | Entity + row shapes, **derived** from a Drizzle/Zod schema | The schema is the source of truth; deriving (`$inferSelect`, `z.infer`) means the type can't drift from the table/validator |
+
+**Why `shared/types` and not `client/src/types` for cross-tier types:** if a type is needed on both sides but lived in `client/src/types`, the *server* would have to reach into the client folder (a backwards dependency), or each side would hand-copy it and the two would drift. `shared` is the one place both `client` and `server` are allowed to import from, so anything that crosses the wire goes there. Conversely, a type only the client uses stays in `client/src/types` — putting it in `shared` would erode the signal that `shared` = the client↔server contract.
+
+**No `server/types/` today:** server-internal types co-locate with the service/job that owns them (a service exports the types its controller needs). A `server/types/` folder is only created if a genuinely cross-cutting, server-only type with no natural owner appears.
+
 ---
 
 ## Design

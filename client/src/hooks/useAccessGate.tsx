@@ -6,6 +6,7 @@ import ContactContent from '@/components/modals/Contact';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useDialogs } from '@/hooks/useDialogs';
+import type { SubscriptionTier } from '@shared/types/users';
 import { useToast } from '@/hooks/use-toast';
 
 import type { ContactSubject } from '@database/validation/contactMessages.validation';

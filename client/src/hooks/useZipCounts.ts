@@ -3,8 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { buildPropertyQueryParams } from '@/lib/propertyQueryParams';
 import { useCompanies } from './useCompanies';
 import { useFilters } from './useFilters';
-
-export type ZipCount = { zipCode: string; count: number };
+import type { ZipCount } from '@shared/types/properties';
 
 export function useZipCounts(options?: { enabled?: boolean }): ZipCount[] {
     const fetchEnabled = options?.enabled ?? true;

@@ -5,6 +5,7 @@ import { Loader2, Mail, Phone, HandCoins, Trash2 } from 'lucide-react';
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
+import type { DealOffer } from '@shared/types/deals';
 
 import { useToast } from '@/hooks/use-toast';
 

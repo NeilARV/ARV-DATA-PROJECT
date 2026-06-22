@@ -118,8 +118,8 @@ export async function listRelationshipManagersHandler(_req: Request, res: Respon
 
         const result = rmUsers.map((u) => ({
             id: u.id,
-            first_name: u.firstName,
-            last_name: u.lastName,
+            firstName: u.firstName,
+            lastName: u.lastName,
             phone: u.phone,
             email: u.email,
             roles: rolesByUserId.get(u.id) ?? [],

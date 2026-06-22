@@ -27,7 +27,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
-import type { RelationshipManagerRow } from '@/types/admin';
+import type { RelationshipManager } from '@shared/types/users';
 
 type WhitelistEntry = {
     id: number;
@@ -100,7 +100,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
     const whitelist = whitelistResponse?.data ?? [];
     const whitelistCount = whitelistResponse?.count ?? 0;
 
-    const { data: relationshipManagers = [] } = useQuery<RelationshipManagerRow[]>({
+    const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
         queryKey: ['/api/users/relationship-managers'],
         enabled: isAdmin,
     });
@@ -367,7 +367,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                             value={rm.id}
                                             data-testid={`option-rm-${rm.id}`}
                                         >
-                                            {rm.first_name} {rm.last_name} — {rm.email}
+                                            {rm.firstName} {rm.lastName} — {rm.email}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -497,7 +497,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                                                         variant="secondary"
                                                                         className="font-normal"
                                                                         data-testid={`button-remove-rm-${entry.id}`}
-                                                                        removeLabel={`Remove ${rm.first_name} ${rm.last_name}`}
+                                                                        removeLabel={`Remove ${rm.firstName} ${rm.lastName}`}
                                                                         onRemove={
                                                                             canEditEntries &&
                                                                             !updateWhitelistMutation.isPending
@@ -509,14 +509,14 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                                                                               msaName:
                                                                                                   entry.msaName ??
                                                                                                   MSA[0],
-                                                                                              managerName: `${rm.first_name} ${rm.last_name}`,
+                                                                                              managerName: `${rm.firstName} ${rm.lastName}`,
                                                                                           },
                                                                                       )
                                                                                 : undefined
                                                                         }
                                                                     >
-                                                                        {rm.first_name}{' '}
-                                                                        {rm.last_name}
+                                                                        {rm.firstName}{' '}
+                                                                        {rm.lastName}
                                                                     </Badge>
                                                                 ) : (
                                                                     <span className="rm-label">
@@ -542,7 +542,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                                                             entry.msaName ?? MSA[0],
                                                                         relationshipManagerId:
                                                                             value,
-                                                                        managerName: `${rm.first_name} ${rm.last_name}`,
+                                                                        managerName: `${rm.firstName} ${rm.lastName}`,
                                                                     });
                                                                 }}
                                                                 disabled={
@@ -564,8 +564,8 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                                                                 hideIndicator
                                                                                 data-testid={`option-manager-${entry.id}-${rm.id}`}
                                                                             >
-                                                                                {rm.first_name}{' '}
-                                                                                {rm.last_name}
+                                                                                {rm.firstName}{' '}
+                                                                                {rm.lastName}
                                                                             </SelectItem>
                                                                         ),
                                                                     )}
@@ -686,7 +686,7 @@ export default function EmailListTab({ isAdmin, canEditEntries = false }: EmailL
                                               ? null
                                               : relationshipManagers.find((r) => r.id === rmId);
                                       const rmLabel = rm
-                                          ? `${rm.first_name} ${rm.last_name}`
+                                          ? `${rm.firstName} ${rm.lastName}`
                                           : 'None';
                                       return `Update "${editConfirm.email}"? MSA subscription will be set to "${editConfirm.msaName}" and relationship manager to "${rmLabel}".`;
                                   })()

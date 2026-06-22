@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import DealCard from '@/components/deals/DealCard2';
 import DealsColumn from '@/components/deals/DealsColumn';
 import { useAccessGate } from '@/hooks/useAccessGate';
+import type { Deal } from '@shared/types/deals';
 
 type DealsGridProps = {
     newDeals: Deal[];

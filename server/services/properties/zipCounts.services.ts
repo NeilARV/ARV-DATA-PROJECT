@@ -3,11 +3,7 @@ import { properties, addresses, propertyTransactions } from '@database/schemas/p
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
-
-interface ZipCount {
-    zipCode: string;
-    count: number;
-}
+import type { ZipCount } from '@shared/types/properties';
 
 /**
  * Returns property counts grouped by zip code for the given filters.

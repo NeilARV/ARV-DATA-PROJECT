@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, MapPin, Building2, Hash, Layers } from 'lucide-react';
 import { COUNTIES, MSA } from '@/constants/filters.constants';
 import type { LocationFilter } from '@/types/deals';
+import type { Deal } from '@shared/types/deals';
 
 // Returns the primary city name from a full MSA string
 // e.g. "San Diego-Chula Vista-Carlsbad, CA" → "San Diego"

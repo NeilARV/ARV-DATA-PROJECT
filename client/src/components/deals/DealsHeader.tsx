@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
 import DealsLocationSearch, { msaShortName } from '@/components/deals/DealsLocationSearch';
 import type { LocationFilter } from '@/types/deals';
+import type { Deal, DealTab } from '@shared/types/deals';
 
 type DealsHeaderProps = {
     tab: DealTab;

@@ -1,8 +1,7 @@
 import { normalizeDateToYMD } from 'server/utils/normalization';
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
 import type { PropertyWithIds, TransactionWithIds } from './resolve-ids';
-
-type PropertyStatus = 'on-market' | 'in-renovation' | 'sold' | 'wholesale';
+import type { PropertyStatus } from '@shared/types/properties';
 
 /**
  * Extends PropertyWithIds with a resolved statuses array (multi-status).
