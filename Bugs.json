@@ -1,0 +1,74 @@
+[
+  {
+    "file": "server/services/channels/channels.services.ts",
+    "line": 386,
+    "summary": "The channel-management routes (PATCH /:id, POST /:id/archive, DELETE /:id) gate only on requireRole(ADMIN_ROLES) and their services never check channel type, so an admin can rename, archive, and hard-delete a DM channel they aren't a member of — contradicting the PR's stated 'admins have NO delete access to a DM' invariant.",
+    "failure_scenario": "An admin who obtains a DM's channel id (DB, logs, an event payload) calls POST /api/channels/:dmId/archive then DELETE /api/channels/:dmId (only an isArchived check) → the DM channel and ALL its private messages cascade-delete; or PATCH /api/channels/:dmId {name} renames it off the deterministic dm:<lo>:<hi> slug, so getOrCreateDmChannel no longer finds it and the next send forks a new empty conversation, orphaning the history. The 'DMs are fully private from admins' guarantee is enforced only by id-secrecy, not an actual guard."
+  },
+  {
+    "file": "client/src/hooks/use-dm-conversation.ts",
+    "line": 24,
+    "summary": "The DM resolve query uses staleTime: Infinity and is invalidated only by the SENDER after their first send; nothing invalidates the RECIPIENT's resolve query when the counterparty creates the conversation, so a recipient who has the draft open/cached stays stuck on the empty 'No messages yet' state.",
+    "failure_scenario": "User B opens /mastermind/dm/A before any message exists → useDmConversation caches {channelId: null} forever. User A sends the first message. B's incoming ChannelActivity doorbell invalidates only ['/api/dms'] (the sidebar list), never ['/api/dms', A, 'resolve']. DmConversationView keeps reading the cached null channelId, so B sees no message (and MessageList never mounts/subscribes) until a full page reload."
+  },
+  {
+    "file": "tests/server/api/dms/dms.integration.test.ts",
+    "line": 8,
+    "summary": "Every happy-path test vi.mock's the entire DM controller, so the real DM-specific contract from access-control.md §5.15 is never exercised — only the requireMastermind 401/403/2xx gate runs against real code.",
+    "failure_scenario": "Self-DM 400, ineligible/unknown-counterparty 404 (existence-never-disclosed), non-member 404-not-403 on read/delete/react, admin-cannot-delete-a-DM-message, no-mentions-in-DM, and notification-suppress-when-viewing are all untested; a regression in any of these privacy guards (e.g. assertDmMembership returning 403, or admin delete-any leaking into DMs) ships green. testing.md mandates these for new routes."
+  },
+  {
+    "file": "client/src/pages/Mastermind.tsx",
+    "line": 248,
+    "summary": "dmsWithUnread always lets live unreadState win over the server's authoritative unreadCount, and the seed effect only inserts a channelId when absent (!next.has), so once a DM is tracked its server count is never reconciled — the badge can drift permanently if a WS event is ever missed.",
+    "failure_scenario": "User reads a DM on another tab/device so server unread is now 0 (or a sleeping tab misses a ChannelActivity so live count is stale at 0 while server shows 3). A later /api/dms refetch returns the correct count, but because next.has(channelId) is true the seed skips it and dmsWithUnread keeps the stale live count — the sidebar badge is wrong with no path to self-heal short of reload."
+  },
+  {
+    "file": "server/controllers/dms/dms.controllers.ts",
+    "line": 143,
+    "summary": "Bell-suppression keys off isUserSubscribedToChannel, but a recipient viewing a brand-new draft DM is not subscribed (the channel didn't exist when they opened it), so they always get a notification for a conversation that is on-screen — violating decision #3 (suppress when viewing).",
+    "failure_scenario": "User B has /mastermind/dm/A open as a draft (channelId null → MessageList not mounted → not subscribed). A sends the first message; getOrCreateDmChannel creates the channel; isUserSubscribedToChannel(B, newChannelId) returns false → a 'sent you a message' bell fires while B is actively looking at the thread."
+  },
+  {
+    "file": "client/src/pages/Mastermind.tsx",
+    "line": 201,
+    "summary": "The activity-doorbell effect treats ANY untracked channelId as 'most likely a brand-new DM' and invalidates /api/dms, but the public-channel doorbell fans out to all eligible users — so a newly-created public channel's id (not yet in the client's /api/channels list) is misclassified.",
+    "failure_scenario": "An admin creates a new public channel and posts; every connected client receives a ChannelActivity with an unknown channelId, isKnownChannel is false, so they refetch /api/dms (the wrong list) instead of /api/channels, and the new channel never surfaces live while a phantom unread accrues against an id the sidebar can't render or clear."
+  },
+  {
+    "file": "server/services/messages/messages.services.ts",
+    "line": 481,
+    "summary": "On the DM send path createMessage re-SELECTs the channel by id that getOrCreateDmChannel already fetched and returned in full, and assertChannelAccessible→assertDmMembership re-queries channel_members just to recover the counterparty id that the controller already holds as req.params.userId — plus getDmContext fetches the user row twice (select + isMastermindEligible).",
+    "failure_scenario": "Every DM send incurs 2 redundant Neon round-trips (channel re-select + membership re-query for a known id); every DM history/draft open incurs a duplicate user-row fetch. On a connectionless serverless DB each is a full network hop on the hottest path."
+  },
+  {
+    "file": "server/services/dms/dms.services.ts",
+    "line": 189,
+    "summary": "listDirectMessages sorts conversations by lastMessageAt.getTime() with no stable tiebreaker, so two DMs whose newest surviving messages share an identical created_at sort nondeterministically.",
+    "failure_scenario": "Two conversations whose most recent messages have equal created_at timestamps → the comparator returns 0 → their relative order flips between refetches, visibly reordering the sidebar on every poll."
+  },
+  {
+    "file": "client/src/components/mastermind/ChannelSidebar.tsx",
+    "line": 163,
+    "summary": "The avatar 'image-or-colored-circle with first/last initials' block is hand-rolled a 6th time here, and unlike DmHeader (which adds || '?') this copy has no empty-name fallback, so a blank-named counterparty renders an empty avatar bubble.",
+    "failure_scenario": "A Mastermind-eligible user with empty firstName/lastName appears in the DM list → `''.toUpperCase()` → a colored circle with no letters. More broadly the same avatar+initials markup is duplicated across ChannelSidebar, DmHeader, NewDmDialog, MessageItem, NotificationBell, and use-mention-card with three different empty-name fallbacks ('?', 'this user', none) that will keep drifting; a shared <UserAvatar> + getInitials helper (next to getAvatarColor) would unify them."
+  },
+  {
+    "file": "shared/mastermind/events.ts",
+    "line": 155,
+    "summary": "DmUserWire duplicates the identical {id, firstName, lastName, profileImageUrl} shape already defined as DmOtherUser (dms.services.ts:13) and MentionCandidate (channels.services.ts:331), with DmCandidate a fourth alias — one shape, four hand-written names.",
+    "failure_scenario": "Adding a field to the counterparty payload (e.g. a display handle) requires editing all of DmUserWire/DmOtherUser/MentionCandidate and the controller .select() projections; miss one and the wire payload silently lacks the field with no type error because the types aren't related. DmOtherUser/MentionCandidate should alias DmUserWire."
+  },
+  {
+    "file": "server/services/messages/messages.services.ts",
+    "line": 589,
+    "summary": "DM behavior (skip mentions, skip @announcement gate, author-only delete) is driven by an isDm boolean recomputed independently in createMessage, updateMessage, and softDeleteMessage rather than centralized on channel-type, so a future private channel type must touch all three sites.",
+    "failure_scenario": "When group_dm (already reserved in the enum) or 'private' channels are added, each of the three scattered `if (!isDm)` / `isDm` guards must be found and updated; missing one re-introduces exactly the mention/announcement-fan-out-into-a-private-channel leak this PR set out to prevent."
+  },
+  {
+    "file": "server/services/dms/dms.services.ts",
+    "line": 225,
+    "summary": "assertDmMembership (REST gate: throws 404 + returns counterparty) and isDmMember (WS gate: returns boolean) are two separate implementations of the same 'is this user in this DM?' query that can drift.",
+    "failure_scenario": "If DM membership semantics change (e.g. a left/blocked-member flag), both must be updated in lockstep; if only assertDmMembership is updated, the WS subscribe gate (isDmMember) keeps admitting a user the REST paths now reject, leaking live DM events. One predicate should back both."
+  }
+]
