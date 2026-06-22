@@ -25,9 +25,16 @@ type MessageListProps = {
     channelId: string;
     highlightMessageId?: string | null;
     onHighlightDone?: () => void;
+    // True when rendering a DM — suppresses the per-message "start a DM" action (you're already in one).
+    isDm?: boolean;
 };
 
-export function MessageList({ channelId, highlightMessageId, onHighlightDone }: MessageListProps) {
+export function MessageList({
+    channelId,
+    highlightMessageId,
+    onHighlightDone,
+    isDm = false,
+}: MessageListProps) {
     const { subscribeToChannel, unsubscribeFromChannel } = useMastermindSocket();
     const { user, isAdmin, isOwner } = useAuth();
     const canPin = isAdmin || isOwner;
@@ -109,6 +116,7 @@ export function MessageList({ channelId, highlightMessageId, onHighlightDone }: 
                     isHighlighted={message.id === highlightMessageId}
                     currentUserId={user?.id}
                     canPin={canPin}
+                    canStartDm={!isDm}
                 />
             ))}
             <div ref={bottomRef} className="h-2" />

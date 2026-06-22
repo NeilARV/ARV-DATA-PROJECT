@@ -35,6 +35,7 @@ function notificationText(n: NotificationWire): string {
             : 'an offer';
         return `submitted an offer of ${amount}`;
     }
+    if (n.type === 'direct_message') return 'sent you a message';
     const channel = n.channelName ? `#${n.channelName}` : 'a channel';
     if (n.type === 'announcement') return `made an announcement in ${channel}`;
     return n.type === 'channel_mention'
@@ -72,6 +73,10 @@ export function NotificationBell() {
         setOpen(false);
         if (n.type === 'deal_bid' && n.dealId != null) {
             setLocation(`/deals?dealId=${n.dealId}`);
+            return;
+        }
+        if (n.type === 'direct_message' && n.actorId) {
+            setLocation(`/mastermind/dm/${n.actorId}`);
             return;
         }
         if (n.channelName) {

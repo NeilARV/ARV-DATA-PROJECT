@@ -29,6 +29,9 @@ type UseMastermindEditorOptions = {
     onSubmit?: () => void;
     initialContent?: string;
     autofocus?: boolean;
+    // DMs are 1:1 — no @mentions. When false, the mention extensions and their candidate
+    // queries are omitted so the "@" trigger never fires and no member/vendor lists are fetched.
+    enableMentions?: boolean;
 };
 
 // Shown first when the user types "@", before any real users. @channel is open to everyone;
@@ -46,6 +49,7 @@ export function useMastermindEditor({
     onSubmit,
     initialContent,
     autofocus = false,
+    enableMentions = true,
 }: UseMastermindEditorOptions) {
     const { isAdmin, isOwner } = useAuth();
     const canAnnounce = isAdmin || isOwner;
@@ -117,7 +121,7 @@ export function useMastermindEditor({
                 users: MemberRow[];
             }>,
         staleTime: 2 * 60 * 1000,
-        enabled: !!channelId,
+        enabled: enableMentions && !!channelId,
     });
 
     const allUsersRef = useRef<MentionItem[]>([]);
@@ -136,6 +140,7 @@ export function useMastermindEditor({
         queryKey: ['vendors'],
         queryFn: () => fetchVendors(),
         staleTime: 5 * 60 * 1000,
+        enabled: enableMentions,
     });
 
     const allVendorsRef = useRef<MentionItem[]>([]);
@@ -320,8 +325,8 @@ export function useMastermindEditor({
                 HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
             }),
             Placeholder.configure({ placeholder }),
-            UserMention,
-            VendorMention,
+            // Mentions are omitted entirely in DM mode so the "@" trigger never activates.
+            ...(enableMentions ? [UserMention, VendorMention] : []),
         ],
         editorProps: {
             attributes: { class: 'mastermind-composer-editor focus:outline-none' },

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 
 import { MessageActions } from '@/components/mastermind/MessageActions';
@@ -40,6 +41,9 @@ type MessageItemProps = {
     isHighlighted?: boolean;
     currentUserId: string | undefined;
     canPin: boolean;
+    // Whether to offer the per-message "send a direct message" action (false inside a DM, and
+    // never shown on your own messages).
+    canStartDm?: boolean;
 };
 
 export function MessageItem({
@@ -48,9 +52,11 @@ export function MessageItem({
     isHighlighted = false,
     currentUserId,
     canPin,
+    canStartDm = false,
 }: MessageItemProps) {
     const { senderFirstName, senderLastName, senderId, senderProfileImageUrl } = message;
     const { toast } = useToast();
+    const [, setLocation] = useLocation();
     const rootRef = useRef<HTMLDivElement>(null);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -192,6 +198,11 @@ export function MessageItem({
                     onEdit={() => setIsEditing(true)}
                     canDelete={isAuthor || canPin}
                     onDelete={() => deleteMutation.mutate()}
+                    onMessageUser={
+                        canStartDm && !isAuthor
+                            ? () => setLocation(`/mastermind/dm/${senderId}`)
+                            : undefined
+                    }
                 />
             )}
         </div>

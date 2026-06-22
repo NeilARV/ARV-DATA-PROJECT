@@ -20,7 +20,10 @@ import {
     ensurePreviewsFetched,
 } from 'server/services/messages/linkPreviews.services';
 import { MASTERMIND_REACTION_EMOJIS } from '@database/validation/mastermind.validation';
-import { userIsAdminOrOwner } from 'server/services/channels/channels.services';
+import {
+    userIsAdminOrOwner,
+    assertChannelAccessible,
+} from 'server/services/channels/channels.services';
 import { ServiceError } from 'server/lib/error';
 import type {
     MessageAttachmentWire,
@@ -127,6 +130,11 @@ type CreateMessageResult = {
     // Whether the message's channel is admin-only, so the controller can scope the cross-channel
     // activity doorbell to admins/owners (non-admins must never learn about admin-only traffic).
     isAdminOnly: boolean;
+    // True when the channel is a 1:1 DM. DMs never fan out mentions (the controller routes a
+    // single direct_message notification to the counterparty instead).
+    isDm: boolean;
+    // The DM counterparty's user id (the notification recipient); null for a public channel.
+    dmRecipientId: string | null;
 };
 
 // Writes message_mentions rows for the given set of user IDs. Filters to only
@@ -321,13 +329,12 @@ export async function getEnrichedMessageById(
     return hydrated;
 }
 
-// Phase 1: messages live only in public, non-archived channels. Archived/unknown → 404.
-// Admin-only channels are readable by admins/owners only; for anyone else they 404 (existence
-// is never disclosed).
+// Resolves a readable channel for the viewer or throws 404. Public channels are readable by any
+// eligible user (admin-only ones by admins/owners only); a DM is readable only by its two members.
+// Archived/unknown/unsupported types → 404 (existence is never disclosed).
 async function getReadableChannelOrThrow(channelId: string, viewerId: string): Promise<void> {
     const [channel] = await db
         .select({
-            id: channels.id,
             type: channels.type,
             isArchived: channels.isArchived,
             isAdminOnly: channels.isAdminOnly,
@@ -336,12 +343,15 @@ async function getReadableChannelOrThrow(channelId: string, viewerId: string): P
         .where(eq(channels.id, channelId))
         .limit(1);
 
-    if (!channel || channel.type !== 'public' || channel.isArchived) {
+    if (!channel) {
         throw new MessageServiceError(404, 'Channel not found');
     }
-    if (channel.isAdminOnly && !(await userIsAdminOrOwner(viewerId))) {
-        throw new MessageServiceError(404, 'Channel not found');
-    }
+    await assertChannelAccessible(
+        channelId,
+        viewerId,
+        channel,
+        new MessageServiceError(404, 'Channel not found'),
+    );
 }
 
 // Resolves a cursor/since message id to its ordering keys, scoped to the channel.
@@ -447,11 +457,16 @@ export async function createMessage({
     senderId,
     content,
     attachments = [],
+    allowDmChannel = false,
 }: {
     channelId: string;
     senderId: string;
     content: string;
     attachments?: MessageAttachmentInput[];
+    // DM channels are reachable only through the DM controller (which sets this). The public
+    // channel send route leaves it false, so a DM channel id there 404s before any write — its
+    // all-users activity doorbell must never fan out a private conversation's existence.
+    allowDmChannel?: boolean;
 }): Promise<CreateMessageResult> {
     checkPostRateLimit(senderId);
 
@@ -466,16 +481,25 @@ export async function createMessage({
         .where(eq(channels.id, channelId))
         .limit(1);
 
-    if (!channel || channel.type !== 'public') {
+    if (!channel) {
         throw new MessageServiceError(404, 'Channel not found');
     }
-    // Hide admin-only channels from non-admins (404 before the archived check leaks nothing).
-    if (channel.isAdminOnly && !(await userIsAdminOrOwner(senderId))) {
+    // A DM is writable only by its two members; the counterparty is the notification recipient.
+    // The public channel send route never serves a DM id — treat it as not-found before any
+    // membership lookup so a private conversation's existence can't be probed.
+    const isDm = channel.type === 'dm';
+    if (isDm && !allowDmChannel) {
         throw new MessageServiceError(404, 'Channel not found');
     }
-    if (channel.isArchived) {
-        throw new MessageServiceError(403, 'This channel is archived');
-    }
+    // An archived public channel is disclosed but closed to new messages (403), unlike the read
+    // paths where it 404s — so the write path passes its own archived error.
+    const dmRecipientId = await assertChannelAccessible(
+        channelId,
+        senderId,
+        channel,
+        new MessageServiceError(404, 'Channel not found'),
+        new MessageServiceError(403, 'This channel is archived'),
+    );
 
     // Never trust a client-supplied file URL — it must point at our own storage bucket.
     for (const attachment of attachments) {
@@ -492,9 +516,9 @@ export async function createMessage({
     // @announcement is admin/owner-only. In an admin-only channel the sender is already known to
     // be admin/owner (404 gate above); elsewhere verify before honoring the chip. A non-privileged
     // author can't select it in the UI, so its presence means tampering — strip it so it neither
-    // renders for others nor fans out.
+    // renders for others nor fans out. DMs never fan out, so the gate is skipped there.
     let finalContent = sanitized;
-    if (parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL)) {
+    if (!isDm && parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL)) {
         const isPrivileged = channel.isAdminOnly || (await userIsAdminOrOwner(senderId));
         if (!isPrivileged) finalContent = stripAnnouncementChips(sanitized);
     }
@@ -516,9 +540,11 @@ export async function createMessage({
         );
     }
 
-    const mentionedUserIds = parseMentionedUserIds(finalContent);
-    const sentinels = parseBroadcastSentinels(finalContent);
-    await persistMentions(created.id, mentionedUserIds);
+    // DMs are 1:1 — no @mentions / @channel / @announcement. Skip mention parsing + persistence;
+    // the controller sends a single direct_message notification to the counterparty instead.
+    const mentionedUserIds = isDm ? [] : parseMentionedUserIds(finalContent);
+    const sentinels = isDm ? new Set<string>() : parseBroadcastSentinels(finalContent);
+    if (!isDm) await persistMentions(created.id, mentionedUserIds);
 
     const enriched = await getEnrichedMessageById(created.id);
     if (!enriched) {
@@ -530,6 +556,8 @@ export async function createMessage({
         mentionedChannel: sentinels.has(CHANNEL_SENTINEL),
         mentionedAnnouncement: sentinels.has(ANNOUNCEMENT_SENTINEL),
         isAdminOnly: channel.isAdminOnly,
+        isDm,
+        dmRecipientId,
     };
 }
 
@@ -541,8 +569,14 @@ export async function updateMessage(
     attachments?: MessageAttachmentInput[],
 ): Promise<EnrichedMessage> {
     const [existing] = await db
-        .select({ id: messages.id, senderId: messages.senderId, isDeleted: messages.isDeleted })
+        .select({
+            id: messages.id,
+            senderId: messages.senderId,
+            isDeleted: messages.isDeleted,
+            channelType: channels.type,
+        })
         .from(messages)
+        .innerJoin(channels, eq(channels.id, messages.channelId))
         .where(eq(messages.id, id))
         .limit(1);
 
@@ -555,6 +589,7 @@ export async function updateMessage(
     if (existing.isDeleted) {
         throw new MessageServiceError(409, 'Cannot edit a deleted message');
     }
+    const isDm = existing.channelType === 'dm';
 
     const sanitized = sanitizeMessageHtml(content);
 
@@ -576,9 +611,10 @@ export async function updateMessage(
 
     // @announcement is admin/owner-only. Edits are author-only, so a non-privileged author can
     // never legitimately carry one — strip a tampered chip (also covers admin-only channels,
-    // since only admins/owners can author there).
+    // since only admins/owners can author there). DMs never fan out, so the gate is skipped there.
     let finalContent = sanitized;
     if (
+        !isDm &&
         parseBroadcastSentinels(sanitized).has(ANNOUNCEMENT_SENTINEL) &&
         !(await userIsAdminOrOwner(callerId))
     ) {
@@ -593,8 +629,11 @@ export async function updateMessage(
     // Replace mentions: delete the old set then insert the new one. Not wrapped in
     // a transaction because neon-http is connectionless and doesn't support them.
     // A crash here leaves stale mention rows — acceptable for Phase 1 at this scale.
-    await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
-    await persistMentions(id, parseMentionedUserIds(finalContent));
+    // DMs carry no mentions, so there is nothing to rebuild there.
+    if (!isDm) {
+        await db.delete(messageMentions).where(eq(messageMentions.messageId, id));
+        await persistMentions(id, parseMentionedUserIds(finalContent));
+    }
 
     // Reconcile attachments last: it deletes Supabase storage objects irreversibly, so it must
     // not run ahead of the content update — otherwise a failed edit would still destroy files.
@@ -612,15 +651,26 @@ export async function updateMessage(
 // ── Soft delete (author OR admin/owner) ──────────────────────────────────────────
 export async function softDeleteMessage(id: string, callerId: string): Promise<EnrichedMessage> {
     const [existing] = await db
-        .select({ id: messages.id, senderId: messages.senderId, isDeleted: messages.isDeleted })
+        .select({
+            id: messages.id,
+            senderId: messages.senderId,
+            isDeleted: messages.isDeleted,
+            channelType: channels.type,
+        })
         .from(messages)
+        .innerJoin(channels, eq(channels.id, messages.channelId))
         .where(eq(messages.id, id))
         .limit(1);
 
     if (!existing) {
         throw new MessageServiceError(404, 'Message not found');
     }
-    if (existing.senderId !== callerId && !(await userIsAdminOrOwner(callerId))) {
+    // In a DM, delete is strictly author-only — the admin/owner "delete any message" power must
+    // never reach a private conversation. In public channels it still applies.
+    const isDm = existing.channelType === 'dm';
+    const canDelete =
+        existing.senderId === callerId || (!isDm && (await userIsAdminOrOwner(callerId)));
+    if (!canDelete) {
         throw new MessageServiceError(403, 'You can only delete your own messages');
     }
 

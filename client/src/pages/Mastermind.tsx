@@ -9,15 +9,17 @@ import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
 import { ChannelPinBar } from '@/components/mastermind/ChannelPinBar';
 import { MessageList } from '@/components/mastermind/MessageList';
 import { MessageComposer } from '@/components/mastermind/MessageComposer';
+import { DmConversationView } from '@/components/mastermind/DmConversationView';
 import { DataProviders } from '@/components/DataProviders';
 import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
 
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 import type { ChannelSummary } from '@/types/mastermind';
+import type { DmListResponse } from '@/api/dms.api';
 
 type ChannelsResponse = { channels: ChannelSummary[] };
 
@@ -34,6 +36,10 @@ function MastermindContent() {
     const channelNameParam = routeParams?.channelName
         ? decodeURIComponent(routeParams.channelName)
         : null;
+    // The DM route (/mastermind/dm/:userId) has two path segments, so it never matches the
+    // single-segment channel route above — the two are mutually exclusive.
+    const [, dmRouteParams] = useRoute('/mastermind/dm/:userId');
+    const dmUserId = dmRouteParams?.userId ?? null;
 
     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
     const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());
@@ -51,12 +57,26 @@ function MastermindContent() {
     });
     const channels = data?.channels ?? [];
 
+    const { data: dmsData } = useQuery<DmListResponse>({
+        queryKey: ['/api/dms'],
+        enabled: canAccessMastermind,
+    });
+    const dms = dmsData?.conversations ?? [];
+
     // The open channel is derived from the URL (/mastermind/<name>), not local state, so links
     // are shareable and browser back/forward works. Resolve the name to the loaded channel.
     const activeChannel = channelNameParam
         ? channels.find((c) => c.name === channelNameParam) ?? null
         : null;
     const activeChannelId = activeChannel?.id ?? null;
+
+    // A DM is identified in the URL by the counterparty; resolve its channel id from the list
+    // (null for a brand-new draft that has no channel yet).
+    const activeDmChannelId = dmUserId
+        ? dms.find((d) => d.otherUser.id === dmUserId)?.channelId ?? null
+        : null;
+    // The conversation currently open — channel or DM — keyed by channel id for unread/read-state.
+    const activeConversationId = activeChannelId ?? activeDmChannelId;
 
     const markReadMutation = useMutation({
         mutationFn: (channelId: string) =>
@@ -109,21 +129,41 @@ function MastermindContent() {
         );
     }, [channels]);
 
+    // Merge DM unread into the same channel-id-keyed map. Unlike channels (seeded once), a DM
+    // conversation can appear later (a brand-new DM), so add any channel id not already tracked —
+    // without clobbering live state that WS events already advanced.
+    useEffect(() => {
+        if (dms.length === 0) return;
+        setUnreadState((prev) => {
+            let changed = false;
+            const next = new Map(prev);
+            for (const dm of dms) {
+                if (!next.has(dm.channelId)) {
+                    next.set(dm.channelId, { count: dm.unreadCount, hasMention: false });
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [dms]);
+
     // Resolve the URL to a channel. A bare /mastermind or an unknown/archived channel name
     // redirects to the first channel, so the view is never empty and the URL always names the
     // open channel (this also self-heals stale deep-links).
     useEffect(() => {
+        if (dmUserId) return; // a DM route is a valid destination — don't bounce it to a channel
         if (channels.length === 0) return;
         if (activeChannel) return;
         setLocation(`/mastermind/${encodeURIComponent(channels[0].name)}`, { replace: true });
-    }, [channels, activeChannel, setLocation]);
+    }, [channels, activeChannel, setLocation, dmUserId]);
 
-    // Opening a channel (via URL change) clears its unread badge and advances read state.
+    // Opening a conversation (channel or DM, via URL change) clears its unread badge and advances
+    // read state. A brand-new draft DM has no channel id yet, so there is nothing to clear.
     useEffect(() => {
-        if (!activeChannelId) return;
-        clearUnread(activeChannelId);
-        scheduleMarkRead(activeChannelId);
-    }, [activeChannelId, clearUnread, scheduleMarkRead]);
+        if (!activeConversationId) return;
+        clearUnread(activeConversationId);
+        scheduleMarkRead(activeConversationId);
+    }, [activeConversationId, clearUnread, scheduleMarkRead]);
 
     // Notification deep-link: /mastermind/<name>?m=<messageId>. The channel comes from the path;
     // only the highlight target rides as a query param. Capture it, switch to the chat pane on
@@ -150,31 +190,40 @@ function MastermindContent() {
     // badge for the channel being viewed (advance its read state instead); bump unread for others.
     useEffect(() => {
         if (!lastChannelActivity) return;
-        if (lastChannelActivity.channelId === activeChannelId) {
-            // User is already viewing this channel — advance read state immediately.
-            scheduleMarkRead(activeChannelId);
+        const { channelId } = lastChannelActivity;
+        if (channelId === activeConversationId) {
+            // User is already viewing this conversation — advance read state immediately.
+            scheduleMarkRead(activeConversationId);
             return;
+        }
+        // Activity in a channel id we don't track yet is most likely a brand-new DM — refetch the
+        // DM list so the conversation surfaces in the sidebar (its server unread is authoritative).
+        const isKnownChannel = channels.some((c) => c.id === channelId);
+        if (!isKnownChannel) {
+            void queryClient.invalidateQueries({ queryKey: ['/api/dms'], exact: true });
         }
         const isMentioned =
             lastChannelActivity.mentionedEveryone ||
             lastChannelActivity.mentionedUserIds.includes(user?.id ?? '');
         setUnreadState((prev) => {
-            const current = prev.get(lastChannelActivity.channelId) ?? {
-                count: 0,
-                hasMention: false,
-            };
-            return new Map(prev).set(lastChannelActivity.channelId, {
+            const current = prev.get(channelId) ?? { count: 0, hasMention: false };
+            return new Map(prev).set(channelId, {
                 count: current.count + 1,
                 hasMention: current.hasMention || isMentioned,
             });
         });
-    }, [lastChannelActivity, activeChannelId, user?.id, scheduleMarkRead]);
+    }, [lastChannelActivity, activeConversationId, channels, user?.id, scheduleMarkRead]);
 
     function handleSelectChannel(id: string) {
         const channel = channels.find((c) => c.id === id);
         if (!channel) return;
         setMobileTab('chat');
         setLocation(`/mastermind/${encodeURIComponent(channel.name)}`);
+    }
+
+    function handleSelectDm(userId: string) {
+        setMobileTab('chat');
+        setLocation(`/mastermind/dm/${userId}`);
     }
 
     // The open channel is derived from the URL by name, so when the active channel is renamed or
@@ -194,6 +243,22 @@ function MastermindContent() {
         const live = unreadState.get(c.id);
         return live ? { ...c, unreadCount: live.count, hasMention: live.hasMention } : c;
     });
+
+    // Same live-unread merge for the DM list.
+    const dmsWithUnread = dms.map((dm) => {
+        const live = unreadState.get(dm.channelId);
+        return live ? { ...dm, unreadCount: live.count } : dm;
+    });
+
+    // Mobile chat-tab label: channel name, the DM counterparty's name, or a generic fallback.
+    const activeDm = dmUserId ? dms.find((d) => d.otherUser.id === dmUserId) : null;
+    const chatTabLabel = activeChannel
+        ? `# ${activeChannel.name}`
+        : activeDm
+          ? `${activeDm.otherUser.firstName} ${activeDm.otherUser.lastName}`.trim()
+          : dmUserId
+            ? 'Message'
+            : 'Chat';
 
     // ── Gate states ────────────────────────────────────────────────────────────
 
@@ -245,7 +310,7 @@ function MastermindContent() {
                             : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
-                    {activeChannel ? `# ${activeChannel.name}` : 'Chat'}
+                    {chatTabLabel}
                 </button>
             </div>
 
@@ -268,6 +333,9 @@ function MastermindContent() {
                             canManageChannels={isOwner || isAdmin}
                             onChannelRenamed={handleChannelRenamed}
                             onChannelDeleted={handleChannelDeleted}
+                            dms={dmsWithUnread}
+                            activeDmUserId={dmUserId}
+                            onSelectDm={handleSelectDm}
                         />
                     )}
                 </div>
@@ -278,7 +346,14 @@ function MastermindContent() {
                         mobileTab === 'chat' ? 'flex' : 'hidden'
                     } md:flex`}
                 >
-                    {activeChannel ? (
+                    {dmUserId ? (
+                        <DmConversationView
+                            key={`dm-${dmUserId}`}
+                            otherUserId={dmUserId}
+                            highlightMessageId={highlightMessageId}
+                            onHighlightDone={() => setHighlightMessageId(null)}
+                        />
+                    ) : activeChannel ? (
                         <>
                             <ChannelHeader channel={activeChannel} />
                             <ChannelPinBar
@@ -292,6 +367,7 @@ function MastermindContent() {
                             />
                             <MessageComposer
                                 key={activeChannel.id}
+                                mode="channel"
                                 channelId={activeChannel.id}
                                 channelName={activeChannel.name}
                             />

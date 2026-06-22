@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brain, Hash, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Brain, Hash, MessageSquarePlus, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import {
     DropdownMenu,
@@ -10,8 +10,12 @@ import {
 import { AddChannelDialog } from '@/components/mastermind/AddChannelDialog';
 import { EditChannelDialog } from '@/components/mastermind/EditChannelDialog';
 import { DeleteChannelDialog } from '@/components/mastermind/DeleteChannelDialog';
+import { NewDmDialog } from '@/components/mastermind/NewDmDialog';
+
+import { getAvatarColor } from '@/utils/avatar';
 
 import type { ChannelSummary } from '@/types/mastermind';
+import type { DirectMessageSummaryWire } from '@shared/mastermind/events';
 
 type ChannelSidebarProps = {
     channels: ChannelSummary[];
@@ -20,6 +24,9 @@ type ChannelSidebarProps = {
     canManageChannels: boolean;
     onChannelRenamed: (channelId: string, newName: string) => void;
     onChannelDeleted: (channelId: string) => void;
+    dms: DirectMessageSummaryWire[];
+    activeDmUserId: string | null;
+    onSelectDm: (userId: string) => void;
 };
 
 function UnreadBadge({ count, hasMention }: { count: number; hasMention: boolean }) {
@@ -39,8 +46,12 @@ export function ChannelSidebar({
     canManageChannels,
     onChannelRenamed,
     onChannelDeleted,
+    dms,
+    activeDmUserId,
+    onSelectDm,
 }: ChannelSidebarProps) {
     const [addOpen, setAddOpen] = useState(false);
+    const [newDmOpen, setNewDmOpen] = useState(false);
     const [channelToEdit, setChannelToEdit] = useState<ChannelSummary | null>(null);
     const [channelToDelete, setChannelToDelete] = useState<ChannelSummary | null>(null);
 
@@ -124,14 +135,69 @@ export function ChannelSidebar({
                     })}
                 </ul>
 
-                {/* Direct Messages — Phase 2 stub */}
-                <div className="px-3 mt-5 mb-1">
+                {/* Direct Messages */}
+                <div className="flex items-center justify-between px-3 mt-5 mb-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Direct Messages
                     </span>
+                    <button
+                        onClick={() => setNewDmOpen(true)}
+                        className="p-0.5 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
+                        aria-label="New message"
+                        title="New message"
+                    >
+                        <MessageSquarePlus className="w-4 h-4" />
+                    </button>
                 </div>
-                <p className="px-3 text-xs text-muted-foreground italic">Coming soon</p>
+
+                {dms.length === 0 ? (
+                    <p className="px-3 text-xs text-muted-foreground italic">No conversations yet</p>
+                ) : (
+                    <ul>
+                        {dms.map((dm) => {
+                            const isActive = activeDmUserId === dm.otherUser.id;
+                            const hasUnread = dm.unreadCount > 0;
+                            const name =
+                                `${dm.otherUser.firstName} ${dm.otherUser.lastName}`.trim();
+                            const initials =
+                                `${dm.otherUser.firstName.charAt(0)}${dm.otherUser.lastName.charAt(0)}`.toUpperCase();
+                            return (
+                                <li key={dm.channelId}>
+                                    <button
+                                        onClick={() => onSelectDm(dm.otherUser.id)}
+                                        className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
+                                    >
+                                        {dm.otherUser.profileImageUrl ? (
+                                            <img
+                                                src={dm.otherUser.profileImageUrl}
+                                                alt={name}
+                                                className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-semibold flex-shrink-0"
+                                                style={{ backgroundColor: getAvatarColor(dm.otherUser.id) }}
+                                            >
+                                                {initials}
+                                            </div>
+                                        )}
+                                        <span
+                                            className={`truncate flex-1 ${hasUnread && !isActive ? 'font-semibold text-foreground' : ''}`}
+                                        >
+                                            {name}
+                                        </span>
+                                        {!isActive && (
+                                            <UnreadBadge count={dm.unreadCount} hasMention={false} />
+                                        )}
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
             </div>
+
+            <NewDmDialog open={newDmOpen} onClose={() => setNewDmOpen(false)} />
 
             {canManageChannels && (
                 <>

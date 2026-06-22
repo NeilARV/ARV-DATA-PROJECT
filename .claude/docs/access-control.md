@@ -371,7 +371,8 @@ read-state; they are not consulted for authorization in Phase 1.
   `last_read_message_id` (the unread-badge clear). It upserts the caller's own
   `channel_members` row — this is the **lazy membership join point** — and returns `204`.
   It only ever touches the caller's own read-state, so no ownership check is needed beyond
-  `requireMastermind`.
+  `requireMastermind`. It is **DM-aware**: for a `dm` channel id the caller must be one of the two
+  members (non-member → `404`, existence never disclosed); admin-only channels stay admin/owner-only.
 - `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
 - `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
   channel is **already archived** — otherwise it returns `409` ("archive the channel before
@@ -450,6 +451,12 @@ are enforced **inside the service**, mirroring the Vendors posts pattern:
   endpoint (`multer`, field `file`, max 10 MB, allowlisted image/doc MIME types) that uploads to
   Supabase Storage and returns `{ attachment }` metadata to send back with the message. Access
   matrix is the standard `requireMastermind` chain (401 / 403 / ✓).
+- **DM messages (Phase 2):** the message-id-scoped routes above (`PATCH`/`DELETE /api/messages/:id`,
+  `POST`/`DELETE /api/messages/:id/reactions`) are not channel-scoped, so each resolves the
+  message's channel and, when it is a **DM**, requires the caller to be one of the two members
+  (`assertDmMembership`) — a non-member is **404**. Two DM-specific overrides to the table above:
+  **edit stays author-only** (as everywhere), and **delete is author-only in a DM** — the
+  admin/owner "delete any" power in the `DELETE` row does **not** apply to DM messages. See §5.15.
 
 **Real-time (`/ws`) upgrade gate:** the Mastermind WebSocket at `/ws` is **not** an Express
 route, so the middleware table above doesn't apply. The upgrade is authenticated manually in
@@ -486,6 +493,49 @@ notifications — there is no admin view and no cross-user access at any role.
   to another user, so the route does not leak which notification ids exist.
 - New notifications are also pushed over the `/ws` socket (`notification.created`) to every
   connected tab of the recipient — same upgrade gate as §5.13.
+
+---
+
+### 5.15 Mastermind — Direct Messages (`/api/dms`)
+
+1:1 direct messages (Phase 2). A DM is a `channels` row with `type='dm'` and exactly **two**
+`channel_members` rows; it reuses the entire message pipeline. All DM routes are gated by
+`requireMastermind` (same rule as channels/messages: any subscription tier OR any team role).
+**Authorization inside a DM is by membership, enforced in the service** (`assertDmMembership`) — a
+non-member is always **404** (existence is never disclosed), at **every role including admin/owner**.
+
+**DMs are fully private:** admins/owners have **no** elevated access — they cannot list, read, or
+delete a DM they are not a member of, and the "admin can delete any message" rule (§5.13) is
+**disabled** for DM messages (delete is author-only).
+
+| Method | Route | Middleware chain | unauth | no-role/no-sub | sub (basic/pro/prem) | member/RM | admin/owner |
+|---|---|---|---|---|---|---|---|
+| GET | `/api/dms` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/dms/candidates` | `requireMastermind` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| POST | `/api/dms/:userId/messages` | `requireMastermind` (+ eligibility/membership in service) | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/dms/:userId/messages` | `requireMastermind` (+ eligibility/membership in service) | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+
+**Behavior notes:**
+- `GET /api/dms` lists the caller's DM conversations (counterparty profile + unread count +
+  last-activity), newest-first, **self-scoped**. Conversations with no surviving messages are omitted.
+- `GET /api/dms/candidates` lists Mastermind-eligible users to start a DM with (everyone but the
+  caller), for the sidebar "New message" picker.
+- `POST /api/dms/:userId/messages` **creates the DM channel on first use** (lazy) via
+  `getOrCreateDmChannel`, then posts. `:userId` must be a **different, Mastermind-eligible** user —
+  otherwise **404** (an ineligible/unknown counterparty is never disclosed); messaging yourself is
+  **400**. The channel name is the deterministic `dm:<lo>:<hi>` id pair, so a pair maps to exactly
+  one channel (`UNIQUE(channels.name)`); a second post joins the existing conversation.
+- `GET /api/dms/:userId/messages` resolves the caller↔`:userId` DM and returns its history (same
+  keyset/backfill contract as channel history), or an **empty draft** (no channel yet) for a pair
+  that has never messaged — it does **not** create the channel (creation is on first send). Same
+  `:userId` eligibility/`400`-self rules as the POST.
+- **No `@mentions` in a DM** — user/`@channel`/`@announcement` chips are not parsed, persisted, or
+  fanned out for DM messages (server-enforced).
+- **Notifications:** each DM message creates a `direct_message` bell notification for the recipient
+  **unless they are currently viewing that conversation** (subscribed to the DM channel over the
+  socket). Routed by actor (the sender) → `/mastermind/dm/:actorId`. **No email** for DMs.
+- **Real-time:** the `/ws` `subscribe` to a DM channel is accepted only for its two members (same
+  membership check); any other client's subscribe is ignored, so no DM events leak.
 
 ---
 

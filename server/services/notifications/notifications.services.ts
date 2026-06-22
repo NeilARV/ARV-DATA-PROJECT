@@ -21,7 +21,7 @@ const EXCERPT_MAX_LENGTH = 120;
 
 type EnrichedNotification = {
     id: string;
-    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid';
+    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid' | 'direct_message';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
@@ -220,6 +220,71 @@ export async function createDealBidNotification({
     };
 }
 
+// ── Create (a direct_message notification for the DM recipient) ─────────────────────
+export async function createDirectMessageNotification({
+    messageId,
+    channelId,
+    recipientUserId,
+    actorId,
+}: {
+    messageId: string;
+    channelId: string;
+    recipientUserId: string;
+    actorId: string;
+}): Promise<CreatedNotification | null> {
+    // A user messaging themselves (shouldn't happen — DMs require two people) never self-notifies.
+    if (recipientUserId === actorId) return null;
+
+    const [inserted] = await db
+        .insert(notifications)
+        .values({
+            userId: recipientUserId,
+            type: 'direct_message',
+            channelId,
+            messageId,
+            actorId,
+        })
+        .returning({
+            id: notifications.id,
+            userId: notifications.userId,
+            type: notifications.type,
+            isRead: notifications.isRead,
+            createdAt: notifications.createdAt,
+        });
+
+    // The actor (DM sender) and a message excerpt power the bell row — one lookup.
+    const [context] = await db
+        .select({
+            messageContent: messages.content,
+            actorFirstName: users.firstName,
+            actorLastName: users.lastName,
+            actorProfileImageUrl: users.profileImageUrl,
+        })
+        .from(messages)
+        .innerJoin(users, eq(users.id, messages.senderId))
+        .where(eq(messages.id, messageId))
+        .limit(1);
+
+    return {
+        id: inserted.id,
+        type: inserted.type,
+        channelId,
+        // Never surface the DM's synthetic channel name — the bell deep-links a DM by its actor.
+        channelName: null,
+        messageId,
+        messageExcerpt: toExcerpt(context?.messageContent ?? null),
+        dealId: null,
+        metadata: null,
+        actorId,
+        actorFirstName: context?.actorFirstName ?? null,
+        actorLastName: context?.actorLastName ?? null,
+        actorProfileImageUrl: context?.actorProfileImageUrl ?? null,
+        isRead: inserted.isRead,
+        createdAt: inserted.createdAt,
+        recipientUserId: inserted.userId,
+    };
+}
+
 // ── Feed + unread count ───────────────────────────────────────────────────────────
 export async function listNotifications({
     userId,
@@ -265,7 +330,8 @@ export async function listNotifications({
             id: row.id,
             type: row.type,
             channelId: row.channelId,
-            channelName: row.channelName,
+            // A DM's synthetic channel name is never surfaced — the bell routes DMs by actor.
+            channelName: row.type === 'direct_message' ? null : row.channelName,
             messageId: row.messageId,
             // A soft-deleted message yields an empty excerpt; the client falls back to a label.
             messageExcerpt: row.messageIsDeleted ? '' : toExcerpt(row.messageContent),

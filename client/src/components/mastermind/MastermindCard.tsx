@@ -1,6 +1,8 @@
 import { Link } from 'wouter';
 import { Loader2, Mail, Phone, Globe, X, type LucideIcon } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 type MastermindCardProps = {
     /** Display name — callers compile first/last or pass a company name. */
     name: string;
@@ -21,6 +23,10 @@ type MastermindCardProps = {
     isLoading?: boolean;
     /** Card width in px. Vendors are given a wider card so the description reads well. */
     width?: number;
+    /** Optional primary action rendered as a full-width button below the content (e.g. "Send message"). */
+    actionLabel?: string;
+    actionIcon?: LucideIcon;
+    onAction?: () => void;
     onClose: () => void;
 };
 
@@ -55,6 +61,9 @@ export function MastermindCard({
     website,
     isLoading = false,
     width = 288,
+    actionLabel,
+    actionIcon: ActionIcon,
+    onAction,
     onClose,
 }: MastermindCardProps) {
     const hasContact = !!(email || phone || website);
@@ -149,6 +158,18 @@ export function MastermindCard({
                         <Loader2 className="w-3 h-3 animate-spin" />
                         Loading…
                     </div>
+                )}
+
+                {onAction && actionLabel && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-3"
+                        onClick={onAction}
+                    >
+                        {ActionIcon && <ActionIcon />}
+                        {actionLabel}
+                    </Button>
                 )}
             </div>
         </div>

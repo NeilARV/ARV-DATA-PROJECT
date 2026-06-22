@@ -375,6 +375,7 @@ High-value once the core community is live. Schema already anticipates most of t
 
 - **DMs / Group DMs** — `channels.type` `dm` / `group_dm`; a DM is a channel with 2 members, a
   group DM 3+. Reuse the entire message pipeline; add a DM-creation flow + DM list in the sidebar.
+  **1:1 DMs are specced + in progress — see Part 2 below. Group DMs remain deferred.**
 - **Threads / replies** — reply to a message via `parent_message_id`; thread panel UI; thread
   reply counts; notify thread participants.
 - **Message search** — Postgres `tsvector` GIN index on `messages.content`; scoped to channels
@@ -397,6 +398,76 @@ High-value once the core community is live. Schema already anticipates most of t
   that day (in-app notifications still accrue); optionally fold the rest into a future digest.
 - Respect the existing per-user notification toggle; honor a Mastermind-specific opt-out.
 **Done:** a mention emails the user (with deep link), capped at 3/day, never spams `@channel`.
+
+### Part 2 — Direct Messages (1:1) | In progress
+
+Private 1:1 conversations between two users, reusing the entire message pipeline. **Group DMs are
+explicitly out of scope for this part** (the `group_dm` channel type stays reserved for later).
+
+**Decisions (resolved with the product owner):**
+1. **Creation is lazy** — clicking "Send message" opens an empty composer; the conversation row
+   and both sidebar entries persist only when the **first message is sent**. The recipient sees the
+   conversation only once a real message exists. No ghost/empty conversations.
+2. **Audience is any Mastermind-eligible user**, discoverable three ways: the per-message hover
+   toolbar (a new message icon, on **channel** messages only), the user profile/mention card, and a
+   dedicated **"New message"** button + user search in the DM section of the sidebar.
+3. **Notify on every DM, but suppress when the recipient has that conversation open** (i.e. is
+   currently subscribed to the DM channel over the socket — they'll see it live). Bell only; **no
+   email** for DMs.
+4. **DMs are fully private** — admins/owners have **no** read/list/delete access. Delete is
+   **author-only** in a DM; the "admin can delete any message" power never reaches a DM.
+
+**Data model (no new tables):** a DM is a `channels` row with `type='dm'` and exactly two
+`channel_members` rows. The channel `name` is a deterministic, sorted pair `dm:<lo>:<hi>` of the
+two user ids, so the existing `UNIQUE(channels.name)` enforces "exactly one conversation per pair"
+and get-or-create is race-safe. The synthetic name is never shown to users (the UI keys off the
+counterparty and routes by their id). `notification_type` gains `direct_message` (applied as a
+targeted `ALTER TYPE … ADD VALUE`, per the db:push drift note — see `scripts/add-dm-notification-enum.ts`).
+
+**Routing:** `/mastermind/dm/:userId` — keyed on the **counterparty's** user id (clean, stable,
+doesn't leak the synthetic name). A bare/unknown id behaves like an unknown channel.
+
+**Backend (`server/services/dms/dms.services.ts`):**
+- `getOrCreateDmChannel(callerId, otherUserId)` — validates both are eligible + distinct; upserts the
+  `dm:` channel + both member rows; idempotent. Used lazily on first send.
+- `assertDmMembership(channelId, userId)` — the single guard the message/reaction/read paths reuse;
+  returns the counterparty id, 404s a non-member (existence never disclosed).
+- `listDirectMessages(userId)` — the sidebar list: counterparty profile + unread + last-activity,
+  newest-first, conversations with no surviving messages omitted.
+- **No mentions in a DM:** `createMessage`/`updateMessage` skip mention parsing/persistence and the
+  `@announcement` gate when the channel is a DM.
+
+**Routes (gated by `requireMastermind`; tables in `access-control.md` §5.15):**
+- `GET /api/dms` — the sidebar list.
+- `POST /api/dms/:userId/messages` — create-or-get the DM channel, then send (the lazy-create entry).
+- `GET /api/dms/:userId/messages?cursor=` — history (delegates to the existing list logic).
+- Edit/delete/react reuse the existing `/api/messages/:id*` routes — now membership-guarded.
+- Read-state reuses `PATCH /api/channels/:id/read` — now DM-aware.
+
+**Security hardening (mandatory):** the message-id-scoped routes (`PATCH`/`DELETE /api/messages/:id`,
+reactions) are not channel-scoped, so each now resolves the message's channel and, when it is a DM,
+calls `assertDmMembership` — a non-member 404s, and admin delete-any is disabled for DMs.
+
+**Real-time & notifications:** DM messages broadcast over the **same** `message.created/updated/
+deleted` + `reaction.changed` events (subscribed by `channelId`). The cross-channel activity
+doorbell and the bell are scoped to the single counterparty (never the all-eligible firehose). A
+`direct_message` notification is created for the recipient **unless** they are currently subscribed
+to that DM channel; clicking it deep-links to `/mastermind/dm/:actorId`.
+
+**Frontend:** DM list in `ChannelSidebar` (replaces the "Coming soon" stub) + "New message" picker;
+a message icon in `MessageActions` (channel messages only); a "Send message" action on the profile
+card; `ChannelHeader` renders the counterparty's avatar + name in DM mode; `MessageComposer`
+placeholder `Message {FirstName}…` with mentions disabled; `Mastermind.tsx` handles the
+`/mastermind/dm/:userId` route + the lazy draft-DM view.
+
+**Done:** two eligible users can open a private conversation from any of the three entry points;
+messages, reactions, edits, deletes, and attachments work live; the recipient gets a bell
+notification (suppressed while they're viewing it); no admin can read or delete a DM; no `@mentions`
+function in a DM.
+
+> **Build status:** schema/enum + backend services + the message-pipeline DM-awareness and security
+> guards are built. Remaining: DM controllers + `dms.routes.ts`, the WS `subscribe` gate for DM
+> members, the doorbell/notification wiring (suppress-when-viewing), and all frontend.
 
 ---
 
@@ -519,7 +590,7 @@ link_previews                             ← global URL→metadata cache, write
 notifications
 ├── id (uuid, PK)
 ├── user_id (uuid, FK → users.id)      ← recipient
-├── type (enum: 'mention','channel_mention', … )
+├── type (enum: 'mention','channel_mention','announcement','deal_bid','direct_message')
 ├── channel_id (uuid, FK → channels.id)
 ├── message_id (uuid, FK → messages.id)   ← deep-link target
 ├── actor_id (uuid, FK → users.id)     ← who triggered it
