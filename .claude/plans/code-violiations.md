@@ -1,4 +1,4 @@
-# Property Risk Monitoring System — Design & Plan (v0.2 Draft)
+# Property Risk Monitoring System — Design & Plan (v0.3 Draft)
 
 > Status: **Concept, materially revised.** Originally scoped as a single "code-violations
 > scraper," this is now a **multi-source property-risk monitoring system** that watches several
@@ -22,6 +22,35 @@
 > 4. **Matching is now APN-first**, not address-string-first (see §8).
 > 5. **New unifying abstraction:** alert on a **state transition**, not a new row —
 >    monitors / observations / alerts (see §3 and §6).
+>
+> **What changed since v0.2 (grounding against the existing ARV database):**
+> We checked the plan's assumptions against our actual Drizzle schema + SFR pipeline. Several
+> pieces the plan treated as greenfield **already exist**, which *shrinks* the build:
+> 1. **APNs already flow from SFR.** We populate `parcels.apn_original` and
+>    `property_transactions.apn` in `insert-properties.ts`. So §8's "enrich properties with APNs"
+>    is **not** from-scratch work — it's an **APN-coverage audit + cross-source normalization**
+>    (SFR's APN format vs. San Diego County / OpenDSD's). (Partly answers Q6.)
+> 2. **Ownership is transaction-derived, not stored.** There is no `property.owner_id`; we treat
+>    the **most-recent buyer** (`property_transactions.buyer_id` where `sort_order = 1`) as the
+>    current owner — they're the last party that bought it (and, for a flip, the renovating ARV
+>    client). Notifiable users hang off that company via `company_members` (our manual links) /
+>    `company_claims`. **Ownership freshness = SFR-sync freshness.**
+> 3. **Entity standing is not greenfield.** We already enrich companies via OpenCorporates
+>    (`opencorporates.service.ts`, `enrich-companies.ts` → `company_details`: `jurisdiction_code`,
+>    `oc_company_number`, `dissolution_date`, `inactive`, `filings`, …). Before building CA SOS
+>    bizfile (§5.3) from scratch, confirm whether this feed already exposes a standing/`inactive`
+>    signal we can diff. (Bears on Q2.)
+> 4. **Tax delinquency / pre-foreclosure partly exist from SFR** (`tax_records.tax_delinquent_year`,
+>    the `pre_foreclosures` table). The §5.4 question becomes **freshness, not access** — see the
+>    note there. (Bears on Q3.)
+> 5. **Notification plumbing exists.** `user_notification_preferences` (per-app toggles + filters)
+>    is where a code-violation toggle lives; addresses are **already geocoded**
+>    (`addresses.latitude/longitude`), so radius matching (§5.2) needs no new geocoding on our side.
+>
+> **Infra implication:** the CE MVP (OpenDSD JSON → diff → match → notify existing linked users) is
+> a single scheduled job, not a queue. Sequence the AWS queue/Fargate build (§7) to the
+> **browser-probe phases (3–5)** that actually need it; don't pay the second-operational-home cost
+> up front.
 
 ---
 
@@ -203,6 +232,13 @@ entity — **SOS, FTB, Agent, and VCFCF** standing are all surfaced per record. 
 SOI" collapses into **one monitor**: watch the standing fields on the entities we track, fire on
 `good → not-good`.
 
+> **GROUNDING — we already pull company registry data.** Our `enrich-companies.ts` job +
+> `opencorporates.service.ts` populate `company_details` (`jurisdiction_code`, `oc_company_number`,
+> `incorporation_date`, `dissolution_date`, `inactive`, `agent_name`, `filings`). **Action before
+> building bizfile:** confirm whether this existing feed already surfaces a CA standing / `inactive`
+> transition we can diff. If it does, this monitor is a diff on data we already have; if not,
+> bizfile fills the gap — it isn't necessarily the whole source.
+
 **Access (three options, decide per §13):**
 1. **Gated official REST API** (CALICO / bizfile API) — JSON entity details, but requires
    registering on their API-management portal and obtaining a **subscription key**.
@@ -217,6 +253,14 @@ brittleness/rate-limiting becomes a real problem.
 
 Watch for **outstanding/delinquent property-tax bills** on previously-sold and currently-owned
 properties.
+
+> **GROUNDING — SFR already gives us some of this.** `tax_records.tax_delinquent_year` and the
+> `pre_foreclosures` table are populated from SFR, so the real question is **freshness, not
+> access**: SFR is periodic and can lag months, which undercuts an "ahead of the city" alert. Two
+> options: **(a)** run the tax monitor as a **diff on SFR's `tax_delinquent_year`** — zero new
+> sources, reuses the state-transition core, but only as fresh as SFR; or **(b)** add a **live
+> county probe** around the calendar dates for true early warning. Decide by first **measuring how
+> stale SFR's tax data actually is.**
 
 **Access:**
 - **Bulk (clean path):** the County Auditor publishes **Tax Roll Data Files**, including a
@@ -390,9 +434,13 @@ strings.**
    entity standing is keyed by entity id. APN is an **exact key** — match on it first.
    - Address matching against portal text ("Av, Bldg, SAN DIEGO CA 92154") is a fuzzy-
      normalization swamp. Avoid it as the primary key.
-2. **Get APNs onto our properties (highest-leverage one-time work).** Enrich our property records
-   with APNs once — e.g. against the **County SITUS address dataset** (address → APN). This is
-   where engineering effort buys the most accuracy; spend it here, not on infra.
+2. **APNs already exist on our properties (audit + normalize, don't re-enrich).** We already
+   populate `parcels.apn_original` and `property_transactions.apn` from SFR (`insert-properties.ts`).
+   The leverage is **(a)** auditing the **APN null-rate** and **(b)** **normalizing APN format
+   across sources** — SFR's APN vs. San Diego County / OpenDSD's — because APN is only an "exact
+   key" once both sides are normalized (dashes, spaces, leading zeros). Spend effort here, not on
+   infra. Backfill missing APNs (e.g. County SITUS address → APN dataset) only for the gaps the
+   audit finds.
 3. **Match strategy, in order:**
    - **Exact APN match** against our property table (`match_method = apn`).
    - **Geocode → lat/lng proximity** as a fallback when APN is missing (`match_method = geocode`).
@@ -400,8 +448,11 @@ strings.**
      (`match_method = fuzzy`).
 4. Record **match_confidence** + **match_method**. Auto-notify only above a confidence threshold;
    queue low-confidence matches for review (especially early).
-5. Resolve the matched property → owner/company → any of our **users** linked to it. For the
-   nearby-CE rule (§5.2), the match is "within radius *R* of an owned APN."
+5. Resolve the matched property → owner/company → any of our **users** linked to it. **"Owner" is
+   derived, not stored:** we treat the most-recent buyer (`property_transactions.buyer_id` where
+   `sort_order = 1`) as the current owner — the last party that bought it; user links come from
+   `company_members` / `company_claims`. For the nearby-CE rule (§5.2), the match is "within radius
+   *R* of an owned APN."
 
 > Reality check: many CE cases will match a property we have but **no user** who wants the alert.
 > That's the "alerts product vs. lead-gen product" question in §13.
@@ -509,8 +560,9 @@ Acquirers silently rot, so this is built in from the start:
    dates + investigator contact**. Accela scraping is a **freshness fallback only**.
 2. **Build the state-transition core once** (monitors → observations → diff vs. last-known status
    → notify) so the four sources — and any fifth later — are just **adapters**.
-3. **Match on APN, not addresses.** The highest-leverage one-time work is **enriching our
-   properties with APNs** (e.g. via the County SITUS dataset).
+3. **Match on APN, not addresses** — and note **APNs already flow from SFR** (`parcels.apn_original`,
+   `property_transactions.apn`). The one-time work is an **APN-coverage audit + cross-source
+   normalization**, not enrichment from scratch.
 4. **Go AWS, right-sized, split by fetch shape:** bulk pulls (OpenDSD CE, county tax bulk, SOS
    bulk) = **EventBridge → Lambda/Fargate crons, no queue**; per-target probes (bizfile, tax
    lookup) = **SQS → Fargate worker pool with the browser**. Secrets in SSM, logs/alarms in
