@@ -72,6 +72,20 @@
 > schedules. **SQS is in from day one on purpose** — it decouples upload from processing, exercises
 > retry/DLQ + idempotency early, and is the seam every future automated producer plugs into; it's
 > **easy to remove** (collapse to S3 → Lambda) if it proves unnecessary.
+>
+> **What changed since v0.5 (MVP implementation plan finalized — read §15):**
+> Three build decisions are now locked, narrowing v0.5's options into a single buildable path:
+> 1. **Source scope: City-of-SD code enforcement ONLY for the first slice.** We build the whole
+>    spine against one upload parser (Accela CE export). Entity standing (bizfile) becomes the
+>    **second adapter on the same spine** — the proof that "a new source is one parser, not a new
+>    pipeline" (§3, §15.5). This supersedes the §3.1 "two parsers (CE + bizfile)" framing *for the
+>    first slice*.
+> 2. **IaC: Terraform** (not SST/CDK). The §7 "SST or CDK" line is superseded.
+> 3. **Notifications are deferred one phase.** The MVP lands matched CE cases **in-app, read-only**,
+>    so we eyeball match quality on real data before any email goes out (the §12 Phase 1→2 split,
+>    now explicit). `cv_notifications_sent`, the Postmark template, and the ws push land in the
+>    **immediately-following** notify phase — schema-aware but not wired in the first slice.
+> See **§15** for the full implementation plan (workstreams, schema columns, build sequence, DoD).
 
 ---
 
@@ -468,7 +482,10 @@ headless browser, no Fargate, no EventBridge schedule** — acquisition is the m
 - **Cheap to remove** — if it proves unnecessary, collapse to S3-event → Lambda directly. Low
   lock-in, so planning to keep it costs almost nothing.
 
-**IaC:** SST or CDK (TypeScript) — solo + TS, covers Lambda now and containers later.
+**IaC:** Terraform — AWS-native, and the user has many years of Terraform experience, so it's the
+lowest-friction home for the S3 + SQS + Lambda + SSM + CloudWatch footprint and scales cleanly to
+the post-MVP Fargate/EventBridge constellation. The Lambda is TypeScript (esbuild-bundled, deployed
+as a zip via `aws_lambda_function`). Resource list in §15.3.C.
 
 ### The organizing principle: split by fetch shape, NOT by source
 
@@ -694,3 +711,248 @@ Acquirers silently rot, so this is built in from the start:
 5. **Scope the MVP to City-of-SD code enforcement + existing users**, reuse WebSocket + Postmark,
    raw-first storage, idempotent transition-based notifications, and loud logging — then add
    entity standing and property tax as new adapters on the same spine.
+
+---
+
+## 15. Implementation Plan — MVP (DECIDED v0.6)
+
+The first buildable slice. Everything below is scoped to **what we actually build now**; the
+deferred automation (§5/§7/§12) is explicitly out.
+
+### 15.0 The three locked decisions (and what each removes from the build)
+
+| Decision | Value | What it removes |
+|---|---|---|
+| **Source scope** | **City-of-SD code enforcement ONLY** (Accela CE export upload) | bizfile + tax parsers, entity-id matching, two-format ambiguity — all deferred to the second adapter |
+| **Acquisition** | **Manual admin upload** (§3.1) | scrapers, headless browser, OpenDSD live API, Fargate, EventBridge schedules, the `case_id` watermark |
+| **IaC** | **Terraform** | SST/CDK toolchain decisions |
+| **Notify gate** | **In-app read-only first** | `cv_notifications_sent`, Postmark template, ws push — schema-aware, wired in the *next* phase |
+
+The thing we are actually validating with this slice: **does APN-first matching of real CE export
+rows against our property/ownership data produce trustworthy matches?** Everything is arranged to
+answer that before a single email is sent.
+
+### 15.1 Scope boundary
+
+**In scope (this slice):**
+
+- `cv_` schema in Neon (the MVP subset of §6 tables).
+- APN coverage audit + a single canonical APN-normalization helper (§8).
+- Terraform: S3 (uploads) + SQS (+DLQ) + one TS Lambda + SSM params + CloudWatch log group/alarms + IAM.
+- Admin upload UI + endpoint in the **existing app** (`requireRole`), writing file → S3 + a
+  `cv_raw_records` row.
+- Lambda pipeline: **parse → normalize → APN-match → diff vs last-known status** (NO notify).
+- Accela CE export parser (the one source-specific module).
+- Read-only in-app review screen for matched CE cases + `cv_runs` visibility.
+- Baseline + idempotency handling (first upload notifies nothing; re-uploads don't duplicate).
+- Tests: parser unit, matcher unit, upload-endpoint access-control + validation integration,
+  idempotency integration.
+
+**Out of scope (deferred, do not build):** OpenDSD/any live API, scrapers/browser/Fargate,
+EventBridge schedules, bizfile entity-standing parser, property-tax parser, nearby-radius matching,
+geocode/fuzzy fallback matching, notifications (ws + Postmark + `cv_notifications_sent`),
+cold-contacting non-users.
+
+### 15.2 Repo layout
+
+The CE monitor is **not in the existing app's request path**, but it shares the cv\_ schema and the
+APN helper with the admin endpoint, so those live in our existing neutral layers (single source of
+truth, no duplication):
+
+```
+ARV-DATA-PROJECT/
+├── database/
+│   ├── schemas/cv/                 # NEW: Drizzle cv_ tables (source of truth, imported by app + Lambda)
+│   └── types/cv/                   # NEW: $inferSelect types for cv_ tables
+├── shared/utils/apn.ts             # NEW: normalizeApn() — isomorphic, used by audit + matcher + (later) client
+├── server/
+│   ├── routes/cv.routes.ts         # NEW: POST /api/admin/cv/uploads, GET review endpoints (requireRole)
+│   ├── controllers/cv.controllers.ts
+│   └── services/cv.services.ts     # upload→S3 + cv_raw_records; read queries for review UI
+├── client/src/
+│   ├── api/cv.api.ts               # NEW: typed fetch wrappers
+│   ├── pages/admin/CvUploads.tsx   # NEW: upload + review screens (admin area)
+│   └── components/admin/cv/        # NEW: upload form, matched-cases table
+└── cv-monitor/                     # NEW top-level workspace (the isolated compute)
+    ├── infra/                      # Terraform: s3, sqs, lambda, ssm, cloudwatch, iam
+    └── lambda/
+        └── src/
+            ├── handler.ts          # SQS handler → orchestrates the pipeline
+            ├── parsers/accela-ce.ts# the ONE source-specific module (export rows → observations)
+            ├── match.ts            # APN-first match (imports shared/utils/apn + database/schemas/cv)
+            ├── diff.ts             # observation.status vs cv_status, baseline + transition detection
+            └── persist.ts          # raw/observations/status/matches/runs writes (idempotent)
+```
+
+> **Dependency note (CLAUDE.md):** `cv-monitor/lambda` is a new inward consumer — it may import from
+> `database` and `shared`, never from `client`/`server`. The admin endpoint (`server`) and the Lambda
+> both import the cv\_ schema from `database`, so the two halves cannot drift.
+
+### 15.3 Workstreams
+
+Each is independently testable; dependencies noted. **A and B can start immediately and in parallel.**
+
+#### A. Database schema — `cv_` (MVP subset of §6)
+
+Create in `database/schemas/cv/`, push with `npm run db:push`. MVP needs only these tables (the rest
+of §6 land with their phase):
+
+- **`cv_sources`** — `id`, `slug` (`'sd-city-ce'`), `name`, `jurisdiction`, `source_type`
+  (`code_enforcement`), `access_mode` (`upload`), `fetch_shape` (`bulk`), `baselined_at` (nullable —
+  set when the first upload is processed; drives "notify nothing on first upload"), `enabled`,
+  `created_at`. Seed one row.
+- **`cv_raw_records`** — `id`, `source_id`, `s3_key`, `content_hash` (**unique** — duplicate-file
+  guard), `original_filename`, `uploaded_by` (user id), `uploaded_at`, `status`
+  (`uploaded`|`processing`|`parsed`|`failed`), `row_count` (nullable), `error` (nullable).
+- **`cv_observations`** — `id`, `raw_record_id`, `source_id`, `target_key` (the **normalized APN**),
+  `target_type` (`apn`), `external_id` (the CE `case_id`), `status` (e.g. `case_open`|`case_closed`),
+  `details` (jsonb: open/close dates, street_address, lat, lng, description, investigator contact —
+  the §5.1 fields), `observed_at`, `content_hash`. **Unique** `(source_id, external_id, content_hash)`
+  for row-level idempotency.
+- **`cv_status`** — `id`, `source_id`, `target_key`, `last_status`, `last_observation_id`,
+  `last_transition_at`, `last_notified_status` (nullable — **column exists now, written in notify
+  phase**), `updated_at`. **Unique** `(source_id, target_key)`. This is the diff baseline.
+- **`cv_property_matches`** — `id`, `observation_id`, `property_id` (nullable),
+  `company_id` (nullable), `match_method` (`apn` for MVP), `match_confidence`, `matched_at`.
+- **`cv_runs`** — `id`, `source_id`, `raw_record_id`, `trigger` (`upload`), `started_at`,
+  `finished_at`, `records_parsed`, `records_new`, `records_changed` (transitions detected),
+  `matches_found`, `errors` (jsonb), `duration_ms`, `status`.
+
+> **Deferred to their phase:** `cv_targets` (a registry with per-target metadata — `cv_status`'s
+> `(source, target_key)` is sufficient for MVP), and `cv_notifications_sent` (notify phase).
+
+#### B. APN audit + normalization (the matching prerequisite, §8)
+
+1. **Audit** `parcels.apn_original` + `property_transactions.apn` null-rate for SD properties — a
+   one-off SQL/script reporting coverage. This bounds how many CE rows *can* match.
+2. **`shared/utils/apn.ts` → `normalizeApn(raw): string`** — strip dashes/spaces, normalize leading
+   zeros, to a single canonical form. Both our APNs and the export's APNs pass through it before
+   comparison (APN is only an "exact key" once both sides are normalized). Unit-tested against SD
+   County / Accela format samples vs SFR format samples.
+3. Backfill missing APNs **only** for the gaps the audit surfaces (County SITUS→APN), and only if
+   the gap is large enough to hurt the validation — otherwise note and defer.
+
+#### C. AWS infra — Terraform (`cv-monitor/infra/`)
+
+- **S3 bucket** for uploads (versioned; lifecycle optional). This is the raw store behind
+  `cv_raw_records`.
+- **SQS queue + DLQ** (redrive after N attempts).
+- **S3 → SQS event notification** on `s3:ObjectCreated:*` (no polling).
+- **Lambda** (`nodejs20.x`, TS via esbuild zip), **SQS event source mapping** (batch size 1 for
+  clean per-file idempotency early), env from **SSM** (`DATABASE_URL` pooled/`@neondatabase/serverless`).
+- **SSM Parameter Store** params (by NAME only): `DATABASE_URL`; Postmark params added in notify phase.
+- **IAM**: Lambda role (S3 get on the bucket, SQS consume, SSM read, CloudWatch logs); a least-priv
+  user/role for the **existing app** to `PutObject` to the bucket.
+- **CloudWatch**: log group + alarms (§G).
+
+New env-var NAMES the existing app needs (provide values yourself; never commit): `AWS_REGION`,
+`CV_UPLOAD_S3_BUCKET`, and app→S3 credentials (prefer an IAM role; otherwise the standard AWS
+credential env names).
+
+#### D. Admin upload endpoint + UI (existing app)
+
+- **`POST /api/admin/cv/uploads`** — `requireRole` (admin), multipart file. Validates type/size,
+  `PutObject` to S3, inserts a `cv_raw_records` row (`status: uploaded`, `uploaded_by`,
+  `original_filename`, `s3_key`). Returns the raw-record id. **The S3 event — not this endpoint —
+  triggers processing**, so the request returns fast (the §7 "decouple upload from processing" win).
+- **Review read endpoints** — `GET /api/admin/cv/runs` and `GET /api/admin/cv/matches` (admin) for
+  the read-only screen.
+- **UI** — an admin-area page: an upload form + a matched-cases table (case_id, APN, address,
+  status, matched property/company, match method/confidence) and a runs panel.
+- **Access-control + validation integration tests are mandatory** for the new route (testing.md).
+  Read `.claude/docs/access-control.md` before wiring `requireRole`.
+
+#### E. Lambda processing pipeline (`cv-monitor/lambda/`) — parse → match → diff (no notify)
+
+`handler.ts` consumes an SQS message (the S3 key), then:
+
+1. **Idempotency gate** — read the S3 object, compute `content_hash`; if a `cv_raw_records` row with
+   that hash is already `parsed`, no-op (absorbs duplicate/overlapping uploads, §3.1). Mark the row
+   `processing`; open a `cv_runs` row.
+2. **Parse** — `parsers/accela-ce.ts` turns export rows into normalized `cv_observations`
+   (`target_key = normalizeApn(row.apn)`, `external_id = case_id`, `status`, `details`). This is the
+   **only** source-specific code.
+3. **Match** (`match.ts`, APN-first) — `normalizeApn` on both sides → exact match against
+   `parcels.apn_original` / `property_transactions.apn` → resolve property → **current owner =
+   most-recent buyer** (`property_transactions.buyer_id` where `sort_order = 1`) → company. Write
+   `cv_property_matches` (`match_method: 'apn'`). Geocode/fuzzy fallback is deferred — unmatched rows
+   are recorded as unmatched (visible in the review UI), not force-matched.
+4. **Diff** (`diff.ts`) — for each observation, compare `status` to `cv_status` for
+   `(source, target_key)`. **If `cv_sources.baselined_at` is null** (first upload for this source):
+   seed `cv_status` for every row and set `baselined_at` — **emit zero transitions**. Otherwise a
+   changed/new status is a transition; update `cv_status` (`last_transition_at`) and count it in
+   `cv_runs.records_changed`. In read-only MVP a transition is **surfaced, not sent**.
+5. **Finalize** — mark `cv_raw_records` `parsed` (or `failed` + `error`), close the `cv_runs` row
+   with counts. Failures → SQS retry → DLQ.
+
+#### F. Read-only review UI + `cv_runs` (the validation surface)
+
+The deliverable that proves match quality before notify: matched cases with their APN, resolved
+property/company, method, and confidence; unmatched cases listed separately; a runs panel showing
+"last uploaded N days ago" + counts (staleness visibility, §3.1). **Pass `formatCompanyName`** on any
+company name rendered (ARV.RAW-COMPANY-NAME). Read design-guidelines.md before building UI.
+
+#### G. Observability (`cv_runs` + CloudWatch)
+
+- `cv_runs` per upload (who/when/counts) surfaced in-app.
+- CloudWatch alarms: **DLQ depth > 0**, Lambda error rate, and **"zero rows parsed"** (likely a
+  changed export format) — at least one "monitor went quiet / broke" signal.
+
+#### H. Testing (read testing.md first)
+
+- **Parser unit** — a saved sample Accela CE export → expected observations (pin field mapping).
+- **Matcher unit** — `normalizeApn` equivalence across SFR vs County/Accela formats; APN exact-match
+  resolves to the right property → most-recent-buyer company.
+- **Diff unit** — first-upload baseline emits no transitions; a status change emits exactly one.
+- **Upload endpoint integration** — mandatory access-control (non-admin rejected) + validation
+  (bad file rejected) per testing.md.
+- **Idempotency integration** — re-uploading the same file produces no duplicate observations and no
+  new transitions.
+
+### 15.4 Build sequence (critical path)
+
+```
+  A (cv_ schema) ─┬─────────────────────────────► E (Lambda pipeline) ──► F (review UI) ──► H (tests)
+  B (APN normalize + audit) ─┘ (E.match depends on B)        ▲
+  C (Terraform: S3+SQS+Lambda+SSM+IAM) ─────────────────────┘ (E deploys onto C)
+  D (admin upload endpoint + UI) ──► (produces the S3 event that drives E)
+```
+
+1. **A + B in parallel** — schema and the APN helper/audit unblock everything; neither needs AWS.
+2. **C** — stand up the Terraform footprint (can deploy a stub Lambda first to prove S3→SQS→Lambda
+   wiring end to end).
+3. **D** — admin upload endpoint + UI; now a real file lands in S3 and enqueues.
+4. **E** — the parse/match/diff Lambda (the meat). Validate against a **real downloaded export
+   sample** (see §15.6).
+5. **F** — read-only review UI; **eyeball match quality here — this is the MVP's exit criterion.**
+6. **H** throughout (parser/matcher unit tests gate E; endpoint tests gate D).
+
+### 15.5 The adapter seam (how source #2 plugs in)
+
+When match quality is trusted, adding **entity standing (bizfile)** or any later source is, by
+design, **one new file**: a parser in `cv-monitor/lambda/src/parsers/` that emits `cv_observations`
+(with `target_type = 'entity'` and `target_key = entity id` instead of an APN). Schema, S3/SQS/Lambda
+wiring, diff, runs, and the review UI are all shared and unchanged. If that turns out to be true, the
+"new source = one adapter, not a new pipeline" thesis (§3) is proven.
+
+### 15.6 Gating items before writing code
+
+- **Download one real Accela CE export** (CSV/XLSX) — the exact columns/format are still TBD (§3.1)
+  and pin the parser and the `cv_observations.details` mapping. **Do this first**; it de-risks E.
+- **Run the APN audit (B.1)** before trusting match rates — if SD APN coverage is poor, fix that or
+  the read-only review will look falsely empty.
+- **Confirm the export carries an APN per case** (it should, mirroring the §5.1 OpenDSD fields). If
+  it carries only an address, matching falls to geocode/fuzzy and the §8 fallback ladder moves into
+  MVP scope — flag before committing to APN-only.
+
+### 15.7 Definition of done (MVP)
+
+- An admin uploads an Accela CE export through the app; it lands in S3 and a `cv_raw_records` row.
+- The Lambda parses it, APN-matches against our properties, resolves owner companies, and writes
+  observations / matches / status / a `cv_run` — **idempotently** (re-upload = no dupes, no new
+  transitions; first upload = baseline, zero transitions).
+- The admin can **review matched + unmatched CE cases in-app**, with APN, property/company, method,
+  confidence, and upload recency.
+- Unit + integration tests (15.3.H) pass; `npm run check` is clean.
+- CloudWatch shows the run and would alarm on DLQ/zero-rows/errors.
+- **No emails are sent** — notify is the next phase, gated on match quality looking good here.
