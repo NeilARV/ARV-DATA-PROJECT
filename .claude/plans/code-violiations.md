@@ -1,4 +1,4 @@
-# Property Risk Monitoring System — Design & Plan (v0.4 Draft)
+# Property Risk Monitoring System — Design & Plan (v0.5 Draft)
 
 > Status: **Concept, materially revised.** Originally scoped as a single "code-violations
 > scraper," this is now a **multi-source property-risk monitoring system** that watches several
@@ -62,6 +62,16 @@
 > automated path (§5/§7/§12) becomes the **post-MVP** goal. Accepted **sacrifice:** CE updates
 > throughout the day, so manual cadence means we **lag intra-day changes** and depend on someone
 > running the download — fine until we figure out scraping/organization.
+>
+> **What changed since v0.4 (MVP stack finalized):**
+> **Go AWS as the long-term home — but ship the MVP as a *minimal* AWS footprint, not the §7
+> constellation.** MVP stack = **one parse/match/notify Lambda + S3 (uploads) + SQS + Neon + SSM**
+> (Postmark reused; admin upload UI in the existing app — full architecture in §7 "MVP stack").
+> This **refines** the v0.4 note above: the MVP is *not* in the existing app and is *not* "no AWS,"
+> it's deliberately small AWS. Still **post-MVP:** scrapers, headless browsers, Fargate, EventBridge
+> schedules. **SQS is in from day one on purpose** — it decouples upload from processing, exercises
+> retry/DLQ + idempotency early, and is the seam every future automated producer plugs into; it's
+> **easy to remove** (collapse to S3 → Lambda) if it proves unnecessary.
 
 ---
 
@@ -153,19 +163,22 @@ decision below.
 > replaces the scraper/API; everything downstream in §3 is unchanged.
 
 **Why we're accepting this:** it removes the hardest, most fragile part (headless scraping,
-anti-bot, queues, AWS browser workers) and lets us validate the **match/notify core — the actual
+anti-bot, scraper probe-queues, browser workers) and lets us validate the **match/notify core — the actual
 value — against real data now.** The cost we knowingly accept: CE updates throughout the day, so a
 manual cadence **lags intra-day changes** and depends on someone running the download. Fine
 **temporarily**, until we figure out how to scrape/organize the sources better.
 
-**What this removes from the MVP:** no scraper, no headless browser, no SQS queue, no Fargate
-worker, **no second operational home** — the entire §7 AWS build is **deferred to post-MVP.** The
-MVP can live as an **admin upload endpoint + a parse/match/notify job inside the existing app.** The
-CE scrape-vs-API fork (§5.1) is **moot for now** — we ingest whatever the portal exports.
+**What this removes from the MVP:** no scraper, no headless browser, no Fargate worker, no
+EventBridge schedule, no per-source probe queues — most of the §7 *automated* build is **deferred to
+post-MVP.** The MVP ships as a **minimal AWS footprint — one parse/match/notify Lambda + S3 + SQS +
+Neon + SSM**, with the **admin upload UI in the existing app** (finalized architecture in §7 "MVP
+stack"). The CE scrape-vs-API fork (§5.1) is **moot for now** — we ingest whatever the portal
+exports.
 
 **What to build:**
-- **Admin-only upload screen + endpoint** — reuse existing admin auth + Supabase Storage upload
-  infra; accept the portal's export (CSV/XLSX — exact format TBD until we download a sample).
+- **Admin-only upload screen + endpoint** — reuse existing admin auth (`requireRole`); the endpoint
+  writes the uploaded file to **S3** (the S3 event is what triggers processing) + a `cv_raw_records`
+  row. Accept the portal's export (CSV/XLSX — exact format TBD until we download a sample).
 - **A parser per source/format** (Accela CE export, bizfile export) that emits normalized
   `observations` (§3). This parser is the new source-specific code — it replaces the adapter's
   "fetch" with "parse the uploaded file."
@@ -403,10 +416,10 @@ duplicates or re-notifies), **diff against last-known status** to detect a real 
 
 ## 7. Compute & architecture — AWS, right-sized, split by FETCH SHAPE
 
-> **MVP NOTE (v0.4):** the AWS build below is **deferred to post-MVP.** The MVP acquires data by
-> **manual download → admin upload** (see §3.1), so it needs **no scraper, queue, or AWS** — just
-> an admin upload endpoint + a parse/match/notify job in the existing app. Everything below is the
-> **automated** target we return to once we tackle scraping.
+> **MVP NOTE (v0.5):** the full automated build in this section is **post-MVP.** The MVP ships as a
+> **deliberately small AWS slice — one Lambda + S3 + SQS + Neon + SSM** (acquisition is the manual
+> admin upload from §3.1; **no scraper, browser, Fargate, or EventBridge schedule**). See **"MVP
+> stack" below** for the finalized architecture.
 
 > **DECISION REVISED in v0.2.** v0.1 recommended a single TypeScript worker on Fly.io/Railway
 > (Option A) and leaned on a data-gravity argument to keep compute next to the DB. The user
@@ -415,6 +428,47 @@ duplicates or re-notifies), **diff against last-known status** to detect a real 
 > Conceding that, **AWS is the home** — it plays to the part of the system most likely to break
 > (headless-browser scrapers want isolated, restart-on-failure, container-native compute), the
 > user is fluent in it, and it gives blast-radius isolation + autonomy to ship end-to-end.
+
+### MVP stack (v0.5 — DECIDED): minimal AWS — one Lambda + S3 + SQS + Neon + SSM
+
+The MVP is the smallest AWS footprint that runs the §3 pipeline end-to-end. **No scraper, no
+headless browser, no Fargate, no EventBridge schedule** — acquisition is the manual admin upload
+(§3.1).
+
+```
+  Admin upload UI + endpoint (existing app admin area, reuse requireRole)
+        │  writes file → S3 + a cv_raw_records row
+        ▼
+      S3 ──event──▶ SQS ──▶ parse/match/notify Lambda ──▶ Neon (diff+match) ──▶ Postmark
+                     │
+                     └─▶ DLQ (failed processing)
+
+  Secrets (DATABASE_URL, POSTMARK_*) in SSM · logs/alarms in CloudWatch
+```
+
+- **S3** holds the uploaded export and is the raw store behind `cv_raw_records` (§6); the upload
+  fires an **S3 event** — no polling.
+- **SQS (+ DLQ)** sits between upload and processing — see **"Why SQS now"** below.
+- **One Lambda** runs parse → match (§8) → diff vs. last-known status → notify (§9). It's the
+  **template for every future bulk-pull source** — only the trigger changes (S3-upload now →
+  EventBridge schedule later).
+- **Neon** (`cv_` schema) + **Postmark** reused as-is; **secrets in SSM**. Use Neon's pooled string
+  / `@neondatabase/serverless` so Lambda concurrency doesn't exhaust Postgres.
+- **Admin upload UI** stays in the **existing app's admin area** (reuse `requireRole`) — avoids
+  standing up separate auth for one screen.
+
+**Why SQS now (the MVP could technically run without it):**
+- **Decouples upload from processing** — the upload returns fast; a slow parse or a failure doesn't
+  fail the admin's upload.
+- **Retry / DLQ / idempotency rehearsal** — manual uploads already require "re-uploads must not
+  re-notify" (§3.1); routing through SQS exercises that machinery from day one, before higher-volume
+  automated sources arrive.
+- **It's the seam for automation** — every future producer (scheduled bulk pull, scraper) enqueues
+  to the same consumer, so adding one later is a drop-in, not a re-architecture.
+- **Cheap to remove** — if it proves unnecessary, collapse to S3-event → Lambda directly. Low
+  lock-in, so planning to keep it costs almost nothing.
+
+**IaC:** SST or CDK (TypeScript) — solo + TS, covers Lambda now and containers later.
 
 ### The organizing principle: split by fetch shape, NOT by source
 
