@@ -498,7 +498,7 @@ export async function sendEmailUpdatesForMsa(
                     state,
                     property_count: props.length,
                     cta_url: `${APP_BASE_URL}/`,
-                    year: '2026',
+                    year: String(new Date().getFullYear()),
                     company_name: 'ARV Finance Inc.',
                     properties: props,
                 };

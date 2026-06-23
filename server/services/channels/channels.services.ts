@@ -238,6 +238,21 @@ export async function getChannelById(id: string): Promise<Channel | null> {
     return channel ?? null;
 }
 
+/**
+ * Loads a channel for a management operation (rename/archive/delete), enforcing that it exists and
+ * is a public channel. A DM (or any non-public type) is private — not even an admin/owner may
+ * rename it (its synthetic dm:<lo>:<hi> name is load-bearing for get-or-create), archive it, or
+ * hard-delete it — so both "missing" and "non-public" report `404`, never disclosing existence.
+ * The single enforcement point shared by updateChannel/archiveChannel/deleteChannel.
+ */
+async function getManageablePublicChannel(id: string): Promise<Channel> {
+    const channel = await getChannelById(id);
+    if (!channel || channel.type !== 'public') {
+        throw new ChannelServiceError(404, 'Channel not found');
+    }
+    return channel;
+}
+
 export async function createChannel({
     name,
     description,
@@ -274,16 +289,7 @@ export async function updateChannel(
     id: string,
     { name, description }: { name?: string; description?: string | null },
 ): Promise<Channel> {
-    const channel = await getChannelById(id);
-    if (!channel) {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
-    // Channel management (rename/archive/delete) is for public channels only. A DM is private —
-    // not even an admin/owner may rename it (its synthetic dm:<lo>:<hi> name is load-bearing for
-    // get-or-create) — so any non-public type is reported as not-found (existence never disclosed).
-    if (channel.type !== 'public') {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
+    const channel = await getManageablePublicChannel(id);
 
     if (name && name !== channel.name) {
         const [clash] = await db
@@ -317,14 +323,7 @@ export async function updateChannel(
 
 // Soft archive — the first "delete". Reversible safety net before a hard delete.
 export async function archiveChannel(id: string): Promise<Channel> {
-    const channel = await getChannelById(id);
-    if (!channel) {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
-    // Public channels only — a DM is private and has no archive concept; 404 hides its existence.
-    if (channel.type !== 'public') {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
+    await getManageablePublicChannel(id);
 
     const [archived] = await db
         .update(channels)
@@ -394,15 +393,7 @@ export async function listDmCandidates(callerId: string): Promise<MentionCandida
 
 // Hard delete (cascade) — only permitted once the channel is already archived.
 export async function deleteChannel(id: string): Promise<{ id: string }> {
-    const channel = await getChannelById(id);
-    if (!channel) {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
-    // Public channels only — admins/owners must never hard-delete (cascade) a private DM they are
-    // not part of. 404 so a DM's existence is never disclosed at the channel-management layer.
-    if (channel.type !== 'public') {
-        throw new ChannelServiceError(404, 'Channel not found');
-    }
+    const channel = await getManageablePublicChannel(id);
     if (!channel.isArchived) {
         throw new ChannelServiceError(409, 'Archive the channel before deleting it');
     }

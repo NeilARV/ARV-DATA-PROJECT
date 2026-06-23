@@ -78,13 +78,17 @@ function MastermindContent() {
     // The conversation currently open — channel or DM — keyed by channel id for unread/read-state.
     const activeConversationId = activeChannelId ?? activeDmChannelId;
 
-    // Latest active conversation id and DM list, read by the activity/reconcile effects WITHOUT
-    // being their dependencies — so those effects fire only on their true trigger (a new WS event,
-    // or fresh /api/dms data) and never re-run (double-counting) merely because the user navigated.
+    // Latest active conversation id, DM list, and channel list — read by the activity/reconcile
+    // effects WITHOUT being their dependencies, so those effects fire only on their true trigger
+    // (a new WS event, or fresh /api/dms data) and never re-run merely because the user navigated
+    // or a list refetched. That matters because the activity effect bumps unread non-idempotently
+    // (count + 1); re-running it on the same doorbell would double-count the badge.
     const activeConversationIdRef = useRef(activeConversationId);
     activeConversationIdRef.current = activeConversationId;
     const dmsRef = useRef(dms);
     dmsRef.current = dms;
+    const channelsRef = useRef(channels);
+    channelsRef.current = channels;
 
     const markReadMutation = useMutation({
         mutationFn: (channelId: string) =>
@@ -208,9 +212,10 @@ function MastermindContent() {
     useEffect(() => {
         if (!lastChannelActivity) return;
         const { channelId } = lastChannelActivity;
-        if (channelId === activeConversationId) {
+        const activeId = activeConversationIdRef.current;
+        if (channelId === activeId) {
             // User is already viewing this conversation — advance read state immediately.
-            scheduleMarkRead(activeConversationId);
+            scheduleMarkRead(activeId);
             return;
         }
         // Activity in an id we track in neither list is a conversation that just became reachable —
@@ -220,7 +225,7 @@ function MastermindContent() {
         // would stay stuck on the empty state when the first message lands. Known DMs need no
         // refetch — the live bump below is accurate and the reconcile effect converges it on the
         // next /api/dms load (this also avoids a refetch storm on a burst of DM messages).
-        const isKnownChannel = channels.some((c) => c.id === channelId);
+        const isKnownChannel = channelsRef.current.some((c) => c.id === channelId);
         const isKnownDm = dmsRef.current.some((d) => d.channelId === channelId);
         if (!isKnownChannel && !isKnownDm) {
             void queryClient.invalidateQueries({ queryKey: ['/api/dms'] });
@@ -236,7 +241,7 @@ function MastermindContent() {
                 hasMention: current.hasMention || isMentioned,
             });
         });
-    }, [lastChannelActivity, activeConversationId, channels, user?.id, scheduleMarkRead]);
+    }, [lastChannelActivity, user?.id, scheduleMarkRead]);
 
     function handleSelectChannel(id: string) {
         const channel = channels.find((c) => c.id === id);

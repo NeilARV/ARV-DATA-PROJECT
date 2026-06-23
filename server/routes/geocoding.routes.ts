@@ -35,10 +35,7 @@ router.get('/county', async (req, res) => {
         return res.json({ county });
     } catch (error) {
         console.error('Error fetching county:', error);
-        return res.status(500).json({
-            message: 'Error fetching county from Census API',
-            error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        return res.status(500).json({ message: 'Error fetching county from Census API' });
     }
 });
 

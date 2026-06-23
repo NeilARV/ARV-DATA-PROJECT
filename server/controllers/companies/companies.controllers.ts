@@ -73,10 +73,7 @@ export async function getCompanyByIdHandler(req: Request, res: Response) {
         return res.json(company);
     } catch (error) {
         console.error('Error fetching company:', error);
-        return res.status(500).json({
-            message: 'Error fetching company',
-            error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        return res.status(500).json({ message: 'Error fetching company' });
     }
 }
 
@@ -106,10 +103,7 @@ export async function updateCompanyHandler(req: Request, res: Response) {
         }
     } catch (error) {
         console.error('Error updating company:', error);
-        return res.status(500).json({
-            message: 'Error updating company',
-            error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        return res.status(500).json({ message: 'Error updating company' });
     }
 }
 
