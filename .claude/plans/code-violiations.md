@@ -1,396 +1,520 @@
-# Code Violations Notification System — Design & Plan (v0.1 Draft)
+# Property Risk Monitoring System — Design & Plan (v0.2 Draft)
 
-> Status: **Initial concept.** This is a near-standalone app that reuses our existing
-> Postgres database and notification/email infrastructure, but runs on isolated compute
-> so it does **not** share the Replit server, the SFR data pipeline, or the existing cron jobs.
-> Goal of this draft: agree on the shape, pick a tech stack, and scope an MVP. Details
-> will firm up after we answer the open questions at the bottom.
+> Status: **Concept, materially revised.** Originally scoped as a single "code-violations
+> scraper," this is now a **multi-source property-risk monitoring system** that watches several
+> public datasets for *state changes* on properties and entities we care about, matches them to
+> our property/ownership data, and notifies the relevant party using our existing
+> notification/email infrastructure. It reuses our existing **Neon Postgres** but runs on
+> **isolated compute** so it does not share the Replit server, the SFR data pipeline, or the
+> existing cron jobs.
+>
+> **What changed since v0.1 (read this first):**
+> 1. **There IS an API.** v0.1 concluded "no API, must scrape Accela." That was wrong. San Diego's
+>    **OpenDSD API** (`https://opendsd.sandiego.gov/api`) returns code-enforcement cases as
+>    JSON — same DSD system that backs the Accela portal — including **APN, lat/lng, dates,
+>    description, and investigator contact**. Accela scraping drops from "the plan" to a
+>    **freshness fallback only** (see §5).
+> 2. **Scope grew from 1 source to 4 monitors:** CE on our properties, CE on *nearby* properties,
+>    CA entity standing (FTB/SOI), and county property-tax delinquency (see §5).
+> 3. **Stack flipped to AWS**, right-sized and **split by *fetch shape*** (bulk pull vs.
+>    per-target probe), not by source. The data-gravity argument for staying on Replit was
+>    conceded (see §7).
+> 4. **Matching is now APN-first**, not address-string-first (see §8).
+> 5. **New unifying abstraction:** alert on a **state transition**, not a new row —
+>    monitors / observations / alerts (see §3 and §6).
 
 ---
 
 ## 1. The idea in one paragraph
 
-Code violations are public record and published on city/county websites. We continuously
-acquire them, figure out the **address** each violation is tied to, match that address
-against **our property + ownership database** (we already know who owns what), and then
-**notify the relevant party** — the owner, or whoever is doing the repair — using the
-notification + email systems we already have. The pitch to the user: "We'll tell you the
-moment a property you care about (or own, or are flipping) gets flagged by the city."
+Several kinds of public-record events signal **risk on a property or the entity that owns it** —
+a city code-enforcement case opening, a borrower LLC losing good standing with the state, an
+unpaid property-tax bill going delinquent. These are all published by government sources. We
+continuously acquire them, key each one to a **property (by APN) or an entity**, match against
+**our property + ownership database** (we already know who owns what), and **notify the relevant
+party** — the owner, the company doing the repair, or our internal team — using the notification
++ email systems we already have. The pitch: "We'll tell you the moment something about a property
+you care about, or the entity behind a deal, changes in a way that could blow up a loan or a
+flip — before the city, the state, or anyone else shows up."
+
+The original driver still holds: we do home loans for companies renovating properties, and they
+catch code violations (and other surprises) along the way. We want to alert them the moment a
+risk is published, before the city/state/county notifies them or someone just shows up.
 
 ---
 
-## 2. Why this is a separate app
+## 2. Why this is a separate app (on isolated compute)
 
-- **Load isolation.** Our Replit box already runs the Express API, Vite, the SFR sync
-  pipeline, email jobs, websocket layer, and cron. Adding a constantly-running scraper
-  (especially a headless browser) on the same box risks starving everything else.
-- **Different failure modes.** Scrapers break when a website changes its HTML. We do not
-  want a flaky scraper taking down the main app, and we want its logs/alerts separate.
-- **Different scaling/runtime needs.** Scraping wants either a persistent worker or a
-  container with a headless browser — a different runtime profile than our request/response API.
-- **Shared, not coupled.** It writes to the **same Neon Postgres** (its own schema/tables)
-  and triggers notifications either by calling our existing API or by sharing the DB. That's
+- **Load isolation.** Our Replit box already runs the Express API, Vite, the SFR sync pipeline,
+  email jobs, websocket layer, and cron. Adding constantly-running pollers (and, for some
+  sources, a headless browser) on the same box risks starving everything else.
+- **Different failure modes.** Scrapers break when a website changes its HTML; bulk-file parsers
+  break when a column moves. We don't want a flaky acquirer taking down the main app, and we want
+  its logs/alerts separate.
+- **Different runtime profile.** Some sources are clean API/bulk pulls (cheap serverless);
+  others need a persistent worker with a headless browser (a container). Neither matches our
+  request/response API runtime.
+- **Shared data, not coupled code.** Every monitor ends in a **match against our property/
+  company/APN data in Neon Postgres**. The app writes to that same database (its own
+  `cv_`-prefixed schema) and triggers notifications via our existing API/DB + Postmark. That is
   the only coupling.
 
+> **Locality is NOT a reason to stay on Replit.** Neon is normal Postgres over TLS; any AWS
+> Lambda/Fargate task reads `DATABASE_URL` from SSM and queries it directly. No VPC peering, no
+> private networking. The honest cost of going AWS is a *second operational home* (deploys, logs,
+> alarms live somewhere other than the main app), not data access. See §7.
+
 ---
 
-## 3. The three phases (the pipeline)
+## 3. The pipeline — alert on a STATE TRANSITION, not a new row
+
+The key reframe in v0.2: every monitor, once you squint, has the same shape — **fire when a
+tracked thing transitions into a bad state we haven't already notified about**, not merely when a
+new record appears.
 
 ```
-  ┌─────────────┐     ┌──────────────┐     ┌─────────────────────┐     ┌──────────────┐
-  │  ACQUIRE    │ --> │   STORE      │ --> │   PROCESS / ENRICH  │ --> │   NOTIFY     │
-  │ scrape/API  │     │ raw records  │     │ address → owner     │     │ ws + email   │
-  └─────────────┘     └──────────────┘     └─────────────────────┘     └──────────────┘
+  ┌────────────┐    ┌───────────────┐    ┌──────────────────┐    ┌───────────┐    ┌──────────┐
+  │  ACQUIRE   │ -> │  OBSERVE      │ -> │  MATCH           │ -> │  DIFF     │ -> │  NOTIFY  │
+  │ API / bulk │    │ normalize to  │    │ APN/entity →     │    │ vs last-  │    │ ws+email │
+  │ / scrape   │    │ observations  │    │ our property/co  │    │ known     │    │ (transit)│
+  └────────────┘    └───────────────┘    └──────────────────┘    └───────────┘    └──────────┘
 ```
 
-### Phase 1 — Acquire
-Pull code-violation records from the source on a schedule (e.g. every N hours, or daily).
-Two possible modes, in order of preference:
-1. **Official API / open dataset** (best): hit a JSON/CSV endpoint. Stable, fast, polite,
-   no browser needed. → cheap serverless is enough.
-2. **Web scrape** (fallback): drive the public portal with a headless browser
-   (Playwright/Puppeteer), paginate, parse HTML. Fragile, heavier runtime, needs a container.
+- **Acquire** — pull from the source (API pull, bulk file, or browser scrape; see §5/§7).
+- **Observe** — each source is an *adapter* that emits a normalized observation:
+  `{ target_key, source, status, details, observed_at }` where `target_key` is an **APN** (CE,
+  tax) or an **entity id** (FTB/SOI). Adapters are the only source-specific code.
+- **Match** — resolve `target_key` to a property/company/user in our DB (APN-first, §8).
+- **Diff** — compare each observation's `status` to the **last-known status** stored per
+  `(source, target_key)`. A transition we haven't notified is the alert trigger.
+- **Notify** — only on an un-notified transition: WebSocket in-app + Postmark email, written
+  once to an idempotency ledger.
 
-> **The single most important early task is figuring out which mode San Diego allows** (see
-> §5 and the Phase 0 spike). It changes the tech stack and the cost.
+The state transitions per source:
 
-### Phase 2 — Store
-Land every record as **raw** first (immutable, exactly as fetched), then normalize. Keeping
-the raw payload means when our parser is wrong we can re-process history without re-scraping.
+| Monitor | Transition that fires an alert |
+|---|---|
+| Code enforcement (your property) | a new CE case appears for an APN you own |
+| Code enforcement (nearby) | a CE case appears within radius *R* of an APN you own |
+| Entity standing (FTB/SOI) | standing flips `Active → Suspended` (or out of good standing) |
+| Property tax | a parcel flips `current → delinquent/defaulted` |
 
-### Phase 3 — Process / Enrich
-- Normalize + geocode the violation address (we already have `GOOGLE_API_KEY`).
-- Match address → a property in our DB → the owner/company.
-- Classify the violation (type, severity, status) from the source text.
-- Deduplicate (the same case shows up across runs) and decide "is this new / changed?"
-
-### Phase 4 — Notify
-Reuse what exists: the **WebSocket notification layer** for in-app, and **Postmark email**
-for outbound. New violation matched to a known owner/user → fire a notification + email.
-(Heavy caveat on emailing non-users — see §10 Compliance.)
+Because the core is "store last-known status, fire only on a fresh transition," **adding a fifth
+source later is writing one adapter, not a new pipeline.** This matters more than any infra
+decision below.
 
 ---
 
-## 4. Where do we start geographically — City vs County?
+## 4. Geographic scope — City of San Diego first
 
-> **DECIDED: City of San Diego first.** ✅ One jurisdiction, one data source. County and the
-> surrounding independent cities are deferred to later "source adapters." The rest of this
-> section is kept as the rationale.
+> **DECIDED: City of San Diego first.** ✅ One jurisdiction, one primary feed (OpenDSD). County
+> and the surrounding independent cities are deferred to later source adapters.
 
-This materially changes the data source.
+- **City of San Diego** (~1.4M people): one code-enforcement system, exposed via **OpenDSD**.
+  Cleanest place to start. (The property-tax and entity-standing monitors are **County** and
+  **State** respectively — see §5 — but the CE monitor, our first build, is City.)
+- **San Diego County** (unincorporated): separate Planning & Development Services system —
+  later adapter.
+- **The trap:** "San Diego" colloquially includes Chula Vista, Oceanside, Escondido, Carlsbad,
+  El Cajon, etc. — each an **independent city with its own code-enforcement portal** (~18
+  sources). Do not chase this for the MVP.
 
-- **City of San Diego** (~1.4M people): one jurisdiction, one code-enforcement system,
-  one data source to crack. Cleanest place to start. The City runs an **open data portal**
-  (`data.sandiego.gov`) and a **Get It Done** 311 service-request system — both candidate
-  feeds — plus an Accela-style permitting/enforcement portal.
-- **San Diego County** (unincorporated areas): handled by the County's Planning &
-  Development Services. Separate system again.
-- **The trap:** "San Diego" colloquially includes Chula Vista, Oceanside, Escondido,
-  Carlsbad, El Cajon, etc. — each an **independent city with its own code enforcement
-  portal**. Trying to cover "San Diego County" really means integrating ~18 different
-  sources. Do not do this for the MVP.
-
-> **Recommendation:** Start with **City of San Diego only**, one data source. Treat each
-> additional jurisdiction as a pluggable "source adapter" we add later. Design the schema
-> so `jurisdiction` is a first-class column from day one.
+> Schema keeps `jurisdiction` (and more generally `source`) as a first-class column from day one
+> so each new jurisdiction/source is a pluggable adapter.
 
 ---
 
-## 5. Data source strategy — CONFIRMED: Accela Citizen Access (scrape)
+## 5. Data sources — four monitors, mapped to where the data actually lives
 
-> **CONFIRMED — there is no API.** The source is the City of San Diego's **Accela Citizen
-> Access** portal, Code Enforcement module:
-> `https://aca-prod.accela.com/SANDIEGO/Cap/CapHome.aspx?module=CE&TabName=CE...`
-> This settles the API-vs-scrape question: **we must scrape**, which **eliminates Option C
-> (Supabase Edge Functions)** and points at **Option A (TS worker + Playwright)**.
+The defining axis is **fetch shape** (bulk pull vs. per-target probe), because that — not the
+source — decides whether a monitor needs a queue (§7). Each source is tagged below.
 
-### What we know about the portal
-- It's **Accela ACA**, an **ASP.NET WebForms** app (`.aspx`). This explains the behavior the
-  user observed:
-  - **Results don't appear from the URL alone.** You must load the page, fill the search form
-    (city = San Diego, etc.), and click **Search** — results come back via a server postback.
-  - **Pagination isn't in the URL.** Page 2/3/… are driven by **ViewState postbacks**, not
-    query params. So "go to the URL on page 3" can't be reproduced by URL alone — state lives
-    in the form/session, not the address bar. This is the classic ASP.NET WebForms pattern.
-- **There is a "Download results" button.** This is the key finding — it almost certainly
-  exports the current result set as a **CSV**. Driving that button is far more robust than
-  scraping HTML table rows, and it likely gives us the full record (address, description,
-  case #, status, dates) in one clean file.
-- Fields visible in the results (per the user): **addresses**, **complaint/violation
-  descriptions**, **records/status** — i.e. everything we need. Owner is not published; we
-  resolve owner ourselves from our DB.
+### 5.1 Code enforcement — City of San Diego → **OpenDSD API (PRIMARY)** · *bulk pull*
 
-### Implications for how we acquire
-1. **Headless browser is required** (Playwright/Puppeteer): load page → fill search form →
-   click Search → click **Download results** → capture the CSV. We parse the CSV, not the HTML.
-   This is the most robust automation path and avoids fighting ViewState pagination row-by-row.
-2. If the download is gated or unreliable, fallback is to walk the paginated results via the
-   browser (clicking through ViewState postbacks) — slower and more fragile; prefer the CSV.
-3. **Be a polite citizen:** throttle, run off-hours, cache, don't hammer. Respect the portal's
-   terms of use. One scheduled run/day to start (see cadence question in §13).
+> **CORRECTION to v0.1:** v0.1 said "CONFIRMED — there is no API" and committed to scraping the
+> Accela ACA portal. **That was wrong.** The data is queryable as JSON via OpenDSD, the same DSD
+> system that backs the public Accela portal. **We do not scrape for the primary path.**
 
-### Bootstrap before any scraper: manual CSV (user's own idea — do this first)
-The user can already search and hit **Download results** to get the CSV by hand. So the
-**zeroth deliverable** is a tiny **manual upload** path: each morning, download the CSV and
-upload it into our app; the **process → match → notify** pipeline runs on it exactly as it
-will for the automated feed. This:
-- De-risks and validates the *entire* downstream pipeline (parse → geocode → owner match →
-  notify) **before** we invest in the Playwright scraper.
-- Tells us, operationally, **when records actually appear** (the user will monitor whether
-  new violations land in the morning vs trickle in all day) — which sets the real polling
-  cadence for the automated version.
-- Gives us real sample CSVs to lock down the parser/schema against actual columns.
+- **API root:** `https://opendsd.sandiego.gov/api` (HTTPS; JSON or XML via `Accept` header).
+- **Web UI for reference:** `https://opendsd.sandiego.gov/web/cecases/` (ID + address search);
+  per-case details at `.../CECases/Details/{id}`.
+- **Fields returned per CE case** (confirmed against the OpenDSD CE case object): `case_id`,
+  `APN`, `street_address`, `open_date`, `close_date`, `last_action_due_date`, latitude/longitude
+  (+ NAD83 northing/easting), `investigator_name`, `investigator_phone_number`,
+  `investigator_email_address`, `close_reason`/`close_note`, `investigator_active`, and a nested
+  **complaints** array (complaint type / description). This carries **everything we need** —
+  crucially the **APN** (exact match key) and **lat/lng** (radius match), plus dates and
+  description. Owner is not published; we resolve owner ourselves from our DB.
+- **Do NOT use the static dataset.** The `data.sandiego.gov` "Code Enforcement Violations"
+  dataset only covers cases **reported before Jan 2018 / closed 2015–2018** and explicitly tells
+  you to use OpenDSD for recent data.
 
-> **Outstanding:** the user is sending a **screenshot of the current results** + will confirm
-> the exact CSV columns. Drop those into §6 to finalize the `cv_violations` field mapping.
+**Polling strategy — CaseId watermark (preferred):** `case_id` is a **sequential integer**, so
+even if date-list querying is limited we have a clean "new since deploy" mechanism: on first run,
+record the current **max `case_id`** as the baseline and **notify nothing**; each subsequent run,
+fetch cases above the stored watermark and advance it. This is actually a *better* "new since
+deploy" trigger than date filtering and matches the user's stated requirement ("start scanning
+the day we deploy; missing prior-day filings is acceptable").
 
-Outcome: stack is effectively decided → **Option A** (see §7). Phase 0 collapses into
-"confirm the CSV columns + confirm the download-button automation works headlessly."
+> **OPEN — gating question (could not verify externally):** does OpenDSD expose a "list all CE
+> cases opened on date X / in range" query, or only **by-ID** and **by-address**? If date-list
+> exists, use it; otherwise fall back to the **CaseId watermark** above. This is the one thing to
+> confirm by probing the API directly (or emailing `dsdweb@sandiego.gov`). Community Go wrappers
+> exist (`scoutred/opendsd`, `vidman22/opendsd-api`) and are useful references for the request
+> shapes.
+
+**Freshness caveat:** OpenDSD is fed from the same system as Accela but may **lag the live portal
+by hours-to-a-day** (DSD dashboards refresh ~daily). Given we already accept missing same-day
+filings, this is fine. If the lag ever becomes unacceptable, the Accela scrape (§5.5) is the
+**freshness fallback**, not the primary.
+
+### 5.2 Code enforcement — nearby/surrounding properties → **same OpenDSD feed** · *bulk pull*
+
+**Not a new source.** Because each CE case carries `APN` *and* `lat/lng`, we pull CE cases once
+and match each case **two ways** against our owned properties:
+
+- **Exact APN match** → "on a property you own."
+- **Within radius *R*** (lat/lng proximity, e.g. PostGIS / `earthdistance`) → "nearby."
+
+One fetch, two matching rules. No second pipeline. (Radius *R* and whether "nearby" is a
+different notification severity are §13 questions.)
+
+### 5.3 Entity standing — **FTB / SOI** → CA Secretary of State (bizfile) · *per-target probe*
+
+**What these terms mean (the user asked):**
+
+- **FTB = California Franchise Tax Board** — the state tax agency. Every CA corporation/LLC owes
+  an annual **minimum franchise tax ($800 floor)**. Stop paying or filing and the FTB
+  **suspends** the entity. A suspended entity loses legal rights: it **can't enforce or defend
+  contracts, can't sue, can't legally do business**, and can even lose the exclusive right to its
+  own name.
+- **SOI = Statement of Information** — filed with the **Secretary of State** (not the FTB).
+  Corporations file **annually**, LLCs **every two years**. It lists officers/managers, principal
+  address, and agent for service of process. Miss it and the SOS also pushes the entity **out of
+  good standing**.
+
+**Why it belongs here:** our borrowers and the LLCs that own these properties are exactly the
+entities that get FTB-suspended or go SOI-delinquent. **A suspended borrower entity can't legally
+close a loan**, and one going suspended mid-renovation is a title/closing landmine. Same value
+prop as the code-violation alert: catch it before it blocks a deal.
+
+**Convenient collapse:** the CA SOS **bizfile** portal exposes a **multi-axis standing** per
+entity — **SOS, FTB, Agent, and VCFCF** standing are all surfaced per record. So "FTB payment /
+SOI" collapses into **one monitor**: watch the standing fields on the entities we track, fire on
+`good → not-good`.
+
+**Access (three options, decide per §13):**
+1. **Gated official REST API** (CALICO / bizfile API) — JSON entity details, but requires
+   registering on their API-management portal and obtaining a **subscription key**.
+2. **Bulk "Master Unload" files** — flat data files; ~**$100** data-only, ~**$900** with images.
+3. **Scrape `bizfileonline.sos.ca.gov`** per entity (many third parties do; doable but behind
+   friction, and another `.aspx`-style portal).
+
+At our entity count, **weekly per-entity probes** are plenty. Bulk files only win if scraping
+brittleness/rate-limiting becomes a real problem.
+
+### 5.4 Property tax — **San Diego County Treasurer-Tax Collector / Auditor** · *bulk pull or per-target probe*
+
+Watch for **outstanding/delinquent property-tax bills** on previously-sold and currently-owned
+properties.
+
+**Access:**
+- **Bulk (clean path):** the County Auditor publishes **Tax Roll Data Files**, including a
+  **Delinquent Master Tax File** (all prior-year bills unpaid as of **June 30** + current
+  status), plus the current **secured roll** and **defaulted roll** — about **$86 per file**.
+  Match against our APNs.
+- **Live per-parcel lookup:** the Tax Collector's payment site — but heads up, it's the **same
+  `.aspx` search-by-APN/address portal pattern** as Accela, already **blocks access from some
+  foreign countries**, and will likely **rate-limit a scraper**.
+
+**Tradeoff (buy bulk vs. probe per target):** since we only care about *our* APNs and
+delinquency is **calendar-driven** (key dates **Dec 10**, **Apr 10**, **June 30**), **probing our
+handful of parcels a few times a year** is cheaper and fresher than buying whole-county files.
+Lean probe; buy bulk only if the portal blocks/rate-limits us.
+
+### 5.5 Accela ACA portal → **FALLBACK ONLY (freshness)** · *headless-browser scrape*
+
+Kept for the record and as the freshness fallback for §5.1 — **not** the primary path.
+
+- It's **Accela ACA**, an **ASP.NET WebForms** app (`.aspx`) — **not** a React/useState app.
+  Navigation is via server-side **`__doPostBack`** carrying **ViewState** + EventValidation
+  blobs, with search state held in the **server session**. That's why you can't deep-link with
+  URL params and why pagination isn't in the URL.
+- To drive it you'd need a **headless browser** (Playwright/Puppeteer) replaying the exact click
+  sequence: set city/state (San Diego, CA) → switch to **Search by Address** → Search → pick the
+  **"SAN DIEGO CA"** result from the disambiguation list → parse the results table (date, record
+  number, record type, address, application name, status, description, action) **or** trigger
+  **Download results** (CSV).
+- It's brittle (breaks whenever the city touches the page) and headless-browser jobs are exactly
+  what a solo dev doesn't want to babysit. **Only reach for it if OpenDSD's lag proves
+  unacceptable.**
+
+### Source summary
+
+| Monitor | Source | Fetch shape | Queue? | Cost |
+|---|---|---|---|---|
+| CE — your property | OpenDSD API (JSON) | Bulk pull | No (cron) | Free |
+| CE — nearby | OpenDSD API (same fetch) | Bulk pull | No (cron) | Free |
+| Entity standing (FTB/SOI) | CA SOS bizfile (API / bulk / scrape) | Per-target probe | **Yes** | $0 (API key) – $100+ (bulk) |
+| Property tax delinquency | SD County Auditor / Tax Collector | Probe (or bulk) | **Yes** (if probe scrape) | ~$86/file or probe |
+| CE freshness fallback | Accela ACA portal | Headless scrape | **Yes** | Compute only |
 
 ---
 
-## 6. Data model (first pass)
+## 6. Data model (revised around monitors / observations / alerts)
 
-New tables, isolated in their own schema (e.g. `cv_` prefix or a `code_violations` schema):
+New tables, isolated in their own `cv_` schema. The shape now centers on the **state-transition**
+model from §3, not just "raw rows."
 
-- **`cv_sources`** — one row per jurisdiction/source adapter (City of SD, etc.): name,
-  base URL, mode (api|scrape), polling cadence, last-run cursor, enabled flag.
-- **`cv_raw_records`** — immutable raw payloads: source_id, fetched_at, external_case_id,
-  raw_json/raw_html, content_hash (for dedup). Never edited.
-- **`cv_violations`** — normalized: source_id, external_case_id (unique per source),
-  raw_address, normalized_address, geocode (lat/lng), violation_type, description, status,
-  opened_date, last_seen_at, first_seen_at, content_hash, processing_state.
-- **`cv_property_matches`** — join from a violation to a property in our existing DB:
-  violation_id, property_id, match_confidence, match_method (exact|fuzzy|geocode).
-- **`cv_notifications_sent`** — idempotency ledger: violation_id, recipient, channel
-  (ws|email), sent_at. Prevents double-notifying for the same case across runs.
+- **`cv_sources`** — one row per source adapter (OpenDSD CE, CA SOS standing, SD County tax,
+  Accela fallback): name, jurisdiction, `fetch_shape` (`bulk` | `probe`), access mode
+  (`api` | `bulk_file` | `scrape`), cadence, **watermark/cursor** (e.g. max `case_id`), enabled.
+- **`cv_targets`** — the things we watch, keyed by **`target_key`** (an **APN** for property
+  sources, an **entity id** for standing) + `target_type`, linked to our property/company where
+  resolved. This is what `last_known_status` hangs off of.
+- **`cv_raw_records`** — immutable raw payloads exactly as fetched: source_id, fetched_at,
+  external_id, raw_json/raw_csv/raw_html, `content_hash`. Never edited (replay parse bugs without
+  re-fetching).
+- **`cv_observations`** — normalized adapter output: source_id, `target_key`, `status`, details,
+  observed_at, content_hash. One row per (target, fetch) — the input to the diff step.
+- **`cv_status`** — **last-known status per `(source, target_key)`** (the diff baseline) +
+  `last_transition_at`, `last_notified_status`. This table is what makes "fire only on a fresh
+  transition" work.
+- **`cv_property_matches`** — join from a `target_key` to a property/company in our existing DB:
+  match_confidence, **match_method** (`apn` | `geocode` | `fuzzy`).
+- **`cv_notifications_sent`** — idempotency ledger: target_key, source, transition, recipient,
+  channel (ws|email), sent_at. We never double-notify the same transition.
+- **`cv_runs`** — per-fetch structured run log (see §11): source, started/finished, records
+  fetched/new/changed, errors, duration.
 
-Design principles: **raw-first**, **idempotent** (re-running a fetch never duplicates or
-re-notifies), **content_hash** to detect "this case changed" vs "already seen."
+For the CE source specifically, persist the OpenDSD fields from §5.1 (`case_id`, `apn`,
+`street_address`, `open_date`, `close_date`, lat/lng, `description`, investigator contact) on the
+observation/details so notifications can include them.
+
+Design principles: **raw-first**, **APN/entity-keyed**, **idempotent** (re-running never
+duplicates or re-notifies), **diff against last-known status** to detect a real transition vs.
+"already seen."
 
 ---
 
-## 7. Tech stack options (detailed breakdown)
+## 7. Compute & architecture — AWS, right-sized, split by FETCH SHAPE
 
-All three write to the **existing Neon Postgres**. They differ in *where the compute runs*,
-*whether they can run a headless browser*, and *how much ops/setup they demand*. The right
-pick depends on the Phase 0 result (API vs scrape).
+> **DECISION REVISED in v0.2.** v0.1 recommended a single TypeScript worker on Fly.io/Railway
+> (Option A) and leaned on a data-gravity argument to keep compute next to the DB. The user
+> (3 yrs AWS experience, comfortable with Identity Center, can store secrets/DB URLs in SSM)
+> rightly pointed out **Neon is reachable from anywhere over TLS**, so locality is a non-issue.
+> Conceding that, **AWS is the home** — it plays to the part of the system most likely to break
+> (headless-browser scrapers want isolated, restart-on-failure, container-native compute), the
+> user is fluent in it, and it gives blast-radius isolation + autonomy to ship end-to-end.
 
-### At-a-glance comparison
+### The organizing principle: split by fetch shape, NOT by source
 
-| Dimension | A — TS worker (Fly/Railway) | B — AWS Lambda + EventBridge + Terraform | C — Supabase Edge Functions |
-|---|---|---|---|
-| **Language / runtime** | Node + TypeScript (our stack) | TS in Lambda, but config in HCL/Terraform | Deno + TypeScript (similar, minor API diffs) |
-| **Headless browser (scrape JS portals)** | ✅ First-class (Playwright in container) | ⚠️ Possible but painful (container image + Chromium layer, 1–2 GB) | ❌ Not possible (no Chromium, short timeouts) |
-| **Clean API fetch (no browser)** | ✅ Easy | ✅ Easy & ideal | ✅ Easy & ideal |
-| **Scheduling** | node-cron in-process, or platform cron | EventBridge Scheduler (managed cron) | pg_cron / Supabase scheduled functions |
-| **Execution time limit** | Unlimited (long crawls OK) | 15 min hard ceiling per invocation | Short (seconds) — fine for API, not big crawls |
-| **Cold starts** | None (warm worker) or fast container | Yes (container Lambdas slow to spin) | Minimal |
-| **State between runs** | Easy (in-memory + DB cursor) | Stateless — must persist cursor to DB each run | Stateless — cursor in DB |
-| **Logging / observability** | Platform logs + our own `cv_runs` table | CloudWatch (powerful, more setup) | Supabase logs (basic) + our `cv_runs` table |
-| **Infra-as-code** | Minimal (Dockerfile + one config) | Full IaC via Terraform (the main benefit) | Minimal (function + cron) |
-| **Setup / build effort** | **Low** — closest to what we already do | **High** — AWS account, IAM, VPC/NAT, Terraform | **Low–Medium** — if API-only |
-| **Ops burden ongoing** | Babysit one small box | Mostly managed, but more surface area | Mostly managed |
-| **Isolation from Replit** | ✅ Full | ✅ Full | ✅ Full |
-| **Vendor lock-in** | Low (portable container) | High (AWS-specific glue) | Medium (Supabase-specific) |
-| **Scales to many jurisdictions** | Good (add workers/queues) | Excellent (per-source Lambdas) | Good (API-only sources) |
-| **Cost at MVP volume** | ~$5–15/mo | ~$0–5/mo (eng time is the real cost) | ~$0 (free tier) / $25 if on Pro |
+The instinct to "classify every job by source and run a consumer per source" reaches for the
+right property (isolation) on the wrong axis. The axis that decides whether you need a **queue**
+is the **fetch shape**, and there are only two:
 
-### Option A — Dedicated Node/TS worker on Fly.io or Railway  ⭐ (recommended for MVP)
-A small standalone TypeScript service — same language and patterns as the rest of the team —
-running its own scheduler and, when needed, **Playwright** for scraping. Deploys as a
-container that can do *anything*: a clean API fetch or a full headless-browser crawl. Writes
-to Neon and triggers notifications by calling our main app's API or sharing the DB.
+- **Bulk pull** — one request returns many records, then you diff + match (OpenDSD CE, county
+  delinquent tax file, SOS Master Unload). **No queue.** Just: **EventBridge Scheduler → one
+  Lambda (or one scheduled Fargate task) → fetch → diff → match → notify.** These are crons.
+- **Per-target probe** — N independent fetches, one per entity/parcel, against a
+  rate-limited/blockable government site (per-entity bizfile scrape, per-parcel tax lookup).
+  **This is where a queue earns its keep** — polite throttling, per-item retry/backoff, a
+  dead-letter for failures. **SQS → Fargate worker pool (with the browser).**
 
-- **What you actually build:** a Dockerfile, a `node-cron` (or platform-cron) entrypoint, the
-  source adapter, and the processing code. That's it. Deploy = `fly deploy` / `railway up`.
-- **Pros:**
-  - Fastest to build — it's the stack we already write every day.
-  - **Works regardless of Phase 0** (API *or* headless scrape), so we can start now without
-    knowing the answer.
-  - No execution-time ceiling — long, polite, paginated crawls are fine.
-  - Persistent process = easy to keep a warm browser, rate-limit politely, hold a cursor.
-- **Cons:**
-  - One small always-on (or scheduled) box to babysit and patch.
-  - Less formal infra-as-code than AWS (mitigated: it's just a Dockerfile + one config file).
-  - You manage your own retry/alerting plumbing (but we want a `cv_runs` table anyway).
-- **Cost:** ~**$5–10/mo** for a shared-CPU 256–512 MB instance (API-only). A headless browser
-  wants ≥512 MB–1 GB → ~**$10–15/mo**. Scheduled (not always-on) variants can be cheaper.
+So: **plain scheduled jobs for bulk pulls; one SQS queue feeding a worker pool for the probes.**
+`source` becomes just a `type` column on the job, not a separate pipeline.
 
-### Option B — AWS: Terraform IaC + Lambda + EventBridge (your original idea)
-EventBridge Scheduler fires a Lambda on a cron; the Lambda fetches, processes, writes to Neon;
-CloudWatch captures logs/alarms; Terraform defines all of it.
+### Target AWS shape
 
-- **What you actually build:** an AWS account + IAM roles, a Terraform project, the Lambda
-  handler, EventBridge rules, CloudWatch alarms, and (for scraping) a **container-image Lambda
-  bundling Chromium** (`@sparticuz/chromium`) at 1–2 GB memory. Plus Neon connection handling
-  from Lambda (connection pooling / data API to avoid exhausting Postgres connections).
-- **Pros:**
-  - **Real infra-as-code** — reproducible, reviewable, the strongest long-term ops story.
-  - Pay-per-invocation; effectively free at our volume for light API polling.
-  - Managed cron, mature logging/alerting (CloudWatch), clean per-source scaling later.
-- **Cons:**
-  - **Headless scraping is the pain point** — container Lambdas, the 15-min ceiling, cold
-    starts, and bigger memory. If Phase 0 says "scrape," this is the most work.
-  - Heaviest setup for a 1-jurisdiction MVP — AWS account, IAM, VPC/NAT egress, Terraform
-    learning curve. The real cost is **engineering time, not the bill**.
-  - Highest vendor lock-in (AWS-specific glue).
-- **Cost:** Lambda + EventBridge is **~$0–few $/mo** (inside free tier for light polling);
-  container scraping Lambdas a bit more, still single digits. Eng time dominates.
+```
+  Bulk pulls (no queue):
+    EventBridge Scheduler ──cron──▶ Lambda / scheduled Fargate ──▶ Neon (diff+match) ──▶ Postmark
+    (OpenDSD CE, county tax bulk, SOS bulk)
 
-### Option C — Supabase Edge Functions + pg_cron
-Deno edge functions on a schedule (`pg_cron` / Supabase scheduled functions) that fetch and
-process, writing to Postgres.
+  Per-target probes (queue):
+    EventBridge ─▶ enqueuer ─▶ SQS ─▶ Fargate worker pool (Playwright) ─▶ Neon (diff+match) ─▶ Postmark
+    (per-entity bizfile, per-parcel tax lookup)   │
+                                                  └─▶ SQS DLQ (failed probes)
 
-- **What you actually build:** a Deno edge function (TS, slightly different APIs than Node), a
-  pg_cron schedule, and the processing code. Minimal infra.
-- **Pros:**
-  - Very cheap, minimal infra, tidy if we ever consolidate storage on Supabase.
-  - Great fit for an **API-only** source + light processing.
-- **Cons:**
-  - **Cannot run a headless browser** (no Chromium) and **short execution limits** — so this
-    is viable *only if Phase 0 finds a clean API*. If we must scrape a JS portal, Option C is out.
-  - Deno runtime differs slightly from our Node code (small porting friction).
-- **Cost:** **~$0** on the free tier; ~**$25/mo** if we move to / already pay for Supabase Pro.
+  Cross-cutting: secrets in SSM Parameter Store / Secrets Manager · logs+alarms in CloudWatch
+```
 
-### How the Phase 0 result maps to the choice
-- **Clean API / open dataset found** → any option works; pick **C** (cheapest, simplest) or a
-  tiny **B** Lambda if we want the AWS/IaC foundation.
-- **Must scrape a JS portal** → realistically **A** (or a heavyweight container Lambda under B).
-  **C is eliminated.**
-- **Don't know yet / want to start now** → **A**, because it covers both outcomes and we can
-  migrate the *acquire* step to B or C later without touching process/notify.
+- **Match + notify** is shared code: whatever runs the job queries Neon (APN/entity match) and
+  calls **Postmark**. Written once (§3), not per source.
+- **Headless browser quarantine:** the brittle `.aspx` scrapers (tax portal, possibly bizfile,
+  Accela fallback) run as **isolated Fargate tasks**, so a flaky Playwright process can't share a
+  runtime with — or take down — anything else.
+- **Neon connections:** Lambda fan-out can exhaust Postgres connections — use a pooler / limit
+  concurrency. Bulk pulls are single-invocation so this mostly bites the probe workers.
 
-### → DECISION (given the Accela finding in §5)
-The source is an **ASP.NET WebForms portal requiring a headless browser** (form + Search +
-ViewState pagination + CSV download). That **eliminates Option C** and makes a container with
-Playwright the natural home. **Pick Option A (TS worker on Fly.io/Railway + Playwright).** It
-runs the browser trivially, has no execution-time ceiling for the crawl/download, and is our
-existing skillset. Option B stays a *later* possibility only if we want AWS IaC — but a
-container scraping Lambda is strictly more work than Option A for the same result.
+### The one honest cost of AWS (the thing to actually weigh)
+
+Not data access — **a second operational home.** Deploys, logs, alarms, and "where do I go at
+11pm when a job didn't fire" now live somewhere other than the main app. For a solo dev that's
+the real tax. The judgment: a **four-source monitoring pipeline with browser scrapers** is meaty
+enough that the second home pays for itself. (Had every source turned out to be clean API/bulk
+with no browser, the call would flip toward keeping it next to the app.)
+
+### Don't over-build
+
+The mistake to avoid is **not** AWS — it's reflexively wiring **SQS + Lambda + EventBridge for
+everything**. Bulk pulls are crons; only the probes get the queue. That keeps us from standing up
+a five-service constellation to move ~50 text records a day.
 
 ### Cross-cutting cost: Google Geocoding
-Whatever stack we pick, geocoding addresses costs ~**$5 per 1,000 requests** (Google), with a
-monthly free credit. We cache geocodes (never geocode the same address twice) → negligible at
-City-of-SD volume. Postmark email we already pay for.
 
-### Recommendation
-- **If Phase 0 finds a clean API/open dataset** → **Option C** (or a tiny Option B Lambda).
-  Pennies/month, minimal ops.
-- **If Phase 0 says we must scrape a JS portal** → **Option A** (Fly.io/Railway TS worker).
-  Fastest to build with our skills, handles the browser, ~$10/mo.
-- **Default bet, build-first:** **Option A.** It works regardless of the Phase 0 outcome, so
-  we can start immediately and migrate the *acquire* step to serverless later if a clean API
-  turns up. Keep the acquire/process/notify stages decoupled so swapping the stack is cheap.
+APN-first matching (§8) means geocoding is a **fallback**, not the main path, so volume is tiny.
+When used, Google geocoding is ~**$5 / 1,000 requests** with a monthly free credit, and we
+**cache geocodes** (never geocode the same address twice) → negligible. Postmark we already pay
+for.
+
+### Appendix — the v0.1 stack options (kept for context)
+
+The v0.1 comparison evaluated **A — TS worker on Fly.io/Railway**, **B — AWS Lambda + EventBridge
++ Terraform**, and **C — Supabase Edge Functions + pg_cron**. With the OpenDSD API found (no
+browser needed for the primary CE path) *and* the AWS decision above, the live picture is:
+**bulk pulls = a small Lambda/Fargate cron (essentially Option B, minimal), probes = SQS +
+Fargate (the browser home Option C never could be).** Option C (Supabase Edge) is viable **only**
+for clean API/bulk sources and **cannot** run the headless scrapers, so it's out for the probe
+workers. Option A (Fly/Railway) remains a perfectly good fallback if the AWS second-home tax ever
+feels too heavy for the value — the acquire/process/notify decoupling (§3) keeps that swap cheap.
 
 ---
 
-## 8. Processing detail — address → owner
+## 8. Processing detail — target → owner (APN-FIRST)
 
-This is the heart of the value and the trickiest part.
+This is the heart of the value and the trickiest part. **v0.2 change: match on APN, not address
+strings.**
 
-1. **Normalize** the source address (strip unit noise, standardize "St/Street", uppercase to
-   match our ALL-CAPS DB convention).
-2. **Match strategy, in order:**
-   - Exact normalized-string match against our property table.
-   - Geocode → match by lat/lng proximity (handles formatting differences).
-   - Fuzzy match (trigram / `pg_trgm`) as a last resort, with a confidence score.
-3. Record **match_confidence** and **match_method**. Only auto-notify above a confidence
-   threshold; queue low-confidence matches for review (especially early on).
-4. Resolve the matched property → owner/company → any of our **users** linked to it.
+1. **Prefer the APN.** OpenDSD CE records carry an **`APN`**; county tax data is keyed by APN;
+   entity standing is keyed by entity id. APN is an **exact key** — match on it first.
+   - Address matching against portal text ("Av, Bldg, SAN DIEGO CA 92154") is a fuzzy-
+     normalization swamp. Avoid it as the primary key.
+2. **Get APNs onto our properties (highest-leverage one-time work).** Enrich our property records
+   with APNs once — e.g. against the **County SITUS address dataset** (address → APN). This is
+   where engineering effort buys the most accuracy; spend it here, not on infra.
+3. **Match strategy, in order:**
+   - **Exact APN match** against our property table (`match_method = apn`).
+   - **Geocode → lat/lng proximity** as a fallback when APN is missing (`match_method = geocode`).
+   - **Fuzzy address** (trigram / `pg_trgm`) as a last resort, with a confidence score
+     (`match_method = fuzzy`).
+4. Record **match_confidence** + **match_method**. Auto-notify only above a confidence threshold;
+   queue low-confidence matches for review (especially early).
+5. Resolve the matched property → owner/company → any of our **users** linked to it. For the
+   nearby-CE rule (§5.2), the match is "within radius *R* of an owned APN."
 
-> Reality check: many violations will match a property we have but **no user** who wants the
-> alert. That's the "is this a lead-gen product or an alerts product?" question in §13.
+> Reality check: many CE cases will match a property we have but **no user** who wants the alert.
+> That's the "alerts product vs. lead-gen product" question in §13.
 
 ---
 
 ## 9. Notification integration (reuse existing infra)
 
-- **In-app:** reuse the existing WebSocket notification layer — new violation matched to a
+- **In-app:** reuse the existing WebSocket notification layer — a fresh transition matched to a
   user → push a notification.
-- **Email:** reuse Postmark. Likely a **new template** (e.g. `POSTMARK_CV_TEMPLATE_ALIAS`)
-  with the violation summary, address, type, and a link into the app.
-- **Idempotency:** every send is written to `cv_notifications_sent`; we never email the same
-  (violation, recipient, channel) twice.
-- **Batching/digest:** consider a daily digest instead of per-violation blasts to avoid spam.
+- **Email:** reuse Postmark. Likely a **new template per monitor** (e.g.
+  `POSTMARK_CV_TEMPLATE_ALIAS` for code violations; standing/tax get their own) with the event
+  summary, address/APN/entity, type, and a link into the app.
+- **Idempotency:** every send is written to `cv_notifications_sent`; we never re-notify the same
+  `(target, source, transition, recipient, channel)`.
+- **Batching/digest:** consider a daily digest instead of per-event blasts to avoid spam.
 
 ---
 
-## 10. Compliance / deliverability (flagging early — important)
+## 10. Compliance / deliverability (flag early — important)
 
-The violations are public record, but **emailing property owners who never signed up** is a
-different thing from notifying our users:
-- **Spam / CAN-SPAM** rules apply to unsolicited commercial email; bulk cold email also
-  **wrecks Postmark sender reputation** and deliverability for our legit transactional mail.
-- **Strong recommendation for MVP:** only notify **existing users** about properties they own
-  or are tracking. Treat "cold-notify any owner in the county" as a separate, later,
-  carefully-designed (and possibly opt-in / different-channel) feature. This keeps us safe and
-  protects email deliverability.
+The events are public record, but **emailing property owners / entities who never signed up** is
+a different thing from notifying our users:
+
+- **Spam / CAN-SPAM** rules apply to unsolicited commercial email; bulk cold email also **wrecks
+  Postmark sender reputation** and deliverability for our legit transactional mail.
+- **Scraping legality:** government public-records sites are generally tolerated to scrape, but
+  some carry **ToS restrictions and rate limits**, and a couple of these portals (county tax,
+  possibly bizfile) **already block some traffic**. Prefer **official APIs / bulk data** where
+  available; scrape **politely** (throttle, off-hours, cache) only as a fallback.
+- **Strong recommendation for MVP:** only notify **existing users** about properties/entities
+  they own or track. Treat "cold-notify any owner with a violation" as a separate, later,
+  carefully-designed (and possibly opt-in / different-channel) feature.
 
 ---
 
-## 11. Logging & observability (you called this out as important)
+## 11. Logging & observability (first-class, not an afterthought)
 
-Because scrapers silently rot, this is first-class, not an afterthought:
-- **Structured run logs** per fetch: source, started/finished, records fetched, new, changed,
-  errors, duration. Persist a `cv_runs` table so we can see history in-app.
-- **Alerting** on: zero records returned (likely the site changed), parse-error rate spike,
-  fetch failures, geocode failures, notification failures.
-- **Raw payload retention** (the `cv_raw_records` table) so any parse bug is replayable.
-- Wherever we host (CloudWatch / Fly logs / Railway logs), ship logs somewhere queryable and
-  set at least one "scraper went quiet" alarm.
+Acquirers silently rot, so this is built in from the start:
+
+- **Structured run logs** per fetch (`cv_runs`): source, started/finished, records
+  fetched/new/changed, errors, duration — visible in-app.
+- **Alerting** on: zero records returned (likely the source changed or the watermark stuck),
+  parse-error spike, fetch failures, geocode failures, notification failures, **and probe DLQ
+  depth** (SQS dead-letter filling up = scrapers failing).
+- **Raw payload retention** (`cv_raw_records`) so any parse bug is replayable.
+- **CloudWatch** for logs/alarms/DLQ metrics (we're on AWS now); ship at least one "monitor went
+  quiet" alarm per source.
 
 ---
 
 ## 12. Phased rollout
 
-- **Phase 0 — Confirm CSV (no infra):** Source is already identified (Accela ACA, §5). Remaining
-  spike work: download the **Download results** CSV by hand, lock down the **exact columns**,
-  and confirm the download button can be driven headlessly. Deliverable: a sample CSV + the
-  field mapping for §6.
-- **Phase 1 — Manual CSV bootstrap (do this first):** A simple **CSV upload** screen/endpoint.
-  Each morning the user downloads the CSV from Accela and uploads it; the **process → match →
-  notify** pipeline runs on it. No scraper yet. This validates the *entire* downstream pipeline
-  on real data, surfaces the real publish cadence, and de-risks everything before we build the
-  browser automation.
-- **Phase 2 — Automated acquire (Playwright worker):** Stand up the Option A TS worker, drive
-  Accela headlessly (search → download CSV), land raw + normalized rows on a schedule. Replaces
-  the manual upload. Dashboards/logs (`cv_runs`) + "scraper went quiet" alarm working.
-- **Phase 3 — Process / Match:** Geocode + match against our property DB, owner resolution,
-  confidence scoring, dedup. Surface matched violations **in-app only** (read-only view) so we
-  can eyeball quality before sending anything. (Built against Phase 1 data, hardened in Phase 2.)
-- **Phase 4 — Notify (users only):** Wire WebSocket + Postmark for matched **users**, with
-  the idempotency ledger and a digest option. Compliance-safe scope.
-- **Phase 5+ — Expand:** More jurisdictions via source adapters; richer violation
-  classification; opt-in for non-user owners (only if/when compliance is sorted).
+- **Phase 0 — Probe OpenDSD (no infra):** Hit the OpenDSD CE API directly and answer the gating
+  question from §5.1 — **date-list query vs. by-ID/address only** — and confirm the CE fields +
+  the `case_id` watermark approach. Deliverable: a sample JSON response + the field mapping for
+  §6, and the chosen "new since deploy" mechanism.
+- **Phase 1 — CE end-to-end on OpenDSD (the MVP spine):** One scheduled bulk pull (EventBridge →
+  Lambda/Fargate) → land raw + observations → **APN-match** against our properties (requires the
+  one-time **APN enrichment**, §8) → surface matched CE cases **in-app only** (read-only) so we
+  can eyeball match quality before sending anything. Includes `cv_runs` + a "went quiet" alarm.
+- **Phase 2 — Notify (users only):** Wire WebSocket + Postmark for matched **users**, with the
+  idempotency ledger and a digest option. Compliance-safe scope (§10). Add the **nearby-CE**
+  radius rule (§5.2) — same feed, second matching rule.
+- **Phase 3 — Add the probe lane:** Stand up SQS + a Fargate worker. Start with **entity standing
+  (FTB/SOI)** via the bizfile API if the key is easy, else per-entity probe. Reuse the
+  diff/match/notify core; only the adapter is new.
+- **Phase 4 — Property tax:** Add the tax monitor — **probe our APNs** around the calendar dates
+  (Dec 10 / Apr 10 / June 30), or buy the county Delinquent Master file if probing gets blocked.
+- **Phase 5 — Accela freshness fallback (only if needed):** If OpenDSD's lag proves unacceptable,
+  add the headless Accela scraper as a Fargate task feeding the same CE pipeline.
+- **Phase 6+ — Expand:** more jurisdictions via source adapters; richer violation classification;
+  opt-in for non-user owners (only if/when compliance is sorted).
 
 ---
 
 ## 13. Open questions (need your input)
 
-1. **City vs County of San Diego** for the MVP? (Recommend City only.)
-2. **Audience:** is this an **alerts** product for our existing users about their own/tracked
-   properties, or a **lead-gen** product where we cold-contact any owner with a violation? The
-   answer drives the compliance and matching design.
-3. **Violation taxonomy:** do we need to understand/categorize each violation type, or is the
-   city's own description text good enough to forward as-is for the MVP? (Recommend: forward
-   the description as-is first; categorize later.)
-4. **Cadence:** how "real-time" is real-time? Cities publish in batches — hourly or daily
-   polling is realistic; true second-by-second isn't, because the source itself isn't live.
-5. **Stack preference:** are you set on AWS+Terraform, or open to the faster Option A
-   (Fly/Railway TS worker) for the MVP and migrating later?
-6. **Owner data:** do we currently store enough to reach a property's owner directly (contact
-   email), or only the company? This bounds who we can actually notify.
+1. **OpenDSD date query (gating, §5.1):** does it support "list CE cases opened on date X / in
+   range," or only by-ID/address? (If unknown, we proceed with the **CaseId watermark**.)
+2. **Entity-standing access (§5.3):** register for the **bizfile official API key**, **buy the
+   Master Unload bulk file** (~$100), or **scrape** per entity? (Recommend: try the API key
+   first; scrape only if the key is gated behind too much friction.)
+3. **Property-tax access (§5.4):** **probe our APNs** a few times a year (recommended — cheaper,
+   fresher) vs. **buy the county Delinquent Master file** (~$86)?
+4. **Audience (drives compliance + matching):** an **alerts** product for our existing users
+   about their own/tracked properties+entities, or a **lead-gen** product cold-contacting any
+   owner? (Recommend: alerts-to-users first.)
+5. **Nearby-CE radius (§5.2):** what radius *R* counts as "nearby," and is a nearby hit a
+   different/lower notification severity than an on-property hit?
+6. **Owner/entity data:** do we store enough to reach an owner/borrower directly (contact email)
+   and to **map our properties to APNs** and **our deals/borrowers to CA entity ids**? This
+   bounds both who we can notify and what we can match. (APN enrichment, §8, is the key
+   dependency.)
+7. **Violation taxonomy:** categorize each CE type, or forward the city's description text as-is
+   for the MVP? (Recommend: forward as-is first; categorize later.)
+8. **Cadence:** daily polling for CE is realistic (the source refreshes ~daily); entity standing
+   weekly; tax a few times a year around the deadlines. Confirm these are acceptable.
 
 ---
 
 ## 14. TL;DR recommendation
 
-1. **Spike first** to learn whether City of San Diego gives us an **API** (cheap serverless)
-   or forces a **scrape** (needs a browser-capable worker).
-2. **Build the MVP as a standalone TypeScript worker (Option A, Fly.io/Railway, ~$10/mo)** —
-   it works either way, matches our skills, and keeps all load off Replit.
-3. **Scope MVP to City of San Diego + existing users only**, reusing our WebSocket + Postmark
-   stack, with raw-first storage, idempotent notifications, and loud logging.
-4. Keep `acquire` / `process` / `notify` decoupled so we can later swap the acquire step to
-   AWS Lambda/EventBridge or Supabase functions without rewriting the rest.
+1. **Don't scrape — use the OpenDSD API.** The CE data is queryable JSON with **APN + lat/lng +
+   dates + investigator contact**. Accela scraping is a **freshness fallback only**.
+2. **Build the state-transition core once** (monitors → observations → diff vs. last-known status
+   → notify) so the four sources — and any fifth later — are just **adapters**.
+3. **Match on APN, not addresses.** The highest-leverage one-time work is **enriching our
+   properties with APNs** (e.g. via the County SITUS dataset).
+4. **Go AWS, right-sized, split by fetch shape:** bulk pulls (OpenDSD CE, county tax bulk, SOS
+   bulk) = **EventBridge → Lambda/Fargate crons, no queue**; per-target probes (bizfile, tax
+   lookup) = **SQS → Fargate worker pool with the browser**. Secrets in SSM, logs/alarms in
+   CloudWatch. Don't reflexively SQS-everything.
+5. **Scope the MVP to City-of-SD code enforcement + existing users**, reuse WebSocket + Postmark,
+   raw-first storage, idempotent transition-based notifications, and loud logging — then add
+   entity standing and property tax as new adapters on the same spine.
