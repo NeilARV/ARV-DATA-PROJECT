@@ -239,12 +239,20 @@ SOI" collapses into **one monitor**: watch the standing fields on the entities w
 > transition we can diff. If it does, this monitor is a diff on data we already have; if not,
 > bizfile fills the gap — it isn't necessarily the whole source.
 
-**Access (three options, decide per §13):**
+**Access (four options, decide per §13):**
 1. **Gated official REST API** (CALICO / bizfile API) — JSON entity details, but requires
    registering on their API-management portal and obtaining a **subscription key**.
 2. **Bulk "Master Unload" files** — flat data files; ~**$100** data-only, ~**$900** with images.
 3. **Scrape `bizfileonline.sos.ca.gov`** per entity (many third parties do; doable but behind
    friction, and another `.aspx`-style portal).
+4. **bizfile "data request" route (master + weekly) — TO INVESTIGATE, shape unknown.**
+   `bizfileonline.sos.ca.gov` appears to let you **request data files** directly: a **full master
+   dataset** plus a **weekly update file**. This expands option 2 with a weekly *delta* that fits
+   the state-transition core well (master = baseline, weekly file = the diff input — no per-entity
+   scraping). **We have not seen what it actually looks like yet:** fields returned (does it include
+   standing / `inactive` / FTB status?), file format, cost, the request/turnaround process, and
+   refresh cadence all still need confirming. Logged as a candidate while we decide which source to
+   build first — not chosen.
 
 At our entity count, **weekly per-entity probes** are plenty. Bulk files only win if scraping
 brittleness/rate-limiting becomes a real problem.
@@ -534,7 +542,8 @@ Acquirers silently rot, so this is built in from the start:
 1. **OpenDSD date query (gating, §5.1):** does it support "list CE cases opened on date X / in
    range," or only by-ID/address? (If unknown, we proceed with the **CaseId watermark**.)
 2. **Entity-standing access (§5.3):** register for the **bizfile official API key**, **buy the
-   Master Unload bulk file** (~$100), or **scrape** per entity? (Recommend: try the API key
+   Master Unload bulk file** (~$100), use the new **bizfile data-request route** (master + weekly
+   delta — shape TBD, §5.3 opt. 4), or **scrape** per entity? (Recommend: try the API key
    first; scrape only if the key is gated behind too much friction.)
 3. **Property-tax access (§5.4):** **probe our APNs** a few times a year (recommended — cheaper,
    fresher) vs. **buy the county Delinquent Master file** (~$86)?
