@@ -6,16 +6,13 @@ import { alias } from 'drizzle-orm/pg-core';
 import { isMastermindEligible } from 'server/middleware/requireMastermind';
 import { ServiceError } from 'server/lib/error';
 import type { Channel } from '@database/types/mastermind';
+import type { DmUserWire } from '@shared/mastermind/events';
 
 export class DmServiceError extends ServiceError {}
 
-// The counterparty's public profile, shared by the sidebar list and the DM header context.
-export interface DmOtherUser {
-    id: string;
-    firstName: string;
-    lastName: string;
-    profileImageUrl: string | null;
-}
+// The counterparty's public profile, shared by the sidebar list and the DM header context. This is
+// exactly the wire shape returned to the client (DmUserWire), aliased so the two can never drift.
+export type DmOtherUser = DmUserWire;
 
 // One open direct-message conversation, denormalized for the sidebar list. `lastMessageAt` is the
 // newest non-deleted message time; conversations with none are omitted from the list entirely.
@@ -100,21 +97,28 @@ export async function getOrCreateDmChannel(callerId: string, otherUserId: string
  * @returns the other participant's user id
  * @throws DmServiceError 404 if the caller is not a member (existence is never disclosed).
  */
-export async function assertDmMembership(channelId: string, userId: string): Promise<string> {
-    const members = await db
+// The member user-ids of a channel — the single membership read both DM gates share, so the REST
+// guard (assertDmMembership) and the WS gate (isDmMember) can never diverge on who is in a DM.
+async function getDmMemberIds(channelId: string): Promise<string[]> {
+    const rows = await db
         .select({ userId: channelMembers.userId })
         .from(channelMembers)
         .where(eq(channelMembers.channelId, channelId));
+    return rows.map((r) => r.userId);
+}
 
-    if (!members.some((m) => m.userId === userId)) {
+export async function assertDmMembership(channelId: string, userId: string): Promise<string> {
+    const memberIds = await getDmMemberIds(channelId);
+
+    if (!memberIds.includes(userId)) {
         throw new DmServiceError(404, 'Conversation not found');
     }
-    const other = members.find((m) => m.userId !== userId);
+    const other = memberIds.find((id) => id !== userId);
     if (!other) {
         // A DM must have a second participant; a self-only roster is corrupt data, not a real DM.
         throw new DmServiceError(404, 'Conversation not found');
     }
-    return other.userId;
+    return other;
 }
 
 /**
@@ -199,23 +203,30 @@ export async function getDmContext(callerId: string, otherUserId: string): Promi
     if (callerId === otherUserId) {
         throw new DmServiceError(400, 'You cannot start a conversation with yourself');
     }
-    const [otherUser] = await db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            profileImageUrl: users.profileImageUrl,
-        })
-        .from(users)
-        .where(eq(users.id, otherUserId))
-        .limit(1);
-    if (!otherUser || !(await isMastermindEligible(otherUserId))) {
+    // The profile fetch, eligibility check, and existing-channel lookup are independent — run them
+    // concurrently rather than as three serial Neon round-trips (this is the read path for every
+    // DM open / draft view). Resolving the channel for an ineligible counterparty is wasted work in
+    // the rare 404 case, but the common valid case collapses to a single round-trip.
+    const name = dmChannelName(callerId, otherUserId);
+    const [otherUserRows, eligible, channelRows] = await Promise.all([
+        db
+            .select({
+                id: users.id,
+                firstName: users.firstName,
+                lastName: users.lastName,
+                profileImageUrl: users.profileImageUrl,
+            })
+            .from(users)
+            .where(eq(users.id, otherUserId))
+            .limit(1),
+        isMastermindEligible(otherUserId),
+        db.select().from(channels).where(eq(channels.name, name)).limit(1),
+    ]);
+    const otherUser = otherUserRows[0];
+    if (!otherUser || !eligible) {
         throw new DmServiceError(404, 'User not found');
     }
-
-    const name = dmChannelName(callerId, otherUserId);
-    const [channel] = await db.select().from(channels).where(eq(channels.name, name)).limit(1);
-    return { channel: channel ?? null, otherUser };
+    return { channel: channelRows[0] ?? null, otherUser };
 }
 
 /**
@@ -223,10 +234,5 @@ export async function getDmContext(callerId: string, otherUserId: string): Promi
  * @returns true if the user is a participant of the channel.
  */
 export async function isDmMember(channelId: string, userId: string): Promise<boolean> {
-    const [row] = await db
-        .select({ userId: channelMembers.userId })
-        .from(channelMembers)
-        .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
-        .limit(1);
-    return row !== undefined;
+    return (await getDmMemberIds(channelId)).includes(userId);
 }

@@ -140,6 +140,10 @@ export async function createDirectMessageController(req: Request, res: Response)
 
             // Bell notification is secondary to delivery and suppressed when the recipient is
             // already viewing the conversation (they see it live) — never fail the sent message.
+            // Edge case: on the FIRST message of a brand-new conversation the recipient cannot be
+            // subscribed yet (the channel did not exist when they opened the draft), so they always
+            // get a bell for it. That is intentional — they could not have seen it live anyway, and
+            // the client re-resolves their draft on this same event so the thread then renders.
             if (!isUserSubscribedToChannel(dmRecipientId, message.channelId)) {
                 try {
                     const created = await createDirectMessageNotification({

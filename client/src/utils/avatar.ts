@@ -14,3 +14,11 @@ export function getAvatarColor(userId: string): string {
     }
     return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
+
+/**
+ * Two-letter initials from a first/last name, uppercased. Falls back to '?' when both are blank so
+ * an avatar circle is never rendered empty (e.g. a user with no name set).
+ */
+export function getInitials(firstName: string, lastName: string): string {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || '?';
+}

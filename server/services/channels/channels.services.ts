@@ -278,6 +278,12 @@ export async function updateChannel(
     if (!channel) {
         throw new ChannelServiceError(404, 'Channel not found');
     }
+    // Channel management (rename/archive/delete) is for public channels only. A DM is private —
+    // not even an admin/owner may rename it (its synthetic dm:<lo>:<hi> name is load-bearing for
+    // get-or-create) — so any non-public type is reported as not-found (existence never disclosed).
+    if (channel.type !== 'public') {
+        throw new ChannelServiceError(404, 'Channel not found');
+    }
 
     if (name && name !== channel.name) {
         const [clash] = await db
@@ -313,6 +319,10 @@ export async function updateChannel(
 export async function archiveChannel(id: string): Promise<Channel> {
     const channel = await getChannelById(id);
     if (!channel) {
+        throw new ChannelServiceError(404, 'Channel not found');
+    }
+    // Public channels only — a DM is private and has no archive concept; 404 hides its existence.
+    if (channel.type !== 'public') {
         throw new ChannelServiceError(404, 'Channel not found');
     }
 
@@ -386,6 +396,11 @@ export async function listDmCandidates(callerId: string): Promise<MentionCandida
 export async function deleteChannel(id: string): Promise<{ id: string }> {
     const channel = await getChannelById(id);
     if (!channel) {
+        throw new ChannelServiceError(404, 'Channel not found');
+    }
+    // Public channels only — admins/owners must never hard-delete (cascade) a private DM they are
+    // not part of. 404 so a DM's existence is never disclosed at the channel-management layer.
+    if (channel.type !== 'public') {
         throw new ChannelServiceError(404, 'Channel not found');
     }
     if (!channel.isArchived) {

@@ -11,8 +11,7 @@ import { AddChannelDialog } from '@/components/mastermind/AddChannelDialog';
 import { EditChannelDialog } from '@/components/mastermind/EditChannelDialog';
 import { DeleteChannelDialog } from '@/components/mastermind/DeleteChannelDialog';
 import { NewDmDialog } from '@/components/mastermind/NewDmDialog';
-
-import { getAvatarColor } from '@/utils/avatar';
+import { UserAvatar } from '@/components/mastermind/UserAvatar';
 
 import type { ChannelSummary } from '@/types/mastermind';
 import type { DirectMessageSummaryWire } from '@shared/mastermind/events';
@@ -159,28 +158,17 @@ export function ChannelSidebar({
                             const hasUnread = dm.unreadCount > 0;
                             const name =
                                 `${dm.otherUser.firstName} ${dm.otherUser.lastName}`.trim();
-                            const initials =
-                                `${dm.otherUser.firstName.charAt(0)}${dm.otherUser.lastName.charAt(0)}`.toUpperCase();
                             return (
                                 <li key={dm.channelId}>
                                     <button
                                         onClick={() => onSelectDm(dm.otherUser.id)}
                                         className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
                                     >
-                                        {dm.otherUser.profileImageUrl ? (
-                                            <img
-                                                src={dm.otherUser.profileImageUrl}
-                                                alt={name}
-                                                className="w-4 h-4 rounded-full object-cover flex-shrink-0"
-                                            />
-                                        ) : (
-                                            <div
-                                                className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-semibold flex-shrink-0"
-                                                style={{ backgroundColor: getAvatarColor(dm.otherUser.id) }}
-                                            >
-                                                {initials}
-                                            </div>
-                                        )}
+                                        <UserAvatar
+                                            user={dm.otherUser}
+                                            sizeClass="w-4 h-4"
+                                            textClass="text-[8px]"
+                                        />
                                         <span
                                             className={`truncate flex-1 ${hasUnread && !isActive ? 'font-semibold text-foreground' : ''}`}
                                         >
