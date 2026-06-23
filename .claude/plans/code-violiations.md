@@ -1,4 +1,4 @@
-# Property Risk Monitoring System — Design & Plan (v0.3 Draft)
+# Property Risk Monitoring System — Design & Plan (v0.4 Draft)
 
 > Status: **Concept, materially revised.** Originally scoped as a single "code-violations
 > scraper," this is now a **multi-source property-risk monitoring system** that watches several
@@ -51,6 +51,17 @@
 > a single scheduled job, not a queue. Sequence the AWS queue/Fargate build (§7) to the
 > **browser-probe phases (3–5)** that actually need it; don't pay the second-operational-home cost
 > up front.
+>
+> **What changed since v0.3 (post-meeting MVP decision — temporary):**
+> **We are not automating acquisition for the MVP.** Both **Accela** (CE) and **bizfileonline**
+> (entity standing) let you **download results as a file**, so for now an admin will **periodically
+> download** the file and **upload it through an admin screen**; the system parses → matches →
+> diffs → notifies from the upload (see new **§3.1**). This **supersedes the acquire/compute
+> assumptions** in the grounding note above and in §5/§7 *for the MVP*: no scraper, no live API, no
+> queue, no AWS — just an admin upload endpoint + a parse/match/notify job in the existing app. The
+> automated path (§5/§7/§12) becomes the **post-MVP** goal. Accepted **sacrifice:** CE updates
+> throughout the day, so manual cadence means we **lag intra-day changes** and depend on someone
+> running the download — fine until we figure out scraping/organization.
 
 ---
 
@@ -131,6 +142,47 @@ The state transitions per source:
 Because the core is "store last-known status, fire only on a fresh transition," **adding a fifth
 source later is writing one adapter, not a new pipeline.** This matters more than any infra
 decision below.
+
+### 3.1 MVP acquisition (temporary): manual download → admin upload
+
+> **DECIDED (v0.4, post-meeting) — temporary sacrifice.** For the MVP we will **not scrape and not
+> call a live API.** Both **Accela** (CE) and **bizfileonline** (entity standing) let you
+> **download results as a file**, so an admin will **periodically download** that file and **upload
+> it through an admin screen**; the system then parses it and runs the rest of the pipeline
+> (observe → match → diff → notify) from the upload. **Only the ACQUIRE step changes** — a human
+> replaces the scraper/API; everything downstream in §3 is unchanged.
+
+**Why we're accepting this:** it removes the hardest, most fragile part (headless scraping,
+anti-bot, queues, AWS browser workers) and lets us validate the **match/notify core — the actual
+value — against real data now.** The cost we knowingly accept: CE updates throughout the day, so a
+manual cadence **lags intra-day changes** and depends on someone running the download. Fine
+**temporarily**, until we figure out how to scrape/organize the sources better.
+
+**What this removes from the MVP:** no scraper, no headless browser, no SQS queue, no Fargate
+worker, **no second operational home** — the entire §7 AWS build is **deferred to post-MVP.** The
+MVP can live as an **admin upload endpoint + a parse/match/notify job inside the existing app.** The
+CE scrape-vs-API fork (§5.1) is **moot for now** — we ingest whatever the portal exports.
+
+**What to build:**
+- **Admin-only upload screen + endpoint** — reuse existing admin auth + Supabase Storage upload
+  infra; accept the portal's export (CSV/XLSX — exact format TBD until we download a sample).
+- **A parser per source/format** (Accela CE export, bizfile export) that emits normalized
+  `observations` (§3). This parser is the new source-specific code — it replaces the adapter's
+  "fetch" with "parse the uploaded file."
+- **Store the raw uploaded file** (`cv_raw_records` / Storage) so we can re-parse without
+  re-downloading — the raw-first principle (§6) still holds.
+- Everything downstream — APN/entity match (§8), diff vs. last-known status, idempotent notify — is
+  **shared and unchanged.**
+
+**Operational must-gets (manual upload makes these sharper):**
+- **First upload = baseline, notify nothing.** The first file establishes last-known status for
+  every case in it; otherwise the first upload emails clients about every historical violation.
+  (Same "new since deploy" rule as §5.1, applied to the first upload.)
+- **Re-uploads must not re-notify.** The same case appears in every download; the
+  diff-vs-last-known + `content_hash` design (§3/§6) must absorb duplicate/overlapping uploads
+  without double-sending.
+- **Staleness visibility.** One `cv_runs` row per upload (who, when, row counts) so we can show
+  "last uploaded N days ago" and alarm when an upload is overdue — the human is now the dependency.
 
 ---
 
@@ -351,6 +403,11 @@ duplicates or re-notifies), **diff against last-known status** to detect a real 
 
 ## 7. Compute & architecture — AWS, right-sized, split by FETCH SHAPE
 
+> **MVP NOTE (v0.4):** the AWS build below is **deferred to post-MVP.** The MVP acquires data by
+> **manual download → admin upload** (see §3.1), so it needs **no scraper, queue, or AWS** — just
+> an admin upload endpoint + a parse/match/notify job in the existing app. Everything below is the
+> **automated** target we return to once we tackle scraping.
+
 > **DECISION REVISED in v0.2.** v0.1 recommended a single TypeScript worker on Fly.io/Railway
 > (Option A) and leaned on a data-gravity argument to keep compute next to the DB. The user
 > (3 yrs AWS experience, comfortable with Identity Center, can store secrets/DB URLs in SSM)
@@ -513,6 +570,10 @@ Acquirers silently rot, so this is built in from the start:
 ---
 
 ## 12. Phased rollout
+
+> **MVP NOTE (v0.4):** the MVP starts *before* Phase 0 below with **manual download → admin upload**
+> (§3.1) — no automated acquisition. The phases below describe the **automated** path we graduate to
+> afterward (the manual upload + parse + match + notify is the new Phase 1 in practice).
 
 - **Phase 0 — Probe OpenDSD (no infra):** Hit the OpenDSD CE API directly and answer the gating
   question from §5.1 — **date-list query vs. by-ID/address only** — and confirm the CE fields +
