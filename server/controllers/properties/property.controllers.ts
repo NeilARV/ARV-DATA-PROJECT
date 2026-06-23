@@ -40,9 +40,7 @@ export async function removeProperty(req: Request, res: Response) {
         });
     } catch (error) {
         console.error('[DELETE ERROR]', error);
-        return res.status(500).json({
-            message: `Error deleting property: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        });
+        return res.status(500).json({ message: 'Error deleting property' });
     }
 }
 
@@ -91,10 +89,7 @@ export async function postProperty(req: Request, res: Response) {
         }
     } catch (error) {
         console.error('Error creating property:', error);
-        return res.status(500).json({
-            message: 'Error creating property',
-            error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        return res.status(500).json({ message: 'Error creating property' });
     }
 }
 

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 
 import { fetchDmCandidates, type DmCandidate } from '@/api/dms.api';
-import { getAvatarColor } from '@/utils/avatar';
+import { UserAvatar } from '@/components/mastermind/UserAvatar';
 
 type NewDmDialogProps = {
     open: boolean;
@@ -73,8 +73,6 @@ export function NewDmDialog({ open, onClose }: NewDmDialogProps) {
                             <ul>
                                 {filtered.map((u) => {
                                     const name = `${u.firstName} ${u.lastName}`.trim();
-                                    const initials =
-                                        `${u.firstName.charAt(0)}${u.lastName.charAt(0)}`.toUpperCase();
                                     return (
                                         <li key={u.id}>
                                             <button
@@ -82,20 +80,11 @@ export function NewDmDialog({ open, onClose }: NewDmDialogProps) {
                                                 onClick={() => handleSelect(u.id)}
                                                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-accent transition-colors text-left"
                                             >
-                                                {u.profileImageUrl ? (
-                                                    <img
-                                                        src={u.profileImageUrl}
-                                                        alt={name}
-                                                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                                                    />
-                                                ) : (
-                                                    <div
-                                                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                                                        style={{ backgroundColor: getAvatarColor(u.id) }}
-                                                    >
-                                                        {initials}
-                                                    </div>
-                                                )}
+                                                <UserAvatar
+                                                    user={u}
+                                                    sizeClass="w-8 h-8"
+                                                    textClass="text-xs"
+                                                />
                                                 <span className="text-sm text-foreground truncate">
                                                     {name}
                                                 </span>

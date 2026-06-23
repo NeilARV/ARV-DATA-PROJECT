@@ -78,6 +78,18 @@ function MastermindContent() {
     // The conversation currently open — channel or DM — keyed by channel id for unread/read-state.
     const activeConversationId = activeChannelId ?? activeDmChannelId;
 
+    // Latest active conversation id, DM list, and channel list — read by the activity/reconcile
+    // effects WITHOUT being their dependencies, so those effects fire only on their true trigger
+    // (a new WS event, or fresh /api/dms data) and never re-run merely because the user navigated
+    // or a list refetched. That matters because the activity effect bumps unread non-idempotently
+    // (count + 1); re-running it on the same doorbell would double-count the badge.
+    const activeConversationIdRef = useRef(activeConversationId);
+    activeConversationIdRef.current = activeConversationId;
+    const dmsRef = useRef(dms);
+    dmsRef.current = dms;
+    const channelsRef = useRef(channels);
+    channelsRef.current = channels;
+
     const markReadMutation = useMutation({
         mutationFn: (channelId: string) =>
             apiRequest('PATCH', `/api/channels/${channelId}/read`),
@@ -129,17 +141,26 @@ function MastermindContent() {
         );
     }, [channels]);
 
-    // Merge DM unread into the same channel-id-keyed map. Unlike channels (seeded once), a DM
-    // conversation can appear later (a brand-new DM), so add any channel id not already tracked —
-    // without clobbering live state that WS events already advanced.
+    // Reconcile DM unread into the same channel-id-keyed map whenever fresh /api/dms data arrives.
+    // The server's unreadCount is authoritative for the sidebar (it reflects last_read_at across
+    // tabs/devices), so adopt it for every DM *except* the conversation currently open — that one is
+    // cleared locally and must not be reset from a not-yet-flushed server count. Live WS doorbells
+    // still bump counts instantly between refetches; this effect (keyed only on `dms`) then converges
+    // them to the server, so a missed event or a cross-device read can no longer leave a stale badge.
     useEffect(() => {
         if (dms.length === 0) return;
+        const activeId = activeConversationIdRef.current;
         setUnreadState((prev) => {
             let changed = false;
             const next = new Map(prev);
             for (const dm of dms) {
-                if (!next.has(dm.channelId)) {
-                    next.set(dm.channelId, { count: dm.unreadCount, hasMention: false });
+                if (dm.channelId === activeId) continue;
+                const existing = next.get(dm.channelId);
+                if (!existing || existing.count !== dm.unreadCount) {
+                    next.set(dm.channelId, {
+                        count: dm.unreadCount,
+                        hasMention: existing?.hasMention ?? false,
+                    });
                     changed = true;
                 }
             }
@@ -191,16 +212,24 @@ function MastermindContent() {
     useEffect(() => {
         if (!lastChannelActivity) return;
         const { channelId } = lastChannelActivity;
-        if (channelId === activeConversationId) {
+        const activeId = activeConversationIdRef.current;
+        if (channelId === activeId) {
             // User is already viewing this conversation — advance read state immediately.
-            scheduleMarkRead(activeConversationId);
+            scheduleMarkRead(activeId);
             return;
         }
-        // Activity in a channel id we don't track yet is most likely a brand-new DM — refetch the
-        // DM list so the conversation surfaces in the sidebar (its server unread is authoritative).
-        const isKnownChannel = channels.some((c) => c.id === channelId);
-        if (!isKnownChannel) {
-            void queryClient.invalidateQueries({ queryKey: ['/api/dms'], exact: true });
+        // Activity in an id we track in neither list is a conversation that just became reachable —
+        // a brand-new DM or a freshly-created public channel — so refetch both lists to surface it.
+        // The DM invalidation is intentionally NON-exact so it also re-resolves any open DM draft
+        // (['/api/dms', <userId>, 'resolve']); otherwise a recipient viewing a never-messaged draft
+        // would stay stuck on the empty state when the first message lands. Known DMs need no
+        // refetch — the live bump below is accurate and the reconcile effect converges it on the
+        // next /api/dms load (this also avoids a refetch storm on a burst of DM messages).
+        const isKnownChannel = channelsRef.current.some((c) => c.id === channelId);
+        const isKnownDm = dmsRef.current.some((d) => d.channelId === channelId);
+        if (!isKnownChannel && !isKnownDm) {
+            void queryClient.invalidateQueries({ queryKey: ['/api/dms'] });
+            void queryClient.invalidateQueries({ queryKey: ['/api/channels'], exact: true });
         }
         const isMentioned =
             lastChannelActivity.mentionedEveryone ||
@@ -212,7 +241,7 @@ function MastermindContent() {
                 hasMention: current.hasMention || isMentioned,
             });
         });
-    }, [lastChannelActivity, activeConversationId, channels, user?.id, scheduleMarkRead]);
+    }, [lastChannelActivity, user?.id, scheduleMarkRead]);
 
     function handleSelectChannel(id: string) {
         const channel = channels.find((c) => c.id === id);

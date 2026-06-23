@@ -1,0 +1,456 @@
+diff --git a/.claude/docs/access-control.md b/.claude/docs/access-control.md
+index cb1fc83..4d0cd92 100644
+--- a/.claude/docs/access-control.md
++++ b/.claude/docs/access-control.md
+@@ -373,6 +373,12 @@ read-state; they are not consulted for authorization in Phase 1.
+   It only ever touches the caller's own read-state, so no ownership check is needed beyond
+   `requireMastermind`. It is **DM-aware**: for a `dm` channel id the caller must be one of the two
+   members (non-member → `404`, existence never disclosed); admin-only channels stay admin/owner-only.
++- **Channel management is public-channels-only.** `PATCH /api/channels/:id` (rename/edit),
++  `POST /api/channels/:id/archive`, and `DELETE /api/channels/:id` all `404` for any non-public
++  (e.g. `dm`) channel — existence never disclosed — so an admin/owner can never rename, archive,
++  or hard-delete a private DM they are not part of. The §5.15 "admins have no DM access" rule
++  therefore holds at the **channel** layer too, not just for messages (enforced in the service via
++  a `type === 'public'` guard).
+ - `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
+ - `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
+   channel is **already archived** — otherwise it returns `409` ("archive the channel before
+diff --git a/client/src/components/mastermind/ChannelSidebar.tsx b/client/src/components/mastermind/ChannelSidebar.tsx
+index 0b9fa98..f408eef 100644
+--- a/client/src/components/mastermind/ChannelSidebar.tsx
++++ b/client/src/components/mastermind/ChannelSidebar.tsx
+@@ -11,8 +11,7 @@ import { AddChannelDialog } from '@/components/mastermind/AddChannelDialog';
+ import { EditChannelDialog } from '@/components/mastermind/EditChannelDialog';
+ import { DeleteChannelDialog } from '@/components/mastermind/DeleteChannelDialog';
+ import { NewDmDialog } from '@/components/mastermind/NewDmDialog';
+-
+-import { getAvatarColor } from '@/utils/avatar';
++import { UserAvatar } from '@/components/mastermind/UserAvatar';
+ 
+ import type { ChannelSummary } from '@/types/mastermind';
+ import type { DirectMessageSummaryWire } from '@shared/mastermind/events';
+@@ -159,28 +158,17 @@ export function ChannelSidebar({
+                             const hasUnread = dm.unreadCount > 0;
+                             const name =
+                                 `${dm.otherUser.firstName} ${dm.otherUser.lastName}`.trim();
+-                            const initials =
+-                                `${dm.otherUser.firstName.charAt(0)}${dm.otherUser.lastName.charAt(0)}`.toUpperCase();
+                             return (
+                                 <li key={dm.channelId}>
+                                     <button
+                                         onClick={() => onSelectDm(dm.otherUser.id)}
+                                         className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
+                                     >
+-                                        {dm.otherUser.profileImageUrl ? (
+-                                            <img
+-                                                src={dm.otherUser.profileImageUrl}
+-                                                alt={name}
+-                                                className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+-                                            />
+-                                        ) : (
+-                                            <div
+-                                                className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-semibold flex-shrink-0"
+-                                                style={{ backgroundColor: getAvatarColor(dm.otherUser.id) }}
+-                                            >
+-                                                {initials}
+-                                            </div>
+-                                        )}
++                                        <UserAvatar
++                                            user={dm.otherUser}
++                                            sizeClass="w-4 h-4"
++                                            textClass="text-[8px]"
++                                        />
+                                         <span
+                                             className={`truncate flex-1 ${hasUnread && !isActive ? 'font-semibold text-foreground' : ''}`}
+                                         >
+diff --git a/client/src/components/mastermind/DmHeader.tsx b/client/src/components/mastermind/DmHeader.tsx
+index 8cd8b7e..aed40a2 100644
+--- a/client/src/components/mastermind/DmHeader.tsx
++++ b/client/src/components/mastermind/DmHeader.tsx
+@@ -1,4 +1,4 @@
+-import { getAvatarColor } from '@/utils/avatar';
++import { UserAvatar } from '@/components/mastermind/UserAvatar';
+ 
+ import type { DmUserWire } from '@shared/mastermind/events';
+ 
+@@ -9,25 +9,10 @@ type DmHeaderProps = {
+ /** Header for a direct-message conversation: the counterparty's avatar + name (in place of #channel). */
+ export function DmHeader({ otherUser }: DmHeaderProps) {
+     const name = `${otherUser.firstName} ${otherUser.lastName}`.trim();
+-    const initials =
+-        `${otherUser.firstName.charAt(0)}${otherUser.lastName.charAt(0)}`.toUpperCase() || '?';
+ 
+     return (
+         <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0 bg-background min-h-[52px]">
+-            {otherUser.profileImageUrl ? (
+-                <img
+-                    src={otherUser.profileImageUrl}
+-                    alt={name}
+-                    className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+-                />
+-            ) : (
+-                <div
+-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
+-                    style={{ backgroundColor: getAvatarColor(otherUser.id) }}
+-                >
+-                    {initials}
+-                </div>
+-            )}
++            <UserAvatar user={otherUser} sizeClass="w-6 h-6" textClass="text-[10px]" />
+             <span className="font-semibold text-foreground text-base truncate">{name}</span>
+         </div>
+     );
+diff --git a/client/src/components/mastermind/NewDmDialog.tsx b/client/src/components/mastermind/NewDmDialog.tsx
+index 1afa7c7..91a19b8 100644
+--- a/client/src/components/mastermind/NewDmDialog.tsx
++++ b/client/src/components/mastermind/NewDmDialog.tsx
+@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
+ import { Input } from '@/components/ui/input';
+ 
+ import { fetchDmCandidates, type DmCandidate } from '@/api/dms.api';
+-import { getAvatarColor } from '@/utils/avatar';
++import { UserAvatar } from '@/components/mastermind/UserAvatar';
+ 
+ type NewDmDialogProps = {
+     open: boolean;
+@@ -73,8 +73,6 @@ export function NewDmDialog({ open, onClose }: NewDmDialogProps) {
+                             <ul>
+                                 {filtered.map((u) => {
+                                     const name = `${u.firstName} ${u.lastName}`.trim();
+-                                    const initials =
+-                                        `${u.firstName.charAt(0)}${u.lastName.charAt(0)}`.toUpperCase();
+                                     return (
+                                         <li key={u.id}>
+                                             <button
+@@ -82,20 +80,11 @@ export function NewDmDialog({ open, onClose }: NewDmDialogProps) {
+                                                 onClick={() => handleSelect(u.id)}
+                                                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-accent transition-colors text-left"
+                                             >
+-                                                {u.profileImageUrl ? (
+-                                                    <img
+-                                                        src={u.profileImageUrl}
+-                                                        alt={name}
+-                                                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+-                                                    />
+-                                                ) : (
+-                                                    <div
+-                                                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+-                                                        style={{ backgroundColor: getAvatarColor(u.id) }}
+-                                                    >
+-                                                        {initials}
+-                                                    </div>
+-                                                )}
++                                                <UserAvatar
++                                                    user={u}
++                                                    sizeClass="w-8 h-8"
++                                                    textClass="text-xs"
++                                                />
+                                                 <span className="text-sm text-foreground truncate">
+                                                     {name}
+                                                 </span>
+diff --git a/client/src/components/mastermind/UserAvatar.tsx b/client/src/components/mastermind/UserAvatar.tsx
+new file mode 100644
+index 0000000..f3a9e28
+--- /dev/null
++++ b/client/src/components/mastermind/UserAvatar.tsx
+@@ -0,0 +1,38 @@
++import { getAvatarColor, getInitials } from '@/utils/avatar';
++
++import type { DmUserWire } from '@shared/mastermind/events';
++
++type UserAvatarProps = {
++    user: DmUserWire;
++    /** Tailwind size classes for the avatar box, e.g. "w-6 h-6". */
++    sizeClass: string;
++    /** Tailwind text-size class for the initials fallback, e.g. "text-[10px]". */
++    textClass: string;
++    className?: string;
++};
++
++/**
++ * A user's avatar: their profile image, or a deterministic colored circle with their initials.
++ * The single source of truth for member/counterparty avatars across the Mastermind UI so the
++ * markup and the empty-name fallback can't drift between call sites.
++ */
++export function UserAvatar({ user, sizeClass, textClass, className = '' }: UserAvatarProps) {
++    const name = `${user.firstName} ${user.lastName}`.trim();
++    if (user.profileImageUrl) {
++        return (
++            <img
++                src={user.profileImageUrl}
++                alt={name}
++                className={`${sizeClass} rounded-full object-cover flex-shrink-0 ${className}`}
++            />
++        );
++    }
++    return (
++        <div
++            className={`${sizeClass} ${textClass} rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${className}`}
++            style={{ backgroundColor: getAvatarColor(user.id) }}
++        >
++            {getInitials(user.firstName, user.lastName)}
++        </div>
++    );
++}
+diff --git a/client/src/pages/Mastermind.tsx b/client/src/pages/Mastermind.tsx
+index b5eb600..871cb9d 100644
+--- a/client/src/pages/Mastermind.tsx
++++ b/client/src/pages/Mastermind.tsx
+@@ -78,6 +78,14 @@ function MastermindContent() {
+     // The conversation currently open — channel or DM — keyed by channel id for unread/read-state.
+     const activeConversationId = activeChannelId ?? activeDmChannelId;
+ 
++    // Latest active conversation id and DM list, read by the activity/reconcile effects WITHOUT
++    // being their dependencies — so those effects fire only on their true trigger (a new WS event,
++    // or fresh /api/dms data) and never re-run (double-counting) merely because the user navigated.
++    const activeConversationIdRef = useRef(activeConversationId);
++    activeConversationIdRef.current = activeConversationId;
++    const dmsRef = useRef(dms);
++    dmsRef.current = dms;
++
+     const markReadMutation = useMutation({
+         mutationFn: (channelId: string) =>
+             apiRequest('PATCH', `/api/channels/${channelId}/read`),
+@@ -129,17 +137,26 @@ function MastermindContent() {
+         );
+     }, [channels]);
+ 
+-    // Merge DM unread into the same channel-id-keyed map. Unlike channels (seeded once), a DM
+-    // conversation can appear later (a brand-new DM), so add any channel id not already tracked —
+-    // without clobbering live state that WS events already advanced.
++    // Reconcile DM unread into the same channel-id-keyed map whenever fresh /api/dms data arrives.
++    // The server's unreadCount is authoritative for the sidebar (it reflects last_read_at across
++    // tabs/devices), so adopt it for every DM *except* the conversation currently open — that one is
++    // cleared locally and must not be reset from a not-yet-flushed server count. Live WS doorbells
++    // still bump counts instantly between refetches; this effect (keyed only on `dms`) then converges
++    // them to the server, so a missed event or a cross-device read can no longer leave a stale badge.
+     useEffect(() => {
+         if (dms.length === 0) return;
++        const activeId = activeConversationIdRef.current;
+         setUnreadState((prev) => {
+             let changed = false;
+             const next = new Map(prev);
+             for (const dm of dms) {
+-                if (!next.has(dm.channelId)) {
+-                    next.set(dm.channelId, { count: dm.unreadCount, hasMention: false });
++                if (dm.channelId === activeId) continue;
++                const existing = next.get(dm.channelId);
++                if (!existing || existing.count !== dm.unreadCount) {
++                    next.set(dm.channelId, {
++                        count: dm.unreadCount,
++                        hasMention: existing?.hasMention ?? false,
++                    });
+                     changed = true;
+                 }
+             }
+@@ -196,11 +213,18 @@ function MastermindContent() {
+             scheduleMarkRead(activeConversationId);
+             return;
+         }
+-        // Activity in a channel id we don't track yet is most likely a brand-new DM — refetch the
+-        // DM list so the conversation surfaces in the sidebar (its server unread is authoritative).
++        // Activity in an id we track in neither list is a conversation that just became reachable —
++        // a brand-new DM or a freshly-created public channel — so refetch both lists to surface it.
++        // The DM invalidation is intentionally NON-exact so it also re-resolves any open DM draft
++        // (['/api/dms', <userId>, 'resolve']); otherwise a recipient viewing a never-messaged draft
++        // would stay stuck on the empty state when the first message lands. Known DMs need no
++        // refetch — the live bump below is accurate and the reconcile effect converges it on the
++        // next /api/dms load (this also avoids a refetch storm on a burst of DM messages).
+         const isKnownChannel = channels.some((c) => c.id === channelId);
+-        if (!isKnownChannel) {
+-            void queryClient.invalidateQueries({ queryKey: ['/api/dms'], exact: true });
++        const isKnownDm = dmsRef.current.some((d) => d.channelId === channelId);
++        if (!isKnownChannel && !isKnownDm) {
++            void queryClient.invalidateQueries({ queryKey: ['/api/dms'] });
++            void queryClient.invalidateQueries({ queryKey: ['/api/channels'], exact: true });
+         }
+         const isMentioned =
+             lastChannelActivity.mentionedEveryone ||
+diff --git a/client/src/utils/avatar.ts b/client/src/utils/avatar.ts
+index 1c918da..94c2255 100644
+--- a/client/src/utils/avatar.ts
++++ b/client/src/utils/avatar.ts
+@@ -14,3 +14,11 @@ export function getAvatarColor(userId: string): string {
+     }
+     return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+ }
++
++/**
++ * Two-letter initials from a first/last name, uppercased. Falls back to '?' when both are blank so
++ * an avatar circle is never rendered empty (e.g. a user with no name set).
++ */
++export function getInitials(firstName: string, lastName: string): string {
++    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || '?';
++}
+diff --git a/server/controllers/dms/dms.controllers.ts b/server/controllers/dms/dms.controllers.ts
+index bde7aea..1f3f5c5 100644
+--- a/server/controllers/dms/dms.controllers.ts
++++ b/server/controllers/dms/dms.controllers.ts
+@@ -140,6 +140,10 @@ export async function createDirectMessageController(req: Request, res: Response)
+ 
+             // Bell notification is secondary to delivery and suppressed when the recipient is
+             // already viewing the conversation (they see it live) — never fail the sent message.
++            // Edge case: on the FIRST message of a brand-new conversation the recipient cannot be
++            // subscribed yet (the channel did not exist when they opened the draft), so they always
++            // get a bell for it. That is intentional — they could not have seen it live anyway, and
++            // the client re-resolves their draft on this same event so the thread then renders.
+             if (!isUserSubscribedToChannel(dmRecipientId, message.channelId)) {
+                 try {
+                     const created = await createDirectMessageNotification({
+diff --git a/server/services/channels/channels.services.ts b/server/services/channels/channels.services.ts
+index 71dcd17..b66a732 100644
+--- a/server/services/channels/channels.services.ts
++++ b/server/services/channels/channels.services.ts
+@@ -278,6 +278,12 @@ export async function updateChannel(
+     if (!channel) {
+         throw new ChannelServiceError(404, 'Channel not found');
+     }
++    // Channel management (rename/archive/delete) is for public channels only. A DM is private —
++    // not even an admin/owner may rename it (its synthetic dm:<lo>:<hi> name is load-bearing for
++    // get-or-create) — so any non-public type is reported as not-found (existence never disclosed).
++    if (channel.type !== 'public') {
++        throw new ChannelServiceError(404, 'Channel not found');
++    }
+ 
+     if (name && name !== channel.name) {
+         const [clash] = await db
+@@ -315,6 +321,10 @@ export async function archiveChannel(id: string): Promise<Channel> {
+     if (!channel) {
+         throw new ChannelServiceError(404, 'Channel not found');
+     }
++    // Public channels only — a DM is private and has no archive concept; 404 hides its existence.
++    if (channel.type !== 'public') {
++        throw new ChannelServiceError(404, 'Channel not found');
++    }
+ 
+     const [archived] = await db
+         .update(channels)
+@@ -388,6 +398,11 @@ export async function deleteChannel(id: string): Promise<{ id: string }> {
+     if (!channel) {
+         throw new ChannelServiceError(404, 'Channel not found');
+     }
++    // Public channels only — admins/owners must never hard-delete (cascade) a private DM they are
++    // not part of. 404 so a DM's existence is never disclosed at the channel-management layer.
++    if (channel.type !== 'public') {
++        throw new ChannelServiceError(404, 'Channel not found');
++    }
+     if (!channel.isArchived) {
+         throw new ChannelServiceError(409, 'Archive the channel before deleting it');
+     }
+diff --git a/server/services/dms/dms.services.ts b/server/services/dms/dms.services.ts
+index dfdb2ec..6d4098f 100644
+--- a/server/services/dms/dms.services.ts
++++ b/server/services/dms/dms.services.ts
+@@ -6,16 +6,13 @@ import { alias } from 'drizzle-orm/pg-core';
+ import { isMastermindEligible } from 'server/middleware/requireMastermind';
+ import { ServiceError } from 'server/lib/error';
+ import type { Channel } from '@database/types/mastermind';
++import type { DmUserWire } from '@shared/mastermind/events';
+ 
+ export class DmServiceError extends ServiceError {}
+ 
+-// The counterparty's public profile, shared by the sidebar list and the DM header context.
+-export interface DmOtherUser {
+-    id: string;
+-    firstName: string;
+-    lastName: string;
+-    profileImageUrl: string | null;
+-}
++// The counterparty's public profile, shared by the sidebar list and the DM header context. This is
++// exactly the wire shape returned to the client (DmUserWire), aliased so the two can never drift.
++export type DmOtherUser = DmUserWire;
+ 
+ // One open direct-message conversation, denormalized for the sidebar list. `lastMessageAt` is the
+ // newest non-deleted message time; conversations with none are omitted from the list entirely.
+@@ -100,21 +97,28 @@ export async function getOrCreateDmChannel(callerId: string, otherUserId: string
+  * @returns the other participant's user id
+  * @throws DmServiceError 404 if the caller is not a member (existence is never disclosed).
+  */
+-export async function assertDmMembership(channelId: string, userId: string): Promise<string> {
+-    const members = await db
++// The member user-ids of a channel — the single membership read both DM gates share, so the REST
++// guard (assertDmMembership) and the WS gate (isDmMember) can never diverge on who is in a DM.
++async function getDmMemberIds(channelId: string): Promise<string[]> {
++    const rows = await db
+         .select({ userId: channelMembers.userId })
+         .from(channelMembers)
+         .where(eq(channelMembers.channelId, channelId));
++    return rows.map((r) => r.userId);
++}
+ 
+-    if (!members.some((m) => m.userId === userId)) {
++export async function assertDmMembership(channelId: string, userId: string): Promise<string> {
++    const memberIds = await getDmMemberIds(channelId);
++
++    if (!memberIds.includes(userId)) {
+         throw new DmServiceError(404, 'Conversation not found');
+     }
+-    const other = members.find((m) => m.userId !== userId);
++    const other = memberIds.find((id) => id !== userId);
+     if (!other) {
+         // A DM must have a second participant; a self-only roster is corrupt data, not a real DM.
+         throw new DmServiceError(404, 'Conversation not found');
+     }
+-    return other.userId;
++    return other;
+ }
+ 
+ /**
+@@ -199,23 +203,30 @@ export async function getDmContext(callerId: string, otherUserId: string): Promi
+     if (callerId === otherUserId) {
+         throw new DmServiceError(400, 'You cannot start a conversation with yourself');
+     }
+-    const [otherUser] = await db
+-        .select({
+-            id: users.id,
+-            firstName: users.firstName,
+-            lastName: users.lastName,
+-            profileImageUrl: users.profileImageUrl,
+-        })
+-        .from(users)
+-        .where(eq(users.id, otherUserId))
+-        .limit(1);
+-    if (!otherUser || !(await isMastermindEligible(otherUserId))) {
++    // The profile fetch, eligibility check, and existing-channel lookup are independent — run them
++    // concurrently rather than as three serial Neon round-trips (this is the read path for every
++    // DM open / draft view). Resolving the channel for an ineligible counterparty is wasted work in
++    // the rare 404 case, but the common valid case collapses to a single round-trip.
++    const name = dmChannelName(callerId, otherUserId);
++    const [otherUserRows, eligible, channelRows] = await Promise.all([
++        db
++            .select({
++                id: users.id,
++                firstName: users.firstName,
++                lastName: users.lastName,
++                profileImageUrl: users.profileImageUrl,
++            })
++            .from(users)
++            .where(eq(users.id, otherUserId))
++            .limit(1),
++        isMastermindEligible(otherUserId),
++        db.select().from(channels).where(eq(channels.name, name)).limit(1),
++    ]);
++    const otherUser = otherUserRows[0];
++    if (!otherUser || !eligible) {
+         throw new DmServiceError(404, 'User not found');
+     }
+-
+-    const name = dmChannelName(callerId, otherUserId);
+-    const [channel] = await db.select().from(channels).where(eq(channels.name, name)).limit(1);
+-    return { channel: channel ?? null, otherUser };
++    return { channel: channelRows[0] ?? null, otherUser };
+ }
+ 
+ /**
+@@ -223,10 +234,5 @@ export async function getDmContext(callerId: string, otherUserId: string): Promi
+  * @returns true if the user is a participant of the channel.
+  */
+ export async function isDmMember(channelId: string, userId: string): Promise<boolean> {
+-    const [row] = await db
+-        .select({ userId: channelMembers.userId })
+-        .from(channelMembers)
+-        .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+-        .limit(1);
+-    return row !== undefined;
++    return (await getDmMemberIds(channelId)).includes(userId);
+ }

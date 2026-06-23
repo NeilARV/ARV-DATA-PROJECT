@@ -373,6 +373,12 @@ read-state; they are not consulted for authorization in Phase 1.
   It only ever touches the caller's own read-state, so no ownership check is needed beyond
   `requireMastermind`. It is **DM-aware**: for a `dm` channel id the caller must be one of the two
   members (non-member → `404`, existence never disclosed); admin-only channels stay admin/owner-only.
+- **Channel management is public-channels-only.** `PATCH /api/channels/:id` (rename/edit),
+  `POST /api/channels/:id/archive`, and `DELETE /api/channels/:id` all `404` for any non-public
+  (e.g. `dm`) channel — existence never disclosed — so an admin/owner can never rename, archive,
+  or hard-delete a private DM they are not part of. The §5.15 "admins have no DM access" rule
+  therefore holds at the **channel** layer too, not just for messages (enforced in the service via
+  a `type === 'public'` guard).
 - `POST /api/channels/:id/archive` is a **soft** archive (`is_archived = true`).
 - `DELETE /api/channels/:id` is a **hard** delete (cascade) and is only permitted when the
   channel is **already archived** — otherwise it returns `409` ("archive the channel before
