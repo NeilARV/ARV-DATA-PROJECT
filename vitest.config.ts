@@ -5,7 +5,7 @@ export default defineConfig({
     test: {
         environment: 'node',
         globals: true,
-        exclude: ['node_modules', 'dist', 'tests/**/*.integration.test.ts'],
+        exclude: ['node_modules', 'dist', 'tests/**/*.integration.test.ts', '**/.claude/**'],
         env: {
             SESSION_SECRET: 'test-secret',
         },

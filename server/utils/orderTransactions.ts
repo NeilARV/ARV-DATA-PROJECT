@@ -1,153 +1,297 @@
 /**
  * Transaction ordering and spread calculation utilities.
  *
- * Sorts ALL transaction types (Arms Length, Non-Arms Length, REFI, HELOC, etc.)
- * using: recording_date DESC → chain detection → sale_date DESC → original order.
+ * Orders ALL transaction types (Arms Length, Non-Arms Length, REFI, HELOC, etc.)
+ * most-recent-first by RECONSTRUCTING the ownership chain rather than comparing
+ * pairs. Within a recording-date group, "x is more recent than y" when an entity
+ * that sells in x bought in y (x is the resale); a stable topological sort then
+ * yields a valid order — a pairwise comparator cannot, because the chain relation
+ * is non-transitive for 3+ linked transactions (it produces engine-dependent,
+ * sometimes wrong, orderings).
  *
  * Spread calculation traces the ownership chain — including Non-Arms Length
  * transfers (e.g. individual → LLC) — to find the seller's true acquisition price.
+ *
+ * Accessors read BOTH naming conventions so the same code serves the ingest status
+ * path (raw SFR rows: BUYER_BORROWER1_NAME, RECORDING_DATE, SALE_AMT, buyer_id …)
+ * and the mapped/DB path (buyerName, recordingDate, salePrice, buyerId …). Entity
+ * matching uses company id when present, otherwise a normalized name, and considers
+ * borrower-2 / seller-2 when the row carries them (raw SFR only — the DB
+ * property_transactions table stores borrower-1 / seller-1 only).
  */
 
-type TxRow = {
-    recordingDate: Date | string | null;
-    saleDate?: Date | string | null;
-    buyerId?: string | null;
-    buyerName?: string | null;
-    sellerId?: string | null;
-    sellerName?: string | null;
-    salePrice?: string | number | null;
-    transactionType?: string | null;
-    firstMtgLenderName?: string | null;
-    [k: string]: unknown;
-};
+/** Any transaction-like row. Recognized keys (either convention, all optional):
+ *  recordingDate|RECORDING_DATE, saleDate|SALE_DATE, transactionType|TRANSACTION_TYPE,
+ *  buyerName|BUYER_BORROWER1_NAME, buyerName2|BUYER_BORROWER2_NAME,
+ *  sellerName|SELLER1_NAME, sellerName2|SELLER2_NAME, buyerId|buyer_id,
+ *  sellerId|seller_id, salePrice|SALE_AMT, firstMtgLenderName|FIRST_MTG_LENDER_NAME. */
+type TxRow = Record<string, unknown>;
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+// ── Field accessors (dual convention: mapped camelCase | raw SFR UPPERCASE) ──────
 
-function toDateStr(d: Date | string | null | undefined): string | null {
-    if (d == null) return null;
-    if (typeof d === 'string') return d.split('T')[0] ?? null;
-    return (d as Date).toISOString().split('T')[0] ?? null;
+/** First non-empty trimmed string value across the given keys. */
+function pickStr(tx: TxRow, ...keys: string[]): string {
+    for (const k of keys) {
+        const v = tx[k];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    return '';
 }
 
-function nameKey(s: string | null | undefined): string {
-    return s != null ? String(s).trim().toLowerCase() : '';
+/** Coerce a date-ish value (Date | string) to a comparable YYYY-MM-DD string ('' if none). */
+function toDateStr(d: unknown): string {
+    if (d == null) return '';
+    if (d instanceof Date) return Number.isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    if (typeof d === 'string') return d.split('T')[0].trim();
+    return '';
 }
 
-function parsePrice(p: string | number | null | undefined): number | null {
+function pickDate(tx: TxRow, ...keys: string[]): string {
+    for (const k of keys) {
+        const s = toDateStr(tx[k]);
+        if (s) return s;
+    }
+    return '';
+}
+
+function parsePrice(p: unknown): number | null {
     if (p == null) return null;
     const n = typeof p === 'number' ? p : parseFloat(String(p));
-    return isNaN(n) ? null : n;
+    return Number.isNaN(n) ? null : n;
 }
 
-function isArmsLength(tx: TxRow): boolean {
-    return (tx.transactionType ?? '').trim().toLowerCase() === 'arms length';
+/** First parseable numeric value across the given keys (null if none parse). */
+function pickNum(tx: TxRow, ...keys: string[]): number | null {
+    for (const k of keys) {
+        const n = parsePrice(tx[k]);
+        if (n !== null) return n;
+    }
+    return null;
 }
 
+const recordingOf = (tx: TxRow) => pickDate(tx, 'recordingDate', 'RECORDING_DATE', 'recording_date');
+const typeOf = (tx: TxRow) => pickStr(tx, 'transactionType', 'TRANSACTION_TYPE', 'transaction_type');
+const priceOf = (tx: TxRow) => pickNum(tx, 'salePrice', 'SALE_AMT', 'sale_amt');
+const buyerIdOf = (tx: TxRow) => pickStr(tx, 'buyerId', 'buyer_id');
+const sellerIdOf = (tx: TxRow) => pickStr(tx, 'sellerId', 'seller_id');
+
+const buyerNamesOf = (tx: TxRow) =>
+    dedupe([
+        nameKey(pickStr(tx, 'buyerName', 'BUYER_BORROWER1_NAME', 'buyer_borrower1_name')),
+        nameKey(pickStr(tx, 'buyerName2', 'BUYER_BORROWER2_NAME', 'buyer_borrower2_name')),
+    ]);
+
+const sellerNamesOf = (tx: TxRow) =>
+    dedupe([
+        nameKey(pickStr(tx, 'sellerName', 'SELLER1_NAME', 'seller1_name')),
+        nameKey(pickStr(tx, 'sellerName2', 'SELLER2_NAME', 'seller2_name')),
+    ]);
+
+// ── Normalization ────────────────────────────────────────────────────────────────
+
+/**
+ * Canonical key for entity-name comparison: lowercased, "&"→"and", punctuation and a
+ * leading "the" removed, whitespace collapsed. Makes "THE ROBERT & SALLY AVILA FAMILY
+ * TRUST" and "ROBERT AND SALLY AVILA FAMILY TRUST" compare equal. Deliberately does NOT
+ * reorder tokens or fuzzy-match — that risks linking genuinely different parties.
+ */
+export function nameKey(name: string | null | undefined): string {
+    if (!name) return '';
+    let k = String(name).toLowerCase().trim();
+    k = k.replace(/&/g, ' and ');
+    k = k.replace(/['.,]/g, '');
+    k = k.replace(/\s+/g, ' ').trim();
+    k = k.replace(/^the\s+/, '');
+    return k;
+}
+
+/** Normalize a transaction type for tolerant matching ("Arm's Length", "Arms-Length"). */
+function normalizeType(type: string): string {
+    return type
+        .toLowerCase()
+        .replace(/'/g, '')
+        .replace(/-/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/** Arms Length (tolerant of apostrophes, hyphens, casing). */
+export function isArmsLength(tx: TxRow): boolean {
+    return normalizeType(typeOf(tx)) === 'arms length';
+}
+
+/** Non-Arms Length transfer (individual→LLC, family transfer, trust re-titling). */
 function isNonArmsLength(tx: TxRow): boolean {
-    return (tx.transactionType ?? '').trim().toLowerCase() === 'non-arms length';
+    return normalizeType(typeOf(tx)) === 'non arms length';
 }
 
-function matchesBuyer(tx: TxRow, targetName: string, targetId: string | null): boolean {
-    if (targetId) {
-        const bid = tx.buyerId != null ? String(tx.buyerId).trim().toLowerCase() : '';
-        if (bid && String(targetId).trim().toLowerCase() === bid) return true;
-    }
-    if (targetName) {
-        const bname = nameKey(tx.buyerName);
-        if (bname && bname === targetName) return true;
-    }
-    return false;
+// ── Identity matching (company id OR normalized name, borrower-2 aware) ───────────
+
+function dedupe(arr: string[]): string[] {
+    const out: string[] = [];
+    for (const x of arr) if (x && out.indexOf(x) === -1) out.push(x);
+    return out;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+/** True if the two token lists share at least one element. */
+export function intersects(a: string[], b: string[]): boolean {
+    return a.some((x) => b.indexOf(x) !== -1);
+}
+
+/** Identity tokens for the buyer side: id token (if resolved) + each normalized name. */
+export function buyerTokens(tx: TxRow): string[] {
+    const tokens: string[] = [];
+    const id = buyerIdOf(tx);
+    if (id) tokens.push('id:' + id.toLowerCase());
+    for (const n of buyerNamesOf(tx)) tokens.push('name:' + n);
+    return dedupe(tokens);
+}
+
+/** Identity tokens for the seller side. */
+export function sellerTokens(tx: TxRow): string[] {
+    const tokens: string[] = [];
+    const id = sellerIdOf(tx);
+    if (id) tokens.push('id:' + id.toLowerCase());
+    for (const n of sellerNamesOf(tx)) tokens.push('name:' + n);
+    return dedupe(tokens);
+}
+
+// ── Chain reconstruction ─────────────────────────────────────────────────────────
+
+interface IndexedTx<T> {
+    tx: T;
+    i: number;
+}
+
+/**
+ * Orders one set of SAME-recording-date transactions most-recent-first by
+ * reconstructing the ownership chain. Edge "x more recent than y" exists when an
+ * entity that SELLS in x BOUGHT in y (x is the resale, y the acquisition), so x
+ * must precede y. A stable topological sort (Kahn's) produces a valid linear order.
+ * Transactions with no chain relationship fall back to Arms-Length-first, then the
+ * original input order. Cycles (degenerate data) are broken by the same tie-break so
+ * the routine always terminates.
+ */
+function orderSameDateGroupDesc<T extends TxRow>(group: IndexedTx<T>[]): T[] {
+    const n = group.length;
+    if (n === 1) return [group[0].tx];
+
+    const buyersOf = group.map((g) => buyerTokens(g.tx));
+    const sellersOf = group.map((g) => sellerTokens(g.tx));
+
+    // successors[x] = indices y that x precedes (x is more recent than y)
+    const successors: number[][] = group.map(() => []);
+    const indegree = new Array<number>(n).fill(0);
+
+    for (let x = 0; x < n; x++) {
+        for (let y = 0; y < n; y++) {
+            if (x === y) continue;
+            if (intersects(sellersOf[x], buyersOf[y])) {
+                successors[x].push(y);
+                indegree[y] += 1;
+            }
+        }
+    }
+
+    const moreRecentFirst = (a: number, b: number): number => {
+        const alA = isArmsLength(group[a].tx);
+        const alB = isArmsLength(group[b].tx);
+        if (alA !== alB) return alA ? -1 : 1; // Arms Length first
+        return group[a].i - group[b].i; // stable: original input order
+    };
+
+    const remaining = group.map((_, idx) => idx);
+    const out: T[] = [];
+
+    while (remaining.length > 0) {
+        // Sources = nothing remaining is "more recent than" them (indegree 0).
+        let pool = remaining.filter((idx) => indegree[idx] === 0);
+        if (pool.length === 0) pool = remaining.slice(); // cycle fallback
+        pool.sort(moreRecentFirst);
+        const pick = pool[0];
+
+        out.push(group[pick].tx);
+        remaining.splice(remaining.indexOf(pick), 1);
+        for (const y of successors[pick]) indegree[y] -= 1;
+    }
+
+    return out;
+}
 
 /**
  * Sorts transactions most-recent-first using:
- *  1. recording_date DESC
- *  2. Chain detection (same recording_date): a seller for an Arms Length tx must
- *     have been the buyer first — traces buyer/seller name links to order the chain
- *  3. Transaction type priority (same recording_date): Arms Length before all others
- *  4. Original array order (stable fallback)
+ *   1. recording_date DESC (reliable across different dates; missing dates sort last)
+ *   2. within a same-recording-date group: ownership-chain reconstruction (see above)
  *
- * Works on ALL transaction types (not just Arms Length).
+ * Chain links are resolved only WITHIN a recording-date group — across different
+ * recording dates the recording_date is trusted (an entity cannot sell before it
+ * buys, so a same-day buy+sell is the only genuinely ambiguous case).
+ *
+ * Returns the same row objects, reordered. Works on ALL transaction types.
  */
 export function sortTransactionsDesc<T extends TxRow>(txs: T[]): T[] {
     if (txs.length <= 1) return [...txs];
 
-    return [...txs].sort((a, b) => {
-        // 1. recording_date DESC
-        const recA = toDateStr(a.recordingDate);
-        const recB = toDateStr(b.recordingDate);
-        if (recA && recB) {
-            if (recA > recB) return -1;
-            if (recA < recB) return 1;
-        } else if (recA) return -1;
-        else if (recB) return 1;
+    const indexed: IndexedTx<T>[] = txs.map((tx, i) => ({ tx, i }));
 
-        // 2. Chain detection (same recording_date)
-        // The same entity that bought in tx_b later sold in tx_a → tx_a is more recent
-        const buyerA = nameKey(a.buyerName);
-        const sellerA = nameKey(a.sellerName);
-        const buyerB = nameKey(b.buyerName);
-        const sellerB = nameKey(b.sellerName);
-        if (buyerB && sellerA && buyerB === sellerA) return -1;
-        if (buyerA && sellerB && buyerA === sellerB) return 1;
+    const groups = new Map<string, IndexedTx<T>[]>();
+    for (const item of indexed) {
+        const key = recordingOf(item.tx);
+        const bucket = groups.get(key);
+        if (bucket) bucket.push(item);
+        else groups.set(key, [item]);
+    }
 
-        // 3. Arms Length before all other transaction types
-        const aIsAL = isArmsLength(a);
-        const bIsAL = isArmsLength(b);
-        if (aIsAL && !bIsAL) return -1;
-        if (!aIsAL && bIsAL) return 1;
-
-        return 0; // preserve original order
+    // recording_date DESC; missing date ('') always last.
+    const dateKeys = Array.from(groups.keys()).sort((a, b) => {
+        if (a === b) return 0;
+        if (a === '') return 1;
+        if (b === '') return -1;
+        return a > b ? -1 : 1;
     });
+
+    const result: T[] = [];
+    for (const key of dateKeys) {
+        const ordered = orderSameDateGroupDesc(groups.get(key)!);
+        for (const tx of ordered) result.push(tx);
+    }
+    return result;
 }
 
+// ── Spread / acquisition trace ───────────────────────────────────────────────────
+
 /**
- * Traces back through sorted transactions to find when `targetName`/`targetId`
- * acquired the property, following Non-Arms Length transfers (e.g. individual → LLC).
- *
- * - Arms Length with price > 0 → return that price
- * - Non-Arms Length (price = 0) → follow the seller of that tx (e.g. "YOCUM RICHARD"
- *   transferred to "YOCUM RICHARD C" then to "SUMMIT VISTA PROPERTIES LLC")
- * - REFI / HELOC / other → skip and continue searching
+ * Traces back through (most-recent-first) transactions to find when the entity
+ * identified by `targetTokens` acquired the property, following Non-Arms Length
+ * transfers (individual → LLC, family re-titling). Id- and borrower-2-aware.
  */
 function traceAcquisition<T extends TxRow>(
     txs: T[],
-    targetName: string,
-    targetId: string | null,
+    targetTokens: string[],
     visited: Set<string>,
 ): { price: number; date: string } | null {
-    if (!targetName && !targetId) return null;
-    const visitKey = targetId ? String(targetId).toLowerCase() : targetName;
-    if (visited.has(visitKey)) return null;
-    visited.add(visitKey);
+    if (targetTokens.length === 0 || targetTokens.some((t) => visited.has(t))) return null;
+    for (const t of targetTokens) visited.add(t);
 
     for (let i = 0; i < txs.length; i++) {
         const tx = txs[i];
-        if (!matchesBuyer(tx, targetName, targetId)) continue;
+        if (!intersects(buyerTokens(tx), targetTokens)) continue;
 
-        const price = parsePrice(tx.salePrice);
-        const date = toDateStr(tx.recordingDate) ?? '';
+        const price = priceOf(tx);
+        const date = recordingOf(tx);
 
         // Arms Length with a real price → this is the acquisition
         if (isArmsLength(tx) && price !== null && price > 0) {
             return { price, date };
         }
 
-        // Non-Arms Length → transfer (individual → LLC, family transfer, etc.)
-        // Trace back to whoever transferred the property to this entity
+        // Non-Arms Length transfer → trace whoever transferred it to this entity
         if (isNonArmsLength(tx)) {
-            const prevName = nameKey(tx.sellerName);
-            const prevId = (tx.sellerId as string | null) ?? null;
-            const result = traceAcquisition(txs.slice(i + 1), prevName, prevId, visited);
+            const result = traceAcquisition(txs.slice(i + 1), sellerTokens(tx), visited);
             if (result) return result;
-            // If trace failed, continue searching for another buyer match
         }
-
         // REFI / HELOC / Arms Length $0 / other → skip, keep searching
     }
-
     return null;
 }
 
@@ -162,15 +306,15 @@ type SpreadResult<T extends TxRow> = {
 };
 
 /**
- * Calculates buyer purchase price, seller purchase price, and spread from
- * a sorted (most-recent-first) list of ALL property transactions.
+ * Calculates buyer purchase price, seller purchase price, and spread from a list of
+ * ALL property transactions (re-sorted internally, so input order is not trusted).
  *
  * Buyer purchase price  = most recent Arms Length sale price > 0.
- * Seller purchase price = traced back through Non-Arms Length transfers until
- *   an Arms Length purchase price > 0 is found.
+ * Seller purchase price = traced back through Non-Arms Length transfers until an
+ *   Arms Length purchase price > 0 is found.
  * Spread = buyer purchase price − seller purchase price.
  */
-export function calculateSpread<T extends TxRow>(sortedTxs: T[]): SpreadResult<T> {
+export function calculateSpread<T extends TxRow>(txs: T[]): SpreadResult<T> {
     const empty: SpreadResult<T> = {
         buyerPurchasePrice: null,
         buyerPurchaseDate: null,
@@ -179,47 +323,30 @@ export function calculateSpread<T extends TxRow>(sortedTxs: T[]): SpreadResult<T
         spread: null,
         latestArmsLengthTx: null,
     };
+    if (txs.length === 0) return empty;
 
-    if (sortedTxs.length === 0) return empty;
+    const sorted = sortTransactionsDesc(txs);
+    const armsLength = sorted.filter(isArmsLength);
+    const latestArmsLengthTx = armsLength[0] ?? null;
 
-    // Sort Arms Length transactions separately to find buyerTx reliably.
-    // Mixing Non-Arms Length txs into a single sort creates non-transitive comparisons
-    // when same-recording-date Arms Length and Non-Arms Length transactions are present
-    // (e.g. simultaneous-close wholesale + LLC transfer all on the same date).
-    // The pipeline's sortArmsLengthDesc uses the same filter-first approach.
-    const sortedAL = sortTransactionsDesc(sortedTxs.filter(isArmsLength));
-    const latestArmsLengthTx = sortedAL[0] ?? null;
+    const buyerTxIdx = armsLength.findIndex((tx) => (priceOf(tx) ?? 0) > 0);
+    if (buyerTxIdx === -1) return { ...empty, latestArmsLengthTx };
 
-    // Find most recent Arms Length tx with a real price (> 0)
-    const buyerTxIdx = sortedAL.findIndex((tx) => (parsePrice(tx.salePrice) ?? 0) > 0);
+    const buyerTx = armsLength[buyerTxIdx];
+    const buyerPurchasePrice = priceOf(buyerTx)!;
+    const buyerPurchaseDate = recordingOf(buyerTx) || null;
 
-    // No priced Arms Length tx — still expose latestArmsLengthTx for name/ARV check
-    if (buyerTxIdx === -1) {
-        return { ...empty, latestArmsLengthTx };
-    }
-
-    const buyerTx = sortedAL[buyerTxIdx];
-    const buyerPurchasePrice = parsePrice(buyerTx.salePrice)!;
-    const buyerPurchaseDate = toDateStr(buyerTx.recordingDate);
-
-    // For traceAcquisition use ALL transaction types (including Non-Arms Length) so
-    // individual → LLC transfers can be followed to find the true acquisition price.
-    // Restrict to txs at or before buyerTx's recording date to avoid looking forward
-    // in time, and exclude buyerTx itself.
-    const buyerRecDate = toDateStr(buyerTx.recordingDate);
-    const olderTxs = sortedTxs.filter((tx) => {
+    // Trace seller's acquisition through txs at/older than the buyer tx (exclude itself).
+    const buyerRec = recordingOf(buyerTx);
+    const olderTxs = sorted.filter((tx) => {
         if (tx === buyerTx) return false;
-        const d = toDateStr(tx.recordingDate);
-        return !d || !buyerRecDate || d <= buyerRecDate;
+        const d = recordingOf(tx);
+        return !d || !buyerRec || d <= buyerRec;
     });
 
-    // Trace seller's acquisition price through the history
-    const sellerName = nameKey(buyerTx.sellerName);
-    const sellerId = (buyerTx.sellerId as string | null) ?? null;
-    const sellerData = traceAcquisition(olderTxs, sellerName, sellerId, new Set());
-
+    const sellerData = traceAcquisition(olderTxs, sellerTokens(buyerTx), new Set());
     const sellerPurchasePrice = sellerData?.price ?? null;
-    const sellerPurchaseDate = sellerData?.date ?? null;
+    const sellerPurchaseDate = sellerData?.date || null;
     const spread = sellerPurchasePrice !== null ? buyerPurchasePrice - sellerPurchasePrice : null;
 
     return {

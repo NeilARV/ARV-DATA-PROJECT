@@ -774,10 +774,9 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                         </div>
                                                     </div>
 
-                                                    {expandedCompanyDetail.acquisition90DayTotal >
-                                                        0 &&
-                                                    expandedCompanyDetail.acquisition90DayByMonth
-                                                        ?.length ? (
+                                                    {expandedCompanyDetail.acquisition90DayByMonth?.some(
+                                                        (m: { count: number }) => m.count > 0,
+                                                    ) ? (
                                                         <div className="h-20 w-full">
                                                             <ResponsiveContainer
                                                                 width="100%"

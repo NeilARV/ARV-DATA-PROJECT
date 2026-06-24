@@ -1,5 +1,12 @@
 import { normalizeDateToYMD } from 'server/utils/normalization';
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
+import {
+    sortTransactionsDesc,
+    isArmsLength,
+    buyerTokens,
+    sellerTokens,
+    intersects,
+} from 'server/utils/orderTransactions';
 import type { PropertyWithIds, TransactionWithIds } from './resolve-ids';
 import type { PropertyStatus } from '@shared/types/properties';
 
@@ -37,83 +44,51 @@ function getDate(tx: Record<string, unknown>, ...keys: string[]): string | null 
     return null;
 }
 
-/** Arms Length transactions only — REFIs, HELOCs, Non-Arms Length etc. are excluded. */
-function isArmsLength(tx: Record<string, unknown>): boolean {
-    return getString(tx, 'TRANSACTION_TYPE', 'transaction_type').toLowerCase() === 'arms length';
+/** DST-safe whole-day difference between two YYYY-MM-DD strings (null if unparseable). */
+function daysBetweenUTC(laterYmd: string | null, earlierYmd: string | null): number | null {
+    const a = ymdToUTC(laterYmd);
+    const b = ymdToUTC(earlierYmd);
+    if (a === null || b === null) return null;
+    return Math.round((a - b) / 86_400_000);
 }
 
-/**
- * Sorts Arms Length transactions most-recent-first using:
- *   1. recording_date DESC
- *   2. Chain detection (same recording_date) — if buyerName(txB) === sellerName(txA) then
- *      txA is the resale (more recent); txA cannot sell before txB buys.
- *   3. sale_date DESC (if chain detection is inconclusive)
- *   4. Original array order (stable fallback)
- *
- * Chain detection is promoted above sale_date because simultaneous-close wholesale
- * transactions (e.g., ORCA ← SD VREV ← VIRGILIO, all recorded the same day) can have
- * SALE_DATE values that reflect contract signing order rather than true deal chronology,
- * causing sale_date-first ordering to pick the wrong "most recent" transaction.
- */
-function sortArmsLengthDesc(txs: TransactionWithIds[]): TransactionWithIds[] {
-    const filtered = txs.filter((tx) => isArmsLength(tx as Record<string, unknown>));
-    if (filtered.length <= 1) return filtered;
+function ymdToUTC(ymd: string | null): number | null {
+    if (!ymd) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (!m) return null;
+    return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
 
-    return [...filtered].sort((a, b) => {
-        const ar = a as Record<string, unknown>;
-        const br = b as Record<string, unknown>;
+/** True if EITHER borrower on the tx is a corporate (non-trust) flipping company. */
+function buyerSideIsCorporate(tx: Record<string, unknown>): boolean {
+    return (
+        isFlippingCompany(getString(tx, 'BUYER_BORROWER1_NAME', 'buyer_borrower1_name'), null) ||
+        isFlippingCompany(getString(tx, 'BUYER_BORROWER2_NAME', 'buyer_borrower2_name'), null)
+    );
+}
 
-        // 1. recording_date DESC
-        const recA = getDate(ar, 'RECORDING_DATE', 'recording_date');
-        const recB = getDate(br, 'RECORDING_DATE', 'recording_date');
-        if (recA && recB) {
-            if (recA > recB) return -1;
-            if (recA < recB) return 1;
-        } else if (recA) {
-            return -1;
-        } else if (recB) {
-            return 1;
-        }
-
-        // 2. Chain detection (same recording_date)
-        // If txB's buyer is txA's seller → txB is the purchase, txA is the resale → txA is more recent
-        const buyerA = getString(ar, 'BUYER_BORROWER1_NAME', 'buyer_borrower1_name');
-        const sellerA = getString(ar, 'SELLER1_NAME', 'seller1_name');
-        const buyerB = getString(br, 'BUYER_BORROWER1_NAME', 'buyer_borrower1_name');
-        const sellerB = getString(br, 'SELLER1_NAME', 'seller1_name');
-
-        if (buyerB && sellerA && buyerB === sellerA) return -1; // txA is the resale → more recent
-        if (buyerA && sellerB && buyerA === sellerB) return 1; // txB is the resale → more recent
-
-        // 3. sale_date DESC
-        const saleA = getDate(ar, 'SALE_DATE', 'sale_date');
-        const saleB = getDate(br, 'SALE_DATE', 'sale_date');
-        if (saleA && saleB) {
-            if (saleA > saleB) return -1;
-            if (saleA < saleB) return 1;
-        }
-
-        return 0; // preserve original order
-    });
+/** True if EITHER seller on the tx is a corporate (non-trust) flipping company. */
+function sellerSideIsCorporate(tx: Record<string, unknown>): boolean {
+    return (
+        isFlippingCompany(getString(tx, 'SELLER1_NAME', 'seller1_name'), null) ||
+        isFlippingCompany(getString(tx, 'SELLER2_NAME', 'seller2_name'), null)
+    );
 }
 
 /**
  * Resolves property statuses using the transaction history and SFR listing_status.
  *
- * Status rules:
- *   on-market   — listing_status is "On Market"
- *   wholesale   — off-market, most recent Arms Length seller is buyer on a prior
- *                 Arms Length tx, holding period ≤ 30 days, and BOTH buyer and
- *                 seller on the most recent tx are corporate non-trusts
- *   sold        — off-market, most recent Arms Length seller is corporate non-trust,
- *                 buyer is NOT corporate (individual or non-entity)
- *   in-renovation — off-market, most recent Arms Length buyer is corporate non-trust
+ * Transactions are ordered most-recent-first by the shared chain-reconstruction sort
+ * (sortTransactionsDesc), then filtered to Arms Length — so status uses the SAME
+ * ordering as the persisted/display layer, with chain links resolved through any
+ * intervening Non-Arms Length transfers and borrower-2 / company-id matches.
  *
- * Possible combinations:
- *   - on-market alone (mutually exclusive with off-market statuses)
- *   - wholesale + in-renovation (always together — wholesale requires corporate buyer)
- *   - sold alone
- *   - in-renovation alone
+ * Status rules:
+ *   on-market   — listing_status is "On Market" (currently mapped to in-renovation)
+ *   wholesale   — off-market, most recent Arms Length is corporate→corporate, the
+ *                 seller acquired it on a prior Arms Length tx, holding period 0–30 days
+ *   sold        — off-market, most recent Arms Length seller is corporate, buyer is NOT
+ *   in-renovation — off-market, most recent Arms Length buyer is corporate
  *
  * `property.status` is set to statuses[0] for backward compat with shared v1
  * helpers (cleanBeforeInsert, insertProperties).
@@ -129,7 +104,9 @@ export function resolveStatuses(
         const allTxs = (item.transactions ?? []) as unknown[] as TransactionWithIds[];
 
         const listingStatus = getString(property, 'listing_status', 'listingStatus');
-        const sorted = sortArmsLengthDesc(allTxs);
+        const sorted = sortTransactionsDesc(allTxs).filter((tx) =>
+            isArmsLength(tx as Record<string, unknown>),
+        );
         const mostRecent = sorted[0] ?? null;
         const mostRecentRaw = mostRecent as (TransactionWithIds & Record<string, unknown>) | null;
 
@@ -149,16 +126,8 @@ export function resolveStatuses(
                     statuses.push('in-renovation');
                 }
             } else {
-                const buyerName = getString(
-                    mostRecentRaw,
-                    'BUYER_BORROWER1_NAME',
-                    'buyer_borrower1_name',
-                );
-                const sellerName = getString(mostRecentRaw, 'SELLER1_NAME', 'seller1_name');
-                const sellerId = mostRecentRaw.seller_id ?? null;
-
-                const buyerIsCorp = isFlippingCompany(buyerName, null);
-                const sellerIsCorp = isFlippingCompany(sellerName, null);
+                const buyerIsCorp = buyerSideIsCorporate(mostRecentRaw);
+                const sellerIsCorp = sellerSideIsCorporate(mostRecentRaw);
 
                 // ── Wholesale check ─────────────────────────────────────────
                 if (buyerIsCorp && sellerIsCorp) {
@@ -168,24 +137,17 @@ export function resolveStatuses(
                         'recording_date',
                     );
                     if (mostRecentRecDate) {
-                        // Find the previous Arms Length tx where the seller (on mostRecent) was the buyer
+                        // Seller identity on the most recent tx (company id + borrower-1/2
+                        // names), matched against each prior tx's buyer side.
+                        const sellerTok = sellerTokens(mostRecentRaw);
+
+                        // Find the previous Arms Length tx where the seller (on mostRecent)
+                        // was the buyer — by company id OR normalized name (borrower-2 aware).
                         const sellerAcquisition = sorted.slice(1).find((tx) => {
                             const txRaw = tx as Record<string, unknown>;
-                            const txBuyerName = getString(
-                                txRaw,
-                                'BUYER_BORROWER1_NAME',
-                                'buyer_borrower1_name',
-                            );
-                            const txBuyerId = (tx as TransactionWithIds).buyer_id ?? null;
                             const txRecDate = getDate(txRaw, 'RECORDING_DATE', 'recording_date');
                             if (!txRecDate) return false;
-                            const matchById = !!(sellerId && txBuyerId && sellerId === txBuyerId);
-                            const matchByName = !!(
-                                sellerName &&
-                                txBuyerName &&
-                                sellerName === txBuyerName
-                            );
-                            return matchById || matchByName;
+                            return intersects(sellerTok, buyerTokens(txRaw));
                         });
 
                         if (sellerAcquisition) {
@@ -193,13 +155,13 @@ export function resolveStatuses(
                                 sellerAcquisition as Record<string, unknown>,
                                 'RECORDING_DATE',
                                 'recording_date',
-                            )!;
-                            const daysHeld = Math.floor(
-                                (new Date(mostRecentRecDate).setHours(0, 0, 0, 0) -
-                                    new Date(acquisitionDate).setHours(0, 0, 0, 0)) /
-                                    (1000 * 60 * 60 * 24),
                             );
-                            if (daysHeld <= WHOLESALE_DAYS_THRESHOLD) {
+                            const daysHeld = daysBetweenUTC(mostRecentRecDate, acquisitionDate);
+                            if (
+                                daysHeld !== null &&
+                                daysHeld >= 0 &&
+                                daysHeld <= WHOLESALE_DAYS_THRESHOLD
+                            ) {
                                 statuses.push('wholesale');
                             }
                         }

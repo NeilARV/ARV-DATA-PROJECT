@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { sortTransactionsDesc } from '../../../server/utils/orderTransactions';
+import {
+    sortTransactionsDesc,
+    calculateSpread,
+    isArmsLength,
+} from '../../../server/utils/orderTransactions';
+
+/** Buyer name across either naming convention (mapped camelCase or raw SFR UPPERCASE). */
+const buyers = (rows: Record<string, unknown>[]): unknown[] =>
+    rows.map((r) => r.buyerName ?? r.BUYER_BORROWER1_NAME);
 
 function logSortResult(
     label: string,
@@ -621,5 +629,310 @@ describe('sortTransactionsDesc', () => {
             expect(result[0].buyerName).toBe('BUYER A');
             expect(result[1].buyerName).toBe('BUYER B');
         });
+    });
+});
+
+describe('sortTransactionsDesc — chain reconstruction (upgraded)', () => {
+    it('resolves a 3-link same-date chain most-recent-first regardless of input order', () => {
+        // Same recording date 2026-04-15. True chain: ALSTON → RIVERA → SUMMIT → GARCIA.
+        // Expected most-recent-first: GARCIA (end buyer), SUMMIT, RIVERA.
+        const t1 = {
+            buyerName: 'RIVERA FLIP LLC',
+            sellerName: 'ALSTON MARY',
+            recordingDate: '2026-04-15',
+            salePrice: '400000',
+            transactionType: 'Arms Length',
+        };
+        const t2 = {
+            buyerName: 'SUMMIT VENTURES LLC',
+            sellerName: 'RIVERA FLIP LLC',
+            recordingDate: '2026-04-15',
+            salePrice: '450000',
+            transactionType: 'Arms Length',
+        };
+        const t3 = {
+            buyerName: 'GARCIA LUIS',
+            sellerName: 'SUMMIT VENTURES LLC',
+            recordingDate: '2026-04-15',
+            salePrice: '620000',
+            transactionType: 'Arms Length',
+        };
+        const expected = ['GARCIA LUIS', 'SUMMIT VENTURES LLC', 'RIVERA FLIP LLC'];
+
+        // Every input permutation must produce the same correct order — this is the
+        // property the old pairwise comparator failed (non-transitive for 3+ links).
+        for (const perm of [
+            [t1, t2, t3],
+            [t3, t2, t1],
+            [t2, t1, t3],
+            [t3, t1, t2],
+            [t2, t3, t1],
+        ]) {
+            expect(buyers(sortTransactionsDesc(perm))).toEqual(expected);
+        }
+    });
+
+    it('chain order wins over misleading sale dates', () => {
+        // The resale has an EARLIER sale_date than the purchase (SFR sale dates are
+        // unreliable). Chain must still place the resale (END BUYER) as most recent.
+        const tBuy = {
+            buyerName: 'FLIP LLC',
+            sellerName: 'SELLER A',
+            saleDate: '2026-04-10',
+            recordingDate: '2026-04-15',
+            salePrice: '400000',
+            transactionType: 'Arms Length',
+        };
+        const tResale = {
+            buyerName: 'END BUYER',
+            sellerName: 'FLIP LLC',
+            saleDate: '2026-04-01',
+            recordingDate: '2026-04-15',
+            salePrice: '500000',
+            transactionType: 'Arms Length',
+        };
+        expect(buyers(sortTransactionsDesc([tBuy, tResale]))).toEqual(['END BUYER', 'FLIP LLC']);
+    });
+
+    it('keeps recording_date DESC with HELOC/REFI interspersed', () => {
+        const txs = [
+            { buyerName: 'L', recordingDate: '2026-01-10', transactionType: 'Arms Length' },
+            { buyerName: 'H', recordingDate: '2020-05-01', transactionType: 'HELOCS' },
+            {
+                buyerName: 'R',
+                recordingDate: '2018-03-01',
+                transactionType: 'REFI LOANS and 2ND TRUST DEEDS',
+            },
+            { buyerName: 'O', recordingDate: '2015-06-01', transactionType: 'Arms Length' },
+        ];
+        expect(buyers(sortTransactionsDesc(txs))).toEqual(['L', 'H', 'R', 'O']);
+    });
+
+    it('places an Arms Length sale before a HELOC on the same recording date', () => {
+        const txs = [
+            { buyerName: 'H', recordingDate: '2026-01-01', transactionType: 'HELOCS' },
+            {
+                buyerName: 'A',
+                sellerName: 'S',
+                recordingDate: '2026-01-01',
+                transactionType: 'Arms Length',
+            },
+        ];
+        expect(buyers(sortTransactionsDesc(txs))).toEqual(['A', 'H']);
+    });
+
+    it('sorts transactions with no recording date last', () => {
+        const txs = [
+            { buyerName: 'N', transactionType: 'Arms Length' },
+            { buyerName: 'A', recordingDate: '2026-01-01', transactionType: 'Arms Length' },
+        ];
+        expect(buyers(sortTransactionsDesc(txs))).toEqual(['A', 'N']);
+    });
+
+    it('links a chain across normalized names ("THE … & …" vs "… AND …")', () => {
+        const t1 = {
+            buyerName: 'THE SMITH FAMILY TRUST',
+            sellerName: 'JONES BOB',
+            recordingDate: '2026-03-03',
+            salePrice: '0',
+            transactionType: 'Non-Arms Length',
+        };
+        const t2 = {
+            buyerName: 'BUYER LLC',
+            sellerName: 'SMITH FAMILY TRUST',
+            recordingDate: '2026-03-03',
+            salePrice: '500000',
+            transactionType: 'Arms Length',
+        };
+        expect(buyers(sortTransactionsDesc([t1, t2]))).toEqual([
+            'BUYER LLC',
+            'THE SMITH FAMILY TRUST',
+        ]);
+    });
+
+    it('links a chain via BUYER_BORROWER2_NAME on the raw SFR shape', () => {
+        const t1 = {
+            BUYER_BORROWER1_NAME: 'PRIMARY OWNER',
+            BUYER_BORROWER2_NAME: 'JANE CO LLC',
+            SELLER1_NAME: 'ORIGINAL',
+            RECORDING_DATE: '2026-03-03',
+            SALE_AMT: '300000',
+            TRANSACTION_TYPE: 'Arms Length',
+        };
+        const t2 = {
+            BUYER_BORROWER1_NAME: 'NEW BUYER',
+            SELLER1_NAME: 'JANE CO LLC',
+            RECORDING_DATE: '2026-03-03',
+            SALE_AMT: '350000',
+            TRANSACTION_TYPE: 'Arms Length',
+        };
+        // t2's seller (JANE CO LLC) is t1's secondary borrower → t2 is the resale.
+        expect(buyers(sortTransactionsDesc([t1, t2]))).toEqual(['NEW BUYER', 'PRIMARY OWNER']);
+    });
+
+    it('links a chain via company id when names differ', () => {
+        const t1 = {
+            buyerName: 'ACME HOLDINGS LLC',
+            buyerId: 'co-1',
+            sellerName: 'SELLER A',
+            recordingDate: '2026-02-02',
+            salePrice: '400000',
+            transactionType: 'Arms Length',
+        };
+        const t2 = {
+            buyerName: 'END BUYER',
+            sellerName: 'ACME HOLDINGS INC',
+            sellerId: 'co-1',
+            recordingDate: '2026-02-02',
+            salePrice: '500000',
+            transactionType: 'Arms Length',
+        };
+        // Names differ ("LLC" vs "INC") but the company id links the chain.
+        expect(buyers(sortTransactionsDesc([t1, t2]))).toEqual(['END BUYER', 'ACME HOLDINGS LLC']);
+    });
+});
+
+describe('isArmsLength — tolerant type matching', () => {
+    it.each(['Arms Length', 'arms length', 'ARMS LENGTH', "Arm's Length", 'Arms-Length'])(
+        'treats "%s" as Arms Length',
+        (type) => {
+            expect(isArmsLength({ transactionType: type })).toBe(true);
+        },
+    );
+
+    it.each(['Non-Arms Length', 'HELOCS', 'REFI LOANS and 2ND TRUST DEEDS', 'REO', ''])(
+        'treats "%s" as NOT Arms Length',
+        (type) => {
+            expect(isArmsLength({ transactionType: type })).toBe(false);
+        },
+    );
+
+    it('reads the raw SFR TRANSACTION_TYPE key too', () => {
+        expect(isArmsLength({ TRANSACTION_TYPE: 'Arms Length' })).toBe(true);
+    });
+});
+
+describe('calculateSpread', () => {
+    it('computes buyer/seller price and spread for a simple flip', () => {
+        const t1 = {
+            buyerName: 'FLIP LLC',
+            sellerName: 'SELLER A',
+            recordingDate: '2026-01-01',
+            salePrice: '400000',
+            transactionType: 'Arms Length',
+        };
+        const t2 = {
+            buyerName: 'END BUYER',
+            sellerName: 'FLIP LLC',
+            recordingDate: '2026-02-01',
+            salePrice: '500000',
+            transactionType: 'Arms Length',
+        };
+        // Input intentionally unsorted — calculateSpread re-sorts internally.
+        const result = calculateSpread([t1, t2]);
+        expect(result.buyerPurchasePrice).toBe(500000);
+        expect(result.buyerPurchaseDate).toBe('2026-02-01');
+        expect(result.sellerPurchasePrice).toBe(400000);
+        expect(result.sellerPurchaseDate).toBe('2026-01-01');
+        expect(result.spread).toBe(100000);
+        expect(result.latestArmsLengthTx?.buyerName).toBe('END BUYER');
+    });
+
+    it("traces the seller's acquisition through a Non-Arms Length transfer", () => {
+        const t1 = {
+            buyerName: 'INDIV OWNER',
+            sellerName: 'BANK',
+            recordingDate: '2020-01-01',
+            salePrice: '200000',
+            transactionType: 'Arms Length',
+        };
+        const t2 = {
+            buyerName: 'INDIV OWNER LLC',
+            sellerName: 'INDIV OWNER',
+            recordingDate: '2026-01-01',
+            salePrice: '0',
+            transactionType: 'Non-Arms Length',
+        };
+        const t3 = {
+            buyerName: 'END BUYER',
+            sellerName: 'INDIV OWNER LLC',
+            recordingDate: '2026-02-01',
+            salePrice: '350000',
+            transactionType: 'Arms Length',
+        };
+        const result = calculateSpread([t1, t2, t3]);
+        expect(result.buyerPurchasePrice).toBe(350000);
+        // Seller (INDIV OWNER LLC) acquired via a $0 transfer from INDIV OWNER, whose
+        // own Arms Length purchase was $200k → that is the true acquisition price.
+        expect(result.sellerPurchasePrice).toBe(200000);
+        expect(result.spread).toBe(150000);
+    });
+
+    it('skips a HELOC when tracing the acquisition price', () => {
+        const t1 = {
+            buyerName: 'FLIP LLC',
+            sellerName: 'ORIG',
+            recordingDate: '2025-01-01',
+            salePrice: '300000',
+            transactionType: 'Arms Length',
+        };
+        const t2 = {
+            buyerName: 'FLIP LLC',
+            recordingDate: '2025-06-01',
+            salePrice: '0',
+            transactionType: 'HELOCS',
+        };
+        const t3 = {
+            buyerName: 'END',
+            sellerName: 'FLIP LLC',
+            recordingDate: '2026-01-01',
+            salePrice: '420000',
+            transactionType: 'Arms Length',
+        };
+        const result = calculateSpread([t1, t2, t3]);
+        // The $0 HELOC must NOT be taken as the acquisition — the $300k Arms Length is.
+        expect(result.sellerPurchasePrice).toBe(300000);
+        expect(result.spread).toBe(120000);
+    });
+
+    it('returns nulls but still exposes latestArmsLengthTx when no priced Arms Length exists', () => {
+        const onlyZeroAl = calculateSpread([
+            {
+                buyerName: 'X',
+                recordingDate: '2020-01-01',
+                salePrice: '0',
+                transactionType: 'Arms Length',
+            },
+        ]);
+        expect(onlyZeroAl.buyerPurchasePrice).toBeNull();
+        expect(onlyZeroAl.spread).toBeNull();
+        expect(onlyZeroAl.latestArmsLengthTx?.buyerName).toBe('X');
+
+        const noAl = calculateSpread([
+            { buyerName: 'X', recordingDate: '2020-01-01', transactionType: 'HELOCS' },
+        ]);
+        expect(noAl.latestArmsLengthTx).toBeNull();
+        expect(noAl.buyerPurchasePrice).toBeNull();
+    });
+
+    it('works on the raw SFR shape (SALE_AMT / BUYER_BORROWER1_NAME)', () => {
+        const t1 = {
+            BUYER_BORROWER1_NAME: 'FLIP LLC',
+            SELLER1_NAME: 'SELLER A',
+            RECORDING_DATE: '2026-01-01',
+            SALE_AMT: '400000',
+            TRANSACTION_TYPE: 'Arms Length',
+        };
+        const t2 = {
+            BUYER_BORROWER1_NAME: 'END',
+            SELLER1_NAME: 'FLIP LLC',
+            RECORDING_DATE: '2026-02-01',
+            SALE_AMT: '500000',
+            TRANSACTION_TYPE: 'Arms Length',
+        };
+        const result = calculateSpread([t1, t2]);
+        expect(result.buyerPurchasePrice).toBe(500000);
+        expect(result.sellerPurchasePrice).toBe(400000);
+        expect(result.spread).toBe(100000);
     });
 });
