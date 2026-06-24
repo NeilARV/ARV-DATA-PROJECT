@@ -448,6 +448,24 @@ Hardcoded in `DealCard2.tsx` — not tokenized. These are intentionally brand-sp
 
 ---
 
+## Transaction Type Colors
+
+Hardcoded in `PropertyTransactions.tsx` (`TYPE_COLORS`) — not tokenized, by the same rationale as Deal Type Colors: these are intentionally brand-specific categorical badge colors with no semantic token equivalent. Each badge renders as a translucent tinted background (`/15`), a saturated border (`/30`), and a darker same-hue text shade. Any unmapped type falls back to the `bg-muted text-muted-foreground border-border` tokens.
+
+| Transaction Type | Hue (base) | Background / Border | Text |
+|---|---|---|---|
+| `arms length` | green `#22C55E` | `bg-[#22C55E]/15` · `border-[#22C55E]/30` | `text-[#16A34A]` |
+| `non-arms length` | amber `#F59E0B` | `bg-[#F59E0B]/15` · `border-[#F59E0B]/30` | `text-[#D97706]` |
+| `assignment` | purple `#9333EA` | `bg-[#9333EA]/15` · `border-[#9333EA]/30` | `text-[#7E22CE]` |
+| `refinance` | blue `#3B82F6` | `bg-[#3B82F6]/15` · `border-[#3B82F6]/30` | `text-[#1D4ED8]` |
+| `heloc` | cyan `#06B6D4` | `bg-[#06B6D4]/15` · `border-[#06B6D4]/30` | `text-[#0E7490]` |
+| `new construction` | red `#EF4444` | `bg-[#EF4444]/15` · `border-[#EF4444]/30` | `text-[#DC2626]` |
+| `acquisition` | brand cyan `#69C9E1` | `bg-[#69C9E1]/15` · `border-[#69C9E1]/30` | `text-[#0891B2]` |
+
+> Like Deal Type Colors, these are an explicit, sanctioned exception to the "never hardcode hex" rule. Do **not** introduce new ad-hoc hex elsewhere — categorical palettes that need this treatment must be documented here first.
+
+---
+
 ## Important Instruction
 WHen updating or modifying any frontend UI code, look for repeat CSS that can be defined as a tailwind component like in `client/src/deal.components.css`. If found, then create this component. If it does not logically fit in any of the existing file names, then you MUST tell me and ask me if I want to create a new file. Suggest a name, but you MUST request a name suggestion from me and get a finalized response to confirm file name and creationg.
 

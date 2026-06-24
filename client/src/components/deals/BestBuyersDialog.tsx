@@ -16,7 +16,7 @@ function rankBadgeClass(rank: number) {
     return rank === 1
         ? 'bg-amber-400 text-white'
         : rank === 2
-          ? 'bg-slate-400 text-white'
+          ? 'bg-muted-foreground text-background'
           : 'bg-amber-700 text-amber-100';
 }
 
@@ -24,7 +24,7 @@ function borderAccentClass(rank: number) {
     return rank === 1
         ? 'border-l-amber-400'
         : rank === 2
-          ? 'border-l-slate-400'
+          ? 'border-l-muted-foreground'
           : 'border-l-amber-700';
 }
 

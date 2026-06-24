@@ -104,7 +104,7 @@ export function LeaderboardDialog({ onClose }: LeaderboardContentProps) {
                                                 company.rank === 1
                                                     ? 'bg-yellow-500 text-yellow-950'
                                                     : company.rank === 2
-                                                      ? 'bg-gray-300 text-gray-800'
+                                                      ? 'bg-muted-foreground text-background'
                                                       : company.rank === 3
                                                         ? 'bg-amber-600 text-amber-50'
                                                         : 'bg-muted-foreground/20 text-muted-foreground'
@@ -167,7 +167,7 @@ export function LeaderboardDialog({ onClose }: LeaderboardContentProps) {
                                                 zip.rank === 1
                                                     ? 'bg-yellow-500 text-yellow-950'
                                                     : zip.rank === 2
-                                                      ? 'bg-gray-300 text-gray-800'
+                                                      ? 'bg-muted-foreground text-background'
                                                       : zip.rank === 3
                                                         ? 'bg-amber-600 text-amber-50'
                                                         : 'bg-muted-foreground/20 text-muted-foreground'

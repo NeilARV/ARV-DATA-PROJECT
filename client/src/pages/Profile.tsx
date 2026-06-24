@@ -52,7 +52,7 @@ export default function Profile() {
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back to Properties
                 </Button>
-                <h1 className="text-3xl font-bold mb-2">Profile Settings</h1>
+                <h1 className="text-2xl font-semibold mb-2">Profile Settings</h1>
                 <p className="text-muted-foreground">View and manage your account information</p>
             </div>
 
