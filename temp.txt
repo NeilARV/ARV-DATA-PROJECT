@@ -1,0 +1,5 @@
+---
+description: Generate the tests a change needs to meet the testing standard (unit, integration, component), scoped to the current diff
+argument-hint: "[target-branch | path]"
+allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git merge-base:*), Bash(npm run test:*), Bash(npm run test:integration:*), Bash(npx vitest:*), Read, Write, Edit, Glob, Grep
+---
