@@ -40,6 +40,12 @@ Configured via `--font-sans` CSS variable in `index.css`.
 | `text-2xl` | 24px / 1.5rem | 2rem | Page titles, large stat displays |
 | `text-3xl`+ | 30px+ | — | Hero/marketing text only; not used in app UI |
 
+**Micro-type exception (sub-`text-xs`)**: `text-xs` (12px) is the floor for all normal UI text. Two narrow, functional exceptions may use arbitrary sub-12px sizes, and only these:
+- **Avatar initials** sized to fit small avatar circles — e.g. `text-[8px]` in a `w-4` avatar, `text-[10px]` in a `w-6` avatar (`UserAvatar.tsx` `textClass`). The size must scale with the avatar box.
+- **Dense tabular badges/metadata** in the compact transaction list (`PropertyTransactions.tsx`) — `text-[10px]` / `text-[11px]`.
+
+Do not reach for arbitrary `text-[Npx]` sizes outside these two contexts; use the scale above.
+
 ### Font Weights
 
 | Weight | Class | Used For |
@@ -463,6 +469,34 @@ Hardcoded in `PropertyTransactions.tsx` (`TYPE_COLORS`) — not tokenized, by th
 | `acquisition` | brand cyan `#69C9E1` | `bg-[#69C9E1]/15` · `border-[#69C9E1]/30` | `text-[#0891B2]` |
 
 > Like Deal Type Colors, these are an explicit, sanctioned exception to the "never hardcode hex" rule. Do **not** introduce new ad-hoc hex elsewhere — categorical palettes that need this treatment must be documented here first.
+
+These same categorical hex values are also exposed as named `variant`s on the shared `Badge` component (`badge.tsx`): `cyan` `#69C9E1`, `green` `#22C55E`, `red` `#FF0000`, `purple` `#9333EA`, `orange` `#F97316`, `indigo` `#6366F1`. They reuse the Deal/Transaction palette above and render `text-primary-foreground` on the colored fill — do not add new hex-backed badge variants without documenting them here.
+
+---
+
+## Rank / Medal Colors
+
+Leaderboard / "best buyers" rankings use a gold–silver–bronze medal palette. These are **Tailwind palette utilities** (not hex literals) and are a sanctioned, intentional exception to the "no off-token color" rule — they convey ordinal placement, for which no semantic token exists. Used in `BestBuyersDialog.tsx`, `CompanyDirectory.tsx`, and `LeaderboardDialog.tsx`.
+
+| Rank | Fill | Left-border accent |
+|---|---|---|
+| 1st (gold) | `bg-amber-400 text-white` (dialogs/directory) · `bg-amber-600 text-amber-50` (leaderboard) | `border-l-amber-400` |
+| 2nd (silver) | `bg-muted-foreground text-background` | `border-l-muted-foreground` |
+| 3rd (bronze) | `bg-amber-700 text-amber-100` | `border-l-amber-700` |
+
+The trophy/rank icon uses `text-amber-500` (`DealCard2.tsx`, `BestBuyersDialog.tsx`).
+
+---
+
+## Mention Role Colors
+
+The Mastermind mention dropdown (`MentionDropdownPortal.tsx`) tints the `@` glyph by mention kind to distinguish target types at a glance. Sanctioned categorical accents:
+
+| Mention kind | Color |
+|---|---|
+| Broadcast / announcement | `text-amber-500` |
+| Vendor | `text-violet-400` |
+| User | `text-primary` |
 
 ---
 
