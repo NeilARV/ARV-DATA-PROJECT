@@ -1,7 +1,7 @@
 # Testing Standards
 
-Authoritative rules for tests in this codebase (Vitest + Supertest for unit/integration,
-Playwright for E2E; Express + Drizzle/Neon services, React client). Every rule has a stable ID
+Authoritative rules for tests in this codebase (Vitest + Supertest for unit/integration;
+Express + Drizzle/Neon services, React client). Every rule has a stable ID
 (`TST.*`) so `/smell`, `/test`, and `/doc-drift` can reference it. This file owns `TST.*`.
 
 Scope: **what to test, how to test it, and when a test is mandatory.** *Which* roles/tiers may
@@ -32,7 +32,6 @@ up into an HTTP test or a pure-function assertion down into a render test.
 | Client pure logic | `mastermind-messages.test.ts` (`mergeMessages`) | `npm run test` | node | none |
 | Route / service (integration) | `tests/server/api/**/*.integration.test.ts` | `npm run test:integration` | node | real Neon branch |
 | Component / hook | *(to add)* `tests/client/**` | `npm run test` (jsdom project) | jsdom | none |
-| End-to-end | *(to add)* `e2e/**` | `npm run test:e2e` | browser | seeded app |
 
 - **TST.LAYER-MAP** — A function that touches `db` is an **integration** test; a pure function is
   a fast **unit** test with no HTTP and no DB; anything that renders JSX or calls a hook is a
@@ -78,10 +77,9 @@ up into an HTTP test or a pure-function assertion down into a render test.
     or a state transition (deals, offers, claims), **not** for plain CRUD;
   - **error-path** tests → when the code calls a fallible downstream or maps a conflict;
   - **component/hook** tests → for a new **shared or complex** component/hook, not a presentational
-    tweak;
-  - **E2E** → never per-route (see TST.E2E-THIN).
+    tweak.
 ```ts
-  // Bad policy reading: a one-line label change must add component + e2e + error tests
+  // Bad policy reading: a one-line label change must add component + error-path tests
   // Good: a presentational tweak adds nothing; a new ownership-gated route adds ownership + state
 ```
 - **TST.ASK-IF-UNKNOWN** — If a new route's access rules aren't yet in `access-control.md`, **ask
@@ -162,17 +160,6 @@ up into an HTTP test or a pure-function assertion down into a render test.
 
 ---
 
-## End-to-end (Playwright — not Vitest)
-
-- **TST.E2E-THIN** — E2E is a small, maintained set of smoke flows (login → browse data, post a
-  deal, send a Mastermind message), **never** a per-route requirement. It catches wiring failures
-  unit/integration miss; mandating it per feature is a flakiness-and-maintenance trap.
-- **TST.E2E-ISOLATED** — E2E lives in `e2e/` with its own `playwright.config.ts`, **outside** the
-  Vitest globs, run only by `npm run test:e2e`. It needs a running app + seeded DB; keep it out of
-  the default `test:all` gate.
-
----
-
 ## Mocking & fixtures
 
 - **TST.MOCK-THE-EDGE** — Mock only the boundary you are **not** testing: external APIs (Postmark,
@@ -196,7 +183,7 @@ up into an HTTP test or a pure-function assertion down into a render test.
 - **TST.LOCATION** — Mirror the source tree. Integration files end `.integration.test.ts`;
   everything else is a unit test.
 ```
-  tests/server/{api,middleware,services,utils,validation}/   e2e/
+  tests/server/{api,middleware,services,utils,validation}/
   tests/client/{components,hooks,lib}/   tests/helpers/
 ```
 - **TST.UNIQUE-UUID** — Every integration file uses its **own** UUID suffixes for acting/target

@@ -202,9 +202,13 @@ Before adding or modifying ANY UI (components, pages, styling), read `.claude/do
 ---
 
 ## Testing
-Before writing or running ANY test, read `.claude/docs/testing.md`. For new API routes, the access-control and validation integration tests described there are mandatory.
+Testing standards live in `.claude/docs/standards/testing.md` (owns `TST.*`). Write
+**testable** code by default (services return data, ownership in the service layer,
+inputs Zod-validated), but do **not** generate test files inline while building a
+feature unless explicitly asked. Test generation is a deliberate, separate pass run
+via the `/test` command, but you could be asked to write tests as well.
 
-> **Full reference**: `.claude/docs/testing.md`.
+> **Full reference**: `.claude/docs/standards/testing.md` · generator: `/test`
 
 ---
 
@@ -223,8 +227,8 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 - `.claude/docs/standards/typescript.md` — Standards — TypeScript language rules (`TS.*`) |
 - `.claude/docs/standards/react.md` — Standards — React rules (`RX.*`) |
 - `.claude/docs/standards/express.md` — Standards — Express/Drizzle backend rules (`EX.*`, `DB.*`) |
+- `.claude/docs/standards/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
 - `.claude/docs/design-guidelines.md` — UI design system (colors, typography, components, dark mode)
-- `.claude/docs/testing.md` — testing guidelines, helpers, and mandatory baseline for new routes
 - `.claude/docs/apps.md` — combined overview of all four apps (Data, Deals, Vendors, Mastermind)
 - `.claude/docs/database.md` — full database schema reference (tables, columns, constraints, indexes)
 - `.claude/docs/mastermind.md` — Mastermind design doc and phased build plan
@@ -238,7 +242,7 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 2. You must refer to the Deals section of `.claude/docs/apps.md` when working on the deals side of the application
 3. You must refer to the Vendors section of `.claude/docs/apps.md` when working on the vendors side of the application
 4. You must refer to the Mastermind section of `.claude/docs/apps.md` (and `.claude/docs/mastermind.md`) when working on the mastermind side of the application
-5. Before adding or modifying ANY code, read `.claude/docs/code-standards.md`
+5. Before adding or modifying ANY code, read `.claude/docs/standards/react.md`, `.claude/docs/standards/express.md`, `.claude/docs/standards/typescript.md`
 6. Before building any backend route or frontend component that restricts access by role, subscription, or authentication state, read `.claude/docs/access-control.md`
 7. Before adding or modifying ANY UI (components, pages, styling), read `.claude/docs/design-guidelines.md`
 8. Before writing or running ANY test, read `.claude/docs/testing.md`

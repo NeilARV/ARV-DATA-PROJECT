@@ -1,5 +1,5 @@
 ---
-description: Scan git diff vs target branch for code smells (Clean Code + GoF + TypeScript/React/Express catalog)
+description: Scan git diff vs target branch for code smells (Clean Code + GoF + TypeScript/React/Express/Testing catalog)
 argument-hint: "[target-branch]"
 allowed-tools: Bash(bash .claude/scripts/smell-diff.sh:*), Read, Grep, Glob
 ---
@@ -130,25 +130,41 @@ Walk every hunk. For each issue you find, cite **exactly one** catalog ID from t
 - **DS.NEEDLESS-REPETITION** — same logic in multiple places
 - **DS.OPACITY** — hard to understand
 
-### TypeScript / React / Express / Drizzle IDs Stack Catalog (cite IDs verbatim — do not invent)
+### TypeScript / React / Express / Drizzle / Testing IDs Stack Catalog (cite IDs verbatim — do not invent)
 Apply to `.ts` / `.tsx` files.
 
-- `@.claude/docs/standards/typescript.md`
-- `@.claude/docs/standards/react.md`
-- `@.claude/docs/standards/express.md`
-- `@.claude/docs/standards/database.md`
+- `@.claude/docs/standards/typescript.md`  (`TS.*`)
+- `@.claude/docs/standards/react.md`        (`RX.*`)
+- `@.claude/docs/standards/express.md`      (`EX.*`, `DB.*`)
+- `@.claude/docs/standards/testing.md`      (`TST.*`)
+
+> `DB.*` is owned by `express.md`. The schema reference `.claude/docs/database.md` is **data, not
+> a rules file** — consult it for context (does a column/enum exist?) but never cite it as a rule
+> source.
 
 When scanning a diff, prioritize rules that are *detectable from changed lines*:
-type safety (TS.NO-ANY, TS.NO-AS-CAST, TS.NO-NON-NULL), layering
+type safety (TS.NO-ANY, TS.NO-AS-ANY, TS.NO-NON-NULL), layering
 (EX.NO-DB-IN-CONTROLLER, EX.NO-HTTP-IN-SERVICE), data-access
 (DB.LIMIT1-DESTRUCTURE, DB.NO-NPLUS1), effects/keys
 (RX.EFFECT-DEPS, RX.EFFECT-CLEANUP, RX.STABLE-KEY), and validation/error
 (EX.ZOD-SAFEPARSE, EX.NO-LEAK-INTERNALS). Don't flag what Prettier/ESLint
 already enforce (import order, self-closing tags, boolean props).
 
+**Missing-test smells (`TST.*`) — diff-detectable, but verify before flagging.**
+`/smell` sees only the diff, and the test may already live outside it — so **Grep for an existing
+test first** (`tests/server/api/<resource>/`, `tests/server/{validation,middleware,utils}/`,
+`tests/client/`). Only when none exists, cite one of:
+- **TST.MANDATORY** — the diff adds a route, a Zod validator, a new middleware guard, or a pure
+  util/formatter with no matching test (the always-required tier).
+- **TST.WHEN-APPLICABLE** — the diff adds a service with an ownership check or a state transition
+  (deals, offers, claims) but no integration test exercising it.
+- **TST.ASSERT-OUTCOME** — a test in the diff executes code without an `expect`.
+`/smell` only flags the gap; the `/test` command fills it — **do not write tests in this command.**
+
 **Project-specific**
-- **ARV.RAW-COMPANY-NAME** — company name rendered/returned without `formatCompanyName` (§20)
-- **ARV.SECRET-ACCESS** — code reads `.env` / a secret file directly (security rules)
+- **ARV.RAW-COMPANY-NAME** — company name rendered/returned without `formatCompanyName`
+  (CLAUDE.md → Project-specific rules; helper at `@shared/utils/formatCompanyName`)
+- **ARV.SECRET-ACCESS** — code reads `.env` / a secret file directly (CLAUDE.md → Security Rules)
 
 ---
 
