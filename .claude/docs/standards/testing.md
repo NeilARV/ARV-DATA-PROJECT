@@ -211,20 +211,17 @@ up into an HTTP test or a pure-function assertion down into a render test.
 | `npm run test:watch` | unit, watch mode |
 | `npm run test:integration` | integration only (needs `.env.test` → Neon branch) |
 | `npm run test:all` | unit + integration, sequential |
-| `npm run test:e2e` | *(to add)* Playwright smoke flows |
 | `npx vitest run <path>` | a single file |
 
 - **TST.RUN-LAYER** — Run the layer you changed: units with `npm run test`, route/service changes
-  with `npm run test:integration`, both with `npm run test:all`. E2E is always run explicitly,
-  never in the default gate.
+  with `npm run test:integration`, both with `npm run test:all`.
 - **TST.COVERAGE-BACKSTOP** — Coverage measurement is optional and advisory (`@vitest/coverage-v8`,
   not yet installed). Treat a sudden drop as a smoke alarm for an untested path, not a target;
   exclude `*.routes.ts`, `database/schemas/**`, and generated types.
 
 > **Tooling to install for the new layers:** component/hook — `@testing-library/react`,
 > `@testing-library/user-event`, `@testing-library/jest-dom`, `jsdom` (or `happy-dom`), plus a
-> jsdom Vitest project + `tests/client/setup.ts`. E2E — `@playwright/test`, `playwright.config.ts`,
-> and a `test:e2e` script.
+> jsdom Vitest project + `tests/client/setup.ts`.
 
 ---
 
