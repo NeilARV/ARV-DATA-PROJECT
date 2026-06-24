@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { DEFAULT_DATE_RANGE } from '@/lib/propertyFilters';
 import { useFilters } from '@/hooks/useFilters';
 import type {
     CompanyContactWithCounts,
@@ -213,7 +214,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             setFilters({
                 ...filters,
                 statusFilters: statuses,
-                dateRange: '60d',
+                dateRange: DEFAULT_DATE_RANGE,
                 companyRole: undefined,
             });
         }
@@ -236,13 +237,20 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     }, [company?.id, company?.companyName, ensuredCompany?.id]);
     const { toast } = useToast();
 
-    // Display list: ensured company (from panel/modal selection) when not already in paginated list, then companies
+    // True when an ensuredCompany (selected from a panel/modal/leaderboard and not on this page)
+    // is prepended at index 0, which shifts the real ranked companies down one slot.
+    const isEnsuredPrepended = useMemo(
+        () => !!ensuredCompany && !companies.some((c) => c.id === ensuredCompany.id),
+        [ensuredCompany, companies],
+    );
+
+    // Display list: ensured company prepended when not already in the paginated list, then companies
     const displayList = useMemo(() => {
-        if (ensuredCompany && !companies.some((c) => c.id === ensuredCompany.id)) {
+        if (isEnsuredPrepended && ensuredCompany) {
             return [ensuredCompany, ...companies];
         }
         return companies;
-    }, [ensuredCompany, companies]);
+    }, [isEnsuredPrepended, ensuredCompany, companies]);
 
     const expandedCompanyId = company?.id ?? null;
 
@@ -264,9 +272,11 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     const getRank = useCallback(
         (index: number, listCompany: CompanyContactWithCounts) => {
             if (ensuredCompany && listCompany.id === ensuredCompany.id) return undefined;
-            return index + 1;
+            // When an ensuredCompany is prepended at index 0, subtract it so the real
+            // companies keep their true backend rank instead of shifting up by one.
+            return isEnsuredPrepended ? index : index + 1;
         },
-        [ensuredCompany],
+        [ensuredCompany, isEnsuredPrepended],
     );
 
     const handleCompanyClick = (clickedCompany: CompanyContactWithCounts) => {
@@ -296,7 +306,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
             setFilters({
                 ...filters,
                 statusFilters: statuses,
-                dateRange: '60d',
+                dateRange: DEFAULT_DATE_RANGE,
                 companyRole: undefined,
             });
             setCompany(null);

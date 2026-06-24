@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useMemo, useCallback, type ReactNode } from 'react';
-import { getDefaultFilters } from '@/lib/propertyFilters';
+import { getDefaultFilters, DEFAULT_DATE_RANGE } from '@/lib/propertyFilters';
 import { MAX_PRICE } from '@/constants/filters.constants';
 import { PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
 import type { PropertyFilters } from '@/types/filters';
@@ -43,7 +43,8 @@ export function FiltersProvider({ children, defaultOverrides }: FiltersProviderP
             filters.zipCode !== '' ||
             filters.city !== undefined ||
             filters.statusFilters.length !== 1 ||
-            filters.statusFilters[0] !== PROPERTY_STATUS.IN_RENOVATION
+            filters.statusFilters[0] !== PROPERTY_STATUS.IN_RENOVATION ||
+            (filters.dateRange ?? DEFAULT_DATE_RANGE) !== DEFAULT_DATE_RANGE
         );
     }, [filters]);
 

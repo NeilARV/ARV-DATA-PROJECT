@@ -390,6 +390,7 @@ function MastermindContent() {
                                 onJump={(messageId) => setHighlightMessageId(messageId)}
                             />
                             <MessageList
+                                key={activeChannel.id}
                                 channelId={activeChannel.id}
                                 highlightMessageId={highlightMessageId}
                                 onHighlightDone={() => setHighlightMessageId(null)}

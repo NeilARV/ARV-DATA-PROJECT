@@ -81,6 +81,10 @@ export function PostCard({ post }: PostCardProps) {
         },
     });
 
+    // A post can be edited to have fewer images while this card stays mounted (cache refetch),
+    // so clamp the index to avoid reading past the end of post.images.
+    const safeImageIndex = imageIndex < post.images.length ? imageIndex : 0;
+
     return (
         <>
             <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -179,13 +183,13 @@ export function PostCard({ post }: PostCardProps) {
                         onClick={() => setLightboxOpen(true)}
                     >
                         <img
-                            src={post.images[imageIndex].imageUrl}
+                            src={post.images[safeImageIndex].imageUrl}
                             alt=""
                             className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70 pointer-events-none"
                             aria-hidden="true"
                         />
                         <img
-                            src={post.images[imageIndex].imageUrl}
+                            src={post.images[safeImageIndex].imageUrl}
                             alt=""
                             className="relative w-full h-full object-contain"
                         />
@@ -220,7 +224,7 @@ export function PostCard({ post }: PostCardProps) {
                                                 e.stopPropagation();
                                                 setImageIndex(i);
                                             }}
-                                            className={`w-1.5 h-1.5 rounded-full transition-colors ${i === imageIndex ? 'bg-white' : 'bg-white/50'}`}
+                                            className={`w-1.5 h-1.5 rounded-full transition-colors ${i === safeImageIndex ? 'bg-white' : 'bg-white/50'}`}
                                         />
                                     ))}
                                 </div>
@@ -255,7 +259,7 @@ export function PostCard({ post }: PostCardProps) {
             {lightboxOpen && post.images.length > 0 && (
                 <ImageLightbox
                     images={post.images}
-                    initialIndex={imageIndex}
+                    initialIndex={safeImageIndex}
                     onClose={() => setLightboxOpen(false)}
                 />
             )}

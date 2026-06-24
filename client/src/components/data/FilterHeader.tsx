@@ -34,6 +34,7 @@ import { useProperty } from '@/hooks/useProperty';
 import { useGeoMap } from '@/hooks/useMap';
 import { useView } from '@/hooks/useView';
 import { apiRequest } from '@/lib/queryClient';
+import { DEFAULT_DATE_RANGE } from '@/lib/propertyFilters';
 import { fetchPropertyById } from '@/api/properties.api';
 import { MAP_ZOOM_PROPERTY } from '@/constants/map.constants';
 import type { DateRange } from '@/types/filters';
@@ -355,7 +356,7 @@ export default function FilterHeader() {
             city: undefined,
             county: countyToKeep,
             statusFilters: DEFAULT_STATUS_FILTERS,
-            dateRange: '60d' as DateRange,
+            dateRange: DEFAULT_DATE_RANGE,
         }));
     };
 
@@ -660,7 +661,7 @@ export default function FilterHeader() {
 
                 {/* Date Range */}
                 <Select
-                    value={filters.dateRange ?? '60d'}
+                    value={filters.dateRange ?? DEFAULT_DATE_RANGE}
                     onValueChange={(val) =>
                         setFilters((f) => ({ ...f, dateRange: val as DateRange }))
                     }
