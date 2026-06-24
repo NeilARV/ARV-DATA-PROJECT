@@ -16,12 +16,12 @@ const badgeVariants = cva(
                 destructive:
                     'border-transparent bg-destructive text-destructive-foreground shadow-xs',
                 outline: 'border [border-color:var(--badge-outline)] shadow-xs',
-                cyan: 'border-transparent bg-[#69C9E1] text-white shadow-xs',
-                green: 'border-transparent bg-[#22C55E] text-white shadow-xs',
-                red: 'border-transparent bg-[#FF0000] text-white shadow-xs',
-                purple: 'border-transparent bg-[#9333EA] text-white shadow-xs',
-                orange: 'border-transparent bg-[#F97316] text-white shadow-xs',
-                indigo: 'border-transparent bg-[#6366F1] text-white shadow-xs',
+                cyan: 'border-transparent bg-[#69C9E1] text-primary-foreground shadow-xs',
+                green: 'border-transparent bg-[#22C55E] text-primary-foreground shadow-xs',
+                red: 'border-transparent bg-[#FF0000] text-primary-foreground shadow-xs',
+                purple: 'border-transparent bg-[#9333EA] text-primary-foreground shadow-xs',
+                orange: 'border-transparent bg-[#F97316] text-primary-foreground shadow-xs',
+                indigo: 'border-transparent bg-[#6366F1] text-primary-foreground shadow-xs',
                 white: 'border-transparent bg-white text-black shadow-xs',
             },
             size: {
