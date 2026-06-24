@@ -17,8 +17,9 @@ type DmPeopleListProps = {
 };
 
 // A single row in the unified list: any eligible person, carrying their unread count (0 for someone
-// the user hasn't messaged yet).
-type PersonRow = { user: DmUserWire; unreadCount: number };
+// the user hasn't messaged yet). `isConversation` marks people the user already has a DM with, so the
+// list can draw a divider where conversations end and other suggestions begin.
+type PersonRow = { user: DmUserWire; unreadCount: number; isConversation: boolean };
 
 // Idle suggestions are capped so the list fills the sidebar's spare height without scrolling forever;
 // to reach anyone beyond the cap the user searches. Search results allow a few more, with scroll.
@@ -47,13 +48,13 @@ export function DmPeopleList({ dms, activeDmUserId, onSelectDm }: DmPeopleListPr
     // active or past conversation always sits among the suggestions rather than in a separate block.
     const conversationRows: PersonRow[] = [...dms]
         .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
-        .map((d) => ({ user: d.otherUser, unreadCount: d.unreadCount }));
+        .map((d) => ({ user: d.otherUser, unreadCount: d.unreadCount, isConversation: true }));
 
     const dmUserIds = new Set(dms.map((d) => d.otherUser.id));
     const otherRows: PersonRow[] = (candidates ?? [])
         .filter((u) => !dmUserIds.has(u.id))
         .sort((a, b) => formatUserName(a).localeCompare(formatUserName(b)))
-        .map((u) => ({ user: u, unreadCount: 0 }));
+        .map((u) => ({ user: u, unreadCount: 0, isConversation: false }));
 
     const allRows = [...conversationRows, ...otherRows];
     const rows = isSearching
@@ -66,12 +67,20 @@ export function DmPeopleList({ dms, activeDmUserId, onSelectDm }: DmPeopleListPr
     if (rows.length > 0) {
         listContent = (
             <ul>
-                {rows.map(({ user, unreadCount }) => {
+                {rows.map(({ user, unreadCount, isConversation }, i) => {
                     const isActive = activeDmUserId === user.id;
                     const hasUnread = unreadCount > 0;
                     const name = formatUserName(user);
+                    // Divider where conversations end and other people begin (only when both groups show).
+                    const showDivider = !isConversation && i > 0 && rows[i - 1].isConversation;
                     return (
                         <li key={user.id}>
+                            {showDivider && (
+                                <div
+                                    className="mx-3 my-1.5 border-t border-sidebar-border"
+                                    role="separator"
+                                />
+                            )}
                             <button
                                 type="button"
                                 onClick={() => onSelectDm(user.id)}
