@@ -1,12 +1,15 @@
 import { MAX_PRICE } from '@/constants/filters.constants';
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
-import type { PropertyFilters } from '@/types/filters';
+import type { PropertyFilters, DateRange } from '@/types/filters';
 import type { MapPin, Property } from '@/types/property';
 import type { CompanyContactWithCounts } from '@/types/companies';
 
 export type ZipCodeListEntry = { zip: string; city: string };
 
 // ---- Default filters (single source of truth for initial and reset state) ----
+
+/** Default property acquisition date range — the "no date filter applied" baseline. */
+export const DEFAULT_DATE_RANGE: DateRange = '90d';
 
 const DEFAULT_FILTERS: PropertyFilters = {
     minPrice: 0,
@@ -18,7 +21,7 @@ const DEFAULT_FILTERS: PropertyFilters = {
     city: undefined,
     county: 'San Diego',
     statusFilters: [...DEFAULT_STATUS_FILTERS],
-    dateRange: '90d',
+    dateRange: DEFAULT_DATE_RANGE,
 };
 
 /**
