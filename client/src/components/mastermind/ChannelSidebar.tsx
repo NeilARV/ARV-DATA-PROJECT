@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brain, Hash, MessageSquarePlus, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Brain, Hash, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import {
     DropdownMenu,
@@ -10,8 +10,8 @@ import {
 import { AddChannelDialog } from '@/components/mastermind/AddChannelDialog';
 import { EditChannelDialog } from '@/components/mastermind/EditChannelDialog';
 import { DeleteChannelDialog } from '@/components/mastermind/DeleteChannelDialog';
-import { NewDmDialog } from '@/components/mastermind/NewDmDialog';
-import { UserAvatar } from '@/components/mastermind/UserAvatar';
+import { DmPeopleList } from '@/components/mastermind/DmPeopleList';
+import { UnreadBadge } from '@/components/mastermind/UnreadBadge';
 
 import type { ChannelSummary } from '@/types/mastermind';
 import type { DirectMessageSummaryWire } from '@shared/mastermind/events';
@@ -28,16 +28,6 @@ type ChannelSidebarProps = {
     onSelectDm: (userId: string) => void;
 };
 
-function UnreadBadge({ count, hasMention }: { count: number; hasMention: boolean }) {
-    if (count === 0) return null;
-    const label = count > 99 ? '99+' : String(count);
-    return (
-        <span className={`mm-unread-badge ${hasMention ? 'mm-unread-badge-mention' : ''}`}>
-            {label}
-        </span>
-    );
-}
-
 export function ChannelSidebar({
     channels,
     activeChannelId,
@@ -50,7 +40,6 @@ export function ChannelSidebar({
     onSelectDm,
 }: ChannelSidebarProps) {
     const [addOpen, setAddOpen] = useState(false);
-    const [newDmOpen, setNewDmOpen] = useState(false);
     const [channelToEdit, setChannelToEdit] = useState<ChannelSummary | null>(null);
     const [channelToDelete, setChannelToDelete] = useState<ChannelSummary | null>(null);
 
@@ -62,8 +51,9 @@ export function ChannelSidebar({
                 <span className="text-base lg:text-lg font-semibold text-foreground truncate">ARV Mastermind</span>
             </div>
 
-            {/* Scrollable channel list */}
-            <div className="flex-1 overflow-y-auto py-2 min-h-0">
+            {/* Channels + existing conversations — natural height, scrolls (and yields space to the
+                people list below) when long */}
+            <div className="overflow-y-auto pt-2 min-h-0">
                 <div className="flex items-center justify-between px-3 mb-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Channels
@@ -134,58 +124,24 @@ export function ChannelSidebar({
                     })}
                 </ul>
 
-                {/* Direct Messages */}
-                <div className="flex items-center justify-between px-3 mt-5 mb-1">
+                {/* Direct Messages — header only; the unified people list (conversations first, then
+                    everyone else) renders below the search in DmPeopleList. */}
+                <div className="px-3 mt-5 mb-1">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Direct Messages
                     </span>
-                    <button
-                        onClick={() => setNewDmOpen(true)}
-                        className="p-0.5 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
-                        aria-label="New message"
-                        title="New message"
-                    >
-                        <MessageSquarePlus className="w-4 h-4" />
-                    </button>
                 </div>
-
-                {dms.length === 0 ? (
-                    <p className="px-3 text-xs text-muted-foreground italic">No conversations yet</p>
-                ) : (
-                    <ul>
-                        {dms.map((dm) => {
-                            const isActive = activeDmUserId === dm.otherUser.id;
-                            const hasUnread = dm.unreadCount > 0;
-                            const name =
-                                `${dm.otherUser.firstName} ${dm.otherUser.lastName}`.trim();
-                            return (
-                                <li key={dm.channelId}>
-                                    <button
-                                        onClick={() => onSelectDm(dm.otherUser.id)}
-                                        className={`mm-channel-item ${isActive ? 'mm-channel-item-active' : ''}`}
-                                    >
-                                        <UserAvatar
-                                            user={dm.otherUser}
-                                            sizeClass="w-4 h-4"
-                                            textClass="text-[8px]"
-                                        />
-                                        <span
-                                            className={`truncate flex-1 ${hasUnread && !isActive ? 'font-semibold text-foreground' : ''}`}
-                                        >
-                                            {name}
-                                        </span>
-                                        {!isActive && (
-                                            <UnreadBadge count={dm.unreadCount} hasMention={false} />
-                                        )}
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
             </div>
 
-            <NewDmDialog open={newDmOpen} onClose={() => setNewDmOpen(false)} />
+            {/* People picker — inline search + a single list of conversations and other people,
+                fills the remaining sidebar height */}
+            <div className="flex flex-col flex-1 min-h-0 pt-2 pb-2">
+                <DmPeopleList
+                    dms={dms}
+                    activeDmUserId={activeDmUserId}
+                    onSelectDm={onSelectDm}
+                />
+            </div>
 
             {canManageChannels && (
                 <>
