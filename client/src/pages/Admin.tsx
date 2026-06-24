@@ -154,7 +154,7 @@ export default function Admin() {
                         Logout
                     </Button>
                 </div>
-                <h1 className="text-3xl font-bold mb-2" data-testid="heading-admin">
+                <h1 className="text-2xl font-semibold mb-2" data-testid="heading-admin">
                     Admin Panel
                 </h1>
             </div>

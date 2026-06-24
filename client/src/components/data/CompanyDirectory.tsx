@@ -469,7 +469,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                             ranking === 1
                                                                 ? 'bg-amber-400 text-white'
                                                                 : ranking === 2
-                                                                  ? 'bg-slate-400 text-white'
+                                                                  ? 'bg-muted-foreground text-background'
                                                                   : 'bg-amber-700 text-amber-100'
                                                         }`}
                                                         data-testid={`text-rank-${ranking}`}

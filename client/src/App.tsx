@@ -15,6 +15,7 @@ import Signup from '@/pages/Signup';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import VerifyEmail from '@/pages/VerifyEmail';
+import Example from '@/pages/Example';
 import NotFound from '@/pages/not-found';
 import { useEffect } from 'react';
 import { useLocation } from 'wouter';
@@ -78,6 +79,7 @@ function Router() {
             <Route path="/mastermind" component={Mastermind} />
             <Route path="/mastermind/dm/:userId" component={Mastermind} />
             <Route path="/mastermind/:channelName" component={Mastermind} />
+            <Route path="/example" component={Example} />
             <Route component={NotFound} />
         </Switch>
     );
