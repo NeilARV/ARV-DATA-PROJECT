@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     sortTransactionsDesc,
     calculateSpread,
+    computeSaleRatios,
     isArmsLength,
 } from '../../../server/utils/orderTransactions';
 
@@ -934,5 +935,172 @@ describe('calculateSpread', () => {
         expect(result.buyerPurchasePrice).toBe(500000);
         expect(result.sellerPurchasePrice).toBe(400000);
         expect(result.spread).toBe(100000);
+    });
+});
+
+describe('computeSaleRatios', () => {
+    it('computeSaleRatios — simple flip — one ratio credited to the seller', () => {
+        // A buys at 200k, sells at 280k. Only A's sale has a traceable acquisition.
+        const ratios = computeSaleRatios([
+            {
+                recordingDate: '2020-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '200000',
+                sellerId: 'S',
+                buyerId: 'A',
+            },
+            {
+                recordingDate: '2021-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '280000',
+                sellerId: 'A',
+                buyerId: 'B',
+            },
+        ]);
+        expect(ratios).toHaveLength(1);
+        expect(ratios[0]).toMatchObject({ sellerId: 'A', purchasePrice: 200000, soldPrice: 280000 });
+        expect(ratios[0].ratio).toBeCloseTo(0.7143, 4);
+    });
+
+    it('computeSaleRatios — property re-flipped — each seller keeps its own data point', () => {
+        // A->B (280k) then B->C (350k): a later re-flip must not erase A's ratio.
+        const ratios = computeSaleRatios([
+            {
+                recordingDate: '2020-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '200000',
+                sellerId: 'S',
+                buyerId: 'A',
+            },
+            {
+                recordingDate: '2021-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '280000',
+                sellerId: 'A',
+                buyerId: 'B',
+            },
+            {
+                recordingDate: '2022-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '350000',
+                sellerId: 'B',
+                buyerId: 'C',
+            },
+        ]);
+        // Returned most-recent sale first: B's flip, then A's.
+        expect(ratios.map((r) => r.sellerId)).toEqual(['B', 'A']);
+        expect(ratios[0].ratio).toBeCloseTo(0.8, 4);
+        expect(ratios[1].ratio).toBeCloseTo(0.7143, 4);
+    });
+
+    it("computeSaleRatios — Non-Arms Length transfer — traces the seller's true acquisition", () => {
+        // A buys 200k, transfers to A-LLC ($0), A-LLC sells 300k. A-LLC's true cost is the 200k buy.
+        const ratios = computeSaleRatios([
+            {
+                recordingDate: '2020-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '200000',
+                sellerId: 'S',
+                buyerId: 'A',
+            },
+            {
+                recordingDate: '2020-06-01',
+                transactionType: 'Non Arms Length',
+                salePrice: '0',
+                sellerId: 'A',
+                buyerId: 'A-LLC',
+            },
+            {
+                recordingDate: '2021-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '300000',
+                sellerId: 'A-LLC',
+                buyerId: 'B',
+            },
+        ]);
+        expect(ratios).toHaveLength(1);
+        expect(ratios[0]).toMatchObject({ sellerId: 'A-LLC', purchasePrice: 200000, soldPrice: 300000 });
+        expect(ratios[0].ratio).toBeCloseTo(0.6667, 4);
+    });
+
+    it('computeSaleRatios — no acquisition on record — excludes the sale (not zero)', () => {
+        const ratios = computeSaleRatios([
+            {
+                recordingDate: '2021-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '300000',
+                sellerId: 'A',
+                buyerId: 'B',
+            },
+        ]);
+        expect(ratios).toEqual([]);
+    });
+
+    it('computeSaleRatios — sale price is 0 — excludes the sale', () => {
+        const ratios = computeSaleRatios([
+            {
+                recordingDate: '2020-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '200000',
+                sellerId: 'S',
+                buyerId: 'A',
+            },
+            {
+                recordingDate: '2021-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '0',
+                sellerId: 'A',
+                buyerId: 'B',
+            },
+        ]);
+        expect(ratios).toEqual([]);
+    });
+
+    it('computeSaleRatios — empty input — returns []', () => {
+        expect(computeSaleRatios([])).toEqual([]);
+    });
+
+    it('computeSaleRatios — seller has no company id — matches by name, sellerId is null', () => {
+        const ratios = computeSaleRatios([
+            {
+                recordingDate: '2020-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '200000',
+                sellerName: 'ORIG',
+                buyerName: 'A',
+            },
+            {
+                recordingDate: '2021-01-01',
+                transactionType: 'Arms Length',
+                salePrice: '280000',
+                sellerName: 'A',
+                buyerName: 'B',
+            },
+        ]);
+        expect(ratios).toHaveLength(1);
+        expect(ratios[0].sellerId).toBeNull();
+        expect(ratios[0].ratio).toBeCloseTo(0.7143, 4);
+    });
+
+    it('computeSaleRatios — raw SFR shape (SALE_AMT / *_NAME) — works', () => {
+        const ratios = computeSaleRatios([
+            {
+                RECORDING_DATE: '2020-01-01',
+                TRANSACTION_TYPE: 'Arms Length',
+                SALE_AMT: '400000',
+                SELLER1_NAME: 'ORIG',
+                BUYER_BORROWER1_NAME: 'FLIP LLC',
+            },
+            {
+                RECORDING_DATE: '2021-01-01',
+                TRANSACTION_TYPE: 'Arms Length',
+                SALE_AMT: '500000',
+                SELLER1_NAME: 'FLIP LLC',
+                BUYER_BORROWER1_NAME: 'END',
+            },
+        ]);
+        expect(ratios).toHaveLength(1);
+        expect(ratios[0]).toMatchObject({ purchasePrice: 400000, soldPrice: 500000 });
+        expect(ratios[0].ratio).toBeCloseTo(0.8, 4);
     });
 });

@@ -20,6 +20,7 @@ import {
     Eye,
     RefreshCw,
     Flag,
+    Percent,
 } from 'lucide-react';
 import { ClaimCompanyDialog } from './ClaimCompanyDialog';
 import { useAuth } from '@/hooks/use-auth';
@@ -81,6 +82,18 @@ const companyProfiles: Record<
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * Formats a stored purchase-to-ARV ratio (raw decimal string, e.g. "0.7143") as a
+ * whole-number percent ("71%"). Returns "Not Available" when there is no value
+ * (the company has no traceable sale) or it can't be parsed.
+ */
+function formatPurchaseToArvRatio(value: string | null | undefined): string {
+    if (value == null) return 'Not Available';
+    const ratio = parseFloat(value);
+    if (Number.isNaN(ratio)) return 'Not Available';
+    return `${Math.round(ratio * 100)}%`;
+}
 
 export default function CompanyDirectory(_props: CompanyDirectoryProps) {
     const { filters, setFilters } = useFilters();
@@ -734,6 +747,22 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                                 )}
                                             </div>
                                         )}
+
+                                        {/* Purchase to ARV Ratio — avg of (seller's purchase price ÷ sale price) across this company's flips */}
+                                        <div className="flex items-center gap-2">
+                                            <Percent className="w-4 h-4 text-primary" />
+                                            <span className="text-sm">
+                                                <span className="text-muted-foreground">
+                                                    Purchase to ARV Ratio:{' '}
+                                                </span>
+                                                <span className="font-semibold text-foreground">
+                                                    {formatPurchaseToArvRatio(
+                                                        expandedCompanyDetail?.purchaseToArvRatio ??
+                                                            listCompany.purchaseToArvRatio,
+                                                    )}
+                                                </span>
+                                            </span>
+                                        </div>
 
                                         {/* 90-Day Acquisition Activity (from property_transactions API) */}
                                         <div className="space-y-2 pt-2 border-t border-border">

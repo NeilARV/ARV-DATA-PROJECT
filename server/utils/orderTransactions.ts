@@ -358,3 +358,60 @@ export function calculateSpread<T extends TxRow>(txs: T[]): SpreadResult<T> {
         latestArmsLengthTx,
     };
 }
+
+// ── Purchase-to-ARV ratio ──────────────────────────────────────────────────────────
+
+/** One Arms Length sale's purchase-to-ARV ratio for a single property. */
+export interface SaleRatio {
+    /** Resolved company id of the seller, or null when the seller wasn't matched to a company. */
+    sellerId: string | null;
+    /** Price the seller originally paid (traced through Non-Arms Length transfers). */
+    purchasePrice: number;
+    /** Price the property sold for in this transaction — the ARV realized at sale. */
+    soldPrice: number;
+    /** purchasePrice / soldPrice. */
+    ratio: number;
+}
+
+/**
+ * Computes a purchase-to-ARV ratio for EVERY Arms Length sale (price > 0) in one
+ * property's transaction list. For each such sale it traces the seller's own
+ * acquisition price among older transactions — following Non-Arms Length transfers,
+ * exactly like calculateSpread — and emits { sellerId, purchasePrice, soldPrice, ratio }.
+ *
+ * Unlike calculateSpread (which only inspects the single most-recent flip), this returns
+ * one entry per sale, so a property flipped by several companies over time yields an
+ * independent ratio for each seller — none is lost to a later re-flip. A sale is omitted
+ * (never counted as zero) when the seller's acquisition price can't be found or isn't > 0.
+ *
+ * Input order is not trusted; transactions are re-sorted most-recent-first internally.
+ *
+ * @param txs all transactions for a single property (any types, any order)
+ * @returns one SaleRatio per qualifying Arms Length sale
+ */
+export function computeSaleRatios<T extends TxRow>(txs: T[]): SaleRatio[] {
+    if (txs.length === 0) return [];
+    const sorted = sortTransactionsDesc(txs);
+    const ratios: SaleRatio[] = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+        const saleTx = sorted[i];
+        if (!isArmsLength(saleTx)) continue;
+        const soldPrice = priceOf(saleTx);
+        if (soldPrice === null || soldPrice <= 0) continue;
+
+        // Trace the seller's acquisition among strictly-older transactions — everything
+        // after this sale in most-recent-first order is older (or a same-day chain link).
+        const acquisition = traceAcquisition(sorted.slice(i + 1), sellerTokens(saleTx), new Set());
+        if (!acquisition || acquisition.price <= 0) continue;
+
+        ratios.push({
+            sellerId: sellerIdOf(saleTx) || null,
+            purchasePrice: acquisition.price,
+            soldPrice,
+            ratio: acquisition.price / soldPrice,
+        });
+    }
+
+    return ratios;
+}
