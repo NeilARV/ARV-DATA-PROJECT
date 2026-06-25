@@ -286,9 +286,15 @@ export const streetviewCache = pgTable('streetview_cache', {
     city: text('city').notNull(),
     state: text('state').notNull(),
     size: text('size').notNull().default('600x400'),
-    // Store image as binary data (BYTEA) - more efficient than base64 text
-    // Nullable because we may cache metadata indicating no image is available
+    // Legacy storage: image as binary data (BYTEA). Newer entries store the image in
+    // Supabase Storage and keep this null — see storagePath. Still read as a fallback for
+    // rows cached before the Storage migration. Nullable because a cached "no image
+    // available" result has neither bytes nor a storage path.
     imageData: bytea('image_data'),
+    // Path of the image in the Supabase Street View bucket (e.g. "streetview/<hash>.jpg").
+    // When set, the image is served by redirecting to its public CDN URL instead of
+    // streaming bytea through the API on every request. Null for legacy + negative results.
+    storagePath: text('storage_path'),
     contentType: text('content_type').default('image/jpeg'),
     // Metadata status from Google API (e.g., "OK", "ZERO_RESULTS", "NOT_FOUND")
     metadataStatus: text('metadata_status'),

@@ -1,15 +1,24 @@
+import crypto from 'crypto';
 import { db } from 'server/storage';
 import { streetviewCache } from '@database/schemas/properties.schema';
 import { eq, sql, and } from 'drizzle-orm';
+import { getSupabase, streetviewStorageBucket } from 'server/lib/supabase';
 
 interface StreetviewImageResult {
-    imageData: Buffer;
+    available: true;
+    // Supabase CDN URL when the image lives in Storage (the common path). The controller
+    // redirects here so image bytes never stream through the API/Neon.
+    publicUrl: string | null;
+    // Legacy bytes — only set for rows cached before the Storage migration, or when Storage
+    // is unavailable. The controller streams these as a fallback.
+    imageData: Buffer | null;
     contentType: string;
     cached: boolean;
     imageSource: 'streetview' | 'satellite';
 }
 
 interface StreetviewErrorResult {
+    available: false;
     message: string;
     status: string;
     reason?: string;
@@ -35,9 +44,11 @@ const EXPIRY_DAYS = {
 
 /**
  * Gets a Street View image for the given address, falling back to satellite if unavailable.
- * Order: cache → Street View API → Satellite API → no image
+ * Order: cache → Street View API → Satellite API → no image.
+ * Successful images are stored in Supabase Storage; the result then carries a `publicUrl` the
+ * controller redirects to, so the image bytes never stream through the API on cache hits.
  * @param params - Streetview parameters (address, city, state, size, propertyId)
- * @returns StreetviewResult with image data or error information
+ * @returns StreetviewResult with a public URL / image data, or an unavailable result
  */
 export async function getStreetviewImage(params: StreetviewParams): Promise<StreetviewResult> {
     const { address, city = '', state = '', size = '600x400', sfrPropertyId } = params;
@@ -83,7 +94,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
         const imageResult = await fetchStreetviewImage(location, normalizedSize, apiKey);
 
         if (imageResult) {
-            await cacheImage(
+            const { publicUrl } = await cacheImage(
                 normalizedAddress,
                 normalizedCity,
                 normalizedState,
@@ -94,7 +105,9 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
                 'streetview',
             );
             return {
-                imageData: imageResult.buffer,
+                available: true,
+                publicUrl,
+                imageData: publicUrl ? null : imageResult.buffer,
                 contentType: imageResult.contentType,
                 cached: false,
                 imageSource: 'streetview',
@@ -109,7 +122,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
     const satelliteResult = await fetchSatelliteImage(location, normalizedSize, apiKey);
 
     if (satelliteResult) {
-        await cacheImage(
+        const { publicUrl } = await cacheImage(
             normalizedAddress,
             normalizedCity,
             normalizedState,
@@ -120,7 +133,9 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
             'satellite',
         );
         return {
-            imageData: satelliteResult.buffer,
+            available: true,
+            publicUrl,
+            imageData: publicUrl ? null : satelliteResult.buffer,
             contentType: satelliteResult.contentType,
             cached: false,
             imageSource: 'satellite',
@@ -138,6 +153,7 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
     );
 
     return {
+        available: false,
         message: 'Street View image not available',
         status: metadata.status,
         reason:
@@ -150,38 +166,197 @@ export async function getStreetviewImage(params: StreetviewParams): Promise<Stre
     };
 }
 
+// ─── Supabase Storage helpers ──────────────────────────────────────────────────
+
+// Cap per Supabase Storage .remove() call so a large cleanup batch stays under the API's
+// object limit instead of failing (and orphaning) the whole set at once.
+const STORAGE_REMOVE_BATCH_SIZE = 100;
+
 /**
- * Builds a StreetviewResult from a raw cache row.
+ * Best-effort removal of stored Street View images from Supabase Storage. Called by the cache
+ * cleanup job before it deletes the rows. Failures are logged, never thrown — the DB delete is
+ * the source of truth and still proceeds; an unremovable object is logged so it can be reconciled.
+ * @param paths storage paths (from `streetview_cache.storage_path`); null/empty entries are ignored
  */
-function buildCacheResult(
+export async function removeStoredStreetviewImages(paths: Array<string | null>): Promise<void> {
+    const valid = paths.filter((p): p is string => !!p);
+    if (valid.length === 0) return;
+
+    for (let i = 0; i < valid.length; i += STORAGE_REMOVE_BATCH_SIZE) {
+        const batch = valid.slice(i, i + STORAGE_REMOVE_BATCH_SIZE);
+        try {
+            const { error } = await getSupabase()
+                .storage.from(streetviewStorageBucket)
+                .remove(batch);
+            if (error) {
+                console.error('[STREETVIEW STORAGE] Failed to remove objects:', error.message);
+            }
+        } catch (err) {
+            console.error('[STREETVIEW STORAGE] Failed to remove objects:', err);
+        }
+    }
+}
+
+/** File extension for a stored image, derived from its content type. */
+function imageExtension(contentType: string): string {
+    if (contentType.includes('png')) return 'png';
+    if (contentType.includes('webp')) return 'webp';
+    return 'jpg';
+}
+
+/**
+ * Stable, content-addressed storage key for an image. Same address+size always maps to the
+ * same object, so re-fetches overwrite in place rather than orphaning old files.
+ */
+function storageKey(parts: {
+    address: string;
+    city: string;
+    state: string;
+    size: string;
+    ext: string;
+}): string {
+    const { address, city, state, size, ext } = parts;
+    const hash = crypto
+        .createHash('sha1')
+        .update(`${address}|${city}|${state}|${size}`.toLowerCase())
+        .digest('hex');
+    return `streetview/${hash}.${ext}`;
+}
+
+/**
+ * Public CDN URL for a stored object. Built from SUPABASE_URL directly (not the SDK) so a
+ * cache-hit read never constructs a Supabase client. Returns null if SUPABASE_URL is unset.
+ */
+function publicUrlForPath(path: string): string | null {
+    const base = process.env.SUPABASE_URL;
+    if (!base) return null;
+    return `${base}/storage/v1/object/public/${streetviewStorageBucket}/${path}`;
+}
+
+/**
+ * Uploads image bytes to the Supabase Street View bucket and returns the public URL.
+ * Best-effort: returns null (and the caller falls back to bytea) if Storage is unconfigured
+ * or the upload fails, so the feature still works without Supabase.
+ */
+async function uploadToStorage(
+    path: string,
+    buffer: Buffer,
+    contentType: string,
+): Promise<string | null> {
+    try {
+        const { error } = await getSupabase()
+            .storage.from(streetviewStorageBucket)
+            .upload(path, buffer, { contentType, upsert: true });
+        if (error) {
+            console.error('[STREETVIEW STORAGE] Upload failed:', error.message);
+            return null;
+        }
+        return publicUrlForPath(path);
+    } catch (err) {
+        console.error('[STREETVIEW STORAGE] Upload error:', err);
+        return null;
+    }
+}
+
+/**
+ * Lazily moves a legacy bytea row into Supabase Storage: uploads the bytes, then records the
+ * path and clears the bytea so future hits skip the bytea read. Best-effort.
+ * Side effect: updates the streetview_cache row.
+ * @returns the public CDN URL, or null if there were no bytes or Storage was unavailable
+ */
+async function migrateRowToStorage(
     cached: typeof streetviewCache.$inferSelect,
-    address: string,
-    city: string,
-    state: string,
-): StreetviewResult {
-    if (!cached.imageData || cached.metadataStatus !== 'OK') {
+    contentType: string,
+): Promise<string | null> {
+    if (!cached.imageData) return null;
+
+    const ext = imageExtension(contentType);
+    const path = storageKey({
+        address: cached.address,
+        city: cached.city,
+        state: cached.state,
+        size: cached.size,
+        ext,
+    });
+    const publicUrl = await uploadToStorage(path, cached.imageData, contentType);
+    if (!publicUrl) return null;
+
+    await db
+        .update(streetviewCache)
+        .set({ storagePath: path, imageData: null })
+        .where(eq(streetviewCache.id, cached.id))
+        .catch((e) => console.error('[STREETVIEW STORAGE] Migrate update failed:', e));
+    console.log(
+        `[STREETVIEW CACHE HIT] Migrated legacy image to Storage for: ${cached.address}, ${cached.city}, ${cached.state}`,
+    );
+    return publicUrl;
+}
+
+/**
+ * Resolves a raw cache row to a StreetviewResult.
+ *
+ * Prefers the Supabase CDN URL (no bytea read). A legacy row that still holds only bytea is
+ * migrated to Storage via {@link migrateRowToStorage} (a write on the read path); if Storage is
+ * unavailable, the bytea is returned so the image still renders.
+ */
+async function buildCacheResult(
+    cached: typeof streetviewCache.$inferSelect,
+): Promise<StreetviewResult> {
+    const { address, city, state } = cached;
+
+    if (cached.metadataStatus !== 'OK' || (!cached.imageData && !cached.storagePath)) {
         console.log(
             `[STREETVIEW CACHE HIT] Cached negative result (status: ${cached.metadataStatus || 'no image'}) for: ${address}, ${city}, ${state}`,
         );
         return {
+            available: false,
             message: 'Street View image not available',
             status: cached.metadataStatus || 'NOT_AVAILABLE',
             cached: true,
         };
     }
 
-    const source = (cached.imageSource === 'satellite' ? 'satellite' : 'streetview') as
-        | 'streetview'
-        | 'satellite';
-    console.log(
-        `[STREETVIEW CACHE HIT] Using cached ${source} image (size: ${cached.size}) for: ${address}, ${city}, ${state}`,
-    );
+    const source: 'streetview' | 'satellite' =
+        cached.imageSource === 'satellite' ? 'satellite' : 'streetview';
+    const contentType = cached.contentType || 'image/jpeg';
 
+    // Preferred path: image already in Storage — return its CDN URL, no bytea read.
+    if (cached.storagePath) {
+        const publicUrl = publicUrlForPath(cached.storagePath);
+        if (publicUrl) {
+            console.log(
+                `[STREETVIEW CACHE HIT] Using stored ${source} image for: ${address}, ${city}, ${state}`,
+            );
+            return {
+                available: true,
+                publicUrl,
+                imageData: null,
+                contentType,
+                cached: true,
+                imageSource: source,
+            };
+        }
+    }
+
+    // Legacy row with only bytea — migrate to Storage, falling back to the bytea if that fails.
+    if (cached.imageData) {
+        const publicUrl = await migrateRowToStorage(cached, contentType);
+        return {
+            available: true,
+            publicUrl,
+            imageData: publicUrl ? null : cached.imageData,
+            contentType,
+            cached: true,
+            imageSource: source,
+        };
+    }
+
+    // storagePath set but no SUPABASE_URL to build a URL, and no bytea — treat as unavailable.
     return {
-        imageData: cached.imageData,
-        contentType: cached.contentType || 'image/jpeg',
+        available: false,
+        message: 'Street View image not available',
+        status: 'NOT_AVAILABLE',
         cached: true,
-        imageSource: source,
     };
 }
 
@@ -218,7 +393,7 @@ async function checkCache(
             )
             .limit(1);
 
-        if (byId.length > 0) return buildCacheResult(byId[0], address, city, state);
+        if (byId.length > 0) return buildCacheResult(byId[0]);
     }
 
     // Address-based lookup — finds entries regardless of whether sfrPropertyId was stored.
@@ -246,7 +421,7 @@ async function checkCache(
 
     if (cachedEntry.length === 0) return null;
 
-    return buildCacheResult(cachedEntry[0], address, city, state);
+    return buildCacheResult(cachedEntry[0]);
 }
 
 /**
@@ -340,7 +515,9 @@ async function fetchSatelliteImage(
 }
 
 /**
- * Caches a successful image result (streetview or satellite).
+ * Caches a successful image result (streetview or satellite). Uploads to Supabase Storage and
+ * stores the resulting path; only falls back to persisting the raw bytea when the upload fails.
+ * @returns the public CDN URL when the image was stored, otherwise null
  */
 async function cacheImage(
     address: string,
@@ -351,9 +528,13 @@ async function cacheImage(
     imageData: Buffer,
     contentType: string,
     imageSource: 'streetview' | 'satellite',
-): Promise<void> {
+): Promise<{ publicUrl: string | null }> {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + EXPIRY_DAYS[imageSource]);
+
+    const ext = imageExtension(contentType);
+    const path = storageKey({ address, city, state, size, ext });
+    const publicUrl = await uploadToStorage(path, imageData, contentType);
 
     try {
         await db.insert(streetviewCache).values({
@@ -362,19 +543,23 @@ async function cacheImage(
             city,
             state,
             size,
-            imageData,
+            // When the upload succeeded, keep only the storage path — no bytea bloat.
+            imageData: publicUrl ? null : imageData,
+            storagePath: publicUrl ? path : null,
             contentType,
             metadataStatus: 'OK',
             imageSource,
             expiresAt,
         });
         console.log(
-            `[STREETVIEW CACHE] Stored ${imageSource} image, expires: ${expiresAt.toISOString()}`,
+            `[STREETVIEW CACHE] Stored ${imageSource} image (${publicUrl ? 'storage' : 'bytea'}), expires: ${expiresAt.toISOString()}`,
         );
     } catch (cacheError) {
         // Log error but don't fail the request — image will still be served
         console.error('[STREETVIEW CACHE] Error storing in cache:', cacheError);
     }
+
+    return { publicUrl };
 }
 
 /**
@@ -399,6 +584,7 @@ async function cacheNegativeResult(
             state,
             size,
             imageData: null,
+            storagePath: null,
             contentType: null,
             metadataStatus: status,
             imageSource: null,
