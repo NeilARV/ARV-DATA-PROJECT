@@ -46,7 +46,7 @@ export default function DealsGrid({
     onViewOffers,
     onTopBuyers,
 }: DealsGridProps) {
-    const [mobileColumn, setMobileColumn] = useState<'new' | 'sold'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'sold'>('new');
     const { requireAuth } = useAccessGate();
 
     const totalDeals = newColumn.deals.length + soldColumn.deals.length;
@@ -55,7 +55,7 @@ export default function DealsGrid({
     useEffect(() => {
         if (!expandedDealId || totalDeals === 0) return;
         const inSold = soldColumn.deals.some((d) => d.id === expandedDealId);
-        setMobileColumn(inSold ? 'sold' : 'new');
+        setActiveTab(inSold ? 'sold' : 'new');
         requestAnimationFrame(() => {
             const el = document.getElementById(`deal-${expandedDealId}`);
             el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -68,8 +68,8 @@ export default function DealsGrid({
         });
     };
 
-    const switchMobileColumn = (col: 'new' | 'sold') => {
-        setMobileColumn(col);
+    const switchTab = (tab: 'new' | 'sold') => {
+        setActiveTab(tab);
         onToggleDeal(null);
     };
 
@@ -77,7 +77,7 @@ export default function DealsGrid({
         const isOwnerOfDeal = canAccessApp && userId === deal.userId;
         const isOwnerOfDealForTopBuyers = userId === deal.userId;
         return (
-            <div key={deal.id} id={`deal-${deal.id}`}>
+            <div key={deal.id} id={`deal-${deal.id}`} className="w-full max-w-[480px] h-full">
                 <DealCard
                     deal={deal}
                     canDelete={canManageDeals || isOwnerOfDeal}
@@ -103,12 +103,12 @@ export default function DealsGrid({
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            {/* Mobile tab bar — hidden on md+ */}
-            <div className="2xl:hidden flex-shrink-0 flex border-b border-border bg-background">
+            {/* Tab bar — New / Sold, on every viewport */}
+            <div className="flex-shrink-0 flex border-b border-border bg-background">
                 <button
-                    onClick={() => switchMobileColumn('new')}
+                    onClick={() => switchTab('new')}
                     className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileColumn === 'new'
+                        activeTab === 'new'
                             ? 'text-primary border-b-2 border-primary -mb-px'
                             : 'text-muted-foreground hover:text-foreground'
                     }`}
@@ -116,9 +116,9 @@ export default function DealsGrid({
                     New Deals ({newColumn.count})
                 </button>
                 <button
-                    onClick={() => switchMobileColumn('sold')}
+                    onClick={() => switchTab('sold')}
                     className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        mobileColumn === 'sold'
+                        activeTab === 'sold'
                             ? 'text-primary border-b-2 border-primary -mb-px'
                             : 'text-muted-foreground hover:text-foreground'
                     }`}
@@ -127,30 +127,22 @@ export default function DealsGrid({
                 </button>
             </div>
 
-            {/* Columns */}
-            <div className="flex flex-1 overflow-hidden min-h-0">
-                <div
-                    className={`${mobileColumn === 'new' ? 'flex' : 'hidden'} 2xl:flex flex-1 flex-col overflow-hidden min-w-0`}
-                >
+            {/* Active tab — a single full-width grid */}
+            <div className="flex-1 flex overflow-hidden min-h-0">
+                {activeTab === 'new' ? (
                     <DealsColumn
                         title="New Deals"
-                        count={newColumn.count}
                         isEmpty={newColumn.deals.length === 0}
                         hasMore={newColumn.hasMore}
                         isLoadingMore={newColumn.isLoadingMore}
                         loadedCount={newColumn.deals.length}
                         onLoadMore={newColumn.onLoadMore}
-                        borderRight
                     >
                         {newColumn.deals.map(renderCard)}
                     </DealsColumn>
-                </div>
-                <div
-                    className={`${mobileColumn === 'sold' ? 'flex' : 'hidden'} 2xl:flex flex-1 flex-col overflow-hidden min-w-0`}
-                >
+                ) : (
                     <DealsColumn
                         title="Sold Deals"
-                        count={soldColumn.count}
                         isEmpty={soldColumn.deals.length === 0}
                         hasMore={soldColumn.hasMore}
                         isLoadingMore={soldColumn.isLoadingMore}
@@ -159,7 +151,7 @@ export default function DealsGrid({
                     >
                         {soldColumn.deals.map(renderCard)}
                     </DealsColumn>
-                </div>
+                )}
             </div>
         </div>
     );

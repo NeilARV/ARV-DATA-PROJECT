@@ -27,6 +27,7 @@ import {
     Link2,
     HandCoins,
     Inbox,
+    Calendar,
 } from 'lucide-react';
 import { formatAddress } from '@shared/utils/formatAddress';
 
@@ -87,6 +88,16 @@ const DEAL_TYPE_MAP: Record<
     reo: { variant: 'indigo', label: 'REO' },
 };
 
+/**
+ * Card for a single deal. Vertical card — streetview banner, address, specs, a
+ * three-up financial strip, notes/photos/comps, and a bottom action row.
+ *
+ * Detail (notes, photos, comparable links) shows inline on desktop (≥820px, where
+ * cards sit in a multi-column grid and are locked to equal height); on a narrow
+ * single-column layout it collapses behind a "View More" toggle. The showing time
+ * rides as a chip on the image so its presence never changes the card's height.
+ * An admin-only footer surfaces the poster and internal notes.
+ */
 export default function DealCard2({
     deal,
     canDelete,
@@ -132,90 +143,236 @@ export default function DealCard2({
     const sqft = deal.sqft ? Number(deal.sqft) : null;
 
     const dealType = DEAL_TYPE_MAP[deal.dealType] ?? DEAL_TYPE_MAP.agent;
-    const hasExpandableContent = true; // notes section always renders in expanded view
+
+    // Three-up financial strip — short labels so the columns stay evenly divided.
+    const financials: { label: string; value: number | null; positive?: boolean }[] = [
+        { label: 'Price', value: price },
+        { label: 'Potential ARV', value: potentialARV, positive: true },
+        { label: 'Est. Budget', value: estimatedBudget },
+    ];
+
+    const showBuyerActions = canSubmitOffer || canRequestContact;
+    const showActionRow = showBuyerActions || isOwner;
+    const comps = deal.links ?? [];
 
     return (
         <div
-            className={`rounded-xl border-2 bg-card overflow-hidden flex flex-col transition-colors ${
+            className={`rounded-xl border-2 bg-card overflow-hidden flex flex-col h-full transition-colors ${
                 expanded ? 'border-primary' : 'border-border hover:border-primary'
             }`}
         >
-            {/* ── Main body — click anywhere to expand ─────────────────────── */}
-            <div
-                className={
-                    hasExpandableContent
-                        ? 'flex flex-col md:flex-row cursor-pointer select-none'
-                        : 'flex flex-col md:flex-row'
-                }
-                onClick={() => hasExpandableContent && onToggle()}
-            >
-                {/* Street view image — full-width banner below 500px, fixed sidebar above */}
-                <div className="h-64 md:h-auto w-full md:w-64 shrink-0 md:self-stretch bg-muted relative">
-                    {imageLoading ? (
-                        <Loader2 className="absolute inset-0 m-auto w-5 h-5 animate-spin text-muted-foreground/40" />
-                    ) : imageUrl ? (
-                        <img
-                            src={imageUrl}
-                            alt={deal.address ?? ''}
-                            className="absolute inset-0 w-full h-full object-cover block"
-                        />
-                    ) : (
-                        <Handshake className="absolute inset-0 m-auto w-8 h-8 text-muted-foreground/30" />
-                    )}
-                    {/* Badges: ARV Exclusive (left) + deal type (right), both left-aligned */}
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                        {deal.isArvExclusive && <Badge variant="white">★ ARV Exclusive</Badge>}
-                        <Badge variant={dealType.variant} size="lg">
-                            {dealType.label}
-                        </Badge>
+            {/* Streetview banner — deal badges (top-left) + showing-time chip (bottom-left) */}
+            <div className="relative aspect-video w-full shrink-0 bg-muted">
+                {imageLoading ? (
+                    <Loader2 className="absolute inset-0 m-auto w-5 h-5 animate-spin text-muted-foreground/40" />
+                ) : imageUrl ? (
+                    <img
+                        src={imageUrl}
+                        alt={deal.address ?? ''}
+                        className="absolute inset-0 w-full h-full object-cover block"
+                    />
+                ) : (
+                    <Handshake className="absolute inset-0 m-auto w-8 h-8 text-muted-foreground/30" />
+                )}
+                <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                    {deal.isArvExclusive && <Badge variant="white">★ ARV Exclusive</Badge>}
+                    <Badge variant={dealType.variant} size="lg">
+                        {dealType.label}
+                    </Badge>
+                </div>
+                {showingTime && (
+                    <div className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground backdrop-blur">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        <span className="whitespace-nowrap">{formatShowingTime(showingTime)}</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Body — grows to fill equal-height cells; action row pins to the bottom on desktop */}
+            <div className="flex-1 flex flex-col gap-4 px-5 py-4">
+                {/* Address + date + 3-dot menu */}
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <p className="font-semibold text-lg leading-tight truncate text-foreground">
+                            {formatAddress(deal.address) ?? 'Undisclosed Address'}
+                        </p>
+                        <p className="deal-card-address mt-0.5">
+                            {[formatAddress(deal.city), deal.state, deal.zipCode]
+                                .filter(Boolean)
+                                .join(', ')}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {isPinned && (
+                            <Badge variant="secondary" className="gap-1">
+                                <Link2 className="w-3 h-3" />
+                                Linked
+                            </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDatePosted(deal.createdAt)}
+                        </span>
+                        {(canEdit || canDelete) && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                                    >
+                                        <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="z-[10001]">
+                                    {canEdit && (
+                                        <DropdownMenuItem
+                                            className="gap-2 cursor-pointer"
+                                            onSelect={onEdit}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                            Edit Deal
+                                        </DropdownMenuItem>
+                                    )}
+                                    {canDelete && (
+                                        <DropdownMenuItem
+                                            className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+                                            onSelect={onDelete}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            Delete Deal
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
                 </div>
 
-                {/* ── Right content ─────────────────────────────────────────── */}
-                <div className="flex-1 min-w-0 px-4 md:px-5 pt-4 pb-2 flex flex-col gap-3">
-                    {/* Address row + time ago + 3-dot menu */}
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                            <p className="font-semibold text-base leading-tight truncate text-foreground">
-                                {formatAddress(deal.address) ?? 'Undisclosed Address'}
-                            </p>
-                            <p className="deal-card-address mt-0.5">
-                                {[formatAddress(deal.city), deal.state, deal.zipCode]
-                                    .filter(Boolean)
-                                    .join(', ')}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                            {isPinned && (
-                                <Badge variant="secondary" className="gap-1 mr-1.5 shrink-0">
-                                    <Link2 className="w-3 h-3" />
-                                    Linked
-                                </Badge>
-                            )}
-                            <span className="text-xs text-muted-foreground whitespace-nowrap pr-4">
-                                {formatDatePosted(deal.createdAt)}
+                {/* Specs row */}
+                {(beds !== null || baths !== null || sqft !== null) && (
+                    <div className="flex items-center gap-4 text-base text-foreground">
+                        {beds !== null && (
+                            <span className="flex items-center gap-1.5">
+                                <Bed className="deal-card-icon" />
+                                {beds} bd
                             </span>
-                            {canSubmitOffer && (
-                                <div onClick={(e) => e.stopPropagation()}>
+                        )}
+                        {baths !== null && (
+                            <span className="flex items-center gap-1.5">
+                                <Bath className="deal-card-icon" />
+                                {baths} ba
+                            </span>
+                        )}
+                        {sqft !== null && (
+                            <span className="flex items-center gap-1.5">
+                                <Maximize2 className="deal-card-icon" />
+                                {sqft.toLocaleString()} sqft
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                {/* Financial strip */}
+                <div className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-background">
+                    {financials.map((f) => (
+                        <div key={f.label} className="px-2 py-2.5 text-center min-w-0">
+                            <p className="text-xs text-muted-foreground truncate">{f.label}</p>
+                            {f.value !== null && f.value > 0 ? (
+                                <p
+                                    className={`text-base font-bold truncate ${
+                                        f.positive ? 'text-spread-positive' : 'text-foreground'
+                                    }`}
+                                >
+                                    ${f.value.toLocaleString()}
+                                </p>
+                            ) : (
+                                <p className="text-base font-bold text-muted-foreground">—</p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* View More — single-column (mobile) only; desktop shows the detail inline */}
+                <button
+                    type="button"
+                    onClick={onToggle}
+                    className="min-[820px]:hidden flex items-center justify-center gap-1 text-sm text-muted-foreground"
+                >
+                    {expanded ? (
+                        <>
+                            <ChevronsUp className="w-4 h-4" /> View Less
+                        </>
+                    ) : (
+                        <>
+                            <ChevronDown className="w-4 h-4" /> View More
+                        </>
+                    )}
+                </button>
+
+                {/* Detail — inline on desktop, collapsed behind View More on mobile */}
+                <div
+                    className={`flex-col gap-4 ${expanded ? 'flex' : 'hidden'} min-[820px]:flex`}
+                >
+                    <div>
+                        <p className="deal-card-label mb-1">Notes</p>
+                        <p className="text-sm text-foreground leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                            {deal.notes || (
+                                <span className="text-muted-foreground">No notes provided.</span>
+                            )}
+                        </p>
+                    </div>
+                    {(deal.photosUrl || comps.length > 0) && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            {deal.photosUrl && (
+                                <a
+                                    href={deal.photosUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="deal-card-link"
+                                >
+                                    <Images className="deal-card-sub-icon shrink-0 text-muted-foreground" />
+                                    Photos
+                                </a>
+                            )}
+                            {comps.map((link, i) => (
+                                <a
+                                    key={i}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="deal-card-link"
+                                >
+                                    <ExternalLink className="deal-card-sub-icon text-muted-foreground" />
+                                    {link.domain}
+                                </a>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Action row — buyer CTAs, or owner management CTAs; pinned bottom on desktop */}
+                {showActionRow && (
+                    <div className="flex gap-2 min-[820px]:mt-auto">
+                        {showBuyerActions ? (
+                            <>
+                                {canSubmitOffer && (
                                     <Button
                                         variant="default"
-                                        size="base"
+                                        size="default"
                                         onClick={onSubmitOffer}
-                                        className="hidden md:inline-flex gap-1.5 mr-1.5"
+                                        className="flex-1 gap-1.5"
                                     >
                                         <HandCoins className="deal-card-sub-icon" />
                                         Send Offer
                                     </Button>
-                                </div>
-                            )}
-                            {canRequestContact && (
-                                <div onClick={(e) => e.stopPropagation()}>
+                                )}
+                                {canRequestContact && (
                                     <Button
-                                        variant="default"
-                                        size="base"
+                                        variant={canSubmitOffer ? 'secondary' : 'default'}
+                                        size="default"
                                         onClick={onRequestInfo}
                                         disabled={isRequestingInfo}
-                                        className="hidden md:inline-flex gap-1.5 mr-1.5"
+                                        className="flex-1 gap-1.5"
                                     >
                                         {isRequestingInfo ? (
                                             <Loader2 className="deal-card-sub-icon animate-spin" />
@@ -224,231 +381,33 @@ export default function DealCard2({
                                         )}
                                         Request More Info
                                     </Button>
-                                </div>
-                            )}
-                            {(canEdit || canDelete) && (
-                                <div onClick={(e) => e.stopPropagation()}>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-                                            >
-                                                <MoreVertical className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="z-[10001]">
-                                            {canEdit && (
-                                                <DropdownMenuItem
-                                                    className="gap-2 cursor-pointer"
-                                                    onSelect={onEdit}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                    Edit Deal
-                                                </DropdownMenuItem>
-                                            )}
-                                            {canDelete && (
-                                                <DropdownMenuItem
-                                                    className="text-destructive focus:text-destructive gap-2 cursor-pointer"
-                                                    onSelect={onDelete}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                    Delete Deal
-                                                </DropdownMenuItem>
-                                            )}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <Button
+                                    variant="default"
+                                    size="default"
+                                    onClick={onViewOffers}
+                                    className="flex-1 gap-1.5"
+                                >
+                                    <Inbox className="deal-card-sub-icon" />
+                                    Offers{deal.bidCount ? ` (${deal.bidCount})` : ''}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    size="default"
+                                    onClick={onTopBuyers}
+                                    className="flex-1 gap-1.5"
+                                >
+                                    <Trophy className="deal-card-sub-icon text-amber-500" />
+                                    Top Buyers
+                                </Button>
+                            </>
+                        )}
                     </div>
-
-                    {/* Specs row */}
-                    {(beds !== null || baths !== null || sqft !== null) && (
-                        <div className="flex items-center gap-4 text-base text-foreground">
-                            {beds !== null && (
-                                <span className="flex items-center gap-1.5">
-                                    <Bed className="deal-card-icon" />
-                                    {beds} bd
-                                </span>
-                            )}
-                            {baths !== null && (
-                                <span className="flex items-center gap-1.5">
-                                    <Bath className="deal-card-icon" />
-                                    {baths} ba
-                                </span>
-                            )}
-                            {sqft !== null && (
-                                <span className="flex items-center gap-1.5">
-                                    <Maximize2 className="deal-card-icon" />
-                                    {sqft.toLocaleString()} sqft
-                                </span>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Financials */}
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full md:w-3/4">
-                        <div className="flex flex-col">
-                            <span className="deal-card-label">Purchase Price</span>
-                            {price !== null && price > 0 ? (
-                                <span className="deal-card-value">${price.toLocaleString()}</span>
-                            ) : (
-                                <span className="deal-card-value-empty">—</span>
-                            )}
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="deal-card-label">Potential ARV</span>
-                            {potentialARV !== null && potentialARV > 0 ? (
-                                <span className="deal-card-value text-spread-positive">
-                                    ${potentialARV.toLocaleString()}
-                                </span>
-                            ) : (
-                                <span className="deal-card-value-empty">—</span>
-                            )}
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="deal-card-label">Est. Budget</span>
-                            {estimatedBudget !== null && estimatedBudget > 0 ? (
-                                <span className="deal-card-value">
-                                    ${estimatedBudget.toLocaleString()}
-                                </span>
-                            ) : (
-                                <span className="deal-card-value-empty">—</span>
-                            )}
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="deal-card-label">Showing</span>
-                            {showingTime ? (
-                                <span className="deal-card-value">
-                                    {formatShowingTime(showingTime)}
-                                </span>
-                            ) : (
-                                <span className="deal-card-value-empty">—</span>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* View More indicator — part of the card top section */}
-                    {hasExpandableContent && (
-                        <div className="flex items-center justify-center gap-1 pt-1 text-sm text-muted-foreground select-none">
-                            {expanded ? (
-                                <>
-                                    <ChevronsUp className="w-4 h-4" /> View Less
-                                </>
-                            ) : (
-                                <>
-                                    <ChevronDown className="w-4 h-4" /> View More
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
+                )}
             </div>
-
-            {/* ── Expanded section — full width, no image gap ───────────────── */}
-            {expanded && hasExpandableContent && (
-                <div className="border-t border-border px-5 py-4 flex flex-col gap-4">
-                    <div>
-                        <p className="deal-card-label">Notes</p>
-                        <p className="text-sm text-foreground leading-relaxed">
-                            {deal.notes || (
-                                <span className="text-foreground">No notes available.</span>
-                            )}
-                        </p>
-                    </div>
-                    {deal.photosUrl && (
-                        <div>
-                            <p className="deal-card-label mb-1.5">Photos</p>
-                            <a
-                                href={deal.photosUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="deal-card-link"
-                            >
-                                <Images className="deal-card-sub-icon shrink-0 text-muted-foreground" />
-                                View Photos
-                            </a>
-                        </div>
-                    )}
-                    {deal.links && deal.links.length > 0 && (
-                        <div>
-                            <p className="deal-card-label mb-1.5">Comparable Sale Links</p>
-                            <div className="flex flex-wrap gap-2">
-                                {deal.links.map((link, i) => (
-                                    <a
-                                        key={i}
-                                        href={link.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="deal-card-link"
-                                    >
-                                        <ExternalLink className="deal-card-sub-icon text-muted-foreground" />
-                                        {link.domain}
-                                    </a>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {(canRequestContact || canSubmitOffer || isOwner) && (
-                        <div className="flex items-center gap-6 flex-wrap">
-                            {(canRequestContact || canSubmitOffer) && (
-                                <div className="md:hidden">
-                                    <p className="deal-card-label mb-1.5">Contact</p>
-                                    <div className="flex flex-col gap-1.5">
-                                        {canSubmitOffer && (
-                                            <button
-                                                onClick={onSubmitOffer}
-                                                className="deal-card-link"
-                                            >
-                                                <HandCoins className="deal-card-sub-icon" />
-                                                Send Offer
-                                            </button>
-                                        )}
-                                        {canRequestContact && (
-                                            <button
-                                                onClick={onRequestInfo}
-                                                disabled={isRequestingInfo}
-                                                className="deal-card-link disabled:opacity-50"
-                                            >
-                                                {isRequestingInfo ? (
-                                                    <Loader2 className="deal-card-sub-icon animate-spin" />
-                                                ) : (
-                                                    <Phone className="deal-card-sub-icon" />
-                                                )}
-                                                Request More Info
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                            {isOwner && (
-                                <div>
-                                    <p className="deal-card-label mb-1.5">Actions</p>
-                                    <div className="flex flex-col gap-1.5">
-                                        <button
-                                            onClick={onViewOffers}
-                                            className="deal-card-link"
-                                        >
-                                            <Inbox className="deal-card-sub-icon text-primary" />
-                                            Offers{deal.bidCount ? ` (${deal.bidCount})` : ''}
-                                        </button>
-                                        <button
-                                            onClick={onTopBuyers}
-                                            rel="noopener noreferrer"
-                                            className="deal-card-link"
-                                        >
-                                            <Trophy className="deal-card-sub-icon text-amber-500" />
-                                            Top Potential Buyers
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* ── Admin: Posted by + internal notes footer ─────────────────── */}
             {canViewPoster && (

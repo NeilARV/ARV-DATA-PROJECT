@@ -41,7 +41,7 @@ export default function DealsPageContent() {
 
     const { toast } = useToast();
     const { user, canAccessApp, isAdmin, isOwner, isRelationshipManager } = useAuth();
-    const { requireAuth, requireSubscription, ContactDialog } = useAccessGate();
+    const { requireAuth, requireSubscription } = useAccessGate();
     const { tab, locationFilter, dealId, setTab, setLocationFilter, setDealId } = useDealsNav();
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;
@@ -355,8 +355,6 @@ export default function DealsPageContent() {
                     />
                 )}
             </AppDialog>
-
-            {ContactDialog}
         </div>
     );
 }
