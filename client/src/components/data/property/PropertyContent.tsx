@@ -282,9 +282,9 @@ export function PropertyContent({
             {property.isFinancedByARV && (
                 <div className="absolute top-2 left-2">
                     <span
-                        className={`inline-flex items-center gap-1 ${cfg.arvBadgeTextClass} font-semibold px-3 py-0.5 rounded shadow-sm bg-background text-foreground`}
+                        className={`inline-flex items-center gap-1 ${cfg.arvBadgeTextClass} font-semibold px-3 py-0.5 rounded shadow-sm bg-white text-black`}
                     >
-                        <Star className={`${cfg.arvIconClass} fill-foreground`} />
+                        <Star className={`${cfg.arvIconClass} fill-black`} />
                         ARV Funded
                     </span>
                 </div>
