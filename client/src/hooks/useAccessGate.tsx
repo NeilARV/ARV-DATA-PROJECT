@@ -1,13 +1,10 @@
-import { useState } from 'react';
 import { useLocation } from 'wouter';
-
-import AppDialog from '@/components/modals/Dialog';
-import ContactContent from '@/components/modals/Contact';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useDialogs } from '@/hooks/useDialogs';
 import type { SubscriptionTier } from '@shared/types/users';
 import { useToast } from '@/hooks/use-toast';
+import { buildContactUrl } from '@/lib/contactLink';
 
 import type { ContactSubject } from '@database/validation/contactMessages.validation';
 
@@ -17,10 +14,12 @@ type RequireSubOptions = {
     message?: string;
 };
 
+const DEFAULT_REQUEST_MESSAGE = 'I would like to request more access to the ARV data application';
+
 /**
  * Client-side access gating. `requireAuth` wraps an action behind login (opening the auth-gate
  * dialog when signed out); `requireSubscription` wraps it behind a subscription tier / team role
- * (surfacing the contact dialog when blocked). Render `ContactDialog` once where the hook is used.
+ * (routing to the prefilled /contact page when blocked).
  */
 export function useAccessGate() {
     const {
@@ -32,17 +31,10 @@ export function useAccessGate() {
         isPro,
         isPremium,
         subscriptionTier,
-        user,
     } = useAuth();
     const { openDialog } = useDialogs();
     const { toast } = useToast();
-    const [location] = useLocation();
-
-    const [showContact, setShowContact] = useState(false);
-    const [contactSubject, setContactSubject] = useState<ContactSubject>('Request Access');
-    const [contactMessage, setContactMessage] = useState(
-        'I would like to request more access to the ARV data application',
-    );
+    const [location, setLocation] = useLocation();
 
     const requireAuth = (action: () => void) => {
         // Allow through while auth is loading to avoid blocking during hydration
@@ -58,6 +50,7 @@ export function useAccessGate() {
         action();
     };
 
+    // Surfaces a toast and routes to the centralized contact page with the request prefilled.
     const block = (
         subject: ContactSubject,
         message: string,
@@ -65,9 +58,7 @@ export function useAccessGate() {
         toastDescription: string,
     ) => {
         toast({ title: toastTitle, description: toastDescription });
-        setContactSubject(subject);
-        setContactMessage(message);
-        setShowContact(true);
+        setLocation(buildContactUrl(subject, message));
     };
 
     const requireSubscription = (action: () => void, options?: RequireSubOptions) => {
@@ -91,8 +82,7 @@ export function useAccessGate() {
                 .join(' or ');
             block(
                 options.subject ?? 'Request Access',
-                options.message ??
-                    'I would like to request more access to the ARV data application',
+                options.message ?? DEFAULT_REQUEST_MESSAGE,
                 'Upgrade Required',
                 `A ${tierList} subscription is required to access this area`,
             );
@@ -105,8 +95,7 @@ export function useAccessGate() {
         if (!hasAccess) {
             block(
                 options?.subject ?? 'Request Access',
-                options?.message ??
-                    'I would like to request more access to the ARV data application',
+                options?.message ?? DEFAULT_REQUEST_MESSAGE,
                 'Upgrade Account',
                 'Please request an upgrade to your account to access this area',
             );
@@ -116,27 +105,5 @@ export function useAccessGate() {
         action();
     };
 
-    const ContactDialog = (
-        <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
-            {showContact && (
-                <ContactContent
-                    onClose={() => setShowContact(false)}
-                    onSuccess={() => {
-                        toast({
-                            title: 'Message Sent',
-                            description: 'We will get back to you shortly.',
-                        });
-                    }}
-                    defaultSubject={contactSubject}
-                    defaultMessage={contactMessage}
-                    defaultFirstName={user?.firstName}
-                    defaultLastName={user?.lastName}
-                    defaultEmail={user?.email}
-                    defaultPhone={user?.phone}
-                />
-            )}
-        </AppDialog>
-    );
-
-    return { requireAuth, requireSubscription, ContactDialog, showContact, setShowContact };
+    return { requireAuth, requireSubscription };
 }

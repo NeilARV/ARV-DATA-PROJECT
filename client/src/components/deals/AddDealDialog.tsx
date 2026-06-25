@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { useMutation } from '@tanstack/react-query';
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Textarea } from '@/components/ui/textarea';
 import AppDialog from '@/components/modals/Dialog';
-import ContactContent from '@/components/modals/Contact';
+import { buildContactUrl } from '@/lib/contactLink';
 import DealFormFields, {
     ADD_DEAL_TYPES,
     FormSectionLabel,
@@ -36,10 +37,10 @@ type AddDealDialogProps = {
 
 export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
     const { toast } = useToast();
+    const [, setLocation] = useLocation();
     const { user, isAdmin, isOwner, isRelationshipManager } = useAuth();
     const canEditAdminNotes = isAdmin || isOwner;
     const canEditPrivilegedFields = isAdmin || isOwner || isRelationshipManager;
-    const [showContact, setShowContact] = useState(false);
     const [links, setLinks] = useState<string[]>([]);
     const [photosUrl, setPhotosUrl] = useState('');
     const [showMsaFallback, setShowMsaFallback] = useState(false);
@@ -147,7 +148,17 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                     description: 'Upgrade your account to access this feature.',
                     variant: 'destructive',
                     action: (
-                        <ToastAction altText="Contact us" onClick={() => setShowContact(true)}>
+                        <ToastAction
+                            altText="Contact us"
+                            onClick={() =>
+                                setLocation(
+                                    buildContactUrl(
+                                        'Upgrade Account',
+                                        'I would like to upgrade my account to access the deal feature.',
+                                    ),
+                                )
+                            }
+                        >
                             Contact Us
                         </ToastAction>
                     ),
@@ -319,31 +330,6 @@ export default function AddDealDialog({ open, onClose }: AddDealDialogProps) {
                         </div>
                     </form>
                 </Form>
-            </AppDialog>
-
-            <AppDialog
-                nested
-                open={showContact}
-                onClose={() => setShowContact(false)}
-                className="max-w-lg"
-            >
-                {showContact && (
-                    <ContactContent
-                        onClose={() => setShowContact(false)}
-                        onSuccess={() => {
-                            toast({
-                                title: 'Request Received',
-                                description: 'We will get back to you shortly.',
-                            });
-                        }}
-                        defaultSubject="Upgrade Account"
-                        defaultFirstName={user?.firstName}
-                        defaultLastName={user?.lastName}
-                        defaultEmail={user?.email}
-                        defaultPhone={user?.phone}
-                        defaultMessage="I would like to upgrade my account to access the deal feature."
-                    />
-                )}
             </AppDialog>
         </>
     );

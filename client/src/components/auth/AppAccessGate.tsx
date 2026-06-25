@@ -1,14 +1,12 @@
-import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation } from 'wouter';
 import { Lock, Loader2, Mail, type LucideIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import AppDialog from '@/components/modals/Dialog';
-import ContactContent from '@/components/modals/Contact';
 
 import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
+import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated';
+import { buildContactUrl } from '@/lib/contactLink';
 
 import type { ContactSubject } from '@database/validation/contactMessages.validation';
 
@@ -44,9 +42,7 @@ export function AppAccessLocked({
     contactMessage = DEFAULT_CONTACT_MESSAGE,
 }: AppAccessLockedProps) {
     const [, setLocation] = useLocation();
-    const { isAuthenticated, user } = useAuth();
-    const { toast } = useToast();
-    const [showContact, setShowContact] = useState(false);
+    const { isAuthenticated } = useAuth();
     const suffix = redirect ? `?redirect=${encodeURIComponent(redirect)}` : '';
 
     return (
@@ -69,7 +65,10 @@ export function AppAccessLocked({
                     <Button variant="outline" size="sm" onClick={() => setLocation(backTo)}>
                         {backLabel}
                     </Button>
-                    <Button size="sm" onClick={() => setShowContact(true)}>
+                    <Button
+                        size="sm"
+                        onClick={() => setLocation(buildContactUrl(contactSubject, contactMessage))}
+                    >
                         <Mail className="w-4 h-4 mr-2" />
                         Contact Us
                     </Button>
@@ -88,41 +87,33 @@ export function AppAccessLocked({
                     </Button>
                 </div>
             )}
-
-            <AppDialog open={showContact} onClose={() => setShowContact(false)} className="max-w-lg">
-                {showContact && (
-                    <ContactContent
-                        onClose={() => setShowContact(false)}
-                        onSuccess={() =>
-                            toast({
-                                title: 'Message Sent',
-                                description: 'We will get back to you shortly.',
-                            })
-                        }
-                        defaultSubject={contactSubject}
-                        defaultMessage={contactMessage}
-                        defaultFirstName={user?.firstName}
-                        defaultLastName={user?.lastName}
-                        defaultEmail={user?.email}
-                        defaultPhone={user?.phone}
-                    />
-                )}
-            </AppDialog>
         </div>
     );
 }
 
 type AppAccessGateProps = AppAccessLockedProps & {
     children: ReactNode;
+    /**
+     * When set, unauthenticated visitors are redirected to `/login?redirect=<path>` instead of
+     * seeing the locked panel — used to put a whole app behind login. Authenticated users without
+     * a subscription/team role still get the locked notice (the "request access" path).
+     */
+    redirectWhenUnauthenticated?: string;
 };
 
 // Page-level gate: renders children only when the user has app access (any subscription tier or
 // team role), otherwise the shared locked panel. Holds a spinner while auth state resolves so a
 // real subscriber never flashes the locked screen. Extra props are forwarded to AppAccessLocked.
-export function AppAccessGate({ children, ...lockedProps }: AppAccessGateProps) {
+export function AppAccessGate({
+    children,
+    redirectWhenUnauthenticated,
+    ...lockedProps
+}: AppAccessGateProps) {
     const { isLoading, isAuthenticated, isAdminStatusLoading, canAccessApp } = useAuth();
+    const shouldRedirect = useRedirectWhenUnauthenticated(redirectWhenUnauthenticated);
 
-    if (isLoading || (isAuthenticated && isAdminStatusLoading)) {
+    // Spinner while auth resolves, or while the redirect above is in flight.
+    if (isLoading || (isAuthenticated && isAdminStatusLoading) || shouldRedirect) {
         return (
             <div className="h-full w-full flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />

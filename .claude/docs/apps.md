@@ -6,10 +6,18 @@ controllers, and services.
 
 | App | Route | Purpose | Backend |
 |---|---|---|---|
-| **Data** | `/` | Property intelligence — browse SFR transaction data by MSA | `properties.*`, `companies.*` |
+| **Data** | `/data` | Property intelligence — browse SFR transaction data by MSA | `properties.*`, `companies.*` |
 | **Deals** | `/deals` | Deal marketplace — post/browse wholesale, agent, REO, sold deals | `deals.*` |
 | **Vendors** | `/vendors` | Community hub — activity feed + vendor directory | `vendors.*`, `posts.*`, `categories.*` |
 | **Mastermind** | `/mastermind` | Slack-style real-time community (channels, messages, reactions, pins, notifications) | `channels.*`, `messages.*`, `notifications.*`, `/ws` |
+
+The public **marketing landing page** lives at `/` (`client/src/pages/Home.tsx`, composed from
+`client/src/components/Home/*` under the shared `MarketingHeader`). The four apps sit **behind
+login**: each route is wrapped in `AppAccessGate` with `redirectWhenUnauthenticated` (or, for
+Mastermind, an equivalent redirect effect), so a logged-out visitor is sent to `/login?redirect=…`
+and a logged-in user without a subscription/team role sees the "request access" panel. The
+`/contact` page (`client/src/pages/Contact.tsx`) is the single contact entry point — links pass a
+prefilled `?subject=`/`?message=` (see `client/src/lib/contactLink.ts`); there is no contact modal.
 
 The **Data, Deals, and Vendors** pages wrap their content in the same 5 shared context providers:
 `MapProvider → FiltersProvider → CompaniesProvider → PropertiesProvider → PropertyProvider`.
@@ -19,7 +27,7 @@ The **Data, Deals, and Vendors** pages wrap their content in the same 5 shared c
 # 1. Data App
 
 ## What It Is
-The Data app (Home page) is the core of ARV — a property intelligence platform. It surfaces
+The Data app (`/data`) is the core of ARV — a property intelligence platform. It surfaces
 transaction data from the SFR data pipeline organized by MSA (Metropolitan Statistical Area)
 and lets users explore properties by status, location, price, company, and more. The primary
 use case is researching which investors are buying/selling in a market, at what prices, and
@@ -27,9 +35,9 @@ who the active operators are. It is the most data-dense part of the app — ever
 filtered, paginated, and synchronized through URL state so deep links work.
 
 ## Page Entry Point
-`client/src/pages/Home.tsx` wraps `HomeContent`. Before rendering, it waits for auth to
-resolve when there's no `?county=` in the URL — preventing a double-fetch caused by
-`useDataNav` pushing the user's default county after the initial render.
+`client/src/pages/Data.tsx` wraps `DataContent` (behind `AppAccessGate`). Before rendering, it
+waits for auth to resolve when there's no `?county=` in the URL — preventing a double-fetch caused
+by `useDataNav` pushing the user's default county after the initial render.
 
 ## Layout
 CSS Grid `grid-cols-[375px_1fr] grid-rows-[auto_1fr]`:
@@ -80,7 +88,7 @@ clearFilters(overrides?)  // Preserves county by default
 `sidebarView: "directory" | "filters" | "none"`. View persisted to `?view=`.
 
 **`useDataNav()`** — URL params `county` (`?county=`), `propertyId` (`?property=`),
-`companyId` (`?company=`). `Home.tsx` runs sync effects keeping URL params ↔ filter/selection
+`companyId` (`?company=`). `Data.tsx` runs sync effects keeping URL params ↔ filter/selection
 state in sync (URL county → filters.county; URL propertyId → `fetchProperty`; URL companyId →
 `handleCompanyClick`; and reverse syncs from `property.id` / `company.id` back to the URL).
 
@@ -116,10 +124,12 @@ view change; page 1 replaces, page >1 appends with ID dedup. Page size 10 (grid)
 | POST | `/api/properties` | admin/owner | Add property |
 | DELETE | `/api/properties/:id` | admin/owner | Delete property |
 
-**App-access split:** the **map, detail, suggestions, street view, zip-counts, and transactions
-stay public** (the anonymous teaser); only the property **list** (`GET /api/properties`, powering
-the buyers/wholesale feeds + table) requires any subscription tier or team role. `Home` renders the
-map + company directory to everyone and shows a locked panel for the feeds/table when `!canAccessApp`.
+**App-access split (backend unchanged):** at the **API**, the map, detail, suggestions, street
+view, zip-counts, and transactions stay public; only the property **list** (`GET /api/properties`,
+powering the buyers/wholesale feeds + table) requires any subscription tier or team role. The
+**client now gates the whole `/data` page** via `AppAccessGate` — logged-out visitors are redirected
+to `/login?redirect=/data` and logged-in users without a subscription/team role get the locked
+panel — so the previously-anonymous map teaser is no longer reachable through the UI.
 
 ### Companies (`/api/companies`)
 | Method | Route | Auth | Description |
@@ -240,7 +250,7 @@ calls per property); failed rows stay in the queue for manual review (no auto-re
 `database/schemas/msas.schema.ts`.
 
 ## Key Files
-Page `client/src/pages/Home.tsx` · components `client/src/components/data/` · hooks
+Page `client/src/pages/Data.tsx` · components `client/src/components/data/` · hooks
 `useFilters.tsx`, `useView.ts`, `useDataNav.ts`, `useMap.tsx`, `useCompanies.tsx`,
 `useProperties.tsx`, `useProperty.tsx` · routes `server/routes/properties.routes.ts`,
 `companies.routes.ts` · services `server/services/properties/properties.services.ts`,

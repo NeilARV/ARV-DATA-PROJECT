@@ -120,7 +120,7 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
         companyId: string;
         companyName: string;
     } | null>(null);
-    const { requireAuth, requireSubscription, ContactDialog } = useAccessGate();
+    const { requireAuth, requireSubscription } = useAccessGate();
     const { view, setView } = useView();
     const nav = useDataNav();
     const {
@@ -1067,8 +1067,6 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                     {total} {total === 1 ? 'company' : 'companies'}
                 </div>
             </div>
-
-            {ContactDialog}
 
             {/* Enrich confirmation dialog */}
             <AppDialog open={!!enrichConfirmCompany} onClose={() => setEnrichConfirmCompany(null)}>

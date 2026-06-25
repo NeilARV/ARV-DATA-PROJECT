@@ -18,6 +18,9 @@ const PROPERTY_COUNT_TARGET = 3;
 /** Fetch this many recent properties and take the first 3 per user that have Street View images. */
 const CANDIDATE_POOL_SIZE = 30;
 
+/** ZIP codes intentionally suppressed from property-update emails — never sent, across all MSAs. */
+const EXCLUDED_ZIP_CODES = ['92101'];
+
 const STREETVIEW_SIZE = '600x400';
 function normalizeBaseUrl(raw: string | undefined): string {
     const url = raw || 'https://data.arvfinance.com';
@@ -163,10 +166,9 @@ function buildPropertyForTemplate(p: PropertyRow, image_url: string): PropertyFo
 
     const countyParam = (p.county ?? '').trim();
     const propertyUrlParams = new URLSearchParams({ property: p.propertyId });
-    const viewParams = 'view=grid';
 
     if (countyParam) propertyUrlParams.set('county', countyParam);
-    const property_url = `${APP_BASE_URL}/?view=grid&${propertyUrlParams.toString()}`;
+    const property_url = `${APP_BASE_URL}/data?view=grid&${propertyUrlParams.toString()}`;
 
     return {
         address: formatAddress(p.address) ?? rawAddress,
@@ -363,6 +365,11 @@ export async function sendEmailUpdatesForMsa(
                 and(
                     eq(properties.msa, msaName),
                     sql`(${properties.propertyType} IS NULL OR ${properties.propertyType} <> 'Vacant Land')`,
+                    // Suppress configured ZIP codes; LEFT(...,5) also matches ZIP+4 forms (e.g. 92101-1234)
+                    sql`(${addresses.zipCode} IS NULL OR LEFT(TRIM(${addresses.zipCode}), 5) NOT IN (${sql.join(
+                        EXCLUDED_ZIP_CODES.map((z) => sql`${z}`),
+                        sql`, `,
+                    )}))`,
                     sql`NOT EXISTS (SELECT 1 FROM sent_property_ids WHERE property_id = ${properties.id})`,
                 ),
             )
@@ -497,7 +504,7 @@ export async function sendEmailUpdatesForMsa(
                     city,
                     state,
                     property_count: props.length,
-                    cta_url: `${APP_BASE_URL}/`,
+                    cta_url: `${APP_BASE_URL}/data`,
                     year: String(new Date().getFullYear()),
                     company_name: 'ARV Finance Inc.',
                     properties: props,

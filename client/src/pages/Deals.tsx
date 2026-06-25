@@ -9,7 +9,7 @@ function DealsInner() {
         <div className="h-dvh flex flex-col">
             <Header />
             <div className="flex-1 overflow-hidden min-h-0">
-                <AppAccessGate redirect="/deals" icon={Handshake}>
+                <AppAccessGate redirectWhenUnauthenticated="/deals" icon={Handshake}>
                     <DealsPageContent />
                 </AppAccessGate>
             </div>

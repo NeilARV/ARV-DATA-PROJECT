@@ -69,7 +69,8 @@ function buildDealStreetViewUrl(
     sfrPropertyId: number | null,
 ): string | null {
     if (!address || !city || !state) return null;
-    const params = new URLSearchParams({ address, city, state, size: '200x200' });
+    // 640x360 (16:9) — Google's static APIs cap at 640px; matches the card's aspect-video banner.
+    const params = new URLSearchParams({ address, city, state, size: '640x360' });
     if (sfrPropertyId != null) params.set('sfrPropertyId', String(sfrPropertyId));
     return `/api/properties/streetview?${params}`;
 }

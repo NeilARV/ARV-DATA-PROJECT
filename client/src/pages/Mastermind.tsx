@@ -15,6 +15,7 @@ import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useMastermindSocket } from '@/hooks/use-mastermind-socket';
+import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated';
 
 import { apiRequest, queryClient } from '@/lib/queryClient';
 
@@ -40,6 +41,10 @@ function MastermindContent() {
     // single-segment channel route above — the two are mutually exclusive.
     const [, dmRouteParams] = useRoute('/mastermind/dm/:userId');
     const dmUserId = dmRouteParams?.userId ?? null;
+
+    // Mastermind is login-gated: unauthenticated visitors are sent to /login (authenticated users
+    // without access still fall through to the locked panel below).
+    useRedirectWhenUnauthenticated('/mastermind');
 
     const [mobileTab, setMobileTab] = useState<'channels' | 'chat'>('channels');
     const [unreadState, setUnreadState] = useState<Map<string, UnreadEntry>>(new Map());

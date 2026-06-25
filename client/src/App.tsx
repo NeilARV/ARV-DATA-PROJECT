@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import Home from '@/pages/Home';
+import Data from '@/pages/Data';
 import Admin from '@/pages/Admin';
 import Profile from '@/pages/Profile';
 import Analytics from '@/pages/Analytics';
@@ -12,10 +13,10 @@ import Deals from '@/pages/Deals';
 import Mastermind from '@/pages/Mastermind';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
+import Contact from '@/pages/Contact';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import VerifyEmail from '@/pages/VerifyEmail';
-import Example from '@/pages/Example';
 import NotFound from '@/pages/not-found';
 import { useEffect } from 'react';
 import { useLocation } from 'wouter';
@@ -66,8 +67,10 @@ function Router() {
     return (
         <Switch>
             <Route path="/" component={Home} />
+            <Route path="/data" component={Data} />
             <Route path="/login" component={Login} />
             <Route path="/signup" component={Signup} />
+            <Route path="/contact" component={Contact} />
             <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/reset-password" component={ResetPassword} />
             <Route path="/verify-email" component={VerifyEmail} />
@@ -79,7 +82,6 @@ function Router() {
             <Route path="/mastermind" component={Mastermind} />
             <Route path="/mastermind/dm/:userId" component={Mastermind} />
             <Route path="/mastermind/:channelName" component={Mastermind} />
-            <Route path="/example" component={Example} />
             <Route component={NotFound} />
         </Switch>
     );

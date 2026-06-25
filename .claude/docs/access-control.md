@@ -167,9 +167,11 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 > **`GET /api/properties` is app-access gated** (the buyers/wholesale feeds + table): any
 > subscription tier (basic/pro/premium) **or** any team role passes; everyone else (unauth or
 > authenticated-no-sub-no-role) gets `401`/`403`. The **map, detail, suggestions, street view,
-> zip-counts, and transactions stay public** as the anonymous teaser. The client mirrors this:
-> `Home` shows the map + company directory to everyone and renders a locked panel for the
-> feeds/table when `!canAccessApp`.
+> zip-counts, and transactions remain public at the API.** The **client**, however, now gates the
+> whole Data page (`/data`, `client/src/pages/Data.tsx`) behind login via `AppAccessGate`: logged-out
+> visitors are redirected to `/login?redirect=/data` and authenticated-no-access users see the
+> locked panel, so the previously-anonymous map teaser is no longer reachable through the UI. (The
+> public API rows are unchanged — this is a client-routing change only.)
 
 ---
 

@@ -56,7 +56,7 @@ export default function Header() {
     });
     const [showMenu, setShowMenu] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
-    const { requireSubscription, ContactDialog, setShowContact } = useAccessGate();
+    const { requireSubscription } = useAccessGate();
 
     const menuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -154,7 +154,7 @@ export default function Header() {
     };
 
     const onLogoClick = async () => {
-        setLocation('/');
+        setLocation('/data');
         setView('map');
         setSidebarView('directory');
         setCompany(null);
@@ -206,7 +206,7 @@ export default function Header() {
                 <div className="flex items-center border border-border rounded-md">
                     <Button
                         variant={
-                            location === '/' && view === 'buyers-feed' ? 'default' : 'ghost'
+                            location === '/data' && view === 'buyers-feed' ? 'default' : 'ghost'
                         }
                         size="sm"
                         onClick={onBuyersFeedClick}
@@ -218,7 +218,7 @@ export default function Header() {
                     </Button>
                     <span className="w-px h-5 bg-border shrink-0" />
                     <Button
-                        variant={location === '/' && view === 'wholesale' ? 'default' : 'ghost'}
+                        variant={location === '/data' && view === 'wholesale' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={onWholesaleClick}
                         className="rounded-none"
@@ -229,7 +229,7 @@ export default function Header() {
                     </Button>
                     <span className="w-px h-5 bg-border shrink-0" />
                     <Button
-                        variant={location === '/' && view === 'map' ? 'default' : 'ghost'}
+                        variant={location === '/data' && view === 'map' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => {
                             setView('map');
@@ -248,7 +248,7 @@ export default function Header() {
                     <div className="relative" ref={moreMenuRef}>
                         <Button
                             variant={
-                                location === '/' && (view === 'grid' || view === 'table')
+                                location === '/data' && (view === 'grid' || view === 'table')
                                     ? 'default'
                                     : 'ghost'
                             }
@@ -343,7 +343,7 @@ export default function Header() {
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setShowContact(true)}
+                            onClick={() => setLocation('/contact')}
                             data-testid="button-contact-logged-out"
                         >
                             <Mail className="w-4 h-4 mr-1" />
@@ -446,7 +446,7 @@ export default function Header() {
                                             <button
                                                 className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                                                 onClick={() => {
-                                                    setShowContact(true);
+                                                    setLocation('/contact');
                                                     setShowMenu(false);
                                                 }}
                                                 data-testid="menu-item-contact"
@@ -487,7 +487,6 @@ export default function Header() {
                 )}
             </div>
 
-            {ContactDialog}
         </header>
     );
 }

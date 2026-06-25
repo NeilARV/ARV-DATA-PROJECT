@@ -28,22 +28,22 @@ type ViewProviderProps = {
 export function ViewProvider({ children }: ViewProviderProps) {
     const [location, setLocation] = useLocation();
     const search = useSearch();
-    const isHome = location === '/';
+    const isDataApp = location === '/data';
 
     // Derive view directly from the URL — no state copy, no sync effect, no extra render cycle
-    const view: View = isHome ? (parseViewParam(search) ?? DEFAULT_VIEW) : DEFAULT_VIEW;
+    const view: View = isDataApp ? (parseViewParam(search) ?? DEFAULT_VIEW) : DEFAULT_VIEW;
     const [sidebarView, setSidebarView] = useState<SidebarView>('directory');
 
     const setView = useCallback(
         (newView: View) => {
-            // Preserve existing search params only when already on home; otherwise start fresh
-            const p = new URLSearchParams(isHome ? search : '');
+            // Preserve existing search params only when already on the data app; otherwise start fresh
+            const p = new URLSearchParams(isDataApp ? search : '');
             if (newView === DEFAULT_VIEW) p.delete('view');
             else p.set('view', newView);
             const qs = p.toString();
-            setLocation(qs ? `/?${qs}` : '/');
+            setLocation(qs ? `/data?${qs}` : '/data');
         },
-        [isHome, search, setLocation],
+        [isDataApp, search, setLocation],
     );
 
     const value = {

@@ -15,7 +15,7 @@ function VendorsContent() {
         <div className="h-dvh flex flex-col">
             <Header />
 
-            <AppAccessGate redirect="/vendors" icon={Store}>
+            <AppAccessGate redirectWhenUnauthenticated="/vendors" icon={Store}>
                 {/* Mobile tab bar — hidden on md+ */}
                 <div className="h-full flex flex-col">
                     <div className="md:hidden flex-shrink-0 flex border-b border-border bg-background">

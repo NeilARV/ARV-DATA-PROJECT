@@ -31,10 +31,10 @@ function useFirstLoadDefault(hasExplicit: boolean, ready: boolean, apply: () => 
     }, [hasExplicit, ready]);
 }
 
-// ── Data nav (/) ────────────────────────────────────────────────────────────
+// ── Data nav (/data) ──────────────────────────────────────────────────────────
 function buildDataUrl(params: URLSearchParams): string {
     const qs = params.toString();
-    return qs ? `/?${qs}` : '/';
+    return qs ? `/data?${qs}` : '/data';
 }
 
 export function useDataNav() {
