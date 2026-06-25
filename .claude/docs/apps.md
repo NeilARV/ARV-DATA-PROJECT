@@ -265,9 +265,11 @@ subscription (basic/pro/premium, with bypass for team roles).
 - **DealsHeader** — tabs "All Deals" / "Your Deals", `DealsLocationSearch` (county/MSA/city/
   zip autocomplete), Add Deal button (subscription-gated).
 - **DealsGrid** — mobile tab bar (New / Sold), two `DealsColumn`s (New Deals, Sold Deals) of
-  `DealCard2`. New Deals column auto-scrolls to the expanded deal.
+  `DealCard2`, each paginated independently (10/page, infinite scroll via `useInfiniteScroll`).
+  New Deals column auto-scrolls to the expanded deal.
 - **Dialogs** — AddDealDialog, EditDealDialog (both use `DealFormFields`), DeleteDealDialog,
-  RequestDealInfoDialog (`RequestDealInfoForm`), BestBuyersDialog (top 3 buyers for a zip).
+  RequestDealInfoDialog (`RequestDealInfoForm`), BestBuyersDialog (top 3 buyers for a zip, fetched
+  on open).
 
 **DealCard2 collapsed:** street view image, address, deal-type badge (Wholesale purple /
 Agent orange / Sold red / REO indigo), ARV Exclusive badge (admin-set), relative posted date, beds/baths/
@@ -294,16 +296,22 @@ Mastermind/notifications section.
 **`DealsPageContent` local state:** `showAddDeal`, `deleteConfirm`, `editDeal` (links
 normalized to string array), `confirmRequestDeal`, `requestInfoSucceeded`, `bestBuyersDeal`.
 
-**Data fetching (React Query):** primary `GET /api/deals?userId&county&state&city&zip`;
-secondary `GET /api/deals/:id` for a pinned deal from `?dealId` (prepended if absent from the
-filtered list). Deals split client-side into `newDeals` (type !== "sold") and `soldDeals`.
+**Data fetching (React Query):** New and Sold each have their own `useInfiniteQuery` against
+`GET /api/deals?status=new|sold&page&limit` (10/page, infinite scroll per column via
+`useInfiniteScroll`), sharing filters `userId&county&state&city&zip`. A pinned deal from `?dealId`
+is fetched via `GET /api/deals/:id` and prepended to its column when absent from the loaded pages.
+`DealsLocationSearch` pulls its city/zip suggestions from `GET /api/deals/locations` (independent of
+the loaded pages); top buyers load on demand from `GET /api/deals/:id/top-buyers` when the owner
+opens the dialog.
 
 ## API Surface (`server/routes/deals.routes.ts`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/api/deals` | requireSub (basic/pro/premium) | List deals; `userId`, `county`, `city`, `state`, `zipCode`, `msaName` |
+| GET | `/api/deals` | requireSub (basic/pro/premium) | One page for a column; `status` (new/sold), `page`, `limit`, `userId`, `county`, `city`, `state`, `zipCode`, `msaName` → `{ deals, total, hasMore, page, limit }` |
 | GET | `/api/deals/msas` | requireSub (basic/pro/premium) | MSA list for the deal form dropdown |
+| GET | `/api/deals/locations` | requireSub (basic/pro/premium) | Distinct cities/zips for the location autocomplete |
 | GET | `/api/deals/:id` | requireSub (basic/pro/premium) | Single deal |
+| GET | `/api/deals/:id/top-buyers` | requireSub + ownership in service | Top buyers for the deal's zip (owner/privileged) |
 | POST | `/api/deals` | requireSub (basic/pro/premium) | Create deal |
 | PATCH | `/api/deals/:id` | requireSub (basic/pro/premium) | Update deal (ownership enforced in service) |
 | DELETE | `/api/deals/:id` | requireSub (basic/pro/premium) | Delete deal |
@@ -325,9 +333,15 @@ price change on PATCH → fires notification email; validates POST `userId` matc
 (no posting on behalf of others unless admin).
 
 **Service** (`deals.services.ts`):
-- **`getDeals(filters)`** — dynamic WHERE, joins `msas` + `users`. Per deal: batch-fetch top 3
-  buyers per zip (arms-length sales, last 3 months), batch-fetch `dealLinks`, resolve street
-  view URL. Returns enriched `Deal[]` with `topBuyers`, `links`, `streetViewUrl`.
+- **`getDeals(filters)`** — one page for a column (`status` new/sold, `page`/`limit`), newest
+  first; dynamic WHERE, joins `msas` + `users`, plus a COUNT for the total. Batch-fetches
+  `dealLinks` and (for the caller's own deals) offer counts, and sets a relative `streetViewUrl`.
+  Returns `{ deals, total, hasMore, page, limit }`. It no longer probes the street-view image or
+  eager-loads top buyers — the card's `<img>` drives the image fetch/re-cache, and top buyers are lazy.
+- **`getTopBuyersForDeal(dealId, callerId)`** — owner/privileged only; top 3 arms-length buyers for
+  the deal's zip (last 3 months). Backs `GET /api/deals/:id/top-buyers`.
+- **`getDealLocations()`** — distinct `{ city, state }` pairs and zips across all deals, for the
+  location-search autocomplete.
 - **`createDeal(input)`** — validates city/state/zip/beds/baths/sqft/propertyType all present;
   resolves MSA from city/state/zip (`resolveMsaId`) and county from zip (`resolveCountyFromZip`);
   inserts deal + dealLinks. `sfrPropertyId` is always `null` (specs entered manually).

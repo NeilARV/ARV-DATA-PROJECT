@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import DealCard from '@/components/deals/DealCard2';
 import DealsColumn from '@/components/deals/DealsColumn';
 import { useAccessGate } from '@/hooks/useAccessGate';
+import type { DealColumn } from '@/types/deals';
 import type { Deal } from '@shared/types/deals';
 
 type DealsGridProps = {
-    newDeals: Deal[];
-    soldDeals: Deal[];
+    newColumn: DealColumn;
+    soldColumn: DealColumn;
     canManageDeals: boolean;
     canAccessApp: boolean;
     isAdmin: boolean;
@@ -26,8 +27,8 @@ type DealsGridProps = {
 };
 
 export default function DealsGrid({
-    newDeals,
-    soldDeals,
+    newColumn,
+    soldColumn,
     canManageDeals,
     canAccessApp,
     isAdmin,
@@ -48,12 +49,12 @@ export default function DealsGrid({
     const [mobileColumn, setMobileColumn] = useState<'new' | 'sold'>('new');
     const { requireAuth } = useAccessGate();
 
-    const totalDeals = newDeals.length + soldDeals.length;
+    const totalDeals = newColumn.deals.length + soldColumn.deals.length;
 
     // Auto-scroll to and expand the linked deal when data loads or dealId changes
     useEffect(() => {
         if (!expandedDealId || totalDeals === 0) return;
-        const inSold = soldDeals.some((d) => d.id === expandedDealId);
+        const inSold = soldColumn.deals.some((d) => d.id === expandedDealId);
         setMobileColumn(inSold ? 'sold' : 'new');
         requestAnimationFrame(() => {
             const el = document.getElementById(`deal-${expandedDealId}`);
@@ -78,7 +79,7 @@ export default function DealsGrid({
         return (
             <div key={deal.id} id={`deal-${deal.id}`}>
                 <DealCard
-                    deal={{ ...deal, topBuyers: deal.topBuyers ?? [] }}
+                    deal={deal}
                     canDelete={canManageDeals || isOwnerOfDeal}
                     canEdit={userId === deal.userId || isAdmin || isOwner}
                     canRequestContact={deal.dealType !== 'sold' && !isOwnerOfDeal}
@@ -112,7 +113,7 @@ export default function DealsGrid({
                             : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
-                    New Deals ({newDeals.length})
+                    New Deals ({newColumn.count})
                 </button>
                 <button
                     onClick={() => switchMobileColumn('sold')}
@@ -122,7 +123,7 @@ export default function DealsGrid({
                             : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
-                    Sold Deals ({soldDeals.length})
+                    Sold Deals ({soldColumn.count})
                 </button>
             </div>
 
@@ -133,11 +134,15 @@ export default function DealsGrid({
                 >
                     <DealsColumn
                         title="New Deals"
-                        count={newDeals.length}
-                        isEmpty={newDeals.length === 0}
+                        count={newColumn.count}
+                        isEmpty={newColumn.deals.length === 0}
+                        hasMore={newColumn.hasMore}
+                        isLoadingMore={newColumn.isLoadingMore}
+                        loadedCount={newColumn.deals.length}
+                        onLoadMore={newColumn.onLoadMore}
                         borderRight
                     >
-                        {newDeals.map(renderCard)}
+                        {newColumn.deals.map(renderCard)}
                     </DealsColumn>
                 </div>
                 <div
@@ -145,10 +150,14 @@ export default function DealsGrid({
                 >
                     <DealsColumn
                         title="Sold Deals"
-                        count={soldDeals.length}
-                        isEmpty={soldDeals.length === 0}
+                        count={soldColumn.count}
+                        isEmpty={soldColumn.deals.length === 0}
+                        hasMore={soldColumn.hasMore}
+                        isLoadingMore={soldColumn.isLoadingMore}
+                        loadedCount={soldColumn.deals.length}
+                        onLoadMore={soldColumn.onLoadMore}
                     >
-                        {soldDeals.map(renderCard)}
+                        {soldColumn.deals.map(renderCard)}
                     </DealsColumn>
                 </div>
             </div>

@@ -1,5 +1,11 @@
 import { db } from 'server/storage';
-import type { TopBuyer, DealType, CreateDealInput, UpdateDealInput } from '@shared/types/deals';
+import type {
+    TopBuyer,
+    DealType,
+    DealLocations,
+    CreateDealInput,
+    UpdateDealInput,
+} from '@shared/types/deals';
 import { deals, dealLinks, dealBids } from '@database/schemas/deals.schema';
 import {
     users,
@@ -21,7 +27,7 @@ import {
     sendTemplateToUsers,
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
-import { eq, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
+import { eq, ne, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
 import { getStreetviewImage } from 'server/services/properties/streetview.services';
@@ -172,10 +178,25 @@ type GetDealsFilters = {
     city?: string;
     state?: string;
     zipCode?: string;
+    // Column selector: 'new' = every non-sold type, 'sold' = sold only. Omit for all types.
+    status?: 'new' | 'sold';
+    // 1-based page + page size (offset pagination). Defaults: page 1, limit 10.
+    page?: number;
+    limit?: number;
     // When set, offer counts are attached only to deals this user owns (offers are poster-private).
     callerId?: string;
 };
 
+const DEFAULT_DEALS_LIMIT = 10;
+
+/**
+ * Lists one page of deals for a column (new or sold), newest first.
+ * Enriches each deal with comparable-sale links, a relative street-view URL, and — for the
+ * caller's own deals — an offer count. Top buyers and the street-view image itself are fetched
+ * lazily by their own endpoints, not here.
+ * @param filters location/status filters plus page/limit; `callerId` scopes offer counts.
+ * @returns one page: `{ deals, total, hasMore, page, limit }` for the matching column.
+ */
 export async function getDeals(filters: GetDealsFilters) {
     const {
         id: filterId,
@@ -185,8 +206,13 @@ export async function getDeals(filters: GetDealsFilters) {
         city: filterCity,
         state: filterState,
         zipCode: filterZipCode,
+        status: filterStatus,
         callerId: filterCallerId,
     } = filters;
+
+    const page = filters.page && filters.page > 0 ? filters.page : 1;
+    const limit = filters.limit && filters.limit > 0 ? filters.limit : DEFAULT_DEALS_LIMIT;
+    const offset = (page - 1) * limit;
 
     let filterMsaId: number | undefined;
     if (filterMsaName) {
@@ -200,7 +226,7 @@ export async function getDeals(filters: GetDealsFilters) {
             console.log(
                 `[dealsService.getDeals] MSA not found: "${filterMsaName}" — returning empty`,
             );
-            return [];
+            return { deals: [], total: 0, hasMore: false, page, limit };
         }
         filterMsaId = msaRow.id;
     }
@@ -213,9 +239,23 @@ export async function getDeals(filters: GetDealsFilters) {
     if (filterCity) conditions.push(ilike(deals.city, filterCity));
     if (filterState) conditions.push(eq(deals.state, filterState.toUpperCase()));
     if (filterZipCode) conditions.push(eq(deals.zipCode, filterZipCode));
+    if (filterStatus === 'sold') conditions.push(eq(deals.type, 'sold'));
+    else if (filterStatus === 'new') conditions.push(ne(deals.type, 'sold'));
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const results = await db
+    // Total matching rows for the column header (cheap COUNT, all filters on `deals`). A single-deal
+    // lookup by id renders no column, so skip the COUNT on that path.
+    let total = 0;
+    if (filterId === undefined) {
+        const [countRow] = await db
+            .select({ total: sql<number>`count(*)::int` })
+            .from(deals)
+            .where(whereClause);
+        total = countRow.total;
+    }
+
+    // Fetch one extra row to derive hasMore without a second query.
+    const rows = await db
         .select({
             id: deals.id,
             createdAt: deals.createdAt,
@@ -251,34 +291,24 @@ export async function getDeals(filters: GetDealsFilters) {
         .leftJoin(msas, eq(deals.msaId, msas.id))
         .leftJoin(users, eq(deals.userId, users.id))
         .where(whereClause)
-        .orderBy(desc(deals.id));
+        .orderBy(desc(deals.id))
+        .limit(limit + 1)
+        .offset(offset);
+
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
     console.log(
-        `[dealsService.getDeals] ${results.length} deals returned` +
+        `[dealsService.getDeals] ${pageRows.length}/${total} deals (page ${page})` +
+            `${filterStatus ? ` (status=${filterStatus})` : ''}` +
             `${filterUserId ? ` (userId=${filterUserId})` : ''}` +
             `${filterMsaName ? ` (msaName=${filterMsaName})` : ''}` +
             `${filterCity ? ` (city=${filterCity})` : ''}` +
             `${filterZipCode ? ` (zipCode=${filterZipCode})` : ''}`,
     );
 
-    // Batch-fetch top buyers for each unique zip code
-    const uniqueZips = Array.from(
-        new Set(results.map((d) => d.zipCode).filter((z): z is string => Boolean(z))),
-    );
-    const topBuyersByZip = new Map<string, TopBuyer[]>();
-    await Promise.all(
-        uniqueZips.map(async (zip) => {
-            try {
-                topBuyersByZip.set(zip, await getTopBuyersByZipCode(zip));
-            } catch (err) {
-                console.error(`[dealsService.getDeals] Failed top buyers for zip=${zip}:`, err);
-                topBuyersByZip.set(zip, []);
-            }
-        }),
-    );
-
-    // Batch-fetch links for all deals
-    const dealIds = results.map((d) => d.id);
+    // Batch-fetch links for the page's deals.
+    const dealIds = pageRows.map((d) => d.id);
     const allLinks =
         dealIds.length > 0
             ? await db
@@ -300,52 +330,91 @@ export async function getDeals(filters: GetDealsFilters) {
 
     // Offer counts are poster-private — only fetch them for deals the caller owns.
     const ownDealIds = filterCallerId
-        ? results.filter((d) => d.userId === filterCallerId).map((d) => d.id)
+        ? pageRows.filter((d) => d.userId === filterCallerId).map((d) => d.id)
         : [];
     const bidCountByDealId = await getBidCountsForDealIds(ownDealIds);
 
-    return Promise.all(
-        results.map(async (deal) => {
-            const topBuyers = topBuyersByZip.get(deal.zipCode ?? '') ?? [];
-            const links = linksByDealId.get(deal.id) ?? [];
-            const bidCount =
-                filterCallerId && deal.userId === filterCallerId
-                    ? (bidCountByDealId.get(deal.id) ?? 0)
-                    : undefined;
-            const url = buildDealStreetViewUrl(
-                deal.address,
-                deal.city,
-                deal.state,
-                deal.sfrPropertyId,
-            );
-            if (!url) return { ...deal, streetViewUrl: null, topBuyers, links, bidCount };
+    // Street view resolves to a relative URL only. The card's <img> request drives the actual
+    // fetch + re-cache (cache → Google → satellite → negative) in the streetview endpoint, so a
+    // cleaned-up/expired entry is refreshed on next view. We no longer probe the image here —
+    // that read the full blob per deal on every list fetch just to null-check it.
+    const dealsForPage = pageRows.map((deal) => {
+        const links = linksByDealId.get(deal.id) ?? [];
+        const bidCount =
+            filterCallerId && deal.userId === filterCallerId
+                ? (bidCountByDealId.get(deal.id) ?? 0)
+                : undefined;
+        const streetViewUrl = buildDealStreetViewUrl(
+            deal.address,
+            deal.city,
+            deal.state,
+            deal.sfrPropertyId,
+        );
+        return { ...deal, streetViewUrl, links, bidCount };
+    });
 
-            try {
-                const result = await getStreetviewImage({
-                    address: deal.address!,
-                    city: deal.city ?? '',
-                    state: deal.state ?? '',
-                    size: '200x200',
-                    sfrPropertyId: deal.sfrPropertyId ?? undefined,
-                });
-                return {
-                    ...deal,
-                    streetViewUrl: 'imageData' in result ? url : null,
-                    topBuyers,
-                    links,
-                    bidCount,
-                };
-            } catch {
-                return { ...deal, streetViewUrl: null, topBuyers, links, bidCount };
-            }
-        }),
-    );
+    return { deals: dealsForPage, total, hasMore, page, limit };
 }
 
 // ── GET single deal by id ──────────────────────────────────────────────────────
 export async function getDealById(id: number) {
-    const results = await getDeals({ id });
-    return results[0] ?? null;
+    const { deals: rows } = await getDeals({ id, limit: 1 });
+    return rows[0] ?? null;
+}
+
+/**
+ * Top buyers for a deal's zip — owner-only (or a privileged team member). Fetched on demand so
+ * the deal list doesn't pay for buyer lookups every viewer never sees.
+ * @param dealId deal whose zip is used for the buyer search.
+ * @param callerId must be the deal owner or hold a privileged role.
+ * @returns up to 3 top buyers, or `[]` when the deal has no zip or no recent arms-length buyers.
+ */
+export async function getTopBuyersForDeal(dealId: number, callerId: string): Promise<TopBuyer[]> {
+    const [deal] = await db
+        .select({ id: deals.id, userId: deals.userId, zipCode: deals.zipCode })
+        .from(deals)
+        .where(eq(deals.id, dealId))
+        .limit(1);
+
+    if (!deal) throw new DealServiceError(404, 'Deal not found');
+
+    if (deal.userId !== callerId) {
+        const callerIsPrivileged = await db
+            .select({ roleName: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])))
+            .limit(1);
+
+        if (callerIsPrivileged.length === 0) {
+            throw new DealServiceError(403, 'You can only view top buyers on your own deals');
+        }
+    }
+
+    if (!deal.zipCode) return [];
+    return getTopBuyersByZipCode(deal.zipCode);
+}
+
+/**
+ * Distinct cities (with state) and zips across all deals — powers the location-search
+ * autocomplete independently of the paginated list.
+ * @returns sorted unique `{ city, state }` pairs and zip codes.
+ */
+export async function getDealLocations(): Promise<DealLocations> {
+    const cityRows = await db
+        .selectDistinct({ city: deals.city, state: deals.state })
+        .from(deals)
+        .orderBy(deals.city);
+    const zipRows = await db
+        .selectDistinct({ zipCode: deals.zipCode })
+        .from(deals)
+        .orderBy(deals.zipCode);
+
+    const cities = cityRows.flatMap((r) =>
+        r.city ? [{ city: r.city, state: r.state ?? '' }] : [],
+    );
+    const zips = zipRows.map((r) => r.zipCode).filter((z): z is string => Boolean(z));
+    return { cities, zips };
 }
 
 // ── POST deal ──────────────────────────────────────────────────────────────────
