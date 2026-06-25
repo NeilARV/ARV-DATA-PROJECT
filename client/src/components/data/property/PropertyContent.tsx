@@ -24,11 +24,10 @@ import { formatDate, calculateDaysOwned } from '@/utils/date';
 import { Button } from '@/components/ui/button';
 type Section = 'panel' | 'modal' | 'card';
 
-const IMAGE_SIZES: Record<Section, string> = {
-    card: '400x300',
-    modal: '800x450',
-    panel: '400x300',
-};
+// One size for every variant so a property's image is fetched once and reused across
+// card, panel, and modal — same URL means one network request and one cache entry,
+// instead of a separate Street View call each time the same property opens in a modal.
+const IMAGE_SIZE = '400x300';
 
 const VARIANT_CFG = {
     card: {
@@ -113,44 +112,43 @@ export function PropertyContent({
     const [imageUrl, setImageUrl] = useState('');
     const [isImageLoading, setIsImageLoading] = useState(true);
 
+    // Resolve the image URL only. Loading/error is driven by the rendered <img>'s own
+    // onLoad/onError below — no separate `new Image()` preload, which used to fire a
+    // second identical request to the Street View endpoint on a cold cache.
     useEffect(() => {
         setIsImageLoading(true);
         if (property.imageUrl) {
             setImageUrl(property.imageUrl);
-            setIsImageLoading(false);
             return;
         }
+        let cancelled = false;
         getStreetViewUrl(
             property.address,
             property.city,
             property.state,
-            IMAGE_SIZES[variant],
+            IMAGE_SIZE,
             property.sfrPropertyId,
         )
             .then((url) => {
-                if (url) {
-                    const img = new Image();
-                    img.onload = () => {
-                        setImageUrl(url);
-                        setIsImageLoading(false);
-                    };
-                    img.onerror = () => {
-                        setImageUrl('');
-                        setIsImageLoading(false);
-                    };
-                    img.src = url;
-                } else {
-                    setImageUrl('');
-                    setIsImageLoading(false);
-                }
+                if (cancelled) return;
+                setImageUrl(url ?? '');
+                if (!url) setIsImageLoading(false);
             })
             .catch(() => {
+                if (cancelled) return;
                 setImageUrl('');
                 setIsImageLoading(false);
             });
-        // variant intentionally excluded — changing variant should not re-fetch
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [property.address, property.city, property.state, property.imageUrl, property.id]);
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        property.address,
+        property.city,
+        property.state,
+        property.imageUrl,
+        property.sfrPropertyId,
+    ]);
 
     const cfg = VARIANT_CFG[variant];
     const isCard = variant === 'card';
@@ -259,22 +257,28 @@ export function PropertyContent({
     // ── Image section ──────────────────────────────────────────────────────────
     const imageSection = (
         <div className={cfg.imageClass}>
-            {isImageLoading ? (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                    Loading...
-                </div>
-            ) : imageUrl ? (
+            {imageUrl ? (
                 <img
                     src={imageUrl}
                     alt={property.address}
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover ${isImageLoading ? 'opacity-0' : ''}`}
+                    onLoad={() => setIsImageLoading(false)}
+                    onError={() => {
+                        setImageUrl('');
+                        setIsImageLoading(false);
+                    }}
                     data-testid={tid.img}
                 />
-            ) : (
+            ) : null}
+            {isImageLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                    Loading...
+                </div>
+            ) : !imageUrl ? (
                 <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                     No image available
                 </div>
-            )}
+            ) : null}
             {property.isFinancedByARV && (
                 <div className="absolute top-2 left-2">
                     <span

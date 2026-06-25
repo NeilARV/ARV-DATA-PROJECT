@@ -330,7 +330,7 @@ export async function getDeals(filters: GetDealsFilters) {
                 });
                 return {
                     ...deal,
-                    streetViewUrl: 'imageData' in result ? url : null,
+                    streetViewUrl: result.available ? url : null,
                     topBuyers,
                     links,
                     bidCount,
@@ -663,7 +663,7 @@ export async function sendDealNotification(
                         size: '200x200',
                         sfrPropertyId: deal.sfrPropertyId ?? undefined,
                     });
-                    if ('imageData' in result) {
+                    if (result.available) {
                         streetViewUrl = `${APP_BASE_URL}/api/properties/streetview?${params}`;
                     }
                 } catch {

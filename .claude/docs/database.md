@@ -674,7 +674,7 @@ Full transaction history per property. Buyer/seller linked to `companies`.
 ---
 
 ### `streetview_cache`
-Google Street View image cache. Images stored as `bytea`.
+Google Street View image cache. New images are stored in Supabase Storage and referenced by `storage_path` (the API redirects to the CDN URL); `image_data` (`bytea`) is the legacy store, kept only for rows cached before the Storage migration and lazily migrated on read.
 
 | Column | Type | Constraints |
 |--------|------|-------------|
@@ -684,7 +684,8 @@ Google Street View image cache. Images stored as `bytea`.
 | `city` | `text` | NOT NULL |
 | `state` | `text` | NOT NULL |
 | `size` | `text` | NOT NULL, default `'600x400'` |
-| `image_data` | `bytea` | nullable — null = cached failure (no image available) |
+| `image_data` | `bytea` | nullable — legacy/fallback bytes; null when stored in Supabase or a cached failure |
+| `storage_path` | `text` | nullable — Supabase Storage path (e.g. `streetview/<hash>.jpg`); null for legacy + negative results |
 | `content_type` | `text` | default `'image/jpeg'` |
 | `metadata_status` | `text` | nullable — Google API status: `OK`, `ZERO_RESULTS`, `NOT_FOUND` |
 | `image_source` | `text` | nullable — `'streetview'` \| `'satellite'` |
