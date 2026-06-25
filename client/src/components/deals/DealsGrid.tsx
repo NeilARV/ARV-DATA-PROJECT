@@ -60,6 +60,9 @@ export default function DealsGrid({
             const el = document.getElementById(`deal-${expandedDealId}`);
             el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
+        // soldColumn.deals is intentionally omitted: totalDeals changing already covers the
+        // data-load case, and depending on the array would re-run this on every pagination append.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [expandedDealId, totalDeals]);
 
     const handleToggle = (dealId: number) => {

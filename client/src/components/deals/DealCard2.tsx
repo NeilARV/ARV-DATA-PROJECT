@@ -376,9 +376,9 @@ export default function DealCard2({
                         <div>
                             <p className="deal-card-label mb-1.5">Comparable Sale Links</p>
                             <div className="flex flex-wrap gap-2">
-                                {deal.links.map((link, i) => (
+                                {deal.links.map((link) => (
                                     <a
-                                        key={i}
+                                        key={link.url}
                                         href={link.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
@@ -464,7 +464,7 @@ export default function DealCard2({
                         ]
                             .filter(Boolean)
                             .map((item, i, arr) => (
-                                <span key={i} className="flex items-center gap-1.5">
+                                <span key={item} className="flex items-center gap-1.5">
                                     <span className="text-sm text-foreground">{item}</span>
                                     {i < arr.length - 1 && (
                                         <span className="text-muted-foreground">|</span>

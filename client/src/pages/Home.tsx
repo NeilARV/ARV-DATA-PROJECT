@@ -29,7 +29,7 @@ export default function Home() {
                 <AppSections />
                 {/* Temporarily hidden — "Underwrite a deal in seconds" deal calculator */}
                 {/* <DealCalculator /> */}
-                <Testimonials />
+                {/* <Testimonials /> */}
                 <ClosingCTA />
             </main>
             <Footer />
