@@ -928,13 +928,16 @@ Get all approved company memberships for the currently authenticated user.
 ## 6. Deals `/api/deals`
 
 ### `GET /api/deals`
-List all deals with optional filters.
+List one page of deals for a single column (new or sold), newest first.
 
 **Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role. (The whole Deals experience is gated.)
 
 **Query params** (all optional)
 | Param | Type | Description |
 |---|---|---|
+| `status` | `"new" \| "sold"` | Column selector: `new` = every non-sold type, `sold` = sold only. Omit for all types. |
+| `page` | number | 1-based page (default `1`) |
+| `limit` | number | Page size (default `10`, max `50`) |
 | `userId` | string | Filter by deal owner |
 | `msaName` | string | Filter by MSA name |
 | `county` | string | Filter by county |
@@ -942,7 +945,7 @@ List all deals with optional filters.
 | `state` | string | Filter by state |
 | `zipCode` | string | Filter by zip code |
 
-**Response `200`** Array of deal objects. Each deal the authenticated caller owns also carries a `bidCount` (number of offers received); it is omitted on deals the caller does not own (offers are poster-private).
+**Response `200`** `{ deals, total, hasMore, page, limit }`. `deals` is one page of deal objects (each with `links` and a relative `streetViewUrl`; deals the caller owns also carry a `bidCount` of offers received, omitted otherwise since offers are poster-private). `total` is the count of all matching deals; `hasMore` indicates further pages. Top buyers are **not** included — fetch them lazily via `GET /api/deals/:id/top-buyers`.
 
 ---
 
@@ -961,6 +964,24 @@ List the MSAs available in the deal-form location dropdown.
 **Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role.
 
 **Response `200`** Array of `{ id, name }` MSA objects.
+
+---
+
+### `GET /api/deals/locations`
+Distinct cities (with state) and zip codes across all deals — powers the location-search autocomplete independently of the paginated list.
+
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })`. Any subscription tier or team role; 401 unauth, 403 no-sub/no-role.
+
+**Response `200`** `{ cities: { city, state }[], zips: string[] }`.
+
+---
+
+### `GET /api/deals/:id/top-buyers`
+Top buyers (up to 3) for a deal's zip — recent arms-length purchasers in the area. Fetched on demand so the deal list never carries this data. **Owner-only** (or a privileged team member); enforced in the service.
+
+**Auth**: App access — `requireSub(["basic","pro","premium"], { bypassRoles: all team roles })` + ownership in service. 401 unauth, 403 not owner/privileged, 404 deal not found.
+
+**Response `200`** `{ topBuyers: { companyId, companyName, contactName }[] }` (empty array when the deal has no zip or no recent buyers).
 
 ---
 

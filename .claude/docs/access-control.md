@@ -210,7 +210,9 @@ Ownership is enforced in the service layer (not middleware), returning `403` if 
 |---|---|---|---|---|---|---|---|
 | GET | `/api/deals` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | GET | `/api/deals/msas` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/deals/locations` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | GET | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
+| GET | `/api/deals/:id/top-buyers` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 | POST | `/api/deals` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | 403 | ✓ | ✓ (bypass) | ✓ (bypass) |
 | PATCH | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
 | DELETE | `/api/deals/:id` | `requireSub(["basic","pro","premium"], bypass: all roles)` + ownership in service | 401 | 403 | own only | own only (member) / any (RM) | any |
@@ -231,6 +233,7 @@ Ownership is enforced in the service layer (not middleware), returning `403` if 
 - `updateDeal`: owner of the deal, or `admin`/`owner` role. RM cannot edit another user's deal.
 - `deleteDeal`: owner of the deal, or `admin`/`owner`/`relationship-manager` role. RM **can** delete any deal.
 - `getBidsForDeal` / `deleteDealBid`: owner of the deal, or `admin`/`owner`/`relationship-manager` role. Offers are poster-private — a non-owner without a qualifying role gets `403`. `deleteDealBid` returns `404` if the offer is missing or belongs to a different deal.
+- `getTopBuyersForDeal`: owner of the deal, or `admin`/`owner`/`relationship-manager` role. A non-owner without a qualifying role gets `403`; `404` if the deal is missing.
 
 **Field-level stripping on POST/PATCH:**
 The controller strips `isArvExclusive`, `onBehalfOfEmail`, and `adminNotes` if the caller is not admin/owner. These fields are silently ignored for non-privileged callers (no 403 — they get a 2xx but the fields are dropped).

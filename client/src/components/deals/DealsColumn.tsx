@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 import DealsEmptyState from '@/components/deals/DealsEmptyState';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 
 type DealsColumnProps = {
     title: string;
@@ -7,15 +9,37 @@ type DealsColumnProps = {
     children: ReactNode;
     isEmpty: boolean;
     borderRight?: boolean;
+    hasMore?: boolean;
+    isLoadingMore?: boolean;
+    /** Number of currently rendered cards — re-attaches the scroll sentinel as pages append. */
+    loadedCount?: number;
+    onLoadMore?: () => void;
 };
 
+/** One deal column (New or Sold) with an independently scrolling, infinitely paginated body. */
 export default function DealsColumn({
     title,
     count,
     children,
     isEmpty,
     borderRight = false,
+    hasMore = false,
+    isLoadingMore = false,
+    loadedCount = 0,
+    onLoadMore,
 }: DealsColumnProps) {
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+
+    useInfiniteScroll({
+        ref: loadMoreRef,
+        hasMore,
+        loading: isLoadingMore,
+        onLoadMore: () => onLoadMore?.(),
+        enabled: hasMore && !!onLoadMore,
+        useScrollableRoot: true,
+        deps: [loadedCount],
+    });
+
     return (
         <div
             className={`flex-1 flex flex-col overflow-hidden min-w-0 ${borderRight ? '2xl:border-r border-border' : ''}`}
@@ -32,6 +56,14 @@ export default function DealsColumn({
                     <DealsEmptyState size="sm" message={`No ${title.toLowerCase()}`} />
                 ) : (
                     <div className="space-y-4">{children}</div>
+                )}
+                {/* Infinite-scroll sentinel — sits inside the scroll root so the observer can track it */}
+                {hasMore && (
+                    <div ref={loadMoreRef} className="flex justify-center py-4">
+                        {isLoadingMore && (
+                            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/60" />
+                        )}
+                    </div>
                 )}
             </div>
         </div>

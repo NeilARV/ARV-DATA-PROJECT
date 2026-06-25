@@ -3,11 +3,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus } from 'lucide-react';
 import DealsLocationSearch, { msaShortName } from '@/components/deals/DealsLocationSearch';
 import type { LocationFilter } from '@/types/deals';
-import type { Deal, DealTab } from '@shared/types/deals';
+import type { DealTab } from '@shared/types/deals';
 
 type DealsHeaderProps = {
     tab: DealTab;
-    deals: Deal[];
     locationFilter: LocationFilter | null;
     onTabChange: (tab: DealTab) => void;
     onAddDeal: () => void;
@@ -16,7 +15,6 @@ type DealsHeaderProps = {
 
 export default function DealsHeader({
     tab,
-    deals,
     locationFilter,
     onTabChange,
     onAddDeal,
@@ -49,7 +47,6 @@ export default function DealsHeader({
                 {/* Desktop: location search + tabs + button inline */}
                 <div className="hidden 2xl:flex flex-shrink-0">
                     <DealsLocationSearch
-                        deals={deals}
                         value={locationFilter}
                         onChange={onLocationFilterChange}
                     />
@@ -86,7 +83,6 @@ export default function DealsHeader({
             <div className="2xl:hidden flex items-center gap-2 px-4 pb-3">
                 <div className="flex-1 min-w-0">
                     <DealsLocationSearch
-                        deals={deals}
                         value={locationFilter}
                         onChange={onLocationFilterChange}
                     />

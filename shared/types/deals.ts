@@ -1,6 +1,8 @@
 export type DealType = 'wholesale' | 'agent' | 'sold' | 'reo';
 export type DealTab = 'all' | 'mine';
 
+// Top buyers for a deal's zip — fetched on demand via GET /api/deals/:id/top-buyers
+// (owner-only), not bundled into the deal list.
 export type TopBuyer = {
     companyId: string | null;
     companyName: string;
@@ -32,7 +34,6 @@ export type Deal = DealProperty & {
     userLastName?: string | null;
     userPhone?: string | null;
     userId: string;
-    topBuyers: TopBuyer[];
     links: { url: string; domain: string }[];
     photosUrl?: string | null;
     adminNotes?: string | null;
@@ -47,6 +48,21 @@ export type Deal = DealProperty & {
     // Admin / RM-only fields
     isArvExclusive: boolean;
     onBehalfOfEmail?: string | null;
+};
+
+// Paginated response shape returned by GET /api/deals (one page of a single column).
+export type DealsPage = {
+    deals: Deal[];
+    total: number;
+    hasMore: boolean;
+    page: number;
+    limit: number;
+};
+
+// Distinct deal locations for the location-search autocomplete (GET /api/deals/locations).
+export type DealLocations = {
+    cities: { city: string; state: string }[];
+    zips: string[];
 };
 
 export type DealProperty = {

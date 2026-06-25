@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import {
     getDeals,
     getDealById,
+    getTopBuyersForDeal,
+    getDealLocations,
     createDeal,
     updateDeal,
     deleteDeal,
@@ -58,6 +60,8 @@ export async function getMsasController(req: Request, res: Response): Promise<vo
 }
 
 // ── GET /api/deals ─────────────────────────────────────────────────────────────
+const MAX_DEALS_LIMIT = 50;
+
 export async function getDealsController(req: Request, res: Response): Promise<void> {
     try {
         const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
@@ -66,6 +70,18 @@ export async function getDealsController(req: Request, res: Response): Promise<v
         const city = typeof req.query.city === 'string' ? req.query.city : undefined;
         const state = typeof req.query.state === 'string' ? req.query.state : undefined;
         const zipCode = typeof req.query.zipCode === 'string' ? req.query.zipCode : undefined;
+        const status =
+            req.query.status === 'new' || req.query.status === 'sold'
+                ? req.query.status
+                : undefined;
+
+        const parsedPage = parseInt(String(req.query.page), 10);
+        const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+        const parsedLimit = parseInt(String(req.query.limit), 10);
+        const limit =
+            Number.isFinite(parsedLimit) && parsedLimit > 0
+                ? Math.min(parsedLimit, MAX_DEALS_LIMIT)
+                : undefined;
 
         const results = await getDeals({
             userId,
@@ -74,11 +90,24 @@ export async function getDealsController(req: Request, res: Response): Promise<v
             city,
             state,
             zipCode,
+            status,
+            page,
+            limit,
             callerId: req.session?.userId,
         });
         res.json(results);
     } catch (err) {
         handleServiceError(res, err, 'Error fetching deals');
+    }
+}
+
+// ── GET /api/deals/locations ───────────────────────────────────────────────────
+export async function getDealLocationsController(req: Request, res: Response): Promise<void> {
+    try {
+        const locations = await getDealLocations();
+        res.json(locations);
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching deal locations');
     }
 }
 
@@ -98,6 +127,28 @@ export async function getDealByIdController(req: Request, res: Response): Promis
         res.json(deal);
     } catch (err) {
         handleServiceError(res, err, 'Error fetching deal');
+    }
+}
+
+// ── GET /api/deals/:id/top-buyers ──────────────────────────────────────────────
+export async function getDealTopBuyersController(req: Request, res: Response): Promise<void> {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            res.status(400).json({ message: 'Invalid deal id' });
+            return;
+        }
+
+        const callerId = req.session?.userId;
+        if (!callerId) {
+            res.status(401).json({ message: 'Not authenticated' });
+            return;
+        }
+
+        const topBuyers = await getTopBuyersForDeal(id, callerId);
+        res.json({ topBuyers });
+    } catch (err) {
+        handleServiceError(res, err, 'Error fetching top buyers');
     }
 }
 

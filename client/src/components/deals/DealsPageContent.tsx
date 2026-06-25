@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import AppDialog from '@/components/modals/Dialog';
 import { BestBuyersDialog } from './BestBuyersDialog';
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useAccessGate } from '@/hooks/useAccessGate';
 import { formatAddress } from '@shared/utils/formatAddress';
 import type { Deal, DealToEdit } from '@shared/types/deals';
+import type { DealColumn } from '@/types/deals';
 import DealsHeader from '@/components/deals/DealsHeader';
 import DealsGrid from '@/components/deals/DealsGrid';
 import DealsEmptyState from '@/components/deals/DealsEmptyState';
@@ -19,6 +20,7 @@ import RequestDealInfoDialog from '@/components/deals/RequestDealInfoDialog';
 import SendOfferDialog from '@/components/deals/SendOfferDialog';
 import DealOffersDialog from '@/components/deals/DealOffersDialog';
 import { useDealsNav } from '@/hooks/useNav';
+import { useDealsColumn } from '@/hooks/useDealsColumn';
 import type {
     RequestDealInfoFormValues,
     SubmitOfferFormValues,
@@ -44,14 +46,10 @@ export default function DealsPageContent() {
 
     const canManageDeals = isAdmin || isOwner || isRelationshipManager;
 
-    // Build the query URL based on active tab and location filter
-    const queryUrl = (() => {
+    // Filter params shared by both columns; `status` + `page` are appended per request.
+    const filterParams = (() => {
         const params = new URLSearchParams();
-
-        if (tab === 'mine' && user?.id) {
-            params.set('userId', user.id);
-        }
-
+        if (tab === 'mine' && user?.id) params.set('userId', user.id);
         if (locationFilter?.type === 'county') {
             params.set('county', locationFilter.value);
             params.set('state', locationFilter.state);
@@ -63,21 +61,22 @@ export default function DealsPageContent() {
         } else if (locationFilter?.type === 'zip') {
             params.set('zipCode', locationFilter.value);
         }
-
-        return `/api/deals?${params.toString()}`;
+        return params.toString();
     })();
 
-    const { data: deals = [], isLoading } = useQuery<Deal[]>({
-        queryKey: ['/api/deals', queryUrl],
-        staleTime: 0,
-        queryFn: async () => {
-            const res = await apiRequest('GET', queryUrl);
-            return res.json();
-        },
-    });
+    // New and Sold paginate independently — one infinite query per column.
+    const newDealsQuery = useDealsColumn('new', filterParams);
+    const soldDealsQuery = useDealsColumn('sold', filterParams);
 
-    // Secondary fetch for a linked deal that may not be in the current filtered list
-    const dealInList = dealId !== null && deals.some((d) => d.id === dealId);
+    const isLoading = newDealsQuery.isLoading || soldDealsQuery.isLoading;
+    const loadedNewDeals = newDealsQuery.data?.pages.flatMap((p) => p.deals) ?? [];
+    const loadedSoldDeals = soldDealsQuery.data?.pages.flatMap((p) => p.deals) ?? [];
+
+    // Secondary fetch for a linked deal (?dealId) absent from the loaded pages of either column.
+    const dealInList =
+        dealId !== null &&
+        (loadedNewDeals.some((d) => d.id === dealId) ||
+            loadedSoldDeals.some((d) => d.id === dealId));
     const { data: pinnedDeal = null } = useQuery<Deal | null>({
         queryKey: ['/api/deals', 'single', dealId],
         enabled: dealId !== null && !isLoading && !dealInList,
@@ -90,13 +89,36 @@ export default function DealsPageContent() {
         },
     });
 
-    // Prepend the pinned deal at the top of its column if it's not already in the filtered list
-    const dealsWithPinned = useMemo(() => {
-        if (!pinnedDeal || dealInList) return deals;
-        return [pinnedDeal, ...deals];
-    }, [deals, pinnedDeal, dealInList]);
-
+    // Prepend the pinned deal to the top of its column when it isn't already loaded.
+    const pinnedIsSold = pinnedDeal?.dealType === 'sold';
+    const newDeals =
+        pinnedDeal && !dealInList && !pinnedIsSold
+            ? [pinnedDeal, ...loadedNewDeals]
+            : loadedNewDeals;
+    const soldDeals =
+        pinnedDeal && !dealInList && pinnedIsSold
+            ? [pinnedDeal, ...loadedSoldDeals]
+            : loadedSoldDeals;
     const pinnedDealId = pinnedDeal && !dealInList ? dealId : null;
+
+    // Column badge counts: server totals, bumped to include an out-of-filter pinned deal.
+    const newCount = Math.max(newDealsQuery.data?.pages[0]?.total ?? 0, newDeals.length);
+    const soldCount = Math.max(soldDealsQuery.data?.pages[0]?.total ?? 0, soldDeals.length);
+
+    const newColumn: DealColumn = {
+        deals: newDeals,
+        count: newCount,
+        hasMore: newDealsQuery.hasNextPage,
+        isLoadingMore: newDealsQuery.isFetchingNextPage,
+        onLoadMore: () => newDealsQuery.fetchNextPage(),
+    };
+    const soldColumn: DealColumn = {
+        deals: soldDeals,
+        count: soldCount,
+        hasMore: soldDealsQuery.hasNextPage,
+        isLoadingMore: soldDealsQuery.isFetchingNextPage,
+        onLoadMore: () => soldDealsQuery.fetchNextPage(),
+    };
 
     const deleteDeal = useMutation({
         mutationFn: async (dealId: number) => {
@@ -155,9 +177,6 @@ export default function DealsPageContent() {
         },
     });
 
-    const newDeals = dealsWithPinned.filter((d) => d.dealType !== 'sold');
-    const soldDeals = dealsWithPinned.filter((d) => d.dealType === 'sold');
-
     const handleAddDeal = () =>
         requireAuth(() =>
             requireSubscription(() => setShowAddDeal(true), {
@@ -171,7 +190,6 @@ export default function DealsPageContent() {
         <div className="h-full flex flex-col overflow-hidden">
             <DealsHeader
                 tab={tab}
-                deals={deals}
                 locationFilter={locationFilter}
                 onTabChange={(t) => (t === 'mine' ? requireAuth(() => setTab(t)) : setTab(t))}
                 onAddDeal={handleAddDeal}
@@ -185,7 +203,7 @@ export default function DealsPageContent() {
                         <p className="text-muted-foreground">Loading deals...</p>
                     </div>
                 </div>
-            ) : dealsWithPinned.length === 0 ? (
+            ) : newDeals.length + soldDeals.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
                     <DealsEmptyState
                         size="lg"
@@ -202,8 +220,8 @@ export default function DealsPageContent() {
             ) : (
                 <div className="flex-1 overflow-hidden min-h-0">
                     <DealsGrid
-                        newDeals={newDeals}
-                        soldDeals={soldDeals}
+                        newColumn={newColumn}
+                        soldColumn={soldColumn}
                         canManageDeals={!!canManageDeals}
                         canAccessApp={!!canAccessApp}
                         isAdmin={!!isAdmin}
@@ -328,7 +346,7 @@ export default function DealsPageContent() {
             >
                 {bestBuyersDeal && (
                     <BestBuyersDialog
-                        buyers={bestBuyersDeal.topBuyers}
+                        dealId={bestBuyersDeal.id}
                         address={bestBuyersDeal.address}
                         city={bestBuyersDeal.city}
                         state={bestBuyersDeal.state}

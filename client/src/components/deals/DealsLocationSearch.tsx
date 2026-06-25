@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Search, X, MapPin, Building2, Hash, Layers } from 'lucide-react';
 import { COUNTIES, MSA } from '@/constants/filters.constants';
+import { apiRequest } from '@/lib/queryClient';
 import type { LocationFilter } from '@/types/deals';
-import type { Deal } from '@shared/types/deals';
+import type { DealLocations } from '@shared/types/deals';
 
 // Returns the primary city name from a full MSA string
 // e.g. "San Diego-Chula Vista-Carlsbad, CA" → "San Diego"
@@ -26,12 +28,11 @@ type Suggestion = {
 };
 
 type DealsLocationSearchProps = {
-    deals: Deal[];
     value: LocationFilter | null;
     onChange: (filter: LocationFilter | null) => void;
 };
 
-export default function DealsLocationSearch({ deals, value, onChange }: DealsLocationSearchProps) {
+export default function DealsLocationSearch({ value, onChange }: DealsLocationSearchProps) {
     const [inputText, setInputText] = useState(value ? filterToInputText(value) : '');
     const [open, setOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -54,28 +55,23 @@ export default function DealsLocationSearch({ deals, value, onChange }: DealsLoc
         return () => document.removeEventListener('mousedown', handleMouseDown);
     }, [open]);
 
-    // Unique cities and zips from the current deals list
-    const dealCities = useMemo(() => {
-        const seen = new Set<string>();
-        const result: { city: string; state: string }[] = [];
-        for (const d of deals) {
-            if (!d.city) continue;
-            const key = `${d.city}|${d.state}`;
-            if (!seen.has(key)) {
-                seen.add(key);
-                result.push({ city: d.city, state: d.state ?? '' });
-            }
-        }
-        return result.sort((a, b) => a.city.localeCompare(b.city));
-    }, [deals]);
+    // Distinct cities/zips across all deals — fetched independently so the autocomplete stays
+    // complete regardless of which deals are currently loaded in the paginated columns.
+    const { data: locations } = useQuery<DealLocations>({
+        queryKey: ['/api/deals/locations'],
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => {
+            const res = await apiRequest('GET', '/api/deals/locations');
+            return res.json();
+        },
+    });
 
-    const dealZips = useMemo(() => {
-        const seen = new Set<string>();
-        for (const d of deals) {
-            if (d.zipCode) seen.add(d.zipCode);
-        }
-        return Array.from(seen).sort();
-    }, [deals]);
+    const dealCities = useMemo(
+        () => [...(locations?.cities ?? [])].sort((a, b) => a.city.localeCompare(b.city)),
+        [locations],
+    );
+
+    const dealZips = useMemo(() => [...(locations?.zips ?? [])].sort(), [locations]);
 
     const suggestions = useMemo((): Suggestion[] => {
         const q = inputText.trim().toLowerCase();

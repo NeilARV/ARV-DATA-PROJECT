@@ -4,6 +4,8 @@ import { ALL_TEAM_ROLES } from 'server/constants/roles.constants';
 import {
     getDealsController,
     getDealByIdController,
+    getDealTopBuyersController,
+    getDealLocationsController,
     createDealController,
     updateDealController,
     deleteDealController,
@@ -27,8 +29,14 @@ router.get('/', requireDealAccess, getDealsController);
 // GET /api/deals/msas — fetch all MSAs for the deal form dropdown (must be before /:id)
 router.get('/msas', requireDealAccess, getMsasController);
 
+// GET /api/deals/locations — distinct cities/zips for the location autocomplete (before /:id)
+router.get('/locations', requireDealAccess, getDealLocationsController);
+
 // GET /api/deals/:id — fetch a single deal by id
 router.get('/:id', requireDealAccess, getDealByIdController);
+
+// GET /api/deals/:id/top-buyers — top buyers for a deal's zip (owner/privileged; enforced in service)
+router.get('/:id/top-buyers', requireDealAccess, getDealTopBuyersController);
 
 // POST /api/deals — create a deal (any subscription tier, or team member bypass)
 router.post(
