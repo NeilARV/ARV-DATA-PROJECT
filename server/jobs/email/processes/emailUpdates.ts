@@ -94,7 +94,7 @@ async function getStreetViewUrlIfAvailable(
             sfrPropertyId,
         });
 
-        if ('imageData' in result) {
+        if (result.available) {
             return buildStreetviewUrl(sfrPropertyId, addr, c, s);
         }
     } catch (err) {

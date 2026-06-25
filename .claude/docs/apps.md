@@ -49,9 +49,11 @@ Content Area renders by `view`:
 - **CompanyDirectory** — debounced search (300ms), 7 sort options, infinite-scroll list
   (50/page). `CompanyCard` is expandable: rank badge (gold/silver/bronze top 3), name +
   contact, property count badges, and an expanded section with owned/sold/bought counts,
-  market ranking, principal/contact details, a 90-day acquisition chart (recharts BarChart),
-  and action buttons (View Properties, Enrich, Edit, Copy). An "ensured company" slot shows a
-  selected company that isn't in the paginated list.
+  market ranking, principal/contact details, the purchase-to-ARV ratio (avg of seller
+  purchase ÷ sale price across the company's Arms Length sales; "Not Available" when none),
+  a 90-day acquisition chart (recharts BarChart), and action buttons (View Properties,
+  Enrich, Edit, Copy). An "ensured company" slot shows a selected company that isn't in the
+  paginated list.
 - **Views** — map (`PropertyDetailPanel` + Leaflet `PropertyMap`), table
   (`PropertyTable`, 20/page), grid (`PropertyCard` grid, 10/page).
 - **Dialogs** — LeaderboardDialog, InfoDialog, PropertyModalContent (all via `AppDialog`).

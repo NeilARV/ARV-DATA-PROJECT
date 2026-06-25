@@ -13,6 +13,7 @@ import {
     date,
     pgEnum,
     jsonb,
+    decimal,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { msas } from './msas.schema';
@@ -27,6 +28,12 @@ export const companies = pgTable('companies', {
     id: uuid('id').defaultRandom().primaryKey(),
     companyName: text('company').unique().notNull(),
     isArvClient: boolean('is_arv_client').notNull().default(false),
+    // Average, across every Arms Length sale where this company was the seller, of
+    // (its purchase price for the property ÷ its sale price). Stored as the raw ratio
+    // (e.g. 0.7143 → 71%) and formatted as a percent at the display edge. NULL when no
+    // such sale has a traceable acquisition price. Recomputed by the data pipeline and
+    // the backfill script (server/services/companies/purchaseArvRatio.services.ts).
+    purchaseToArvRatio: decimal('purchase_to_arv_ratio', { precision: 6, scale: 4 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
 });

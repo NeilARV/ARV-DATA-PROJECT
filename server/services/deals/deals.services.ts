@@ -732,7 +732,7 @@ export async function sendDealNotification(
                         size: '200x200',
                         sfrPropertyId: deal.sfrPropertyId ?? undefined,
                     });
-                    if ('imageData' in result) {
+                    if (result.available) {
                         streetViewUrl = `${APP_BASE_URL}/api/properties/streetview?${params}`;
                     }
                 } catch {

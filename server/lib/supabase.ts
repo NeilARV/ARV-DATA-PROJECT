@@ -11,6 +11,9 @@ export const userStorageBucket = process.env.SUPABASE_USER_STORAGE_BUCKET ?? 'us
 export const mastermindStorageBucket =
     process.env.SUPABASE_MASTERMIND_STORAGE_BUCKET ?? 'mastermind-files-dev';
 
+export const streetviewStorageBucket =
+    process.env.SUPABASE_STREETVIEW_STORAGE_BUCKET ?? 'streetview-images-dev';
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {

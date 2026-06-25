@@ -56,6 +56,7 @@ The following environment variables are required or used by the application. **N
 | `SUPABASE_VENDOR_STORAGE_BUCKET` | Bucket for vendor images (default `vendor-images-dev`) |
 | `SUPABASE_USER_STORAGE_BUCKET` | Bucket for user/avatar images (default `user-images-dev`) |
 | `SUPABASE_MASTERMIND_STORAGE_BUCKET` | Bucket for Mastermind message attachments — images + docs (default `mastermind-files-dev`) |
+| `SUPABASE_STREETVIEW_STORAGE_BUCKET` | Bucket for cached Street View / satellite property images (default `streetview-images-dev`) |
 
 > **Supabase Storage buckets must be public** and configured to allow the app's MIME types and size limits. The Mastermind bucket allows **JPEG, PNG, PDF, CSV, TXT at ≤10 MB** — this must match the server allowlist in `server/services/messages/attachments.services.ts` (`ALLOWED_ATTACHMENT_TYPES` / `MAX_ATTACHMENT_BYTES`).
 

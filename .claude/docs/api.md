@@ -627,13 +627,13 @@ Autocomplete suggestions for property search.
 ---
 
 ### `GET /api/properties/streetview`
-Proxy for Google Street View static image.
+Resolves a property's Street View (or satellite) image, falling back through cache → Street View → satellite. Images are cached in Supabase Storage.
 
 **Auth**: Public
 
-**Query params**: `address`, `city`, `state` (or similar — passed to Google Maps API)
+**Query params**: `address` (required), `city`, `state`, `size` (default `600x400`), `sfrPropertyId`
 
-**Response `200`** Image data or redirect URL.
+**Response**: `302` redirect to the Supabase CDN URL for the image (the common path; `Cache-Control: max-age=604800`). Legacy rows still held as `bytea` are streamed as `200` with an `ETag` (honors `If-None-Match` → `304`). `404` with a short `Cache-Control` when no image is available for the address; `400` if `address` is missing.
 
 ---
 
