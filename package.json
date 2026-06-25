@@ -19,6 +19,7 @@
         "seed:sort-order": "tsx scripts/seed-sort-order.ts",
         "reset:one-user": "tsx scripts/reset-one-user.ts",
         "backfill:reo": "tsx scripts/backfill-reo-deal-filter.ts",
+        "backfill:purchase-arv-ratio": "tsx scripts/backfill-purchase-arv-ratio.ts",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },

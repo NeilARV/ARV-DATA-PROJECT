@@ -18,6 +18,7 @@ import { cleanBeforeInsert } from './processes/clean-before-insert';
 import { resolveArvFunded } from './processes/is-arv-funded';
 import { insertProperties } from './processes/insert-properties';
 import { updateArvClientCompanies } from './processes/is-arv-client';
+import { updatePurchaseToArvRatios } from './processes/update-purchase-arv-ratio';
 
 import type { BuyersMarketRecord } from './processes/get-market';
 import type { MarketScanQueue } from '@database/types/sync';
@@ -85,7 +86,8 @@ function queueRowToMarketRecord(row: MarketScanQueue, msaName: string): BuyersMa
  * Pipeline per batch:
  *   fetchQueue → markProcessing → batchLookup → getTransactions →
  *   cleanTransactions → insertCompanies → resolvePropertyIds → resolveStatus →
- *   cleanBeforeInsert → insertProperties → markComplete
+ *   cleanBeforeInsert → insertProperties → updateArvClientCompanies →
+ *   updatePurchaseToArvRatios → markComplete
  */
 export async function runConsumer(): Promise<void> {
     const label = '[CONSUMER]';
@@ -303,6 +305,9 @@ export async function runConsumer(): Promise<void> {
 
                 // ── Step 12: Mark companies as ARV clients from resolved transactions ─
                 await updateArvClientCompanies(propertiesToInsertWithArv, msa.name);
+
+                // ── Step 13: Recompute purchase-to-ARV ratio for affected seller companies ─
+                await updatePurchaseToArvRatios(propertiesToInsertWithArv, msa.name);
 
                 // ── Mark complete only for properties that were not individually failed ──
                 // partialNotFoundIds: dropped silently by batchLookup (never inserted)

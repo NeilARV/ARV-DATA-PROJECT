@@ -215,6 +215,7 @@ Many-to-many: users ↔ MSAs they subscribe to.
 | `id` | `uuid` | PK, default random |
 | `company` | `text` | NOT NULL, UNIQUE |
 | `is_arv_client` | `boolean` | NOT NULL, default false |
+| `purchase_to_arv_ratio` | `numeric(6,4)` | nullable; avg of (seller purchase ÷ sale price) across the company's Arms Length sales — raw ratio, e.g. `0.7143`; NULL = no traceable sale |
 | `created_at` | `timestamp` | NOT NULL, default now |
 | `updated_at` | `timestamp` | default now |
 
