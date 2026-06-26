@@ -1,14 +1,20 @@
-import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import MarkerClusterGroup from 'react-leaflet-cluster';
+import { X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
-import type { MapPin } from '@/types/property';
+import { MapLegend } from '@/components/data/property/MapLegend';
 import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useGeoMap } from '@/hooks/useMap';
 import { useProperty } from '@/hooks/useProperty';
+import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
+import { MAP_ZOOM_COUNTY } from '@/constants/map.constants';
+import { PIN_COLORS } from '@/constants/mapPins.constants';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
+import type { MapPin, MapBoundsParams } from '@/types/property';
 
 const createColoredIcon = (color: string) => {
     const svgIcon = `
@@ -21,17 +27,28 @@ const createColoredIcon = (color: string) => {
         iconUrl: `data:image/svg+xml;base64,${btoa(svgIcon)}`,
         iconSize: [25, 41],
         iconAnchor: [12, 41],
-        popupAnchor: [-120, -34],
+        tooltipAnchor: [0, -41],
     });
 };
 
-const blueIcon = createColoredIcon('#69C9E1');
-const greenIcon = createColoredIcon('#22C55E');
-const charcoalIcon = createColoredIcon('#FF0000');
-const purpleIcon = createColoredIcon('#9333EA');
+const inRenovationIcon = createColoredIcon(PIN_COLORS.inRenovation);
+const onMarketIcon = createColoredIcon(PIN_COLORS.onMarket);
+const soldIcon = createColoredIcon(PIN_COLORS.sold);
+const wholesaleIcon = createColoredIcon(PIN_COLORS.wholesale);
+const selectedIcon = createColoredIcon(PIN_COLORS.selected);
 
-// Selected marker icons (with orange color to stand out)
-const selectedBlueIcon = createColoredIcon('#FFA500');
+const STATUS_LABELS: Record<string, string> = {
+    'in-renovation': 'In Renovation',
+    'on-market': 'On Market',
+    sold: 'Sold',
+    wholesale: 'Wholesale',
+};
+
+/** Friendly label for a pin status (falls back to the raw value). */
+function statusLabel(status: string | null): string {
+    const key = (status ?? '').toLowerCase().trim();
+    return STATUS_LABELS[key] ?? (status || 'Unknown');
+}
 
 const getIconForPin = (
     pin: MapPin,
@@ -39,7 +56,7 @@ const getIconForPin = (
     selectedCompanyId: string | null | undefined,
     statusFilters: string[],
 ) => {
-    if (isSelected) return selectedBlueIcon;
+    if (isSelected) return selectedIcon;
 
     const status = (pin.status || '').toLowerCase().trim();
     const bid = pin.buyerId ?? null;
@@ -52,59 +69,166 @@ const getIconForPin = (
     if (selectedCompanyId) {
         if (status === 'wholesale') {
             // Company is buyer of wholesale → always blue (they own it, it's their renovation)
-            if (bid === selectedCompanyId) return blueIcon;
+            if (bid === selectedCompanyId) return inRenovationIcon;
             // Company is seller of wholesale → always purple (sold to another company)
-            if (sid === selectedCompanyId) return purpleIcon;
+            if (sid === selectedCompanyId) return wholesaleIcon;
         }
         // Non-wholesale statuses keep their standard colors
         if (bid === selectedCompanyId || sid === selectedCompanyId) {
-            if (status === 'sold') return charcoalIcon;
-            if (status === 'on-market') return greenIcon;
-            return blueIcon; // in-renovation or default
+            if (status === 'sold') return soldIcon;
+            if (status === 'on-market') return onMarketIcon;
+            return inRenovationIcon; // in-renovation or default
         }
     }
 
     // No company selected - status-based colors
     switch (status) {
         case 'on-market':
-            return greenIcon;
+            return onMarketIcon;
         case 'sold':
-            return charcoalIcon;
+            return soldIcon;
         case 'wholesale':
             // If wholesale filter is explicitly active → purple (distinguished)
             // If showing via in-renovation → blue (blends in)
-            return wholesaleFilterActive ? purpleIcon : blueIcon;
+            return wholesaleFilterActive ? wholesaleIcon : inRenovationIcon;
         case 'in-renovation':
         default:
-            return blueIcon;
+            return inRenovationIcon;
     }
 };
 
+type ClusterLike = {
+    getChildCount: () => number;
+    getAllChildMarkers: () => { options: L.MarkerOptions }[];
+};
+
+// Resolved-icon → color, so cluster donuts use the exact color each pin renders (this respects the
+// wholesale-blend and company-role rules in getIconForPin — e.g. a wholesale pin counts as blue
+// when the wholesale filter isn't active).
+const ICON_COLORS = new Map<L.Icon | L.DivIcon, string>([
+    [inRenovationIcon, PIN_COLORS.inRenovation],
+    [onMarketIcon, PIN_COLORS.onMarket],
+    [soldIcon, PIN_COLORS.sold],
+    [wholesaleIcon, PIN_COLORS.wholesale],
+    [selectedIcon, PIN_COLORS.selected],
+]);
+
+/** Color for a marker's resolved icon (defaults to in-renovation). */
+function iconColor(icon: L.Icon | L.DivIcon | undefined): string {
+    return (icon && ICON_COLORS.get(icon)) || PIN_COLORS.inRenovation;
+}
+
+/**
+ * Builds a cluster marker that conveys the status mix of the pins inside it: a conic-gradient donut
+ * colored by the legend colors, with the pin count in the center. Theme-aware via CSS variables.
+ */
+function createClusterIcon(cluster: ClusterLike): L.DivIcon {
+    const count = cluster.getChildCount();
+
+    const tally = new Map<string, number>();
+    for (const marker of cluster.getAllChildMarkers()) {
+        const color = iconColor(marker.options.icon);
+        tally.set(color, (tally.get(color) ?? 0) + 1);
+    }
+
+    let accumulated = 0;
+    const segments: string[] = [];
+    tally.forEach((n, color) => {
+        const start = (accumulated / count) * 100;
+        accumulated += n;
+        const end = (accumulated / count) * 100;
+        segments.push(`${color} ${start}% ${end}%`);
+    });
+    const background =
+        segments.length > 0 ? `conic-gradient(${segments.join(', ')})` : PIN_COLORS.inRenovation;
+
+    const size = count < 10 ? 36 : count < 100 ? 44 : 52;
+    const inner = size - 12;
+    const wrapperStyle = `display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:${background};box-shadow:0 0 0 2px hsl(var(--background));`;
+    const innerStyle = `display:flex;align-items:center;justify-content:center;width:${inner}px;height:${inner}px;border-radius:9999px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans);font-size:12px;font-weight:600;`;
+
+    return L.divIcon({
+        html: `<div style="${wrapperStyle}"><div style="${innerStyle}">${count}</div></div>`,
+        className: '',
+        iconSize: [size, size],
+    });
+}
+
+/**
+ * Reads the viewport as bounds params, padded by 30% (so a margin around the view is fetched) and
+ * rounded (so small pans/zooms produce the same box → no needless refetch).
+ */
+function toBoundsParams(map: L.Map): MapBoundsParams {
+    const b = map.getBounds().pad(0.3);
+    const round = (n: number) => Math.round(n * 1000) / 1000;
+    return {
+        south: round(b.getSouth()),
+        west: round(b.getWest()),
+        north: round(b.getNorth()),
+        east: round(b.getEast()),
+    };
+}
+
+/**
+ * Reports the viewport box to the parent on mount and on (debounced) pan/zoom, so only the pins in
+ * view are fetched.
+ */
+function ViewportWatcher({ onBoundsChange }: { onBoundsChange: (bounds: MapBoundsParams) => void }) {
+    const map = useMap();
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        onBoundsChange(toBoundsParams(map));
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, [map, onBoundsChange]);
+
+    useMapEvents({
+        moveend: () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => onBoundsChange(toBoundsParams(map)), 300);
+        },
+    });
+
+    return null;
+}
+
+/** Applies imperative center/zoom changes (from filters/company or external callers) via setView. */
+function CameraController({ center, zoom }: { center?: [number, number]; zoom?: number }) {
+    const map = useMap();
+    const previousRef = useRef<{ center?: [number, number]; zoom?: number }>({});
+
+    useEffect(() => {
+        if (!center || zoom == null) return;
+        const previous = previousRef.current;
+        const changed =
+            !previous.center ||
+            previous.center[0] !== center[0] ||
+            previous.center[1] !== center[1] ||
+            previous.zoom !== zoom;
+        if (changed) {
+            previousRef.current = { center, zoom };
+            map.setView(center, zoom);
+        }
+    }, [center, zoom, map]);
+
+    return null;
+}
+
+/** Keeps Leaflet's internal size in sync with the container (flex/resize/tab changes). */
 function MapResizeHandler() {
     const map = useMap();
 
     useEffect(() => {
-        // Invalidate size on mount
-        setTimeout(() => {
-            map.invalidateSize();
-        }, 0);
+        setTimeout(() => map.invalidateSize(), 0);
 
-        // Watch for window resize events
-        const handleResize = () => {
-            map.invalidateSize();
-        };
-
+        const handleResize = () => map.invalidateSize();
         window.addEventListener('resize', handleResize);
 
-        // Also use ResizeObserver to watch for container size changes
-        const mapContainer = map.getContainer();
-        const resizeObserver = new ResizeObserver(() => {
-            map.invalidateSize();
-        });
-
-        if (mapContainer) {
-            resizeObserver.observe(mapContainer);
-        }
+        const container = map.getContainer();
+        const resizeObserver = new ResizeObserver(() => map.invalidateSize());
+        if (container) resizeObserver.observe(container);
 
         return () => {
             window.removeEventListener('resize', handleResize);
@@ -115,105 +239,66 @@ function MapResizeHandler() {
     return null;
 }
 
-function MapBounds({
-    mapPins,
-    center,
-    zoom,
-}: {
-    mapPins: MapPin[];
-    center?: [number, number];
-    zoom?: number;
-}) {
-    const map = useMap();
-    const { company } = useCompanies();
-    const previousPropertyIdsRef = useRef<string>('');
-    const previousCenterRef = useRef<[number, number] | undefined>(undefined);
-    const previousSelectedCompanyRef = useRef<string | null | undefined>(undefined);
+type RenderPin = { pin: MapPin; position: [number, number] };
 
-    useEffect(() => {
-        // Create a sorted string of property IDs to compare
-        const currentPropertyIds = mapPins
-            .map((p) => p.id)
-            .sort()
-            .join(',');
-
-        // Only refit bounds if the property set actually changed (not just a re-render)
-        const propertySetChanged = previousPropertyIdsRef.current !== currentPropertyIds;
-        previousPropertyIdsRef.current = currentPropertyIds;
-
-        // Check if selected company changed (triggers refit even if same properties)
-        const companyChanged = company?.companyName !== previousSelectedCompanyRef.current;
-        previousSelectedCompanyRef.current = company?.companyName;
-
-        // Check if center changed
-        const centerChanged =
-            center !== undefined &&
-            (previousCenterRef.current === undefined ||
-                center[0] !== previousCenterRef.current[0] ||
-                center[1] !== previousCenterRef.current[1]);
-
-        previousCenterRef.current = center;
-
-        // If center is explicitly set (e.g., from zipcode selection), use it
-        if (center && zoom && centerChanged) {
-            map.setView(center, zoom);
-            return;
-        }
-
-        if (mapPins.length > 0) {
-            // Filter map pins with valid coordinates
-            const validPins = mapPins.filter(
-                (p) =>
-                    p.latitude != null &&
-                    p.longitude != null &&
-                    !isNaN(p.latitude) &&
-                    !isNaN(p.longitude),
-            );
-
-            if (validPins.length > 0) {
-                // Fit bounds if:
-                // 1. Company selection changed (always fit bounds to show all company properties)
-                // 2. OR property set changed AND center is not explicitly set (filters applied, etc.)
-                if (companyChanged || (propertySetChanged && center === undefined)) {
-                    const bounds = L.latLngBounds(
-                        validPins.map((p) => [p.latitude!, p.longitude!]),
-                    );
-                    map.fitBounds(bounds, { padding: [50, 50] });
-                }
-            } else if (center && zoom) {
-                // Reset to default view when no valid coordinates exist
-                map.setView(center, zoom);
-            }
-        } else if (center && zoom) {
-            // No properties at all, use default view
-            map.setView(center, zoom);
-        }
-    }, [mapPins, center, zoom, map, company]);
-
-    return null;
-}
-
+/**
+ * Interactive property map: clustered, viewport-fetched pins over theme-aware CARTO basemaps, with a
+ * color legend, hover tooltips, and loading/empty states.
+ */
 export default function PropertyMap() {
     const { filters, clearFilters, hasActiveFilters } = useFilters();
     const { fetchProperty, property } = useProperty();
     const { company, setCompany } = useCompanies();
     const {
-        mapPins = [],
         filteredMapPins = [],
         isLoadingMapPins = false,
+        extent,
         mapCenter,
         mapZoom,
+        setMapBounds,
     } = useGeoMap({ fetchMapPins: true });
 
-    // Use filteredMapPins (respects company + filters), then filter to valid coordinates for rendering
-    const validPins = filteredMapPins.filter(
-        (p) =>
-            p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude),
+    // Theme-aware basemap: track the `dark` class on <html> so tiles match the app theme.
+    const [isDark, setIsDark] = useState(() =>
+        document.documentElement.classList.contains('dark'),
     );
+    useEffect(() => {
+        const el = document.documentElement;
+        const observer = new MutationObserver(() => setIsDark(el.classList.contains('dark')));
+        observer.observe(el, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
+    const renderPins = useMemo<RenderPin[]>(() => {
+        return filteredMapPins
+            .map((pin): RenderPin | null => {
+                const { latitude, longitude } = pin;
+                if (latitude == null || longitude == null || isNaN(latitude) || isNaN(longitude)) {
+                    return null;
+                }
+                return { pin, position: [latitude, longitude] };
+            })
+            .filter((entry): entry is RenderPin => entry !== null);
+    }, [filteredMapPins]);
+
+    // MapContainer reads center/zoom once at mount; CameraController drives changes after that.
+    const initialCenter =
+        mapCenter ?? getCountyCenter(filters.county ?? 'San Diego') ?? getDefaultMapCenter();
+    const initialZoom = mapZoom ?? MAP_ZOOM_COUNTY;
+
+    const tileUrl = isDark
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+    const hasAnyMatches = (extent?.count ?? 0) > 0;
+    const showEmptyState = !isLoadingMapPins && renderPins.length === 0;
+    const emptyMessage = hasAnyMatches
+        ? 'No properties in this area — zoom out or pan the map.'
+        : 'No properties match your filters.';
 
     return (
         <div className="w-full h-full relative" data-testid="map-container">
-            {hasActiveFilters || company ? (
+            {(hasActiveFilters || company) && (
                 <div className="absolute top-2 left-12 z-[501] flex flex-col gap-1">
                     {company && (
                         <Button
@@ -240,44 +325,87 @@ export default function PropertyMap() {
                         </Button>
                     )}
                 </div>
-            ) : null}
+            )}
+
+            {isLoadingMapPins && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-2 rounded-md border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm pointer-events-none">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading map pins…
+                </div>
+            )}
+
+            {showEmptyState && (
+                <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
+                    <div className="rounded-md border border-border bg-background/90 px-4 py-3 text-sm text-muted-foreground backdrop-blur-sm">
+                        {emptyMessage}
+                    </div>
+                </div>
+            )}
+
             <MapContainer
-                center={mapCenter}
-                zoom={mapZoom}
+                center={initialCenter}
+                zoom={initialZoom}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom={true}
             >
                 <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    key={isDark ? 'dark' : 'light'}
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                    url={tileUrl}
+                    subdomains="abcd"
+                    detectRetina
                 />
                 <MapResizeHandler />
-                <MapBounds mapPins={validPins} center={mapCenter} zoom={mapZoom} />
-                {isLoadingMapPins ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-[500]">
-                        <div className="text-muted-foreground">Loading map pins...</div>
-                    </div>
-                ) : (
-                    validPins.map((pin) => {
+                <ViewportWatcher onBoundsChange={setMapBounds} />
+                <CameraController center={mapCenter} zoom={mapZoom} />
+                <MarkerClusterGroup
+                    chunkedLoading
+                    maxClusterRadius={50}
+                    showCoverageOnHover={false}
+                    iconCreateFunction={createClusterIcon}
+                >
+                    {renderPins.map(({ pin, position }) => {
                         const isSelected = property?.id === pin.id;
                         return (
                             <Marker
                                 key={pin.id}
-                                position={[pin.latitude!, pin.longitude!]}
+                                position={position}
                                 icon={getIconForPin(
                                     pin,
                                     isSelected,
                                     company?.id ?? null,
                                     filters.statusFilters,
                                 )}
-                                eventHandlers={{
-                                    click: () => fetchProperty?.(pin.id),
-                                }}
-                            />
+                                eventHandlers={{ click: () => fetchProperty?.(pin.id) }}
+                            >
+                                <Tooltip direction="top">
+                                    <div className="text-xs">
+                                        <div className="font-semibold">
+                                            {pin.address || 'Address unavailable'}
+                                        </div>
+                                        {(pin.city || pin.zipcode) && (
+                                            <div className="text-muted-foreground">
+                                                {[pin.city, pin.zipcode].filter(Boolean).join(', ')}
+                                            </div>
+                                        )}
+                                        <div>
+                                            {statusLabel(pin.status)}
+                                            {pin.price > 0 && ` · $${pin.price.toLocaleString()}`}
+                                        </div>
+                                        {pin.propertyOwner && (
+                                            <div className="text-muted-foreground">
+                                                {formatCompanyName(pin.propertyOwner)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Tooltip>
+                            </Marker>
                         );
-                    })
-                )}
+                    })}
+                </MarkerClusterGroup>
             </MapContainer>
+
+            <MapLegend />
         </div>
     );
 }

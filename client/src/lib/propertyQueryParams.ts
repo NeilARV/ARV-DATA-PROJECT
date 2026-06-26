@@ -3,10 +3,13 @@ import type { PropertyFilters } from '@/types/filters';
 import type { SortOption } from '@/types/options';
 import { getEffectiveStatusFilters } from '@/lib/propertyFilters';
 import type { CompanyContactWithCounts } from '@/types/companies';
+import type { MapBoundsParams } from '@/types/property';
 
 export type BuildPropertyQueryParamsOptions = {
     /** When true, only county and status filters are included (for map pins endpoint). */
     forMapPins?: boolean;
+    /** Viewport box appended to the map pins request (forMapPins only); omit to fetch unbounded. */
+    bounds?: MapBoundsParams;
     /** When true, append hasDateSold=true (for buyers feed). */
     hasDateSold?: boolean;
     page: number;
@@ -29,7 +32,7 @@ export function buildPropertyQueryParams(
     options: BuildPropertyQueryParamsOptions,
     context: BuildPropertyQueryParamsContext,
 ): string {
-    const { forMapPins = false, hasDateSold = false, page, limit } = options;
+    const { forMapPins = false, bounds, hasDateSold = false, page, limit } = options;
 
     const { company, sortBy } = context;
 
@@ -44,8 +47,14 @@ export function buildPropertyQueryParams(
     const effectiveStatuses = getEffectiveStatusFilters(filters, company?.id ?? null);
     effectiveStatuses.forEach((status) => params.append('status', status));
 
-    // Map pins: county + status + company (so server can filter pins when a company is selected)
+    // Map pins: county + status + location + company (so the server returns only matching pins)
     if (forMapPins) {
+        if (filters.zipCode && filters.zipCode.trim() !== '') {
+            params.append('zipcode', filters.zipCode.trim());
+        }
+        if (filters.city && filters.city.trim() !== '') {
+            params.append('city', filters.city.trim());
+        }
         if (company?.id) {
             params.append('companyId', company.id);
             if (filters.companyRole) {
@@ -56,6 +65,13 @@ export function buildPropertyQueryParams(
         }
         if (filters.dateRange) {
             params.append('dateRange', filters.dateRange);
+        }
+        // Viewport box — present for the pin request, omitted for the extent request.
+        if (bounds) {
+            params.append('south', bounds.south.toString());
+            params.append('west', bounds.west.toString());
+            params.append('north', bounds.north.toString());
+            params.append('east', bounds.east.toString());
         }
         const queryString = params.toString();
         return queryString ? `?${queryString}` : '';

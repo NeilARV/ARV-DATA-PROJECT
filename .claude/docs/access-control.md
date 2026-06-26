@@ -155,6 +155,7 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 |---|---|---|---|---|---|---|
 | GET | `/api/properties` | `requireSub(["basic","pro","premium"], bypass: all roles)` | 401 | ✓ | ✓ | ✓ |
 | GET | `/api/properties/map` | (public) | ✓ | ✓ | ✓ | ✓ |
+| GET | `/api/properties/map/extent` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/properties/zip-counts` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/properties/suggestions` | (public) | ✓ | ✓ | ✓ | ✓ |
 | GET | `/api/properties/streetview` | (public) | ✓ | ✓ | ✓ | ✓ |

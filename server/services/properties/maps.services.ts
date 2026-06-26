@@ -4,10 +4,9 @@ import {
     addresses,
     structures,
     lastSales,
-    propertyTransactions,
 } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
-import { eq, sql, and, or, inArray } from 'drizzle-orm';
+import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 
 interface MapPropertyData {
@@ -30,51 +29,92 @@ interface MapPropertyData {
     sellerId: string | null;
 }
 
+/** Geographic bounding box (Leaflet bounds: south/west = SW corner, north/east = NE corner). */
+export interface MapBounds {
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+}
+
+/** Bounding box + count of the qualifying set — used to center/zoom the map without loading every pin. */
+export interface MapExtent {
+    minLat: number;
+    maxLat: number;
+    minLng: number;
+    maxLng: number;
+    count: number;
+}
+
+/** Shared filters that resolve which properties qualify (county/status/date/company/location). */
+interface MapFilters {
+    county?: string;
+    statusFilter?: string | string[];
+    dateRange?: string;
+    companyId?: string;
+    companyRole?: string;
+    /** Exact zip-code match (addresses.zip_code). */
+    zipcode?: string;
+    /** City filter; San Diego / Los Angeles match by prefix (mirrors the client's cityMatchesFilter). */
+    city?: string;
+}
+
+interface MapPropertiesParams extends MapFilters {
+    /** Optional viewport bounds — when present, only pins inside the box are returned. */
+    bounds?: MapBounds;
+}
+
+type TxInfo = { buyerId: string | null; sellerId: string | null; buyerName: string | null };
+
 /**
- * Fetches minimal property data for map pins.
- *
- * Two-phase approach:
- *   Phase 1 — resolve qualifying property IDs with all filters applied on a lean
- *              properties + addresses join (no status/transaction aggregation).
- *   Phase 2 — fetch full pin data for only those IDs; statusData is scoped via
- *              inArray so it never scans the full property_statuses table.
- *
- * Buyer/seller IDs and owner name are derived from property_transactions:
- *  - companyId provided → only properties where that company appears as buyer or seller
- *    in any Arms Length or Assignment tx; buyerId/sellerId reflect that company's role.
- *  - No companyId → buyerId/sellerId columns returned as null (not needed for pin color).
+ * Builds the WHERE conditions that resolve qualifying property IDs, shared by the pin and
+ * extent queries. Filters are evaluated on a lean properties + addresses join; status, date,
+ * and company predicates are EXISTS subqueries so they never aggregate child tables here.
+ * @param filters county/status/date/company filters
+ * @param bounds optional viewport box that further restricts to pins inside it
+ * @returns the condition list plus resolved company-filter metadata
  */
-export async function getMapProperties(
-    county?: string,
-    statusFilter?: string | string[],
-    dateRange?: string,
-    companyId?: string,
-    companyRole?: string,
-): Promise<MapPropertyData[]> {
+function buildMapIdConditions(
+    filters: MapFilters,
+    bounds?: MapBounds,
+): { conditions: SQL[]; hasCompanyFilter: boolean; companyIdTrimmed: string } {
+    const { county, statusFilter, dateRange, companyId, companyRole, zipcode, city } = filters;
     const companyIdTrimmed = companyId?.trim() ?? '';
     const hasCompanyFilter = companyIdTrimmed !== '';
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
 
-    // ── Phase 1: Resolve qualifying property IDs ──────────────────────────────
-    // All filters are evaluated here on a lean ID-only query so that the
-    // statusData aggregation in Phase 2 never touches more rows than needed.
-    const idConditions = [];
+    const conditions: SQL[] = [];
 
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
-        idConditions.push(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-            ),
+        const countyCondition = or(
+            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
         );
+        if (countyCondition) conditions.push(countyCondition);
+    }
+
+    if (zipcode && zipcode.trim() !== '') {
+        conditions.push(sql`${addresses.zipCode} = ${zipcode.trim()}`);
+    }
+
+    if (city && city.trim() !== '') {
+        const normalizedCity = city.trim().toLowerCase();
+        // San Diego / Los Angeles span many city-name variants — match by prefix, like the client.
+        if (normalizedCity === 'san diego') {
+            conditions.push(sql`LOWER(${addresses.city}) LIKE 'san diego%'`);
+        } else if (normalizedCity === 'los angeles') {
+            conditions.push(sql`LOWER(${addresses.city}) LIKE 'los angeles%'`);
+        } else {
+            conditions.push(sql`LOWER(TRIM(${addresses.city})) = ${normalizedCity}`);
+        }
     }
 
     if (statusFilter) {
         const statusArray = Array.isArray(statusFilter) ? statusFilter : [statusFilter];
         if (statusArray.length > 0) {
             const normalizedStatuses = statusArray.map((s) => s.trim().toLowerCase());
-            idConditions.push(
+            conditions.push(
                 sql`EXISTS (
                     SELECT 1 FROM property_statuses ps
                     JOIN statuses s ON s.id = ps.status_id
@@ -89,7 +129,7 @@ export async function getMapProperties(
     }
 
     if (resolvedRange) {
-        idConditions.push(
+        conditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_transactions pt
                 WHERE pt.property_id = ${properties.id}
@@ -107,7 +147,7 @@ export async function getMapProperties(
                 : companyRole === 'seller'
                   ? sql`pt.seller_id = ${companyIdTrimmed}::uuid`
                   : sql`(pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)`;
-        idConditions.push(
+        conditions.push(
             sql`EXISTS (
                 SELECT 1 FROM property_transactions pt
                 WHERE pt.property_id = ${properties.id}
@@ -117,23 +157,57 @@ export async function getMapProperties(
         );
     }
 
-    const idWhereClause = idConditions.length > 0 ? and(...idConditions) : undefined;
+    // Viewport box — keep last so the cheap, sargable lat/lng range narrows the set early.
+    if (bounds) {
+        conditions.push(
+            sql`${addresses.latitude} BETWEEN ${bounds.south} AND ${bounds.north}`,
+            sql`${addresses.longitude} BETWEEN ${bounds.west} AND ${bounds.east}`,
+        );
+    }
+
+    return { conditions, hasCompanyFilter, companyIdTrimmed };
+}
+
+/** Parses a Drizzle decimal/text coordinate into a finite number, or null. */
+function toCoord(value: string | number | null): number | null {
+    if (value == null) return null;
+    const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Fetches minimal property data for map pins, restricted to the viewport when `bounds` is given.
+ *
+ * Two-phase approach:
+ *   Phase 1 — resolve qualifying property IDs with all filters (+ viewport box) applied on a lean
+ *              properties + addresses join.
+ *   Phase 2 — fetch full pin data for only those IDs; statusData is scoped via inArray so it never
+ *              scans the full property_statuses table.
+ *
+ * Buyer/seller IDs and owner name are derived from property_transactions (one correlated subquery
+ * per pin, returned as a single JSON object) only when a company filter is active — otherwise those
+ * columns are null (not needed for pin color).
+ *
+ * @param params county/status/date/company filters plus an optional viewport `bounds`
+ * @returns one entry per pin with valid coordinates
+ */
+export async function getMapProperties(params: MapPropertiesParams): Promise<MapPropertyData[]> {
+    const { bounds, ...filters } = params;
+    const { conditions, hasCompanyFilter, companyIdTrimmed } = buildMapIdConditions(filters, bounds);
+
+    const idWhereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const baseIdQuery = db
         .select({ id: properties.id })
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId));
 
-    const idRows: Array<{ id: string }> = await (
-        idWhereClause ? (baseIdQuery as any).where(idWhereClause) : baseIdQuery
-    ).execute();
-
+    const idRows = await (idWhereClause ? baseIdQuery.where(idWhereClause) : baseIdQuery).execute();
     const qualifyingIds = idRows.map((r) => r.id);
 
     if (qualifyingIds.length === 0) return [];
 
     // ── Phase 2: Fetch full pin data for qualifying IDs only ──────────────────
-    // statusData is scoped to qualifyingIds — avoids a full property_statuses scan.
     const statusData = db
         .select({
             propertyId: propertyStatuses.propertyId,
@@ -153,6 +227,24 @@ export async function getMapProperties(
         .groupBy(propertyStatuses.propertyId)
         .as('status_data');
 
+    // One correlated subquery per pin (only when a company is selected): a single JSON object with
+    // the company's buyer/seller role + name on its most relevant Arms Length / Assignment tx.
+    const txInfoSql = hasCompanyFilter
+        ? sql<TxInfo | null>`(
+            SELECT json_build_object(
+                'buyerId', pt.buyer_id::text,
+                'sellerId', pt.seller_id::text,
+                'buyerName', pt.buyer_name
+            )
+            FROM property_transactions pt
+            WHERE pt.property_id = ${properties.id}
+            AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+            AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
+            ORDER BY COALESCE(pt.sort_order, 999999) ASC
+            LIMIT 1
+          )`
+        : sql<TxInfo | null>`null`;
+
     const rawResults = await db
         .select({
             id: properties.id,
@@ -168,33 +260,7 @@ export async function getMapProperties(
             price: lastSales.price,
             status: statusData.primaryStatus,
             statuses: statusData.allStatuses,
-            txBuyerId: hasCompanyFilter
-                ? sql<string | null>`(
-                    SELECT pt.buyer_id::text FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                    AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                  )`
-                : sql<string | null>`null`,
-            txSellerId: hasCompanyFilter
-                ? sql<string | null>`(
-                    SELECT pt.seller_id::text FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                    AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                  )`
-                : sql<string | null>`null`,
-            txBuyerName: hasCompanyFilter
-                ? sql<string | null>`(
-                    SELECT pt.buyer_name FROM property_transactions pt
-                    WHERE pt.property_id = ${properties.id}
-                    AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                    AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
-                    ORDER BY COALESCE(pt.sort_order, 999999) ASC LIMIT 1
-                  )`
-                : sql<string | null>`null`,
+            txInfo: txInfoSql,
         })
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId))
@@ -205,62 +271,70 @@ export async function getMapProperties(
         .execute();
 
     return rawResults
-        .filter((prop: any) => {
-            const lat = prop.latitude
-                ? typeof prop.latitude === 'string'
-                    ? parseFloat(prop.latitude)
-                    : Number(prop.latitude)
-                : null;
-            const lon = prop.longitude
-                ? typeof prop.longitude === 'string'
-                    ? parseFloat(prop.longitude)
-                    : Number(prop.longitude)
-                : null;
-            return lat != null && lon != null && !isNaN(lat) && !isNaN(lon);
-        })
-        .map((prop: any) => {
-            const lat = prop.latitude
-                ? typeof prop.latitude === 'string'
-                    ? parseFloat(prop.latitude)
-                    : Number(prop.latitude)
-                : null;
-            const lon = prop.longitude
-                ? typeof prop.longitude === 'string'
-                    ? parseFloat(prop.longitude)
-                    : Number(prop.longitude)
-                : null;
-            const baths = prop.bathrooms
-                ? typeof prop.bathrooms === 'string'
-                    ? parseFloat(prop.bathrooms)
-                    : Number(prop.bathrooms)
-                : null;
-            const price = prop.price
-                ? typeof prop.price === 'string'
-                    ? parseFloat(prop.price)
-                    : Number(prop.price)
-                : 0;
-            const buyerId = prop.txBuyerId ? String(prop.txBuyerId) : null;
-            const sellerId = prop.txSellerId ? String(prop.txSellerId) : null;
-            const companyIdOut = buyerId || sellerId || null;
+        .map((prop) => {
+            const latitude = toCoord(prop.latitude);
+            const longitude = toCoord(prop.longitude);
+            if (latitude == null || longitude == null) return null;
 
-            return {
+            const tx = prop.txInfo;
+            const buyerId = tx?.buyerId ? String(tx.buyerId) : null;
+            const sellerId = tx?.sellerId ? String(tx.sellerId) : null;
+
+            const pin: MapPropertyData = {
                 id: String(prop.id),
-                latitude: lat,
-                longitude: lon,
-                address: prop.address || '',
-                city: prop.city || '',
-                zipcode: prop.zipcode || '',
-                county: prop.county || '',
-                propertyType: prop.propertyType || '',
-                bedrooms: prop.bedrooms ? Number(prop.bedrooms) : null,
-                bathrooms: baths,
-                price,
-                status: prop.status || '',
+                latitude,
+                longitude,
+                address: prop.address ?? '',
+                city: prop.city ?? '',
+                zipcode: prop.zipcode ?? '',
+                county: prop.county ?? '',
+                propertyType: prop.propertyType ?? '',
+                bedrooms: prop.bedrooms == null ? null : Number(prop.bedrooms),
+                bathrooms: toCoord(prop.bathrooms),
+                price: toCoord(prop.price) ?? 0,
+                status: prop.status ?? '',
                 statuses: Array.isArray(prop.statuses) ? prop.statuses : [],
-                propertyOwner: prop.txBuyerName || null,
-                companyId: companyIdOut,
+                propertyOwner: tx?.buyerName ?? null,
+                companyId: buyerId || sellerId || null,
                 buyerId,
                 sellerId,
             };
-        });
+            return pin;
+        })
+        .filter((pin): pin is MapPropertyData => pin !== null);
+}
+
+/**
+ * Computes the bounding box + count of the qualifying property set (no viewport restriction).
+ * Used to center/zoom the map when filters or the selected company change, without loading every
+ * pin — a single cheap aggregate over the same filters the pin query uses.
+ *
+ * @param filters county/status/date/company filters
+ * @returns the extent of pins with coordinates, or null when none qualify
+ */
+export async function getMapExtent(filters: MapFilters): Promise<MapExtent | null> {
+    const { conditions } = buildMapIdConditions(filters);
+    conditions.push(sql`${addresses.latitude} IS NOT NULL`, sql`${addresses.longitude} IS NOT NULL`);
+
+    const [row] = await db
+        .select({
+            minLat: sql<string | null>`MIN(${addresses.latitude})`,
+            maxLat: sql<string | null>`MAX(${addresses.latitude})`,
+            minLng: sql<string | null>`MIN(${addresses.longitude})`,
+            maxLng: sql<string | null>`MAX(${addresses.longitude})`,
+            count: sql<number>`COUNT(*)::int`,
+        })
+        .from(properties)
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .where(and(...conditions))
+        .execute();
+
+    const minLat = toCoord(row?.minLat ?? null);
+    const maxLat = toCoord(row?.maxLat ?? null);
+    const minLng = toCoord(row?.minLng ?? null);
+    const maxLng = toCoord(row?.maxLng ?? null);
+
+    if (minLat == null || maxLat == null || minLng == null || maxLng == null) return null;
+
+    return { minLat, maxLat, minLng, maxLng, count: Number(row?.count ?? 0) };
 }

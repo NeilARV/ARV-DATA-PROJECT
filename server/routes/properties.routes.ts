@@ -25,7 +25,12 @@ router.get(
 router.post('/', requireRole(ADMIN_ROLES), PropertyController.postProperty);
 
 // Get property data needed to display map pins (latitude, longitude, city, state, etc.)
+// Supports an optional viewport box (south/west/north/east) to return only pins in view.
 router.get('/map', MapsController.getMapData);
+
+// Get the bounding box + count of the current filter/company set (used to center the map
+// without loading every pin). Public, like /map.
+router.get('/map/extent', MapsController.getMapExtent);
 
 // Get property counts grouped by zip code (lightweight; used for zip filter dropdown on all views)
 router.get('/zip-counts', ZipCountsController.getZipCounts);
