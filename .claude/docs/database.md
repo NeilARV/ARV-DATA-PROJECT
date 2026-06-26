@@ -16,6 +16,7 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 - [Deals](#deals)
 - [Vendors & Community](#vendors--community)
 - [Mastermind](#mastermind)
+- [Code Violations](#code-violations)
 
 ---
 
@@ -30,7 +31,7 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | `deal_type` | `wholesale`, `agent`, `sold`, `reo` | deals.schema.ts |
 | `channel_type` | `public`, `private`, `dm`, `group_dm` | mastermind.schema.ts (Phase 1 uses only `public`) |
 | `channel_member_role` | `owner`, `admin`, `member` | mastermind.schema.ts |
-| `notification_type` | `mention`, `channel_mention`, `deal_bid`, `announcement`,  | mastermind.schema.ts |
+| `notification_type` | `mention`, `channel_mention`, `announcement`, `deal_bid`, `direct_message`, `code_violation` | mastermind.schema.ts |
 
 ---
 
@@ -1169,15 +1170,91 @@ or when an investor submits an offer on a deal (`deal_bid` → the deal's poster
 |--------|------|-------------|
 | `id` | `uuid` | PK, default random |
 | `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) — recipient |
-| `type` | `notification_type` enum | NOT NULL — `mention` / `channel_mention` / `deal_bid` / `announcement` |
+| `type` | `notification_type` enum | NOT NULL — `mention` / `channel_mention` / `announcement` / `deal_bid` / `direct_message` / `code_violation` |
 | `channel_id` | `uuid` | FK → `channels.id` (cascade), nullable |
 | `message_id` | `uuid` | FK → `messages.id` (cascade), nullable — deep-link target |
 | `deal_id` | `bigint` | FK → `deals.id` (cascade), nullable — `deal_bid` deep-link target |
-| `metadata` | `jsonb` | nullable — `deal_bid` display payload `{ amount, address }` |
-| `actor_id` | `uuid` | FK → `users.id` (set null), nullable — who triggered it (sender or bidder) |
+| `metadata` | `jsonb` | nullable — type-specific payload (`deal_bid`: `{ amount, address }`; `code_violation`: `{ cvViolationId, propertyId, recordNumber, address, violationType, status }`) |
+| `actor_id` | `uuid` | FK → `users.id` (set null), nullable — who triggered it (sender/bidder; NULL for system `code_violation` alerts) |
 | `is_read` | `boolean` | NOT NULL, default false |
 | `emailed_at` | `timestamp with time zone` | nullable — supports the ≤3/day email cap |
 | `created_at` | `timestamp with time zone` | NOT NULL, default now |
 
 **Indexes:**
 - `idx_notifications_user_read_created` on `(user_id, is_read, created_at DESC)` — bell feed + unread count
+
+---
+
+## Code Violations
+
+City of San Diego code-enforcement complaints, ingested via admin CSV upload, matched to tracked
+properties, and pushed to owning-company users (bell + email). These `cv_` tables are the permanent
+system of record; the notification rows are a disposable projection. Added by the targeted migration
+`scripts/add-code-violation-tables.ts` (not `db:push` — avoids `market_scan_queue` drift).
+
+### `cv_uploads`
+One row per CSV upload — audit trail, the raw file (re-parse without re-download), and the
+processing status the admin screen polls.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `uploaded_by` | `uuid` | FK → `users.id` (set null), nullable |
+| `file_name` | `varchar(255)` | nullable |
+| `raw_csv` | `text` | nullable — uploaded file contents |
+| `row_count` | `integer` | nullable |
+| `matched_count` | `integer` | nullable |
+| `status` | `varchar(20)` | NOT NULL, default `pending` — `pending` / `processing` / `done` / `failed` |
+| `error` | `text` | nullable |
+| `created_at` | `timestamp` | default now |
+| `processed_at` | `timestamp` | nullable |
+
+### `cv_violations`
+One row per complaint, kept permanently, idempotent on `record_number` (overlapping re-uploads
+upsert, never duplicate). The matched property is a direct nullable FK — the matcher yields at most
+one property per violation, so no join table is needed; NULL = unmatched.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `record_number` | `varchar(40)` | NOT NULL, UNIQUE — dedup / upsert key |
+| `record_type` | `varchar(50)` | nullable |
+| `source` | `varchar(30)` | NOT NULL, default `sandiego_accela` |
+| `raw_address` | `text` | nullable |
+| `normalized_address` | `text` | nullable |
+| `street_number` | `varchar(20)` | nullable |
+| `street_name` | `varchar(120)` | nullable |
+| `unit` | `varchar(20)` | nullable |
+| `city` | `varchar(100)` | nullable |
+| `state` | `varchar(2)` | nullable |
+| `zip` | `varchar(10)` | nullable |
+| `application_name` | `text` | nullable |
+| `status` | `varchar(60)` | nullable |
+| `description` | `text` | nullable |
+| `violation_date` | `date` | nullable |
+| `property_id` | `uuid` | FK → `properties.id` (set null), nullable — matched property (NULL = unmatched) |
+| `match_method` | `varchar(20)` | nullable — `exact` / `exact_no_zip` / `fuzzy` |
+| `match_confidence` | `numeric(4,3)` | nullable |
+| `review_status` | `varchar(20)` | NOT NULL, default `pending` — `pending` / `confirmed` / `dismissed` |
+| `first_seen_at` | `timestamp` | default now |
+| `last_seen_at` | `timestamp` | default now |
+| `source_upload_id` | `uuid` | FK → `cv_uploads.id` (set null), nullable |
+
+**Indexes:**
+- `idx_cv_violations_property` on `(property_id)` — per-property violation history
+- `idx_cv_violations_norm_addr` on `(normalized_address)`
+
+### `cv_notifications_sent`
+Idempotency ledger — one row per (violation, user, channel) actually alerted, so overlapping
+re-uploads never re-alert the same user.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | `uuid` | PK, default random |
+| `cv_violation_id` | `uuid` | NOT NULL, FK → `cv_violations.id` (cascade) |
+| `property_id` | `uuid` | NOT NULL — denormalized (no FK); the property at send time |
+| `user_id` | `uuid` | NOT NULL, FK → `users.id` (cascade) |
+| `channel` | `varchar(10)` | NOT NULL — `email` / `in_app` |
+| `sent_at` | `timestamp` | default now |
+
+**Unique:** `(cv_violation_id, user_id, channel)` — the at-most-once alert guarantee.
