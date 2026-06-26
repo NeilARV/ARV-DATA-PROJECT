@@ -1,21 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
-import {
-    Building2,
-    LogOut,
-    Mail,
-    Menu,
-    Moon,
-    Rocket,
-    Settings,
-    Sun,
-    User,
-    X,
-} from 'lucide-react';
+import { LogOut, Mail, Menu, Moon, Rocket, Settings, Sun, User, X } from 'lucide-react';
 
 import { NotificationBell } from '@/components/mastermind/NotificationBell';
-import { btnGhost, btnPrimary, scrollToSection } from '@/components/Home/primitives';
+import { Logo, btnGhost, btnPrimary, scrollToSection } from '@/components/Home/primitives';
 import { useAuth } from '@/hooks/use-auth';
+import { useTheme } from '@/hooks/use-theme';
 import { useToast } from '@/hooks/use-toast';
 
 // Section ids on the marketing home page that the nav links scroll to (see components/Home/*).
@@ -35,13 +25,8 @@ export function MarketingHeader() {
     const [location, setLocation] = useLocation();
     const { isAuthenticated, canAccessAdminPanel, logout } = useAuth();
     const { toast } = useToast();
+    const { isDark, toggleTheme } = useTheme();
 
-    const [isDark, setIsDark] = useState(() => {
-        const storedTheme = localStorage.getItem('theme');
-        if (storedTheme === 'dark') return true;
-        if (storedTheme === 'light') return false;
-        return document.documentElement.classList.contains('dark');
-    });
     const [showMenu, setShowMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,18 +42,6 @@ export function MarketingHeader() {
             return () => document.removeEventListener('mousedown', handleClickOutside);
         }
     }, [showMenu]);
-
-    const toggleTheme = () => {
-        const newIsDark = !isDark;
-        setIsDark(newIsDark);
-        if (newIsDark) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-        }
-    };
 
     // On the home page each nav link scrolls to its section; elsewhere it returns to the home page.
     const onNavLinkClick = (id: string) => {
@@ -94,10 +67,7 @@ export function MarketingHeader() {
                     className="flex items-center gap-2"
                     data-testid="button-marketing-logo"
                 >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                        <Building2 className="h-5 w-5" />
-                    </div>
-                    <span className="text-base font-semibold text-foreground">ARV Finance</span>
+                    <Logo />
                 </button>
 
                 <nav className="hidden items-center gap-1 lg:flex">

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, type LucideIcon } from 'lucide-react';
 
+import { useTheme } from '@/hooks/use-theme';
+import darkLogoUrl from '@assets/arv-data-logo-dark.png';
+import lightLogoUrl from '@assets/arv-data-logo-light.png';
+
 /**
  * Shared presentational primitives for the marketing home page. The page is split into
  * section-per-file components (Hero, Features, …); anything reused across more than one section
@@ -69,6 +73,12 @@ export const pageStyles = `
 `;
 
 // ---- Small presentational helpers ------------------------------------------
+
+/** The ARV Data wordmark logo, auto-swapping between the light/dark variant for the active theme. */
+export function Logo({ className = 'h-12 w-auto' }: { className?: string }) {
+    const { isDark } = useTheme();
+    return <img src={isDark ? lightLogoUrl : darkLogoUrl} alt="ARV Data" className={className} />;
+}
 
 /** A teal-tinted pill used for tags and the hero eyebrow. */
 export function Pill({ children }: { children: React.ReactNode }) {

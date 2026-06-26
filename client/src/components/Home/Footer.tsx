@@ -1,5 +1,6 @@
 import { useLocation } from 'wouter';
-import { Building2 } from 'lucide-react';
+
+import { Logo } from '@/components/Home/primitives';
 
 // Footer link groups. `to` is an internal route; items without one are placeholders (no page yet).
 const groups: { title: string; items: { label: string; to?: string }[] }[] = [
@@ -29,12 +30,7 @@ export function Footer() {
         <footer className="border-t border-border">
             <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-10 px-6 py-12 lg:grid-cols-4">
                 <div className="col-span-2 lg:col-span-1">
-                    <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                            <Building2 className="h-5 w-5" />
-                        </div>
-                        <span className="text-base font-semibold text-foreground">ARV Finance</span>
-                    </div>
+                    <Logo />
                     <p className="mt-3 max-w-xs text-sm text-muted-foreground">
                         Real estate investing intelligence for serious operators.
                     </p>
