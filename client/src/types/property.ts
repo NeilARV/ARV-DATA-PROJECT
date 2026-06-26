@@ -103,3 +103,9 @@ export type MapExtent = {
     maxLng: number;
     count: number;
 };
+
+/** Per-county property count from /api/properties/map/regions (county lower-cased + trimmed). */
+export type RegionCount = {
+    county: string;
+    count: number;
+};

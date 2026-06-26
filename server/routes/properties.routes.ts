@@ -32,6 +32,10 @@ router.get('/map', MapsController.getMapData);
 // without loading every pin). Public, like /map.
 router.get('/map/extent', MapsController.getMapExtent);
 
+// Get property counts grouped by county for the national overview layer (zoomed-out clusters).
+// Public, like /map.
+router.get('/map/regions', MapsController.getRegionCounts);
+
 // Get property counts grouped by zip code (lightweight; used for zip filter dropdown on all views)
 router.get('/zip-counts', ZipCountsController.getZipCounts);
 

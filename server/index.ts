@@ -62,7 +62,7 @@ if (!process.env.SESSION_SECRET) {
         serveStatic(app);
     }
 
-    const port = parseInt(process.env.PORT || '5001', 10);
+    const port = parseInt(process.env.PORT || '5000', 10);
     const isProduction = process.env.NODE_ENV === 'production';
     const host = isProduction ? '0.0.0.0' : '127.0.0.1';
 

@@ -8,6 +8,11 @@ import type { MapBoundsParams } from '@/types/property';
 export type BuildPropertyQueryParamsOptions = {
     /** When true, only county and status filters are included (for map pins endpoint). */
     forMapPins?: boolean;
+    /**
+     * When true, only status + date are included (for the cross-region overview endpoint, which
+     * ignores county/company/location so every region is counted). Takes precedence over forMapPins.
+     */
+    forRegions?: boolean;
     /** Viewport box appended to the map pins request (forMapPins only); omit to fetch unbounded. */
     bounds?: MapBoundsParams;
     /** When true, append hasDateSold=true (for buyers feed). */
@@ -25,6 +30,7 @@ export type BuildPropertyQueryParamsContext = {
  * Builds query string for properties API from filters and options.
  * Returns "" when no params, or "?key=value&..." when there are params.
  * Use forMapPins for /api/properties/map (county + status only).
+ * Use forRegions for /api/properties/map/regions (status + date only).
  * Use hasDateSold for buyers feed.
  */
 export function buildPropertyQueryParams(
@@ -32,19 +38,31 @@ export function buildPropertyQueryParams(
     options: BuildPropertyQueryParamsOptions,
     context: BuildPropertyQueryParamsContext,
 ): string {
-    const { forMapPins = false, bounds, hasDateSold = false, page, limit } = options;
+    const { forMapPins = false, forRegions = false, bounds, hasDateSold = false, page, limit } =
+        options;
 
     const { company, sortBy } = context;
 
     const params = new URLSearchParams();
+
+    // Status filters (effective list includes wholesale when in-renovation selected and no company)
+    const effectiveStatuses = getEffectiveStatusFilters(filters, company?.id ?? null);
+
+    // Region overview: status + date only (cross-region — county/company/location are ignored).
+    if (forRegions) {
+        effectiveStatuses.forEach((status) => params.append('status', status));
+        if (filters.dateRange) {
+            params.append('dateRange', filters.dateRange);
+        }
+        const queryString = params.toString();
+        return queryString ? `?${queryString}` : '';
+    }
 
     // County filter
     if (filters.county) {
         params.append('county', filters.county);
     }
 
-    // Status filters (effective list includes wholesale when in-renovation selected and no company)
-    const effectiveStatuses = getEffectiveStatusFilters(filters, company?.id ?? null);
     effectiveStatuses.forEach((status) => params.append('status', status));
 
     // Map pins: county + status + location + company (so the server returns only matching pins)

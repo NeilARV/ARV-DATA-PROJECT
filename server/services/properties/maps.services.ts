@@ -8,6 +8,7 @@ import {
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
+import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 
 interface MapPropertyData {
     id: string;
@@ -46,6 +47,12 @@ export interface MapExtent {
     count: number;
 }
 
+/** Per-county property count (county lower-cased + trimmed) for the national overview layer. */
+export interface RegionCount {
+    county: string;
+    count: number;
+}
+
 /** Shared filters that resolve which properties qualify (county/status/date/company/location). */
 interface MapFilters {
     county?: string;
@@ -55,7 +62,7 @@ interface MapFilters {
     companyRole?: string;
     /** Exact zip-code match (addresses.zip_code). */
     zipcode?: string;
-    /** City filter; San Diego / Los Angeles match by prefix (mirrors the client's cityMatchesFilter). */
+    /** City filter; PREFIX_MATCH_CITIES match by prefix (mirrors the client's cityMatchesFilter). */
     city?: string;
 }
 
@@ -100,11 +107,10 @@ function buildMapIdConditions(
 
     if (city && city.trim() !== '') {
         const normalizedCity = city.trim().toLowerCase();
-        // San Diego / Los Angeles span many city-name variants — match by prefix, like the client.
-        if (normalizedCity === 'san diego') {
-            conditions.push(sql`LOWER(${addresses.city}) LIKE 'san diego%'`);
-        } else if (normalizedCity === 'los angeles') {
-            conditions.push(sql`LOWER(${addresses.city}) LIKE 'los angeles%'`);
+        // Prefix-match metros (PREFIX_MATCH_CITIES) span many city-name variants — match by prefix,
+        // like the client's cityMatchesFilter; everything else is an exact match.
+        if (isPrefixMatchCity(normalizedCity)) {
+            conditions.push(sql`LOWER(${addresses.city}) LIKE ${`${normalizedCity}%`}`);
         } else {
             conditions.push(sql`LOWER(TRIM(${addresses.city})) = ${normalizedCity}`);
         }
@@ -337,4 +343,36 @@ export async function getMapExtent(filters: MapFilters): Promise<MapExtent | nul
     if (minLat == null || maxLat == null || minLng == null || maxLng == null) return null;
 
     return { minLat, maxLat, minLng, maxLng, count: Number(row?.count ?? 0) };
+}
+
+/**
+ * Property counts grouped by county for the national overview layer. Deliberately cross-region:
+ * it ignores county/company/location filters (so every region shows) but respects status + date so
+ * the overview stays consistent with the zoomed-in view. Cheap aggregate — no pin data is returned.
+ *
+ * @param filters status + date filters only (county/company/location are intentionally ignored)
+ * @returns one row per county (lower-cased, trimmed) that has properties with coordinates
+ */
+export async function getRegionCounts(
+    filters: Pick<MapFilters, 'statusFilter' | 'dateRange'>,
+): Promise<RegionCount[]> {
+    const { conditions } = buildMapIdConditions({
+        statusFilter: filters.statusFilter,
+        dateRange: filters.dateRange,
+    });
+    conditions.push(sql`${addresses.latitude} IS NOT NULL`, sql`${addresses.longitude} IS NOT NULL`);
+
+    const countyExpr = sql<string>`LOWER(TRIM(COALESCE(${properties.county}, ${addresses.county})))`;
+
+    const rows = await db
+        .select({ county: countyExpr, count: sql<number>`COUNT(*)::int` })
+        .from(properties)
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .where(and(...conditions))
+        .groupBy(countyExpr)
+        .execute();
+
+    return rows
+        .filter((r) => r.county != null && r.county !== '')
+        .map((r) => ({ county: r.county, count: Number(r.count) }));
 }

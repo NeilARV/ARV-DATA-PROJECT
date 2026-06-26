@@ -1,41 +1,67 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, MousePointerClick } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MapLegend } from '@/components/data/property/MapLegend';
 import { useFilters } from '@/hooks/useFilters';
 import { useCompanies } from '@/hooks/useCompanies';
-import { useGeoMap } from '@/hooks/useMap';
+import { useGeoMap, type MsaRegionBubble } from '@/hooks/useMap';
 import { useProperty } from '@/hooks/useProperty';
 import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
-import { MAP_ZOOM_COUNTY } from '@/constants/map.constants';
+import {
+    MAP_ZOOM_COUNTY,
+    MAP_ZOOM_FLOOR,
+    MAP_ZOOM_MAX,
+    OVERVIEW_MAX_ZOOM,
+    MAP_DECLUSTER_ZOOM,
+} from '@/constants/map.constants';
 import { PIN_COLORS } from '@/constants/mapPins.constants';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import type { MapPin, MapBoundsParams } from '@/types/property';
 
-const createColoredIcon = (color: string) => {
-    const svgIcon = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="25" height="41">
-      <path fill="${color}" stroke="#333" stroke-width="1" d="M12 0C5.4 0 0 5.4 0 12c0 7.2 12 24 12 24s12-16.8 12-24c0-6.6-5.4-12-12-12z"/>
-      <circle fill="#fff" cx="12" cy="12" r="5"/>
-    </svg>
-  `;
-    return new L.Icon({
-        iconUrl: `data:image/svg+xml;base64,${btoa(svgIcon)}`,
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        tooltipAnchor: [0, -41],
+// ── Marker / cluster sizing tuning (px diameters & radii, plus the breakpoints that pick them) ──
+
+/** Status-dot diameter (px); the selected pin is enlarged to stand out. */
+const DOT_DIAMETER = { default: 14, selected: 18 } as const;
+/** Status-dot white-ring width (px). */
+const DOT_BORDER = { default: 2, selected: 3 } as const;
+
+/** Cluster grouping radius (px) at each zoom tier — wider when zoomed out so nearby pins merge. */
+const CLUSTER_RADIUS = { far: 80, mid: 55, near: 35 } as const;
+/** Upper zoom bound for each cluster-radius tier (above `mid`, the `near` radius applies). */
+const CLUSTER_ZOOM = { far: 10, mid: 12 } as const;
+
+/** Overview count-bubble radius (px) by tier, and the property-count thresholds that pick it. */
+const REGION_BUBBLE = { small: 20, medium: 25, large: 30 } as const;
+const REGION_COUNT = { small: 50, large: 500 } as const;
+/** Overview count-bubble font size (px) below / at-or-above REGION_COUNT.large. */
+const REGION_FONT = { small: 12, large: 13 } as const;
+/** Radius (px) of the center dot a leader line points back to. */
+const REGION_DOT_RADIUS = 3;
+
+// Compact status dots centered on the exact location — far less cluttered than teardrop pins at
+// high density, and they don't sit above (and hide) the point they mark.
+const createDotIcon = (color: string, isSelected = false) => {
+    const size = isSelected ? DOT_DIAMETER.selected : DOT_DIAMETER.default;
+    const border = isSelected ? DOT_BORDER.selected : DOT_BORDER.default;
+    // White ring + dark outer halo + soft drop shadow so dots read clearly over Voyager's color.
+    return L.divIcon({
+        className: '',
+        html: `<span style="display:block;width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:${border}px solid #ffffff;box-shadow:0 0 0 1.5px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.4);"></span>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        tooltipAnchor: [0, -(size / 2)],
     });
 };
 
-const inRenovationIcon = createColoredIcon(PIN_COLORS.inRenovation);
-const onMarketIcon = createColoredIcon(PIN_COLORS.onMarket);
-const soldIcon = createColoredIcon(PIN_COLORS.sold);
-const wholesaleIcon = createColoredIcon(PIN_COLORS.wholesale);
-const selectedIcon = createColoredIcon(PIN_COLORS.selected);
+const inRenovationIcon = createDotIcon(PIN_COLORS.inRenovation);
+const onMarketIcon = createDotIcon(PIN_COLORS.onMarket);
+const soldIcon = createDotIcon(PIN_COLORS.sold);
+const wholesaleIcon = createDotIcon(PIN_COLORS.wholesale);
+const selectedIcon = createDotIcon(PIN_COLORS.selected, true);
 
 const STATUS_LABELS: Record<string, string> = {
     'in-renovation': 'In Renovation',
@@ -155,6 +181,65 @@ function createClusterIcon(cluster: ClusterLike): L.DivIcon {
 }
 
 /**
+ * Cluster grouping radius (px) by zoom. Larger when zoomed out so nearby markers merge into a few
+ * meaningful donuts instead of many tiny 2–3 clusters; smaller as you zoom in so they split. Past
+ * disableClusteringAtZoom, clustering is off entirely (all individual dots).
+ */
+function clusterRadiusForZoom(zoom: number): number {
+    if (zoom <= CLUSTER_ZOOM.far) return CLUSTER_RADIUS.far;
+    if (zoom <= CLUSTER_ZOOM.mid) return CLUSTER_RADIUS.mid;
+    return CLUSTER_RADIUS.near;
+}
+
+/**
+ * Builds a national-overview callout for one MSA: a small dot at the true region center, a
+ * diagonal-then-horizontal leader line, and a hollow count bubble offset toward open space/water.
+ * With no offset it renders just the hollow bubble on the center (no leader).
+ */
+function createRegionIcon(count: number, offset: [number, number] = [0, 0]): L.DivIcon {
+    const [dx, dy] = offset;
+    const hasLeader = dx !== 0 || dy !== 0;
+    const rb =
+        count < REGION_COUNT.small
+            ? REGION_BUBBLE.small
+            : count < REGION_COUNT.large
+              ? REGION_BUBBLE.medium
+              : REGION_BUBBLE.large; // bubble radius
+    const rd = REGION_DOT_RADIUS; // center-dot radius
+    const fontSize = count < REGION_COUNT.large ? REGION_FONT.small : REGION_FONT.large;
+
+    // Bounds covering the center dot (0,0) and the offset bubble (dx,dy) ± radius.
+    const pad = 3;
+    const minX = Math.min(0, dx - rb) - pad;
+    const minY = Math.min(0, dy - rb) - pad;
+    const maxX = Math.max(0, dx + rb) + pad;
+    const maxY = Math.max(0, dy + rb) + pad;
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    // Leader: dot → elbow (diagonal) → bubble (horizontal at the bubble's y).
+    const leader = hasLeader
+        ? `<polyline points="0,0 ${dx * 0.5},${dy} ${dx},${dy}" style="fill:none;stroke:hsl(var(--primary));stroke-width:1.5" />
+           <circle cx="0" cy="0" r="${rd}" style="fill:hsl(var(--primary))" />`
+        : '';
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}" style="overflow:visible;cursor:pointer">
+        ${leader}
+        <circle cx="${dx}" cy="${dy}" r="${rb}" style="fill:hsl(var(--background));fill-opacity:0.9;stroke:hsl(var(--primary));stroke-width:2" />
+        <text x="${dx}" y="${dy}" text-anchor="middle" dominant-baseline="central" style="fill:hsl(var(--primary));font-family:var(--font-sans);font-size:${fontSize}px;font-weight:600">${count.toLocaleString()}</text>
+      </svg>`;
+
+    return L.divIcon({
+        html: svg,
+        className: '',
+        iconSize: [width, height],
+        iconAnchor: [-minX, -minY],
+        tooltipAnchor: [dx, dy - rb - 2],
+    });
+}
+
+/**
  * Reads the viewport as bounds params, padded by 30% (so a margin around the view is fetched) and
  * rounded (so small pans/zooms produce the same box → no needless refetch).
  */
@@ -170,8 +255,8 @@ function toBoundsParams(map: L.Map): MapBoundsParams {
 }
 
 /**
- * Reports the viewport box to the parent on mount and on (debounced) pan/zoom, so only the pins in
- * view are fetched.
+ * Reports the viewport box (debounced) on mount and on pan/zoom, so only the pins in view are
+ * fetched.
  */
 function ViewportWatcher({ onBoundsChange }: { onBoundsChange: (bounds: MapBoundsParams) => void }) {
     const map = useMap();
@@ -188,6 +273,27 @@ function ViewportWatcher({ onBoundsChange }: { onBoundsChange: (bounds: MapBound
         moveend: () => {
             if (timerRef.current) clearTimeout(timerRef.current);
             timerRef.current = setTimeout(() => onBoundsChange(toBoundsParams(map)), 300);
+        },
+    });
+
+    return null;
+}
+
+/**
+ * Enforces the overview gate: while no region is selected, caps zoom-in at the overview breakpoint
+ * so the user must pick a region to go deeper. When a region is locked, zoom is unlocked. Zooming
+ * back out past the breakpoint releases the lock (back to the overview).
+ */
+function ZoomLockController({ locked, onUnlock }: { locked: boolean; onUnlock: () => void }) {
+    const map = useMap();
+
+    useEffect(() => {
+        map.setMaxZoom(locked ? MAP_ZOOM_MAX : OVERVIEW_MAX_ZOOM - 1);
+    }, [locked, map]);
+
+    useMapEvents({
+        zoomend: () => {
+            if (locked && map.getZoom() < OVERVIEW_MAX_ZOOM) onUnlock();
         },
     });
 
@@ -246,28 +352,23 @@ type RenderPin = { pin: MapPin; position: [number, number] };
  * color legend, hover tooltips, and loading/empty states.
  */
 export default function PropertyMap() {
-    const { filters, clearFilters, hasActiveFilters } = useFilters();
+    const { filters, setFilters, clearFilters, hasActiveFilters } = useFilters();
     const { fetchProperty, property } = useProperty();
     const { company, setCompany } = useCompanies();
     const {
         filteredMapPins = [],
         isLoadingMapPins = false,
         extent,
+        regionBubbles = [],
+        isOverview = false,
         mapCenter,
         mapZoom,
         setMapBounds,
+        setMapCenter,
+        setMapZoom,
+        isRegionLocked = true,
+        setRegionLocked,
     } = useGeoMap({ fetchMapPins: true });
-
-    // Theme-aware basemap: track the `dark` class on <html> so tiles match the app theme.
-    const [isDark, setIsDark] = useState(() =>
-        document.documentElement.classList.contains('dark'),
-    );
-    useEffect(() => {
-        const el = document.documentElement;
-        const observer = new MutationObserver(() => setIsDark(el.classList.contains('dark')));
-        observer.observe(el, { attributes: true, attributeFilter: ['class'] });
-        return () => observer.disconnect();
-    }, []);
 
     const renderPins = useMemo<RenderPin[]>(() => {
         return filteredMapPins
@@ -286,15 +387,31 @@ export default function PropertyMap() {
         mapCenter ?? getCountyCenter(filters.county ?? 'San Diego') ?? getDefaultMapCenter();
     const initialZoom = mapZoom ?? MAP_ZOOM_COUNTY;
 
-    const tileUrl = isDark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    const tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    const tileAttribution =
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
     const hasAnyMatches = (extent?.count ?? 0) > 0;
-    const showEmptyState = !isLoadingMapPins && renderPins.length === 0;
+    const showEmptyState = !isOverview && !isLoadingMapPins && renderPins.length === 0;
     const emptyMessage = hasAnyMatches
         ? 'No properties in this area — zoom out or pan the map.'
         : 'No properties match your filters.';
+
+    // Clicking a national-overview bubble locks into that metro: switches the county filter, unlocks
+    // detail zoom, and drops the camera onto the region (the extent then frames its properties).
+    function handleRegionClick(region: MsaRegionBubble) {
+        setCompany(null);
+        setFilters((prev) => ({
+            ...prev,
+            county: region.county,
+            zipCode: '',
+            city: undefined,
+            companyRole: undefined,
+        }));
+        setRegionLocked(true);
+        setMapCenter(region.center);
+        setMapZoom(MAP_ZOOM_COUNTY);
+    }
 
     return (
         <div className="w-full h-full relative" data-testid="map-container">
@@ -342,70 +459,107 @@ export default function PropertyMap() {
                 </div>
             )}
 
+            {isOverview && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-2 rounded-md border border-border bg-background/95 px-4 py-2 text-sm font-semibold text-foreground shadow-lg backdrop-blur-sm pointer-events-none">
+                    <MousePointerClick className="w-4 h-4 text-primary" />
+                    Select a region to dive deeper
+                </div>
+            )}
+
             <MapContainer
                 center={initialCenter}
                 zoom={initialZoom}
+                minZoom={MAP_ZOOM_FLOOR}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom={true}
             >
                 <TileLayer
-                    key={isDark ? 'dark' : 'light'}
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                    attribution={tileAttribution}
                     url={tileUrl}
-                    subdomains="abcd"
+                    subdomains="abc"
                     detectRetina
                 />
                 <MapResizeHandler />
                 <ViewportWatcher onBoundsChange={setMapBounds} />
+                <ZoomLockController
+                    locked={isRegionLocked}
+                    onUnlock={() => setRegionLocked(false)}
+                />
                 <CameraController center={mapCenter} zoom={mapZoom} />
-                <MarkerClusterGroup
-                    chunkedLoading
-                    maxClusterRadius={50}
-                    showCoverageOnHover={false}
-                    iconCreateFunction={createClusterIcon}
-                >
-                    {renderPins.map(({ pin, position }) => {
-                        const isSelected = property?.id === pin.id;
-                        return (
-                            <Marker
-                                key={pin.id}
-                                position={position}
-                                icon={getIconForPin(
-                                    pin,
-                                    isSelected,
-                                    company?.id ?? null,
-                                    filters.statusFilters,
-                                )}
-                                eventHandlers={{ click: () => fetchProperty?.(pin.id) }}
-                            >
-                                <Tooltip direction="top">
-                                    <div className="text-xs">
-                                        <div className="font-semibold">
-                                            {pin.address || 'Address unavailable'}
-                                        </div>
-                                        {(pin.city || pin.zipcode) && (
-                                            <div className="text-muted-foreground">
-                                                {[pin.city, pin.zipcode].filter(Boolean).join(', ')}
-                                            </div>
-                                        )}
-                                        <div>
-                                            {statusLabel(pin.status)}
-                                            {pin.price > 0 && ` · $${pin.price.toLocaleString()}`}
-                                        </div>
-                                        {pin.propertyOwner && (
-                                            <div className="text-muted-foreground">
-                                                {formatCompanyName(pin.propertyOwner)}
-                                            </div>
-                                        )}
-                                    </div>
-                                </Tooltip>
-                            </Marker>
-                        );
-                    })}
-                </MarkerClusterGroup>
+
+                {isOverview
+                    ? regionBubbles.map((region) => (
+                          <Marker
+                              key={region.msa}
+                              position={region.center}
+                              icon={createRegionIcon(region.count, region.offset)}
+                              eventHandlers={{ click: () => handleRegionClick(region) }}
+                          >
+                              <Tooltip direction="top">
+                                  <div className="text-xs">
+                                      <div className="font-semibold">{region.label}</div>
+                                      <div className="text-muted-foreground">
+                                          {region.count.toLocaleString()} properties — click to view
+                                      </div>
+                                  </div>
+                              </Tooltip>
+                          </Marker>
+                      ))
+                    : (
+                          <MarkerClusterGroup
+                              chunkedLoading
+                              maxClusterRadius={clusterRadiusForZoom}
+                              showCoverageOnHover={false}
+                              disableClusteringAtZoom={MAP_DECLUSTER_ZOOM}
+                              spiderfyOnMaxZoom
+                              iconCreateFunction={createClusterIcon}
+                          >
+                              {renderPins.map(({ pin, position }) => {
+                                  const isSelected = property?.id === pin.id;
+                                  return (
+                                      <Marker
+                                          key={pin.id}
+                                          position={position}
+                                          icon={getIconForPin(
+                                              pin,
+                                              isSelected,
+                                              company?.id ?? null,
+                                              filters.statusFilters,
+                                          )}
+                                          eventHandlers={{ click: () => fetchProperty?.(pin.id) }}
+                                      >
+                                          <Tooltip direction="top">
+                                              <div className="text-xs">
+                                                  <div className="font-semibold">
+                                                      {pin.address || 'Address unavailable'}
+                                                  </div>
+                                                  {(pin.city || pin.zipcode) && (
+                                                      <div className="text-muted-foreground">
+                                                          {[pin.city, pin.zipcode]
+                                                              .filter(Boolean)
+                                                              .join(', ')}
+                                                      </div>
+                                                  )}
+                                                  <div>
+                                                      {statusLabel(pin.status)}
+                                                      {pin.price > 0 &&
+                                                          ` · $${pin.price.toLocaleString()}`}
+                                                  </div>
+                                                  {pin.propertyOwner && (
+                                                      <div className="text-muted-foreground">
+                                                          {formatCompanyName(pin.propertyOwner)}
+                                                      </div>
+                                                  )}
+                                              </div>
+                                          </Tooltip>
+                                      </Marker>
+                                  );
+                              })}
+                          </MarkerClusterGroup>
+                      )}
             </MapContainer>
 
-            <MapLegend />
+            {!isOverview && <MapLegend />}
         </div>
     );
 }

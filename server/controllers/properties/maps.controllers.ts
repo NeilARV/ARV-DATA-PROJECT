@@ -77,3 +77,18 @@ export async function getMapExtent(req: Request, res: Response): Promise<void> {
         res.status(500).json({ message: 'Error fetching map extent' });
     }
 }
+
+/**
+ * GET /api/properties/map/regions — property counts grouped by county for the national overview
+ * layer (respects status + date; ignores county/company/location so every region is shown).
+ */
+export async function getRegionCounts(req: Request, res: Response): Promise<void> {
+    try {
+        const { statusFilter, dateRange } = parseMapFilters(req);
+        const regions = await MapServices.getRegionCounts({ statusFilter, dateRange });
+        res.status(200).json(regions);
+    } catch (error) {
+        console.error('Error fetching region counts:', error);
+        res.status(500).json({ message: 'Error fetching region counts' });
+    }
+}

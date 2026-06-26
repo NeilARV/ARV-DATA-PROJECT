@@ -619,6 +619,17 @@ Bounding box + count of the qualifying set for the current filters/company, used
 
 ---
 
+### `GET /api/properties/map/regions`
+Property counts grouped by county for the national overview layer (the zoomed-out MSA bubbles). Cross-region by design — ignores county/company/location filters so every region is represented, but respects status + date so the overview matches the zoomed-in view. No pin data is returned.
+
+**Auth**: Public
+
+**Query params**: `status` (repeatable), `dateRange`
+
+**Response `200`** `[{ county: "san diego", count: 707 }]` — county is lower-cased + trimmed; the client sums these into per-MSA bubbles.
+
+---
+
 ### `GET /api/properties/zip-counts`
 Property counts grouped by zip code. Used to populate filter dropdowns.
 
