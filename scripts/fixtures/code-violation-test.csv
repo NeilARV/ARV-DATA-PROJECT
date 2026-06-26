@@ -1,0 +1,4 @@
+"Date","Record Number","Record Type","Address","Application Name","Status","Description",
+"06/26/2026","CV-TEST-0001","Complaint","1 Test St, San Diego CA 92101 United States","Building-Unpermitted Work","New","TEST violation for the synthetic ARV test property. Should match the seeded property and notify its owner.",
+"06/26/2026","CV-TEST-9001","Complaint","99999 Nowhere St, San Diego CA 92101 United States","Noise-Barking Dogs","New","TEST unmatched row — no such property in our DB (coverage demo).",
+"06/25/2026","CV-TEST-9002","Complaint","88888 Imaginary Ave, San Diego CA 92102 United States","Zoning-Fence Violation","New","TEST unmatched row — coverage demo.",

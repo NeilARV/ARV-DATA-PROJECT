@@ -400,6 +400,62 @@ Remove an entry from the subscription whitelist.
 
 ---
 
+### `POST /api/admin/code-violations/uploads`
+Upload a City of San Diego Accela "Code Enforcement" CSV. Stored as a pending batch; the
+response returns immediately while processing runs off the request thread (parse → match →
+auto-notify confident matches).
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body**: `multipart/form-data` with a single `file` field (CSV, ≤ 2 MB)
+
+**Response `202`** `{ "uploadId": "uuid" }`
+
+**Errors** `400` no file / wrong type / too large · `401` unauthenticated · `403` not admin/owner
+
+---
+
+### `GET /api/admin/code-violations/uploads/:id`
+Poll one upload's processing status and summary.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — uuid upload ID
+
+**Response `200`**
+```json
+{
+  "upload": {
+    "id": "uuid",
+    "fileName": "code-enforcement.csv",
+    "status": "pending | processing | done | failed",
+    "rowCount": 307,
+    "matchedCount": 1,
+    "error": null,
+    "createdAt": "2026-06-26T12:00:00.000Z",
+    "processedAt": "2026-06-26T12:00:03.000Z"
+  }
+}
+```
+
+**Errors** `400` invalid id · `404` upload not found
+
+---
+
+### `GET /api/admin/code-violations/uploads/:id/violations`
+The violations from one upload, enriched with match method, owning company, recipient count,
+and notify state — the review list.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — uuid upload ID
+
+**Response `200`** `{ "violations": [ { "id": "uuid", "recordNumber": "CE-0542079", "rawAddress": "…", "violationDate": "2026-06-26", "applicationName": "…", "status": "New", "matchMethod": "exact | exact_no_zip | fuzzy | null", "matchConfidence": "1.000", "reviewStatus": "confirmed | pending | dismissed", "propertyId": "uuid | null", "matchedAddress": "…", "ownerCompany": "Formatted Name | null", "recipientCount": 1, "notified": true } ] }`
+
+**Errors** `400` invalid id
+
+---
+
 ## 3. Users `/api/users`
 
 ### `GET /api/users`

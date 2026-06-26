@@ -33,6 +33,8 @@ export const notificationTypeEnum = pgEnum('notification_type', [
     'announcement',
     'deal_bid',
     'direct_message',
+    // System alert (no human actor) for a matched code violation — see codeViolations.
+    'code_violation',
 ]);
 
 // ─── Channels ─────────────────────────────────────────────────────────────────
@@ -215,8 +217,19 @@ export const notifications = pgTable(
         dealId: bigint('deal_id', { mode: 'number' }).references(() => deals.id, {
             onDelete: 'cascade',
         }),
-        // Type-specific display payload denormalized at creation (e.g. deal_bid: { amount, address }).
-        metadata: jsonb('metadata').$type<{ amount: string; address: string }>(),
+        // Type-specific display payload denormalized at creation. Union by notification type:
+        // deal_bid → { amount, address }; code_violation → the cv_ alert payload (no human actor).
+        metadata: jsonb('metadata').$type<
+            | { amount: string; address: string }
+            | {
+                  cvViolationId: string;
+                  propertyId: string;
+                  recordNumber: string;
+                  address: string;
+                  violationType: string | null;
+                  status: string | null;
+              }
+        >(),
         actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }), // who triggered it
         isRead: boolean('is_read').notNull().default(false),
         emailedAt: timestamp('emailed_at', { withTimezone: true }), // supports the ≤3/day email cap

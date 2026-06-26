@@ -16,6 +16,8 @@
         "db:migrate": "drizzle-kit migrate",
         "db:seed": "tsx database/seed.ts",
         "db:push": "drizzle-kit push",
+        "migrate:code-violation": "tsx scripts/add-code-violation-tables.ts",
+        "seed:code-violation-test": "tsx scripts/seed-code-violation-test.ts",
         "seed:sort-order": "tsx scripts/seed-sort-order.ts",
         "reset:one-user": "tsx scripts/reset-one-user.ts",
         "backfill:reo": "tsx scripts/backfill-reo-deal-filter.ts",

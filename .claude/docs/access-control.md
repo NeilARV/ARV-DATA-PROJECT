@@ -315,6 +315,14 @@ All public — no auth required.
 | POST | `/api/admin/whitelist` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
 | PATCH | `/api/admin/whitelist/:id` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
 | DELETE | `/api/admin/whitelist/:id` | `requireRole(["admin","owner","relationship-manager"])` | 401 | 403 | ✓ | ✓ |
+| POST | `/api/admin/code-violations/uploads` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| GET | `/api/admin/code-violations/uploads/:id` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+| GET | `/api/admin/code-violations/uploads/:id/violations` | `requireRole(["admin","owner"])` | 401 | 403 | 403 | ✓ |
+
+> **Code violations** (`ADMIN_ROLES` = admin/owner only): upload an Accela CSV, poll its
+> processing status, and read the enriched review list. Processing matches each row to a
+> property and, for confident matches, auto-notifies the owning company's users (bell +
+> email). See `api.md` for request/response shapes.
 
 ---
 

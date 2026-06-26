@@ -10,7 +10,20 @@ import { useNotifications } from '@/hooks/use-notifications';
 
 import { getAvatarColor } from '@/utils/avatar';
 
-import type { NotificationWire } from '@shared/mastermind/events';
+import type {
+    NotificationWire,
+    NotificationMetadata,
+    DealBidNotificationMetadata,
+    CodeViolationNotificationMetadata,
+} from '@shared/mastermind/events';
+
+// metadata is a union keyed by notification type; narrow before reading type-specific fields.
+function isDealBidMeta(m: NotificationMetadata | null): m is DealBidNotificationMetadata {
+    return m != null && 'amount' in m;
+}
+function isCodeViolationMeta(m: NotificationMetadata | null): m is CodeViolationNotificationMetadata {
+    return m != null && 'cvViolationId' in m;
+}
 
 // Cap the dropdown at the 10 most recent; matches the server feed limit and guards against
 // real-time pushes growing the in-memory list beyond what we want to display.
@@ -29,10 +42,15 @@ function formatRelativeTime(iso: string): string {
 }
 
 function notificationText(n: NotificationWire): string {
+    if (n.type === 'code_violation') {
+        const address = isCodeViolationMeta(n.metadata) ? n.metadata.address : '';
+        return address ? `Code violation reported at ${address}` : 'Code violation reported';
+    }
     if (n.type === 'deal_bid') {
-        const amount = n.metadata?.amount
-            ? `$${Number(n.metadata.amount).toLocaleString()}`
-            : 'an offer';
+        const amount =
+            isDealBidMeta(n.metadata) && n.metadata.amount
+                ? `$${Number(n.metadata.amount).toLocaleString()}`
+                : 'an offer';
         return `submitted an offer of ${amount}`;
     }
     if (n.type === 'direct_message') return 'sent you a message';
@@ -43,9 +61,16 @@ function notificationText(n: NotificationWire): string {
         : `mentioned you in ${channel}`;
 }
 
-// Secondary line under the actor row: the deal address for offers, else the message excerpt.
+// Secondary line under the actor row: the deal address for offers, the violation type for
+// a code violation, else the message excerpt.
 function notificationDetail(n: NotificationWire): string {
-    return n.type === 'deal_bid' ? (n.metadata?.address ?? '') : n.messageExcerpt;
+    if (n.type === 'code_violation') {
+        return isCodeViolationMeta(n.metadata) ? (n.metadata.violationType ?? '') : '';
+    }
+    if (n.type === 'deal_bid') {
+        return isDealBidMeta(n.metadata) ? (n.metadata.address ?? '') : '';
+    }
+    return n.messageExcerpt;
 }
 
 export function NotificationBell() {
@@ -71,6 +96,12 @@ export function NotificationBell() {
     function handleNotificationClick(n: NotificationWire) {
         if (!n.isRead) markRead(n.id);
         setOpen(false);
+        if (n.type === 'code_violation') {
+            if (isCodeViolationMeta(n.metadata)) {
+                setLocation(`/data?propertyId=${n.metadata.propertyId}`);
+            }
+            return;
+        }
         if (n.type === 'deal_bid' && n.dealId != null) {
             setLocation(`/deals?dealId=${n.dealId}`);
             return;
@@ -191,6 +222,9 @@ type NotificationItemProps = {
 
 function NotificationItem({ notification, onClick }: NotificationItemProps) {
     const { actorId, actorFirstName, actorLastName, actorProfileImageUrl } = notification;
+    // A code violation is a system alert with no human actor — render an alert glyph and
+    // drop the "{name} did X" framing the other types use.
+    const isCodeViolation = notification.type === 'code_violation';
     const actorName =
         actorFirstName || actorLastName
             ? `${actorFirstName ?? ''} ${actorLastName ?? ''}`.trim()
@@ -205,7 +239,11 @@ function NotificationItem({ notification, onClick }: NotificationItemProps) {
             onClick={onClick}
             className="w-full text-left px-3 py-2 flex items-start gap-2.5 hover:bg-accent transition-colors"
         >
-            {actorProfileImageUrl ? (
+            {isCodeViolation ? (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-destructive/10 text-destructive flex-shrink-0 mt-0.5">
+                    <AlertTriangle className="w-4 h-4" />
+                </div>
+            ) : actorProfileImageUrl ? (
                 <img
                     src={actorProfileImageUrl}
                     alt={actorName}
@@ -222,8 +260,14 @@ function NotificationItem({ notification, onClick }: NotificationItemProps) {
 
             <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground">
-                    <span className="font-semibold">{actorName}</span>{' '}
-                    {notificationText(notification)}
+                    {isCodeViolation ? (
+                        <span className="font-semibold">{notificationText(notification)}</span>
+                    ) : (
+                        <>
+                            <span className="font-semibold">{actorName}</span>{' '}
+                            {notificationText(notification)}
+                        </>
+                    )}
                 </p>
                 {detail && (
                     <p className="text-sm text-muted-foreground truncate">{detail}</p>

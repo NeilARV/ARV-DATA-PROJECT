@@ -4,7 +4,7 @@ import { users } from '@database/schemas/users.schema';
 import { listEligibleUserIds, listAdminOwnerUserIds } from 'server/services/channels/channels.services';
 import { htmlToPlainText } from 'server/utils/sanitizeHtml';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
-import type { DealBidNotificationMetadata } from '@shared/mastermind/events';
+import type { DealBidNotificationMetadata, NotificationMetadata } from '@shared/mastermind/events';
 
 export class NotificationServiceError extends Error {
     constructor(
@@ -21,13 +21,19 @@ const EXCERPT_MAX_LENGTH = 120;
 
 type EnrichedNotification = {
     id: string;
-    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid' | 'direct_message';
+    type:
+        | 'mention'
+        | 'channel_mention'
+        | 'announcement'
+        | 'deal_bid'
+        | 'direct_message'
+        | 'code_violation';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
     messageExcerpt: string;
     dealId: number | null;
-    metadata: DealBidNotificationMetadata | null;
+    metadata: NotificationMetadata | null;
     actorId: string | null;
     actorFirstName: string | null;
     actorLastName: string | null;

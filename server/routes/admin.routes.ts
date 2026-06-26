@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { requireRole } from 'server/middleware/requireRole';
 import { PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 import { AdminController } from 'server/controllers/admin';
+import codeViolationsRoutes from './codeViolations.routes';
 
 const router = Router();
+
+// Code-violation alerts admin surface — /api/admin/code-violations/* (admin/owner only)
+router.use('/code-violations', codeViolationsRoutes);
 
 // Check if user is admin
 router.get('/status', AdminController.checkAdminStatus);

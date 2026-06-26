@@ -123,6 +123,20 @@ export interface DealBidNotificationMetadata {
     address: string;
 }
 
+// Display payload for a code_violation alert (a system notification — no human actor).
+// Denormalized so the bell renders "Code violation at {address}" + deep-links without a fetch.
+export interface CodeViolationNotificationMetadata {
+    cvViolationId: string;
+    propertyId: string;
+    recordNumber: string;
+    address: string;
+    violationType: string | null;
+    status: string | null;
+}
+
+// The metadata payload carried by a non-message notification, by type.
+export type NotificationMetadata = DealBidNotificationMetadata | CodeViolationNotificationMetadata;
+
 // A bell-feed notification as the client receives it (REST and socket share this shape;
 // dates serialized to ISO strings). Actor fields are null when the actor was deleted.
 // Mention types carry channel/message context; deal_bid carries dealId + metadata instead.
@@ -131,13 +145,19 @@ export interface DealBidNotificationMetadata {
 // since a DM channel has no human-facing name to deep-link by.
 export interface NotificationWire {
     id: string;
-    type: 'mention' | 'channel_mention' | 'announcement' | 'deal_bid' | 'direct_message';
+    type:
+        | 'mention'
+        | 'channel_mention'
+        | 'announcement'
+        | 'deal_bid'
+        | 'direct_message'
+        | 'code_violation';
     channelId: string | null;
     channelName: string | null;
     messageId: string | null;
     messageExcerpt: string;
     dealId: number | null;
-    metadata: DealBidNotificationMetadata | null;
+    metadata: NotificationMetadata | null;
     actorId: string | null;
     actorFirstName: string | null;
     actorLastName: string | null;

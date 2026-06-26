@@ -21,6 +21,7 @@ import {
     ShieldCheck,
     Mail,
     Building2,
+    FileWarning,
 } from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,7 @@ import UsersTab from '@/components/admin/UsersTab';
 import EmailListTab from '@/components/admin/EmailListTab';
 import RolesTab from '@/components/admin/RolesTab';
 import CompanyClaimsTab from '@/components/admin/CompanyClaimsTab';
+import CodeViolationsTab from '@/components/admin/CodeViolationsTab';
 
 export default function Admin() {
     const { toast } = useToast();
@@ -56,6 +58,17 @@ export default function Admin() {
     const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
     /** Admin, owner, and RM can review company claims. */
     const canManageClaims = canManageRoles || isRelationshipManager;
+    // Tab count → grid columns (static classes for Tailwind JIT). Always: users + email-list;
+    // + claims (canManageClaims); + roles & code-violations (canManageRoles).
+    const visibleTabCount = 2 + (canManageClaims ? 1 : 0) + (canManageRoles ? 2 : 0);
+    const tabsGridClass =
+        visibleTabCount >= 5
+            ? 'grid-cols-5'
+            : visibleTabCount === 4
+              ? 'grid-cols-4'
+              : visibleTabCount === 3
+                ? 'grid-cols-3'
+                : 'grid-cols-2';
 
     // Build query URL with county filter
     const propertiesQueryUrl = useMemo(() => {
@@ -160,15 +173,7 @@ export default function Admin() {
             </div>
 
             <Tabs defaultValue="users" className="w-full">
-                <TabsList
-                    className={`grid w-full mb-8 ${
-                        canManageRoles && canManageClaims
-                            ? 'grid-cols-4'
-                            : canManageRoles || canManageClaims
-                              ? 'grid-cols-3'
-                              : 'grid-cols-2'
-                    }`}
-                >
+                <TabsList className={`grid w-full mb-8 ${tabsGridClass}`}>
                     <TabsTrigger value="users" data-testid="tab-users">
                         <Users className="w-4 h-4 mr-2" />
                         Users
@@ -187,6 +192,12 @@ export default function Admin() {
                         <TabsTrigger value="roles" data-testid="tab-roles">
                             <ShieldCheck className="w-4 h-4 mr-2" />
                             Roles
+                        </TabsTrigger>
+                    )}
+                    {canManageRoles && (
+                        <TabsTrigger value="code-violations" data-testid="tab-code-violations">
+                            <FileWarning className="w-4 h-4 mr-2" />
+                            Code Violations
                         </TabsTrigger>
                     )}
                 </TabsList>
@@ -221,6 +232,12 @@ export default function Admin() {
                             isOwner={isOwner}
                             currentUserId={authUser?.id ?? null}
                         />
+                    </TabsContent>
+                )}
+
+                {canManageRoles && (
+                    <TabsContent value="code-violations">
+                        <CodeViolationsTab />
                     </TabsContent>
                 )}
             </Tabs>
