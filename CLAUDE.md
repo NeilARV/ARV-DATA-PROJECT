@@ -222,6 +222,13 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 
 ---
 
+## Git Workflow
+Default to a **feature branch** in the main checkout (`git switch -c feat/<name>` off an updated `main`); use a **git worktree** only for genuinely parallel work (e.g. multiple agents on different branches). Commit/push only when asked; if on `main`, branch first. Worktrees don't share `node_modules` and have no `.env` — run DB commands from the main checkout.
+
+> **Full reference**: `.claude/docs/git-workflows.md` — branch vs worktree vs clone, start-to-finish commands, the Node `node_modules`/junction gotcha, seeing diffs, and worktree cleanup.
+
+---
+
 ## References
 - `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params). Auth notes are summarized per route; `access-control.md` is canonical for auth.
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
@@ -235,6 +242,7 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 - `.claude/docs/mastermind.md` — Mastermind design doc and phased build plan
 - `.claude/docs/agent-updater.md` — detection rules for keeping agent docs in sync
 - `.claude/docs/new-msa.md` — how to add a new MSA to the application
+- `.claude/docs/git-workflows.md` — git workflow: feature branches (default) vs worktrees, start-to-finish commands, and Node/worktree gotchas
 
 ---
 
