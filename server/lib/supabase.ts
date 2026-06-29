@@ -1,18 +1,37 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import ws from 'ws';
 
-export const storageBucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'post-images-dev';
+const isProduction = process.env.NODE_ENV === 'production';
 
-export const vendorStorageBucket =
-    process.env.SUPABASE_VENDOR_STORAGE_BUCKET ?? 'vendor-images-dev';
+/** Non-secret Supabase Storage bucket names per environment. Bucket names are public,
+ * so they live here as constants rather than env vars to keep new-device setup simple. */
+const DEV_BUCKETS = {
+    posts: 'post-images-dev',
+    vendors: 'vendor-images-dev',
+    users: 'user-images-dev',
+    mastermind: 'mastermind-dev',
+    streetview: 'streetview-dev',
+} as const;
 
-export const userStorageBucket = process.env.SUPABASE_USER_STORAGE_BUCKET ?? 'user-images-dev';
+const PROD_BUCKETS = {
+    posts: 'post-images-prod',
+    vendors: 'vendor-images-prod',
+    users: 'user-images-prod',
+    mastermind: 'mastermind-prod',
+    streetview: 'streetview-prod',
+} as const;
 
-export const mastermindStorageBucket =
-    process.env.SUPABASE_MASTERMIND_STORAGE_BUCKET ?? 'mastermind-files-dev';
+const buckets = isProduction ? PROD_BUCKETS : DEV_BUCKETS;
 
-export const streetviewStorageBucket =
-    process.env.SUPABASE_STREETVIEW_STORAGE_BUCKET ?? 'streetview-images-dev';
+export const storageBucket = buckets.posts;
+
+export const vendorStorageBucket = buckets.vendors;
+
+export const userStorageBucket = buckets.users;
+
+export const mastermindStorageBucket = buckets.mastermind;
+
+export const streetviewStorageBucket = buckets.streetview;
 
 let _client: SupabaseClient | null = null;
 
