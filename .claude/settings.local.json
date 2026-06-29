@@ -22,7 +22,12 @@
       "PowerShell(npm run check)",
       "Bash(npx vitest *)",
       "Bash(git -C \"c:/Github/ARV-DATA-Project\" diff client/src/hooks/use-auth.ts client/src/components/Header.tsx client/src/components/profile/AccountInfoTab.tsx client/src/pages/Signup.tsx client/src/App.tsx)",
-      "Bash(git -C \"c:/Github/ARV-DATA-Project\" grep -n \"export async function me\\\\|mustResetPassword\\\\|emailVerifiedAt\\\\|res.json\\\\|isAdmin:\" -- server/controllers/auth/session.controllers.ts)"
+      "Bash(git -C \"c:/Github/ARV-DATA-Project\" grep -n \"export async function me\\\\|mustResetPassword\\\\|emailVerifiedAt\\\\|res.json\\\\|isAdmin:\" -- server/controllers/auth/session.controllers.ts)",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(bash .claude/scripts/smell-diff.sh main)",
+      "Bash(grep -rln '$dynamic' server)"
     ]
   }
 }

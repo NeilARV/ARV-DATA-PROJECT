@@ -1,12 +1,4 @@
-import {
-    createContext,
-    useState,
-    useMemo,
-    useEffect,
-    useRef,
-    ReactNode,
-    useContext,
-} from 'react';
+import { createContext, useState, useMemo, useEffect, useRef, ReactNode, useContext } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { MapPin, MapExtent, MapBoundsParams, RegionCount } from '@/types/property';
 import {
@@ -23,6 +15,7 @@ import {
 import { getZipCodesForCounty } from '@/lib/county';
 import { matchesFiltersForPin } from '@/lib/propertyFilters';
 import { buildPropertyQueryParams } from '@/lib/propertyQueryParams';
+import { apiRequest } from '@/lib/queryClient';
 import { useCompanies } from './useCompanies';
 import { useFilters } from './useFilters';
 import { useView } from './useView';
@@ -91,19 +84,25 @@ export type UseGeoMapResult = MapContextValue & {
     isOverview?: boolean;
 };
 
+/** Padded span (deg) → frame zoom, narrowest span first. Spans wider than the last row use county zoom. */
+const EXTENT_ZOOM_BREAKPOINTS: readonly { maxSpan: number; zoom: number }[] = [
+    { maxSpan: 0.005, zoom: 17 },
+    { maxSpan: 0.01, zoom: 16 },
+    { maxSpan: 0.02, zoom: 15 },
+    { maxSpan: 0.05, zoom: 14 },
+    { maxSpan: 0.1, zoom: 13 },
+    { maxSpan: 0.2, zoom: 12 },
+    { maxSpan: 0.5, zoom: 11 },
+];
+/** Multiplier on the raw extent span before matching a breakpoint — leaves a margin around the pins. */
+const EXTENT_SPAN_PADDING = 1.5;
+
 /** Picks a zoom level that frames a set spanning `span` degrees (lat or lng, whichever is larger). */
 function zoomForExtent(span: number, count: number): number {
     if (count <= 1) return MAP_ZOOM_SINGLE_PROPERTY;
-    const paddedSpan = span * 1.5;
-    let zoom: number;
-    if (paddedSpan < 0.005) zoom = 17;
-    else if (paddedSpan < 0.01) zoom = 16;
-    else if (paddedSpan < 0.02) zoom = 15;
-    else if (paddedSpan < 0.05) zoom = 14;
-    else if (paddedSpan < 0.1) zoom = 13;
-    else if (paddedSpan < 0.2) zoom = 12;
-    else if (paddedSpan < 0.5) zoom = 11;
-    else zoom = MAP_ZOOM_COUNTY;
+    const paddedSpan = span * EXTENT_SPAN_PADDING;
+    const zoom =
+        EXTENT_ZOOM_BREAKPOINTS.find((b) => paddedSpan < b.maxSpan)?.zoom ?? MAP_ZOOM_COUNTY;
     return Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, zoom));
 }
 
@@ -137,7 +136,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         if (!fetchMapPins || !mapBounds) return '';
         const queryString = buildPropertyQueryParams(
             filters,
-            { forMapPins: true, bounds: mapBounds, page: 1, limit: '10' },
+            { forMapPins: true, bounds: mapBounds },
             { company, sortBy },
         );
         return `/api/properties/map${queryString}`;
@@ -149,6 +148,11 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         filters.dateRange,
         filters.zipCode,
         filters.city,
+        filters.minPrice,
+        filters.maxPrice,
+        filters.bedrooms,
+        filters.bathrooms,
+        filters.propertyTypes,
         company?.id,
         company?.companyName,
         filters.companyRole,
@@ -159,7 +163,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         if (!fetchMapPins) return '';
         const queryString = buildPropertyQueryParams(
             filters,
-            { forMapPins: true, page: 1, limit: '10' },
+            { forMapPins: true },
             { company, sortBy },
         );
         return `/api/properties/map/extent${queryString}`;
@@ -170,27 +174,41 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
         filters.dateRange,
         filters.zipCode,
         filters.city,
+        filters.minPrice,
+        filters.maxPrice,
+        filters.bedrooms,
+        filters.bathrooms,
+        filters.propertyTypes,
         company?.id,
         company?.companyName,
         filters.companyRole,
     ]);
 
-    // Region-counts URL — status + date only (cross-region overview ignores county/company/location).
+    // Region-counts URL — status + date + attributes (cross-region overview ignores
+    // county/company/location, so those are deliberately left out of the deps).
     const mapRegionsQueryUrl = useMemo(() => {
         if (!fetchMapPins) return '';
         const queryString = buildPropertyQueryParams(
             filters,
-            { forRegions: true, page: 1, limit: '10' },
+            { forRegions: true },
             { company, sortBy },
         );
         return `/api/properties/map/regions${queryString}`;
-    }, [fetchMapPins, filters.statusFilters, filters.dateRange, company, sortBy]);
+    }, [
+        fetchMapPins,
+        filters.statusFilters,
+        filters.dateRange,
+        filters.minPrice,
+        filters.maxPrice,
+        filters.bedrooms,
+        filters.bathrooms,
+        filters.propertyTypes,
+    ]);
 
     const { data: mapPins = [], isLoading: isLoadingMapPins } = useQuery<MapPin[]>({
         queryKey: [mapPinsQueryUrl],
         queryFn: async () => {
-            const res = await fetch(mapPinsQueryUrl, { credentials: 'include' });
-            if (!res.ok) throw new Error(`Failed to fetch map pins: ${res.status}`);
+            const res = await apiRequest('GET', mapPinsQueryUrl);
             return res.json();
         },
         // Skip the pin fetch while in the overview — avoids requesting a country-sized box.
@@ -204,8 +222,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     const { data: extent = null } = useQuery<MapExtent | null>({
         queryKey: [mapExtentQueryUrl],
         queryFn: async () => {
-            const res = await fetch(mapExtentQueryUrl, { credentials: 'include' });
-            if (!res.ok) throw new Error(`Failed to fetch map extent: ${res.status}`);
+            const res = await apiRequest('GET', mapExtentQueryUrl);
             return res.json();
         },
         enabled: fetchMapPins && !!mapExtentQueryUrl && isMapView,
@@ -215,8 +232,7 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
     const { data: regionCounts = [] } = useQuery<RegionCount[]>({
         queryKey: [mapRegionsQueryUrl],
         queryFn: async () => {
-            const res = await fetch(mapRegionsQueryUrl, { credentials: 'include' });
-            if (!res.ok) throw new Error(`Failed to fetch region counts: ${res.status}`);
+            const res = await apiRequest('GET', mapRegionsQueryUrl);
             return res.json();
         },
         enabled: fetchMapPins && !!mapRegionsQueryUrl && isMapView,
@@ -232,9 +248,10 @@ export function useGeoMap(options?: UseGeoMapOptions): UseGeoMapResult {
             if (!msa) continue;
             byMsa.set(msa, (byMsa.get(msa) ?? 0) + row.count);
         }
-        return MSA_REGIONS.map((region) => ({ ...region, count: byMsa.get(region.msa) ?? 0 })).filter(
-            (region) => region.count > 0,
-        );
+        return MSA_REGIONS.map((region) => ({
+            ...region,
+            count: byMsa.get(region.msa) ?? 0,
+        })).filter((region) => region.count > 0);
     }, [fetchMapPins, regionCounts]);
 
     // Zip code list for the client-side location filter.

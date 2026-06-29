@@ -1,10 +1,5 @@
 import { db } from 'server/storage';
-import {
-    properties,
-    addresses,
-    structures,
-    lastSales,
-} from '@database/schemas/properties.schema';
+import { properties, addresses, structures, lastSales } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
@@ -64,6 +59,26 @@ interface MapFilters {
     zipcode?: string;
     /** City filter; PREFIX_MATCH_CITIES match by prefix (mirrors the client's cityMatchesFilter). */
     city?: string;
+    /** Minimum last-sale price; null/0 prices pass (mirrors the client's matchesPrice). */
+    minPrice?: number;
+    /** Maximum last-sale price; null prices pass (mirrors the client's matchesPrice). */
+    maxPrice?: number;
+    /** Minimum bedroom count (structures.beds_count). */
+    bedrooms?: number;
+    /** Minimum bathroom count (structures.baths). */
+    bathrooms?: number;
+    /** Allowed property types (exact match on properties.property_type). */
+    propertyTypes?: string[];
+}
+
+/**
+ * Which optional child tables a filter set forces the qualifying-ID query to join: structures for
+ * bedroom/bathroom predicates, last_sales for the price predicate. Lets the extent/region/pin
+ * queries add only the joins they need instead of always paying for both.
+ */
+interface MapJoinRequirements {
+    needsStructures: boolean;
+    needsLastSales: boolean;
 }
 
 interface MapPropertiesParams extends MapFilters {
@@ -84,8 +99,26 @@ type TxInfo = { buyerId: string | null; sellerId: string | null; buyerName: stri
 function buildMapIdConditions(
     filters: MapFilters,
     bounds?: MapBounds,
-): { conditions: SQL[]; hasCompanyFilter: boolean; companyIdTrimmed: string } {
-    const { county, statusFilter, dateRange, companyId, companyRole, zipcode, city } = filters;
+): {
+    conditions: SQL[];
+    hasCompanyFilter: boolean;
+    companyIdTrimmed: string;
+    joins: MapJoinRequirements;
+} {
+    const {
+        county,
+        statusFilter,
+        dateRange,
+        companyId,
+        companyRole,
+        zipcode,
+        city,
+        minPrice,
+        maxPrice,
+        bedrooms,
+        bathrooms,
+        propertyTypes,
+    } = filters;
     const companyIdTrimmed = companyId?.trim() ?? '';
     const hasCompanyFilter = companyIdTrimmed !== '';
     const resolvedRange = dateRange ? (resolveDateRange(dateRange) ?? null) : null;
@@ -163,6 +196,38 @@ function buildMapIdConditions(
         );
     }
 
+    // Price / beds / baths / type mirror the client's matchesFiltersForPin so the extent count,
+    // region counts, and returned pins all agree with what the map ultimately renders. A null price
+    // passes the price filter (matching matchesPrice); null beds/baths/type are excluded when a
+    // filter is set (matching the client's numeric/`includes` comparisons).
+    const needsLastSales = minPrice != null || maxPrice != null;
+    const needsStructures = bedrooms != null || bathrooms != null;
+
+    if (minPrice != null) {
+        conditions.push(
+            sql`(${lastSales.price} IS NULL OR ${lastSales.price}::numeric >= ${minPrice})`,
+        );
+    }
+    if (maxPrice != null) {
+        conditions.push(
+            sql`(${lastSales.price} IS NULL OR ${lastSales.price}::numeric <= ${maxPrice})`,
+        );
+    }
+    if (bedrooms != null) {
+        conditions.push(sql`${structures.bedsCount} >= ${bedrooms}`);
+    }
+    if (bathrooms != null) {
+        conditions.push(sql`${structures.baths}::numeric >= ${bathrooms}`);
+    }
+    if (propertyTypes && propertyTypes.length > 0) {
+        conditions.push(
+            sql`${properties.propertyType} = ANY(ARRAY[${sql.join(
+                propertyTypes.map((t) => sql`${t}`),
+                sql`, `,
+            )}]::text[])`,
+        );
+    }
+
     // Viewport box — keep last so the cheap, sargable lat/lng range narrows the set early.
     if (bounds) {
         conditions.push(
@@ -171,7 +236,12 @@ function buildMapIdConditions(
         );
     }
 
-    return { conditions, hasCompanyFilter, companyIdTrimmed };
+    return {
+        conditions,
+        hasCompanyFilter,
+        companyIdTrimmed,
+        joins: { needsStructures, needsLastSales },
+    };
 }
 
 /** Parses a Drizzle decimal/text coordinate into a finite number, or null. */
@@ -199,14 +269,24 @@ function toCoord(value: string | number | null): number | null {
  */
 export async function getMapProperties(params: MapPropertiesParams): Promise<MapPropertyData[]> {
     const { bounds, ...filters } = params;
-    const { conditions, hasCompanyFilter, companyIdTrimmed } = buildMapIdConditions(filters, bounds);
+    const { conditions, hasCompanyFilter, companyIdTrimmed, joins } = buildMapIdConditions(
+        filters,
+        bounds,
+    );
 
     const idWhereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const baseIdQuery = db
+    let baseIdQuery = db
         .select({ id: properties.id })
         .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId));
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .$dynamic();
+    if (joins.needsStructures) {
+        baseIdQuery = baseIdQuery.leftJoin(structures, eq(properties.id, structures.propertyId));
+    }
+    if (joins.needsLastSales) {
+        baseIdQuery = baseIdQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
+    }
 
     const idRows = await (idWhereClause ? baseIdQuery.where(idWhereClause) : baseIdQuery).execute();
     const qualifyingIds = idRows.map((r) => r.id);
@@ -319,10 +399,13 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
  * @returns the extent of pins with coordinates, or null when none qualify
  */
 export async function getMapExtent(filters: MapFilters): Promise<MapExtent | null> {
-    const { conditions } = buildMapIdConditions(filters);
-    conditions.push(sql`${addresses.latitude} IS NOT NULL`, sql`${addresses.longitude} IS NOT NULL`);
+    const { conditions, joins } = buildMapIdConditions(filters);
+    conditions.push(
+        sql`${addresses.latitude} IS NOT NULL`,
+        sql`${addresses.longitude} IS NOT NULL`,
+    );
 
-    const [row] = await db
+    let query = db
         .select({
             minLat: sql<string | null>`MIN(${addresses.latitude})`,
             maxLat: sql<string | null>`MAX(${addresses.latitude})`,
@@ -332,8 +415,15 @@ export async function getMapExtent(filters: MapFilters): Promise<MapExtent | nul
         })
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-        .where(and(...conditions))
-        .execute();
+        .$dynamic();
+    if (joins.needsStructures) {
+        query = query.leftJoin(structures, eq(properties.id, structures.propertyId));
+    }
+    if (joins.needsLastSales) {
+        query = query.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
+    }
+
+    const [row] = await query.where(and(...conditions)).execute();
 
     const minLat = toCoord(row?.minLat ?? null);
     const maxLat = toCoord(row?.maxLat ?? null);
@@ -347,27 +437,46 @@ export async function getMapExtent(filters: MapFilters): Promise<MapExtent | nul
 
 /**
  * Property counts grouped by county for the national overview layer. Deliberately cross-region:
- * it ignores county/company/location filters (so every region shows) but respects status + date so
- * the overview stays consistent with the zoomed-in view. Cheap aggregate — no pin data is returned.
+ * it ignores county/company/location filters (so every region shows) but respects status, date, and
+ * the property-attribute filters (price/beds/baths/type) so the overview counts stay consistent with
+ * the zoomed-in view. Cheap aggregate — no pin data is returned.
  *
- * @param filters status + date filters only (county/company/location are intentionally ignored)
+ * @param filters status/date/price/beds/baths/type filters (county/company/location are ignored)
  * @returns one row per county (lower-cased, trimmed) that has properties with coordinates
  */
 export async function getRegionCounts(
-    filters: Pick<MapFilters, 'statusFilter' | 'dateRange'>,
+    filters: Pick<
+        MapFilters,
+        | 'statusFilter'
+        | 'dateRange'
+        | 'minPrice'
+        | 'maxPrice'
+        | 'bedrooms'
+        | 'bathrooms'
+        | 'propertyTypes'
+    >,
 ): Promise<RegionCount[]> {
-    const { conditions } = buildMapIdConditions({
-        statusFilter: filters.statusFilter,
-        dateRange: filters.dateRange,
-    });
-    conditions.push(sql`${addresses.latitude} IS NOT NULL`, sql`${addresses.longitude} IS NOT NULL`);
+    const { conditions, joins } = buildMapIdConditions(filters);
+    conditions.push(
+        sql`${addresses.latitude} IS NOT NULL`,
+        sql`${addresses.longitude} IS NOT NULL`,
+    );
 
     const countyExpr = sql<string>`LOWER(TRIM(COALESCE(${properties.county}, ${addresses.county})))`;
 
-    const rows = await db
+    let query = db
         .select({ county: countyExpr, count: sql<number>`COUNT(*)::int` })
         .from(properties)
         .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .$dynamic();
+    if (joins.needsStructures) {
+        query = query.leftJoin(structures, eq(properties.id, structures.propertyId));
+    }
+    if (joins.needsLastSales) {
+        query = query.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
+    }
+
+    const rows = await query
         .where(and(...conditions))
         .groupBy(countyExpr)
         .execute();

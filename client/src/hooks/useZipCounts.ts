@@ -13,7 +13,7 @@ export function useZipCounts(options?: { enabled?: boolean }): ZipCount[] {
     const url = useMemo(() => {
         const queryString = buildPropertyQueryParams(
             filters,
-            { forMapPins: true, page: 1, limit: '10' },
+            { forMapPins: true },
             { company, sortBy },
         );
         return `/api/properties/zip-counts${queryString}`;

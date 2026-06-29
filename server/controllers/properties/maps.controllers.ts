@@ -1,41 +1,37 @@
 import { Request, Response } from 'express';
 import { MapServices } from 'server/services/properties';
+import { mapQuerySchema, type MapQuery } from '@database/validation/maps.validation';
 import type { MapBounds } from 'server/services/properties/maps.services';
 
-/** Reads the shared map filters (county/status/date/company) from the query string. */
-function parseMapFilters(req: Request) {
-    const { county, status, dateRange, companyId, companyRole, zipcode, city } = req.query;
+/** Maps a validated query into the shared map filters (county/status/date/company/location/attrs). */
+function toMapFilters(q: MapQuery) {
     return {
-        county: county ? county.toString() : undefined,
-        statusFilter: status
-            ? Array.isArray(status)
-                ? status.map((s) => s.toString())
-                : status.toString()
-            : undefined,
-        dateRange: dateRange ? dateRange.toString() : undefined,
-        companyId: companyId ? companyId.toString() : undefined,
-        companyRole: companyRole ? companyRole.toString() : undefined,
-        zipcode: zipcode ? zipcode.toString() : undefined,
-        city: city ? city.toString() : undefined,
+        county: q.county,
+        statusFilter: q.status,
+        dateRange: q.dateRange,
+        companyId: q.companyId,
+        companyRole: q.companyRole,
+        zipcode: q.zipcode,
+        city: q.city,
+        minPrice: q.minPrice,
+        maxPrice: q.maxPrice,
+        bedrooms: q.bedrooms,
+        bathrooms: q.bathrooms,
+        propertyTypes: q.propertyType,
     };
 }
 
-/**
- * Parses the optional viewport box from the query string.
- * @returns the bounds when all four edges are present + finite, null when none are provided.
- * @throws Error when the box is partially specified or non-numeric (caller maps to a 400).
- */
-function parseBounds(req: Request): MapBounds | null {
-    const { south, west, north, east } = req.query;
-    const raw = [south, west, north, east];
-    const provided = raw.filter((v) => v !== undefined);
-    if (provided.length === 0) return null;
-    if (provided.length !== 4) throw new Error('Incomplete map bounds');
-
-    const [s, w, n, e] = raw.map((v) => Number(v));
-    if (![s, w, n, e].every(Number.isFinite)) throw new Error('Invalid map bounds');
-
-    return { south: s, west: w, north: n, east: e };
+/** The viewport box from a validated query, or null when no edges were supplied (all-or-nothing). */
+function toBounds(q: MapQuery): MapBounds | null {
+    if (
+        q.south === undefined ||
+        q.west === undefined ||
+        q.north === undefined ||
+        q.east === undefined
+    ) {
+        return null;
+    }
+    return { south: q.south, west: q.west, north: q.north, east: q.east };
 }
 
 /**
@@ -44,17 +40,15 @@ function parseBounds(req: Request): MapBounds | null {
  */
 export async function getMapData(req: Request, res: Response): Promise<void> {
     try {
-        let bounds: MapBounds | null;
-        try {
-            bounds = parseBounds(req);
-        } catch {
-            res.status(400).json({ message: 'Invalid map bounds — provide south, west, north, east' });
+        const parsed = mapQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid map query', errors: parsed.error.errors });
             return;
         }
 
         const results = await MapServices.getMapProperties({
-            ...parseMapFilters(req),
-            bounds: bounds ?? undefined,
+            ...toMapFilters(parsed.data),
+            bounds: toBounds(parsed.data) ?? undefined,
         });
 
         res.status(200).json(results);
@@ -70,7 +64,13 @@ export async function getMapData(req: Request, res: Response): Promise<void> {
  */
 export async function getMapExtent(req: Request, res: Response): Promise<void> {
     try {
-        const extent = await MapServices.getMapExtent(parseMapFilters(req));
+        const parsed = mapQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid map query', errors: parsed.error.errors });
+            return;
+        }
+
+        const extent = await MapServices.getMapExtent(toMapFilters(parsed.data));
         res.status(200).json(extent);
     } catch (error) {
         console.error('Error fetching map extent:', error);
@@ -80,12 +80,28 @@ export async function getMapExtent(req: Request, res: Response): Promise<void> {
 
 /**
  * GET /api/properties/map/regions — property counts grouped by county for the national overview
- * layer (respects status + date; ignores county/company/location so every region is shown).
+ * layer (respects status/date + property attributes; ignores county/company/location so every
+ * region is shown).
  */
 export async function getRegionCounts(req: Request, res: Response): Promise<void> {
     try {
-        const { statusFilter, dateRange } = parseMapFilters(req);
-        const regions = await MapServices.getRegionCounts({ statusFilter, dateRange });
+        const parsed = mapQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            res.status(400).json({ message: 'Invalid map query', errors: parsed.error.errors });
+            return;
+        }
+
+        const { statusFilter, dateRange, minPrice, maxPrice, bedrooms, bathrooms, propertyTypes } =
+            toMapFilters(parsed.data);
+        const regions = await MapServices.getRegionCounts({
+            statusFilter,
+            dateRange,
+            minPrice,
+            maxPrice,
+            bedrooms,
+            bathrooms,
+            propertyTypes,
+        });
         res.status(200).json(regions);
     } catch (error) {
         console.error('Error fetching region counts:', error);
