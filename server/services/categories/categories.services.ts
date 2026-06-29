@@ -141,8 +141,9 @@ export async function getVendorsByCategory(categoryId: number) {
 
     const categoryMap = new Map<string, typeof categoryRows>();
     for (const row of categoryRows) {
-        if (!categoryMap.has(row.vendorId)) categoryMap.set(row.vendorId, []);
-        categoryMap.get(row.vendorId)!.push(row);
+        const list = categoryMap.get(row.vendorId) ?? [];
+        list.push(row);
+        categoryMap.set(row.vendorId, list);
     }
 
     return rows.map((vendor) => ({

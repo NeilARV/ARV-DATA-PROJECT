@@ -8,28 +8,14 @@ import {
     deleteChannel,
     listChannelMentionCandidates,
     getChannelById,
+    userIsAdminOrOwner,
     ChannelServiceError,
 } from 'server/services/channels/channels.services';
 import {
     createChannelSchema,
     updateChannelSchema,
 } from '@database/validation/mastermind.validation';
-import { db } from 'server/storage';
-import { userRoles, roles } from '@database/schemas/users.schema';
-import { eq, and, inArray } from 'drizzle-orm';
 import { isUuid } from 'server/utils/uuid';
-import { ADMIN_ROLES } from 'server/constants/roles.constants';
-
-/** Returns true if the given userId holds an admin or owner role. */
-async function callerIsChannelAdmin(userId: string): Promise<boolean> {
-    const rows = await db
-        .select({ roleName: roles.name })
-        .from(userRoles)
-        .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...ADMIN_ROLES])))
-        .limit(1);
-    return rows.length > 0;
-}
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
     if (err instanceof ChannelServiceError) {
@@ -44,7 +30,7 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
 export async function getChannelsController(req: Request, res: Response): Promise<void> {
     try {
         const callerId = req.session.userId!;
-        const isAdmin = await callerIsChannelAdmin(callerId);
+        const isAdmin = await userIsAdminOrOwner(callerId);
         const includeArchived = req.query.includeArchived === 'true' && isAdmin;
 
         // Admins/owners additionally see admin-only channels; everyone else has them hidden.
@@ -151,7 +137,7 @@ export async function getChannelMembersController(req: Request, res: Response): 
             res.status(404).json({ message: 'Channel not found' });
             return;
         }
-        if (channel.isAdminOnly && !(await callerIsChannelAdmin(req.session.userId!))) {
+        if (channel.isAdminOnly && !(await userIsAdminOrOwner(req.session.userId!))) {
             res.status(404).json({ message: 'Channel not found' });
             return;
         }
