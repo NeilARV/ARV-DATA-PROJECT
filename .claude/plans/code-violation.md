@@ -64,9 +64,19 @@ Concrete anchors (verified in the codebase):
 | User association | `company_members` (`userId`, `companyId`, `role`, `isPrimary`) | a company can have **multiple** members → notify them all; service `claims.services.ts → getCompanyMembers(companyId)` |
 | User email | `users.email` | required at signup, so always present for a member |
 
+> **⚠️ Use `company_members`, NOT `company_contacts`.** These are different tables and confusing them
+> would break the feature:
+> - **`company_members`** = the access/ownership roster — *actual platform users* associated with a
+>   company. This is the one we join to `users` to get real, deliverable emails to notify. **This is
+>   the only association we notify through.**
+> - **`company_contacts`** = public display roster sourced from the **OpenCorporates** enrichment
+>   (manually inputted). These people are usually **not users on our platform**, and their email is
+>   **often absent** these days. **Never** use `company_contacts` for notification recipients.
+
 There is **no `entity_type` column** distinguishing companies from individuals; the signal we use is
 "did the most-recent arms-length transaction resolve to a `companies` FK (`buyerId`) that has at least
-one `company_members` row." That is the only gate for "notifiable."
+one **`company_members`** row." That is the only gate for "notifiable." Individual owners are not a
+concern — our company only services corporations — but we still **store** their violations (§4.4).
 
 ---
 
@@ -162,11 +172,25 @@ cannot be strict, but we must be deterministic.
 do not assume the DB's stored case; identical normalization makes case moot):**
 1. **Uppercase** everything.
 2. **Strip `.` and `,`** (so `Av.` ≡ `Av`, and missing commas don't matter).
-3. Collapse whitespace; drop a trailing `UNITED STATES`.
-4. **Standardize the street suffix** via `formatAddress` / `STREET_TYPE_ABBREVIATIONS`
-   (`shared/utils/formatAddress.ts`) — `ST`→street, `AVE`→avenue, etc. **Verify `AV`/`AV.` is in the
-   abbreviation map and add it** (the export uses `Av` heavily; the util may only know `Ave`). This is
-   the one normalizer change the feature requires.
+3. Collapse repeated whitespace to single spaces; trim; drop a trailing `UNITED STATES`/`USA`.
+4. **Standardize the street suffix and directionals** via `formatAddress` / `STREET_TYPE_ABBREVIATIONS`
+   (`shared/utils/formatAddress.ts`).
+
+**Expand the normalizer coverage (decided — go broad, not minimal).** The existing util has gaps
+beyond `Av`, and real data will keep surfacing more. Audit `STREET_TYPE_ABBREVIATIONS` and extend it to
+collapse every common variant to a single canonical token, both directions (e.g. `AV`/`AV.`/`AVE`/
+`AVE.`/`AVENUE` → one form). At minimum cover:
+- **Suffixes:** AVE/AV/AVENUE, ST/STREET, RD/ROAD, DR/DRIVE, BLVD/BOULEVARD, LN/LANE, CT/COURT,
+  PL/PLACE, WAY, TER/TERRACE, CIR/CIRCLE, PKWY/PARKWAY, HWY/HIGHWAY, TRL/TRAIL, SQ/SQUARE,
+  LOOP, ROW, PATH, PASS, WALK, PT/POINT, MNR/MANOR, PLZ/PLAZA, XING/CROSSING.
+- **Directionals:** N/S/E/W/NE/NW/SE/SW ↔ NORTH/SOUTH/EAST/WEST/… (both pre- and post-direction).
+- **Unit noise:** strip/normalize `#`, `APT`, `UNIT`, `STE`/`SUITE` so unit differences don't block a
+  street match (the CSV rarely includes units; our `addresses` may).
+- **Numeric/ordinal streets:** `1ST`/`FIRST`, `2ND`/`SECOND`, … so `43RD ST` ≡ `43RD STREET`.
+
+Centralize this in **one shared normalizer** so the same canonicalization runs on both sides and the
+list is a single place to extend as misses appear. This is the main supporting code change the feature
+adds; treat broad coverage here as part of V1 quality, not a follow-up.
 
 **Match key:** `street number` + `street name` (+ suffix) must be an **exact** match after
 normalization. Then:
@@ -185,11 +209,20 @@ normalization. Then:
 > real misses** over time; surface unmatched/ambiguous counts in the admin panel so we can see them.
 
 ### 4.4 Owner resolution
-Given a matched `propertyId`: read `property_transactions` for it ordered by `sortOrder` ASC, take the
-most recent **arms-length** transaction, and use its `buyerId`:
-- `buyerId` present → that `companyId` is the current owner. Proceed to NOTIFY if it has `company_members`.
-- `buyerId` null (only `buyerName`) → **individual / unlinked owner** → store the match with `owner_company_id = null`, **no email**.
+**Reuse the Data app's existing transaction-resolution logic** (`properties.services.ts` /
+`propertyTransactions.services.ts`) rather than reinventing it — it already encodes the
+arms-length/assignment/assignor handling. The ordering is trustworthy: the **consumer sorts each
+property's transactions correctly at ingest** and writes `property_transactions.sortOrder`, so reading
+ordered by `sortOrder` ASC (most recent first) is reliable.
+
+Given a matched `propertyId`: take the most recent **arms-length** transaction's `buyerId`:
+- `buyerId` present → that `companyId` is the current owner. Proceed to NOTIFY if it has **`company_members`** (§2 warning: members, not contacts).
+- `buyerId` null (only `buyerName`) → **individual / unlinked owner** → store the match with `owner_company_id = null`, **no email**. (Individuals aren't our market, but we still record the violation so the property's history accrues.)
 - Company present but **no `company_members`** → store, **no email** (nobody to tell yet).
+
+> The point of storing every match regardless of notifiability: the `cv_` tables become a complete
+> code-violation ledger across **all** our properties — we stack up the full complaint history per
+> property even when there's currently no one to email.
 
 ### 4.5 Idempotency & dedup (critical)
 Daily uploads overlap heavily, so **never notify twice for the same complaint.**
@@ -319,7 +352,7 @@ frontend does not exist in V1** (email is the only output) — it is deferred to
 
 ### Chunk B — Admin API (INGEST)
 - Route `POST /api/code-violations/uploads` guarded by **`requireRole(ADMIN_ROLES)`** (admin + owner only — *not* `PRIVILEGED_ROLES`, so relationship-managers/members are excluded).
-- multer **memoryStorage**, `fileFilter` to `text/csv` / `application/vnd.ms-excel`, sane `limits.fileSize` (~10 MB). Use the `MulterRequest` type (`server/middleware/multerTypes.ts`).
+- multer **memoryStorage**, `fileFilter` to `text/csv` / `application/vnd.ms-excel`, `limits.fileSize` ≈ **1–2 MB** (the Accela export is capped around ~500 KB and typically ~480 KB, so 1 MB is comfortable headroom — no need for a large cap). Use the `MulterRequest` type (`server/middleware/multerTypes.ts`).
 - Controller: validate `req.file` present → archive buffer to Supabase Storage (new bucket env `SUPABASE_CODE_VIOLATION_STORAGE_BUCKET`, names only) → create `cv_uploads` row → call `ingestCodeViolationCsv(...)`.
 - `GET /api/code-violations/uploads` (admin) to back the results panel, and `POST /api/code-violations/uploads/:id/approve` (admin) to run NOTIFY for a `review`-status upload (§4.6).
 - Run the new-route ceremony via the **`/new-route`** skill so `api.md` / `access-control.md` / tests are scaffolded together.
@@ -362,12 +395,13 @@ Add a second notification channel alongside email:
 - Build the **user-facing Code Violations UI** (none in V1): surface violations on the property detail panel and/or a dashboard, and add a code-violations toggle to `user_notification_preferences`.
 
 ### 8.3 Ingest properties we don't have yet
-Today an unmatched address is counted and its raw row is preserved (in the archived CSV) but produces
-no violation record. V2: when MATCH returns "unmatched," enqueue the bare address into
-`market_scan_queue` so the data pipeline ingests the property, then **retry the violation** until the
-property exists and backfill `cv_matches` + notify. This needs a durable retry mechanism — a
-**message queue (e.g. SQS)** — rather than naive re-polling, because the property may take time to
-appear. Goal: grow coverage and capture violations we currently drop.
+An unmatched complaint is still **stored** in `cv_violations` (the ledger is property-agnostic, §6) —
+it just has no `cv_matches` row, so nobody is notified. V2: when MATCH returns "unmatched," enqueue the
+bare address into `market_scan_queue` so the data pipeline ingests the property, then **retry the
+match** until the property exists and backfill the `cv_matches` row + notify. This needs a durable
+retry mechanism — a **message queue (e.g. SQS)** — rather than naive re-polling, because the property
+may take time to appear. Goal: grow coverage and convert today's unmatched violations into notifiable
+ones. (Because the violation already lives in `cv_violations`, no data is lost in the meantime.)
 
 ### 8.4 Polished email template
 V1 sends simple inline HTML via `sendPlainEmail`. V2: a Postmark template
@@ -398,11 +432,16 @@ Reuses existing `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PO
 **Decided (rolled into the plan):**
 - **Review before notify** → **yes** for rollout: dry-run + admin Approve, gated by `CV_REQUIRE_REVIEW` (§4.6).
 - **Notify scope** → **every matched new violation** (no type/status allowlist) (§4 NOTIFY note).
-- **Match strictness** → normalize both sides (uppercase, strip `.`/`,`, suffix-normalize incl. `Av`→avenue), exact street number+name, city/state when present, zip optional, country ignored (§4.3).
+- **Match strictness** → normalize both sides (uppercase, strip `.`/`,`, suffix-normalize), exact street number+name, city/state when present, zip optional, country ignored (§4.3).
+- **Normalizer coverage** → **expand broadly** now (full suffix + directional + unit + ordinal map in one shared normalizer), not a minimal `Av` patch (§4.3).
+- **Owner resolution** → **reuse the Data app's existing transaction-resolution logic**; `sortOrder` is reliable (consumer sets it at ingest) (§4.4).
+- **Recipients source** → **`company_members` only**, never `company_contacts` (§2 warning).
+- **Upload size** → small and stable (~480 KB typical, ~500 KB export cap); 1–2 MB multer limit, processing stays **in-request** (no background job needed for V1).
 
 **Still open / risks:**
-- **Normalizer coverage.** `Av`/`Av.` is the known gap to fix, but other suffix/abbreviation variants will surface in real data — the unmatched/ambiguous admin lists are how we find and fix them. Budget for iterative tuning.
-- **Owner-resolution accuracy.** "Most recent arms-length buyer = current owner" matches the Data app's display logic, but assignment/wholesale chains can complicate it — reuse the Data app's existing transaction-resolution logic rather than reinventing it.
+- **Normalizer long tail.** Even with broad coverage, real data will surface more variants — the unmatched/ambiguous admin lists are how we find and fix them. Budget for ongoing tuning.
+- **`##TMP → CE` frequency** (§4.5) — unknown until we see real data; the secondary dedup logs occurrences so we can measure and revisit later.
+- **Ambiguous matches.** Same street number+name in the same city (apartment complexes, re-used names) → goes to the admin review list rather than a guess; volume unknown until real data.
 - **Individual owners we *do* have a user for.** V1 only notifies via the company link. If a user is associated with a property some other way in future, that path doesn't exist yet.
 - **`##TMP → CE` frequency** (§4.5) — unknown until we see real data; the secondary dedup logs occurrences so we can measure.
 - **Upload size / timing.** The sample is ~480 KB; parse + match + notify should run within a request, but if uploads grow, move processing to a background job and return the `cv_uploads` id immediately (the admin panel polls for status).
