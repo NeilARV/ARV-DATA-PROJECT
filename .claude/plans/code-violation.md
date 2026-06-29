@@ -154,8 +154,8 @@ cheap because the pattern already exists).
 | **MATCH** | 2 (cron) | `matchAddress(row)` → a `properties.id`, `unmatched`, or `ambiguous` (§4.3). |
 | **RESOLVE OWNER** | 2 (cron) | `resolveOwner(propertyId)` → current owning `companyId` (or individual/unlinked) (§4.4). |
 | **DIFF** | 2 (cron) | secondary `##TMP→CE` dedup before notifying (§4.5); write the `cv_matches` row. |
-| **NOTIFY** | 2 (cron) | Owner company with members → email each member via `sendPlainEmail`; record `cv_notifications_sent`. **Gated by the review step (§4.6).** |
-| **MARK STATUS** | 2 (cron) | Set the row's terminal `processing_status` (§6); update `cv_uploads` counters. |
+| **NOTIFY** | 2 (cron) | Owner company with members → email each member via `sendPlainEmail`; record `cv_notifications_sent` and set **`notified = true`**. **Gated by the review step (§4.6).** |
+| **MARK STATUS** | 2 (cron) | Set the row's terminal `processing_status` (§6.1); update `cv_uploads` counters. |
 
 **Notify scope (decided):** **every matched new violation** notifies — no Record-Type / Status
 allowlist in V1. If a matched property's current owner is a company we have a user for, that user gets
@@ -266,14 +266,15 @@ investor is worse than a slight delay. The review gate is just a **state in the 
 machine**, not a separate code path:
 
 - With `CV_REQUIRE_REVIEW` **on** (default): the consumer runs MATCH→RESOLVE→DIFF, writes `cv_matches`,
-  and parks each matched complaint at `processing_status = 'awaiting_review'` **without emailing**. The
-  admin panel shows the dry-run: every match, the resolved owner company, exactly **which users would
-  be emailed**, plus the unmatched/ambiguous rows.
+  and parks each matched complaint at `processing_status = 'awaiting_review'` (still `notified = false`)
+  **without emailing**. The admin panel shows the dry-run: every match, the resolved owner company,
+  exactly **which users would be emailed**, plus the unmatched/ambiguous rows.
 - The admin clicks **Approve** for an upload (`POST /api/code-violations/uploads/:id/approve`) → a
-  notify pass runs NOTIFY for that upload's `awaiting_review` rows → each becomes `complete`. The
-  `cv_uploads.status` advances `review → completed`.
+  notify pass runs NOTIFY for that upload's `awaiting_review` rows → each becomes
+  `complete` + `notified = true`. The `cv_uploads.status` advances `review → completed`.
 - With `CV_REQUIRE_REVIEW` **off**: the consumer runs NOTIFY inline and rows go straight
-  `processing → complete` (no `awaiting_review` stop). "Dry-run first, then auto" is a single flag flip.
+  `processing → complete` (+ `notified = true` when an email was sent; no `awaiting_review` stop).
+  "Dry-run first, then auto" is a single flag flip.
 
 > Because the gate is a status, the per-complaint queue and the review step are the *same* mechanism —
 > no extra machinery.
@@ -380,8 +381,9 @@ when its property is later added we just insert a `cv_matches` row and notify).
 | `violation_date` | date | parsed from `Date` |
 | `raw_address` | text NOT NULL | original CSV address |
 | `normalized_address` | text | for matching + TMP→CE secondary dedup |
-| **`processing_status`** | text | **the queue state:** `'pending'` → `'processing'` → `'awaiting_review'` (§4.6) / `'no_match'` / `'ambiguous'` / `'complete'` / `'failed'`. Index `(processing_status, created_at)` so the consumer fetch is cheap |
-| `processing_error` | text | nullable — message when `failed` |
+| **`processing_status`** | text | **the queue state** (§6.1): `'pending'` → `'processing'` → `'awaiting_review'` (§4.6) / `'no_match'` / `'ambiguous'` / `'complete'` / `'failed'`. Index `(processing_status, created_at)` so the consumer fetch is cheap |
+| **`notified`** | boolean | default `false`; flipped to `true` the moment an email notification is actually sent for this complaint (§6.1). Independent of `processing_status` — a hard confirmation the email fired |
+| `error_message` | text | nullable — the reason when `processing_status = 'failed'` |
 | `first_seen_upload_id` | uuid FK `cv_uploads` | the upload that enqueued it (review approval is per-upload) |
 | `processed_at` | timestamp | when it reached a terminal status |
 | `created_at` / `updated_at` | timestamp | |
@@ -406,6 +408,34 @@ when its property is later added we just insert a `cv_matches` row and notify).
 | `channel` | text | `'email'` in V1 (V2 adds `'in_app'` — §8.2) |
 | `sent_at` | timestamp | |
 | | | **UNIQUE(`violation_id`, `user_id`, `channel`)** — double-send backstop |
+
+### 6.1 The status model (`processing_status` + `notified`)
+Two independent facts about a complaint: **where it is in the work** (`processing_status`) and **whether
+an email actually went out** (`notified`). Keeping them separate means `notified` is a hard, unambiguous
+confirmation regardless of how the status logic lands.
+
+**`processing_status`** — the work lifecycle (set by the consumer):
+
+| Value | Meaning | Terminal? |
+|---|---|---|
+| `pending` | enqueued, waiting for the consumer | no |
+| `processing` | the consumer is working this row | no |
+| `awaiting_review` | matched + recipients identified, **email held for admin approval** (the §4.6 gate). Only occurs when `CV_REQUIRE_REVIEW` is on | no (resolves to `complete` on Approve) |
+| `no_match` | processed cleanly, but the address is **not a property in our DB** | yes |
+| `ambiguous` | matched **more than one** property → needs a human to pick (surfaced in the admin list) | yes |
+| `complete` | the consumer finished this row through-and-through | yes |
+| `failed` | something threw; see `error_message` | yes |
+
+**`notified`** (boolean, default `false`) — flips to `true` the instant an email notification is sent
+for the complaint, and never on its own. Read it alongside the status:
+- `complete` + `notified = true` → matched, owner is a company with users, **email sent**. Done through and through.
+- `complete` + `notified = false` → matched, but **nobody to email** (individual owner, or a company with no associated users). Violation stored; no email was due.
+- `awaiting_review` + `notified = false` → matched and ready, **waiting on the admin's Approve**; flips to `complete` + `notified = true` once approved and the email fires.
+- `no_match` / `ambiguous` / `failed` → `notified` stays `false` (no email was ever appropriate).
+
+> `notified` is **email-specific** in V1. When V2 adds in-app notifications (§8.2), per-channel delivery
+> is tracked in `cv_notifications_sent`; this boolean stays the simple "did the email fire" flag (or is
+> generalized then — a later decision).
 
 ---
 
@@ -435,7 +465,7 @@ frontend does not exist in V1** (email is the only output) — it is deferred to
 
 ### Chunk D — Notify (email), as a consumer step + approve-triggered pass
 - `notify.ts`: for a matched violation whose owner company has **`company_members`** (§2 warning: members, not contacts): resolve members → emails via `getCompanyMembers` + `users.email`; send with **`sendPlainEmail`** (raw HTML; no template in V1) from `server/services/postmark/email.services.ts`. Respect the master `users.notifications` kill-switch (reuse `getEmailRecipientsByUserIds`).
-- Write `cv_notifications_sent` rows (idempotent UNIQUE) and set `processing_status='complete'`. Update `cv_uploads` counters. Per-recipient fire-and-forget with logged failures (mirror existing email jobs).
+- Write `cv_notifications_sent` rows (idempotent UNIQUE), set **`notified = true`**, and set `processing_status='complete'`. Update `cv_uploads` counters. Per-recipient fire-and-forget with logged failures (mirror existing email jobs).
 - Two entry points, **same function:** the consumer calls it inline when `CV_REQUIRE_REVIEW` is off; the **approve** endpoint (Chunk B) calls it for an upload's `awaiting_review` rows when review is on (§4.6).
 
 ### Chunk E — Admin UI (upload + per-complaint status + dry-run review)
@@ -525,6 +555,7 @@ Reuses existing `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PO
 - **Recipients source** → **`company_members` only**, never `company_contacts` (§2 warning).
 - **Processing model** → **decoupled DB queue + cron consumer in V1** (`cv_violations.processing_status` is the queue; processing in `server/jobs/code-violations/`, mirroring `data_v2`). Upload returns instantly; the consumer drains a batch every few minutes (§4, §5.3).
 - **Where the logic lives** → **processing in `jobs/`** (consumer + `processes/`), **HTTP reads/ingest in `services/`** — matching the `data_v2` vs `properties.services.ts` split.
+- **Status model** → single `processing_status` enum (`pending`/`processing`/`awaiting_review`/`no_match`/`ambiguous`/`complete`/`failed`) **+ a separate boolean `notified`** (hard "did the email fire" flag) **+ `error_message`** on failure (§6.1).
 - **Upload size** → small and stable (~480 KB typical, ~500 KB export cap); 1–2 MB multer limit. Parsing/enqueue is trivially fast in-request; matching/notify is the consumer's job.
 
 **Still open / risks:**
