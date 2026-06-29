@@ -29,6 +29,11 @@ the admin panel**, then the app:
 Every complaint that matches a property in our DB is **stored** (whether or not anyone is notifiable),
 so we accumulate a code-violation history keyed to our properties.
 
+**How it runs (V1):** the upload itself only archives + parses + **enqueues** the complaints and returns
+instantly; a **cron consumer** then processes them a batch at a time (match → owner → notify) with a
+per-complaint status, mirroring the existing `data_v2` queue/consumer pattern. This decoupling is part
+of V1 — see §4–§5.
+
 **Goal.** Be the first to tell an investor "the city just opened a complaint on one of your
 properties." Speed-to-alert (within a day) is the whole value proposition; manual daily uploads are
 more than fast enough for V1. **No scraping, no external API calls** in V1 — a human downloads the CSV
@@ -116,34 +121,53 @@ Header (note the **trailing comma** → an 8th, empty-named column that must be 
 
 ---
 
-## 4. The pipeline (shared design)
+## 4. The pipeline (decoupled: fast ingest + queue-driven consumer)
 
-One pipeline, seven stages, built as **small pure functions** so a second trigger (the scraper, §8.1)
-can reuse them unchanged:
+The pipeline is split into **two phases connected by a DB queue**, mirroring the `data_v2` design
+(`market_scan_queue` + `runConsumer`). The upload request does almost nothing and returns instantly;
+all the heavy per-complaint work happens later in a **cron consumer** that processes a few rows at a
+time with a visible per-complaint status. This is a V1 feature (the queue makes V1 run smoother and is
+cheap because the pattern already exists).
 
 ```
-  ACQUIRE ──► INGEST ──► PARSE ──► MATCH ──► RESOLVE OWNER ──► DIFF ──► NOTIFY
+  PHASE 1 — INGEST (synchronous, in the HTTP request, milliseconds)
+    ACQUIRE ──► UPLOAD ──► PARSE ──► ENQUEUE
+    admin downloads CSV    archive raw      papaparse +        insert one cv_violations row per
+    from Accela            to Supabase +    header-validate    complaint with processing_status
+                           cv_uploads row                      = 'pending'  (dedup by record_number)
+                                                               ── returns immediately ──
+
+  PHASE 2 — CONSUMER (async cron, every few minutes, a batch at a time)
+    FETCH pending ──► MATCH ──► RESOLVE OWNER ──► DIFF ──► NOTIFY ──► MARK STATUS
+    pull N 'pending'   §4.3      §4.4              §4.5    §4.6 gate    pending → processing →
+    rows, mark                                                          matched/no_match/awaiting_review
+    'processing'                                                        /complete/failed
 ```
 
-| Stage | V1 implementation |
-|---|---|
-| **ACQUIRE** | Manual: admin downloads the CSV from Accela (out of app). *(Scraper replaces this — §8.1.)* |
-| **INGEST** | Admin uploads via the admin panel; we archive the raw file to Supabase Storage and open a `cv_uploads` audit row. |
-| **PARSE** | `parseCsv(buffer)` → normalized rows; **validate the header** and quarantine + fail the upload on mismatch (never feed garbage downstream). |
-| **MATCH** | `matchAddress(row)` → a `properties.id` or "unmatched" (§4.3). |
-| **RESOLVE OWNER** | `resolveOwner(propertyId)` → current owning `companyId` (or "individual/unlinked") (§4.4). |
-| **DIFF** | `diffNewViolations(rows)` → drop `record_number`s already stored/notified (§4.5). |
-| **NOTIFY** | For each new violation on a company with members → email each member via `sendPlainEmail`; record `cv_notifications_sent`. **Gated by a review step in V1 (§4.6).** |
+| Stage | Phase | V1 implementation |
+|---|---|---|
+| **ACQUIRE** | — | Manual: admin downloads the CSV from Accela (out of app). *(Scraper replaces this — §8.1.)* |
+| **UPLOAD** | 1 (sync) | Admin uploads via the admin panel; archive the raw file to Supabase Storage, open a `cv_uploads` audit row. |
+| **PARSE** | 1 (sync) | `parseCsv(buffer)` → normalized rows; **validate the header** and fail the upload on mismatch (never enqueue garbage). |
+| **ENQUEUE** | 1 (sync) | Upsert one `cv_violations` row per complaint with `processing_status = 'pending'` (dedup by `record_number`, §4.5). **Return the `cv_uploads` id immediately.** |
+| **FETCH** | 2 (cron) | Consumer pulls a batch of `pending` rows, marks them `processing` (stale-lock recovery like `resetStaleProcessing`, §5.3). |
+| **MATCH** | 2 (cron) | `matchAddress(row)` → a `properties.id`, `unmatched`, or `ambiguous` (§4.3). |
+| **RESOLVE OWNER** | 2 (cron) | `resolveOwner(propertyId)` → current owning `companyId` (or individual/unlinked) (§4.4). |
+| **DIFF** | 2 (cron) | secondary `##TMP→CE` dedup before notifying (§4.5); write the `cv_matches` row. |
+| **NOTIFY** | 2 (cron) | Owner company with members → email each member via `sendPlainEmail`; record `cv_notifications_sent`. **Gated by the review step (§4.6).** |
+| **MARK STATUS** | 2 (cron) | Set the row's terminal `processing_status` (§6); update `cv_uploads` counters. |
 
 **Notify scope (decided):** **every matched new violation** notifies — no Record-Type / Status
 allowlist in V1. If a matched property's current owner is a company we have a user for, that user gets
 emailed regardless of complaint type. (A type/severity allowlist is a possible later refinement, not V1.)
 
-### 4.1 Same core, two thin triggers
-The pipeline is deliberately split into **trigger** (how the CSV arrives) and **core** (INGEST→NOTIFY).
-V1 has one trigger (manual upload). §8.1 adds a second (scraper). Both drop a raw CSV at the **same
-INGEST seam** and reuse PARSE…NOTIFY verbatim. Keep PARSE/MATCH/RESOLVE/DIFF as pure,
-side-effect-free functions in the service layer so neither trigger owns business logic.
+### 4.1 Same queue, two thin producers
+The queue cleanly separates **producers** (what puts complaints on the queue) from the **one consumer**
+(what processes them). V1 has one producer — the manual upload (PARSE+ENQUEUE). §8.1's scraper becomes
+a **second producer** that enqueues the same `cv_violations` `pending` rows and changes nothing
+downstream; the consumer doesn't know or care which producer enqueued a row. The match/owner/diff/notify
+**process functions live in `server/jobs/code-violations/processes/`** (mirroring `data_v2/processes/`)
+and are pure where possible so they're trivially testable.
 
 ### 4.2 Migration note (do NOT use `db:push`)
 The new `cv_` tables must be added with a **targeted `ALTER`/SQL migration**, **not** `npm run db:push`
@@ -226,8 +250,8 @@ Given a matched `propertyId`: take the most recent **arms-length** transaction's
 
 ### 4.5 Idempotency & dedup (critical)
 Daily uploads overlap heavily, so **never notify twice for the same complaint.**
-- `cv_violations.record_number` is **UNIQUE**. PARSE upserts on it (`ON CONFLICT DO UPDATE` for `status_text`/`description`, since a complaint's status can change `New → Closed`), but DIFF only treats a row as "new" the **first** time we see its `record_number`.
-- `cv_notifications_sent` has **UNIQUE(`violation_id`, `user_id`, `channel`)** — a hard backstop against double-emailing even if DIFF is bypassed.
+- `cv_violations.record_number` is **UNIQUE**. ENQUEUE upserts on it: a **brand-new** `record_number` inserts with `processing_status = 'pending'`; an **already-seen** one does `ON CONFLICT DO UPDATE` for `status_text`/`description` (a complaint's Accela status can change `New → Closed`) but **does NOT reset `processing_status`** — so a complaint already processed is never re-queued or re-notified. This makes overlapping daily uploads naturally idempotent.
+- `cv_notifications_sent` has **UNIQUE(`violation_id`, `user_id`, `channel`)** — a hard backstop against double-emailing even if the queue logic is bypassed.
 - **`##TMP` → `CE` edge:** Accela sometimes issues a temporary `##TMP-*` record number that is later
   replaced by a permanent `CE-*` number — the *same physical complaint under two record numbers*,
   which would dodge the `record_number` dedup and double-alert. V1 mitigation: a **secondary dedup**
@@ -238,59 +262,101 @@ Daily uploads overlap heavily, so **never notify twice for the same complaint.**
 
 ### 4.6 Review gate / dry-run (decided)
 For the **initial rollout, notifications do not auto-fire** — a wrong address match emailing the wrong
-investor is worse than a slight delay. So INGEST always runs PARSE→MATCH→RESOLVE→DIFF and **stores**
-`cv_violations` + `cv_matches`, but **NOTIFY is held** behind admin approval:
+investor is worse than a slight delay. The review gate is just a **state in the consumer's status
+machine**, not a separate code path:
 
-- An upload lands in `cv_uploads.status = 'review'` and the admin panel shows the **dry-run result**:
-  every match, the resolved owner company, and exactly **which users would be emailed**, plus the
-  unmatched/ambiguous lists.
-- The admin clicks **Approve** (`POST /api/code-violations/uploads/:id/approve`) → NOTIFY runs →
-  `status = 'completed'`.
-- Whether review is required is a **single setting** (`CV_REQUIRE_REVIEW`, default **on**). Once match
-  quality is trusted, flip it off and uploads go straight through to NOTIFY (`'processing'` →
-  `'completed'`) — "dry-run first, then auto."
+- With `CV_REQUIRE_REVIEW` **on** (default): the consumer runs MATCH→RESOLVE→DIFF, writes `cv_matches`,
+  and parks each matched complaint at `processing_status = 'awaiting_review'` **without emailing**. The
+  admin panel shows the dry-run: every match, the resolved owner company, exactly **which users would
+  be emailed**, plus the unmatched/ambiguous rows.
+- The admin clicks **Approve** for an upload (`POST /api/code-violations/uploads/:id/approve`) → a
+  notify pass runs NOTIFY for that upload's `awaiting_review` rows → each becomes `complete`. The
+  `cv_uploads.status` advances `review → completed`.
+- With `CV_REQUIRE_REVIEW` **off**: the consumer runs NOTIFY inline and rows go straight
+  `processing → complete` (no `awaiting_review` stop). "Dry-run first, then auto" is a single flag flip.
+
+> Because the gate is a status, the per-complaint queue and the review step are the *same* mechanism —
+> no extra machinery.
 
 ---
 
 ## 5. Architecture & code layout
 
-### 5.1 Files (new), following existing conventions
+### 5.1 Files (new) — HTTP side in `services/`, processing in `jobs/` (mirrors `data_v2`)
+The split follows the existing convention: the **cron consumer + per-step process functions live under
+`server/jobs/`** (exactly like `server/jobs/data_v2/`), while `server/services/` holds only the
+HTTP-facing work — the ingest endpoint and the admin read queries.
 ```
 database/
-  schemas/code-violations.schema.ts        # cv_uploads, cv_violations, cv_matches, cv_notifications_sent
+  schemas/code-violations.schema.ts        # cv_uploads, cv_violations (incl. processing_status), cv_matches, cv_notifications_sent
   validation/code-violations.validation.ts # Zod: parsed-row schema, upload request schema
   types/code-violations.d.ts               # derived types ($inferSelect)
 
 server/
-  routes/code-violations.routes.ts         # admin-only upload + list-uploads endpoints
+  routes/code-violations.routes.ts         # admin-only: upload, list uploads/violations, approve
   controllers/code-violations/code-violations.controllers.ts
   services/code-violations/
-    ingest.services.ts                      # archive to Supabase + cv_uploads row + orchestration
-    parse.services.ts                       # parseCsv + header validation   (pure)
-    match.services.ts                       # matchAddress                    (pure)
-    owner.services.ts                       # resolveOwner                    (mostly pure)
-    notify.services.ts                      # diffNewViolations + email send + cv_notifications_sent
+    code-violations.services.ts            # HTTP side: ingest (archive + parse + ENQUEUE), list, approve→trigger notify pass
+                                           #   parse helper + the shared address normalizer it calls
+
+  jobs/code-violations/                    # ── processing, mirroring server/jobs/data_v2/ ──
+    consumer.ts                            # cron entry: fetch a 'pending' batch → process each → mark status
+    processes/
+      fetch-queue.ts                       # pull N 'pending' cv_violations rows; resetStaleProcessing
+      mark-status.ts                       # markProcessing/markComplete/markFailed/markAwaitingReview/resetStale
+      match-address.ts                     # normalize + match to a property         (pure-ish)
+      resolve-owner.ts                     # most-recent arms-length buyer company    (reuses Data app logic)
+      diff-and-store.ts                    # ##TMP→CE secondary dedup; write cv_matches
+      notify.ts                            # resolve company_members → sendPlainEmail → cv_notifications_sent
+
+  jobs/index.ts                            # register the CV consumer cron (every few minutes) — EDIT existing file
 
 client/
-  components/admin/CodeViolationsTab.tsx     # new admin tab (upload + results summary)
+  components/admin/CodeViolationsTab.tsx     # new admin tab (upload + per-complaint status + dry-run review)
   api/code-violations.api.ts                 # typed fetch wrapper
 ```
 
-### 5.2 The trigger seam
-INGEST exposes one entry point — `ingestCodeViolationCsv({ buffer, fileName, source, uploadedBy })` —
-that archives the file, writes a `cv_uploads` row (`source: 'manual' | 'scraper'`), then runs
-PARSE→NOTIFY. **V1's manual upload controller is the only caller.** §8.1's scraper becomes a second
-caller with `source: 'scraper'` and changes nothing downstream. This is the "same core, two thin
-triggers" rule (§4.1) made concrete.
+The **shared address normalizer** (§4.3) is extended in `shared/utils/formatAddress.ts` (the existing
+`STREET_TYPE_ABBREVIATIONS` home) so both ENQUEUE-time storage and MATCH-time comparison use one
+canonicalization.
+
+### 5.2 The producer seam
+ENQUEUE is the seam: `enqueueComplaints({ rows, uploadId, source })` upserts `cv_violations` rows as
+`pending`. **V1's manual upload is the only producer.** §8.1's scraper becomes a second producer that
+calls the same enqueue with `source: 'scraper'` and changes nothing about the consumer — the "same
+queue, two producers" rule (§4.1) made concrete. `cv_uploads.source` (`'manual' | 'scraper'`) records
+which producer a given batch came from.
+
+### 5.3 Consumer mechanics (copy `data_v2`'s proven bits)
+- **Registration:** a `node-cron` entry in `server/jobs/index.ts` runs `runCodeViolationConsumer()`
+  every few minutes (`CV_CONSUMER_CRON`), gated on `NODE_ENV === 'production'` like the other jobs.
+- **Batching:** each run processes up to `CV_BATCH_SIZE` `pending` rows, then exits — small, frequent
+  passes rather than one long job (§4 Phase 2).
+- **Soft lock + recovery:** mark rows `processing` before work so overlapping runs don't double-process;
+  reset rows stuck in `processing` past a timeout back to `pending` (the `resetStaleProcessing(60)`
+  pattern from `data_v2/consumer.ts`).
+- **Failure policy:** a row that errors is marked `failed` with the message and **left for admin review
+  — no automatic retry** (mirrors `data_v2`: "failed rows stay in the queue"). A capped auto-retry is a
+  possible later refinement (§10).
+- **Per-complaint isolation:** one bad complaint marks only that row `failed` and the batch continues
+  (mirrors `data_v2`'s per-batch try/catch).
 
 ---
 
 ## 6. Data model (new `cv_` tables)
 
 All additive; apply via targeted migration (§4.2). `cv_violations` is the system of record (every
-parsed complaint, property-agnostic); `cv_matches` records the property/owner resolution only when we
-can make it — this cleanly supports V2 backfill (an unmatched violation already exists; when its
-property is later added we just insert a `cv_matches` row and notify).
+parsed complaint, property-agnostic) **and the work queue** — its `processing_status` column is what
+the consumer reads (`pending` rows = the work list). `cv_matches` records the property/owner resolution
+only when we can make it — this cleanly supports V2 backfill (an unmatched violation already exists;
+when its property is later added we just insert a `cv_matches` row and notify).
+
+> **Why one table, not a separate `cv_*_queue` (vs. `market_scan_queue`):** the scan queue is separate
+> from `properties` because its input shape (raw SFR scan rows) differs from its output (properties).
+> Here a *complaint* and the *stored violation* are the **same entity**, so a `processing_status`
+> column on `cv_violations` is the cleaner queue — no duplicate table, dedup-by-`record_number` doubles
+> as queue idempotency. We still mirror `data_v2`'s **job structure** (consumer + `processes/` + cron),
+> just over one table.
 
 **`cv_uploads`** — one row per ingest run (audit + admin results panel)
 | Column | Type | Notes |
@@ -300,21 +366,24 @@ property is later added we just insert a `cv_matches` row and notify).
 | `uploaded_by` | uuid FK users | nullable (null for scraper) |
 | `file_name` | text | |
 | `raw_ref` | text | Supabase Storage path of the archived CSV |
-| `status` | text | `'processing'` \| `'review'` (dry-run awaiting approval, §4.6) \| `'completed'` \| `'failed'` |
-| `rows_total` / `rows_matched` / `rows_unmatched` / `violations_new` / `notifications_sent` | int | result counters |
+| `status` | text | upload-level: `'enqueued'` \| `'processing'` (consumer working its rows) \| `'review'` (dry-run awaiting approval, §4.6) \| `'completed'` \| `'failed'` |
+| `rows_total` / `rows_matched` / `rows_unmatched` / `violations_new` / `notifications_sent` | int | result counters (updated as the consumer drains the batch) |
 | `error_message` | text | nullable |
 | `created_at` / `finished_at` | timestamp | |
 
-**`cv_violations`** — every distinct complaint we've ever parsed
+**`cv_violations`** — every distinct complaint we've ever parsed **+ the work queue** (`processing_status`)
 | Column | Type | Notes |
 |---|---|---|
 | `id` | uuid PK | |
 | `record_number` | text | **UNIQUE NOT NULL** — idempotency key (§4.5) |
-| `record_type` / `application_name` / `status_text` / `description` | text | from CSV |
+| `record_type` / `application_name` / `status_text` / `description` | text | from CSV (`status_text` = Accela's status, e.g. `New` — distinct from `processing_status`) |
 | `violation_date` | date | parsed from `Date` |
 | `raw_address` | text NOT NULL | original CSV address |
 | `normalized_address` | text | for matching + TMP→CE secondary dedup |
-| `first_seen_upload_id` | uuid FK `cv_uploads` | which upload introduced it |
+| **`processing_status`** | text | **the queue state:** `'pending'` → `'processing'` → `'awaiting_review'` (§4.6) / `'no_match'` / `'ambiguous'` / `'complete'` / `'failed'`. Index `(processing_status, created_at)` so the consumer fetch is cheap |
+| `processing_error` | text | nullable — message when `failed` |
+| `first_seen_upload_id` | uuid FK `cv_uploads` | the upload that enqueued it (review approval is per-upload) |
+| `processed_at` | timestamp | when it reached a terminal status |
 | `created_at` / `updated_at` | timestamp | |
 
 **`cv_matches`** — violation ↔ property (+ owner snapshot), only when resolvable
@@ -346,46 +415,50 @@ Built in dependency order; each chunk is independently reviewable. The user-faci
 frontend does not exist in V1** (email is the only output) — it is deferred to §8.2.
 
 ### Chunk A — Data model & migration
-- Add the four `cv_` tables in `database/schemas/code-violations.schema.ts`; derive types in `database/types/`.
+- Add the four `cv_` tables in `database/schemas/code-violations.schema.ts` (incl. `cv_violations.processing_status` — the queue column — and its `(processing_status, created_at)` index); derive types in `database/types/`.
 - Write the **targeted ALTER/SQL** migration (§4.2). Do **not** `db:push`.
 - Zod: a parsed-row schema + the upload request schema in `database/validation/code-violations.validation.ts`.
 
-### Chunk B — Admin API (INGEST)
+### Chunk B — Ingest endpoint (Phase 1: archive + parse + ENQUEUE, returns fast)
 - Route `POST /api/code-violations/uploads` guarded by **`requireRole(ADMIN_ROLES)`** (admin + owner only — *not* `PRIVILEGED_ROLES`, so relationship-managers/members are excluded).
-- multer **memoryStorage**, `fileFilter` to `text/csv` / `application/vnd.ms-excel`, `limits.fileSize` ≈ **1–2 MB** (the Accela export is capped around ~500 KB and typically ~480 KB, so 1 MB is comfortable headroom — no need for a large cap). Use the `MulterRequest` type (`server/middleware/multerTypes.ts`).
-- Controller: validate `req.file` present → archive buffer to Supabase Storage (new bucket env `SUPABASE_CODE_VIOLATION_STORAGE_BUCKET`, names only) → create `cv_uploads` row → call `ingestCodeViolationCsv(...)`.
-- `GET /api/code-violations/uploads` (admin) to back the results panel, and `POST /api/code-violations/uploads/:id/approve` (admin) to run NOTIFY for a `review`-status upload (§4.6).
+- multer **memoryStorage**, `fileFilter` to `text/csv` / `application/vnd.ms-excel`, `limits.fileSize` ≈ **1–2 MB** (the Accela export is capped around ~500 KB and typically ~480 KB). Use the `MulterRequest` type (`server/middleware/multerTypes.ts`).
+- `code-violations.services.ts → ingestCodeViolationCsv(...)`: archive buffer to Supabase Storage (new bucket env `SUPABASE_CODE_VIOLATION_STORAGE_BUCKET`, names only) → create `cv_uploads` row (`status='enqueued'`) → **papaparse** (`header: true`, drop the `""` column, validate header, coerce `Date`) → **ENQUEUE** one `cv_violations` row per complaint as `pending` (dedup by `record_number`, §4.5). **Return the `cv_uploads` id immediately — no matching or emailing in the request.** Fail the upload + `cv_uploads.status='failed'` on header mismatch.
+- Also `GET /api/code-violations/uploads` and `GET /api/code-violations/uploads/:id` (admin) to back the panel, and `POST /api/code-violations/uploads/:id/approve` (admin) to run the notify pass for an upload's `awaiting_review` rows (§4.6).
 - Run the new-route ceremony via the **`/new-route`** skill so `api.md` / `access-control.md` / tests are scaffolded together.
 
-### Chunk C — Pipeline core (PARSE → MATCH → RESOLVE OWNER → DIFF)
-- `parse.services.ts`: papaparse with `header: true`, drop the `""` column, validate header, coerce `Date`, return normalized rows. Quarantine + fail the `cv_uploads` row on header mismatch.
-- `match.services.ts`: implement §4.3 — the **uppercase + strip `.`/`,` + suffix-normalize** scheme applied to both sides; exact street number+name, city/state when present, zip optional. Return `matched | unmatched | ambiguous`. **One supporting change:** ensure `AV`/`AV.` maps to avenue in `STREET_TYPE_ABBREVIATIONS` (`shared/utils/formatAddress.ts`).
-- `owner.services.ts`: implement §4.4 against `property_transactions` (`sortOrder` ASC).
-- Upsert into `cv_violations` (ON CONFLICT `record_number`); insert `cv_matches` for matched rows; `diffNewViolations` computes the notify set (§4.5, incl. the TMP→CE secondary dedup).
+### Chunk C — Consumer job (Phase 2: the cron processor — the "background job")
+- `server/jobs/code-violations/consumer.ts` + `processes/`, **mirroring `server/jobs/data_v2/`**. Register a `node-cron` entry in `server/jobs/index.ts` (`CV_CONSUMER_CRON`, prod-gated) and apply the §5.3 mechanics (batch size, soft-lock, `resetStaleProcessing`, per-row try/catch, no auto-retry).
+- `fetch-queue.ts` + `mark-status.ts`: pull a `CV_BATCH_SIZE` batch of `pending` rows → mark `processing`; status transitions + stale reset.
+- `match-address.ts`: implement §4.3 — the **uppercase + strip `.`/`,` + suffix/directional-normalize** scheme applied to both sides; exact street number+name, city/state when present, zip optional. Return `matched | unmatched | ambiguous`. **Supporting change:** extend `STREET_TYPE_ABBREVIATIONS` broadly (§4.3) in `shared/utils/formatAddress.ts` (incl. `AV`/`AV.`). Unmatched → `processing_status='no_match'`; ambiguous → `'ambiguous'`.
+- `resolve-owner.ts`: implement §4.4, reusing the Data app's transaction-resolution logic (`property_transactions` by `sortOrder` ASC).
+- `diff-and-store.ts`: TMP→CE secondary dedup (§4.5); insert the `cv_matches` row. Route each row to `awaiting_review` (gate on) or straight to NOTIFY (gate off).
 
-### Chunk D — Notify (email), behind the review gate
-- NOTIFY runs at upload time only if `CV_REQUIRE_REVIEW` is off; otherwise it runs on **Approve** (§4.6). Same function either way.
-- For each new violation whose owner company has `company_members`: resolve members → emails via `getCompanyMembers` + `users.email`; send with **`sendPlainEmail`** (raw HTML; no template in V1) from `server/services/postmark/email.services.ts`. Respect the master `users.notifications` kill-switch (reuse `getEmailRecipientsByUserIds`).
-- Write `cv_notifications_sent` rows (idempotent UNIQUE). Update `cv_uploads` counters + `status='completed'`. Fire-and-forget per recipient; log per-recipient failures (mirror existing email jobs).
+### Chunk D — Notify (email), as a consumer step + approve-triggered pass
+- `notify.ts`: for a matched violation whose owner company has **`company_members`** (§2 warning: members, not contacts): resolve members → emails via `getCompanyMembers` + `users.email`; send with **`sendPlainEmail`** (raw HTML; no template in V1) from `server/services/postmark/email.services.ts`. Respect the master `users.notifications` kill-switch (reuse `getEmailRecipientsByUserIds`).
+- Write `cv_notifications_sent` rows (idempotent UNIQUE) and set `processing_status='complete'`. Update `cv_uploads` counters. Per-recipient fire-and-forget with logged failures (mirror existing email jobs).
+- Two entry points, **same function:** the consumer calls it inline when `CV_REQUIRE_REVIEW` is off; the **approve** endpoint (Chunk B) calls it for an upload's `awaiting_review` rows when review is on (§4.6).
 
-### Chunk E — Admin UI (with dry-run review)
+### Chunk E — Admin UI (upload + per-complaint status + dry-run review)
 - New `CodeViolationsTab.tsx` in `client/src/components/admin/`, added to `Admin.tsx` Radix `Tabs`, gated on `isOwner || isAdmin`.
-- File input → `FormData` → `POST /api/code-violations/uploads` (TanStack Query mutation, `credentials: 'include'`).
-- **Dry-run review screen (§4.6):** after upload, show the matched violations with resolved owner company and **the exact recipients who would be emailed**, plus unmatched/ambiguous lists; an **Approve & Notify** button hits the approve endpoint. Also a recent-uploads list from `GET /api/code-violations/uploads` with the result counters. Follow design-guidelines tokens.
+- File input → `FormData` → `POST /api/code-violations/uploads` (TanStack Query mutation, `credentials: 'include'`) → returns immediately; the panel then **polls** `GET /api/code-violations/uploads/:id` as the consumer drains the batch (per-complaint statuses + counters visible).
+- **Dry-run review (§4.6):** when an upload is in `review`, show its matched violations with resolved owner company and **the exact recipients who would be emailed**, plus unmatched/ambiguous/failed rows; an **Approve & Notify** button hits the approve endpoint. Follow design-guidelines tokens.
 
 ### Chunk F — Tests & docs
-- Integration tests for the upload route (auth matrix: admin/owner allowed; RM/member/anon rejected) + unit tests for `parseCsv`, `matchAddress`, `resolveOwner`, `diffNewViolations` (use `temp.csv` quirks as fixtures). See `.claude/docs/standards/testing.md` / `/test`.
-- Run the **Agent Updater** so `api.md`, `access-control.md`, `database.md`, and `apps.md` reflect the new route, tables, and admin tab.
+- Integration tests for the upload + approve routes (auth matrix: admin/owner allowed; RM/member/anon rejected). Unit tests for the pure pieces: CSV parse, address normalizer + `matchAddress`, `resolveOwner`, the TMP→CE dedup (use `temp.csv` quirks as fixtures). A consumer test that drives `pending → complete`/`no_match`/`awaiting_review`. See `.claude/docs/standards/testing.md` / `/test`.
+- Run the **Agent Updater** so `api.md`, `access-control.md`, `database.md`, and `apps.md` reflect the new route, tables, consumer job, and admin tab.
 
 ---
 
 ## 8. Future iterations (V2+) — DO NOT build in V1
 
 ### 8.1 Automate acquisition — scrape Accela
-Replace the manual ACQUIRE step with a headless-browser worker that downloads the same CSV and feeds
-the **same INGEST seam** (§5.2). **Already fully designed** in
-[`code-violation-scraper.md`](code-violation-scraper.md) (Playwright, dedicated cloud worker, politeness,
-circuit breaker, `cv_scrape_runs` telemetry). Depends on this MVP shipping first.
+Replace the manual ACQUIRE step with a headless-browser worker (Playwright) that downloads the same CSV
+and becomes a **second producer on the same queue** (§5.2) — it parses + ENQUEUEs `cv_violations`
+`pending` rows with `source='scraper'`, and the **existing consumer processes them unchanged**.
+**Already fully designed** in [`code-violation-scraper.md`](code-violation-scraper.md) (dedicated cloud
+worker, politeness, circuit breaker, `cv_scrape_runs` telemetry). Depends on this MVP (queue + consumer)
+shipping first. *(Note: only the **scraper** needs headless Chrome — the V1 consumer is plain DB work,
+no browser.)*
 
 ### 8.2 Internal (in-app / bell) notifications
 Add a second notification channel alongside email:
@@ -407,19 +480,33 @@ ones. (Because the violation already lives in `cv_violations`, no data is lost i
 V1 sends simple inline HTML via `sendPlainEmail`. V2: a Postmark template
 (`POSTMARK_CODE_VIOLATION_TEMPLATE_ALIAS`) and `sendTemplateToUsers`, consistent with deal/property emails.
 
+### 8.5 V3 — move processing to AWS (DB queue → SQS)
+The V1 DB queue is deliberately the **pre-SQS shape**, so the V3 migration is a transport swap, not a
+redesign:
+- Each `cv_violations` `pending` row becomes an **SQS message**; the cron consumer becomes an **SQS
+  consumer** (Lambda or a worker) processing one complaint per message with native retry/dead-letter.
+- The scraper (§8.1) and the manual upload both **produce SQS messages** instead of (or in addition to)
+  DB rows. The `process functions` (match/owner/diff/notify) move with the worker essentially as-is.
+- This is the moment the **scraper's isolated cloud compute** and the **processing** consolidate on AWS
+  in one coherent migration — which is why V3, not earlier. Keeping each complaint's processing
+  **idempotent and self-contained** in V1 (keyed on `record_number`) is the one discipline that makes
+  this swap cheap.
+
 ---
 
 ## 9. Tools, dependencies & env vars
 
 **Already installed — no new packages for V1:** `multer` (upload), `papaparse` (+ `@types/papaparse`)
-(CSV parse), `@supabase/supabase-js` (raw-file archive), `postmark` (email), Drizzle, TanStack Query,
-Radix Tabs.
+(CSV parse), `@supabase/supabase-js` (raw-file archive), `postmark` (email), `node-cron` (consumer
+schedule — same as `data_v2`), Drizzle, TanStack Query, Radix Tabs.
 
 **New env vars (NAMES ONLY — per ARV.SECRET-ACCESS; never read/print values):**
 | Name | Purpose | When |
 |---|---|---|
 | `SUPABASE_CODE_VIOLATION_STORAGE_BUCKET` | bucket for archived raw CSVs (public, allow `text/csv`) | V1 |
-| `CV_REQUIRE_REVIEW` | when on (default), uploads hold in `review` until an admin approves before emails fire (§4.6) | V1 |
+| `CV_REQUIRE_REVIEW` | when on (default), matched rows hold at `awaiting_review` until an admin approves before emails fire (§4.6) | V1 |
+| `CV_CONSUMER_CRON` | consumer schedule (e.g. every few minutes) — like the `data_v2` cron entries | V1 |
+| `CV_BATCH_SIZE` | max `pending` complaints processed per consumer run (§5.3) | V1 |
 | `POSTMARK_CODE_VIOLATION_TEMPLATE_ALIAS` | Postmark template for the violation email | V2 (§8.4) |
 
 Reuses existing `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_SERVER_API_KEY`,
@@ -436,15 +523,17 @@ Reuses existing `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PO
 - **Normalizer coverage** → **expand broadly** now (full suffix + directional + unit + ordinal map in one shared normalizer), not a minimal `Av` patch (§4.3).
 - **Owner resolution** → **reuse the Data app's existing transaction-resolution logic**; `sortOrder` is reliable (consumer sets it at ingest) (§4.4).
 - **Recipients source** → **`company_members` only**, never `company_contacts` (§2 warning).
-- **Upload size** → small and stable (~480 KB typical, ~500 KB export cap); 1–2 MB multer limit, processing stays **in-request** (no background job needed for V1).
+- **Processing model** → **decoupled DB queue + cron consumer in V1** (`cv_violations.processing_status` is the queue; processing in `server/jobs/code-violations/`, mirroring `data_v2`). Upload returns instantly; the consumer drains a batch every few minutes (§4, §5.3).
+- **Where the logic lives** → **processing in `jobs/`** (consumer + `processes/`), **HTTP reads/ingest in `services/`** — matching the `data_v2` vs `properties.services.ts` split.
+- **Upload size** → small and stable (~480 KB typical, ~500 KB export cap); 1–2 MB multer limit. Parsing/enqueue is trivially fast in-request; matching/notify is the consumer's job.
 
 **Still open / risks:**
 - **Normalizer long tail.** Even with broad coverage, real data will surface more variants — the unmatched/ambiguous admin lists are how we find and fix them. Budget for ongoing tuning.
 - **`##TMP → CE` frequency** (§4.5) — unknown until we see real data; the secondary dedup logs occurrences so we can measure and revisit later.
 - **Ambiguous matches.** Same street number+name in the same city (apartment complexes, re-used names) → goes to the admin review list rather than a guess; volume unknown until real data.
+- **Failure retry policy.** V1 mirrors `data_v2` (failed rows stay `failed`, surfaced for admin review, **no auto-retry**). If transient DB/email errors prove common, add a capped auto-retry (attempt counter on the row) — a small refinement, not V1.
+- **Consumer cadence / batch size.** Start conservative (`CV_CONSUMER_CRON` every few minutes, modest `CV_BATCH_SIZE`); tune once we see real volume and per-complaint cost.
 - **Individual owners we *do* have a user for.** V1 only notifies via the company link. If a user is associated with a property some other way in future, that path doesn't exist yet.
-- **`##TMP → CE` frequency** (§4.5) — unknown until we see real data; the secondary dedup logs occurrences so we can measure.
-- **Upload size / timing.** The sample is ~480 KB; parse + match + notify should run within a request, but if uploads grow, move processing to a background job and return the `cv_uploads` id immediately (the admin panel polls for status).
 
 ---
 
