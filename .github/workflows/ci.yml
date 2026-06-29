@@ -14,10 +14,10 @@ jobs:
             - name: Checkout repo
               uses: actions/checkout@v4
 
-            - name: Use Node.js 22
+            - name: Use Node.js 24
               uses: actions/setup-node@v4
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: npm
 
             - name: Install dependencies
@@ -34,10 +34,10 @@ jobs:
             - name: Checkout repo
               uses: actions/checkout@v4
 
-            - name: Use Node.js 22
+            - name: Use Node.js 24
               uses: actions/setup-node@v4
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: npm
 
             - name: Install dependencies
@@ -54,10 +54,10 @@ jobs:
             - name: Checkout repo
               uses: actions/checkout@v4
 
-            - name: Use Node.js 22
+            - name: Use Node.js 24
               uses: actions/setup-node@v4
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: npm
 
             - name: Install dependencies
@@ -76,20 +76,15 @@ jobs:
             SESSION_SECRET: test-secret
             SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
-            SUPABASE_VENDOR_STORAGE_BUCKET: ${{secrets.SUPABASE_VENDOR_STORAGE_BUCKET}}
-            SUPABASE_USER_STORAGE_BUCKET: ${{secrets.SUPABASE_USER_STORAGE_BUCKET}}
-            SUPABASE_MASTERMIND_STORAGE_BUCKET: ${{secrets.SUPABASE_MASTERMIND_STORAGE_BUCKET}}
-            SUPABASE_STREETVIEW_STORAGE_BUCKET: ${{secrets.SUPABASE_STREETVIEW_STORAGE_BUCKET}}
 
         steps:
             - name: Checkout repo
               uses: actions/checkout@v4
 
-            - name: Use Node.js 22
+            - name: Use Node.js 24
               uses: actions/setup-node@v4
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: npm
 
             - name: Install dependencies

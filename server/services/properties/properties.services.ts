@@ -12,6 +12,7 @@ import { trimCompanyName } from 'server/utils/normalization';
 import { calculateSpread } from 'server/utils/orderTransactions';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { formatContactName } from '@shared/utils/formatContactName';
 
@@ -169,19 +170,18 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .groupBy(propertyTransactions.propertyId)
         .as('al_summary');
 
-    const conditions = [];
+    const conditions: SQL[] = [];
 
     // Full-text search across address, city, state, zip
     if (search && search.trim().length > 0) {
         const searchTerm = `%${search.trim().toLowerCase()}%`;
-        conditions.push(
-            or(
-                sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
-                sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
-                sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
-                sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`,
-            ) as any,
+        const searchClause = or(
+            sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
+            sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
+            sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
+            sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`,
         );
+        if (searchClause) conditions.push(searchClause);
     }
 
     const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
@@ -248,13 +248,12 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                     sql`LOWER(TRIM(${properties.propertyType})) = ${normalizedTypes[0]}`,
                 );
             } else {
-                conditions.push(
-                    or(
-                        ...normalizedTypes.map(
-                            (t) => sql`LOWER(TRIM(${properties.propertyType})) = ${t}`,
-                        ),
-                    ) as any,
+                const typeClause = or(
+                    ...normalizedTypes.map(
+                        (t) => sql`LOWER(TRIM(${properties.propertyType})) = ${t}`,
+                    ),
                 );
+                if (typeClause) conditions.push(typeClause);
             }
         }
     }
@@ -299,12 +298,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     // County filter
     if (county) {
         const normalizedCounty = county.toString().trim().toLowerCase();
-        conditions.push(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-            ) as any,
+        const countyClause = or(
+            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
         );
+        if (countyClause) conditions.push(countyClause);
     }
 
     // Zipcode filter
@@ -347,29 +345,21 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     if (skipCount !== 'true' || pageNum === 1) {
         let countQuery = db
             .select({ count: sql<number>`count(DISTINCT ${properties.id})` })
-            .from(properties);
-        countQuery = countQuery.leftJoin(addresses, eq(properties.id, addresses.propertyId)) as any;
+            .from(properties)
+            .$dynamic();
+        countQuery = countQuery.leftJoin(addresses, eq(properties.id, addresses.propertyId));
         if (bedrooms || bathrooms) {
-            countQuery = countQuery.leftJoin(
-                structures,
-                eq(properties.id, structures.propertyId),
-            ) as any;
+            countQuery = countQuery.leftJoin(structures, eq(properties.id, structures.propertyId));
         }
         if (minPrice || maxPrice) {
-            countQuery = countQuery.leftJoin(
-                lastSales,
-                eq(properties.id, lastSales.propertyId),
-            ) as any;
+            countQuery = countQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
         }
         // alSummary join required when date range conditions reference it
         if (resolvedDateRange) {
-            countQuery = (countQuery as any).leftJoin(
-                alSummary,
-                eq(properties.id, alSummary.propertyId),
-            );
+            countQuery = countQuery.leftJoin(alSummary, eq(properties.id, alSummary.propertyId));
         }
         if (whereClause) {
-            countQuery = countQuery.where(whereClause) as any;
+            countQuery = countQuery.where(whereClause);
         }
         const [totalResult] = await countQuery.execute();
         total = Number(totalResult?.count || 0);
@@ -383,10 +373,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .leftJoin(structures, eq(properties.id, structures.propertyId))
         .leftJoin(lastSales, eq(properties.id, lastSales.propertyId))
-        .leftJoin(alSummary, eq(properties.id, alSummary.propertyId));
+        .leftJoin(alSummary, eq(properties.id, alSummary.propertyId))
+        .$dynamic();
 
     if (whereClause) {
-        idQuery = idQuery.where(whereClause) as any;
+        idQuery = idQuery.where(whereClause);
     }
 
     const sortByValue = sortBy?.toString() || 'recently-sold';
@@ -397,28 +388,28 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 sql`CASE WHEN ${alSummary.recentRecordingDate} IS NULL THEN 1 ELSE 0 END`,
                 sql`${alSummary.recentRecordingDate} DESC`,
                 properties.id,
-            ) as any;
+            );
             break;
         case 'days-held':
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN ${alSummary.recentRecordingDate} IS NULL THEN 1 ELSE 0 END`,
                 sql`${alSummary.recentRecordingDate} ASC`,
                 properties.id,
-            ) as any;
+            );
             break;
         case 'price-high-low':
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) IS NULL THEN 1 ELSE 0 END`,
                 sql`COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) DESC`,
                 properties.id,
-            ) as any;
+            );
             break;
         case 'price-low-high':
             idQuery = idQuery.orderBy(
                 sql`CASE WHEN COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) IS NULL THEN 1 ELSE 0 END`,
                 sql`COALESCE(${alSummary.recentSalePrice}, CAST(${lastSales.price} AS REAL)) ASC`,
                 properties.id,
-            ) as any;
+            );
             break;
     }
 
@@ -448,8 +439,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         .where(inArray(propertyStatuses.propertyId, idsForPage));
     const statusesByPropertyId = new Map<string, string[]>();
     for (const row of propertyStatusRows) {
-        if (!statusesByPropertyId.has(row.propertyId)) statusesByPropertyId.set(row.propertyId, []);
-        statusesByPropertyId.get(row.propertyId)!.push(row.statusName);
+        const list = statusesByPropertyId.get(row.propertyId) ?? [];
+        list.push(row.statusName);
+        statusesByPropertyId.set(row.propertyId, list);
     }
 
     // Step 2: Fetch full rows for this page — no company joins; tx data drives buyer/seller/price/date
@@ -485,7 +477,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     const idToIndex = new Map(idsForPage.map((id, i) => [id, i]));
     const results = (await query.execute()).sort(
-        (a: any, b: any) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0),
+        (a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0),
     );
     const rawPropertiesList = results;
 
@@ -516,15 +508,16 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const transactionsByPropertyId = new Map<string, TxRow[]>();
     for (const row of allTxs) {
         const pid = row.propertyId;
-        if (!transactionsByPropertyId.has(pid)) transactionsByPropertyId.set(pid, []);
-        transactionsByPropertyId.get(pid)!.push(row);
+        const list = transactionsByPropertyId.get(pid) ?? [];
+        list.push(row);
+        transactionsByPropertyId.set(pid, list);
     }
 
     // Pre-pass: determine displayTx for each property and collect company IDs for contact lookup
     const displayTxByPropertyId = new Map<string, TxRow>();
     const displayTxCompanyIds = new Set<string>();
 
-    for (const prop of rawPropertiesList as any[]) {
+    for (const prop of rawPropertiesList) {
         const txs = transactionsByPropertyId.get(prop.id) ?? [];
         const displayTx = findDisplayTx(txs, companyIdTrimmed || null);
         if (displayTx) {
@@ -569,7 +562,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
 
     // Pre-pass: collect assignor company IDs for contact info
     const assignorCompanyIds = new Set<string>();
-    for (const prop of rawPropertiesList as any[]) {
+    for (const prop of rawPropertiesList) {
         const txs = transactionsByPropertyId.get(prop.id) ?? [];
         const { assignorId } = detectAssignorFromSortedTxs(txs);
         if (assignorId) assignorCompanyIds.add(assignorId);
@@ -601,7 +594,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    const propertiesList = rawPropertiesList.map((prop: any) => {
+    const propertiesList = rawPropertiesList.map((prop) => {
         const lat = prop.latitude ? Number(prop.latitude) : null;
         const lon = prop.longitude ? Number(prop.longitude) : null;
         const baths = prop.bathrooms ? Number(prop.bathrooms) : 0;
@@ -646,13 +639,7 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
                 ? displayTx.recordingDate.split('T')[0]
                 : (displayTx.recordingDate as Date).toISOString().split('T')[0]
             : null;
-        const dateSoldStr =
-            txDate ??
-            (prop.lastSaleDate
-                ? prop.lastSaleDate instanceof Date
-                    ? prop.lastSaleDate.toISOString().split('T')[0]
-                    : prop.lastSaleDate
-                : null);
+        const dateSoldStr = txDate ?? prop.lastSaleDate ?? null;
 
         const isFinancedByARV =
             prop.isArvFunded ||

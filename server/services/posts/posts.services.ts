@@ -66,13 +66,14 @@ async function fetchCategoriesForPosts(
 
     const map = new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
     for (const row of rows) {
-        if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({
+        const list = map.get(row.postId) ?? [];
+        list.push({
             id: row.categoryId,
             name: row.name,
             slug: row.slug,
             iconName: row.iconName,
         });
+        map.set(row.postId, list);
     }
     return map;
 }
@@ -93,8 +94,9 @@ async function fetchVendorTagsForPosts(
 
     const map = new Map<string, { id: string; name: string }[]>();
     for (const row of rows) {
-        if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({ id: row.vendorId, name: row.name });
+        const list = map.get(row.postId) ?? [];
+        list.push({ id: row.vendorId, name: row.name });
+        map.set(row.postId, list);
     }
     return map;
 }
@@ -116,12 +118,13 @@ async function fetchUserTagsForPosts(
 
     const map = new Map<string, { id: string; firstName: string; lastName: string }[]>();
     for (const row of rows) {
-        if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({
+        const list = map.get(row.postId) ?? [];
+        list.push({
             id: row.userId,
             firstName: row.firstName,
             lastName: row.lastName,
         });
+        map.set(row.postId, list);
     }
     return map;
 }
@@ -143,12 +146,13 @@ async function fetchImagesForPosts(
 
     const map = new Map<string, { id: number; imageUrl: string; displayOrder: number }[]>();
     for (const row of rows) {
-        if (!map.has(row.postId)) map.set(row.postId, []);
-        map.get(row.postId)!.push({
+        const list = map.get(row.postId) ?? [];
+        list.push({
             id: row.id,
             imageUrl: row.imageUrl,
             displayOrder: row.displayOrder,
         });
+        map.set(row.postId, list);
     }
     return map;
 }

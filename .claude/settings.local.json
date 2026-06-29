@@ -23,7 +23,22 @@
       "Bash(npx vitest *)",
       "Bash(git -C \"c:/Github/ARV-DATA-Project\" diff client/src/hooks/use-auth.ts client/src/components/Header.tsx client/src/components/profile/AccountInfoTab.tsx client/src/pages/Signup.tsx client/src/App.tsx)",
       "Bash(git -C \"c:/Github/ARV-DATA-Project\" grep -n \"export async function me\\\\|mustResetPassword\\\\|emailVerifiedAt\\\\|res.json\\\\|isAdmin:\" -- server/controllers/auth/session.controllers.ts)",
-      "Bash(npm run *)"
+      "Skill(audit)",
+      "Skill(audit:*)",
+      "Bash(grep -rnE \"className=\\\\\"[^\\\\\"]*#[0-9a-fA-F]{3,6}\" client/src --include=\"*.tsx\")",
+      "Bash(grep -rln \"from \\\\\"drizzle\\\\|import { db\\\\|from \\\\\"../lib/db\\\\|/db.js\" server/controllers --include=\"*.ts\")",
+      "Bash(git switch *)",
+      "Bash(grep -rl '$dynamic' node_modules/drizzle-orm/pg-core/query-builders/select.d.ts)",
+      "Bash(grep -rl '$dynamic' node_modules/drizzle-orm/pg-core/)",
+      "Bash(grep -rn '$dynamic' node_modules/drizzle-orm/pg-core/query-builders/select.d.ts)",
+      "Bash(npm run *)",
+      "Bash(npm -v)",
+      "Bash(npm install *)",
+      "Bash(npx -y npm@10 install --package-lock-only --ignore-scripts)",
+      "Bash(sed -i '' -e 's/Use Node.js 22/Use Node.js 24/g' -e 's/node-version: 22/node-version: 24/g' .github/workflows/ci.yml && grep -nE \"Use Node.js|node-version\" .github/workflows/ci.yml)"
+    ],
+    "additionalDirectories": [
+      "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"
     ]
   }
 }

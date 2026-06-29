@@ -2,9 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { insertUserSchema } from '@database/inserts';
 import { UserServices, EmailVerificationServices } from 'server/services/auth';
 import { getMsaNameFromCounty } from '@shared/constants/countyToMsa';
-import { db } from 'server/storage';
-import { msas } from '@database/schemas/msas.schema';
-import { eq } from 'drizzle-orm';
 
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -80,13 +77,9 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         if (normalizedCounty) {
             const msaName = getMsaNameFromCounty(normalizedCounty);
             if (msaName) {
-                const [msaRow] = await db
-                    .select({ id: msas.id })
-                    .from(msas)
-                    .where(eq(msas.name, msaName))
-                    .limit(1);
-                if (msaRow) {
-                    await UserServices.addUserMsaSubscription(newUser.id, msaRow.id);
+                const msaId = await UserServices.getMsaIdByName(msaName);
+                if (msaId != null) {
+                    await UserServices.addUserMsaSubscription(newUser.id, msaId);
                 }
             }
         }

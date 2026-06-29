@@ -49,9 +49,9 @@ export function cleanTransactions(
                 if (name) {
                     companyNamesSet.add(name);
                     if (county) {
-                        if (!companyToCountiesMap.has(name))
-                            companyToCountiesMap.set(name, new Set());
-                        companyToCountiesMap.get(name)!.add(county);
+                        const counties = companyToCountiesMap.get(name) ?? new Set<string>();
+                        counties.add(county);
+                        companyToCountiesMap.set(name, counties);
                     }
                 }
             }
@@ -60,9 +60,9 @@ export function cleanTransactions(
                 if (name) {
                     companyNamesSet.add(name);
                     if (county) {
-                        if (!companyToCountiesMap.has(name))
-                            companyToCountiesMap.set(name, new Set());
-                        companyToCountiesMap.get(name)!.add(county);
+                        const counties = companyToCountiesMap.get(name) ?? new Set<string>();
+                        counties.add(county);
+                        companyToCountiesMap.set(name, counties);
                     }
                 }
             }

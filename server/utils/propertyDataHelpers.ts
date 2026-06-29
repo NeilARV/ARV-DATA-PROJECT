@@ -419,26 +419,30 @@ export function transformLastSaleData(
     buyersMarket?: BuyersMarketSaleData | null,
 ) {
     const lastSale = propertyData.last_sale || propertyData.lastSale;
-    const useBuyersMarket =
+    // Narrow to the buyers/market record (or null) so its fields are accessible without a non-null
+    // assertion — a plain boolean flag wouldn't let TS see that buyersMarket is non-null here.
+    const marketSale =
         buyersMarket &&
         (buyersMarket.saleDate !== undefined ||
             buyersMarket.recordingDate !== undefined ||
-            buyersMarket.saleValue !== undefined);
-    if (!lastSale && !useBuyersMarket) return null;
+            buyersMarket.saleValue !== undefined)
+            ? buyersMarket
+            : null;
+    if (!lastSale && !marketSale) return null;
 
     const saleDate =
-        useBuyersMarket && buyersMarket!.saleDate !== undefined
-            ? normalizeDateToYMD(buyersMarket!.saleDate)
+        marketSale && marketSale.saleDate !== undefined
+            ? normalizeDateToYMD(marketSale.saleDate)
             : (lastSale?.date ?? null);
     const recordingDate =
-        useBuyersMarket && buyersMarket!.recordingDate !== undefined
-            ? normalizeDateToYMD(buyersMarket!.recordingDate)
+        marketSale && marketSale.recordingDate !== undefined
+            ? normalizeDateToYMD(marketSale.recordingDate)
             : recordingDateOverride !== undefined
               ? recordingDateOverride
               : (lastSale?.recording_date ?? null);
     const price =
-        useBuyersMarket && buyersMarket!.saleValue != null
-            ? String(buyersMarket!.saleValue)
+        marketSale && marketSale.saleValue != null
+            ? String(marketSale.saleValue)
             : lastSale?.price
               ? String(lastSale.price)
               : null;
@@ -468,20 +472,24 @@ export function transformCurrentSaleData(
     buyersMarket?: BuyersMarketSaleData | null,
 ) {
     const currentSale = propertyData.current_sale || propertyData.currentSale;
-    const useBuyersMarket =
+    // Narrow to the buyers/market record (or null) so its fields are accessible without a non-null
+    // assertion — a plain boolean flag wouldn't let TS see that buyersMarket is non-null here.
+    const marketSale =
         buyersMarket &&
-        (buyersMarket.buyerName !== undefined || buyersMarket.sellerName !== undefined);
-    if (!currentSale && !useBuyersMarket) return null;
+        (buyersMarket.buyerName !== undefined || buyersMarket.sellerName !== undefined)
+            ? buyersMarket
+            : null;
+    if (!currentSale && !marketSale) return null;
 
     const buyer1 =
-        useBuyersMarket && buyersMarket!.buyerName != null
-            ? trimCompanyName(buyersMarket!.buyerName)
+        marketSale && marketSale.buyerName != null
+            ? trimCompanyName(marketSale.buyerName)
             : currentSale
               ? trimCompanyName(currentSale.buyer_1 || currentSale.buyer1)
               : null;
     const seller1 =
-        useBuyersMarket && buyersMarket!.sellerName != null
-            ? trimCompanyName(buyersMarket!.sellerName)
+        marketSale && marketSale.sellerName != null
+            ? trimCompanyName(marketSale.sellerName)
             : currentSale
               ? trimCompanyName(currentSale.seller_1 || currentSale.seller1)
               : null;

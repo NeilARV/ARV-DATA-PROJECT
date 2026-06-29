@@ -119,6 +119,20 @@ export async function addUserMsaSubscription(userId: string, msaId: number): Pro
 }
 
 /**
+ * Looks up an MSA id by its exact name.
+ * @param name the MSA name (e.g. "Denver")
+ * @returns the MSA id, or null if no row matches.
+ */
+export async function getMsaIdByName(name: string): Promise<number | null> {
+    const [msaRow] = await db
+        .select({ id: msas.id })
+        .from(msas)
+        .where(eq(msas.name, name))
+        .limit(1);
+    return msaRow?.id ?? null;
+}
+
+/**
  * Links a user to a relationship manager in user_relationship_managers.
  */
 export async function addUserRelationshipManager(

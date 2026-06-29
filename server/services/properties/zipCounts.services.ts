@@ -90,10 +90,11 @@ export async function getZipCounts(
     const baseIdQuery = db
         .select({ id: properties.id })
         .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId));
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .$dynamic();
 
-    const idRows: Array<{ id: string }> = await (
-        idWhereClause ? (baseIdQuery as any).where(idWhereClause) : baseIdQuery
+    const idRows: { id: string }[] = await (
+        idWhereClause ? baseIdQuery.where(idWhereClause) : baseIdQuery
     ).execute();
 
     const qualifyingIds = idRows.map((r) => r.id);
@@ -113,8 +114,10 @@ export async function getZipCounts(
         .execute();
 
     return results
-        .filter((r: any) => r.zipCode && r.zipCode.trim() !== '')
-        .map((r: any) => ({
+        .filter((r): r is { zipCode: string; count: number } => {
+            return r.zipCode != null && r.zipCode.trim() !== '';
+        })
+        .map((r) => ({
             zipCode: r.zipCode.trim(),
             count: Number(r.count),
         }));
