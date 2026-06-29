@@ -122,10 +122,11 @@ export async function getMapProperties(
     const baseIdQuery = db
         .select({ id: properties.id })
         .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId));
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .$dynamic();
 
-    const idRows: Array<{ id: string }> = await (
-        idWhereClause ? (baseIdQuery as any).where(idWhereClause) : baseIdQuery
+    const idRows: { id: string }[] = await (
+        idWhereClause ? baseIdQuery.where(idWhereClause) : baseIdQuery
     ).execute();
 
     const qualifyingIds = idRows.map((r) => r.id);
@@ -205,7 +206,7 @@ export async function getMapProperties(
         .execute();
 
     return rawResults
-        .filter((prop: any) => {
+        .filter((prop) => {
             const lat = prop.latitude
                 ? typeof prop.latitude === 'string'
                     ? parseFloat(prop.latitude)
@@ -218,7 +219,7 @@ export async function getMapProperties(
                 : null;
             return lat != null && lon != null && !isNaN(lat) && !isNaN(lon);
         })
-        .map((prop: any) => {
+        .map((prop) => {
             const lat = prop.latitude
                 ? typeof prop.latitude === 'string'
                     ? parseFloat(prop.latitude)

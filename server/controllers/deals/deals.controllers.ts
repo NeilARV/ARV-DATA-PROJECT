@@ -13,29 +13,15 @@ import {
     getBidsForDeal,
     deleteDealBid,
     sendDealOfferNotification,
+    listDealMsas,
+    userHasPrivilegedRole,
     DealServiceError,
 } from 'server/services/deals/deals.services';
 import { createDealBidNotification } from 'server/services/notifications/notifications.services';
 import { broadcastToUser } from 'server/websocket/registry';
 import { ServerToClient } from '@shared/mastermind/events';
 import { requestDealInfoSchema, submitOfferSchema } from '@database/validation/deals.validation';
-import { db } from 'server/storage';
-import { userRoles, roles } from '@database/schemas/users.schema';
-import { msas } from '@database/schemas/msas.schema';
-import { eq, inArray, and } from 'drizzle-orm';
 import { isUuid } from 'server/utils/uuid';
-import { PRIVILEGED_ROLES } from 'server/constants/roles.constants';
-
-/** Returns true if the given userId holds at least one privileged deal role. */
-async function callerIsPrivileged(userId: string): Promise<boolean> {
-    const rows = await db
-        .select({ roleName: roles.name })
-        .from(userRoles)
-        .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...PRIVILEGED_ROLES])))
-        .limit(1);
-    return rows.length > 0;
-}
 
 function handleServiceError(res: Response, err: unknown, fallbackMessage: string): void {
     if (err instanceof DealServiceError) {
@@ -49,10 +35,7 @@ function handleServiceError(res: Response, err: unknown, fallbackMessage: string
 // ── GET /api/deals/msas ────────────────────────────────────────────────────────
 export async function getMsasController(req: Request, res: Response): Promise<void> {
     try {
-        const list = await db
-            .select({ id: msas.id, name: msas.name })
-            .from(msas)
-            .orderBy(msas.name);
+        const list = await listDealMsas();
         res.json(list);
     } catch (err) {
         handleServiceError(res, err, 'Error fetching MSA list');
@@ -202,7 +185,7 @@ export async function createDealController(req: Request, res: Response): Promise
         }
 
         // Strip admin-only fields if the caller does not hold a privileged role
-        const privileged = await callerIsPrivileged(userId);
+        const privileged = await userHasPrivilegedRole(userId);
         const resolvedIsArvExclusive = privileged ? (isArvExclusive ?? false) : false;
         const resolvedOnBehalfOfEmail = privileged ? (onBehalfOfEmail ?? null) : null;
 
@@ -280,7 +263,7 @@ export async function updateDealController(req: Request, res: Response): Promise
         } = req.body;
 
         // Strip admin-only fields if the caller does not hold a privileged role
-        const privileged = await callerIsPrivileged(callerId);
+        const privileged = await userHasPrivilegedRole(callerId);
 
         const updated = await updateDeal(id, callerId, {
             address,
@@ -409,7 +392,10 @@ export async function submitDealOfferController(req: Request, res: Response): Pr
                     });
                 }
             } catch (err) {
-                console.error('[dealsController.submitDealOffer] notification fan-out failed:', err);
+                console.error(
+                    '[dealsController.submitDealOffer] notification fan-out failed:',
+                    err,
+                );
             }
         })();
 

@@ -22,6 +22,7 @@ import { isUniqueViolation } from 'server/utils/dbErrors';
 import { insertPropertyRelatedData, SfrPropertyData } from 'server/utils/propertyDataHelpers';
 import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { appendPropertyTransactions, reprocessProperty } from './propertyTransactions.services';
 import { formatContactName } from '@shared/utils/formatContactName';
 
@@ -32,28 +33,28 @@ export async function getPropertySuggestions(
     county?: string,
 ): Promise<PropertySuggestion[]> {
     const searchTerm = `%${search.trim().toLowerCase()}%`;
-    const conditions: any[] = [
-        or(
-            sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
-            sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
-            sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
-            sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`,
-        ),
-    ];
+    const conditions: SQL[] = [];
+
+    const searchClause = or(
+        sql`LOWER(TRIM(${addresses.formattedStreetAddress})) LIKE ${searchTerm}`,
+        sql`LOWER(TRIM(${addresses.city})) LIKE ${searchTerm}`,
+        sql`LOWER(TRIM(${addresses.state})) LIKE ${searchTerm}`,
+        sql`LOWER(TRIM(${addresses.zipCode})) LIKE ${searchTerm}`,
+    );
+    if (searchClause) conditions.push(searchClause);
 
     if (county) {
         const normalizedCounty = county.trim().toLowerCase();
-        conditions.push(
-            or(
-                sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
-                sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
-            ) as any,
+        const countyClause = or(
+            sql`LOWER(TRIM(${properties.county})) = ${normalizedCounty}`,
+            sql`LOWER(TRIM(${addresses.county})) = ${normalizedCounty}`,
         );
+        if (countyClause) conditions.push(countyClause);
     }
 
     const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
 
-    let query = db
+    const query = db
         .select({
             id: properties.id,
             address: addresses.formattedStreetAddress,
@@ -62,10 +63,11 @@ export async function getPropertySuggestions(
             zipcode: addresses.zipCode,
         })
         .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId));
+        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+        .$dynamic();
 
     if (whereClause) {
-        query = query.where(whereClause) as any;
+        query.where(whereClause);
     }
 
     return query.limit(5);
@@ -270,8 +272,7 @@ export async function getPropertyById(id: string) {
 
     // DB column is the authoritative manual override; fall back to transaction lender check
     const isFinancedByARV =
-        result.isArvFunded ||
-        latest?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
+        result.isArvFunded || latest?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
 
     const lat = result.latitude ? Number(result.latitude) : null;
     const lon = result.longitude ? Number(result.longitude) : null;
@@ -456,8 +457,11 @@ export async function createProperty(input: CreatePropertyInput): Promise<Create
                 .returning();
             if (newCompany) contactsMap.set(name, newCompany);
             return newCompany?.id ?? null;
-        } catch (companyError: any) {
-            if (!companyError?.message?.includes('duplicate') && !isUniqueViolation(companyError)) {
+        } catch (companyError) {
+            const isDuplicate =
+                (companyError instanceof Error && companyError.message.includes('duplicate')) ||
+                isUniqueViolation(companyError);
+            if (!isDuplicate) {
                 console.error('Error creating company:', companyError);
                 return null;
             }

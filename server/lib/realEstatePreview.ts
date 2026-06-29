@@ -10,10 +10,48 @@ import type { LinkMetadata } from 'server/lib/microlink';
 // Street-type tokens used to split Zillow's single address slug into street vs. city, since Zillow
 // (unlike Redfin) merges them with no delimiter. The split is taken at the LAST such token.
 const STREET_SUFFIXES = new Set([
-    'ave', 'avenue', 'st', 'street', 'rd', 'road', 'dr', 'drive', 'blvd', 'boulevard',
-    'ln', 'lane', 'ct', 'court', 'way', 'pl', 'place', 'cir', 'circle', 'ter', 'terrace',
-    'pkwy', 'parkway', 'hwy', 'highway', 'trl', 'trail', 'loop', 'run', 'row', 'sq', 'square',
-    'cv', 'cove', 'pt', 'point', 'xing', 'crossing', 'aly', 'alley', 'walk', 'path',
+    'ave',
+    'avenue',
+    'st',
+    'street',
+    'rd',
+    'road',
+    'dr',
+    'drive',
+    'blvd',
+    'boulevard',
+    'ln',
+    'lane',
+    'ct',
+    'court',
+    'way',
+    'pl',
+    'place',
+    'cir',
+    'circle',
+    'ter',
+    'terrace',
+    'pkwy',
+    'parkway',
+    'hwy',
+    'highway',
+    'trl',
+    'trail',
+    'loop',
+    'run',
+    'row',
+    'sq',
+    'square',
+    'cv',
+    'cove',
+    'pt',
+    'point',
+    'xing',
+    'crossing',
+    'aly',
+    'alley',
+    'walk',
+    'path',
 ]);
 
 interface ParsedListing {
@@ -91,8 +129,10 @@ function parseZillow(u: URL): ParsedListing | null {
     const tokens = slug.split('-');
     const zip = takeZip(tokens);
     let state = '';
-    if (/^[A-Za-z]{2}$/.test(tokens[tokens.length - 1] ?? '')) {
-        state = tokens.pop()!.toUpperCase();
+    const lastToken = tokens[tokens.length - 1] ?? '';
+    if (/^[A-Za-z]{2}$/.test(lastToken)) {
+        state = lastToken.toUpperCase();
+        tokens.pop();
     }
 
     let cut = -1;
