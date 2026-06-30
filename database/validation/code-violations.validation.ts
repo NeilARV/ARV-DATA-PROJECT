@@ -3,7 +3,7 @@ import { z } from 'zod';
 // ─── Value sets (single source of truth for the `text` status columns) ──────────
 // The schema columns are plain `text` (see code-violations.schema.ts); these arrays are
 // what enforces the allowed values at the edges, and the union types in
-// database/types/code-violations.d.ts derive from them.
+// database/types/code-violations.ts derive from them.
 
 export const CV_PROCESSING_STATUSES = [
     'pending',
@@ -25,7 +25,7 @@ export const CV_UPLOAD_STATUSES = [
 
 export const CV_UPLOAD_SOURCES = ['manual', 'scraper'] as const;
 
-// 'email' in V1; 'in_app' reserved for V2 (§8.2).
+// 'email' in V1; 'in_app' reserved for V2.
 export const CV_NOTIFICATION_CHANNELS = ['email', 'in_app'] as const;
 
 // ─── Parsed CSV row ──────────────────────────────────────────────────────────────

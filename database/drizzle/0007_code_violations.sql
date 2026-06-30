@@ -1,7 +1,6 @@
 -- Code-Violation Alerts (MVP) — additive migration. Apply directly; do NOT db:push
--- (push wants to truncate market_scan_queue — known unrelated drift). See
--- .claude/plans/code-violation.md §4.2. FKs + uniques are inlined and every object
--- uses IF NOT EXISTS so this file is safe to re-run.
+-- (push wants to truncate market_scan_queue — known unrelated drift). FKs + uniques
+-- are inlined and every object uses IF NOT EXISTS so this file is safe to re-run.
 
 CREATE TABLE IF NOT EXISTS "cv_uploads" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

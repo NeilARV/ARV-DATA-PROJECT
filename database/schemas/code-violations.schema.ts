@@ -23,7 +23,7 @@ import { properties } from './properties.schema';
 
 export const cvUploads = pgTable('cv_uploads', {
     id: uuid('id').defaultRandom().primaryKey(),
-    // Which producer enqueued this batch. Included from V1 so the §8.1 scraper needs no migration.
+    // Which producer enqueued this batch. Included from V1 so the future scraper needs no migration.
     source: text('source').notNull().default('manual'), // 'manual' | 'scraper'
     // Null for the scraper producer (no human uploader).
     uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
@@ -49,7 +49,7 @@ export const cvViolations = pgTable(
     'cv_violations',
     {
         id: uuid('id').defaultRandom().primaryKey(),
-        // The idempotency key (§4.5). Overlapping daily uploads dedup on this.
+        // The idempotency key. Overlapping daily uploads dedup on this.
         recordNumber: text('record_number').notNull().unique(),
         recordType: text('record_type'),
         applicationName: text('application_name'),
@@ -58,9 +58,9 @@ export const cvViolations = pgTable(
         description: text('description'),
         violationDate: date('violation_date'),
         rawAddress: text('raw_address').notNull(),
-        // Canonicalized form used for matching + the ##TMP→CE secondary dedup (§4.5).
+        // Canonicalized form used for matching + the ##TMP→CE secondary dedup.
         normalizedAddress: text('normalized_address'),
-        // The queue state (§6.1): 'pending' → 'processing' → 'awaiting_review' /
+        // The queue state: 'pending' → 'processing' → 'awaiting_review' /
         // 'no_match' / 'ambiguous' / 'complete' / 'failed'.
         processingStatus: text('processing_status').notNull().default('pending'),
         // Hard "did the email fire" flag — independent of processingStatus.
@@ -116,7 +116,7 @@ export const cvNotificationsSent = pgTable(
         companyId: uuid('company_id')
             .notNull()
             .references(() => companies.id, { onDelete: 'cascade' }),
-        channel: text('channel').notNull().default('email'), // 'email' in V1; 'in_app' in V2 (§8.2)
+        channel: text('channel').notNull().default('email'), // 'email' in V1; 'in_app' in V2
         sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (t) => [

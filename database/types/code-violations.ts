@@ -30,7 +30,7 @@ export type InsertCvMatch = z.infer<typeof insertCvMatchSchema>;
 export type CvNotificationSent = typeof cvNotificationsSent.$inferSelect;
 export type InsertCvNotificationSent = z.infer<typeof insertCvNotificationSentSchema>;
 
-// The queue state of a violation (the consumer's work lifecycle, §6.1).
+// The queue state of a violation (the consumer's work lifecycle).
 export type CvProcessingStatus = (typeof CV_PROCESSING_STATUSES)[number];
 // The upload-level lifecycle shown in the admin panel.
 export type CvUploadStatus = (typeof CV_UPLOAD_STATUSES)[number];

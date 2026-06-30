@@ -452,7 +452,7 @@ frontend does not exist in V1** (email is the only output) — it is deferred to
 ### Chunk B — Ingest endpoint (Phase 1: archive + parse + ENQUEUE, returns fast)
 - Route `POST /api/code-violations/uploads` guarded by **`requireRole(ADMIN_ROLES)`** (admin + owner only — *not* `PRIVILEGED_ROLES`, so relationship-managers/members are excluded).
 - multer **memoryStorage**, `fileFilter` to `text/csv` / `application/vnd.ms-excel`, `limits.fileSize` ≈ **1–2 MB** (the Accela export is capped around ~500 KB and typically ~480 KB). Use the `MulterRequest` type (`server/middleware/multerTypes.ts`).
-- `code-violations.services.ts → ingestCodeViolationCsv(...)`: archive buffer to Supabase Storage (new bucket env `SUPABASE_CODE_VIOLATION_STORAGE_BUCKET`, names only) → create `cv_uploads` row (`status='enqueued'`) → **papaparse** (`header: true`, drop the `""` column, validate header, coerce `Date`) → **ENQUEUE** one `cv_violations` row per complaint as `pending` (dedup by `record_number`, §4.5). **Return the `cv_uploads` id immediately — no matching or emailing in the request.** Fail the upload + `cv_uploads.status='failed'` on header mismatch.
+- `code-violations.services.ts → ingestCodeViolationCsv(...)`: archive buffer to Supabase Storage (bucket name is a non-secret constant in `server/lib/supabase.ts` — `codeViolations` in `DEV_BUCKETS`/`PROD_BUCKETS`, selected by `NODE_ENV`; **not** an env var) → create `cv_uploads` row (`status='enqueued'`) → **papaparse** (`header: true`, drop the `""` column, validate header, coerce `Date`) → **ENQUEUE** one `cv_violations` row per complaint as `pending` (dedup by `record_number`, §4.5). **Return the `cv_uploads` id immediately — no matching or emailing in the request.** Fail the upload + `cv_uploads.status='failed'` on header mismatch.
 - Also `GET /api/code-violations/uploads` and `GET /api/code-violations/uploads/:id` (admin) to back the panel, and `POST /api/code-violations/uploads/:id/approve` (admin) to run the notify pass for an upload's `awaiting_review` rows (§4.6).
 - Run the new-route ceremony via the **`/new-route`** skill so `api.md` / `access-control.md` / tests are scaffolded together.
 
@@ -530,10 +530,15 @@ redesign:
 (CSV parse), `@supabase/supabase-js` (raw-file archive), `postmark` (email), `node-cron` (consumer
 schedule — same as `data_v2`), Drizzle, TanStack Query, Radix Tabs.
 
+**Storage bucket (NOT an env var):** the archived-CSV bucket name is a non-secret constant in
+`server/lib/supabase.ts` — `codeViolations` in `DEV_BUCKETS` (`code-violations-dev`) / `PROD_BUCKETS`
+(`code-violations-prod`), selected by `NODE_ENV` (same pattern as posts/vendors/users/mastermind/
+streetview). The buckets must exist in Supabase and be configured to allow `text/csv`. No
+`SUPABASE_*_STORAGE_BUCKET` env var.
+
 **New env vars (NAMES ONLY — per ARV.SECRET-ACCESS; never read/print values):**
 | Name | Purpose | When |
 |---|---|---|
-| `SUPABASE_CODE_VIOLATION_STORAGE_BUCKET` | bucket for archived raw CSVs (public, allow `text/csv`) | V1 |
 | `CV_REQUIRE_REVIEW` | when on (default), matched rows hold at `awaiting_review` until an admin approves before emails fire (§4.6) | V1 |
 | `CV_CONSUMER_CRON` | consumer schedule (e.g. every few minutes) — like the `data_v2` cron entries | V1 |
 | `CV_BATCH_SIZE` | max `pending` complaints processed per consumer run (§5.3) | V1 |

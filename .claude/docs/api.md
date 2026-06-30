@@ -14,6 +14,7 @@ For access control rules (which roles/tiers can call what), see [`access-control
 
 1. [Auth (`/api/auth`)](#1-auth-apiauth)
 2. [Admin (`/api/admin`)](#2-admin-apiadmin)
+2a. [Code Violations (`/api/code-violations`)](#2a-code-violations-apicode-violations)
 3. [Users (`/api/users`)](#3-users-apiusers)
 4. [Properties (`/api/properties`)](#4-properties-apiproperties)
 5. [Companies (`/api/companies`)](#5-companies-apicompanies)
@@ -397,6 +398,52 @@ Remove an entry from the subscription whitelist.
 **Response `200`** `{ "message": "Whitelist entry deleted", "id": 1 }`
 
 **Errors** `400` invalid id · `404` entry not found
+
+---
+
+## 2a. Code Violations `/api/code-violations`
+
+San Diego code-enforcement complaint ingest. **Admin + owner only** (`requireRole(["admin","owner"])`). The upload is Phase 1 only — it archives the raw CSV, opens an audit row, parses + validates, and enqueues one `cv_violations` row per complaint as `pending`, then returns immediately. Address matching, owner resolution, and email notification run later in the cron consumer (not these routes).
+
+### `POST /api/code-violations/uploads`
+Ingest an Accela code-enforcement CSV export.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Body**: `multipart/form-data`
+- `file` — the CSV file (required; `text/csv` or `application/vnd.ms-excel`, ≤ 2 MB)
+- `source` — optional, `"manual"` (default) | `"scraper"`
+
+Dedup is by `record_number`: a brand-new complaint inserts as `pending`; an already-seen one refreshes its Accela `status_text`/`description` and its (possibly corrected) address but is **not** re-queued. Rows missing a record number or address (junk lines) are skipped, not enqueued. `rowsTotal` is the count of valid parsed rows (junk excluded); `skipped` is the junk count.
+
+**Response `201`**
+```json
+{ "uploadId": "uuid", "rowsTotal": 412, "violationsNew": 37, "skipped": 3 }
+```
+
+**Errors** `400` no file / wrong file type / file too large (> 2 MB) / invalid `source` / invalid or corrupt CSV · `401` unauth · `403` not admin/owner · `500` ingest failure (the `cv_uploads` row is marked `failed`)
+
+---
+
+### `GET /api/code-violations/uploads`
+List ingest runs, most recent first, for the admin results panel.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Response `200`** `{ "uploads": [ /* cv_uploads rows */ ] }`
+
+---
+
+### `GET /api/code-violations/uploads/:id`
+Fetch a single ingest run.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — uuid of the `cv_uploads` row
+
+**Response `200`** `{ "upload": { /* cv_uploads row */ } }`
+
+**Errors** `404` upload not found
 
 ---
 
