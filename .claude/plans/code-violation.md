@@ -1,5 +1,13 @@
 # Property Code-Violation Alerts — MVP Design & Build Plan
 
+> **⚠️ Post-build update (cron removed):** this plan designs the Phase-2 consumer as a **`node-cron`
+> job** (`CV_CONSUMER_CRON`, prod-gated — §4, §5.3, §9, §10). That was **superseded after build**: there
+> is **no cron**. The upload endpoint now fires the consumer drain (`processCodeViolationQueue`)
+> **fire-and-forget right after enqueue**, so processing starts on upload and runs in all environments.
+> `CV_CONSUMER_CRON` is unused. For current behavior, **[`.claude/docs/features/cv.md`](../docs/features/cv.md)
+> is canonical** (see its §3, §11, §14). The rest of this plan (data model, matching, owner resolution,
+> review gate, dedup) is unchanged.
+
 > **Status:** Plan / pre-build. No code written yet.
 > **Companion:** [`code-violation-scraper.md`](code-violation-scraper.md) automates only the
 > **ACQUIRE** stage of the pipeline designed here; it depends on this MVP existing first. Where the
@@ -540,7 +548,7 @@ streetview). The buckets must exist in Supabase and be configured to allow `text
 | Name | Purpose | When |
 |---|---|---|
 | `CV_REQUIRE_REVIEW` | when on (default), matched rows hold at `awaiting_review` until an admin approves before emails fire (§4.6) | V1 |
-| `CV_CONSUMER_CRON` | consumer schedule (e.g. every few minutes) — like the `data_v2` cron entries | V1 |
+| ~~`CV_CONSUMER_CRON`~~ | ~~consumer schedule~~ — **removed post-build; no cron, the upload fires the drain** (see top-of-doc note) | — |
 | `CV_BATCH_SIZE` | max `pending` complaints processed per consumer run (§5.3) | V1 |
 | `POSTMARK_CODE_VIOLATION_TEMPLATE_ALIAS` | Postmark template for the violation email | V2 (§8.4) |
 

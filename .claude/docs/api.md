@@ -403,7 +403,7 @@ Remove an entry from the subscription whitelist.
 
 ## 2a. Code Violations `/api/code-violations`
 
-San Diego code-enforcement complaint ingest. **Admin + owner only** (`requireRole(["admin","owner"])`). The upload is Phase 1 only — it archives the raw CSV, opens an audit row, parses + validates, and enqueues one `cv_violations` row per complaint as `pending`, then returns immediately. Address matching and owner resolution run later in the cron consumer; email notification is held for admin review by default (`CV_REQUIRE_REVIEW`) and fired by the **approve** route below.
+San Diego code-enforcement complaint ingest. **Admin + owner only** (`requireRole(["admin","owner"])`). The upload is Phase 1 only — it archives the raw CSV, opens an audit row, parses + validates, and enqueues one `cv_violations` row per complaint as `pending`, then returns immediately. After enqueuing it fires the consumer drain (`processCodeViolationQueue`) in the background — there is no cron, so address matching and owner resolution begin right after upload; email notification is held for admin review by default (`CV_REQUIRE_REVIEW`) and fired by the **approve** route below.
 
 ### `POST /api/code-violations/uploads`
 Ingest an Accela code-enforcement CSV export.

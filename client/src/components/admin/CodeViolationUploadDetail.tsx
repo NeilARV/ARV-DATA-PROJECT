@@ -128,12 +128,14 @@ export default function CodeViolationUploadDetail({
         <AppDialog
             open={uploadId !== null}
             onClose={handleClose}
-            className="max-w-4xl max-h-[90vh] overflow-y-auto"
+            className="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
         >
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                     <span className="truncate">{upload?.fileName ?? 'Upload'}</span>
-                    {uploadBadge && <Badge variant={uploadBadge.variant}>{uploadBadge.label}</Badge>}
+                    {uploadBadge && (
+                        <Badge variant={uploadBadge.variant}>{uploadBadge.label}</Badge>
+                    )}
                 </DialogTitle>
                 <DialogDescription>
                     {upload
@@ -147,25 +149,17 @@ export default function CodeViolationUploadDetail({
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
             ) : (
-                <div className="space-y-5">
+                <div className="flex flex-col min-h-0 flex-1 gap-5">
                     {upload.status === 'failed' && upload.errorMessage && (
-                        <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm shrink-0">
                             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                             <span>{upload.errorMessage}</span>
                         </div>
                     )}
 
-                    {/* Counters derived from the per-complaint rows so they stay self-consistent. */}
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                        <Stat label="Complaints" value={violations.length} />
-                        <Stat label="Matched" value={matched} />
-                        <Stat label="Unmatched / issues" value={issues} />
-                        <Stat label="Awaiting review" value={awaitingReview.length} />
-                        <Stat label="Emailed" value={emailedCount} />
-                    </div>
-
+                    {/* Review is the first actionable section — the dialog opens straight into it. */}
                     {isReview && (
-                        <div className="rounded-lg border border-border bg-accent/40 p-4 space-y-3">
+                        <div className="rounded-lg border border-border bg-accent/40 p-4 space-y-3 shrink-0">
                             <div className="flex items-start gap-2">
                                 <Mail className="w-5 h-5 text-primary mt-0.5 shrink-0" />
                                 <div>
@@ -174,8 +168,9 @@ export default function CodeViolationUploadDetail({
                                     </p>
                                     <p className="text-sm text-muted-foreground">
                                         Approving sends {plural(pendingEmailCount, 'email')} to{' '}
-                                        {plural(distinctRecipientCount, 'recipient')} across the owning
-                                        companies below. This sends real emails and cannot be undone.
+                                        {plural(distinctRecipientCount, 'recipient')} across the
+                                        owning companies below. This sends real emails and cannot be
+                                        undone.
                                     </p>
                                 </div>
                             </div>
@@ -220,30 +215,41 @@ export default function CodeViolationUploadDetail({
                         </div>
                     )}
 
+                    {/* Counters derived from the per-complaint rows so they stay self-consistent. */}
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm shrink-0">
+                        <Stat label="Complaints" value={violations.length} />
+                        <Stat label="Matched" value={matched} />
+                        <Stat label="Unmatched / issues" value={issues} />
+                        <Stat label="Awaiting review" value={awaitingReview.length} />
+                        <Stat label="Emailed" value={emailedCount} />
+                    </div>
+
                     {violations.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-6 text-center">
+                        <p className="text-sm text-muted-foreground py-6 text-center shrink-0">
                             This upload introduced no new complaints — every row was already seen in
                             an earlier upload.
                         </p>
                     ) : (
-                        <div className="table-scroll-wrapper">
-                            <div className="table-scroll-body">
-                                <Table>
-                                    <TableHeader className="sticky top-0 bg-background">
-                                        <TableRow>
-                                            <TableHead>Complaint</TableHead>
-                                            <TableHead>Owner</TableHead>
-                                            <TableHead>Would email</TableHead>
-                                            <TableHead>Status</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {violations.map((v) => (
-                                            <ViolationRow key={v.id} violation={v} />
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                        // The single scroll region: fills the dialog's remaining height and is the only
+                        // thing that scrolls (the dialog itself is overflow-hidden), so there's no
+                        // nested double-scrollbar.
+                        <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-border">
+                            <Table>
+                                <TableHeader className="sticky top-0 bg-background">
+                                    <TableRow>
+                                        <TableHead>Complaint</TableHead>
+                                        <TableHead>Owner</TableHead>
+                                        <TableHead>Would email</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Emailed</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {violations.map((v) => (
+                                        <ViolationRow key={v.id} violation={v} />
+                                    ))}
+                                </TableBody>
+                            </Table>
                         </div>
                     )}
                 </div>
@@ -298,15 +304,17 @@ function ViolationRow({ violation }: ViolationRowProps) {
                 )}
             </TableCell>
             <TableCell className="align-top">
-                <div className="flex flex-col items-start gap-1">
-                    <Badge variant={badge.variant}>{badge.label}</Badge>
-                    {violation.notified && (
-                        <Badge variant="green" className="gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Emailed
-                        </Badge>
-                    )}
-                </div>
+                <Badge variant={badge.variant}>{badge.label}</Badge>
+            </TableCell>
+            <TableCell className="align-top">
+                {violation.notified ? (
+                    <Badge variant="green" className="gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Emailed
+                    </Badge>
+                ) : (
+                    <span className="text-muted-foreground text-sm">—</span>
+                )}
             </TableCell>
         </TableRow>
     );

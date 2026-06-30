@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -15,9 +15,13 @@ import { Eye, FileWarning, Loader2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { fetchCodeViolationUploads, uploadCodeViolationCsv } from '@/api/code-violations.api';
+import {
+    fetchCodeViolationUpload,
+    fetchCodeViolationUploads,
+    uploadCodeViolationCsv,
+} from '@/api/code-violations.api';
 import { CV_UPLOAD_STATUS_BADGE, isUploadInFlight } from '@/constants/codeViolations.constants';
-import type { CvUploadListResponse } from '@shared/types/code-violations';
+import type { CvUploadDetailResponse, CvUploadListResponse } from '@shared/types/code-violations';
 import CodeViolationUploadDetail from '@/components/admin/CodeViolationUploadDetail';
 
 /**
@@ -29,13 +33,40 @@ export default function CodeViolationsTab() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [file, setFile] = useState<File | null>(null);
     const [detailUploadId, setDetailUploadId] = useState<string | null>(null);
+    // The just-uploaded run we're waiting on: the Upload button stays in its loading state and the
+    // detail dialog is held back until this run finishes draining, so the admin never sees the
+    // transient enqueued/processing screen — only a loading button, then the settled review dialog.
+    const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
 
     const { data, isLoading } = useQuery<CvUploadListResponse>({
         queryKey: ['/api/code-violations/uploads'],
         queryFn: fetchCodeViolationUploads,
         refetchInterval: (query) =>
-            (query.state.data?.uploads ?? []).some((u) => isUploadInFlight(u.status)) ? 4000 : false,
+            (query.state.data?.uploads ?? []).some((u) => isUploadInFlight(u.status))
+                ? 4000
+                : false,
     });
+
+    // Poll the just-uploaded run until it settles (review/completed/failed), then open it.
+    const { data: pendingData } = useQuery<CvUploadDetailResponse>({
+        queryKey: ['/api/code-violations/uploads', pendingUploadId],
+        queryFn: () => fetchCodeViolationUpload(pendingUploadId as string),
+        enabled: pendingUploadId !== null,
+        refetchInterval: (query) => {
+            const status = query.state.data?.upload.status;
+            return status && isUploadInFlight(status) ? 2000 : false;
+        },
+    });
+
+    useEffect(() => {
+        if (pendingUploadId === null) return;
+        const status = pendingData?.upload.status;
+        if (status && !isUploadInFlight(status)) {
+            setDetailUploadId(pendingUploadId);
+            setPendingUploadId(null);
+            queryClient.invalidateQueries({ queryKey: ['/api/code-violations/uploads'] });
+        }
+    }, [pendingUploadId, pendingData]);
 
     const uploadMutation = useMutation({
         mutationFn: uploadCodeViolationCsv,
@@ -45,10 +76,11 @@ export default function CodeViolationsTab() {
             if (fileInputRef.current) fileInputRef.current.value = '';
             toast({
                 title: 'CSV uploaded',
-                description: `${result.violationsNew} new complaint${result.violationsNew === 1 ? '' : 's'} enqueued of ${result.rowsTotal} parsed${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}. Processing…`,
+                description: `${result.violationsNew} new complaint${result.violationsNew === 1 ? '' : 's'} of ${result.rowsTotal} parsed${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}. Processing…`,
             });
-            // Jump straight into the new run so the admin can watch it process and review it.
-            setDetailUploadId(result.uploadId);
+            // Hold the dialog back until the run drains (see pendingUploadId) rather than opening it
+            // onto the transient enqueued/processing screen.
+            setPendingUploadId(result.uploadId);
         },
         onError: (err) => {
             toast({
@@ -68,6 +100,10 @@ export default function CodeViolationsTab() {
     }
 
     const uploads = data?.uploads ?? [];
+    // Busy = the upload request is in flight OR the run is still draining (pendingUploadId set), so
+    // the button keeps loading right through processing until the run reaches its review state.
+    const isProcessing = pendingUploadId !== null;
+    const isBusy = uploadMutation.isPending || isProcessing;
 
     return (
         <>
@@ -96,7 +132,7 @@ export default function CodeViolationsTab() {
                         <Button
                             variant="outline"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={uploadMutation.isPending}
+                            disabled={isBusy}
                         >
                             Choose CSV
                         </Button>
@@ -105,13 +141,18 @@ export default function CodeViolationsTab() {
                         </span>
                         <Button
                             onClick={handleUpload}
-                            disabled={!file || uploadMutation.isPending}
+                            disabled={!file || isBusy}
                             data-testid="button-cv-upload"
                         >
                             {uploadMutation.isPending ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                     Uploading…
+                                </>
+                            ) : isProcessing ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Processing…
                                 </>
                             ) : (
                                 <>
@@ -197,7 +238,9 @@ export default function CodeViolationsTab() {
                                                             data-testid={`button-view-upload-${u.id}`}
                                                         >
                                                             <Eye className="w-4 h-4 mr-1" />
-                                                            {u.status === 'review' ? 'Review' : 'View'}
+                                                            {u.status === 'review'
+                                                                ? 'Review'
+                                                                : 'View'}
                                                         </Button>
                                                     </TableCell>
                                                 </TableRow>

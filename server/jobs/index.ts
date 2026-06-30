@@ -16,14 +16,10 @@ import { scanWindowD } from './data_v2/scan-window-d';
 import { scanWindowE } from './data_v2/scan-window-e';
 import { scanWindowInit } from './data_v2/scan-window-init';
 import { runConsumer } from './data_v2/consumer';
-import { runCodeViolationConsumer } from './code-violations/consumer';
 import { sendTampaEmail } from './email/tampa-email';
 import { cleanEmailCache } from './email/clean-email-cache';
 import { cleanMarketCache } from './data_v2/clean-market-cache';
 import { enrichCompaniesJob } from './enrich-companies';
-
-// Fallback schedule for the code-violation consumer when CV_CONSUMER_CRON is unset or invalid.
-const CV_DEFAULT_CRON = '*/5 * * * *';
 
 export function startScheduledJobs() {
     console.log('[CRON] Starting scheduled jobs...');
@@ -113,27 +109,10 @@ export function startScheduledJobs() {
         );
     }
 
-    // =========================================================================
-    // CODE VIOLATIONS — consumer drains pending cv_violations (match → owner → store → review)
-    // =========================================================================
-    if (process.env.NODE_ENV === 'production') {
-        // Schedule is env-driven (CV_CONSUMER_CRON); default to every 5 minutes. Fall back on an
-        // invalid expression rather than letting cron.schedule throw at startup.
-        const cvCron = process.env.CV_CONSUMER_CRON;
-        const cvSchedule = cvCron && cron.validate(cvCron) ? cvCron : CV_DEFAULT_CRON;
-        if (cvCron && !cron.validate(cvCron)) {
-            console.warn(
-                `[CRON] Invalid CV_CONSUMER_CRON "${cvCron}" — falling back to "${cvSchedule}"`,
-            );
-        }
-        cron.schedule(cvSchedule, runCodeViolationConsumer, {
-            timezone: 'America/Los_Angeles',
-        });
-    } else {
-        console.log(
-            `[CRON] Code Violations consumer skipped — not running in production (NODE_ENV="${process.env.NODE_ENV}")`,
-        );
-    }
+    // Code Violations: no cron — the upload endpoint drives processing. Ingest enqueues the
+    // complaints and fires the consumer drain (processCodeViolationQueue) directly, so matching +
+    // owner resolution + review/notify begin the moment an admin uploads. See
+    // server/services/code-violations/code-violations.services.ts (ingestCodeViolationCsv).
 
     // =========================================================================
     // OpenCorporates Enrichment — last 3 days of each month at 11:30 PM PT

@@ -15,6 +15,7 @@ import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { getSupabase, codeViolationStorageBucket } from 'server/lib/supabase';
 import { getEmailRecipientsByUserIds } from 'server/services/postmark/email.services';
 import { notifyAwaitingReviewForUpload } from 'server/jobs/code-violations/processes/notify';
+import { processCodeViolationQueue } from 'server/jobs/code-violations/consumer';
 
 // The Accela export header, in order. The trailing comma in the real file yields an 8th,
 // empty-named column that papaparse exposes as a "" field — we ignore it. These are the
@@ -247,6 +248,13 @@ export async function ingestCodeViolationCsv(params: IngestCsvParams): Promise<I
                 .update(cvUploads)
                 .set({ status: CV_UPLOAD_STATUS.COMPLETED, finishedAt: sql`now()` })
                 .where(eq(cvUploads.id, upload.id));
+        } else {
+            // Kick off processing immediately — there is no cron; the upload itself drives the
+            // consumer. Fire-and-forget so this request still returns instantly (the admin panel
+            // polls GET /uploads/:id for progress); a drain failure is logged, never surfaced here.
+            void processCodeViolationQueue().catch((err) => {
+                console.error(`[CV-INGEST] Background drain failed for upload ${upload.id}:`, err);
+            });
         }
 
         return { uploadId: upload.id, rowsTotal: rows.length, violationsNew, skipped };

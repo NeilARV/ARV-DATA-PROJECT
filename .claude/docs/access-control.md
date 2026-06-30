@@ -320,7 +320,7 @@ All public — no auth required.
 
 ### 5.9a Code Violations (`/api/code-violations`)
 
-Admin + owner only (`requireRole(["admin","owner"])` via `ADMIN_ROLES`) — **not** `PRIVILEGED_ROLES`, so relationship-managers and members are excluded. The CSV ingest is Phase 1 only (archive + parse + enqueue); matching runs in the cron consumer, and the notification emails it holds for review are fired by the **approve** route.
+Admin + owner only (`requireRole(["admin","owner"])` via `ADMIN_ROLES`) — **not** `PRIVILEGED_ROLES`, so relationship-managers and members are excluded. The CSV ingest is Phase 1 only (archive + parse + enqueue); it then fires the consumer drain in the background (no cron), and the notification emails it holds for review are fired by the **approve** route.
 
 | Method | Route | Middleware chain | unauth | member | RM | admin/owner |
 |---|---|---|---|---|---|---|

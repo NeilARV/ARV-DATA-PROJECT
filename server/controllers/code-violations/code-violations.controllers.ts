@@ -7,8 +7,9 @@ import { isUuid } from 'server/utils/uuid';
 
 /**
  * POST /api/code-violations/uploads — Phase 1 ingest of an Accela CSV export.
- * Archives the file, enqueues each complaint as `pending`, and returns immediately.
- * No matching or emailing happens here (that is the cron consumer's job).
+ * Archives the file, enqueues each complaint as `pending`, and returns immediately. The service
+ * then fires the consumer drain in the background (no cron) so matching/owner-resolution/review
+ * begin right after upload; the admin panel polls GET /uploads/:id for progress.
  */
 export async function uploadCodeViolationCsv(req: MulterRequest, res: Response): Promise<void> {
     try {

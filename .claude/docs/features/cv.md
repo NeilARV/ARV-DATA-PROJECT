@@ -70,16 +70,17 @@ transaction resolve to a `companies` FK (`buyerId`) that has ≥1 `company_membe
 
 The pipeline is **decoupled into two phases connected by a DB queue**, mirroring the `data_v2`
 (`market_scan_queue` + consumer) pattern. The upload request does almost nothing and returns
-instantly; all the heavy per-complaint work happens later in a cron consumer.
+instantly; the heavy per-complaint work runs in a background drain **the upload itself fires** — there
+is no cron (the consumer is triggered by ingest, not a schedule).
 
 ```
   PHASE 1 — INGEST  (synchronous, inside the HTTP request, milliseconds)
-    UPLOAD ──► PARSE ──► ENQUEUE
+    UPLOAD ──► PARSE ──► ENQUEUE ──► (fire-and-forget) processCodeViolationQueue()
     archive raw CSV   papaparse +     upsert one cv_violations row per complaint
-    to Supabase +     header-         as processing_status = 'pending'
-    cv_uploads row    validate        (dedup by record_number) ── returns immediately ──
+    to Supabase +     header-         as processing_status = 'pending', then kick off the
+    cv_uploads row    validate        drain and return immediately (dedup by record_number)
 
-  PHASE 2 — CONSUMER  (cron every ~5 min in prod, a batch at a time)
+  PHASE 2 — CONSUMER  (fired by the upload; drains the queue a batch at a time)
     CLAIM ──► MATCH ──► RESOLVE OWNER ──► DIFF/STORE ──► (REVIEW gate) ──► NOTIFY ──► MARK STATUS
     pending→  address   most-recent       write          hold at         email each   set terminal
     processing  → prop  arms-length buyer  cv_matches +   awaiting_review  member +     status +
@@ -118,7 +119,7 @@ server/
   services/code-violations/
     code-violations.services.ts                INGEST (archive+parse+enqueue), list, detail, approve
   jobs/code-violations/
-    consumer.ts                                cron entry: claim a batch → process each → mark status
+    consumer.ts                                runCodeViolationConsumer (one batch) + processCodeViolationQueue (drain loop, fired by ingest)
     processes/
       fetch-queue.ts                           atomic claim of pending rows (FOR UPDATE SKIP LOCKED)
       mark-status.ts                           status transitions, stale reset, upload roll-up
@@ -126,7 +127,7 @@ server/
       resolve-owner.ts                         most-recent arms-length buyer company + members
       diff-and-store.ts                        write cv_matches; ##TMP→CE secondary dedup
       notify.ts                                resolve members → sendPlainEmail → cv_notifications_sent
-  jobs/index.ts                                registers the CV consumer cron (prod-gated)
+  jobs/index.ts                                no CV cron — ingest fires processCodeViolationQueue directly
   lib/supabase.ts                              codeViolations bucket constant (code-violations-dev/-prod)
 
 shared/
@@ -143,7 +144,8 @@ client/
 
 scripts/
   cv-test-generate.ts                          dev: build a self-checking test CSV from real DB data
-  cv-run-consumer.ts                           dev: drain the queue locally (cron is prod-gated)
+  cv-run-consumer.ts                           dev: re-drain the queue / clear stragglers (ingest already auto-drains on upload)
+  cv-test-cleanup.ts                           dev: remove all `…-TEST-…` rows so you can re-test
 ```
 
 ---
@@ -368,12 +370,21 @@ callers, **one function**:
 
 ## 11. Consumer mechanics (`consumer.ts` + `fetch-queue.ts` + `mark-status.ts`)
 
-`runCodeViolationConsumer()` is registered as a `node-cron` job in
-[server/jobs/index.ts](server/jobs/index.ts), **prod-gated** (`NODE_ENV === 'production'`), schedule
-from `CV_CONSUMER_CRON` (falls back to `*/5 * * * *`; an invalid expression warns and falls back rather
-than throwing at startup).
+**No cron.** Ingest fires `processCodeViolationQueue()` (in
+[consumer.ts](server/jobs/code-violations/consumer.ts)) **fire-and-forget** right after enqueuing — see
+`ingestCodeViolationCsv` in
+[code-violations.services.ts](server/services/code-violations/code-violations.services.ts). That drain
+calls `runCodeViolationConsumer()` in a loop until a pass claims nothing (a single upload can exceed one
+batch), capped at 50 passes; terminal rows are never re-claimed, so it always converges. It runs in
+**all environments** (no `NODE_ENV` gate), so an upload auto-processes in dev too. The HTTP request
+still returns immediately and the admin panel polls `GET /uploads/:id` for progress.
 
-Each run:
+> **Tradeoff:** with no scheduled tick, there is no automatic recovery if a drain dies mid-run — any
+> leftover `pending` (or orphaned `processing`) rows wait until the **next upload**, whose drain calls
+> `resetStaleProcessing` and re-claims all pending. To clear stragglers on demand, run
+> `npm run cv:run-consumer`.
+
+Each `runCodeViolationConsumer()` pass:
 1. **Stale recovery** — `resetStaleProcessing(30)`: rows stuck in `processing` past **30 minutes**
    (orphaned by a crash) reset to `pending`. `updated_at` is the lock age.
 2. **Atomic claim** — `claimPendingViolations(batchSize)`: a single
@@ -452,8 +463,7 @@ by `NODE_ENV`, exported as `codeViolationStorageBucket`. The bucket must exist a
 | Name | Purpose | Default if unset |
 |---|---|---|
 | `CV_REQUIRE_REVIEW` | review gate (§6.3) — hold matched rows at `awaiting_review` until Approve | **on** (only an explicit off value disables) |
-| `CV_CONSUMER_CRON` | consumer schedule | `*/5 * * * *` |
-| `CV_BATCH_SIZE` | max `pending` rows per consumer run | `25` |
+| `CV_BATCH_SIZE` | max `pending` rows claimed per consumer pass (the drain loops until empty) | `25` |
 | `POSTMARK_CODE_VIOLATION_TEMPLATE_ALIAS` | (V2 §8.4) Postmark template — not used in V1 | — |
 
 Reuses `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_SERVER_API_KEY`,
@@ -473,7 +483,8 @@ Reuses `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_SE
 - `validation/code-violations.validation.test.ts`, `controllers/`, and `api/…integration.test.ts`
   (the auth matrix: admin/owner allowed; RM/member/anon rejected).
 
-**Manual E2E harness** (the queue cron is prod-gated, so dev needs a manual drain):
+**Manual E2E harness** (the upload now drives the drain in every environment, so no manual consumer run
+is needed — uploading is enough):
 1. `npm run cv:test-generate [recipientEmail]` — [scripts/cv-test-generate.ts](scripts/cv-test-generate.ts)
    works the pipeline **backwards**: reads real dev-DB properties, runs the **same `resolveOwner`** to
    find company-owned ones, links the recipient into those companies, and emits a self-checking
@@ -481,11 +492,13 @@ Reuses `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POSTMARK_SE
    parse-skip (blank record number), and a `##TMP→CE` pair (CE uses an abbreviated address variant, so
    it exercises the normalizer *and* the secondary dedup at once). Ensures the recipient has
    `notifications=true` + a verified email (else NOTIFY drops them). Test record numbers are stamped
-   `…-TEST-…`; cleanup SQL is documented in the script header.
-2. Upload `cv-test-upload.csv` in the admin panel.
-3. `npm run cv:run-consumer` — [scripts/cv-run-consumer.ts](scripts/cv-run-consumer.ts) calls
-   `runCodeViolationConsumer()` in a loop until the queue drains. With the gate on, matched+notifiable
-   rows land at `awaiting_review` (no emails); hit **Approve** in the panel to fire them.
+   `…-TEST-…`.
+2. Upload `cv-test-upload.csv` in the admin panel — ingest fires the drain automatically. With the gate
+   on, matched+notifiable rows land at `awaiting_review` (no emails); hit **Approve** in the panel to
+   fire them. (If a drain ever stalls, `npm run cv:run-consumer` re-drains;
+   [scripts/cv-run-consumer.ts](scripts/cv-run-consumer.ts) loops `runCodeViolationConsumer()` until empty.)
+3. `npm run cv:test-cleanup` — removes every `…-TEST-…` row (and the test uploads) so you can re-test
+   from a clean slate; pass `-- --unlink <email>` to also drop the recipient's test company links.
 
 ---
 
@@ -502,7 +515,7 @@ Per [.claude/plans/code-violation.md](.claude/plans/code-violation.md) §8:
   and backfills + notifies. Needs a durable retry mechanism (e.g. SQS).
 - **§8.4 Polished email template** — Postmark template instead of inline HTML.
 - **§8.5 Move processing to SQS** — the V1 DB queue is intentionally the pre-SQS shape; each `pending`
-  row becomes an SQS message and the cron consumer becomes an SQS consumer. Keeping per-complaint
+  row becomes an SQS message and the consumer becomes an SQS consumer. Keeping per-complaint
   processing idempotent and keyed on `record_number` is what makes this a transport swap, not a redesign.
 
 **Ongoing tuning:** the normalizer has a long tail — real data will surface more address variants. The
