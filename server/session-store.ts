@@ -1,4 +1,5 @@
 import { Store } from 'express-session';
+import type { SessionData } from 'express-session';
 import { db } from './storage';
 import { sessions } from '@database/schemas/users.schema';
 import { eq, lt } from 'drizzle-orm';
@@ -15,7 +16,10 @@ export class NeonSessionStore extends Store {
         this.ttl = options.ttl || 24 * 60 * 60 * 1000; // Default 24 hours
     }
 
-    async get(sid: string, callback: (err: any, session?: any) => void): Promise<void> {
+    async get(
+        sid: string,
+        callback: (err: unknown, session?: SessionData | null) => void,
+    ): Promise<void> {
         try {
             const result = await db.select().from(sessions).where(eq(sessions.sid, sid)).limit(1);
 
@@ -40,7 +44,11 @@ export class NeonSessionStore extends Store {
         }
     }
 
-    async set(sid: string, session: any, callback?: (err?: any) => void): Promise<void> {
+    async set(
+        sid: string,
+        session: SessionData,
+        callback?: (err?: unknown) => void,
+    ): Promise<void> {
         try {
             const expire = Math.floor((Date.now() + this.ttl) / 1000);
             const sess = JSON.stringify(session);
@@ -61,7 +69,7 @@ export class NeonSessionStore extends Store {
         }
     }
 
-    async destroy(sid: string, callback?: (err?: any) => void): Promise<void> {
+    async destroy(sid: string, callback?: (err?: unknown) => void): Promise<void> {
         try {
             await db.delete(sessions).where(eq(sessions.sid, sid));
             console.log(`[SessionStore] Session destroyed: ${sid}`);
@@ -72,7 +80,11 @@ export class NeonSessionStore extends Store {
         }
     }
 
-    async touch(sid: string, session: any, callback?: (err?: any) => void): Promise<void> {
+    async touch(
+        sid: string,
+        _session: SessionData,
+        callback?: (err?: unknown) => void,
+    ): Promise<void> {
         try {
             const expire = Math.floor((Date.now() + this.ttl) / 1000);
             await db.update(sessions).set({ expire }).where(eq(sessions.sid, sid));
@@ -84,7 +96,7 @@ export class NeonSessionStore extends Store {
         }
     }
 
-    async clear(callback?: (err?: any) => void): Promise<void> {
+    async clear(callback?: (err?: unknown) => void): Promise<void> {
         try {
             await db.delete(sessions);
             console.log('[SessionStore] All sessions cleared');
@@ -95,7 +107,7 @@ export class NeonSessionStore extends Store {
         }
     }
 
-    async length(callback: (err: any, length?: number) => void): Promise<void> {
+    async length(callback: (err: unknown, length?: number) => void): Promise<void> {
         try {
             const result = await db.select().from(sessions);
             callback(null, result.length);
@@ -105,10 +117,12 @@ export class NeonSessionStore extends Store {
         }
     }
 
-    async all(callback: (err: any, obj?: any) => void): Promise<void> {
+    async all(
+        callback: (err: unknown, obj?: { [sid: string]: SessionData } | null) => void,
+    ): Promise<void> {
         try {
             const result = await db.select().from(sessions);
-            const sessionMap: { [sid: string]: any } = {};
+            const sessionMap: { [sid: string]: SessionData } = {};
 
             for (const row of result) {
                 try {

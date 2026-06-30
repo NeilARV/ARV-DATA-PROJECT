@@ -23,13 +23,14 @@ async function fetchCategoriesForVendors(vendorIds: string[]) {
 
     const map = new Map<string, { id: number; name: string; slug: string; iconName: string }[]>();
     for (const row of rows) {
-        if (!map.has(row.vendorId)) map.set(row.vendorId, []);
-        map.get(row.vendorId)!.push({
+        const list = map.get(row.vendorId) ?? [];
+        list.push({
             id: row.categoryId,
             name: row.name,
             slug: row.slug,
             iconName: row.iconName,
         });
+        map.set(row.vendorId, list);
     }
     return map;
 }

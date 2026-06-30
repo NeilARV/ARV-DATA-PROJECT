@@ -71,14 +71,14 @@ export function Hero() {
                     </Pill>
 
                     <h1 className="mt-5 text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-                        The complete platform for{' '}
-                        <span className="text-primary">real estate investors</span>
+                        The exclusive market platform for{' '}
+                        <span className="text-primary">real estate investors and wholesalers</span>
                     </h1>
 
                     <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground lg:text-lg">
-                        Browse live transaction data, post and discover exclusive deals, build your
-                        vendor network, and connect with the community — four tools, one
-                        membership.
+                        View daily flip transactions, double closes, vendor directory, deal
+                        marketplace and private mastermind community. Exclusive for ARV clients and
+                        partners.
                     </p>
 
                     <div className="mt-8 flex flex-wrap items-center gap-3">

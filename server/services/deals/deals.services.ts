@@ -924,10 +924,10 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
         sfrPropertyId?: number | null;
     } = {};
 
-    if (finalDisclosed) {
+    if (finalDisclosed && finalAddress) {
         if (addressChanged) {
             const lookup = await lookupPropertyByAddress({
-                address: finalAddress!.trim(),
+                address: finalAddress.trim(),
                 city: mergedCity,
                 state: mergedState,
                 zipCode: mergedZip,
@@ -941,7 +941,13 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
                           propertyType: lookup.propertyType,
                           sfrPropertyId: lookup.sfrPropertyId,
                       }
-                    : { beds: null, baths: null, sqft: null, propertyType: null, sfrPropertyId: null };
+                    : {
+                          beds: null,
+                          baths: null,
+                          sqft: null,
+                          propertyType: null,
+                          sfrPropertyId: null,
+                      };
         }
     } else {
         structSet = {
@@ -949,7 +955,9 @@ export async function updateDeal(id: number, callerId: string, input: UpdateDeal
             baths: baths !== undefined ? (baths != null ? String(baths) : null) : undefined,
             sqft: sqft !== undefined ? (sqft != null ? Number(sqft) : null) : undefined,
             propertyType:
-                propertyType !== undefined ? normalizePropertyType(propertyType ?? null) : undefined,
+                propertyType !== undefined
+                    ? normalizePropertyType(propertyType ?? null)
+                    : undefined,
             sfrPropertyId: null,
         };
     }
@@ -1191,12 +1199,7 @@ export async function deleteDeal(id: number, callerId: string) {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(
-            and(
-                eq(userRoles.userId, callerId),
-                inArray(roles.name, [...PRIVILEGED_ROLES]),
-            ),
-        )
+        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])))
         .limit(1);
 
     if (callerIsPrivileged.length === 0 && deal.userId !== callerId) {
@@ -1226,7 +1229,13 @@ export async function createDealBid(
     input: CreateDealBidInput,
 ): Promise<{
     bid: typeof dealBids.$inferSelect;
-    deal: { id: number; userId: string; address: string | null; city: string | null; state: string | null };
+    deal: {
+        id: number;
+        userId: string;
+        address: string | null;
+        city: string | null;
+        state: string | null;
+    };
 }> {
     const label = '[dealsService.createDealBid]';
 
@@ -1280,12 +1289,7 @@ export async function getBidsForDeal(
             .select({ roleName: roles.name })
             .from(userRoles)
             .innerJoin(roles, eq(userRoles.roleId, roles.id))
-            .where(
-                and(
-                    eq(userRoles.userId, callerId),
-                    inArray(roles.name, [...PRIVILEGED_ROLES]),
-                ),
-            )
+            .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])))
             .limit(1);
 
         if (callerIsPrivileged.length === 0) {
@@ -1329,12 +1333,7 @@ export async function deleteDealBid(
             .select({ roleName: roles.name })
             .from(userRoles)
             .innerJoin(roles, eq(userRoles.roleId, roles.id))
-            .where(
-                and(
-                    eq(userRoles.userId, callerId),
-                    inArray(roles.name, [...PRIVILEGED_ROLES]),
-                ),
-            )
+            .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])))
             .limit(1);
 
         if (callerIsPrivileged.length === 0) {
@@ -1465,6 +1464,22 @@ export async function sendDealOfferNotification(
     console.log(
         `${label} Sent offer email: dealId=${dealId}, to=${toAddress}${cc ? `, cc=${cc}` : ''}`,
     );
+}
+
+/** MSAs (id + name) for the deal-post location dropdown, ordered by name. */
+export async function listDealMsas(): Promise<{ id: number; name: string }[]> {
+    return db.select({ id: msas.id, name: msas.name }).from(msas).orderBy(msas.name);
+}
+
+/** True if the user holds at least one privileged deal role (admin, owner, or relationship manager). */
+export async function userHasPrivilegedRole(userId: string): Promise<boolean> {
+    const rows = await db
+        .select({ roleName: roles.name })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(and(eq(userRoles.userId, userId), inArray(roles.name, [...PRIVILEGED_ROLES])))
+        .limit(1);
+    return rows.length > 0;
 }
 
 // Batch offer counts for a set of deals (used to badge the poster's own deal cards).

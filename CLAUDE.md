@@ -52,12 +52,9 @@ The following environment variables are required or used by the application. **N
 | `MICROLINK_API_KEY` | Microlink link-preview API key (optional — the free public endpoint works without it; a key raises rate/concurrency limits) |
 | `SUPABASE_URL` | Supabase project URL — required for all Storage uploads (posts, vendors, users, Mastermind) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key — server-side Storage auth (required for uploads) |
-| `SUPABASE_STORAGE_BUCKET` | Bucket for post images (default `post-images-dev`) |
-| `SUPABASE_VENDOR_STORAGE_BUCKET` | Bucket for vendor images (default `vendor-images-dev`) |
-| `SUPABASE_USER_STORAGE_BUCKET` | Bucket for user/avatar images (default `user-images-dev`) |
-| `SUPABASE_MASTERMIND_STORAGE_BUCKET` | Bucket for Mastermind message attachments — images + docs (default `mastermind-files-dev`) |
-| `SUPABASE_STREETVIEW_STORAGE_BUCKET` | Bucket for cached Street View / satellite property images (default `streetview-images-dev`) |
 
+> **Storage bucket names are not env vars.** They are non-secret public constants defined in `server/lib/supabase.ts` (`DEV_BUCKETS` / `PROD_BUCKETS`), selected by `NODE_ENV` — dev uses `*-dev`, production uses `*-prod`.
+>
 > **Supabase Storage buckets must be public** and configured to allow the app's MIME types and size limits. The Mastermind bucket allows **JPEG, PNG, PDF, CSV, TXT at ≤10 MB** — this must match the server allowlist in `server/services/messages/attachments.services.ts` (`ALLOWED_ATTACHMENT_TYPES` / `MAX_ATTACHMENT_BYTES`).
 
 ---
@@ -222,6 +219,13 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 
 ---
 
+## Git Workflow
+Default to a **feature branch** in the main checkout (`git switch -c feat/<name>` off an updated `main`); use a **git worktree** only for genuinely parallel work (e.g. multiple agents on different branches). Commit/push only when asked; if on `main`, branch first. Worktrees don't share `node_modules` and have no `.env` — run DB commands from the main checkout.
+
+> **Full reference**: `.claude/docs/git-workflows.md` — branch vs worktree vs clone, start-to-finish commands, the Node `node_modules`/junction gotcha, seeing diffs, and worktree cleanup.
+
+---
+
 ## References
 - `.claude/docs/api.md` — complete API documentation (all routes, request/response shapes, params). Auth notes are summarized per route; `access-control.md` is canonical for auth.
 - `.claude/docs/access-control.md` — canonical route permission tables and middleware reference
@@ -235,6 +239,7 @@ Two end-of-task agents are wired into the `Stop` hook in `.claude/settings.json`
 - `.claude/docs/mastermind.md` — Mastermind design doc and phased build plan
 - `.claude/docs/agent-updater.md` — detection rules for keeping agent docs in sync
 - `.claude/docs/new-msa.md` — how to add a new MSA to the application
+- `.claude/docs/git-workflows.md` — git workflow: feature branches (default) vs worktrees, start-to-finish commands, and Node/worktree gotchas
 
 ---
 
