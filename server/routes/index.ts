@@ -16,6 +16,7 @@ import messagesRoutes from './messages.routes';
 import dmsRoutes from './dms.routes';
 import notificationsRoutes from './notifications.routes';
 import mastermindRoutes from './mastermind.routes';
+import codeViolationsRoutes from './code-violations.routes';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/messages', messagesRoutes);
 router.use('/dms', dmsRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/mastermind', mastermindRoutes);
+router.use('/code-violations', codeViolationsRoutes);
 
 export default router;

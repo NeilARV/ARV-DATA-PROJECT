@@ -3,3 +3,4 @@ export * from './users';
 export * from './sync';
 export * from './properties';
 export * from './mastermind';
+export * from './code-violations';

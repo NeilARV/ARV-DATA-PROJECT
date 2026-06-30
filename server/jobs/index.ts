@@ -109,6 +109,11 @@ export function startScheduledJobs() {
         );
     }
 
+    // Code Violations: no cron — the upload endpoint drives processing. Ingest enqueues the
+    // complaints and fires the consumer drain (processCodeViolationQueue) directly, so matching +
+    // owner resolution + review/notify begin the moment an admin uploads. See
+    // server/services/code-violations/code-violations.services.ts (ingestCodeViolationCsv).
+
     // =========================================================================
     // OpenCorporates Enrichment — last 3 days of each month at 11:30 PM PT
     // Drains remaining API quota before the billing period resets at month-end.

@@ -35,7 +35,12 @@
       "Bash(npm -v)",
       "Bash(npm install *)",
       "Bash(npx -y npm@10 install --package-lock-only --ignore-scripts)",
-      "Bash(sed -i '' -e 's/Use Node.js 22/Use Node.js 24/g' -e 's/node-version: 22/node-version: 24/g' .github/workflows/ci.yml && grep -nE \"Use Node.js|node-version\" .github/workflows/ci.yml)"
+      "Bash(sed -i '' -e 's/Use Node.js 22/Use Node.js 24/g' -e 's/node-version: 22/node-version: 24/g' .github/workflows/ci.yml && grep -nE \"Use Node.js|node-version\" .github/workflows/ci.yml)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(grep -nA8 \"export.*getCompanyMembers\" server/services/claims/claims.services.ts)",
+      "Bash(npx tsx -e ' *)",
+      "Bash(npx tsx *)",
+      "Bash(grep -vE \"^\\\\s*$\")"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"

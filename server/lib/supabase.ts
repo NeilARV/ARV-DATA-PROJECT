@@ -11,6 +11,7 @@ const DEV_BUCKETS = {
     users: 'user-images-dev',
     mastermind: 'mastermind-dev',
     streetview: 'streetview-dev',
+    codeViolations: 'code-violations-dev',
 } as const;
 
 const PROD_BUCKETS = {
@@ -19,6 +20,7 @@ const PROD_BUCKETS = {
     users: 'user-images-prod',
     mastermind: 'mastermind-prod',
     streetview: 'streetview-prod',
+    codeViolations: 'code-violations-prod',
 } as const;
 
 const buckets = isProduction ? PROD_BUCKETS : DEV_BUCKETS;
@@ -32,6 +34,8 @@ export const userStorageBucket = buckets.users;
 export const mastermindStorageBucket = buckets.mastermind;
 
 export const streetviewStorageBucket = buckets.streetview;
+
+export const codeViolationStorageBucket = buckets.codeViolations;
 
 let _client: SupabaseClient | null = null;
 

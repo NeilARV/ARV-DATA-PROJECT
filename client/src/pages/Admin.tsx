@@ -21,6 +21,7 @@ import {
     ShieldCheck,
     Mail,
     Building2,
+    FileWarning,
 } from 'lucide-react';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,16 @@ import UsersTab from '@/components/admin/UsersTab';
 import EmailListTab from '@/components/admin/EmailListTab';
 import RolesTab from '@/components/admin/RolesTab';
 import CompanyClaimsTab from '@/components/admin/CompanyClaimsTab';
+import CodeViolationsTab from '@/components/admin/CodeViolationsTab';
+
+// Maps the number of visible admin tabs to its TabsList grid class. Full literal `grid-cols-*`
+// strings (not interpolated) so Tailwind's content scanner emits each one.
+const TABS_GRID_COLS: Record<number, string> = {
+    2: 'grid-cols-2',
+    3: 'grid-cols-3',
+    4: 'grid-cols-4',
+    5: 'grid-cols-5',
+};
 
 export default function Admin() {
     const { toast } = useToast();
@@ -50,12 +61,17 @@ export default function Admin() {
 
     const isVerifying = isLoadingUser || isAdminStatusLoading;
     const showAccessDenied = isUserAuthenticated && !canAccessAdminPanel && !isVerifying;
-    /** Only admin or owner can see and use the Roles tab; relationship-managers cannot. */
+    /** Only admin or owner can see and use the Roles and Code Violations tabs; RMs cannot. */
     const canManageRoles = isOwner || isAdmin;
     /** RMs can manage subscription tiers, relationship manager assignments, and email list entries. */
     const canManageSubscriptionTier = canManageRoles || isRelationshipManager;
     /** Admin, owner, and RM can review company claims. */
     const canManageClaims = canManageRoles || isRelationshipManager;
+
+    // TabsList grid sizing: 2 always-on tabs + claims (RM-visible) + Roles & Code Violations
+    // (admin/owner only, so they appear together — hence +2).
+    const visibleTabCount = 2 + (canManageClaims ? 1 : 0) + (canManageRoles ? 2 : 0);
+    const tabsGridClass = TABS_GRID_COLS[visibleTabCount];
 
     // Build query URL with county filter
     const propertiesQueryUrl = useMemo(() => {
@@ -160,15 +176,7 @@ export default function Admin() {
             </div>
 
             <Tabs defaultValue="users" className="w-full">
-                <TabsList
-                    className={`grid w-full mb-8 ${
-                        canManageRoles && canManageClaims
-                            ? 'grid-cols-4'
-                            : canManageRoles || canManageClaims
-                              ? 'grid-cols-3'
-                              : 'grid-cols-2'
-                    }`}
-                >
+                <TabsList className={`grid w-full mb-8 ${tabsGridClass}`}>
                     <TabsTrigger value="users" data-testid="tab-users">
                         <Users className="w-4 h-4 mr-2" />
                         Users
@@ -187,6 +195,12 @@ export default function Admin() {
                         <TabsTrigger value="roles" data-testid="tab-roles">
                             <ShieldCheck className="w-4 h-4 mr-2" />
                             Roles
+                        </TabsTrigger>
+                    )}
+                    {canManageRoles && (
+                        <TabsTrigger value="code-violations" data-testid="tab-code-violations">
+                            <FileWarning className="w-4 h-4 mr-2" />
+                            Code Violations
                         </TabsTrigger>
                     )}
                 </TabsList>
@@ -221,6 +235,12 @@ export default function Admin() {
                             isOwner={isOwner}
                             currentUserId={authUser?.id ?? null}
                         />
+                    </TabsContent>
+                )}
+
+                {canManageRoles && (
+                    <TabsContent value="code-violations">
+                        <CodeViolationsTab />
                     </TabsContent>
                 )}
             </Tabs>
