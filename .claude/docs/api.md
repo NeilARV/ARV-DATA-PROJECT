@@ -598,11 +598,35 @@ Also returns `"Property updated successfully"` if the property already existed a
 ---
 
 ### `GET /api/properties/map`
-Lightweight list of all property coordinates and basic metadata for map rendering.
+Lightweight list of property coordinates and basic metadata for map rendering. Restricted to a viewport box when bounds are supplied, so only pins currently in view are returned.
 
 **Auth**: Public
 
-**Response `200`** Array of `{ id, latitude, longitude, city, state, status, ... }`
+**Query params**: `county`, `status` (repeatable), `dateRange`, `companyId`, `companyRole`, `zipcode`, `city` (filters) · `south`, `west`, `north`, `east` (optional viewport box — all four required together; `400` if partially specified or non-numeric). Omit the box to fetch the full filtered set.
+
+**Response `200`** Array of `{ id, latitude, longitude, city, zipcode, county, status, statuses, price, buyerId, sellerId, propertyOwner, ... }`
+
+---
+
+### `GET /api/properties/map/extent`
+Bounding box + count of the qualifying set for the current filters/company, used to center and zoom the map without loading every pin.
+
+**Auth**: Public
+
+**Query params**: `county`, `status` (repeatable), `dateRange`, `companyId`, `companyRole`, `zipcode`, `city`
+
+**Response `200`** `{ minLat, maxLat, minLng, maxLng, count }`, or `null` when no properties with coordinates match.
+
+---
+
+### `GET /api/properties/map/regions`
+Property counts grouped by county for the national overview layer (the zoomed-out MSA bubbles). Cross-region by design — ignores county/company/location filters so every region is represented, but respects status + date so the overview matches the zoomed-in view. No pin data is returned.
+
+**Auth**: Public
+
+**Query params**: `status` (repeatable), `dateRange`
+
+**Response `200`** `[{ county: "san diego", count: 707 }]` — county is lower-cased + trimmed; the client sums these into per-MSA bubbles.
 
 ---
 

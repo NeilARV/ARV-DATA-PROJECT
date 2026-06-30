@@ -86,3 +86,26 @@ export type MapPin = {
     buyerId?: string | null;
     sellerId?: string | null;
 };
+
+/** Viewport bounding box sent to the map pin endpoint (Leaflet bounds corners). */
+export type MapBoundsParams = {
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+};
+
+/** Bounding box + count of the qualifying set, returned by /api/properties/map/extent. */
+export type MapExtent = {
+    minLat: number;
+    maxLat: number;
+    minLng: number;
+    maxLng: number;
+    count: number;
+};
+
+/** Per-county property count from /api/properties/map/regions (county lower-cased + trimmed). */
+export type RegionCount = {
+    county: string;
+    count: number;
+};

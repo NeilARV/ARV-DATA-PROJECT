@@ -439,6 +439,7 @@ One-to-one with `properties`.
 **Indexes:**
 - `idx_addresses_county_lower` on `lower(trim(county))`
 - `idx_addresses_property_zip` on `(property_id, zip_code)` — covering index for zip-count queries
+- `idx_addresses_lat_lng` on `(latitude, longitude)` — supports the map viewport (bbox) range scan and map-extent MIN/MAX aggregates
 
 ---
 
