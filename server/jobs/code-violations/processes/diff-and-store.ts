@@ -1,6 +1,7 @@
 import { db } from 'server/storage';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { cvMatches, cvViolations } from '@database/schemas/code-violations.schema';
+import { CV_PROCESSING_STATUS } from '@database/validation/code-violations.validation';
 import type { CvViolation } from '@database/types/code-violations';
 
 interface DiffAndStoreParams {
@@ -67,7 +68,7 @@ async function isTmpCeDuplicate(violation: CvViolation, normalizedAddress: strin
                 eq(cvViolations.normalizedAddress, normalizedAddress),
                 eq(cvViolations.violationDate, violation.violationDate),
                 sql`md5(coalesce(${cvViolations.description}, '')) = md5(${violation.description ?? ''})`,
-                sql`(${cvViolations.processingStatus} = 'awaiting_review' or (${cvViolations.processingStatus} = 'complete' and ${cvViolations.notified} = true))`,
+                sql`(${cvViolations.processingStatus} = ${CV_PROCESSING_STATUS.AWAITING_REVIEW} or (${cvViolations.processingStatus} = ${CV_PROCESSING_STATUS.COMPLETE} and ${cvViolations.notified} = true))`,
             ),
         )
         .limit(1);

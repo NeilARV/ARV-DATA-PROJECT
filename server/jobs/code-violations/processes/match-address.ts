@@ -100,7 +100,10 @@ export function parseCsvAddress(raw: string): ParsedCsvAddress {
 
     const normalizedStreet = normalizeAddressForMatch(streetPart);
     const firstToken = normalizedStreet.split(' ')[0] ?? '';
-    const streetNumber = /^\d+$/.test(firstToken) ? firstToken : null;
+    // Accept ranged/suffixed house numbers ("123-125", "123B") — `addresses.street_number` is free
+    // text, not just integers. Ordinal street names ("1ST", "12TH") stay excluded: two trailing
+    // letters fail the single optional suffix, so they're correctly treated as having no house number.
+    const streetNumber = /^\d+(-\d+)?[A-Za-z]?$/.test(firstToken) ? firstToken : null;
 
     return { streetNumber, normalizedStreet, city, state, zip };
 }

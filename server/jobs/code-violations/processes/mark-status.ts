@@ -1,7 +1,15 @@
 import { db } from 'server/storage';
 import { and, count, eq, inArray, lt, ne } from 'drizzle-orm';
-import { cvUploads, cvViolations } from '@database/schemas/code-violations.schema';
-import type { CvProcessingStatus } from '@database/types/code-violations';
+import {
+    cvNotificationsSent,
+    cvUploads,
+    cvViolations,
+} from '@database/schemas/code-violations.schema';
+import {
+    CV_PROCESSING_STATUS,
+    CV_UPLOAD_STATUS,
+} from '@database/validation/code-violations.validation';
+import type { CvProcessingStatus, CvUploadStatus } from '@database/types/code-violations';
 
 /**
  * Reset complaints stuck in `processing` past `staleMinutes` back to `pending` so the next run
@@ -15,8 +23,13 @@ export async function resetStaleProcessing(staleMinutes = 30): Promise<number> {
     const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
     const reset = await db
         .update(cvViolations)
-        .set({ processingStatus: 'pending', updatedAt: new Date() })
-        .where(and(eq(cvViolations.processingStatus, 'processing'), lt(cvViolations.updatedAt, cutoff)))
+        .set({ processingStatus: CV_PROCESSING_STATUS.PENDING, updatedAt: new Date() })
+        .where(
+            and(
+                eq(cvViolations.processingStatus, CV_PROCESSING_STATUS.PROCESSING),
+                lt(cvViolations.updatedAt, cutoff),
+            ),
+        )
         .returning({ id: cvViolations.id });
     return reset.length;
 }
@@ -29,7 +42,7 @@ export async function markProcessing(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     await db
         .update(cvViolations)
-        .set({ processingStatus: 'processing', updatedAt: new Date() })
+        .set({ processingStatus: CV_PROCESSING_STATUS.PROCESSING, updatedAt: new Date() })
         .where(inArray(cvViolations.id, ids));
 }
 
@@ -56,12 +69,12 @@ async function setStatus(
 
 /** Address isn't a property we track → terminal `no_match`. */
 export async function markNoMatch(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus(id, 'no_match', normalizedAddress);
+    await setStatus(id, CV_PROCESSING_STATUS.NO_MATCH, normalizedAddress);
 }
 
 /** Address matched more than one property → terminal `ambiguous` (needs a human). */
 export async function markAmbiguous(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus(id, 'ambiguous', normalizedAddress);
+    await setStatus(id, CV_PROCESSING_STATUS.AMBIGUOUS, normalizedAddress);
 }
 
 /**
@@ -69,7 +82,9 @@ export async function markAmbiguous(id: string, normalizedAddress: string): Prom
  * Not terminal — flips to `complete` once approved (Chunk D).
  */
 export async function markAwaitingReview(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus(id, 'awaiting_review', normalizedAddress, { terminal: false });
+    await setStatus(id, CV_PROCESSING_STATUS.AWAITING_REVIEW, normalizedAddress, {
+        terminal: false,
+    });
 }
 
 /**
@@ -81,7 +96,9 @@ export async function markComplete(
     id: string,
     params: { normalizedAddress: string; notified: boolean },
 ): Promise<void> {
-    await setStatus(id, 'complete', params.normalizedAddress, { notified: params.notified });
+    await setStatus(id, CV_PROCESSING_STATUS.COMPLETE, params.normalizedAddress, {
+        notified: params.notified,
+    });
 }
 
 /** Something threw while processing this complaint → terminal `failed` with the reason. No auto-retry. */
@@ -89,7 +106,7 @@ export async function markFailed(id: string, message: string): Promise<void> {
     await db
         .update(cvViolations)
         .set({
-            processingStatus: 'failed',
+            processingStatus: CV_PROCESSING_STATUS.FAILED,
             errorMessage: message.slice(0, 500),
             processedAt: new Date(),
             updatedAt: new Date(),
@@ -107,6 +124,8 @@ export async function markFailed(id: string, message: string): Promise<void> {
  * `awaiting_review` both imply a matched complaint, so they count as matched; every other settled
  * status (`no_match`, `ambiguous`, `failed`) didn't resolve to one property, so it counts as
  * unmatched — together they account for all settled rows so none silently vanish from the counters.
+ * `notifications_sent` is derived from the `cv_notifications_sent` ledger (the emails actually sent
+ * for this upload's complaints), so it stays correct across re-approve / retry.
  *
  * @param uploadId the `cv_uploads` row to refresh (a complaint's `first_seen_upload_id`)
  */
@@ -120,16 +139,27 @@ export async function refreshUploadStatus(uploadId: string): Promise<void> {
     const counts: Record<string, number> = {};
     for (const row of rows) counts[row.status] = Number(row.n);
 
-    const inFlight = (counts['pending'] ?? 0) + (counts['processing'] ?? 0);
-    const awaitingReview = counts['awaiting_review'] ?? 0;
-    const matched = (counts['complete'] ?? 0) + awaitingReview;
+    const inFlight =
+        (counts[CV_PROCESSING_STATUS.PENDING] ?? 0) + (counts[CV_PROCESSING_STATUS.PROCESSING] ?? 0);
+    const awaitingReview = counts[CV_PROCESSING_STATUS.AWAITING_REVIEW] ?? 0;
+    const matched = (counts[CV_PROCESSING_STATUS.COMPLETE] ?? 0) + awaitingReview;
     const unmatched =
-        (counts['no_match'] ?? 0) + (counts['ambiguous'] ?? 0) + (counts['failed'] ?? 0);
+        (counts[CV_PROCESSING_STATUS.NO_MATCH] ?? 0) +
+        (counts[CV_PROCESSING_STATUS.AMBIGUOUS] ?? 0) +
+        (counts[CV_PROCESSING_STATUS.FAILED] ?? 0);
 
-    let status: string;
-    if (inFlight > 0) status = 'processing';
-    else if (awaitingReview > 0) status = 'review';
-    else status = 'completed';
+    // Count actual deliveries from the ledger so the counter survives retries (derived, not summed).
+    const [notifications] = await db
+        .select({ n: count() })
+        .from(cvNotificationsSent)
+        .innerJoin(cvViolations, eq(cvNotificationsSent.violationId, cvViolations.id))
+        .where(eq(cvViolations.firstSeenUploadId, uploadId));
+    const notificationsSent = Number(notifications?.n ?? 0);
+
+    let status: CvUploadStatus;
+    if (inFlight > 0) status = CV_UPLOAD_STATUS.PROCESSING;
+    else if (awaitingReview > 0) status = CV_UPLOAD_STATUS.REVIEW;
+    else status = CV_UPLOAD_STATUS.COMPLETED;
 
     await db
         .update(cvUploads)
@@ -137,8 +167,9 @@ export async function refreshUploadStatus(uploadId: string): Promise<void> {
             status,
             rowsMatched: matched,
             rowsUnmatched: unmatched,
-            finishedAt: status === 'completed' ? new Date() : null,
+            notificationsSent,
+            finishedAt: status === CV_UPLOAD_STATUS.COMPLETED ? new Date() : null,
         })
         // Don't resurrect an upload that failed at ingest.
-        .where(and(eq(cvUploads.id, uploadId), ne(cvUploads.status, 'failed')));
+        .where(and(eq(cvUploads.id, uploadId), ne(cvUploads.status, CV_UPLOAD_STATUS.FAILED)));
 }

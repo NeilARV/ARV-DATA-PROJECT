@@ -10,6 +10,7 @@ vi.mock('server/controllers/code-violations/code-violations.controllers', () => 
     uploadCodeViolationCsv: vi.fn((_req, res) => res.status(201).json({})),
     listCodeViolationUploads: vi.fn((_req, res) => res.status(200).json({ uploads: [] })),
     getCodeViolationUpload: vi.fn((_req, res) => res.status(200).json({ upload: {} })),
+    approveCodeViolationUpload: vi.fn((_req, res) => res.status(200).json({ upload: {} })),
 }));
 
 const ACTING_USER_ID = '00000000-0000-0000-0000-0000000000c1';
@@ -112,6 +113,41 @@ describe('GET /api/code-violations/uploads/:id — access enforcement (integrati
     it('GET /api/code-violations/uploads/:id — no session — returns 401', async () => {
         const res = await request(getApp()).get(
             `/api/code-violations/uploads/${DUMMY_UPLOAD_ID}`,
+        );
+        expect(res.status).toBe(401);
+    });
+});
+
+// ── POST /api/code-violations/uploads/:id/approve — requireRole(['admin','owner']) ──
+describe('POST /api/code-violations/uploads/:id/approve — access enforcement (integration)', () => {
+    it('POST /api/code-violations/uploads/:id/approve — admin role — returns 200', async () => {
+        await assignRole(ACTING_USER_ID, 'admin');
+        const res = await request(getApp())
+            .post(`/api/code-violations/uploads/${DUMMY_UPLOAD_ID}/approve`)
+            .set('x-test-user-id', ACTING_USER_ID);
+        expect(res.status).toBe(200);
+    });
+
+    // RM is excluded here (ADMIN_ROLES, not PRIVILEGED_ROLES) — the key distinction.
+    it('POST /api/code-violations/uploads/:id/approve — relationship-manager — returns 403', async () => {
+        await assignRole(ACTING_USER_ID, 'relationship-manager');
+        const res = await request(getApp())
+            .post(`/api/code-violations/uploads/${DUMMY_UPLOAD_ID}/approve`)
+            .set('x-test-user-id', ACTING_USER_ID);
+        expect(res.status).toBe(403);
+    });
+
+    it('POST /api/code-violations/uploads/:id/approve — member role — returns 403', async () => {
+        await assignRole(ACTING_USER_ID, 'member');
+        const res = await request(getApp())
+            .post(`/api/code-violations/uploads/${DUMMY_UPLOAD_ID}/approve`)
+            .set('x-test-user-id', ACTING_USER_ID);
+        expect(res.status).toBe(403);
+    });
+
+    it('POST /api/code-violations/uploads/:id/approve — no session — returns 401', async () => {
+        const res = await request(getApp()).post(
+            `/api/code-violations/uploads/${DUMMY_UPLOAD_ID}/approve`,
         );
         expect(res.status).toBe(401);
     });

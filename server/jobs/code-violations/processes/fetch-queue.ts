@@ -1,6 +1,7 @@
 import { db } from 'server/storage';
 import { asc, eq } from 'drizzle-orm';
 import { cvViolations } from '@database/schemas/code-violations.schema';
+import { CV_PROCESSING_STATUS } from '@database/validation/code-violations.validation';
 import type { CvViolation } from '@database/types/code-violations';
 
 /**
@@ -18,7 +19,7 @@ export async function fetchPendingViolations(limit: number): Promise<CvViolation
     return db
         .select()
         .from(cvViolations)
-        .where(eq(cvViolations.processingStatus, 'pending'))
+        .where(eq(cvViolations.processingStatus, CV_PROCESSING_STATUS.PENDING))
         .orderBy(asc(cvViolations.createdAt))
         .limit(limit);
 }

@@ -5,10 +5,12 @@ import { db } from 'server/storage';
 import { cvUploads, cvViolations } from '@database/schemas/code-violations.schema';
 import {
     cvParsedRowSchema,
+    CV_UPLOAD_STATUS,
     type CvParsedRow,
 } from '@database/validation/code-violations.validation';
 import type { CvUpload, CvUploadSource } from '@database/types/code-violations';
 import { getSupabase, codeViolationStorageBucket } from 'server/lib/supabase';
+import { notifyAwaitingReviewForUpload } from 'server/jobs/code-violations/processes/notify';
 
 // The Accela export header, in order. The trailing comma in the real file yields an 8th,
 // empty-named column that papaparse exposes as a "" field — we ignore it. These are the
@@ -148,7 +150,8 @@ export function parseCodeViolationCsv(buffer: Buffer): ParsedCsvResult {
  * Dedup is by `record_number`: a brand-new complaint inserts as `pending`; an already-seen one
  * refreshes its Accela `status_text`/`description` and its (possibly corrected) address, but is
  * **not** re-queued — its `processing_status` is left untouched — so overlapping daily uploads are
- * idempotent.
+ * idempotent. An upload that enqueues nothing new (all duplicates, or empty) is finalized to
+ * `completed` here, since the consumer never visits an upload with no `pending` complaints of its own.
  *
  * @param params the uploaded buffer, file metadata, uploader, and producer source
  * @returns the new upload id and ingest counters
@@ -161,7 +164,7 @@ export async function ingestCodeViolationCsv(params: IngestCsvParams): Promise<I
     // `failed` — without this, a storage outage would throw with no trace in the admin panel.
     const [upload] = await db
         .insert(cvUploads)
-        .values({ source, uploadedBy, fileName, status: 'enqueued' })
+        .values({ source, uploadedBy, fileName, status: CV_UPLOAD_STATUS.ENQUEUED })
         .returning({ id: cvUploads.id });
 
     try {
@@ -232,12 +235,22 @@ export async function ingestCodeViolationCsv(params: IngestCsvParams): Promise<I
             .set({ rowsTotal: rows.length, violationsNew })
             .where(eq(cvUploads.id, upload.id));
 
+        // Nothing new was enqueued (every row was an already-seen duplicate, or the file was empty),
+        // so no `pending` complaint points at this upload and the consumer will never touch it. Finalize
+        // it here instead of leaving it stuck at `enqueued`.
+        if (violationsNew === 0) {
+            await db
+                .update(cvUploads)
+                .set({ status: CV_UPLOAD_STATUS.COMPLETED, finishedAt: sql`now()` })
+                .where(eq(cvUploads.id, upload.id));
+        }
+
         return { uploadId: upload.id, rowsTotal: rows.length, violationsNew, skipped };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Ingest failed';
         await db
             .update(cvUploads)
-            .set({ status: 'failed', errorMessage: message, finishedAt: sql`now()` })
+            .set({ status: CV_UPLOAD_STATUS.FAILED, errorMessage: message, finishedAt: sql`now()` })
             .where(eq(cvUploads.id, upload.id));
         throw error;
     }
@@ -259,4 +272,33 @@ export async function listCodeViolationUploads(): Promise<CvUpload[]> {
 export async function getCodeViolationUploadById(id: string): Promise<CvUpload | null> {
     const [upload] = await db.select().from(cvUploads).where(eq(cvUploads.id, id)).limit(1);
     return upload ?? null;
+}
+
+/** Result of approving an upload's held-back complaints for notification. */
+export type ApproveUploadResult =
+    | { status: 'ok'; upload: CvUpload; violationsNotified: number; emailsSent: number }
+    | { status: 'not-found' }
+    | { status: 'not-in-review' };
+
+/**
+ * Approve an upload's dry-run (§4.6): run its held `awaiting_review` complaints through NOTIFY,
+ * sending the emails that were held for review and advancing the upload `review → completed`.
+ *
+ * Only an upload currently in `review` can be approved — a not-yet-reviewed or already-completed
+ * upload is rejected (`not-in-review`) so a double-click or stale panel can't re-fire emails. The
+ * notify pass itself is also idempotent, so this is belt-and-suspenders.
+ *
+ * @param uploadId the upload to approve
+ * @returns the refreshed upload with notify counts, or a `not-found` / `not-in-review` status
+ * Side effect: sends code-violation alert emails and writes `cv_notifications_sent` rows.
+ */
+export async function approveCodeViolationUpload(uploadId: string): Promise<ApproveUploadResult> {
+    const upload = await getCodeViolationUploadById(uploadId);
+    if (!upload) return { status: 'not-found' };
+    if (upload.status !== CV_UPLOAD_STATUS.REVIEW) return { status: 'not-in-review' };
+
+    const { violationsNotified, emailsSent } = await notifyAwaitingReviewForUpload(uploadId);
+
+    const refreshed = await getCodeViolationUploadById(uploadId);
+    return { status: 'ok', upload: refreshed ?? upload, violationsNotified, emailsSent };
 }

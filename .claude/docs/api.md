@@ -403,7 +403,7 @@ Remove an entry from the subscription whitelist.
 
 ## 2a. Code Violations `/api/code-violations`
 
-San Diego code-enforcement complaint ingest. **Admin + owner only** (`requireRole(["admin","owner"])`). The upload is Phase 1 only — it archives the raw CSV, opens an audit row, parses + validates, and enqueues one `cv_violations` row per complaint as `pending`, then returns immediately. Address matching, owner resolution, and email notification run later in the cron consumer (not these routes).
+San Diego code-enforcement complaint ingest. **Admin + owner only** (`requireRole(["admin","owner"])`). The upload is Phase 1 only — it archives the raw CSV, opens an audit row, parses + validates, and enqueues one `cv_violations` row per complaint as `pending`, then returns immediately. Address matching and owner resolution run later in the cron consumer; email notification is held for admin review by default (`CV_REQUIRE_REVIEW`) and fired by the **approve** route below.
 
 ### `POST /api/code-violations/uploads`
 Ingest an Accela code-enforcement CSV export.
@@ -444,6 +444,19 @@ Fetch a single ingest run.
 **Response `200`** `{ "upload": { /* cv_uploads row */ } }`
 
 **Errors** `404` upload not found
+
+---
+
+### `POST /api/code-violations/uploads/:id/approve`
+Approve an upload's dry-run (§4.6) and fire the notification emails held for review. Each `awaiting_review` complaint is emailed to the matched property's owning-company members (kill-switch respected), marked `complete` (`notified = true` when an email fired), and the upload advances `review → completed`. Idempotent — already-notified recipients are skipped.
+
+**Auth**: `requireRole(["admin", "owner"])`
+
+**Params**: `id` — uuid of the `cv_uploads` row
+
+**Response `200`** `{ "upload": { /* refreshed cv_uploads row */ }, "violationsNotified": 12, "emailsSent": 18 }`
+
+**Errors** `404` upload not found · `409` upload is not awaiting review (not in `review` status) · `401` unauth · `403` not admin/owner · `500` notify failure
 
 ---
 

@@ -1,32 +1,61 @@
 import { z } from 'zod';
 
 // ─── Value sets (single source of truth for the `text` status columns) ──────────
-// The schema columns are plain `text` (see code-violations.schema.ts); these arrays are
-// what enforces the allowed values at the edges, and the union types in
-// database/types/code-violations.ts derive from them.
+// The schema columns are plain `text` (see code-violations.schema.ts). Each value set is declared
+// once as a named-constant object — referenced at the comparison/assignment sites in the service,
+// consumer, and job processes so a typo'd status is a compile error, not a silent no-op (and so the
+// near-twins `complete` (a violation) and `completed` (an upload) can't be transposed). The `as const`
+// arrays — consumed by `z.enum` and the union types in database/types — are derived from the objects,
+// so there is exactly one literal per value.
+
+export const CV_PROCESSING_STATUS = {
+    PENDING: 'pending',
+    PROCESSING: 'processing',
+    AWAITING_REVIEW: 'awaiting_review',
+    NO_MATCH: 'no_match',
+    AMBIGUOUS: 'ambiguous',
+    COMPLETE: 'complete',
+    FAILED: 'failed',
+} as const;
 
 export const CV_PROCESSING_STATUSES = [
-    'pending',
-    'processing',
-    'awaiting_review',
-    'no_match',
-    'ambiguous',
-    'complete',
-    'failed',
+    CV_PROCESSING_STATUS.PENDING,
+    CV_PROCESSING_STATUS.PROCESSING,
+    CV_PROCESSING_STATUS.AWAITING_REVIEW,
+    CV_PROCESSING_STATUS.NO_MATCH,
+    CV_PROCESSING_STATUS.AMBIGUOUS,
+    CV_PROCESSING_STATUS.COMPLETE,
+    CV_PROCESSING_STATUS.FAILED,
 ] as const;
 
+export const CV_UPLOAD_STATUS = {
+    ENQUEUED: 'enqueued',
+    PROCESSING: 'processing',
+    REVIEW: 'review',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+} as const;
+
 export const CV_UPLOAD_STATUSES = [
-    'enqueued',
-    'processing',
-    'review',
-    'completed',
-    'failed',
+    CV_UPLOAD_STATUS.ENQUEUED,
+    CV_UPLOAD_STATUS.PROCESSING,
+    CV_UPLOAD_STATUS.REVIEW,
+    CV_UPLOAD_STATUS.COMPLETED,
+    CV_UPLOAD_STATUS.FAILED,
 ] as const;
 
 export const CV_UPLOAD_SOURCES = ['manual', 'scraper'] as const;
 
 // 'email' in V1; 'in_app' reserved for V2.
-export const CV_NOTIFICATION_CHANNELS = ['email', 'in_app'] as const;
+export const CV_NOTIFICATION_CHANNEL = {
+    EMAIL: 'email',
+    IN_APP: 'in_app',
+} as const;
+
+export const CV_NOTIFICATION_CHANNELS = [
+    CV_NOTIFICATION_CHANNEL.EMAIL,
+    CV_NOTIFICATION_CHANNEL.IN_APP,
+] as const;
 
 // ─── Parsed CSV row ──────────────────────────────────────────────────────────────
 // The normalized shape the ingest service produces from one papaparse row (after mapping

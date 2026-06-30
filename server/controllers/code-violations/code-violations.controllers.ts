@@ -83,3 +83,38 @@ export async function getCodeViolationUpload(req: Request, res: Response): Promi
         res.status(500).json({ message: 'Failed to retrieve code-violation upload' });
     }
 }
+
+/**
+ * POST /api/code-violations/uploads/:id/approve — approve an upload's dry-run (§4.6) and fire the
+ * notification emails held for review. Advances the upload `review → completed`.
+ */
+export async function approveCodeViolationUpload(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params;
+        // Guard the uuid before the query (see getCodeViolationUpload) — a malformed id is treated
+        // as not found rather than reaching a uuid column and surfacing as a 500.
+        if (!z.string().uuid().safeParse(id).success) {
+            res.status(404).json({ message: 'Upload not found' });
+            return;
+        }
+
+        const result = await CodeViolationsService.approveCodeViolationUpload(id);
+        if (result.status === 'not-found') {
+            res.status(404).json({ message: 'Upload not found' });
+            return;
+        }
+        if (result.status === 'not-in-review') {
+            res.status(409).json({ message: 'Upload is not awaiting review' });
+            return;
+        }
+
+        res.json({
+            upload: result.upload,
+            violationsNotified: result.violationsNotified,
+            emailsSent: result.emailsSent,
+        });
+    } catch (error) {
+        console.error('approveCodeViolationUpload error:', error);
+        res.status(500).json({ message: 'Failed to approve code-violation upload' });
+    }
+}

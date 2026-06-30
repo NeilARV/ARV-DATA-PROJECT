@@ -83,6 +83,9 @@ export const addresses = pgTable(
         // Covering index for Phase 2 zip-counts query: avoids heap fetch for zip_code
         // when scanning by property_id IN (...qualifying IDs...).
         index('idx_addresses_property_zip').on(t.propertyId, t.zipCode),
+        // The code-violation consumer prefilters candidates by street_number (match-address.ts
+        // loadCandidateAddresses); without this it sequentially scans the whole table each run.
+        index('idx_addresses_street_number').on(t.streetNumber),
     ],
 );
 
