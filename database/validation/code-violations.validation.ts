@@ -34,15 +34,25 @@ export const CV_NOTIFICATION_CHANNELS = ['email', 'in_app'] as const;
 // this — no record number or no address (e.g. a bare `United States` junk line) — is
 // skipped, never enqueued.
 
+// An optional Accela text cell: trimmed, with an empty/absent cell collapsing to `null` —
+// the storage shape of these nullable columns — so the service stores the value directly
+// instead of reconverting `''` back to `null`.
+const optionalText = z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : null));
+
 export const cvParsedRowSchema = z.object({
     recordNumber: z.string().trim().min(1, 'Record Number is required'),
-    recordType: z.string().trim().optional().default(''),
-    // MM/DD/YYYY as it appears in the export; converted to a date by the service.
+    recordType: optionalText,
+    // MM/DD/YYYY as it appears in the export; converted to a date by the service (which maps
+    // an empty string to null), so this stays a string rather than collapsing to null here.
     violationDate: z.string().trim().optional().default(''),
     rawAddress: z.string().trim().min(1, 'Address is required'),
-    applicationName: z.string().trim().optional().default(''),
-    statusText: z.string().trim().optional().default(''),
-    description: z.string().trim().optional().default(''),
+    applicationName: optionalText,
+    statusText: optionalText,
+    description: optionalText,
 });
 
 export type CvParsedRow = z.infer<typeof cvParsedRowSchema>;

@@ -25,16 +25,28 @@ describe('cvParsedRowSchema', () => {
         expect(cvParsedRowSchema.safeParse(valid).success).toBe(true);
     });
 
-    it('cvParsedRowSchema — only required fields — passes and defaults optionals to ""', () => {
+    it('cvParsedRowSchema — only required fields — collapses absent text cells to null', () => {
         const parsed = cvParsedRowSchema.parse({
             recordNumber: 'CE-1',
             rawAddress: '1 A St',
         });
-        expect(parsed.recordType).toBe('');
+        expect(parsed.recordType).toBeNull();
+        expect(parsed.applicationName).toBeNull();
+        expect(parsed.statusText).toBeNull();
+        expect(parsed.description).toBeNull();
+        // violationDate stays a string — the service parses it (empty → null) at insert.
         expect(parsed.violationDate).toBe('');
-        expect(parsed.applicationName).toBe('');
-        expect(parsed.statusText).toBe('');
-        expect(parsed.description).toBe('');
+    });
+
+    it('cvParsedRowSchema — empty/whitespace text cells — collapse to null', () => {
+        const parsed = cvParsedRowSchema.parse({
+            recordNumber: 'CE-1',
+            rawAddress: '1 A St',
+            recordType: '   ',
+            description: '',
+        });
+        expect(parsed.recordType).toBeNull();
+        expect(parsed.description).toBeNull();
     });
 
     it('cvParsedRowSchema — trims surrounding whitespace on required fields', () => {

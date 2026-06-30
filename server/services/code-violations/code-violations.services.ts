@@ -197,10 +197,10 @@ export async function ingestCodeViolationCsv(params: IngestCsvParams): Promise<I
                 .values(
                     uniqueRows.map((r) => ({
                         recordNumber: r.recordNumber,
-                        recordType: r.recordType || null,
-                        applicationName: r.applicationName || null,
-                        statusText: r.statusText || null,
-                        description: r.description || null,
+                        recordType: r.recordType,
+                        applicationName: r.applicationName,
+                        statusText: r.statusText,
+                        description: r.description,
                         violationDate: parseAccelaDate(r.violationDate),
                         rawAddress: r.rawAddress,
                         firstSeenUploadId: upload.id,
