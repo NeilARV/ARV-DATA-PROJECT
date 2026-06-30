@@ -13,6 +13,14 @@ vi.mock('server/lib/supabase', () => ({
     codeViolationStorageBucket: 'test-code-violations-bucket',
 }));
 
+// Stub the Phase-2 drain that ingest fires fire-and-forget (cv.md §3/§11). This test asserts the
+// Phase-1 enqueue state (rows land `pending`, a re-ingest leaves a terminal status untouched); the
+// real consumer is tested in consumer.test.ts. Left live, its background drain races the assertions
+// (claims `pending → processing`, processes a seeded `complete` row to `no_match`).
+vi.mock('server/jobs/code-violations/consumer', () => ({
+    processCodeViolationQueue: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { ingestCodeViolationCsv } from 'server/services/code-violations/code-violations.services';
 
 const USER_ID = '00000000-0000-0000-0000-0000000000d1';
