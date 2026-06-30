@@ -4,13 +4,21 @@ import L from 'leaflet';
 import { OVERVIEW_MAX_ZOOM, MAP_ZOOM_MAX } from '@/constants/map.constants';
 import type { MapBoundsParams } from '@/types/property';
 
+/** Fraction the viewport is expanded by before fetching, so a margin around the view is loaded. */
+const VIEWPORT_PAD = 0.3;
+/** Decimal places each bound is rounded to, so small pans/zooms produce the same box (no refetch). */
+const BOUNDS_ROUND_DP = 3;
+/** Debounce (ms) on pan/zoom before reporting a new viewport box. */
+const BOUNDS_DEBOUNCE_MS = 300;
+
 /**
- * Reads the viewport as bounds params, padded by 30% (so a margin around the view is fetched) and
- * rounded (so small pans/zooms produce the same box → no needless refetch).
+ * Reads the viewport as bounds params, padded (so a margin around the view is fetched) and rounded
+ * (so small pans/zooms produce the same box → no needless refetch).
  */
 function toBoundsParams(map: L.Map): MapBoundsParams {
-    const b = map.getBounds().pad(0.3);
-    const round = (n: number) => Math.round(n * 1000) / 1000;
+    const b = map.getBounds().pad(VIEWPORT_PAD);
+    const factor = 10 ** BOUNDS_ROUND_DP;
+    const round = (n: number) => Math.round(n * factor) / factor;
     return {
         south: round(b.getSouth()),
         west: round(b.getWest()),
@@ -39,7 +47,10 @@ export function ViewportWatcher({ onBoundsChange }: ViewportWatcherProps) {
     useMapEvents({
         moveend: () => {
             if (timerRef.current) clearTimeout(timerRef.current);
-            timerRef.current = setTimeout(() => onBoundsChange(toBoundsParams(map)), 300);
+            timerRef.current = setTimeout(
+                () => onBoundsChange(toBoundsParams(map)),
+                BOUNDS_DEBOUNCE_MS,
+            );
         },
     });
 

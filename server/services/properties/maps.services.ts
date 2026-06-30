@@ -2,6 +2,7 @@ import { db } from 'server/storage';
 import { properties, addresses, structures, lastSales } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
+import type { PgSelect } from 'drizzle-orm/pg-core';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
 import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 
@@ -252,6 +253,38 @@ function toCoord(value: string | number | null): number | null {
 }
 
 /**
+ * Adds the optional child-table joins a filter set requires — structures for beds/baths, last_sales
+ * for price — to a `.$dynamic()` select. One place so the pin, extent, and region queries can't drift.
+ */
+function applyMapJoins<T extends PgSelect>(query: T, joins: MapJoinRequirements): T {
+    // A left join only adds WHERE-predicate tables (structures/last_sales) — it doesn't change the
+    // selected columns — so the result still matches T. Drizzle's dynamic builder widens the join
+    // return type generically, hence the assertion through `unknown`.
+    let joined = query;
+    if (joins.needsStructures) {
+        joined = joined.leftJoin(
+            structures,
+            eq(properties.id, structures.propertyId),
+        ) as unknown as T;
+    }
+    if (joins.needsLastSales) {
+        joined = joined.leftJoin(
+            lastSales,
+            eq(properties.id, lastSales.propertyId),
+        ) as unknown as T;
+    }
+    return joined;
+}
+
+/** Restricts an aggregate to rows that have coordinates (extent/region counts ignore null lat/lng). */
+function pushCoordsPresent(conditions: SQL[]): void {
+    conditions.push(
+        sql`${addresses.latitude} IS NOT NULL`,
+        sql`${addresses.longitude} IS NOT NULL`,
+    );
+}
+
+/**
  * Fetches minimal property data for map pins, restricted to the viewport when `bounds` is given.
  *
  * Two-phase approach:
@@ -276,17 +309,14 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
 
     const idWhereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    let baseIdQuery = db
-        .select({ id: properties.id })
-        .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-        .$dynamic();
-    if (joins.needsStructures) {
-        baseIdQuery = baseIdQuery.leftJoin(structures, eq(properties.id, structures.propertyId));
-    }
-    if (joins.needsLastSales) {
-        baseIdQuery = baseIdQuery.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
-    }
+    const baseIdQuery = applyMapJoins(
+        db
+            .select({ id: properties.id })
+            .from(properties)
+            .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+            .$dynamic(),
+        joins,
+    );
 
     const idRows = await (idWhereClause ? baseIdQuery.where(idWhereClause) : baseIdQuery).execute();
     const qualifyingIds = idRows.map((r) => r.id);
@@ -400,28 +430,22 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
  */
 export async function getMapExtent(filters: MapFilters): Promise<MapExtent | null> {
     const { conditions, joins } = buildMapIdConditions(filters);
-    conditions.push(
-        sql`${addresses.latitude} IS NOT NULL`,
-        sql`${addresses.longitude} IS NOT NULL`,
-    );
+    pushCoordsPresent(conditions);
 
-    let query = db
-        .select({
-            minLat: sql<string | null>`MIN(${addresses.latitude})`,
-            maxLat: sql<string | null>`MAX(${addresses.latitude})`,
-            minLng: sql<string | null>`MIN(${addresses.longitude})`,
-            maxLng: sql<string | null>`MAX(${addresses.longitude})`,
-            count: sql<number>`COUNT(*)::int`,
-        })
-        .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-        .$dynamic();
-    if (joins.needsStructures) {
-        query = query.leftJoin(structures, eq(properties.id, structures.propertyId));
-    }
-    if (joins.needsLastSales) {
-        query = query.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
-    }
+    const query = applyMapJoins(
+        db
+            .select({
+                minLat: sql<string | null>`MIN(${addresses.latitude})`,
+                maxLat: sql<string | null>`MAX(${addresses.latitude})`,
+                minLng: sql<string | null>`MIN(${addresses.longitude})`,
+                maxLng: sql<string | null>`MAX(${addresses.longitude})`,
+                count: sql<number>`COUNT(*)::int`,
+            })
+            .from(properties)
+            .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+            .$dynamic(),
+        joins,
+    );
 
     const [row] = await query.where(and(...conditions)).execute();
 
@@ -457,24 +481,18 @@ export async function getRegionCounts(
     >,
 ): Promise<RegionCount[]> {
     const { conditions, joins } = buildMapIdConditions(filters);
-    conditions.push(
-        sql`${addresses.latitude} IS NOT NULL`,
-        sql`${addresses.longitude} IS NOT NULL`,
-    );
+    pushCoordsPresent(conditions);
 
     const countyExpr = sql<string>`LOWER(TRIM(COALESCE(${properties.county}, ${addresses.county})))`;
 
-    let query = db
-        .select({ county: countyExpr, count: sql<number>`COUNT(*)::int` })
-        .from(properties)
-        .innerJoin(addresses, eq(properties.id, addresses.propertyId))
-        .$dynamic();
-    if (joins.needsStructures) {
-        query = query.leftJoin(structures, eq(properties.id, structures.propertyId));
-    }
-    if (joins.needsLastSales) {
-        query = query.leftJoin(lastSales, eq(properties.id, lastSales.propertyId));
-    }
+    const query = applyMapJoins(
+        db
+            .select({ county: countyExpr, count: sql<number>`COUNT(*)::int` })
+            .from(properties)
+            .innerJoin(addresses, eq(properties.id, addresses.propertyId))
+            .$dynamic(),
+        joins,
+    );
 
     const rows = await query
         .where(and(...conditions))

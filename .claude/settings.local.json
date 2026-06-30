@@ -27,7 +27,8 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(bash .claude/scripts/smell-diff.sh main)",
-      "Bash(grep -rln '$dynamic' server)"
+      "Bash(grep -rln '$dynamic' server)",
+      "Bash(perl -i -ne 'print unless /^\\\\s*label: /' client/src/constants/mapRegions.constants.ts)"
     ]
   }
 }

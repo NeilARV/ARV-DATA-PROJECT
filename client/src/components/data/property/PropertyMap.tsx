@@ -25,6 +25,7 @@ import { useProperty } from '@/hooks/useProperty';
 import { getCountyCenter, getDefaultMapCenter } from '@/lib/county';
 import { MAP_ZOOM_COUNTY, MAP_ZOOM_FLOOR, MAP_DECLUSTER_ZOOM } from '@/constants/map.constants';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
+import type { LeafletMouseEvent } from 'leaflet';
 import type { MapPin } from '@/types/property';
 
 type RenderPin = { pin: MapPin; position: [number, number] };
@@ -93,6 +94,13 @@ export default function PropertyMap() {
         setRegionLocked(true);
         setMapCenter(region.center);
         setMapZoom(MAP_ZOOM_COUNTY);
+    }
+
+    // Clicking a cluster donut jumps straight to the declustering zoom (centered on the click) so it
+    // breaks into individual property dots — instead of spiderfying or stepping through cluster tiers.
+    function handleClusterClick(e: LeafletMouseEvent) {
+        setMapCenter([e.latlng.lat, e.latlng.lng]);
+        setMapZoom(MAP_DECLUSTER_ZOOM);
     }
 
     return (
@@ -174,18 +182,13 @@ export default function PropertyMap() {
                         <Marker
                             key={region.msa}
                             position={region.center}
-                            icon={createRegionIcon(region.count, region.offset)}
+                            icon={createRegionIcon({
+                                label: `${region.county} County`,
+                                count: region.count,
+                                offset: region.offset,
+                            })}
                             eventHandlers={{ click: () => handleRegionClick(region) }}
-                        >
-                            <Tooltip direction="top">
-                                <div className="text-xs">
-                                    <div className="font-semibold">{region.label}</div>
-                                    <div className="text-muted-foreground">
-                                        {region.count.toLocaleString()} properties — click to view
-                                    </div>
-                                </div>
-                            </Tooltip>
-                        </Marker>
+                        />
                     ))
                 ) : (
                     <MarkerClusterGroup
@@ -193,7 +196,9 @@ export default function PropertyMap() {
                         maxClusterRadius={clusterRadiusForZoom}
                         showCoverageOnHover={false}
                         disableClusteringAtZoom={MAP_DECLUSTER_ZOOM}
-                        spiderfyOnMaxZoom
+                        spiderfyOnMaxZoom={false}
+                        zoomToBoundsOnClick={false}
+                        onClick={handleClusterClick}
                         iconCreateFunction={createClusterIcon}
                     >
                         {renderPins.map(({ pin, position }) => {

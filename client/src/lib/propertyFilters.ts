@@ -90,7 +90,8 @@ export function cityMatchesFilter(filterCity: string, cityFromData: string): boo
 }
 
 /**
- * Returns zip codes that match the city filter (for San Diego / Los Angeles, uses startsWith).
+ * Returns zip codes that match the city filter (PREFIX_MATCH_CITIES match by prefix via
+ * cityMatchesFilter; other cities match exactly).
  */
 export function getCityZipCodesForFilter(
     city: string | undefined,

@@ -14,20 +14,27 @@ const CLUSTER_RADIUS = { far: 80, mid: 55, near: 35 } as const;
 /** Upper zoom bound for each cluster-radius tier (above `mid`, the `near` radius applies). */
 const CLUSTER_ZOOM = { far: 10, mid: 12 } as const;
 
-/** Overview count-bubble radius (px) by tier, and the property-count thresholds that pick it. */
-const REGION_BUBBLE = { small: 20, medium: 25, large: 30 } as const;
-const REGION_COUNT = { small: 50, large: 500 } as const;
-/** Overview count-bubble font size (px) below / at-or-above REGION_COUNT.large. */
-const REGION_FONT = { small: 12, large: 13 } as const;
-/** Radius (px) of the center dot a leader line points back to. */
-const REGION_DOT_RADIUS = 3;
+/**
+ * Cluster donut diameter (px) by pin-count tier. Kept small with a gentle 4px step so a denser
+ * cluster reads as only slightly larger — enough to hint at density without the chunky jumps the
+ * old 36→44→52 scale produced.
+ */
+const CLUSTER_SIZE = { small: 28, medium: 32, large: 36 } as const;
+/** Pin-count thresholds that pick the donut size (below medium → small; below large → medium). */
+const CLUSTER_SIZE_COUNT = { medium: 25, large: 200 } as const;
+/** Thickness (px) of the colored status-mix ring around the count. */
+const CLUSTER_RING = 5;
+
+/** Radius (px) of the location dot the overview label card points back to. */
+const REGION_DOT_RADIUS = 6;
 
 type DotIconConfig = { color: string; diameter: number; border: number };
 
 // Compact status dots centered on the exact location — far less cluttered than teardrop pins at
 // high density, and they don't sit above (and hide) the point they mark.
 const createDotIcon = ({ color, diameter, border }: DotIconConfig): L.DivIcon =>
-    // White ring + dark outer halo + soft drop shadow so dots read clearly over Voyager's color.
+    // White ring + dark outer halo + soft drop shadow so dots read clearly over Voyager's color in
+    // both themes (white reads better than a theme-dark ring against the light Voyager basemap).
     L.divIcon({
         className: '',
         html: `<span style="display:block;width:${diameter}px;height:${diameter}px;border-radius:9999px;background:${color};border:${border}px solid #ffffff;box-shadow:0 0 0 1.5px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.4);"></span>`,
@@ -175,10 +182,18 @@ export function createClusterIcon(cluster: ClusterLike): L.DivIcon {
     const background =
         segments.length > 0 ? `conic-gradient(${segments.join(', ')})` : PIN_COLORS.inRenovation;
 
-    const size = count < 10 ? 36 : count < 100 ? 44 : 52;
-    const inner = size - 12;
-    const wrapperStyle = `display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:${background};box-shadow:0 0 0 2px hsl(var(--background));`;
-    const innerStyle = `display:flex;align-items:center;justify-content:center;width:${inner}px;height:${inner}px;border-radius:9999px;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--font-sans);font-size:12px;font-weight:600;`;
+    const size =
+        count < CLUSTER_SIZE_COUNT.medium
+            ? CLUSTER_SIZE.small
+            : count < CLUSTER_SIZE_COUNT.large
+              ? CLUSTER_SIZE.medium
+              : CLUSTER_SIZE.large;
+    const inner = size - CLUSTER_RING * 2;
+    // White center + black count, with the colored status-mix ring as the outermost edge (no extra
+    // white ring around it — the ring's color/thickness IS the wholesale/in-area key). A soft drop
+    // shadow lifts it off the map and matches the property dots so clusters and pins feel related.
+    const wrapperStyle = `display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:${background};box-shadow:0 1px 3px rgba(0,0,0,0.35);`;
+    const innerStyle = `display:flex;align-items:center;justify-content:center;width:${inner}px;height:${inner}px;border-radius:9999px;background:#ffffff;color:#000000;font-family:var(--font-sans);font-size:11px;font-weight:600;line-height:1;`;
 
     return L.divIcon({
         html: `<div style="${wrapperStyle}"><div style="${innerStyle}">${count}</div></div>`,
@@ -198,50 +213,58 @@ export function clusterRadiusForZoom(zoom: number): number {
     return CLUSTER_RADIUS.near;
 }
 
+type RegionIconParams = {
+    /** Display label, e.g. "Los Angeles County". */
+    label: string;
+    /** Property count shown under the label. */
+    count: number;
+    /** Pixel offset [x, y] of the card CENTER from the location dot (x→right, y→down). */
+    offset?: [number, number];
+};
+
 /**
- * Builds a national-overview callout for one MSA: a small dot at the true region center, a
- * diagonal-then-horizontal leader line, and a hollow count bubble offset toward open space/water.
- * With no offset it renders just the hollow bubble on the center (no leader).
+ * National-overview marker for one MSA: a dot at the true county center, a thin leader line, and a
+ * single rectangular card holding the county name + property count, offset toward open space.
+ *
+ * The whole marker is ONE element (dot + line + card share the divIcon's coordinate space, with the
+ * dot's center at the origin = the county point), so the line is always anchored to the dot's exact
+ * center. The leader runs origin → card center; the opaque card is painted LAST, over the line, so
+ * the visible segment ends precisely where the line crosses the card's perimeter. That join point
+ * therefore follows the offset direction on its own — an edge midpoint for an axis-aligned offset, a
+ * corner for a diagonal one — with no need to measure the auto-sized card.
  */
-export function createRegionIcon(count: number, offset: [number, number] = [0, 0]): L.DivIcon {
+export function createRegionIcon({ label, count, offset = [0, 0] }: RegionIconParams): L.DivIcon {
     const [dx, dy] = offset;
-    const hasLeader = dx !== 0 || dy !== 0;
-    const rb =
-        count < REGION_COUNT.small
-            ? REGION_BUBBLE.small
-            : count < REGION_COUNT.large
-              ? REGION_BUBBLE.medium
-              : REGION_BUBBLE.large; // bubble radius
-    const rd = REGION_DOT_RADIUS; // center-dot radius
-    const fontSize = count < REGION_COUNT.large ? REGION_FONT.small : REGION_FONT.large;
+    const rd = REGION_DOT_RADIUS;
+    const hasOffset = dx !== 0 || dy !== 0;
 
-    // Bounds covering the center dot (0,0) and the offset bubble (dx,dy) ± radius.
-    const pad = 3;
-    const minX = Math.min(0, dx - rb) - pad;
-    const minY = Math.min(0, dy - rb) - pad;
-    const maxX = Math.max(0, dx + rb) + pad;
-    const maxY = Math.max(0, dy + rb) + pad;
-    const width = maxX - minX;
-    const height = maxY - minY;
-
-    // Leader: dot → elbow (diagonal) → bubble (horizontal at the bubble's y).
-    const leader = hasLeader
-        ? `<polyline points="0,0 ${dx * 0.5},${dy} ${dx},${dy}" style="fill:none;stroke:hsl(var(--primary));stroke-width:1.5" />
-           <circle cx="0" cy="0" r="${rd}" style="fill:hsl(var(--primary))" />`
+    // Line from the dot center (0,0) to the card center (dx,dy). Its bounding box spans those two
+    // points; `overflow:visible` keeps the stroke from being clipped at the edges.
+    const minX = Math.min(0, dx);
+    const minY = Math.min(0, dy);
+    const leaderW = Math.max(Math.abs(dx), 1);
+    const leaderH = Math.max(Math.abs(dy), 1);
+    const leader = hasOffset
+        ? `<svg width="${leaderW}" height="${leaderH}" viewBox="${minX} ${minY} ${leaderW} ${leaderH}" style="position:absolute;left:${minX}px;top:${minY}px;overflow:visible;pointer-events:none;z-index:0"><line x1="0" y1="0" x2="${dx}" y2="${dy}" style="stroke:hsl(var(--primary));stroke-width:1.5" /></svg>`
         : '';
 
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}" style="overflow:visible;cursor:pointer">
-        ${leader}
-        <circle cx="${dx}" cy="${dy}" r="${rb}" style="fill:hsl(var(--background));fill-opacity:0.9;stroke:hsl(var(--primary));stroke-width:2" />
-        <text x="${dx}" y="${dy}" text-anchor="middle" dominant-baseline="central" style="fill:hsl(var(--primary));font-family:var(--font-sans);font-size:${fontSize}px;font-weight:600">${count.toLocaleString()}</text>
-      </svg>`;
+    // White ring + soft drop shadow (no dark halo ring). The border grows the box, so offset by it.
+    // Painted after the line so the dot covers the line's first few px and it reads as joined to the
+    // dot's center.
+    const dotBorder = 2;
+    const dot = `<div style="position:absolute;left:${-(rd + dotBorder)}px;top:${-(rd + dotBorder)}px;width:${rd * 2}px;height:${rd * 2}px;border-radius:9999px;background:hsl(var(--primary));border:${dotBorder}px solid #ffffff;box-shadow:0 1px 2px rgb(0 0 0 / 0.3);z-index:1"></div>`;
+
+    // Card centered on the offset point (translate -50%,-50%) so the leader can meet it from any
+    // direction; its opaque background hides the inner half of the line up to the perimeter.
+    const card = `<div style="position:absolute;left:${dx}px;top:${dy}px;transform:translate(-50%, -50%);z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:3px 8px;border-radius:6px;background:hsl(var(--background));border:1px solid hsl(var(--primary));box-shadow:0 1px 3px rgb(0 0 0 / 0.3);font-family:var(--font-sans);white-space:nowrap;cursor:pointer">
+            <span style="font-size:12px;font-weight:600;line-height:1.2;color:hsl(var(--foreground))">${label}</span>
+            <span style="font-size:10px;line-height:1.2;color:hsl(var(--muted-foreground))">${count.toLocaleString()} properties</span>
+        </div>`;
 
     return L.divIcon({
-        html: svg,
+        html: `<div style="position:relative;width:0;height:0">${leader}${dot}${card}</div>`,
         className: '',
-        iconSize: [width, height],
-        iconAnchor: [-minX, -minY],
-        tooltipAnchor: [dx, dy - rb - 2],
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
     });
 }
