@@ -86,6 +86,8 @@ export const addresses = pgTable(
         // The code-violation consumer prefilters candidates by street_number (match-address.ts
         // loadCandidateAddresses); without this it sequentially scans the whole table each run.
         index('idx_addresses_street_number').on(t.streetNumber),
+        // Supports the map viewport (bbox) range scan and the map-extent MIN/MAX aggregates.
+        index('idx_addresses_lat_lng').on(t.latitude, t.longitude),
     ],
 );
 

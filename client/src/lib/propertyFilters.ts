@@ -1,5 +1,6 @@
 import { MAX_PRICE } from '@/constants/filters.constants';
 import { DEFAULT_STATUS_FILTERS, PROPERTY_STATUS } from '@/constants/propertyStatus.constants';
+import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 import type { PropertyFilters, DateRange } from '@/types/filters';
 import type { MapPin, Property } from '@/types/property';
 import type { CompanyContactWithCounts } from '@/types/companies';
@@ -79,18 +80,18 @@ export function matchesPropertyType(
 
 /**
  * Returns whether a city value (e.g. from data) matches the selected filter city.
- * San Diego / Los Angeles use startsWith; other cities use exact match.
+ * Prefix-match metros (see PREFIX_MATCH_CITIES) use startsWith; other cities use exact match.
  */
 export function cityMatchesFilter(filterCity: string, cityFromData: string): boolean {
     const filter = filterCity.trim();
     const city = cityFromData.trim();
-    if (filter === 'San Diego') return city.startsWith('San Diego');
-    if (filter === 'Los Angeles') return city.startsWith('Los Angeles') || city === 'Los Angeles';
+    if (isPrefixMatchCity(filter)) return city.toLowerCase().startsWith(filter.toLowerCase());
     return city === filter;
 }
 
 /**
- * Returns zip codes that match the city filter (for San Diego / Los Angeles, uses startsWith).
+ * Returns zip codes that match the city filter (PREFIX_MATCH_CITIES match by prefix via
+ * cityMatchesFilter; other cities match exactly).
  */
 export function getCityZipCodesForFilter(
     city: string | undefined,
