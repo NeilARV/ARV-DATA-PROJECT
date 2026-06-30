@@ -435,15 +435,40 @@ List ingest runs, most recent first, for the admin results panel.
 ---
 
 ### `GET /api/code-violations/uploads/:id`
-Fetch a single ingest run.
+Fetch a single ingest run **plus its per-complaint breakdown** — backs the admin detail / dry-run review panel (per-complaint status, resolved owner, and the recipients an approve would email). Each violation's `recipients` mirror what NOTIFY would actually send: the matched owner company's `company_members` narrowed by the master-notifications / verified-email kill-switch (never `company_contacts`); empty when the owner is an individual/unlinked or has no notifiable members. `violations` lists only the complaints this upload first enqueued (by `first_seen_upload_id`), so a re-upload of all-duplicate rows returns an empty array.
 
 **Auth**: `requireRole(["admin", "owner"])`
 
 **Params**: `id` — uuid of the `cv_uploads` row
 
-**Response `200`** `{ "upload": { /* cv_uploads row */ } }`
+**Response `200`**
+```json
+{
+  "upload": { /* cv_uploads row */ },
+  "violations": [
+    {
+      "id": "uuid",
+      "recordNumber": "CE-0542079",
+      "recordType": "Complaint",
+      "statusText": "New",
+      "description": "…",
+      "violationDate": "2026-06-26",
+      "rawAddress": "991 Worthington St, San Diego CA 92114 United States",
+      "processingStatus": "awaiting_review",
+      "notified": false,
+      "errorMessage": null,
+      "createdAt": "2026-06-30T12:00:00.000Z",
+      "propertyId": "uuid",
+      "ownerCompanyId": "uuid",
+      "ownerCompanyName": "Acme Holdings LLC",
+      "ownerName": "ACME HOLDINGS LLC",
+      "recipients": [{ "userId": "uuid", "email": "owner@example.com" }]
+    }
+  ]
+}
+```
 
-**Errors** `404` upload not found
+**Errors** `404` upload not found · `401` unauth · `403` not admin/owner
 
 ---
 

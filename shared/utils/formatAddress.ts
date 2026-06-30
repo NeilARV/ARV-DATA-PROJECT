@@ -33,6 +33,7 @@ export function formatAddress(address: string | null | undefined): string | null
         normalizedParts.push(parts[0]);
         i = 1;
     }
+    const hasStreetNumber = normalizedParts.length > 0;
 
     // Process the rest as street name
     const streetParts: string[] = [];
@@ -46,8 +47,10 @@ export function formatAddress(address: string | null | undefined): string | null
             const lowerWord = word.toLowerCase();
             const isLastWord = index === streetParts.length - 1;
 
-            // Check if this is a street type abbreviation (usually the last word)
-            if (isLastWord && STREET_TYPE_ABBREVIATIONS[lowerWord]) {
+            // Only abbreviate a trailing suffix on something that looks like a street address (it has
+            // a leading house number). A bare locality like a city name ("Grand Terrace") has no
+            // number, so its last word must not be abbreviated to a street suffix ("Grand Ter").
+            if (isLastWord && hasStreetNumber && STREET_TYPE_ABBREVIATIONS[lowerWord]) {
                 return STREET_TYPE_ABBREVIATIONS[lowerWord];
             }
 
@@ -181,11 +184,14 @@ export function normalizeAddressForMatch(input: string | null | undefined): stri
     const tokens = stripUnitTokens(cleaned.split(' ').filter(Boolean));
     if (tokens.length === 0) return '';
 
-    // A leading house number (possibly a range like `123-125`) is preserved verbatim; positional
-    // canonicalization applies only to the street body that follows it.
-    const hasNumber = /^\d/.test(tokens[0]);
-    const number = hasNumber ? [tokens[0]] : [];
-    const body = hasNumber ? tokens.slice(1) : tokens;
+    // A leading house number is reduced to its digit prefix so a unit-suffixed or ranged number
+    // ('123B', '123-125') collapses to the bare numeric form our `addresses.street_number` stores —
+    // otherwise the exact-equality match (and the street_number prefilter) would never find it. An
+    // ordinal like '1ST' (two trailing letters) is NOT a house number, so it stays in the body.
+    // Positional canonicalization applies only to the street body that follows the number.
+    const houseNumberMatch = tokens[0].match(/^(\d+)(?:-\d+)?[A-Za-z]?$/);
+    const number = houseNumberMatch ? [houseNumberMatch[1]] : [];
+    const body = houseNumberMatch ? tokens.slice(1) : tokens;
 
     return [...number, ...canonicalizeStreetBody(body)].join(' ').trim();
 }

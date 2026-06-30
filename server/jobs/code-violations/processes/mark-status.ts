@@ -1,5 +1,5 @@
 import { db } from 'server/storage';
-import { and, count, eq, inArray, lt, ne } from 'drizzle-orm';
+import { and, count, eq, lt, ne } from 'drizzle-orm';
 import {
     cvNotificationsSent,
     cvUploads,
@@ -13,8 +13,9 @@ import type { CvProcessingStatus, CvUploadStatus } from '@database/types/code-vi
 
 /**
  * Reset complaints stuck in `processing` past `staleMinutes` back to `pending` so the next run
- * retries them. Recovers rows orphaned by a crash or restart mid-batch. `updated_at` (bumped by
- * {@link markProcessing}) is the staleness proxy. Called once at the top of a consumer run.
+ * retries them. Recovers rows orphaned by a crash or restart mid-batch. `updated_at` (bumped when a
+ * row is claimed by `claimPendingViolations`) is the staleness proxy. Called once at the top of a
+ * consumer run.
  *
  * @param staleMinutes age after which a `processing` row is considered orphaned
  * @returns how many rows were reset
@@ -34,32 +35,21 @@ export async function resetStaleProcessing(staleMinutes = 30): Promise<number> {
     return reset.length;
 }
 
-/**
- * Soft-lock a batch: mark the given complaints `processing` so a concurrent run won't pick them up.
- * Bumps `updated_at`, which {@link resetStaleProcessing} reads as the lock's age.
- */
-export async function markProcessing(ids: string[]): Promise<void> {
-    if (ids.length === 0) return;
-    await db
-        .update(cvViolations)
-        .set({ processingStatus: CV_PROCESSING_STATUS.PROCESSING, updatedAt: new Date() })
-        .where(inArray(cvViolations.id, ids));
-}
-
 /** Set a terminal/non-terminal status on one complaint, persisting its normalized address. */
-async function setStatus(
-    id: string,
-    status: CvProcessingStatus,
-    normalizedAddress: string,
-    options?: { notified?: boolean; terminal?: boolean },
-): Promise<void> {
-    const terminal = options?.terminal ?? true;
+async function setStatus(params: {
+    id: string;
+    status: CvProcessingStatus;
+    normalizedAddress: string;
+    notified?: boolean;
+    terminal?: boolean;
+}): Promise<void> {
+    const { id, status, normalizedAddress, notified = false, terminal = true } = params;
     await db
         .update(cvViolations)
         .set({
             processingStatus: status,
             normalizedAddress,
-            notified: options?.notified ?? false,
+            notified,
             updatedAt: new Date(),
             // `processed_at` marks reaching a *terminal* status; awaiting_review is not terminal.
             ...(terminal ? { processedAt: new Date() } : {}),
@@ -69,12 +59,12 @@ async function setStatus(
 
 /** Address isn't a property we track → terminal `no_match`. */
 export async function markNoMatch(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus(id, CV_PROCESSING_STATUS.NO_MATCH, normalizedAddress);
+    await setStatus({ id, status: CV_PROCESSING_STATUS.NO_MATCH, normalizedAddress });
 }
 
 /** Address matched more than one property → terminal `ambiguous` (needs a human). */
 export async function markAmbiguous(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus(id, CV_PROCESSING_STATUS.AMBIGUOUS, normalizedAddress);
+    await setStatus({ id, status: CV_PROCESSING_STATUS.AMBIGUOUS, normalizedAddress });
 }
 
 /**
@@ -82,7 +72,10 @@ export async function markAmbiguous(id: string, normalizedAddress: string): Prom
  * Not terminal — flips to `complete` once approved (Chunk D).
  */
 export async function markAwaitingReview(id: string, normalizedAddress: string): Promise<void> {
-    await setStatus(id, CV_PROCESSING_STATUS.AWAITING_REVIEW, normalizedAddress, {
+    await setStatus({
+        id,
+        status: CV_PROCESSING_STATUS.AWAITING_REVIEW,
+        normalizedAddress,
         terminal: false,
     });
 }
@@ -96,7 +89,10 @@ export async function markComplete(
     id: string,
     params: { normalizedAddress: string; notified: boolean },
 ): Promise<void> {
-    await setStatus(id, CV_PROCESSING_STATUS.COMPLETE, params.normalizedAddress, {
+    await setStatus({
+        id,
+        status: CV_PROCESSING_STATUS.COMPLETE,
+        normalizedAddress: params.normalizedAddress,
         notified: params.notified,
     });
 }

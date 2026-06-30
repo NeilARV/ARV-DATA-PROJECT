@@ -9,6 +9,7 @@ const svc = vi.hoisted(() => ({
     ingestCodeViolationCsv: vi.fn(),
     listCodeViolationUploads: vi.fn(),
     getCodeViolationUploadById: vi.fn(),
+    getCodeViolationUploadViolations: vi.fn(),
     approveCodeViolationUpload: vi.fn(),
 }));
 
@@ -39,6 +40,7 @@ const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 beforeEach(() => {
     svc.ingestCodeViolationCsv.mockReset();
     svc.getCodeViolationUploadById.mockReset();
+    svc.getCodeViolationUploadViolations.mockReset();
     svc.approveCodeViolationUpload.mockReset();
 });
 
@@ -60,13 +62,24 @@ describe('getCodeViolationUpload', () => {
         expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('getCodeViolationUpload — valid uuid, found — returns the upload', async () => {
+    it('getCodeViolationUpload — valid uuid, found — returns the upload with its violations', async () => {
         const upload = { id: VALID_UUID, fileName: 'jan.csv' };
+        const violations = [{ id: 'v1', recordNumber: 'CE-1', recipients: [] }];
         svc.getCodeViolationUploadById.mockResolvedValue(upload);
+        svc.getCodeViolationUploadViolations.mockResolvedValue(violations);
         const req = { params: { id: VALID_UUID } } as unknown as Request;
         const res = makeRes();
         await getCodeViolationUpload(req, res);
-        expect(res.json).toHaveBeenCalledWith({ upload });
+        expect(svc.getCodeViolationUploadViolations).toHaveBeenCalledWith(VALID_UUID);
+        expect(res.json).toHaveBeenCalledWith({ upload, violations });
+    });
+
+    it('getCodeViolationUpload — valid uuid, not found — does not query violations', async () => {
+        svc.getCodeViolationUploadById.mockResolvedValue(null);
+        const req = { params: { id: VALID_UUID } } as unknown as Request;
+        const res = makeRes();
+        await getCodeViolationUpload(req, res);
+        expect(svc.getCodeViolationUploadViolations).not.toHaveBeenCalled();
     });
 });
 

@@ -1,15 +1,19 @@
 import crypto from 'crypto';
 import Papa from 'papaparse';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from 'server/storage';
-import { cvUploads, cvViolations } from '@database/schemas/code-violations.schema';
+import { cvMatches, cvUploads, cvViolations } from '@database/schemas/code-violations.schema';
+import { companies, companyMembers } from '@database/schemas/companies.schema';
 import {
     cvParsedRowSchema,
     CV_UPLOAD_STATUS,
     type CvParsedRow,
 } from '@database/validation/code-violations.validation';
-import type { CvUpload, CvUploadSource } from '@database/types/code-violations';
+import type { CvProcessingStatus, CvUpload, CvUploadSource } from '@database/types/code-violations';
+import type { CvViolationDetail, CvViolationRecipient } from '@shared/types/code-violations';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { getSupabase, codeViolationStorageBucket } from 'server/lib/supabase';
+import { getEmailRecipientsByUserIds } from 'server/services/postmark/email.services';
 import { notifyAwaitingReviewForUpload } from 'server/jobs/code-violations/processes/notify';
 
 // The Accela export header, in order. The trailing comma in the real file yields an 8th,
@@ -272,6 +276,93 @@ export async function listCodeViolationUploads(): Promise<CvUpload[]> {
 export async function getCodeViolationUploadById(id: string): Promise<CvUpload | null> {
     const [upload] = await db.select().from(cvUploads).where(eq(cvUploads.id, id)).limit(1);
     return upload ?? null;
+}
+
+/**
+ * The per-complaint breakdown for one upload's admin detail / dry-run panel: every complaint this
+ * upload enqueued (by `first_seen_upload_id`), its match + owning company, and the recipients an
+ * approve would email — so the panel can show per-complaint statuses and the dry-run (§4.6).
+ *
+ * Recipients mirror exactly what NOTIFY sends: the matched owner company's `company_members`
+ * narrowed by {@link getEmailRecipientsByUserIds} (the master-notifications / verified-email
+ * kill-switch) — never `company_contacts` (§2). Member→recipient resolution is batched across the
+ * upload's companies (two queries total), not per row.
+ *
+ * @param uploadId the `cv_uploads` id
+ * @returns the upload's complaints, oldest first, each with its resolution + would-be recipients
+ */
+export async function getCodeViolationUploadViolations(
+    uploadId: string,
+): Promise<CvViolationDetail[]> {
+    const rows = await db
+        .select({
+            violation: cvViolations,
+            propertyId: cvMatches.propertyId,
+            ownerCompanyId: cvMatches.ownerCompanyId,
+            ownerName: cvMatches.ownerName,
+            ownerCompanyName: companies.companyName,
+        })
+        .from(cvViolations)
+        .leftJoin(cvMatches, eq(cvMatches.violationId, cvViolations.id))
+        .leftJoin(companies, eq(companies.id, cvMatches.ownerCompanyId))
+        .where(eq(cvViolations.firstSeenUploadId, uploadId))
+        .orderBy(cvViolations.createdAt);
+
+    const companyIds = Array.from(
+        new Set(rows.map((r) => r.ownerCompanyId).filter((id): id is string => id !== null)),
+    );
+    const recipientsByCompany = await getRecipientsByCompany(companyIds);
+
+    return rows.map((r) => ({
+        id: r.violation.id,
+        recordNumber: r.violation.recordNumber,
+        recordType: r.violation.recordType,
+        statusText: r.violation.statusText,
+        description: r.violation.description,
+        violationDate: r.violation.violationDate,
+        rawAddress: r.violation.rawAddress,
+        processingStatus: r.violation.processingStatus as CvProcessingStatus,
+        notified: r.violation.notified,
+        errorMessage: r.violation.errorMessage,
+        createdAt: r.violation.createdAt.toISOString(),
+        propertyId: r.propertyId,
+        ownerCompanyId: r.ownerCompanyId,
+        ownerCompanyName: formatCompanyName(r.ownerCompanyName),
+        // buyer_name is stored ALL-CAPS — title-case before returning it (ARV.RAW-COMPANY-NAME),
+        // since the panel falls back to it when there's no linked company.
+        ownerName: formatCompanyName(r.ownerName),
+        recipients: r.ownerCompanyId ? (recipientsByCompany.get(r.ownerCompanyId) ?? []) : [],
+    }));
+}
+
+/**
+ * Resolve each company's would-be email recipients in two batched queries: all members of the given
+ * companies, then {@link getEmailRecipientsByUserIds} over the union to apply the kill-switch. A
+ * member who fails the kill-switch is dropped — they wouldn't be emailed, so the dry-run omits them.
+ */
+async function getRecipientsByCompany(
+    companyIds: string[],
+): Promise<Map<string, CvViolationRecipient[]>> {
+    const byCompany = new Map<string, CvViolationRecipient[]>();
+    if (companyIds.length === 0) return byCompany;
+
+    const memberRows = await db
+        .select({ companyId: companyMembers.companyId, userId: companyMembers.userId })
+        .from(companyMembers)
+        .where(inArray(companyMembers.companyId, companyIds));
+
+    const userIds = Array.from(new Set(memberRows.map((m) => m.userId)));
+    const recipients = await getEmailRecipientsByUserIds(userIds);
+    const emailByUserId = new Map(recipients.map((r) => [r.userId, r.email]));
+
+    for (const { companyId, userId } of memberRows) {
+        const email = emailByUserId.get(userId);
+        if (!email) continue; // suppressed by the kill-switch — wouldn't be emailed
+        const list = byCompany.get(companyId) ?? [];
+        if (!list.some((r) => r.userId === userId)) list.push({ userId, email });
+        byCompany.set(companyId, list);
+    }
+    return byCompany;
 }
 
 /** Result of approving an upload's held-back complaints for notification. */

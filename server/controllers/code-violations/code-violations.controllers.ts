@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
-import { z } from 'zod';
 import type { MulterRequest } from 'server/middleware/multerTypes';
 import { uploadCodeViolationsSchema } from '@database/validation/code-violations.validation';
 import { CodeViolationsService } from 'server/services/code-violations';
 import { InvalidCsvError } from 'server/services/code-violations/code-violations.services';
+import { isUuid } from 'server/utils/uuid';
 
 /**
  * POST /api/code-violations/uploads — Phase 1 ingest of an Accela CSV export.
@@ -60,7 +60,9 @@ export async function listCodeViolationUploads(_req: Request, res: Response): Pr
 }
 
 /**
- * GET /api/code-violations/uploads/:id — fetch a single ingest run.
+ * GET /api/code-violations/uploads/:id — fetch a single ingest run plus its per-complaint
+ * breakdown (status of each complaint, resolved owner, and the recipients an approve would email)
+ * so the admin panel can show per-complaint statuses and the dry-run review (§4.6).
  */
 export async function getCodeViolationUpload(req: Request, res: Response): Promise<void> {
     try {
@@ -68,7 +70,7 @@ export async function getCodeViolationUpload(req: Request, res: Response): Promi
         // Guard the uuid before the query — an invalid id would otherwise reach a uuid column and
         // make Postgres throw ('invalid input syntax for type uuid'), surfacing as a 500. A
         // malformed id can't reference a row, so treat it as not found.
-        if (!z.string().uuid().safeParse(id).success) {
+        if (!isUuid(id)) {
             res.status(404).json({ message: 'Upload not found' });
             return;
         }
@@ -77,7 +79,8 @@ export async function getCodeViolationUpload(req: Request, res: Response): Promi
             res.status(404).json({ message: 'Upload not found' });
             return;
         }
-        res.json({ upload });
+        const violations = await CodeViolationsService.getCodeViolationUploadViolations(id);
+        res.json({ upload, violations });
     } catch (error) {
         console.error('getCodeViolationUpload error:', error);
         res.status(500).json({ message: 'Failed to retrieve code-violation upload' });
@@ -93,7 +96,7 @@ export async function approveCodeViolationUpload(req: Request, res: Response): P
         const { id } = req.params;
         // Guard the uuid before the query (see getCodeViolationUpload) — a malformed id is treated
         // as not found rather than reaching a uuid column and surfacing as a 500.
-        if (!z.string().uuid().safeParse(id).success) {
+        if (!isUuid(id)) {
             res.status(404).json({ message: 'Upload not found' });
             return;
         }
