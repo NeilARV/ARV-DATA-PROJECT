@@ -1,0 +1,3 @@
+"Date","Record Number","Record Type","Address","Application Name","Status","Description",
+"06/23/2026","CE-4000001","Complaint","4602 Felton St, San Diego CA 92116 United States","Overgrown Vegetation","New","Current owner is ORPHAN CAPITAL LLC, a company with no platform users -> complete, notified=false.",
+"06/23/2026","CE-4000002","Complaint","3915 Idaho St, San Diego CA 92104 United States","Inoperable Vehicle","New","Current owner is an individual (buyer_name only, no company) -> complete, notified=false.",

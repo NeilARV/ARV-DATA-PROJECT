@@ -1,0 +1,11 @@
+"Date","Record Number","Record Type","Address","Application Name","Status","Description",
+"06/26/2026","CE-9000001","Complaint","4521 Adams Av, San Diego CA 92116 United States","Substandard Housing","New","Matches a property owned by JUSTIN TEST HOLDINGS LLC -> justin notified.",
+"06/25/2026","CE-9000002","Complaint","9999 Nonexistent Rd, San Diego CA 92101 United States","Illegal Construction","New","Not in our DB -> no_match.",
+"06/25/2026","CE-9000003","Complaint","United States","Junk Row","New","Bare-country -> enqueued then no_match.",
+"06/24/2026","CE-9000004","Complaint","100 Birch St, San Diego CA United States","Zoning Violation","New","Two properties, no zip -> ambiguous.",
+"06/23/2026","CE-9000005","Complaint","4602 Felton St, San Diego CA 92116 United States","Overgrown Vegetation","New","Company owner, no users -> complete, notified=false.",
+"06/23/2026","CE-9000006","Complaint","3915 Idaho St, San Diego CA 92104 United States","Inoperable Vehicle","New","Individual owner -> complete, notified=false.",
+"06/22/2026","##TMP-9000007","Complaint","5050 Cape May Av, San Diego CA 92107 United States","Building Without Permit","New","TMP record for a JUSTIN-owned property -> one alert.",
+"06/22/2026","CE-9000008","Complaint","5050 Cape May Av, San Diego CA 92107 United States","Building Without Permit","New","CE twin of the TMP above (same address/date/desc) -> deduped, notified=false.",
+"06/26/2026","CE-9000009","Complaint","4521 Adams Av, San Diego CA 92116 United States","Unsafe Electrical","New","Tenant reports: ""water leaking from the ceiling"" and exposed wiring.
+Second line of the complaint, with a comma, to test multiline + embedded-quote parsing.",

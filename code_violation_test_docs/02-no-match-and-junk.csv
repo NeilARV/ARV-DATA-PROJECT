@@ -1,0 +1,4 @@
+"Date","Record Number","Record Type","Address","Application Name","Status","Description",
+"06/25/2026","CE-2000001","Complaint","9999 Nonexistent Rd, San Diego CA 92101 United States","Illegal Construction","New","Address is not a property in our DB -> consumer marks no_match.",
+"06/25/2026","CE-2000002","Complaint","United States","Junk Row","New","Bare-country address: enqueued, then no_match (street parses to empty).",
+"06/25/2026","","Complaint","123 Missing Record Number St, San Diego CA United States","No Record Number","New","Empty Record Number -> fails the row schema -> SKIPPED at ingest (never enqueued).",
