@@ -43,14 +43,47 @@ function getTargetLevel(targetRoleNames: string[]): number {
     return Math.max(...targetRoleNames.map((name) => ROLE_HIERARCHY[name] ?? 0));
 }
 
-// GET / — list all users (with roles and relationship managers)
+/** Allowed values for the user-list tier filter ('none' = users with no subscription). */
+const TIER_FILTER_VALUES = ['basic', 'pro', 'premium', 'none'] as const;
+type TierFilter = (typeof TIER_FILTER_VALUES)[number];
+
+/** Narrow a raw query value to a valid tier filter, or undefined to skip the filter. */
+function parseTierFilter(raw: unknown): TierFilter | undefined {
+    return TIER_FILTER_VALUES.find((value) => value === raw);
+}
+
+/** Parse a 'true'/'false' query flag; any other value returns undefined (skip the filter). */
+function parseBooleanFilter(raw: unknown): boolean | undefined {
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return undefined;
+}
+
+// GET / — list all users (with roles, relationship managers, and optional filters)
 export async function listUsersHandler(req: Request, res: Response) {
     try {
         const domain = req.query.domain === 'arvfinance.com' ? 'arvfinance.com' : undefined;
         const excludeDomain =
             req.query.excludeDomain === 'arvfinance.com' ? 'arvfinance.com' : undefined;
 
-        const allUsers = await UsersServices.getUserList({ domain, excludeDomain });
+        const searchRaw = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+        const accountTypeNames =
+            typeof req.query.accountTypes === 'string'
+                ? req.query.accountTypes
+                      .split(',')
+                      .map((name) => name.trim())
+                      .filter(Boolean)
+                : [];
+
+        const allUsers = await UsersServices.getUserList({
+            domain,
+            excludeDomain,
+            search: searchRaw.length > 0 ? searchRaw : undefined,
+            tier: parseTierFilter(req.query.tier),
+            accountTypes: accountTypeNames.length > 0 ? accountTypeNames : undefined,
+            emailVerified: parseBooleanFilter(req.query.emailVerified),
+            hasCompany: parseBooleanFilter(req.query.hasCompany),
+        });
         const userIds = allUsers.map((u) => u.id);
 
         const [roleRows, rmRows, accountTypeRows] = await Promise.all([

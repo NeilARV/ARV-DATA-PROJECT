@@ -116,7 +116,10 @@ export default function EditUserContent({
                 companyIds: selectedCompanies.map((c) => c.id),
             });
             queryClient.invalidateQueries({
-                queryKey: ['/api/users/?excludeDomain=arvfinance.com'],
+                // The user-list query key varies with the admin filters, so match any variant.
+                predicate: (query) =>
+                    typeof query.queryKey[0] === 'string' &&
+                    query.queryKey[0].startsWith('/api/users/?'),
             });
             queryClient.invalidateQueries({
                 queryKey: [`/api/users/${user.id}/company-memberships`],
