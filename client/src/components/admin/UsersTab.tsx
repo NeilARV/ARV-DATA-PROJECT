@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -31,9 +31,25 @@ import { useToast } from '@/hooks/use-toast';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import EditUserContent from '@/components/admin/EditUser';
+import UsersFilters from '@/components/admin/UsersFilters';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
-import type { AdminUser, AccountTypeOption } from '@/types/admin';
+import type { AdminUser, AccountTypeOption, UserFilters } from '@/types/admin';
 import type { RelationshipManager } from '@shared/types/users';
+
+const DEFAULT_FILTERS: UserFilters = {
+    search: '',
+    tier: 'all',
+    accountTypes: [],
+    emailVerified: 'all',
+    company: 'all',
+};
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** Predicate matching the (filter-dependent) user-list query keys so any variant is refetched. */
+function isUserListQueryKey(key: unknown): boolean {
+    return typeof key === 'string' && key.startsWith('/api/users/?');
+}
 
 type UsersTabProps = {
     isAdmin: boolean;
@@ -73,14 +89,53 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
         userId: string;
         userName: string;
     } | null>(null);
+    const [filters, setFilters] = useState<UserFilters>(DEFAULT_FILTERS);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    // Debounce the free-text search so the query URL (and refetch) settles after typing.
+    useEffect(() => {
+        const timer = setTimeout(
+            () => setDebouncedSearch(filters.search.trim()),
+            SEARCH_DEBOUNCE_MS,
+        );
+        return () => clearTimeout(timer);
+    }, [filters.search]);
+
+    const usersQueryUrl = useMemo(() => {
+        const params = new URLSearchParams({ excludeDomain: 'arvfinance.com' });
+        if (debouncedSearch) params.set('search', debouncedSearch);
+        if (filters.tier !== 'all') params.set('tier', filters.tier);
+        if (filters.accountTypes.length > 0)
+            params.set('accountTypes', filters.accountTypes.join(','));
+        if (filters.emailVerified !== 'all')
+            params.set('emailVerified', String(filters.emailVerified === 'verified'));
+        if (filters.company !== 'all') params.set('hasCompany', String(filters.company === 'has'));
+        return `/api/users/?${params.toString()}`;
+    }, [
+        debouncedSearch,
+        filters.tier,
+        filters.accountTypes,
+        filters.emailVerified,
+        filters.company,
+    ]);
 
     const { data: usersResponse, isLoading: isLoadingUsers } = useQuery<UserListResponse>({
-        queryKey: ['/api/users/?excludeDomain=arvfinance.com'],
+        queryKey: [usersQueryUrl],
         enabled: isAdmin,
     });
 
     const users = usersResponse?.data;
     const userCount = usersResponse?.count ?? 0;
+    const hasActiveFilters =
+        debouncedSearch !== '' ||
+        filters.tier !== 'all' ||
+        filters.accountTypes.length > 0 ||
+        filters.emailVerified !== 'all' ||
+        filters.company !== 'all';
+
+    function handleFilterChange(patch: Partial<UserFilters>) {
+        setFilters((prev) => ({ ...prev, ...patch }));
+    }
 
     const { data: relationshipManagers = [] } = useQuery<RelationshipManager[]>({
         queryKey: ['/api/users/relationship-managers'],
@@ -99,7 +154,7 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
         },
         onSuccess: () => {
             queryClient.invalidateQueries({
-                queryKey: ['/api/users/?excludeDomain=arvfinance.com'],
+                predicate: (query) => isUserListQueryKey(query.queryKey[0]),
             });
             toast({ title: 'User deleted', description: 'The user has been removed.' });
             setDeleteUserConfirm(null);
@@ -135,6 +190,12 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                 </CardDescription>
             </CardHeader>
             <CardContent>
+                <UsersFilters
+                    filters={filters}
+                    onChange={handleFilterChange}
+                    onClear={() => setFilters(DEFAULT_FILTERS)}
+                    accountTypeOptions={accountTypesList}
+                />
                 {isLoadingUsers ? (
                     <div className="tab-loading">
                         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -142,7 +203,11 @@ export default function UsersTab({ isAdmin, canDeleteUser = false }: UsersTabPro
                 ) : !users || users.length === 0 ? (
                     <div className="tab-empty-state">
                         <Users className="w-16 h-16 text-muted-foreground" />
-                        <p className="text-muted-foreground">No users with other domains found</p>
+                        <p className="text-muted-foreground">
+                            {hasActiveFilters
+                                ? 'No users match your filters'
+                                : 'No users with other domains found'}
+                        </p>
                     </div>
                 ) : (
                     <div className="table-scroll-wrapper">

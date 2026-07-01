@@ -7,17 +7,115 @@ import {
     accountTypes,
     userAccountTypes,
 } from '@database/schemas/users.schema';
+import { companyMembers } from '@database/schemas/companies.schema';
 import { db } from 'server/storage';
-import { desc, asc, eq, and, inArray, ilike, sql } from 'drizzle-orm';
+import {
+    desc,
+    asc,
+    eq,
+    and,
+    or,
+    inArray,
+    ilike,
+    isNull,
+    isNotNull,
+    exists,
+    notExists,
+    sql,
+} from 'drizzle-orm';
 import { PRIVILEGED_ROLES } from 'server/constants/roles.constants';
+import type { SQL } from 'drizzle-orm';
 
-export async function getUserList(options: { domain?: string; excludeDomain?: string }) {
-    const { domain, excludeDomain } = options;
-    const whereClause = domain
-        ? ilike(users.email, '%@arvfinance.com')
-        : excludeDomain
-          ? sql`NOT (${users.email} ILIKE ${'%@arvfinance.com'})`
-          : undefined;
+/** Filters accepted by {@link getUserList}. All optional; an absent filter is not applied. */
+export interface UserListFilters {
+    domain?: string;
+    excludeDomain?: string;
+    /** Case-insensitive substring matched against email, phone, or "first last" name. */
+    search?: string;
+    /** Subscription tier name, or 'none' for users with no tier. */
+    tier?: 'basic' | 'pro' | 'premium' | 'none';
+    /** Match users who have at least one of these account-type names (OR semantics). */
+    accountTypes?: string[];
+    /** true → only verified emails, false → only unverified. */
+    emailVerified?: boolean;
+    /** true → only users in ≥1 company, false → only users in no company. */
+    hasCompany?: boolean;
+}
+
+/**
+ * List users for the admin panel, optionally filtered by domain, search text, tier,
+ * account types, email-verification status, and company association.
+ * @param options filters to apply; combined with AND (account types OR-match internally).
+ * @returns matching user rows ordered newest first (roles/RMs are enriched by the caller).
+ */
+export async function getUserList(options: UserListFilters) {
+    const {
+        domain,
+        excludeDomain,
+        search,
+        tier,
+        accountTypes: accountTypeNames,
+        emailVerified,
+        hasCompany,
+    } = options;
+
+    const conditions: (SQL | undefined)[] = [];
+
+    if (domain) {
+        conditions.push(ilike(users.email, '%@arvfinance.com'));
+    } else if (excludeDomain) {
+        conditions.push(sql`NOT (${users.email} ILIKE ${'%@arvfinance.com'})`);
+    }
+
+    if (search) {
+        const term = `%${search}%`;
+        conditions.push(
+            or(
+                ilike(users.email, term),
+                ilike(users.phone, term),
+                ilike(sql`${users.firstName} || ' ' || ${users.lastName}`, term),
+            ),
+        );
+    }
+
+    if (tier === 'none') {
+        conditions.push(isNull(users.subscriptionId));
+    } else if (tier) {
+        conditions.push(eq(subscriptions.name, tier));
+    }
+
+    if (emailVerified === true) {
+        conditions.push(isNotNull(users.emailVerifiedAt));
+    } else if (emailVerified === false) {
+        conditions.push(isNull(users.emailVerifiedAt));
+    }
+
+    if (accountTypeNames && accountTypeNames.length > 0) {
+        conditions.push(
+            exists(
+                db
+                    .select({ one: sql`1` })
+                    .from(userAccountTypes)
+                    .innerJoin(accountTypes, eq(userAccountTypes.accountTypeId, accountTypes.id))
+                    .where(
+                        and(
+                            eq(userAccountTypes.userId, users.id),
+                            inArray(accountTypes.name, accountTypeNames),
+                        ),
+                    ),
+            ),
+        );
+    }
+
+    if (hasCompany !== undefined) {
+        // Correlated (not)EXISTS avoids the empty-set edge cases of NOT IN.
+        const memberSubquery = db
+            .select({ one: sql`1` })
+            .from(companyMembers)
+            .where(eq(companyMembers.userId, users.id));
+        conditions.push(hasCompany ? exists(memberSubquery) : notExists(memberSubquery));
+    }
+
     return db
         .select({
             id: users.id,
@@ -31,7 +129,7 @@ export async function getUserList(options: { domain?: string; excludeDomain?: st
         })
         .from(users)
         .leftJoin(subscriptions, eq(users.subscriptionId, subscriptions.id))
-        .where(whereClause)
+        .where(and(...conditions))
         .orderBy(desc(users.createdAt));
 }
 
@@ -131,12 +229,7 @@ export async function getCallerTeamRoleRows(callerId: string) {
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(
-            and(
-                eq(userRoles.userId, callerId),
-                inArray(roles.name, [...PRIVILEGED_ROLES]),
-            ),
-        );
+        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])));
 }
 
 export async function getUserTeamRoleRows(userId: string) {
