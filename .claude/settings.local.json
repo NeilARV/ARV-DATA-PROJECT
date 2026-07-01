@@ -43,7 +43,9 @@
       "Bash(grep -vE \"^\\\\s*$\")",
       "Bash(git worktree *)",
       "Bash(echo '.claude/worktrees/')",
-      "Bash(ln -s /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/node_modules .claude/worktrees/user-filters/node_modules)"
+      "Bash(ln -s /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/node_modules .claude/worktrees/user-filters/node_modules)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/user-filters --no-pager diff --stat HEAD)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"
