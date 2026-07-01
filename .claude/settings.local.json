@@ -49,7 +49,9 @@
       "Bash(git commit -q -m ' *)",
       "Bash(git --no-pager log --oneline -1)",
       "Bash(git push *)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Read(//Users/justindosaj/**)",
+      "Bash(GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' ssh -T git@github.com)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"

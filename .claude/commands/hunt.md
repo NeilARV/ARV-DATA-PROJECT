@@ -1,12 +1,12 @@
 ---
-description: Hunt a file or folder (plus its local helpers) for correctness/runtime bugs — does the code actually do what we intended? Reports up to 5 real findings, tier-ordered, or none.
+description: Hunt a file or folder (plus its local helpers) for real bugs and issues — logic, runtime, data-flow, and robustness (plus security/perf/config on request). Reports up to 5 real findings, tier-ordered, or none.
 argument-hint: "<file-or-folder> [categories] [focus]"
 allowed-tools: Read, Grep, Glob, Bash(ls:*), Bash(find:*)
 ---
 
-# /hunt — Correctness bug hunt
+# /hunt — Bug & issue hunt
 
-You are hunting for **bugs that make the code do something other than what was intended**: logic, runtime, data-flow, and robustness defects. This is **not** `/smell` (style/design) and **not** `/security-review` (security). Stay in your lane: correctness.
+You are hunting for **real bugs and issues** in the given code: logic errors, runtime failures, broken data flow, and robustness gaps — and, when asked, security, performance, and config problems. A "bug" here is anything that makes the code behave wrong, crash, corrupt data, leak resources, or perform badly — not just a mismatch with intent. This is **not** `/smell` (style/design) and **not** `/security-review` (that's a dedicated security pass). Stay in your lane: things that are actually *wrong*, not things that are merely written differently than you'd prefer.
 
 Follow the steps **in order**. The single most important rule: **finding nothing is a success, not a failure. Never pad the report to reach 5.** A confabulated bug is worse than a missed one because it wastes the reader's trust. Cite category IDs verbatim from the catalog in Step 3.
 
@@ -130,41 +130,74 @@ You may list up to **2** genuinely uncertain items under a separate **"Worth a l
 
 ## Step 5 — Report
 
-Emit **exactly** this structure:
+Output is **GitHub-flavored markdown** and must render cleanly in the terminal. Follow this structure **exactly** — same headings, same order, same labels — so every run looks identical. Findings are numbered `1..N` in priority order (severity, then tier, then path).
 
 ````markdown
-# Hunt Report
-**Scope:** `<path>` — <file|folder>, N target files (+M helpers read)
-**Categories:** `<tiers/keywords scanned>`
-**Focus:** `<free-text focus, or —>`
+# 🎯 Hunt Report
 
-## Summary
-- Scanned: N files (+M helpers)
-- Findings: A blocker, B high, C medium, D low
-- Top risk: <one sentence>   ← or: "No correctness issues found in scope."
+| | |
+|---|---|
+| **Scope** | `<path>` — <file \| folder>, N target files (+M helpers read) |
+| **Categories** | <tiers/keywords scanned, e.g. Tiers 1–3 (default)> |
+| **Focus** | <free-text focus, or —> |
+| **Result** | **A** blocker · **B** high · **C** medium · **D** low |
+
+> **Top risk:** <one sentence>   ← or, if clean: **No correctness issues found in scope.**
+
+---
 
 ## Findings
 
-### [BLOCKER] `CORR.NULL-DEREF` — `server/services/deals.services.ts:44`
+### 1. <Plain-English title of the bug>
+
+`server/services/emailUpdates.ts:473-514` · **BLOCKER** · `CORR.NULL-DEREF`
+
 ```ts
-const first = deals[0].price;
-```
-**Fails when:** `getDeals()` returns `[]` → `deals[0]` is `undefined` → throws `Cannot read 'price'`.
-**Why:** the empty-result case isn't guarded.
-**Fix:** guard `if (!deals.length) return null;` before indexing.
-
-### [HIGH] `DATA.CONTRACT` — `client/src/api/deals.api.ts:20-27`
+if (sentPropertyIdSet.size > 0) {
+    await db.insert(sentPropertyIdsTable)...      // ← marks everything sent HERE
+}
 ...
+const { sent, failed } = await sendTemplateToUsers({...});  // ← actual send happens AFTER
+```
 
-## Worth a look (unverified — not counted)
-- `X.ASSUMPTION` `path:LN` — <one line: the assumption and why it might not hold>.
+**Why it's a bug.** <One tight paragraph tracing the mechanism → the triggering input/state → the concrete consequence a user hits. Name the specific lines and the intent it contradicts. This is where the reader is convinced it's real, so make the failure path explicit — not "this could be risky.">
+
+**Fix.** <One paragraph: the concrete change to make, plus any secondary cleanup. Reference the exact call/line to move or guard.>
+
+---
+
+### 2. <next title>
+
+`client/src/api/deals.api.ts:20-27` · **HIGH** · `DATA.CONTRACT`
+
+```ts
+<excerpt with a // ← marker on the offending line>
+```
+
+**Why it's a bug.** <…>
+
+**Fix.** <…>
+
+---
+
+## 🔍 Worth a look — unverified, not counted toward the 5
+
+- **`X.ASSUMPTION`** `path:LN` — <one line: the assumption and why it might not hold>.
 
 ## Synthesis
-<one paragraph: the dominant risk in this scope and the top 1–3 things to fix first.>
+
+<One paragraph: the dominant risk in this scope and the top 1–3 things to fix first. If clean, say what you checked and why you're confident it holds.>
 ````
 
-Severity: **BLOCKER** (crash/data-loss/wrong result users hit), **HIGH** (clearly wrong on a real path), **MEDIUM** (wrong on an edge case), **LOW** (minor, real, in-passing). Sort by severity, then tier, then path.
+**Formatting rules (do not deviate):**
 
-If there are no findings, emit the same structure with an empty Findings section, the explicit "No correctness issues found in scope." line, and still write the Synthesis paragraph (what you checked and why it's clean).
+- Every finding is a numbered `### N.` heading with a **plain-English title** — not the bare ID.
+- The metadata line under the title is always `` `path:line-range` · **SEVERITY** · `CATEGORY.ID` `` in that order.
+- Always include a fenced code block with a language tag (` ```ts ` / ` ```tsx `), showing the **smallest meaningful excerpt** and a `// ←` inline marker pointing at the offending line(s).
+- **Why it's a bug.** and **Fix.** are always bold-labeled prose paragraphs — the two things the reader actually reads. Keep each to 1–3 sentences of real substance.
+- Separate findings with a `---` rule.
+- Severity meaning: **BLOCKER** (crash/data-loss/wrong result users hit), **HIGH** (clearly wrong on a real path), **MEDIUM** (wrong on an edge case), **LOW** (minor, real, in-passing).
+
+If there are **no findings**, still emit the header table (with `**No correctness issues found in scope.**` as the Top risk), skip the empty Findings section, omit "Worth a look" when it's empty, and always write the Synthesis paragraph (what you checked and why it's clean).
 
 Begin with Step 1.
