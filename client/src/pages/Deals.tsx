@@ -1,5 +1,5 @@
 import { Handshake } from 'lucide-react';
-import Header from '@/components/Header';
+import { MarketingHeader } from '@/components/MarketingHeader';
 import { DataProviders } from '@/components/DataProviders';
 import { AppAccessGate } from '@/components/auth/AppAccessGate';
 import DealsPageContent from '@/components/deals/DealsPageContent';
@@ -7,7 +7,7 @@ import DealsPageContent from '@/components/deals/DealsPageContent';
 function DealsInner() {
     return (
         <div className="h-dvh flex flex-col">
-            <Header />
+            <MarketingHeader />
             <div className="flex-1 overflow-hidden min-h-0">
                 <AppAccessGate redirectWhenUnauthenticated="/deals" icon={Handshake}>
                     <DealsPageContent />

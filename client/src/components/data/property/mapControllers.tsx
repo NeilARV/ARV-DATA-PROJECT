@@ -113,17 +113,21 @@ export function MapResizeHandler() {
     const map = useMap();
 
     useEffect(() => {
-        setTimeout(() => map.invalidateSize(), 0);
+        // Callbacks can land after the map is torn down (view switch unmounts the MapContainer);
+        // invalidateSize on a removed map reads missing pane positions and throws (_leaflet_pos).
+        const safeInvalidate = () => {
+            if (map.getContainer().isConnected) map.invalidateSize();
+        };
 
-        const handleResize = () => map.invalidateSize();
-        window.addEventListener('resize', handleResize);
+        const timeout = setTimeout(safeInvalidate, 0);
+        window.addEventListener('resize', safeInvalidate);
 
-        const container = map.getContainer();
-        const resizeObserver = new ResizeObserver(() => map.invalidateSize());
-        if (container) resizeObserver.observe(container);
+        const resizeObserver = new ResizeObserver(safeInvalidate);
+        resizeObserver.observe(map.getContainer());
 
         return () => {
-            window.removeEventListener('resize', handleResize);
+            clearTimeout(timeout);
+            window.removeEventListener('resize', safeInvalidate);
             resizeObserver.disconnect();
         };
     }, [map]);

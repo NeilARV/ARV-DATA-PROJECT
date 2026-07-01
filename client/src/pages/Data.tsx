@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearch } from 'wouter';
 import { Loader2, Database } from 'lucide-react';
-import Header from '@/components/Header';
+import { MarketingHeader } from '@/components/MarketingHeader';
 import FilterHeader from '@/components/data/FilterHeader';
 import CompanyDirectory from '@/components/data/CompanyDirectory';
 import PropertyMap from '@/components/data/property/PropertyMap';
@@ -96,7 +96,7 @@ function DataContent() {
 
     return (
         <div className="h-screen flex flex-col">
-            <Header />
+            <MarketingHeader />
 
             {/* The Data app is login-gated: unauthenticated users are redirected to /login and
                 authenticated users without a subscription/team role see the locked notice. */}
@@ -106,34 +106,34 @@ function DataContent() {
               Row 1 height is auto — FilterHeader and "Investor Profiles" title share
               the same row so they always match height without hardcoded values. */}
                     <div className="flex-1 grid grid-cols-[375px_1fr] grid-rows-[auto_1fr] overflow-hidden min-h-0">
-                    {/* [row 1, col 1] Sidebar title — height auto-tracks FilterHeader */}
-                    <div className="flex items-center px-4 border-b border-r border-border bg-background">
-                        <h2 className="text-xl font-semibold">Investor Profiles</h2>
-                    </div>
+                        {/* [row 1, col 1] Sidebar title — height auto-tracks FilterHeader */}
+                        <div className="flex items-center px-4 border-b border-r border-border bg-background">
+                            <h2 className="text-xl font-semibold">Investor Profiles</h2>
+                        </div>
 
-                    {/* [row 1, col 2] FilterHeader */}
-                    <FilterHeader />
+                        {/* [row 1, col 2] FilterHeader */}
+                        <FilterHeader />
 
-                    {/* [row 2, col 1] Company Directory */}
-                    <div className="border-r border-border overflow-hidden flex flex-col">
-                        <CompanyDirectory />
-                    </div>
+                        {/* [row 2, col 1] Company Directory */}
+                        <div className="border-r border-border overflow-hidden flex flex-col">
+                            <CompanyDirectory />
+                        </div>
 
-                    {/* [row 2, col 2] Content views */}
-                    <div className="overflow-hidden flex min-h-0">
-                        {view === 'map' ? (
-                            <>
-                                <PropertyDetailPanel />
-                                <div className="flex-1">
-                                    <PropertyMap />
-                                </div>
-                            </>
-                        ) : view === 'table' ? (
-                            <TableView />
-                        ) : (
-                            <GridView sideBarView="none" />
-                        )}
-                    </div>
+                        {/* [row 2, col 2] Content views */}
+                        <div className="overflow-hidden flex min-h-0">
+                            {view === 'map' ? (
+                                <>
+                                    <PropertyDetailPanel />
+                                    <div className="flex-1">
+                                        <PropertyMap />
+                                    </div>
+                                </>
+                            ) : view === 'table' ? (
+                                <TableView />
+                            ) : (
+                                <GridView sideBarView="none" />
+                            )}
+                        </div>
                     </div>
                 </AppAccessGate>
             </div>

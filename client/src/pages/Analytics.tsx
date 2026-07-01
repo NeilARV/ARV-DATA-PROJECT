@@ -1,21 +1,12 @@
-import Header from '@/components/Header';
-import { DataProviders } from '@/components/DataProviders';
+import { MarketingHeader } from '@/components/MarketingHeader';
 
-function AnalyticsContent() {
+export default function Analytics() {
     return (
         <div className="h-screen flex flex-col">
-            <Header />
+            <MarketingHeader />
             <div className="flex-1 flex items-center justify-center">
                 <p className="text-2xl font-semibold text-muted-foreground">Coming Soon</p>
             </div>
         </div>
-    );
-}
-
-export default function Analytics() {
-    return (
-        <DataProviders>
-            <AnalyticsContent />
-        </DataProviders>
     );
 }

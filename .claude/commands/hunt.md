@@ -18,7 +18,7 @@ Raw arguments: `$ARGUMENTS`
 
 Parse `$ARGUMENTS`:
 
-- **Arg 1 = path** (required) — a file or a folder, relative to repo root.
+- **Arg 1 = path** (required) — a file or a folder, relative to repo root. Strip a leading `@` if present (Claude Code's file-mention autocomplete adds one, e.g. `@server/services/` → `server/services/`).
 - **Remaining args** — optional. Any that match a **category keyword** (Step 3) or a bare **catalog ID** narrow the scan. Everything else is **free-text focus** ("focus on the offer submission flow") that biases *which* findings matter, not which tiers run.
 
 Then:

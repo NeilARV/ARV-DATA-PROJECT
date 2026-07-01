@@ -3,14 +3,13 @@ import { useLocation, useRoute, useSearch } from 'wouter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Brain, Loader2 } from 'lucide-react';
 
-import Header from '@/components/Header';
+import { MarketingHeader } from '@/components/MarketingHeader';
 import { ChannelSidebar } from '@/components/mastermind/ChannelSidebar';
 import { ChannelHeader } from '@/components/mastermind/ChannelHeader';
 import { ChannelPinBar } from '@/components/mastermind/ChannelPinBar';
 import { MessageList } from '@/components/mastermind/MessageList';
 import { MessageComposer } from '@/components/mastermind/MessageComposer';
 import { DmConversationView } from '@/components/mastermind/DmConversationView';
-import { DataProviders } from '@/components/DataProviders';
 import { AppAccessLocked } from '@/components/auth/AppAccessGate';
 
 import { useAuth } from '@/hooks/use-auth';
@@ -26,7 +25,7 @@ type ChannelsResponse = { channels: ChannelSummary[] };
 
 type UnreadEntry = { count: number; hasMention: boolean };
 
-function MastermindContent() {
+export default function Mastermind() {
     const { isLoading, isAdminStatusLoading, canAccessMastermind, isOwner, isAdmin, user } =
         useAuth();
     const { lastChannelActivity } = useMastermindSocket();
@@ -54,7 +53,10 @@ function MastermindContent() {
     // refocus). Live state is owned by WS events after the first seed — don't remove this ref.
     const unreadSeeded = useRef(false);
     // Tracks the pending debounced mark-read so we can flush it on channel switch.
-    const markReadTimerRef = useRef<{ timer: ReturnType<typeof setTimeout>; channelId: string } | null>(null);
+    const markReadTimerRef = useRef<{
+        timer: ReturnType<typeof setTimeout>;
+        channelId: string;
+    } | null>(null);
 
     const { data, isLoading: channelsLoading } = useQuery<ChannelsResponse>({
         queryKey: ['/api/channels'],
@@ -71,14 +73,14 @@ function MastermindContent() {
     // The open channel is derived from the URL (/mastermind/<name>), not local state, so links
     // are shareable and browser back/forward works. Resolve the name to the loaded channel.
     const activeChannel = channelNameParam
-        ? channels.find((c) => c.name === channelNameParam) ?? null
+        ? (channels.find((c) => c.name === channelNameParam) ?? null)
         : null;
     const activeChannelId = activeChannel?.id ?? null;
 
     // A DM is identified in the URL by the counterparty; resolve its channel id from the list
     // (null for a brand-new draft that has no channel yet).
     const activeDmChannelId = dmUserId
-        ? dms.find((d) => d.otherUser.id === dmUserId)?.channelId ?? null
+        ? (dms.find((d) => d.otherUser.id === dmUserId)?.channelId ?? null)
         : null;
     // The conversation currently open — channel or DM — keyed by channel id for unread/read-state.
     const activeConversationId = activeChannelId ?? activeDmChannelId;
@@ -96,8 +98,7 @@ function MastermindContent() {
     channelsRef.current = channels;
 
     const markReadMutation = useMutation({
-        mutationFn: (channelId: string) =>
-            apiRequest('PATCH', `/api/channels/${channelId}/read`),
+        mutationFn: (channelId: string) => apiRequest('PATCH', `/api/channels/${channelId}/read`),
     });
 
     // Debounced mark-read — fires 1s after the last call. On channel switch, the previous
@@ -142,7 +143,9 @@ function MastermindContent() {
         if (unreadSeeded.current || channels.length === 0) return;
         unreadSeeded.current = true;
         setUnreadState(
-            new Map(channels.map((c) => [c.id, { count: c.unreadCount, hasMention: c.hasMention }])),
+            new Map(
+                channels.map((c) => [c.id, { count: c.unreadCount, hasMention: c.hasMention }]),
+            ),
         );
     }, [channels]);
 
@@ -310,7 +313,7 @@ function MastermindContent() {
     if (!canAccessMastermind) {
         return (
             <div className="h-dvh flex flex-col">
-                <Header />
+                <MarketingHeader />
                 <div className="flex-1 overflow-hidden min-h-0">
                     <AppAccessLocked icon={Brain} redirect="/mastermind" />
                 </div>
@@ -322,7 +325,7 @@ function MastermindContent() {
 
     return (
         <div className="h-dvh flex flex-col">
-            <Header />
+            <MarketingHeader />
 
             {/* Mobile tab bar — hidden on md+ */}
             <div className="md:hidden flex-shrink-0 flex border-b border-border bg-background">
@@ -415,13 +418,5 @@ function MastermindContent() {
                 </div>
             </div>
         </div>
-    );
-}
-
-export default function Mastermind() {
-    return (
-        <DataProviders>
-            <MastermindContent />
-        </DataProviders>
     );
 }

@@ -53,7 +53,11 @@
       "Read(//Users/justindosaj/**)",
       "Bash(GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' ssh -T git@github.com)",
       "Bash(git -C .claude/worktrees/user-filters status --short)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(echo \"grep exit: $?\")",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT status --short)",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT diff --stat)",
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT diff client/src/pages/Data.tsx)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"

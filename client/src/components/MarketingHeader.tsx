@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
-import { LogOut, Mail, Menu, Moon, Rocket, Settings, Sun, User, X } from 'lucide-react';
+import {
+    Brain,
+    Database,
+    Handshake,
+    LogOut,
+    Mail,
+    Menu,
+    Moon,
+    Rocket,
+    Settings,
+    Store,
+    Sun,
+    User,
+    X,
+} from 'lucide-react';
 
 import { NotificationBell } from '@/components/mastermind/NotificationBell';
 import { Logo, btnGhost, btnPrimary, scrollToSection } from '@/components/Home/primitives';
@@ -8,24 +22,33 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 import { useToast } from '@/hooks/use-toast';
 
-// Section ids on the marketing home page that the nav links scroll to (see components/Home/*).
+// Each nav link doubles as a home-page section id (scrolled to on `/`) and an app route
+// (navigated to once inside the app). Icons show in the mobile profile-menu links.
 const NAV_LINKS = [
-    { label: 'Data', id: 'data' },
-    { label: 'Deals', id: 'deals' },
-    { label: 'Vendors', id: 'vendors' },
-    { label: 'Mastermind', id: 'mastermind' },
+    { label: 'Data', id: 'data', path: '/data', icon: Database },
+    { label: 'Deals', id: 'deals', path: '/deals', icon: Handshake },
+    { label: 'Vendors', id: 'vendors', path: '/vendors', icon: Store },
+    { label: 'Mastermind', id: 'mastermind', path: '/mastermind', icon: Brain },
 ] as const;
 
+// Routes that count as "inside the app": the header swaps its marketing chrome (Launch App,
+// scroll-to-section links) for direct app navigation.
+const APP_PATHS = ['/data', '/deals', '/vendors', '/mastermind', '/analytics'] as const;
+
 /**
- * The clean, public-facing header for the marketing pages (home, login, signup, contact). Distinct
- * from the in-app `Header` used inside Data/Deals/Vendors/Mastermind. Logged-out visitors get
- * Sign in / Get started; logged-in users get Launch App, the notification bell, and a profile menu.
+ * The shared site header, used on both the marketing pages (home, contact, auth) and inside the
+ * apps (Data/Deals/Vendors/Mastermind). On marketing pages the nav links scroll to home-page
+ * sections and logged-in users get a Launch App button; inside the app the links navigate between
+ * the four apps and Launch App is dropped. Logged-out visitors get Sign in / Get started;
+ * logged-in users get the notification bell and a profile menu.
  */
 export function MarketingHeader() {
     const [location, setLocation] = useLocation();
     const { isAuthenticated, canAccessAdminPanel, logout } = useAuth();
     const { toast } = useToast();
     const { isDark, toggleTheme } = useTheme();
+
+    const isInApp = APP_PATHS.some((p) => location === p || location.startsWith(`${p}/`));
 
     const [showMenu, setShowMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -43,10 +66,13 @@ export function MarketingHeader() {
         }
     }, [showMenu]);
 
-    // On the home page each nav link scrolls to its section; elsewhere it returns to the home page.
-    const onNavLinkClick = (id: string) => {
-        if (location === '/') {
-            scrollToSection(id);
+    // Inside the app each nav link opens its app; on the home page it scrolls to its section;
+    // on other marketing pages it returns to the home page.
+    const onNavLinkClick = (link: (typeof NAV_LINKS)[number]) => {
+        if (isInApp) {
+            setLocation(link.path);
+        } else if (location === '/') {
+            scrollToSection(link.id);
         } else {
             setLocation('/');
         }
@@ -58,9 +84,22 @@ export function MarketingHeader() {
         setLocation('/');
     };
 
+    // In-app the header must stay static: `sticky z-50` creates a stacking context that would trap
+    // the dropdown menus (z-[502]) below Leaflet's z-[500] map overlays. App layouts don't scroll
+    // the body, so sticky adds nothing there; full width matches the edge-to-edge app chrome.
     return (
-        <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
-            <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6">
+        <header
+            className={
+                isInApp
+                    ? 'border-b border-border bg-background'
+                    : 'sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur'
+            }
+        >
+            <div
+                className={`relative flex h-16 items-center justify-between gap-2 px-4 sm:px-6 ${
+                    isInApp ? '' : 'mx-auto max-w-7xl'
+                }`}
+            >
                 <button
                     type="button"
                     onClick={() => setLocation('/')}
@@ -70,17 +109,27 @@ export function MarketingHeader() {
                     <Logo />
                 </button>
 
-                <nav className="hidden items-center gap-1 lg:flex">
-                    {NAV_LINKS.map((link) => (
-                        <button
-                            key={link.id}
-                            type="button"
-                            onClick={() => onNavLinkClick(link.id)}
-                            className={btnGhost}
-                        >
-                            {link.label}
-                        </button>
-                    ))}
+                {/* Absolutely centered so the links stay anchored to the page center no matter how
+                    many controls sit to the right (Launch App, auth buttons, bell, menu). */}
+                <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 lg:flex">
+                    {NAV_LINKS.map((link) => {
+                        const isActive =
+                            isInApp &&
+                            (location === link.path || location.startsWith(`${link.path}/`));
+                        return (
+                            <button
+                                key={link.id}
+                                type="button"
+                                onClick={() => onNavLinkClick(link)}
+                                className={
+                                    isActive ? `${btnGhost} bg-accent text-foreground` : btnGhost
+                                }
+                                data-testid={`button-marketing-nav-${link.id}`}
+                            >
+                                {link.label}
+                            </button>
+                        );
+                    })}
                 </nav>
 
                 <div className="flex items-center gap-2">
@@ -115,15 +164,17 @@ export function MarketingHeader() {
                         </>
                     ) : (
                         <>
-                            <button
-                                type="button"
-                                onClick={() => setLocation('/data')}
-                                className={btnPrimary}
-                                data-testid="button-marketing-launch"
-                            >
-                                <Rocket className="h-4 w-4" />
-                                <span className="hidden sm:inline">Launch App</span>
-                            </button>
+                            {!isInApp && (
+                                <button
+                                    type="button"
+                                    onClick={() => setLocation('/data')}
+                                    className={btnPrimary}
+                                    data-testid="button-marketing-launch"
+                                >
+                                    <Rocket className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Launch App</span>
+                                </button>
+                            )}
 
                             <NotificationBell />
 
@@ -144,6 +195,28 @@ export function MarketingHeader() {
                                 {showMenu && (
                                     <div className="absolute right-0 mt-2 w-48 rounded-md border border-border bg-background shadow-lg z-[502]">
                                         <div className="py-1">
+                                            {/* In-app on mobile the desktop nav links are hidden, so the
+                                                four apps are reachable from the profile menu instead. */}
+                                            {isInApp && (
+                                                <div className="lg:hidden">
+                                                    {NAV_LINKS.map((link) => (
+                                                        <button
+                                                            key={link.id}
+                                                            type="button"
+                                                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted"
+                                                            onClick={() => {
+                                                                setLocation(link.path);
+                                                                setShowMenu(false);
+                                                            }}
+                                                            data-testid={`menu-item-${link.id}`}
+                                                        >
+                                                            <link.icon className="h-4 w-4" />
+                                                            {link.label}
+                                                        </button>
+                                                    ))}
+                                                    <div className="mx-2 my-1 border-t border-border" />
+                                                </div>
+                                            )}
                                             <button
                                                 type="button"
                                                 className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-muted"

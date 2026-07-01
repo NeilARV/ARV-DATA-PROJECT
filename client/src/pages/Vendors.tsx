@@ -1,19 +1,18 @@
 import { useState } from 'react';
 import { Store } from 'lucide-react';
-import Header from '@/components/Header';
-import { DataProviders } from '@/components/DataProviders';
+import { MarketingHeader } from '@/components/MarketingHeader';
 import { ActivityFeed } from '@/components/vendors/ActivityFeed';
 import { BrowseByCategory } from '@/components/vendors/BrowseByCategory';
 import { AppAccessGate } from '@/components/auth/AppAccessGate';
 import { useVendorNav } from '@/hooks/useNav';
 
-function VendorsContent() {
+export default function Vendors() {
     const nav = useVendorNav();
     const [mobileTab, setMobileTab] = useState<'feed' | 'browse'>('browse');
 
     return (
         <div className="h-dvh flex flex-col">
-            <Header />
+            <MarketingHeader />
 
             <AppAccessGate redirectWhenUnauthenticated="/vendors" icon={Store}>
                 {/* Mobile tab bar — hidden on md+ */}
@@ -71,13 +70,5 @@ function VendorsContent() {
                 </div>
             </AppAccessGate>
         </div>
-    );
-}
-
-export default function Vendors() {
-    return (
-        <DataProviders>
-            <VendorsContent />
-        </DataProviders>
     );
 }
