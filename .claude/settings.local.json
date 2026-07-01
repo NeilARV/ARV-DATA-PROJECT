@@ -45,7 +45,11 @@
       "Bash(echo '.claude/worktrees/')",
       "Bash(ln -s /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/node_modules .claude/worktrees/user-filters/node_modules)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/user-filters --no-pager diff --stat HEAD)"
+      "Bash(git -C /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.claude/worktrees/user-filters --no-pager diff --stat HEAD)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git --no-pager log --oneline -1)",
+      "Bash(git push *)",
+      "Bash(gh auth *)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"
