@@ -40,7 +40,10 @@
       "Bash(grep -nA8 \"export.*getCompanyMembers\" server/services/claims/claims.services.ts)",
       "Bash(npx tsx -e ' *)",
       "Bash(npx tsx *)",
-      "Bash(grep -vE \"^\\\\s*$\")"
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(git worktree *)",
+      "Bash(echo '.claude/worktrees/')",
+      "Bash(ln -s /Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/node_modules .claude/worktrees/user-filters/node_modules)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"
