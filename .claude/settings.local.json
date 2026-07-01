@@ -51,7 +51,9 @@
       "Bash(git push *)",
       "Bash(gh auth *)",
       "Read(//Users/justindosaj/**)",
-      "Bash(GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' ssh -T git@github.com)"
+      "Bash(GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' ssh -T git@github.com)",
+      "Bash(git -C .claude/worktrees/user-filters status --short)",
+      "Bash(git branch *)"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows"
