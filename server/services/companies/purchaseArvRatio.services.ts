@@ -2,7 +2,7 @@ import { db } from 'server/storage';
 import { companies } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions } from '@database/schemas/properties.schema';
 import { inArray, sql } from 'drizzle-orm';
-import { computeSaleRatios } from 'server/utils/orderTransactions';
+import { computeSaleRatios, expandTruncatedNames } from 'server/utils/orderTransactions';
 
 /**
  * Purchase-to-ARV ratio recompute.
@@ -35,7 +35,10 @@ const COMPANY_WRITE_CHUNK = 200;
 const MAX_REASONABLE_RATIO = 10;
 
 /** Groups transactions by property, runs computeSaleRatios, and folds each sale's ratio into acc (keyed by seller company id). */
-function addTransactionsToAccumulator(acc: Map<string, RatioAccumulator>, txs: TransactionRow[]): void {
+function addTransactionsToAccumulator(
+    acc: Map<string, RatioAccumulator>,
+    txs: TransactionRow[],
+): void {
     const byProperty = new Map<string, TransactionRow[]>();
     for (const tx of txs) {
         const bucket = byProperty.get(tx.propertyId);
@@ -44,7 +47,9 @@ function addTransactionsToAccumulator(acc: Map<string, RatioAccumulator>, txs: T
     }
 
     for (const propertyTxs of Array.from(byProperty.values())) {
-        for (const { sellerId, ratio } of computeSaleRatios(propertyTxs)) {
+        // Same 40-char truncation repair the supplemental-tax trace applies, so the
+        // two features can't disagree about whether a sale's acquisition is traceable.
+        for (const { sellerId, ratio } of computeSaleRatios(expandTruncatedNames(propertyTxs))) {
             if (!sellerId || ratio > MAX_REASONABLE_RATIO) continue;
             const entry = acc.get(sellerId);
             if (entry) {

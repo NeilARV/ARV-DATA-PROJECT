@@ -117,10 +117,16 @@ function mapTransactionRow(
     tx: TransactionWithIds,
 ): typeof propertyTransactions.$inferInsert | null {
     const r = tx as Record<string, unknown>;
-    const saleDate = normalizeDateToYMD(getString(r, 'SALE_DATE', 'sale_date') ?? undefined);
-    const recordingDate = normalizeDateToYMD(
+    const rawSaleDate = normalizeDateToYMD(getString(r, 'SALE_DATE', 'sale_date') ?? undefined);
+    const rawRecordingDate = normalizeDateToYMD(
         getString(r, 'RECORDING_DATE', 'recording_date') ?? undefined,
     );
+    // SFR occasionally omits one of the two dates. Dropping such rows breaks the
+    // ownership-chain traces downstream (a missing acquisition silently degrades the
+    // supplemental-tax prior value and purchase-to-ARV ratios), so fall back to the
+    // other date — recording follows sale by days — and drop only when BOTH are missing.
+    const saleDate = rawSaleDate ?? rawRecordingDate;
+    const recordingDate = rawRecordingDate ?? rawSaleDate;
     if (!saleDate || !recordingDate) return null;
 
     return {

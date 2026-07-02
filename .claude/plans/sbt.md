@@ -48,8 +48,8 @@ The other states we operate in do **not** issue supplemental bills in this sense
 - Prior assessed value on the roll in 2026 ≈ **$122,000** (100k grown ~2%/yr for 10 yrs).
 - **Net supplemental value** = 1,000,000 − 122,000 = **$878,000**.
 - Flat rate (illustrative) **1.25%** → full-year supplemental = $10,975.
-- Sale in **August 2026** → proration factor **0.92** (≈11/12 of the fiscal year left).
-- **Supplemental bill ≈ $10,975 × 0.92 = $10,097** for FY 2026–27.
+- Sale in **August 2026** → presumed date Sep 1 (R&T §75.41(b)) → proration factor **0.83**.
+- **Supplemental bill = $10,975 × 0.83 = $9,109.25** for FY 2026–27.
 - (If instead the sale were in, say, **March**, it would produce **two** bills — see §4.3.)
 
 ---
@@ -123,31 +123,31 @@ Flat constant `CA_SUPPLEMENTAL_TAX_RATE`. Within CA the *rate* varies slightly b
 
 ### 4.3 Proration (fiscal year Jul 1 – Jun 30)
 
-Only a *slice* of the fiscal year remains after a mid-year sale, so the full-year supplemental is multiplied by a **proration factor** = months remaining in the fiscal year ÷ 12. This is the standard BOE / county-estimator table (event month → factor):
+Per **R&T §75.41(b)** the change of ownership is *presumed to have occurred on the first day of the month FOLLOWING* the actual event, and §75.41(c) prorates the full-year supplemental by the fraction of the fiscal year remaining from that presumed date. Statutory table (event month → presumed date → factor):
 
-| Event month | Months left | Factor |
-|-------------|-------------|--------|
-| July        | 12 | 1.00 |
-| August      | 11 | 0.92 |
-| September   | 10 | 0.83 |
-| October     | 9  | 0.75 |
-| November    | 8  | 0.67 |
-| December    | 7  | 0.58 |
-| January     | 6  | 0.50 |
-| February    | 5  | 0.42 |
-| March       | 4  | 0.33 |
-| April       | 3  | 0.25 |
-| May         | 2  | 0.17 |
-| June        | 1  | 0.08 |
+| Event month | Presumed date | Factor |
+|-------------|---------------|--------|
+| July        | Aug 1 | 0.92 |
+| August      | Sep 1 | 0.83 |
+| September   | Oct 1 | 0.75 |
+| October     | Nov 1 | 0.67 |
+| November    | Dec 1 | 0.58 |
+| December    | Jan 1 | 0.50 |
+| January     | Feb 1 | 0.42 |
+| February    | Mar 1 | 0.33 |
+| March       | Apr 1 | 0.25 |
+| April       | May 1 | 0.17 |
+| May         | Jun 1 | 0.08 |
+| June        | Jul 1 | — (no current-roll supplemental; single next-FY bill at 1.00, §75.41(c)(6)) |
 
-Implement as `factor = monthsRemaining / 12` (months counted from the event month through June inclusive), storing the exact fraction; the table above is the human-readable/reference form. (BOE's published factors are rounded to 2 decimals — confirm in §9 whether to match the rounded county figures or keep the exact fraction.)
+Implemented as the BOE published 2-decimal lookup table above (matches county estimator output; `decimal(5,4)` stores the values exactly).
 
 **The two-bill rule (Jan–May):** when the event occurs **January 1 – May 31**, the *next* fiscal year's regular roll was already set at the old value (lien date Jan 1), so the county issues **two** supplemental bills:
 
 1. **Current FY** — prorated by the factor above.
 2. **Next FY** — factor **1.00** (full year), `fiscalYear = currentFY + 1`.
 
-Events **June–December** produce a **single** bill. So `calculateSupplementalTax` returns a 1- or 2-element array — the reason storage is a table (§5), not columns. The rule is sign-agnostic: a Jan–May **refund** likewise produces two `refund` rows.
+Events **July–December** produce a **single** current-FY bill; a **June** event produces a **single next-FY bill at 1.00** (its presumed date, July 1, leaves no current-roll share). So the schedule is a 1- or 2-element array — the reason storage is a table (§5), not columns. The rule is sign-agnostic: a Jan–May **refund** likewise produces two `refund` rows. Each slot's prior value is resolved against **its own fiscal year's roll** (the two slots of a Jan–May event have different rolls).
 
 **Fiscal-year labeling:** event month Jul–Dec → `fiscalYear = eventYear`; event month Jan–Jun → `fiscalYear = eventYear − 1`. Second bill = `fiscalYear + 1`.
 
@@ -379,7 +379,7 @@ Matching how every other property child table is wired:
 ### 11.2 Recommendations for the §9b open items
 
 1. **Rate:** keep **1.25%** (matches the §2 worked example; realistic CA effective rate with local add-ons). It's one constant and every row persists its `tax_rate`, so changing it is a constant edit + `--recompute` backfill.
-2. **Proration precision:** use the **BOE published 2-decimal factors** as a 12-entry lookup table (`[1.00, 0.92, 0.83, 0.75, 0.67, 0.58, 0.50, 0.42, 0.33, 0.25, 0.17, 0.08]` keyed by fiscal-month index), not the exact fraction — output then matches county estimator numbers users can cross-check, and `decimal(5,4)` stores them exactly.
+2. **Proration precision:** use the **BOE published 2-decimal factors** as a 12-entry lookup table keyed by event month (see the statutory §4.3 table — factors run from the *presumed* first-of-following-month date, so July = 0.92 and June routes to the next FY at 1.00), not the exact fraction — output then matches county estimator numbers users can cross-check, and `decimal(5,4)` stores them exactly.
 3. **Event date:** `sale_date` — it's `NOT NULL` in `property_transactions`, so no fallback branch is needed at all (the pure function's "missing date" guard only serves direct callers/tests).
 4. **Observability:** yes — the step logs per-MSA `bills/refunds inserted, skipped (no prior value | zero diff | no price)`, and the consumer's final `totals` line gains `sbtBillsInserted` / `sbtSkipped`.
 5. **Future rate scaling hook (note for the county upgrade):** `tax_records.tax_rate_code_area` (TRA) and `addresses.county` are already persisted per property — the v2 per-county/per-TRA rate lookup (`getSupplementalTaxRate({ state, county, tra })`) has its inputs in the DB today. Design the v1 constant behind that function signature so callers never change.
@@ -403,7 +403,17 @@ Matching how every other property child table is wired:
 
 **Remove** — nothing. The feature is additive end to end.
 
-### 11.4 Revised build order
+### 11.4 Build-time decisions (found during implementation, owner-approved)
+
+**Prior value = the more recent of roll vs seller's acquisition (supersedes §4.4 resolution order and 11.1-C's "fallback" framing).** Spot-checking real rows showed assessment-first mislabels flip resales: a property bought 3/2026 for $285k and resold 4/2026 for $410k was measured against the old owner's $413k roll → phantom refund. CA reassesses the base at each sale, so when the seller's traced acquisition is more recent than the assessment's lien date (Jan 1 of the assessed year), the acquisition price wins. Long-held properties still use the roll. `prior_value_source` records which won. (Owner approved 2026-07-02.)
+
+**SFR 40-char name truncation repair (new, scoped to the SBT routine).** SFR truncates `SELLER1_NAME` at exactly 40 chars ("…DEVELOPMENT GROU" vs the buyer-side "…DEVELOPMENT GROUP INC"), which breaks the ownership-chain trace for exactly the flip cases above. `insert-supplemental-tax.ts` repairs names within one property's history before tracing: only names at exactly width 40, only when exactly one longer name (normalized) extends them. Global matching in `orderTransactions.ts` is untouched — note the same truncation likely affects wholesale-status detection (`resolve-status.ts`); flagged as a separate follow-up, not changed here.
+
+**11.1-K resolved:** SFR's `assessed_year` labeling checked out against real data (2025 roll = prior owner's Prop-13 value for a 2026 sale); `assessed_year <= sale year` stands.
+
+**Migration flow note (amends 11.1-H):** `db:generate`/`db:push` both stall on pre-existing drift — the migration snapshot is stale (deals-table drift) and push's introspection repeatedly re-prompts for the `market_scan_queue` `uq_msq_msa_property` constraint even when it exists (drizzle-kit 0.31.4 quirk). The table/enum/indexes were applied via manual DDL matching the schema exactly (verified against pg_catalog). Future `db:push` runs will re-prompt about `uq_msq_msa_property`; answering "No, add without truncating" will error harmlessly ("already exists") — a drizzle-kit upgrade is the real fix.
+
+### 11.5 Revised build order
 
 1. `database/schemas/properties.schema.ts` + relations + inserts + types → `db:generate` → `db:push` → update `database.md`.
 2. `server/utils/supplementalTax.ts` (+ unit tests green — the §2 worked example is the anchor case).
