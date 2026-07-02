@@ -1,11 +1,9 @@
 import { db } from 'server/storage';
-import { properties, propertyTransactions, parcels } from '@database/schemas/properties.schema';
+import { properties, propertyTransactions } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
-import { companies, companyMsas } from '@database/schemas/companies.schema';
-import { msas } from '@database/schemas/msas.schema';
-import { eq, asc, and, gte, inArray, sql } from 'drizzle-orm';
+import { companies } from '@database/schemas/companies.schema';
+import { eq, asc, inArray, sql } from 'drizzle-orm';
 import { trimCompanyName } from 'server/utils/normalization';
-import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { isFlippingCompany } from 'server/utils/dataSyncHelpers';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 
@@ -27,6 +25,9 @@ type GetTransactionsResult = {
     firstMtgLenderName: string | null;
     sortOrder: number | null;
     userCreated: boolean;
+    isAssignment: boolean;
+    assignorId: string | null;
+    assignorName: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,66 +53,10 @@ function formatTxRow(tx: TransactionRow): GetTransactionsResult {
         firstMtgLenderName: tx.firstMtgLenderName,
         sortOrder: tx.sortOrder,
         userCreated: tx.userCreated,
+        isAssignment: tx.isAssignment,
+        assignorId: tx.assignorId,
+        assignorName: tx.assignorName,
     };
-}
-
-async function upsertCompanyByName(
-    name: string,
-    county: string | null,
-    msa: string | null,
-): Promise<string | null> {
-    const trimmed = trimCompanyName(name);
-    if (!trimmed) return null;
-
-    const [existing] = await db
-        .select({ id: companies.id })
-        .from(companies)
-        .where(eq(companies.companyName, trimmed))
-        .limit(1);
-
-    let companyId: string;
-
-    if (existing) {
-        companyId = existing.id;
-    } else {
-        const inserted = await db
-            .insert(companies)
-            .values({ companyName: trimmed, updatedAt: new Date() })
-            .onConflictDoNothing({ target: companies.companyName })
-            .returning({ id: companies.id });
-
-        if (inserted.length > 0) {
-            companyId = inserted[0].id;
-        } else {
-            const [refetched] = await db
-                .select({ id: companies.id })
-                .from(companies)
-                .where(eq(companies.companyName, trimmed))
-                .limit(1);
-            if (!refetched) return null;
-            companyId = refetched.id;
-        }
-    }
-
-    if (county) {
-        await addCountiesToCompanyIfNeeded({ id: companyId }, [county]);
-    }
-
-    if (msa) {
-        const [msaRow] = await db
-            .select({ id: msas.id })
-            .from(msas)
-            .where(eq(msas.name, msa))
-            .limit(1);
-        if (msaRow) {
-            await db
-                .insert(companyMsas)
-                .values({ companyId, msaId: msaRow.id })
-                .onConflictDoNothing();
-        }
-    }
-
-    return companyId;
 }
 
 // ─── Reprocess ───────────────────────────────────────────────────────────────
@@ -230,118 +175,86 @@ export async function getPropertyTransactions(
     return rows.map((tx) => formatTxRow(tx));
 }
 
-// ─── Append (called from patchProperty) ──────────────────────────────────────
+// ─── Assignment marking ────────────────────────────────────────────────────────
 
-type BulkTransactionInput = {
-    transactionType?: string | null;
-    recordingDate: string;
-    buyerName?: string | null;
-    sellerName?: string | null;
-    salePrice?: string | null;
-    firstMtgLenderName?: string | null;
-};
+/**
+ * Resolves assignor names to EXISTING company ids in a single query — never creates one.
+ * Matching is case-insensitive: an admin may type an assignor in a different case than the
+ * ALL-CAPS name SFR stores, and we still want it to link to the existing company.
+ * @param names already-trimmed company names to look up
+ * @returns a map from lower(trimmed) company name → id (only matched names appear)
+ */
+async function resolveExistingCompanyIds(names: string[]): Promise<Map<string, string>> {
+    const byName = new Map<string, string>();
+    if (names.length === 0) return byName;
+    const lowered = Array.from(new Set(names.map((n) => n.trim().toLowerCase())));
+    const rows = await db
+        .select({ id: companies.id, companyName: companies.companyName })
+        .from(companies)
+        .where(
+            sql`LOWER(TRIM(${companies.companyName})) IN (${sql.join(
+                lowered.map((n) => sql`${n}`),
+                sql`, `,
+            )})`,
+        );
+    for (const row of rows) byName.set(row.companyName.trim().toLowerCase(), row.id);
+    return byName;
+}
 
-// Inserts a transaction at the end of the sort order for a property.
-async function insertAtEnd(
+export interface AssignmentUpdate {
+    transactionId: number;
+    isAssignment: boolean;
+    assignorName: string | null;
+}
+
+/**
+ * Marks (or clears) the assignment flag + assignor on existing ARMS LENGTH sale transactions.
+ * assignorId is resolved to an existing company when the name matches one; an assignor that is
+ * an individual (no company) keeps only assignorName. Each update is scoped to the property AND
+ * to arms-length rows, so a transaction can't be annotated from another property's edit and only
+ * real sales carry assignments (the pipeline re-apply restores assignments to arms-length rows
+ * only — this keeps the flag surface consistent with what survives a sync).
+ * @param propertyId the property the transactions belong to
+ * @param updates one entry per transaction being marked or cleared
+ */
+export async function markTransactionAssignments(
     propertyId: string,
-    row: Parameters<typeof db.insert>[0] extends never ? never : object,
+    updates: AssignmentUpdate[],
 ): Promise<void> {
-    const [maxRow] = await db
-        .select({ max: sql<number>`COALESCE(MAX(sort_order), 0)` })
-        .from(propertyTransactions)
-        .where(eq(propertyTransactions.propertyId, propertyId));
-    await db.insert(propertyTransactions).values({
-        ...(row as typeof propertyTransactions.$inferInsert),
-        sortOrder: (maxRow?.max ?? 0) + 1,
+    if (updates.length === 0) return;
+
+    // Resolve every assignor name to a company id up front (one query) so building the
+    // VALUES rows below doesn't fire a lookup per row.
+    const namesToResolve = updates
+        .filter((u) => u.isAssignment && u.assignorName)
+        .map((u) => trimCompanyName(u.assignorName ?? ''))
+        .filter((name): name is string => !!name);
+    const companyIdByName = await resolveExistingCompanyIds(namesToResolve);
+
+    // One VALUES row per update. The schema guarantees a non-empty assignorName whenever
+    // isAssignment is true, so isAssignment alone determines mark (name + resolved id) vs
+    // clear (all null). Every value is cast so the VALUES columns are typed even when null.
+    const valueRows = updates.map((u) => {
+        const trimmed = u.isAssignment ? trimCompanyName(u.assignorName ?? '') : null;
+        const assignorId = trimmed ? (companyIdByName.get(trimmed.toLowerCase()) ?? null) : null;
+        return sql`(${u.transactionId}::int, ${u.isAssignment}::boolean, ${assignorId}::uuid, ${trimmed}::varchar)`;
     });
-}
 
-// Assignment: finds the Arms Length transaction whose buyer_id matches the
-// assignment's buyer_id and inserts the assignment immediately after it
-// (shifting everything below down by one). Falls back to end if no match.
-async function insertAssignment(
-    propertyId: string,
-    row: typeof propertyTransactions.$inferInsert,
-    buyerId: string | null,
-): Promise<void> {
-    if (buyerId) {
-        const [matchingAL] = await db
-            .select({ sortOrder: propertyTransactions.sortOrder })
-            .from(propertyTransactions)
-            .where(
-                and(
-                    eq(propertyTransactions.propertyId, propertyId),
-                    eq(propertyTransactions.buyerId, buyerId),
-                    sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
-                ),
-            )
-            .orderBy(asc(propertyTransactions.sortOrder))
-            .limit(1);
-
-        if (matchingAL?.sortOrder != null) {
-            const insertAt = matchingAL.sortOrder + 1;
-            await db
-                .update(propertyTransactions)
-                .set({ sortOrder: sql`sort_order + 1` })
-                .where(
-                    and(
-                        eq(propertyTransactions.propertyId, propertyId),
-                        gte(propertyTransactions.sortOrder, insertAt),
-                    ),
-                );
-            await db.insert(propertyTransactions).values({ ...row, sortOrder: insertAt });
-            return;
-        }
-    }
-
-    await insertAtEnd(propertyId, row);
-}
-
-export async function appendPropertyTransactions(
-    propertyId: string,
-    transactions: BulkTransactionInput[],
-    county: string | null,
-    msa: string | null,
-): Promise<void> {
-    if (transactions.length === 0) return;
-
-    const [parcel] = await db
-        .select({ apn: parcels.apnOriginal })
-        .from(parcels)
-        .where(eq(parcels.propertyId, propertyId))
-        .limit(1);
-
-    const apn = parcel?.apn ?? null;
-
-    for (const tx of transactions) {
-        const buyerId = tx.buyerName ? await upsertCompanyByName(tx.buyerName, county, msa) : null;
-        const sellerId = tx.sellerName
-            ? await upsertCompanyByName(tx.sellerName, county, msa)
-            : null;
-
-        const row: typeof propertyTransactions.$inferInsert = {
-            propertyId,
-            apn,
-            transactionType: tx.transactionType ?? null,
-            recordingDate: tx.recordingDate,
-            saleDate: tx.recordingDate,
-            buyerName: trimCompanyName(tx.buyerName ?? null),
-            buyerId,
-            sellerName: trimCompanyName(tx.sellerName ?? null),
-            sellerId,
-            salePrice: tx.salePrice ?? null,
-            firstMtgLenderName: tx.firstMtgLenderName ?? null,
-            userCreated: true,
-        };
-
-        const txType = (tx.transactionType ?? '').trim().toLowerCase();
-
-        switch (txType) {
-            case 'assignment':
-                await insertAssignment(propertyId, row, buyerId);
-                break;
-            default:
-                await insertAtEnd(propertyId, row);
-        }
-    }
+    // A single atomic statement: neon-http is connectionless and has no transactions, so one
+    // UPDATE (all-or-nothing on its own) is how we avoid partial application across rows. Scoped
+    // to the property AND arms-length rows so a transaction can't be annotated from another
+    // property's edit and only real sales carry assignments (keeps the flag surface consistent
+    // with what the pipeline re-apply restores).
+    await db.execute(sql`
+        UPDATE property_transactions AS pt
+        SET is_assignment = v.is_assignment,
+            assignor_id = v.assignor_id,
+            assignor_name = v.assignor_name,
+            updated_at = NOW()
+        FROM (VALUES ${sql.join(valueRows, sql`, `)})
+            AS v(transaction_id, is_assignment, assignor_id, assignor_name)
+        WHERE pt.property_transactions_id = v.transaction_id
+          AND pt.property_id = ${propertyId}::uuid
+          AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
+    `);
 }

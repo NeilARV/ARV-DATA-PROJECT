@@ -756,14 +756,23 @@ Get a single property by its internal UUID.
 ---
 
 ### `PATCH /api/properties/:id`
-Update the `isArvFunded` flag and/or statuses on a property.
+Update a property's `isArvFunded` flag, statuses, transactions, and/or assignment marking.
+At least one field must be provided.
 
 **Auth**: `requireRole(["admin", "owner", "relationship-manager"])`
 
-**Body**
+**Body** (all fields optional)
 ```json
-{ "isArvFunded": true }
+{
+  "isArvFunded": true,
+  "statuses": ["in-renovation"],
+  "deletedTransactionIds": [123],
+  "assignments": [{ "transactionId": 123, "isAssignment": true, "assignorName": "ACME WHOLESALE LLC" }]
+}
 ```
+`assignments` marks (or clears) the assignment flag + assignor on existing sale transactions.
+`isAssignment: false` clears it; `assignorName` resolves to an existing company when it matches
+one (individuals keep only the name).
 
 **Response `200`** `{ "message": "Property updated", "id": "uuid", "isArvFunded": true, "statuses": [...] }`
 
@@ -787,7 +796,8 @@ Get all transaction records for a property.
 
 **Auth**: Public
 
-**Response `200`** Array of transaction objects.
+**Response `200`** Array of transaction objects, each including `isAssignment`, `assignorId`, and
+`assignorName` (the assignment metadata on the sale row).
 
 ---
 

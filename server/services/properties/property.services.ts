@@ -16,14 +16,18 @@ import {
     normalizePropertyType,
     normalizeDateToYMD,
 } from 'server/utils/normalization';
-import { sortTransactionsDesc, calculateSpread } from 'server/utils/orderTransactions';
+import {
+    sortTransactionsDesc,
+    calculateSpread,
+    getAssignorFromTxs,
+} from 'server/utils/orderTransactions';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { isUniqueViolation } from 'server/utils/dbErrors';
 import { insertPropertyRelatedData, SfrPropertyData } from 'server/utils/propertyDataHelpers';
 import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { appendPropertyTransactions, reprocessProperty } from './propertyTransactions.services';
+import { reprocessProperty, markTransactionAssignments } from './propertyTransactions.services';
 import { formatContactName } from '@shared/utils/formatContactName';
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -71,55 +75,6 @@ export async function getPropertySuggestions(
     }
 
     return query.limit(5);
-}
-
-// ─── Assignment detection ─────────────────────────────────────────────────────
-
-function toISODate(d: Date | string | null): string {
-    if (!d) return '';
-    if (typeof d === 'string') return d.split('T')[0];
-    return (d as Date).toISOString().split('T')[0];
-}
-
-function detectAssignor(
-    txs: Array<{
-        transactionType: string | null;
-        recordingDate: Date | string | null;
-        sortOrder: number | null;
-        buyerId: string | null;
-        sellerName: string | null;
-        sellerId: string | null;
-    }>,
-): { assignorName: string | null; assignorId: string | null } {
-    // Sort by sortOrder ASC (1 = most recent per pipeline convention).
-    // Fall back to recordingDate DESC for any rows where sortOrder is null.
-    const sorted = [...txs].sort((a, b) => {
-        if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
-        if (a.sortOrder != null) return -1;
-        if (b.sortOrder != null) return 1;
-        const da = toISODate(a.recordingDate);
-        const db = toISODate(b.recordingDate);
-        return db > da ? 1 : db < da ? -1 : 0;
-    });
-
-    // Show assignor when an Assignment transaction shares the same buyer_id
-    // as the most recent Arms Length transaction.
-    const latestAL = sorted.find(
-        (tx) => (tx.transactionType ?? '').trim().toLowerCase() === 'arms length',
-    );
-
-    if (!latestAL?.buyerId) return { assignorName: null, assignorId: null };
-
-    const assignmentTx = sorted.find(
-        (tx) =>
-            (tx.transactionType ?? '').trim().toLowerCase() === 'assignment' &&
-            tx.buyerId === latestAL.buyerId,
-    );
-
-    return {
-        assignorName: assignmentTx?.sellerName ?? null,
-        assignorId: assignmentTx?.sellerId ?? null,
-    };
 }
 
 // ─── Get by ID ────────────────────────────────────────────────────────────────
@@ -179,6 +134,9 @@ export async function getPropertyById(id: string) {
             id: propertyTransactions.propertyTransactionsId,
             firstMtgLenderName: propertyTransactions.firstMtgLenderName,
             sortOrder: propertyTransactions.sortOrder,
+            isAssignment: propertyTransactions.isAssignment,
+            assignorId: propertyTransactions.assignorId,
+            assignorName: propertyTransactions.assignorName,
         })
         .from(propertyTransactions)
         .where(eq(propertyTransactions.propertyId, id))
@@ -211,7 +169,8 @@ export async function getPropertyById(id: string) {
     const txBuyerId = latest?.buyerId ?? null;
     const txSellerId = latest?.sellerId ?? null;
 
-    const { assignorName: rawAssignorName, assignorId: rawAssignorId } = detectAssignor(allTxs);
+    const { assignorName: rawAssignorName, assignorId: rawAssignorId } =
+        getAssignorFromTxs(allTxs);
 
     let assignorContactName: string | null = null;
     let assignorContactEmail: string | null = null;
@@ -744,24 +703,16 @@ export async function patchProperty(
         statuses?: string[];
         buyerCompanyName?: string;
         sellerCompanyName?: string;
-        transactions?: Array<{
-            transactionType?: string | null;
-            recordingDate: string;
-            buyerName?: string | null;
-            sellerName?: string | null;
-            salePrice?: string | null;
-            firstMtgLenderName?: string | null;
-        }>;
         deletedTransactionIds?: number[];
+        assignments?: Array<{
+            transactionId: number;
+            isAssignment: boolean;
+            assignorName?: string | null;
+        }>;
     },
 ): Promise<PatchPropertyResult | null> {
     const [existing] = await db
-        .select({
-            id: properties.id,
-            isArvFunded: properties.isArvFunded,
-            county: properties.county,
-            msa: properties.msa,
-        })
+        .select({ id: properties.id })
         .from(properties)
         .where(eq(properties.id, id))
         .limit(1);
@@ -790,11 +741,6 @@ export async function patchProperty(
         }
     }
 
-    if (data.transactions !== undefined) {
-        await appendPropertyTransactions(id, data.transactions, existing.county, existing.msa);
-        await reprocessProperty(id);
-    }
-
     if (data.deletedTransactionIds !== undefined && data.deletedTransactionIds.length > 0) {
         await db
             .delete(propertyTransactions)
@@ -809,6 +755,19 @@ export async function patchProperty(
                 ),
             );
         await reprocessProperty(id);
+    }
+
+    // Assignment marking is display-only metadata on the sale row — it doesn't affect
+    // status/ARV-funded derivation, so no reprocess is needed.
+    if (data.assignments !== undefined && data.assignments.length > 0) {
+        await markTransactionAssignments(
+            id,
+            data.assignments.map((a) => ({
+                transactionId: a.transactionId,
+                isAssignment: a.isAssignment,
+                assignorName: a.assignorName ?? null,
+            })),
+        );
     }
 
     const [updated] = await db

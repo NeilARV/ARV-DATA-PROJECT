@@ -321,6 +321,15 @@ export const propertyTransactions = pgTable(
         sellerName: varchar('seller_name', { length: 200 }),
         buyerId: uuid('buyer_id').references(() => companies.id, { onDelete: 'set null' }),
         buyerName: varchar('buyer_name', { length: 200 }),
+        // Assignment metadata. An assignment is a wholesale flip where a middleman
+        // ("assignor") never takes title — the recorded deed is a direct arms-length
+        // seller→buyer sale. Rather than a separate transaction row, we flag the actual
+        // sale row and record who assigned it. assignorId is set only when the assignor
+        // matches an existing company; assignorName always carries the display name (an
+        // assignor may be an individual with no company record).
+        isAssignment: boolean('is_assignment').notNull().default(false),
+        assignorId: uuid('assignor_id').references(() => companies.id, { onDelete: 'set null' }),
+        assignorName: varchar('assignor_name', { length: 200 }),
         apn: varchar('apn', { length: 50 }),
         transactionType: varchar('transaction_type', { length: 50 }),
         saleDate: date('sale_date').notNull(),
@@ -365,5 +374,8 @@ export const propertyTransactions = pgTable(
         // Mirrors idx_pt_property_buyer_date for the seller side of company-filter EXISTS
         // (buyer_id OR seller_id): without this the seller half falls back to a scan.
         index('idx_pt_property_seller').on(t.propertyId, t.sellerId),
+        // Supports the company-filter assignor branch (EXISTS ... assignor_id = :id) and
+        // the per-company "properties assigned" count on the company profile.
+        index('idx_pt_assignor').on(t.assignorId),
     ],
 );

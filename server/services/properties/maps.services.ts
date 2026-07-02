@@ -4,6 +4,7 @@ import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray, type SQL } from 'drizzle-orm';
 import type { PgSelect } from 'drizzle-orm/pg-core';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
+import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
 import { isPrefixMatchCity } from '@shared/constants/cityMatch';
 
 interface MapPropertyData {
@@ -181,20 +182,7 @@ function buildMapIdConditions(
     }
 
     if (hasCompanyFilter) {
-        const roleCondition =
-            companyRole === 'buyer'
-                ? sql`pt.buyer_id = ${companyIdTrimmed}::uuid`
-                : companyRole === 'seller'
-                  ? sql`pt.seller_id = ${companyIdTrimmed}::uuid`
-                  : sql`(pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)`;
-        conditions.push(
-            sql`EXISTS (
-                SELECT 1 FROM property_transactions pt
-                WHERE pt.property_id = ${properties.id}
-                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND ${roleCondition}
-            )`,
-        );
+        conditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
     }
 
     // Price / beds / baths / type mirror the client's matchesFiltersForPin so the extent count,
@@ -344,7 +332,9 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
         .as('status_data');
 
     // One correlated subquery per pin (only when a company is selected): a single JSON object with
-    // the company's buyer/seller role + name on its most relevant Arms Length / Assignment tx.
+    // the company's buyer/seller role + name on its most relevant Arms Length tx. Assignor-only
+    // pins (company on no Arms Length sale) resolve to null here — they still render via the
+    // companyInvolvementExists filter; the assignor role isn't surfaced on the pin badge.
     const txInfoSql = hasCompanyFilter
         ? sql<TxInfo | null>`(
             SELECT json_build_object(
@@ -354,7 +344,7 @@ export async function getMapProperties(params: MapPropertiesParams): Promise<Map
             )
             FROM property_transactions pt
             WHERE pt.property_id = ${properties.id}
-            AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
+            AND LOWER(TRIM(pt.transaction_type)) = 'arms length'
             AND (pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)
             ORDER BY COALESCE(pt.sort_order, 999999) ASC
             LIMIT 1
