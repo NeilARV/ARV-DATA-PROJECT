@@ -27,6 +27,7 @@ import {
     sendTemplateToUsers,
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
+import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { eq, ne, desc, and, inArray, gte, isNotNull, ilike, sql, SQL } from 'drizzle-orm';
 import { companies, companyContacts } from '@database/schemas/companies.schema';
 import { properties, propertyTransactions, addresses } from '@database/schemas/properties.schema';
@@ -671,14 +672,13 @@ export async function sendDealNotification(
 
         const template =
             notificationType === 'sold'
-                ? process.env.POSTMARK_DEAL_SOLD_TEMPLATE_ALIAS
+                ? POSTMARK_TEMPLATES.DEAL_SOLD
                 : notificationType === 'price_update'
-                  ? process.env.POSTMARK_DEAL_UPDATED_TEMPLATE_ALIAS
-                  : process.env.POSTMARK_DEAL_TEMPLATE_ALIAS;
-        // TEMP OVERRIDE — notifications disabled until ready to enable
-        const shouldNotify = sendNotifications === true && !!template;
+                  ? POSTMARK_TEMPLATES.DEAL_UPDATED
+                  : POSTMARK_TEMPLATES.DEAL_NEW;
 
-        if (template && shouldNotify) {
+        // `sendNotifications` is the caller's gate for whether deal emails go out at all.
+        if (sendNotifications === true) {
             // Look up MSA name for the county field
             const [msaRow] = await db
                 .select({ name: msas.name })
@@ -1153,15 +1153,12 @@ export async function requestDealInfo(
     const ccList = Array.from(new Set(ccCandidates));
     const cc = ccList.length > 0 ? ccList.join(', ') : undefined;
 
-    const inquiryTemplateAlias = process.env.POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS;
-    if (!inquiryTemplateAlias) throw new Error('POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS is not set');
-
     await sendEmailWithTemplate({
         From: fromAddress,
         To: toAddress,
         ReplyTo: displayEmail,
         Cc: cc,
-        TemplateAlias: inquiryTemplateAlias,
+        TemplateAlias: POSTMARK_TEMPLATES.DEAL_INQUIRY,
         TemplateModel: {
             poster_name:
                 [dealRow.posterFirstName, dealRow.posterLastName].filter(Boolean).join(' ') || null,
@@ -1358,12 +1355,6 @@ export async function sendDealOfferNotification(
 ): Promise<void> {
     const label = '[dealsService.sendDealOfferNotification]';
 
-    const offerTemplateAlias = process.env.POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS;
-    if (!offerTemplateAlias) {
-        console.warn(`${label} POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS not set — skipping`);
-        return;
-    }
-
     const [dealRow] = await db
         .select({
             id: deals.id,
@@ -1444,7 +1435,7 @@ export async function sendDealOfferNotification(
         To: toAddress,
         ReplyTo: bid.email,
         Cc: cc,
-        TemplateAlias: offerTemplateAlias,
+        TemplateAlias: POSTMARK_TEMPLATES.DEAL_OFFER,
         TemplateModel: {
             poster_name:
                 [dealRow.posterFirstName, dealRow.posterLastName].filter(Boolean).join(' ') || null,
