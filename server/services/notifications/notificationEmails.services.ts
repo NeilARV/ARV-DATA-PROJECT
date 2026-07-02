@@ -3,6 +3,7 @@ import {
     getDefaultFromEmail,
     sendEmailWithTemplate,
 } from 'server/services/postmark/email.services';
+import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { htmlToPlainText } from 'server/utils/sanitizeHtml';
 import type { CreatedNotification } from 'server/services/notifications/notifications.services';
 
@@ -40,14 +41,6 @@ export async function sendMastermindMentionEmails({
     const emailable = created.filter((n) => isEmailableType(n.type));
     if (emailable.length === 0) return;
 
-    const templateAlias = process.env.POSTMARK_MASTERMIND_TEMPLATE_ALIAS;
-    if (!templateAlias) {
-        console.warn(
-            '[MASTERMIND EMAIL] POSTMARK_MASTERMIND_TEMPLATE_ALIAS is not set, skipping email send',
-        );
-        return;
-    }
-
     const recipients = await getEmailRecipientsByUserIds(emailable.map((n) => n.recipientUserId));
     if (recipients.length === 0) return;
 
@@ -75,7 +68,7 @@ export async function sendMastermindMentionEmails({
             await sendEmailWithTemplate({
                 From: fromAddress,
                 To: recipient.email,
-                TemplateAlias: templateAlias,
+                TemplateAlias: POSTMARK_TEMPLATES.MASTERMIND_MENTION,
                 TemplateModel: {
                     name: senderName,
                     // The "#" is baked into the value, not the template — Postmark's Mustache

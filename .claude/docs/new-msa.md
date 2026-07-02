@@ -338,7 +338,7 @@ cron.schedule("20 9 * * *", sendPhoenixEmail, { timezone: "America/Los_Angeles" 
 - Each user gets a personalized set of up to 3 properties filtered by their `dataAppStatusFilter` preference
 - Whitelist recipients (from the admin email list) always get the unfiltered top-3
 - Properties are marked sent after the job runs so they won't repeat
-- Uses Postmark templates — `POSTMARK_TEMPLATE_ALIAS` env var must be set
+- Uses the Postmark template `POSTMARK_TEMPLATES.PROPERTY_UPDATE` (constant in `server/services/postmark/templates.ts`, not an env var)
 
 **Scheduling notes:** Stagger email times by 5 minutes to avoid Postmark rate limits. The existing schedule for reference:
 ```

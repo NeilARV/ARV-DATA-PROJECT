@@ -440,7 +440,7 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
   email to client, CC poster's RM; without: email to poster, CC requester's RM.
 - **Submit offer** → `SendOfferForm` (amount + name/email/phone) → insert `deal_bids` row (full
   history) → two fire-and-forget side-effects: a `deal_bid` bell notification to the poster, and an
-  offer email (`sendDealOfferNotification`, `POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS`). The email mirrors
+  offer email (`sendDealOfferNotification`, `POSTMARK_TEMPLATES.DEAL_OFFER`). The email mirrors
   request-info routing — on-behalf-of deal: To = client, Cc = poster's RM/default + bidder; normal
   deal: To = poster, Cc = bidder's RM/default + bidder; From = bidder's RM (or default), Reply-To =
   bidder. Always sent on submit (not gated by the subscriber-notification system). Poster reads

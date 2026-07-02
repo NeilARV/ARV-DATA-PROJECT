@@ -42,10 +42,6 @@ The following environment variables are required or used by the application. **N
 | `SFR_API_KEY` | Auth key for the SFR API (used in data pipeline) |
 | `POSTMARK_SERVER_API_KEY` | Postmark transactional email — server API key |
 | `POSTMARK_ACCOUNT_TOKEN` | Postmark account-level token (used to create RM sender signatures) |
-| `POSTMARK_TEMPLATE_ALIAS` | Postmark template for property updates |
-| `POSTMARK_DEAL_TEMPLATE_ALIAS` | Postmark template for deal notifications |
-| `POSTMARK_DEAL_INQUIRY_TEMPLATE_ALIAS` | Postmark template for deal inquiries (request-info) |
-| `POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS` | Postmark template for deal offer (bid) notifications |
 | `DEFAULT_CONTACT_RECIPIENT` | Default recipient address for contact/notification emails |
 | `DEFAULT_FROM_EMAIL` | Default sender address for outgoing emails |
 | `GOOGLE_API_KEY` | Google Maps / Geocoding API key |
@@ -53,6 +49,8 @@ The following environment variables are required or used by the application. **N
 | `SUPABASE_URL` | Supabase project URL — required for all Storage uploads (posts, vendors, users, Mastermind) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key — server-side Storage auth (required for uploads) |
 
+> **Postmark template aliases are not env vars.** They are non-secret, environment-independent constants defined in `server/services/postmark/templates.ts` (`POSTMARK_TEMPLATES`) — the same alias is used in dev and prod. Only the Postmark secrets above (`POSTMARK_SERVER_API_KEY`, `POSTMARK_ACCOUNT_TOKEN`) live in env.
+>
 > **Storage bucket names are not env vars.** They are non-secret public constants defined in `server/lib/supabase.ts` (`DEV_BUCKETS` / `PROD_BUCKETS`), selected by `NODE_ENV` — dev uses `*-dev`, production uses `*-prod`.
 >
 > **Supabase Storage buckets must be public** and configured to allow the app's MIME types and size limits. The Mastermind bucket allows **JPEG, PNG, PDF, CSV, TXT at ≤10 MB** — this must match the server allowlist in `server/services/messages/attachments.services.ts` (`ALLOWED_ATTACHMENT_TYPES` / `MAX_ATTACHMENT_BYTES`).
