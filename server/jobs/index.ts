@@ -62,8 +62,8 @@ export function startScheduledJobs() {
             timezone: 'America/Los_Angeles',
         });
 
-        // Scanner B (15-30d): every other day at 1:00 AM — catches late backfills in 15-30d range
-        cron.schedule('0 1 */2 * *', scanWindowB, {
+        // Scanner B (15-30d): nightly at 1:00 AM — catches late backfills in 15-30d range
+        cron.schedule('0 1 * * *', scanWindowB, {
             timezone: 'America/Los_Angeles',
         });
 
