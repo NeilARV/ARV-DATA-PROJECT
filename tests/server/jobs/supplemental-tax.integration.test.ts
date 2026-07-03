@@ -9,7 +9,7 @@ import {
 } from '@database/schemas/properties.schema';
 import { getTestDb } from '../../helpers/db';
 import {
-    computeSupplementalTaxForProperties,
+    syncSupplementalTaxForProperties,
     insertSupplementalTaxBills,
 } from 'server/jobs/data_v2/processes/insert-supplemental-tax';
 import type { SupplementalTaxComputeResult } from 'server/jobs/data_v2/processes/insert-supplemental-tax';
@@ -224,7 +224,7 @@ beforeAll(async () => {
         sellerName: 'LOWERCASE STATE SELLER',
     });
 
-    firstRun = await computeSupplementalTaxForProperties([
+    firstRun = await syncSupplementalTaxForProperties([
         workedExampleId,
         flipId,
         truncatedId,
@@ -240,8 +240,8 @@ afterAll(async () => {
     await db.delete(properties).where(inArray(properties.sfrPropertyId, Object.values(SFR_IDS)));
 });
 
-describe('computeSupplementalTaxForProperties', () => {
-    it('computeSupplementalTaxForProperties — long-held CA property — persists the assessment-based bill (§2 worked example)', async () => {
+describe('syncSupplementalTaxForProperties', () => {
+    it('syncSupplementalTaxForProperties — long-held CA property — persists the assessment-based bill (§2 worked example)', async () => {
         const rows = await billsFor(workedExampleId);
         expect(rows).toHaveLength(1);
         const [bill] = rows;
@@ -257,7 +257,7 @@ describe('computeSupplementalTaxForProperties', () => {
         expect(Number(bill.amount)).toBe(9_109.25);
     });
 
-    it('computeSupplementalTaxForProperties — flip resold after the lien date — seller acquisition beats the stale roll (bill, not refund)', async () => {
+    it('syncSupplementalTaxForProperties — flip resold after the lien date — seller acquisition beats the stale roll (bill, not refund)', async () => {
         const rows = await db
             .select()
             .from(supplementalTaxBills)
@@ -281,7 +281,7 @@ describe('computeSupplementalTaxForProperties', () => {
         expect(Number(rows[1].amount)).toBe(1_562.5);
     });
 
-    it('computeSupplementalTaxForProperties — 40-char truncated seller name — repair links the chain and traces the acquisition', async () => {
+    it('syncSupplementalTaxForProperties — 40-char truncated seller name — repair links the chain and traces the acquisition', async () => {
         expect(TRUNCATED_SELLER_NAME).toHaveLength(40);
         const rows = await db
             .select()
@@ -301,11 +301,11 @@ describe('computeSupplementalTaxForProperties', () => {
         expect(Number(rows[1].amount)).toBe(1_875); // next FY at 1.00
     });
 
-    it('computeSupplementalTaxForProperties — non-CA property — produces no rows', async () => {
+    it('syncSupplementalTaxForProperties — non-CA property — produces no rows', async () => {
         expect(await billsFor(nonCaId)).toHaveLength(0);
     });
 
-    it('computeSupplementalTaxForProperties — lowercase state code — gate is case-insensitive', async () => {
+    it('syncSupplementalTaxForProperties — lowercase state code — gate is case-insensitive', async () => {
         const rows = await billsFor(lowercaseStateId);
         expect(rows).toHaveLength(1);
         // July event → presumed Aug 1 → factor 0.92: 878,000 × 0.0125 × 0.92
@@ -313,8 +313,8 @@ describe('computeSupplementalTaxForProperties', () => {
         expect(Number(rows[0].amount)).toBe(10_097);
     });
 
-    it('computeSupplementalTaxForProperties — skip reasons — each counted once and summed into skippedTotal', async () => {
-        expect(firstRun.caProperties).toBe(6);
+    it('syncSupplementalTaxForProperties — skip reasons — each counted once and summed into skippedTotal', async () => {
+        expect(firstRun.supplementalStateProperties).toBe(6);
         expect(firstRun.skippedNoPrice).toBe(1);
         expect(firstRun.skippedNoPriorValue).toBe(1);
         expect(firstRun.skippedZeroOrInvalid).toBe(1);
@@ -327,15 +327,15 @@ describe('computeSupplementalTaxForProperties', () => {
         expect(await billsFor(zeroDiffId)).toHaveLength(0);
     });
 
-    it('computeSupplementalTaxForProperties — re-run — refreshes rows in place via the upsert (idempotent)', async () => {
-        const again = await computeSupplementalTaxForProperties([workedExampleId]);
+    it('syncSupplementalTaxForProperties — re-run — refreshes rows in place via the upsert (idempotent)', async () => {
+        const again = await syncSupplementalTaxForProperties([workedExampleId]);
         expect(again.rowsWritten).toBe(1); // same (transaction, FY) row rewritten, not duplicated
         const rows = await billsFor(workedExampleId);
         expect(rows).toHaveLength(1);
         expect(Number(rows[0].amount)).toBe(9_109.25);
     });
 
-    it('computeSupplementalTaxForProperties — recompute — purges rows the recomputation no longer produces', async () => {
+    it('syncSupplementalTaxForProperties — recompute — purges rows the recomputation no longer produces', async () => {
         // A stale orphan (e.g. left behind by an older FY-labeling model) on the same
         // transaction: a plain upsert can never remove it, --recompute must.
         await db.insert(supplementalTaxBills).values({
@@ -352,7 +352,7 @@ describe('computeSupplementalTaxForProperties', () => {
             priorValueSource: 'assessment',
         });
 
-        const recomputed = await computeSupplementalTaxForProperties([workedExampleId], {
+        const recomputed = await syncSupplementalTaxForProperties([workedExampleId], {
             recompute: true,
         });
         expect(recomputed.rowsWritten).toBe(1);
@@ -371,7 +371,7 @@ describe('insertSupplementalTaxBills', () => {
             { property: { property_id: SFR_IDS.workedExample } },
         ] as unknown as PropertyWithStatus[];
         const result = await insertSupplementalTaxBills(items, 'TEST');
-        expect(result.caProperties).toBe(1);
+        expect(result.supplementalStateProperties).toBe(1);
         expect(result.rowsWritten).toBe(1); // existing row refreshed via the upsert
         expect(await billsFor(workedExampleId)).toHaveLength(1);
     });
@@ -379,7 +379,7 @@ describe('insertSupplementalTaxBills', () => {
     it('insertSupplementalTaxBills — no resolvable SFR ids — returns the empty result without querying', async () => {
         const items = [{ property: {} }] as unknown as PropertyWithStatus[];
         const result = await insertSupplementalTaxBills(items, 'TEST');
-        expect(result.caProperties).toBe(0);
+        expect(result.supplementalStateProperties).toBe(0);
         expect(result.rowsWritten).toBe(0);
     });
 });

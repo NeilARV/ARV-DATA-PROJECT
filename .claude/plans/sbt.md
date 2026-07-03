@@ -347,7 +347,7 @@ The naive "immediately preceding transaction" is wrong in this data: the precedi
 Arm's-length rows with `sale_price` NULL or ≤ 0 are common in SFR data (`computeSaleRatios` and `calculateSpread` both guard on `price > 0`). A qualifying transaction additionally requires `salePrice > 0` — otherwise skip (counted in the skip log). Also note money columns are Drizzle `decimal` → **strings** in TS; the step converts with `Number(...)` on read and back to strings on insert (existing `toDecimal` pattern).
 
 **E. The shared routine should be batch-shaped (DB.NO-NPLUS1).**
-Instead of `computeSupplementalTaxForProperty(propertyId)` called in a loop, make the shared routine `computeSupplementalTaxForProperties(propertyIds: string[])`: one `inArray` read of transactions, one of assessments, one of addresses (for the state gate), then per-property math in memory, then one batched insert. Step 12 calls it with the batch's property UUIDs (resolved from `sfr_property_id`, since `insertProperties` doesn't return per-property IDs); the backfill calls it with each page of CA property IDs. Same single implementation, no N+1 in the backfill path.
+Instead of `computeSupplementalTaxForProperty(propertyId)` called in a loop, make the shared routine batch-shaped, taking `propertyIds: string[]` (built as `syncSupplementalTaxForProperties` — "sync" because it upserts and can purge, not just compute): one `inArray` read of transactions, one of assessments, one of addresses (for the state gate), then per-property math in memory, then one batched insert. Step 12 calls it with the batch's property UUIDs (resolved from `sfr_property_id`, since `insertProperties` doesn't return per-property IDs); the backfill calls it with each page of CA property IDs. Same single implementation, no N+1 in the backfill path.
 
 **F. State gate mechanics (clarifies §6 step 1).**
 `properties` has **no state column** — state lives on `addresses.state` (and in-pipeline on the raw item / `MSA_STATE`). Two-level gate:
@@ -388,7 +388,7 @@ Matching how every other property child table is wired:
 
 **Add**
 - `server/utils/supplementalTax.ts` — pure calculator, `SupplementalTaxInput/Bill` types, `getSupplementalTaxRate()` (returns the CA constant for now), BOE factor table.
-- `server/jobs/data_v2/processes/insert-supplemental-tax.ts` — Step 12 wrapper + exported `computeSupplementalTaxForProperties(propertyIds)`.
+- `server/jobs/data_v2/processes/insert-supplemental-tax.ts` — Step 12 wrapper + exported `syncSupplementalTaxForProperties(propertyIds)`.
 - `scripts/backfill-supplemental-tax.ts` + `backfill:supplemental-tax` npm script — pages CA property IDs (join `addresses` on `state = 'CA'`, keyset by `properties.id`), calls the shared routine, `--recompute` flag deletes+reinserts.
 - `tests/server/utils/supplementalTax.test.ts` — unit suite (§8, via `/test`).
 - `tests/server/jobs/supplemental-tax.integration.test.ts` — integration suite (§8, via `/test`; `tests/server/jobs/` already exists).
@@ -417,7 +417,7 @@ Matching how every other property child table is wired:
 
 1. `database/schemas/properties.schema.ts` + relations + inserts + types → `db:generate` → `db:push` → update `database.md`.
 2. `server/utils/supplementalTax.ts` (+ unit tests green — the §2 worked example is the anchor case).
-3. `server/jobs/data_v2/processes/insert-supplemental-tax.ts` with `computeSupplementalTaxForProperties`.
+3. `server/jobs/data_v2/processes/insert-supplemental-tax.ts` with `syncSupplementalTaxForProperties`.
 4. Wire consumer Step 12 (CA-MSA gate, renumber, totals) → `npm run check`.
 5. Verify live: consumer run with small `MAX_PROPERTIES_PER_MSA` against the **four** CA MSAs; spot-check rows incl. the 11.1-K assessment-labeling check.
 6. `scripts/backfill-supplemental-tax.ts` + npm entry; run once; re-run to prove idempotency.

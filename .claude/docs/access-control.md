@@ -175,6 +175,13 @@ Frontend flags: `isPremium`, `isPro`, `isBasic`, `subscription` (raw tier string
 > locked panel, so the previously-anonymous map teaser is no longer reachable through the UI. (The
 > public API rows are unchanged — this is a client-routing change only.)
 
+> **Field-level visibility on property reads:** `supplementalTaxBill` (the signed supplemental-tax
+> total on `GET /api/properties` and `GET /api/properties/:id`) is returned **only to
+> `admin`/`owner` callers** — resolved from the session in the controller via `isAdminOrOwner`
+> (`server/services/users/users.services.ts`), never from query params. Every other caller
+> (including unauthenticated on the public detail route) receives `null` for the field. This is
+> response shaping, not a `403` (mirrors the Deals field-stripping pattern in §5.4).
+
 ---
 
 ### 5.3 Companies (`/api/companies`)

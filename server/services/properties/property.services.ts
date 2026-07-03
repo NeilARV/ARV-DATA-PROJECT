@@ -24,6 +24,7 @@ import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { appendPropertyTransactions, reprocessProperty } from './propertyTransactions.services';
+import { getSupplementalTaxTotalsByTxId } from './properties.services';
 import { formatContactName } from '@shared/utils/formatContactName';
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -124,7 +125,71 @@ function detectAssignor(
 
 // ─── Get by ID ────────────────────────────────────────────────────────────────
 
-export async function getPropertyById(id: string) {
+interface GetPropertyByIdOptions {
+    /** Resolved by the controller from the requester's role (admin/owner only) — never from
+     *  query params, so clients can't opt themselves in. */
+    includeSupplementalTax?: boolean;
+}
+
+/** The property-detail payload returned by {@link getPropertyById} (GET /api/properties/:id). */
+export interface PropertyDetail {
+    id: string;
+    sfrPropertyId: number | null;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    latitude: number | null;
+    longitude: number | null;
+    bedrooms: number;
+    bathrooms: number;
+    squareFeet: number;
+    yearBuilt: number | null;
+    propertyType: string;
+    statuses: string[];
+    status: string;
+    price: number;
+    dateSold: string | null;
+    buyerId: string | null;
+    buyerCompanyName: string | null;
+    buyerContactName: string | null;
+    buyerContactEmail: string | null;
+    buyerContactPhone: string | null;
+    sellerId: string | null;
+    sellerCompanyName: string | null;
+    sellerName: string | null;
+    sellerContactName: string | null;
+    sellerContactEmail: string | null;
+    sellerContactPhone: string | null;
+    assignorId: string | null;
+    assignorCompanyName: string | null;
+    assignorContactName: string | null;
+    assignorContactEmail: string | null;
+    assignorContactPhone: string | null;
+    buyerPurchasePrice: number | null;
+    buyerPurchaseDate: string | null;
+    sellerPurchasePrice: number | null;
+    sellerPurchaseDate: string | null;
+    spread: number | null;
+    /** Signed supplemental-tax total (bill = −, refund = +); null unless the caller is admin/owner. */
+    supplementalTaxBill: number | null;
+    isFinancedByARV: boolean;
+    lenderName: string | null;
+    companyId: string | null;
+    companyName: string | null;
+    companyContactName: string | null;
+    companyContactEmail: string | null;
+    companyContactPhone: string | null;
+    propertyOwner: string | null;
+    propertyOwnerId: string | null;
+    purchasePrice: number;
+    saleValue: number;
+}
+
+export async function getPropertyById(
+    id: string,
+    { includeSupplementalTax = false }: GetPropertyByIdOptions = {},
+): Promise<PropertyDetail | null> {
     const [result] = await db
         .select({
             id: properties.id,
@@ -270,6 +335,13 @@ export async function getPropertyById(id: string) {
     const txBuyerCompany = txBuyerId ? (txCompanyMap.get(txBuyerId) ?? null) : null;
     const txSellerCompany = txSellerId ? (txCompanyMap.get(txSellerId) ?? null) : null;
 
+    // Supplemental tax bills attach to the displayed sale (admin/owner-only field).
+    let supplementalTaxBill: number | null = null;
+    if (includeSupplementalTax && latest) {
+        const supplementalTaxByTxId = await getSupplementalTaxTotalsByTxId([latest.id]);
+        supplementalTaxBill = supplementalTaxByTxId.get(latest.id) ?? null;
+    }
+
     // DB column is the authoritative manual override; fall back to transaction lender check
     const isFinancedByARV =
         result.isArvFunded || latest?.firstMtgLenderName?.trim().toUpperCase() === ARV_LENDER;
@@ -343,6 +415,7 @@ export async function getPropertyById(id: string) {
         sellerPurchasePrice,
         sellerPurchaseDate,
         spread,
+        supplementalTaxBill,
         isFinancedByARV,
         lenderName: latest?.firstMtgLenderName ?? result.lender ?? null,
         companyId: resolvedBuyerId || resolvedSellerId || null,

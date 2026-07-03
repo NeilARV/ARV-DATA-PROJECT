@@ -659,6 +659,11 @@ List properties with filtering, pagination, and sorting. Accepts many query para
 
 **Response `200`** `{ properties: [...], total: number, page: number }`
 
+Each property row includes `supplementalTaxBill` — the signed CA supplemental-tax total for the
+displayed sale (negative = bill owed, positive = refund). **Admin/owner only**: the controller
+resolves the caller's role from the session (never from query params); all other callers receive
+`null`. See `access-control.md` §5.2.
+
 ---
 
 ### `POST /api/properties`
@@ -752,6 +757,11 @@ Get a single property by its internal UUID.
 **Auth**: Public
 
 **Response `200`** Full property object · `404` not found
+
+The response includes `supplementalTaxBill` — the signed CA supplemental-tax total for the
+displayed sale (negative = bill owed, positive = refund). **Admin/owner only**: resolved from the
+session role; all other callers (including unauthenticated — the route is public) receive `null`.
+See `access-control.md` §5.2.
 
 ---
 

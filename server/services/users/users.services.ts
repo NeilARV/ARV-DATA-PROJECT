@@ -23,8 +23,9 @@ import {
     notExists,
     sql,
 } from 'drizzle-orm';
-import { PRIVILEGED_ROLES } from 'server/constants/roles.constants';
+import { ADMIN_ROLES, PRIVILEGED_ROLES } from 'server/constants/roles.constants';
 import type { SQL } from 'drizzle-orm';
+import type { Roles } from '@shared/types/users';
 
 /** Filters accepted by {@link getUserList}. All optional; an absent filter is not applied. */
 export interface UserListFilters {
@@ -224,20 +225,36 @@ export async function findUserProfile(userId: string) {
     return user ?? null;
 }
 
-export async function getCallerTeamRoleRows(callerId: string) {
+/** The user's team-role rows (user_roles ⋈ roles), optionally restricted to an allowed set. */
+function selectUserRoleRows(userId: string, allowed?: readonly Roles[]) {
     return db
         .select({ roleName: roles.name })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(and(eq(userRoles.userId, callerId), inArray(roles.name, [...PRIVILEGED_ROLES])));
+        .where(
+            allowed
+                ? and(eq(userRoles.userId, userId), inArray(roles.name, [...allowed]))
+                : eq(userRoles.userId, userId),
+        );
+}
+
+/**
+ * Whether the user holds an admin-level team role (admin or owner).
+ * @param userId the user to check; undefined (no session) returns false.
+ * @returns true when the user has at least one of ADMIN_ROLES.
+ */
+export async function isAdminOrOwner(userId: string | undefined): Promise<boolean> {
+    if (!userId) return false;
+    const [row] = await selectUserRoleRows(userId, ADMIN_ROLES).limit(1);
+    return row != null;
+}
+
+export async function getCallerTeamRoleRows(callerId: string) {
+    return selectUserRoleRows(callerId, PRIVILEGED_ROLES);
 }
 
 export async function getUserTeamRoleRows(userId: string) {
-    return db
-        .select({ roleName: roles.name })
-        .from(userRoles)
-        .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .where(eq(userRoles.userId, userId));
+    return selectUserRoleRows(userId);
 }
 
 export async function checkRoleAssigned(userId: string, roleId: number) {

@@ -27,6 +27,9 @@ export type Property = {
     sellerPurchasePrice: number | null;
     sellerPurchaseDate: string | null;
     spread: number | null;
+    // Supplemental tax total for the displayed sale (CA Prop 13), signed: negative = bill
+    // owed, positive = refund. null when none exists or the requester isn't admin/owner.
+    supplementalTaxBill: number | null;
     // Buyer company info
     buyerId: string | null;
     buyerCompanyName: string | null;

@@ -18,18 +18,22 @@
 
 import 'dotenv/config';
 import { db } from 'server/storage';
-import { and, asc, eq, gt, ilike, or } from 'drizzle-orm';
+import { and, asc, eq, gt, or, sql } from 'drizzle-orm';
 import { properties, addresses } from '@database/schemas/properties.schema';
 import { SUPPLEMENTAL_TAX_STATES } from 'server/utils/supplementalTax';
-import { computeSupplementalTaxForProperties } from 'server/jobs/data_v2/processes/insert-supplemental-tax';
+import { syncSupplementalTaxForProperties } from 'server/jobs/data_v2/processes/insert-supplemental-tax';
 
 const PAGE_SIZE = 500;
 
-// Case-insensitive exact match (ilike without wildcards): addresses.state is stored
-// verbatim from SFR, so 'Ca'/'ca' must page too. Derived from the same set the
-// pipeline gates on, so enabling a new state covers the backfill automatically.
+// Case- AND whitespace-tolerant exact match, mirroring isSupplementalTaxState (the routine's
+// per-property gate): addresses.state is stored verbatim from SFR, so 'ca'/' CA ' must page too —
+// otherwise the two gates would disagree about which rows are billable. Derived from the same set
+// the pipeline gates on, so enabling a new state covers the backfill automatically.
 const supplementalStateFilter = or(
-    ...Array.from(SUPPLEMENTAL_TAX_STATES, (state) => ilike(addresses.state, state)),
+    ...Array.from(
+        SUPPLEMENTAL_TAX_STATES,
+        (state) => sql`upper(trim(${addresses.state})) = ${state}`,
+    ),
 );
 
 async function main() {
@@ -64,7 +68,7 @@ async function main() {
         if (page.length === 0) break;
         cursor = page[page.length - 1].id;
 
-        const result = await computeSupplementalTaxForProperties(
+        const result = await syncSupplementalTaxForProperties(
             page.map((row) => row.id),
             { recompute },
         );
