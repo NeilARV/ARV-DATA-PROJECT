@@ -58,7 +58,7 @@ export default function PropertyDetailPanel() {
             <AppDialog
                 open={showEditDialog}
                 onClose={() => setShowEditDialog(false)}
-                className="max-w-md"
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
             >
                 {showEditDialog && (
                     <UpdatePropertyDialog

@@ -46,7 +46,7 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
                 nested
                 open={showEditDialog}
                 onClose={() => setShowEditDialog(false)}
-                className="max-w-md"
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
             >
                 <UpdatePropertyDialog
                     onClose={() => setShowEditDialog(false)}
