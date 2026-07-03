@@ -48,8 +48,8 @@ The other states we operate in do **not** issue supplemental bills in this sense
 - Prior assessed value on the roll in 2026 ≈ **$122,000** (100k grown ~2%/yr for 10 yrs).
 - **Net supplemental value** = 1,000,000 − 122,000 = **$878,000**.
 - Flat rate (illustrative) **1.25%** → full-year supplemental = $10,975.
-- Sale in **August 2026** → proration factor **0.92** (≈11/12 of the fiscal year left).
-- **Supplemental bill ≈ $10,975 × 0.92 = $10,097** for FY 2026–27.
+- Sale in **August 2026** → presumed date Sep 1 (R&T §75.41(b)) → proration factor **0.83**.
+- **Supplemental bill = $10,975 × 0.83 = $9,109.25** for FY 2026–27.
 - (If instead the sale were in, say, **March**, it would produce **two** bills — see §4.3.)
 
 ---
@@ -123,31 +123,31 @@ Flat constant `CA_SUPPLEMENTAL_TAX_RATE`. Within CA the *rate* varies slightly b
 
 ### 4.3 Proration (fiscal year Jul 1 – Jun 30)
 
-Only a *slice* of the fiscal year remains after a mid-year sale, so the full-year supplemental is multiplied by a **proration factor** = months remaining in the fiscal year ÷ 12. This is the standard BOE / county-estimator table (event month → factor):
+Per **R&T §75.41(b)** the change of ownership is *presumed to have occurred on the first day of the month FOLLOWING* the actual event, and §75.41(c) prorates the full-year supplemental by the fraction of the fiscal year remaining from that presumed date. Statutory table (event month → presumed date → factor):
 
-| Event month | Months left | Factor |
-|-------------|-------------|--------|
-| July        | 12 | 1.00 |
-| August      | 11 | 0.92 |
-| September   | 10 | 0.83 |
-| October     | 9  | 0.75 |
-| November    | 8  | 0.67 |
-| December    | 7  | 0.58 |
-| January     | 6  | 0.50 |
-| February    | 5  | 0.42 |
-| March       | 4  | 0.33 |
-| April       | 3  | 0.25 |
-| May         | 2  | 0.17 |
-| June        | 1  | 0.08 |
+| Event month | Presumed date | Factor |
+|-------------|---------------|--------|
+| July        | Aug 1 | 0.92 |
+| August      | Sep 1 | 0.83 |
+| September   | Oct 1 | 0.75 |
+| October     | Nov 1 | 0.67 |
+| November    | Dec 1 | 0.58 |
+| December    | Jan 1 | 0.50 |
+| January     | Feb 1 | 0.42 |
+| February    | Mar 1 | 0.33 |
+| March       | Apr 1 | 0.25 |
+| April       | May 1 | 0.17 |
+| May         | Jun 1 | 0.08 |
+| June        | Jul 1 | — (no current-roll supplemental; single next-FY bill at 1.00, §75.41(c)(6)) |
 
-Implement as `factor = monthsRemaining / 12` (months counted from the event month through June inclusive), storing the exact fraction; the table above is the human-readable/reference form. (BOE's published factors are rounded to 2 decimals — confirm in §9 whether to match the rounded county figures or keep the exact fraction.)
+Implemented as the BOE published 2-decimal lookup table above (matches county estimator output; `decimal(5,4)` stores the values exactly).
 
 **The two-bill rule (Jan–May):** when the event occurs **January 1 – May 31**, the *next* fiscal year's regular roll was already set at the old value (lien date Jan 1), so the county issues **two** supplemental bills:
 
 1. **Current FY** — prorated by the factor above.
 2. **Next FY** — factor **1.00** (full year), `fiscalYear = currentFY + 1`.
 
-Events **June–December** produce a **single** bill. So `calculateSupplementalTax` returns a 1- or 2-element array — the reason storage is a table (§5), not columns. The rule is sign-agnostic: a Jan–May **refund** likewise produces two `refund` rows.
+Events **July–December** produce a **single** current-FY bill; a **June** event produces a **single next-FY bill at 1.00** (its presumed date, July 1, leaves no current-roll share). So the schedule is a 1- or 2-element array — the reason storage is a table (§5), not columns. The rule is sign-agnostic: a Jan–May **refund** likewise produces two `refund` rows. Each slot's prior value is resolved against **its own fiscal year's roll** (the two slots of a Jan–May event have different rolls).
 
 **Fiscal-year labeling:** event month Jul–Dec → `fiscalYear = eventYear`; event month Jan–Jun → `fiscalYear = eventYear − 1`. Second bill = `fiscalYear + 1`.
 
@@ -322,4 +322,104 @@ These are **deliberate choices for v1**, not unknowns — recorded here so they'
 5. **Verify** — `npm run check`, run the consumer against a small `MAX_PROPERTIES_PER_MSA` on CA MSAs (San Diego/LA/SF), eyeball rows.
 6. **Backfill** — `backfill-supplemental-tax.ts` (§6b); run once over existing CA properties after the step is verified.
 7. **Docs** — agent-updater pass for `database.md` / `apps.md`.
+
+---
+
+## 11. Codebase-scan amendments (supersede the sections they reference)
+
+Result of a full read of `database/`, `server/jobs/data_v2/` (consumer + all processes), `server/utils/orderTransactions.ts`, `server/utils/propertyDataHelpers.ts`, existing backfill scripts, and the DB standards. **The feature is purely additive — nothing in the existing codebase needs to be removed.** The corrections below adjust §3, §4.4, §6, §6b, and §7.
+
+### 11.1 Corrections to the original plan
+
+**A. Calculator lives in `server/utils/`, not `shared/utils/` (supersedes §3, §7).**
+CLAUDE.md's organization rule is explicit: `shared/` means "imported by both client and server," and a type/util moves outward only when a wider consumer appears. v1 is backend-only, and the direct precedent is `server/utils/orderTransactions.ts` — pure transaction math, server-side. So:
+- `server/utils/supplementalTax.ts` (pure calculator + rate constant/lookup)
+- `tests/server/utils/supplementalTax.test.ts`
+Moving it to `shared/` later (when the UI needs to re-derive or display breakdowns) is a two-line import change.
+
+**B. Backfill follows the existing `scripts/` convention (supersedes §6b, §7).**
+Backfills in this repo are `scripts/backfill-*.ts` with a `backfill:*` npm entry (`backfill:reo`, `backfill:purchase-arv-ratio` — see `scripts/backfill-purchase-arv-ratio.ts` for the exact skeleton: `import 'dotenv/config'`, `main().catch(...).finally(process.exit)`). So: `scripts/backfill-supplemental-tax.ts` + `"backfill:supplemental-tax": "tsx scripts/backfill-supplemental-tax.ts"`. Not `server/jobs/data_v2/`.
+
+**C. Prior-transaction fallback must be chain-aware, not "immediately preceding" (supersedes §4.4 item 2).**
+The naive "immediately preceding transaction" is wrong in this data: the preceding row is frequently a REFI/HELOC (no meaningful price) or a Non-Arms-Length transfer (individual → LLC, $0). The codebase already solves exactly this problem: `traceAcquisition` / the `computeSaleRatios` pattern in `server/utils/orderTransactions.ts` finds, for a given arm's-length sale, **the seller's own acquisition price** — traced through Non-Arms-Length transfers to the seller's arm's-length purchase (price > 0). That seller-acquisition price *is* the property's current Prop-13 base value, which is precisely the "prior assessed value" the supplemental bill measures against (modulo the ~2%/yr drift we're not modeling). Fallback 2 therefore = "seller's traced acquisition price via the shared chain helpers," and `prior_value_source = 'prior_transaction'` keeps its name.
+
+**D. Skip zero/null sale prices (gap in §4.5).**
+Arm's-length rows with `sale_price` NULL or ≤ 0 are common in SFR data (`computeSaleRatios` and `calculateSpread` both guard on `price > 0`). A qualifying transaction additionally requires `salePrice > 0` — otherwise skip (counted in the skip log). Also note money columns are Drizzle `decimal` → **strings** in TS; the step converts with `Number(...)` on read and back to strings on insert (existing `toDecimal` pattern).
+
+**E. The shared routine should be batch-shaped (DB.NO-NPLUS1).**
+Instead of `computeSupplementalTaxForProperty(propertyId)` called in a loop, make the shared routine batch-shaped, taking `propertyIds: string[]` (built as `syncSupplementalTaxForProperties` — "sync" because it upserts and can purge, not just compute): one `inArray` read of transactions, one of assessments, one of addresses (for the state gate), then per-property math in memory, then one batched insert. Step 12 calls it with the batch's property UUIDs (resolved from `sfr_property_id`, since `insertProperties` doesn't return per-property IDs); the backfill calls it with each page of CA property IDs. Same single implementation, no N+1 in the backfill path.
+
+**F. State gate mechanics (clarifies §6 step 1).**
+`properties` has **no state column** — state lives on `addresses.state` (and in-pipeline on the raw item / `MSA_STATE`). Two-level gate:
+- **Consumer level:** skip the entire Step 12 call when `MSA_STATE[msa.name] !== 'CA'` (free, no queries for CO/FL/WA MSAs).
+- **Routine level:** inside the shared routine, join/read `addresses.state === 'CA'` per property (this is the gate the backfill and any future caller relies on; also covers a CA property in a mis-keyed MSA).
+- The pure function keeps its own `state !== 'CA' → []` guard as the last line of defense.
+
+**G. There are FOUR CA MSAs (corrects §10 step 5).**
+`msa-states.ts`: Los Angeles, **Riverside–San Bernardino–Ontario**, San Diego, San Francisco. Verification and backfill cover all four.
+
+**H. Schema plumbing is more than one file (expands §7 "Touch").**
+Matching how every other property child table is wired:
+- `database/schemas/properties.schema.ts` — table + `supplemental_bill_type` pgEnum (pgEnum is the established convention: `deal_type`, `claim_status`, `channel_type`; the closed set `bill|refund` fits. `prior_value_source` stays `varchar` since new sources may appear).
+- `database/inserts/properties.insert.ts` — `insertSupplementalTaxBillSchema = createInsertSchema(...).omit({ supplementalTaxBillsId: true, createdAt: true, updatedAt: true })`.
+- `database/types/properties.d.ts` — `SupplementalTaxBill` (`$inferSelect`) + `InsertSupplementalTaxBill` (z.infer).
+- `database/schemas/relations.schema.ts` — add to `propertiesRelations` (`many`) + a `supplementalTaxBillsRelations` block (property + transaction).
+- `database/schemas/index.ts` — no change (barrel already re-exports `properties.schema`).
+- **Migration:** the repo keeps generated SQL history in `database/drizzle/` (`0000`–`0008`). Run `npm run db:generate` to emit the migration file, then `db:push`/`db:migrate` per the team's usual flow — not push-only, or the SQL history silently drifts.
+
+**I. Consumer wiring detail (confirms §6).**
+`consumer.ts` currently labels `insertProperties` Step 11, `updateArvClientCompanies` Step 12, `updatePurchaseToArvRatios` Step 13. New step slots in as Step 12; renumber the two comment labels after it; extend the run-summary `totals` with SBT counters (see 11.2 #4). The new process file signature mirrors `updatePurchaseToArvRatios(properties, cityCode)` — it receives the in-memory batch only to extract `sfr_property_id`s and the MSA state gate; all bill inputs are read back from the DB (transactions need their serial IDs anyway).
+
+**J. User-created transactions get bills too (new decision, default: yes).**
+`insertProperties` wipes only `user_created = false` rows each sync; user-created transactions persist with stable IDs. Because the routine reads transactions from the DB, a user-created row with `transaction_type = 'Arms Length'` and a price naturally qualifies. No special-casing — the `isArmsLength` + price filters are the only gates. (Consequence: their bills persist across syncs via their stable transaction IDs; pipeline-row bills are dropped by cascade and recreated each sync, exactly as §5's lifecycle note says.)
+
+**K. Assessment-vs-sale-year semantics — verify against real data (refines §4.4 item 1 and §9b).**
+`transformAssessmentData` writes **one** assessment row per sync (the current `assessed_year` snapshot); history accrues only one year per year of syncing. Under CA lien-date semantics, `assessed_year <= sale year` is correct (the sale-year roll was set Jan 1, before any mid-year sale). The risk is purely about **SFR's labeling**: if SFR ever stamps a post-sale reassessed value with the sale year, `<=` would yield net ≈ 0 and silently produce no bill. During §10 step 5 verification, spot-check recent CA sales: if `prior_assessed_value ≈ new_base_value` on rows where the sale clearly repriced the property, switch the resolution to `assessed_year < sale year`. Decide from data, not theory.
+
+### 11.2 Recommendations for the §9b open items
+
+1. **Rate:** keep **1.25%** (matches the §2 worked example; realistic CA effective rate with local add-ons). It's one constant and every row persists its `tax_rate`, so changing it is a constant edit + `--recompute` backfill.
+2. **Proration precision:** use the **BOE published 2-decimal factors** as a 12-entry lookup table keyed by event month (see the statutory §4.3 table — factors run from the *presumed* first-of-following-month date, so July = 0.92 and June routes to the next FY at 1.00), not the exact fraction — output then matches county estimator numbers users can cross-check, and `decimal(5,4)` stores them exactly.
+3. **Event date:** `sale_date` — it's `NOT NULL` in `property_transactions`, so no fallback branch is needed at all (the pure function's "missing date" guard only serves direct callers/tests).
+4. **Observability:** yes — the step logs per-MSA `bills/refunds inserted, skipped (no prior value | zero diff | no price)`, and the consumer's final `totals` line gains `sbtBillsInserted` / `sbtSkipped`.
+5. **Future rate scaling hook (note for the county upgrade):** `tax_records.tax_rate_code_area` (TRA) and `addresses.county` are already persisted per property — the v2 per-county/per-TRA rate lookup (`getSupplementalTaxRate({ state, county, tra })`) has its inputs in the DB today. Design the v1 constant behind that function signature so callers never change.
+
+### 11.3 Revised file manifest
+
+**Add**
+- `server/utils/supplementalTax.ts` — pure calculator, `SupplementalTaxInput/Bill` types, `getSupplementalTaxRate()` (returns the CA constant for now), BOE factor table.
+- `server/jobs/data_v2/processes/insert-supplemental-tax.ts` — Step 12 wrapper + exported `syncSupplementalTaxForProperties(propertyIds)`.
+- `scripts/backfill-supplemental-tax.ts` + `backfill:supplemental-tax` npm script — pages CA property IDs (join `addresses` on `state = 'CA'`, keyset by `properties.id`), calls the shared routine, `--recompute` flag deletes+reinserts.
+- `tests/server/utils/supplementalTax.test.ts` — unit suite (§8, via `/test`).
+- `tests/server/jobs/supplemental-tax.integration.test.ts` — integration suite (§8, via `/test`; `tests/server/jobs/` already exists).
+- `database/drizzle/00XX_supplemental_tax_bills.sql` — via `db:generate`.
+
+**Touch**
+- `database/schemas/properties.schema.ts` — table + enum (per §5, unchanged).
+- `database/schemas/relations.schema.ts`, `database/inserts/properties.insert.ts`, `database/types/properties.d.ts` — plumbing (11.1-H).
+- `server/jobs/data_v2/consumer.ts` — import + Step 12 call behind the `MSA_STATE` CA gate, renumber comments, totals counters.
+- `package.json` — backfill script entry.
+- Docs (agent-updater): `database.md` (table + enum), `apps.md` Data section (pipeline step list — note it currently cites the stale path `server/jobs/consumer.ts`; actual is `server/jobs/data_v2/consumer.ts`).
+
+**Remove** — nothing. The feature is additive end to end.
+
+### 11.4 Build-time decisions (found during implementation, owner-approved)
+
+**Prior value = the more recent of roll vs seller's acquisition (supersedes §4.4 resolution order and 11.1-C's "fallback" framing).** Spot-checking real rows showed assessment-first mislabels flip resales: a property bought 3/2026 for $285k and resold 4/2026 for $410k was measured against the old owner's $413k roll → phantom refund. CA reassesses the base at each sale, so when the seller's traced acquisition is more recent than the assessment's lien date (Jan 1 of the assessed year), the acquisition price wins. Long-held properties still use the roll. `prior_value_source` records which won. (Owner approved 2026-07-02.)
+
+**SFR 40-char name truncation repair (new, scoped to the SBT routine).** SFR truncates `SELLER1_NAME` at exactly 40 chars ("…DEVELOPMENT GROU" vs the buyer-side "…DEVELOPMENT GROUP INC"), which breaks the ownership-chain trace for exactly the flip cases above. `insert-supplemental-tax.ts` repairs names within one property's history before tracing: only names at exactly width 40, only when exactly one longer name (normalized) extends them. Global matching in `orderTransactions.ts` is untouched — note the same truncation likely affects wholesale-status detection (`resolve-status.ts`); flagged as a separate follow-up, not changed here.
+
+**11.1-K resolved:** SFR's `assessed_year` labeling checked out against real data (2025 roll = prior owner's Prop-13 value for a 2026 sale); `assessed_year <= sale year` stands.
+
+**Migration flow note (amends 11.1-H):** `db:generate`/`db:push` both stall on pre-existing drift — the migration snapshot is stale (deals-table drift) and push's introspection repeatedly re-prompts for the `market_scan_queue` `uq_msq_msa_property` constraint even when it exists (drizzle-kit 0.31.4 quirk). The table/enum/indexes were applied via manual DDL matching the schema exactly (verified against pg_catalog). Future `db:push` runs will re-prompt about `uq_msq_msa_property`; answering "No, add without truncating" will error harmlessly ("already exists") — a drizzle-kit upgrade is the real fix.
+
+### 11.5 Revised build order
+
+1. `database/schemas/properties.schema.ts` + relations + inserts + types → `db:generate` → `db:push` → update `database.md`.
+2. `server/utils/supplementalTax.ts` (+ unit tests green — the §2 worked example is the anchor case).
+3. `server/jobs/data_v2/processes/insert-supplemental-tax.ts` with `syncSupplementalTaxForProperties`.
+4. Wire consumer Step 12 (CA-MSA gate, renumber, totals) → `npm run check`.
+5. Verify live: consumer run with small `MAX_PROPERTIES_PER_MSA` against the **four** CA MSAs; spot-check rows incl. the 11.1-K assessment-labeling check.
+6. `scripts/backfill-supplemental-tax.ts` + npm entry; run once; re-run to prove idempotency.
+7. Integration tests via `/test`; docs via agent-updater.
 ```

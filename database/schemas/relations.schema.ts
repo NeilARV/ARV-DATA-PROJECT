@@ -28,6 +28,7 @@ import {
     lastSales,
     currentSales,
     propertyTransactions,
+    supplementalTaxBills,
 } from './properties.schema';
 import {
     channels,
@@ -77,6 +78,7 @@ export const propertiesRelations = relations(properties, ({ one, many }) => ({
     taxRecords: many(taxRecords),
     valuations: many(valuations),
     transactions: many(propertyTransactions),
+    supplementalTaxBills: many(supplementalTaxBills),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
@@ -177,7 +179,7 @@ export const currentSalesRelations = relations(currentSales, ({ one }) => ({
     }),
 }));
 
-export const propertyTransactionsRelations = relations(propertyTransactions, ({ one }) => ({
+export const propertyTransactionsRelations = relations(propertyTransactions, ({ one, many }) => ({
     property: one(properties, {
         fields: [propertyTransactions.propertyId],
         references: [properties.id],
@@ -191,6 +193,18 @@ export const propertyTransactionsRelations = relations(propertyTransactions, ({ 
         fields: [propertyTransactions.sellerId],
         references: [companies.id],
         relationName: 'transactionSeller',
+    }),
+    supplementalTaxBills: many(supplementalTaxBills),
+}));
+
+export const supplementalTaxBillsRelations = relations(supplementalTaxBills, ({ one }) => ({
+    property: one(properties, {
+        fields: [supplementalTaxBills.propertyId],
+        references: [properties.id],
+    }),
+    transaction: one(propertyTransactions, {
+        fields: [supplementalTaxBills.propertyTransactionId],
+        references: [propertyTransactions.propertyTransactionsId],
     }),
 }));
 

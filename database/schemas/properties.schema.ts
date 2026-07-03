@@ -1,5 +1,6 @@
 import {
     pgTable,
+    pgEnum,
     uuid,
     bigint,
     varchar,
@@ -377,5 +378,57 @@ export const propertyTransactions = pgTable(
         // Supports the company-filter assignor branch (EXISTS ... assignor_id = :id) and
         // the per-company "properties assigned" count on the company profile.
         index('idx_pt_assignor').on(t.assignorId),
+    ],
+);
+
+// 'bill' = reassessed value rose (owner owes); 'refund' = value fell (owner is credited).
+// Amounts are stored as positive magnitudes — the direction lives in this discriminator.
+export const supplementalBillTypeEnum = pgEnum('supplemental_bill_type', ['bill', 'refund']);
+
+// Supplemental Tax Bills (CA-only for now — Prop 13 reassessment on change of ownership).
+// One row per (triggering arm's-length transaction, fiscal year); a Jan–May event yields
+// two rows (current FY prorated + next FY at factor 1.00) and a June event a single
+// next-FY row (R&T §75.41). Pipeline transactions are recreated each sync (the FK
+// cascade wipes their bills) and every row is upserted on (transaction, fiscal year),
+// so recomputes also refresh bills on user-created transactions, whose ids are stable.
+export const supplementalTaxBills = pgTable(
+    'supplemental_tax_bills',
+    {
+        supplementalTaxBillsId: serial('supplemental_tax_bills_id').primaryKey(),
+        propertyId: uuid('property_id')
+            .notNull()
+            .references(() => properties.id, { onDelete: 'cascade' }),
+        propertyTransactionId: integer('property_transaction_id')
+            .notNull()
+            .references(() => propertyTransactions.propertyTransactionsId, {
+                onDelete: 'cascade',
+            }),
+        // Starting calendar year of the fiscal year (2026 = FY 2026-27)
+        fiscalYear: integer('fiscal_year').notNull(),
+        billType: supplementalBillTypeEnum('bill_type').notNull(),
+        priorAssessedValue: decimal('prior_assessed_value', { precision: 15, scale: 2 }),
+        newBaseValue: decimal('new_base_value', { precision: 15, scale: 2 }).notNull(),
+        // |new_base_value - prior_assessed_value| — positive magnitude
+        netSupplementalValue: decimal('net_supplemental_value', {
+            precision: 15,
+            scale: 2,
+        }).notNull(),
+        taxRate: decimal('tax_rate', { precision: 6, scale: 4 }).notNull(),
+        prorationFactor: decimal('proration_factor', { precision: 5, scale: 4 }).notNull(),
+        // round(net_supplemental_value * tax_rate * proration_factor) — positive magnitude
+        amount: decimal('amount', { precision: 15, scale: 2 }).notNull(),
+        // 'assessment' | 'prior_transaction' — which prior-value source produced this bill
+        // No updated_at: every write fully recomputes the row (the upsert overwrites
+        // all value columns), so a per-row timestamp would add nothing.
+        priorValueSource: varchar('prior_value_source', { length: 20 }).notNull(),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+    },
+    (t) => [
+        // At most the current + next-FY pair per event; makes recompute idempotent.
+        // Named explicitly — the auto-generated name would exceed Postgres's 63-char limit.
+        // Its index also serves transaction-id lookups (leading column), so no
+        // separate index on property_transaction_id is needed.
+        unique('uq_sbt_transaction_fiscal_year').on(t.propertyTransactionId, t.fiscalYear),
+        index('idx_sbt_property_id').on(t.propertyId),
     ],
 );

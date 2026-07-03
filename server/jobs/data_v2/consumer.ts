@@ -17,8 +17,10 @@ import { resolveStatuses } from './processes/resolve-status';
 import { cleanBeforeInsert } from './processes/clean-before-insert';
 import { resolveArvFunded } from './processes/is-arv-funded';
 import { insertProperties } from './processes/insert-properties';
+import { insertSupplementalTaxBills } from './processes/insert-supplemental-tax';
 import { updateArvClientCompanies } from './processes/is-arv-client';
 import { updatePurchaseToArvRatios } from './processes/update-purchase-arv-ratio';
+import { isSupplementalTaxState } from 'server/utils/supplementalTax';
 
 import type { BuyersMarketRecord } from './processes/get-market';
 import type { MarketScanQueue } from '@database/types/sync';
@@ -86,8 +88,8 @@ function queueRowToMarketRecord(row: MarketScanQueue, msaName: string): BuyersMa
  * Pipeline per batch:
  *   fetchQueue → markProcessing → batchLookup → getTransactions →
  *   cleanTransactions → insertCompanies → resolvePropertyIds → resolveStatus →
- *   cleanBeforeInsert → insertProperties → updateArvClientCompanies →
- *   updatePurchaseToArvRatios → markComplete
+ *   cleanBeforeInsert → insertProperties → insertSupplementalTaxBills (supplemental-tax states) →
+ *   updateArvClientCompanies → updatePurchaseToArvRatios → markComplete
  */
 export async function runConsumer(): Promise<void> {
     const label = '[CONSUMER]';
@@ -122,10 +124,22 @@ export async function runConsumer(): Promise<void> {
         propertiesUpdated: 0,
         transactionsInserted: 0,
         propertiesFailed: 0,
+        sbtRowsWritten: 0,
+        sbtSkipped: 0,
+        sbtStepFailures: 0,
     };
 
     for (const msa of msaList) {
         const msaLabel = `${label}[${msa.name}]`;
+        // msaList is DB-driven while MSA_STATE is a hand-maintained map — a miss here
+        // silently degrades the state fallback AND disables Step 12 for the whole
+        // MSA, so make it loud (new/renamed MSAs must be added to msa-states.ts).
+        if (MSA_STATE[msa.name] === undefined) {
+            console.warn(
+                `${msaLabel} No MSA_STATE entry — state fallback and supplemental tax ` +
+                    `are disabled until msa-states.ts is updated`,
+            );
+        }
         let batchNum = 0;
         let processedThisMsa = 0;
 
@@ -303,10 +317,34 @@ export async function runConsumer(): Promise<void> {
                     cityCode: msa.name,
                 });
 
-                // ── Step 12: Mark companies as ARV clients from resolved transactions ─
+                // ── Step 12: Compute supplemental tax bills (supplemental-tax states) ─
+                // Must run after insertProperties — bills FK to the fresh transaction
+                // IDs. Isolated try/catch: Step 11 already cascade-wiped the batch's
+                // old bills, so a Step-12 failure must not mark the (successfully
+                // inserted) batch failed — failed queue rows are never auto-retried.
+                // Log loudly; the backfill script repairs missed bills.
+                if (isSupplementalTaxState(MSA_STATE[msa.name])) {
+                    try {
+                        const sbtResult = await insertSupplementalTaxBills(
+                            propertiesToInsertWithArv,
+                            msa.name,
+                        );
+                        totals.sbtRowsWritten += sbtResult.rowsWritten;
+                        totals.sbtSkipped += sbtResult.skippedTotal;
+                    } catch (err) {
+                        totals.sbtStepFailures += 1;
+                        console.error(
+                            `${msaLabel} Batch ${batchNum}: supplemental tax step failed ` +
+                                `(recoverable via backfill:supplemental-tax):`,
+                            err,
+                        );
+                    }
+                }
+
+                // ── Step 13: Mark companies as ARV clients from resolved transactions ─
                 await updateArvClientCompanies(propertiesToInsertWithArv, msa.name);
 
-                // ── Step 13: Recompute purchase-to-ARV ratio for affected seller companies ─
+                // ── Step 14: Recompute purchase-to-ARV ratio for affected seller companies ─
                 await updatePurchaseToArvRatios(propertiesToInsertWithArv, msa.name);
 
                 // ── Mark complete only for properties that were not individually failed ──
@@ -353,6 +391,8 @@ export async function runConsumer(): Promise<void> {
             `${totals.batches} batches, ` +
             `${totals.propertiesProcessed} processed (${totals.propertiesInserted} new / ${totals.propertiesUpdated} updated), ` +
             `${totals.transactionsInserted} transactions, ` +
+            `${totals.sbtRowsWritten} supplemental tax rows ` +
+            `(${totals.sbtSkipped} tx skipped, ${totals.sbtStepFailures} step failures), ` +
             `${totals.propertiesFailed} failed`,
     );
 }

@@ -14,6 +14,7 @@ import {
     currentSales,
     streetviewCache,
     propertyTransactions,
+    supplementalTaxBills,
 } from '../schemas';
 import { z } from 'zod';
 
@@ -74,6 +75,11 @@ export const insertStreetviewCacheSchema = createInsertSchema(streetviewCache).o
 
 export const insertPropertyTransactionSchema = createInsertSchema(propertyTransactions).omit({
     propertyTransactionsId: true,
+    createdAt: true,
+});
+
+export const insertSupplementalTaxBillSchema = createInsertSchema(supplementalTaxBills).omit({
+    supplementalTaxBillsId: true,
     createdAt: true,
 });
 

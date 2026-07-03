@@ -4,6 +4,7 @@ import {
     calculateSpread,
     computeSaleRatios,
     isArmsLength,
+    expandTruncatedNames,
 } from '../../../server/utils/orderTransactions';
 
 /** Buyer name across either naming convention (mapped camelCase or raw SFR UPPERCASE). */
@@ -958,7 +959,11 @@ describe('computeSaleRatios', () => {
             },
         ]);
         expect(ratios).toHaveLength(1);
-        expect(ratios[0]).toMatchObject({ sellerId: 'A', purchasePrice: 200000, soldPrice: 280000 });
+        expect(ratios[0]).toMatchObject({
+            sellerId: 'A',
+            purchasePrice: 200000,
+            soldPrice: 280000,
+        });
         expect(ratios[0].ratio).toBeCloseTo(0.7143, 4);
     });
 
@@ -1019,7 +1024,11 @@ describe('computeSaleRatios', () => {
             },
         ]);
         expect(ratios).toHaveLength(1);
-        expect(ratios[0]).toMatchObject({ sellerId: 'A-LLC', purchasePrice: 200000, soldPrice: 300000 });
+        expect(ratios[0]).toMatchObject({
+            sellerId: 'A-LLC',
+            purchasePrice: 200000,
+            soldPrice: 300000,
+        });
         expect(ratios[0].ratio).toBeCloseTo(0.6667, 4);
     });
 
@@ -1102,5 +1111,47 @@ describe('computeSaleRatios', () => {
         expect(ratios).toHaveLength(1);
         expect(ratios[0]).toMatchObject({ purchasePrice: 400000, soldPrice: 500000 });
         expect(ratios[0].ratio).toBeCloseTo(0.8, 4);
+    });
+});
+
+describe('expandTruncatedNames', () => {
+    const FULL = 'GOLDEN STATE ACQUISITIONS DEVELOPMENT GROUP INC';
+    const TRUNCATED = FULL.slice(0, 40);
+
+    it('expandTruncatedNames — mid-word 40-char truncation with one extension — expands to the full name', () => {
+        expect(TRUNCATED).toHaveLength(40);
+        const [resale, acquisition] = expandTruncatedNames([
+            { buyerName: 'END BUYER', sellerName: TRUNCATED },
+            { buyerName: FULL, sellerName: 'ORIGINAL OWNER' },
+        ]);
+        expect(resale.sellerName).toBe(FULL);
+        expect(acquisition.buyerName).toBe(FULL);
+    });
+
+    it('expandTruncatedNames — complete 40-char name whose extension adds a whole word — left untouched (distinct entity, not a truncation)', () => {
+        const COMPLETE = 'PACIFIC COAST INVESTMENT PARTNERS II LLC';
+        expect(COMPLETE).toHaveLength(40);
+        const SERIES = `${COMPLETE} SERIES B`;
+        const [resale, sibling] = expandTruncatedNames([
+            { buyerName: 'END BUYER', sellerName: COMPLETE },
+            { buyerName: SERIES, sellerName: 'UNRELATED SELLER' },
+        ]);
+        expect(resale.sellerName).toBe(COMPLETE);
+        expect(sibling.buyerName).toBe(SERIES);
+    });
+
+    it('expandTruncatedNames — ambiguous prefix (two distinct mid-word extensions) — left untouched', () => {
+        const OTHER_FULL = 'GOLDEN STATE ACQUISITIONS DEVELOPMENT GRAND LLC';
+        const [resale] = expandTruncatedNames([
+            { buyerName: 'END BUYER', sellerName: TRUNCATED },
+            { buyerName: FULL, sellerName: 'OWNER A' },
+            { buyerName: OTHER_FULL, sellerName: 'OWNER B' },
+        ]);
+        expect(resale.sellerName).toBe(TRUNCATED);
+    });
+
+    it('expandTruncatedNames — no over-width names in the history — rows returned unchanged', () => {
+        const rows = [{ buyerName: 'SHORT BUYER', sellerName: TRUNCATED }];
+        expect(expandTruncatedNames(rows)).toBe(rows);
     });
 });

@@ -1,445 +1,450 @@
-# Data Pipeline Simplification — Property-as-Root Foundation
+# Pipeline Redesign — Store Every Transaction
 
-> **Status:** Design / pre-build. No code changes yet — this is the plan we react to before
-> touching the pipeline.
->
-> **Goal (in the user's words):** make the data pipeline *simpler* and *get more data, more
-> efficiently*, and in doing so **lock down the foundation** so the platform has a clear answer to
-> "are we showing properties or transactions?"
->
-> **One-line thesis:** the pipeline today fuses two unrelated jobs — *discovery* ("which properties
-> are worth spending API calls to pull?") and *semantics* ("what counts as a valid property once
-> pulled?"). Only the first belongs at ingestion. Pull the second job out — **stop discarding,
-> start classifying** — and the foundation gets simpler, more consistent, and broader, **without**
-> blowing up the rate-limited API budget.
->
-> Companion to [`code-violation.md`](./code-violation.md): the coverage this unlocks is exactly what
-> the code-violation matcher needs (more real property/address records to match complaints against).
+**Status:** Draft for review · **Owner:** Neil · **Last updated:** 2026-07-02
 
----
+## 0. Decisions locked in
 
-## 1. The problem in one paragraph
-
-A property's place in our database currently depends on **how it was discovered, not on what it
-is.** `cleanMarket` discards individual-to-individual records at discovery; the consumer then
-discards New Construction properties and properties whose status it can't resolve. Yet for every
-property we *do* keep, we store its **entire** transaction history — including the individual and
-non-arms-length rows we'd have rejected as a seed. The result is an internally inconsistent dataset
-and a muddled mental model: the grid is property-centric but keyed off the latest transaction, the
-company view is transaction-centric, and nobody can say in one sentence what the canonical entity
-is. We want the canonical entity to be the **property**, with transactions as **classified events**
-hanging off it — and we want the pipeline that builds it to be a straight line: *ingest → enrich →
-classify → store*, with no mid-stream "is this worthy?" discards.
-
----
-
-## 2. What the pipeline does today (verified against code, 2026-06-26)
-
-Two scanners ([`scan-window-a.ts`](../../server/jobs/data_v2/scan-window-a.ts) et al.) fetch the SFR
-`/buyers/market` feed per MSA, filter it, and enqueue rows into `market_scan_queue`. The consumer
-([`consumer.ts`](../../server/jobs/data_v2/consumer.ts)) drains the queue, enriching each property.
-
-### 2.1 The three filters (where data is dropped)
-
-| # | Filter | Stage | File | What it drops | Cost of the drop |
-|---|---|---|---|---|---|
-| 1 | **`cleanMarket`** — keep only records where buyer **or** seller is a flipping company | **Discovery** (scanner, pre-queue) | [`clean-market.ts:39`](../../server/jobs/data_v2/processes/clean-market.ts#L39) | Individual-to-individual market records — they never enter the queue, never become properties | This is a **throttle**, and it's load-bearing (see §2.3) |
-| 2 | **New Construction** — drop a property if **any** tx in its history is `new construction` | **Semantics** (consumer step 3) | [`consumer.ts:226`](../../server/jobs/data_v2/consumer.ts#L226) | Whole property excluded + `markFailed` | Aggressive — see §2.4 |
-| 3 | **Unresolved status** — drop a property if `resolveStatuses` returns `[]` | **Semantics** (consumer step 8) | [`consumer.ts:272`](../../server/jobs/data_v2/consumer.ts#L272) | Whole property excluded + `markFailed` | Drops legitimately-tracked properties — see §2.5 |
-
-### 2.2 What is therefore in the DB today — the hidden invariant
-
-Because of filter #1, **every property in our database has corporate activity somewhere in its
-history.** That invariant is implicit, undocumented, and **many read queries quietly depend on it**
-(§8). Filters #2 and #3 then carve additional, inconsistent holes in that set.
-
-Note the inconsistency that bothers us: an individual-to-individual or non-arms-length transaction is
-**rejected as a seed** (filter #1) but **kept as history** of any property we seed for another
-reason — because the consumer stores the *full* transaction chain
-([`get-transactions.ts:66-82`](../../server/jobs/data_v2/processes/get-transactions.ts#L66-L82),
-[`insert-properties.ts:380-433`](../../server/jobs/data_v2/processes/insert-properties.ts#L380-L433)).
-The same row is "garbage" or "signal" depending only on discovery path.
-
-### 2.3 Why `cleanMarket` is load-bearing (the API-cost reality)
-
-The consumer makes **one serialized `/properties/transactions` call per unique property**
-([`get-transactions.ts:66-82`](../../server/jobs/data_v2/processes/get-transactions.ts#L66-L82)),
-plus a shared batch lookup, with rate-limit delays between calls. This is exactly why throughput is
-capped at **`MAX_PROPERTIES_PER_MSA = 5` per run**
-([`consumer.ts:37`](../../server/jobs/data_v2/consumer.ts#L37)). `cleanMarket` is the throttle that
-keeps the per-property API budget pointed at properties worth enriching. Removing it does **not**
-"just store more rows" — it multiplies an already-saturated, rate-limited API spend and builds a
-queue backlog the consumer can never drain. **The classic "store everything, filter at query time"
-pattern works when ingestion is cheap; ours is metered and rate-limited, so that instinct does not
-transfer to discovery.** (It *does* transfer to classification — see §3.)
-
-### 2.4 The New Construction filter is more aggressive than it looks
-
-Filter #2 drops a property if **any** transaction in its *full* history is New Construction. So a
-new-build that is later flipped by a corporation — which *would* pass `cleanMarket` discovery — is
-**still** permanently excluded, because its history contains the original builder sale. This
-contradicts the intuition that "if it ever sells to a corporation it'll show up anyway." For New
-Construction, it won't. That's almost certainly stricter than intended.
-
-### 2.5 The unresolved-status filter drops real properties
-
-`resolveStatuses` looks only at the **most-recent arms-length** transaction
-([`resolve-status.ts:107-110`](../../server/jobs/data_v2/processes/resolve-status.ts#L107-L110)) and
-returns `[]` when that transaction is between two non-corporate parties
-([`resolve-status.ts:184`](../../server/jobs/data_v2/processes/resolve-status.ts#L184)). A property a
-company flipped years ago and that has since traded between individuals has **corporate history** but
-an individual most-recent transfer → empty status → **discarded**, even though it's a legitimately
-tracked property. The discard is purely the consumer's choice; `resolveStatuses` itself doesn't
-throw and even computes a `'in-renovation'` fallback it then doesn't use.
-
----
-
-## 3. The core reframe: two jobs, two classification axes
-
-**Separate discovery from semantics.** Discovery (filter #1) stays at ingestion because it's
-expensive. Semantics (filters #2, #3) move to **classification at query time**, because deciding
-what to *show* among data we already paid to pull should be a `WHERE`, not a `DELETE`.
-
-And name the two **orthogonal** classification axes explicitly — conflating them is half the muddle:
-
-| Axis | Question it answers | Example values | Stored today? |
-|---|---|---|---|
-| **`transactionType`** (WHAT kind of transfer) | What happened? | `arms length`, `non arms length`, `new construction`, `assignment`, `refi`, `heloc` | ✅ Yes — [`propertyTransactions.transactionType`](../../database/schemas/properties.schema.ts#L320). Read side already filters on it. |
-| **`partyType`** (WHO transacted) | Was each side corporate or individual? | `corp_to_corp`, `individual_to_corp`, `corp_to_individual`, `individual_to_individual` | ❌ No — only **implicit** in whether `buyerId`/`sellerId` resolved to a company. |
-
-The "type" you intuited is **Axis 2 (`partyType`)**. The key point that keeps this honest: it is
-**largely a denormalization of signal we already compute** — `resolvePropertyIds` already sets
-`buyerId`/`sellerId` to a company id or null
-([`resolve-ids.ts:71-96`](../../server/jobs/data_v2/processes/resolve-ids.ts#L71-L96)), and a
-resolved id means corporate (the companies table only holds flipping companies). We're making an
-implicit signal explicit and durable — not inventing data.
-
----
-
-## 4. Goals / non-goals
-
-**Goals**
-1. **Simpler consumer** — a straight line *ingest → enrich → classify → store*; remove the two
-   mid-stream "worthiness" discards and their `markFailed` bookkeeping.
-2. **Consistent dataset** — a property's membership and its transactions no longer depend on
-   discovery path. One invariant, documented.
-3. **Property-as-root foundation** — property is the canonical entity; transactions are classified
-   events; companies are actors that appear in transactions. Documented in `apps.md`.
-4. **More retained data** — keep New Construction and corporate-touched-but-unresolved-status
-   properties instead of dropping them; lay the groundwork for broader coverage (§11).
-5. **Explicit, indexable classification** — `partyType` so the read side filters on intent, not on
-   `buyerId IS NULL` heuristics.
-
-**Non-goals (explicitly deferred)**
-- **Removing `cleanMarket` / blanket individual-to-individual ingestion.** Out of scope for the core
-  plan; its cost and blast radius are documented in §8.2/§11 as the "expensive frontier."
-- **Rewriting the read/query engine.** This is additive — a column, a backfill, and explicit filters
-  where an invariant is being traded away. The tuned `propertyTransactions` indexes stay relevant.
-- **Building the code-violation feature.** That's [`code-violation.md`](./code-violation.md); this
-  plan only makes its coverage better.
-- **Changing the chain-reconstruction / spread / ratio logic** — those already filter to arms-length
-  internally ([`orderTransactions.ts`](../../server/utils/orderTransactions.ts)) and are robust to
-  extra rows.
-
----
-
-## 5. The three levers — the decision table
-
-| Lever | Today | Proposed (core) | Why |
-|---|---|---|---|
-| **#1 `cleanMarket`** (discovery) | Discards i2i at seed | **KEEP unchanged** | API throttle; preserves the corporate-activity invariant → small read-side impact (§8.1) |
-| **#2 New Construction** | Discards property | **CONVERT to classify-and-keep** | NC has its own `transactionType` already excluded from arms-length views; the property is real |
-| **#3 Unresolved status** | Discards property | **CONVERT to a real status + keep** | Property has corporate history; status is an *attribute*, not a gate |
-| **(new) `partyType`** | Implicit in `buyerId`/`sellerId` | **Materialize on each transaction** | Explicit, durable, indexable; foundation for clean queries + CV |
-
-Net effect: **the consumer gets simpler and the dataset gets bigger and more consistent, while the
-read side barely moves** — because lever #1 stays and keeps the invariant intact.
-
----
-
-## 6. Target data model
-
-### 6.1 `partyType` on `property_transactions` (Axis 2)
-
-Add one column, computed at insert in [`insert-properties.ts`](../../server/jobs/data_v2/processes/insert-properties.ts)
-(in `mapTransactionRow`, where `buyerId`/`sellerId` are already in hand):
-
-```
-property_transactions.party_type  varchar(24) NULL   -- 'corp_to_corp' | 'individual_to_corp'
-                                                      -- | 'corp_to_individual' | 'individual_to_individual'
-```
-
-Derivation (pure function, unit-testable):
-
-```
-buyerCorp  = buyerId != null   (≡ isFlippingCompany(buyerName))
-sellerCorp = sellerId != null  (≡ isFlippingCompany(sellerName))
-
-both            → 'corp_to_corp'
-buyer only      → 'individual_to_corp'      // corp ACQUIRED from an individual (typical acquisition)
-seller only     → 'corp_to_individual'      // corp SOLD to an individual (exit / "sold")
-neither         → 'individual_to_individual'
-```
-
-- **Index:** `(propertyId, partyType, recordingDate)` to support "this property's corporate
-  transactions, newest first" and property-level rollups.
-- **Durability note:** prefer the materialized column over re-deriving from `buyerId` at query time —
-  `companies` is `onDelete: set null`
-  ([`properties.schema.ts:315-317`](../../database/schemas/properties.schema.ts#L315-L317)), so a
-  deleted company would silently erase the classification if we leaned on the FK alone.
-- `partyType` is **orthogonal** to `transactionType`: a row can be `('arms length', 'individual_to_corp')`
-  or `('new construction', 'individual_to_corp')`. Keep both.
-
-### 6.2 Status becomes a derived attribute, not a gate (lever #3)
-
-Stop dropping properties when `resolveStatuses` returns `[]`. Instead assign a defined fallback so
-the property is stored and still findable. Today the status set is a closed union
-([`shared/types/properties.ts:17`](../../shared/types/properties.ts#L17)):
-`'in-renovation' | 'wholesale' | 'on-market' | 'sold'`.
-
-**Open decision (§14-A):** what does an unresolved (or New Construction) property get? Candidates:
-- **(a)** Derive `'sold'` when there's corporate history but the current owner is individual (the
-  common "completed flip, now individually owned" case) — keeps it in an existing, meaningful bucket.
-- **(b)** Add a new `'off-market'`/`'unknown'` status — requires a `statuses` lookup row + extending
-  the `PropertyStatus` union + status filter UI.
-
-This matters because the **map and grid filter *by* status**
-([`apps.md` Views & Display](../docs/apps.md#L179)); a property with no recognized status is invisible
-under every preset filter. So the fallback choice = the visibility choice. Recommendation: start with
-**(a)** (no schema/UI churn), revisit if we want unresolved properties visibly distinct.
-
-### 6.3 New Construction handling (lever #2)
-
-Remove the step-3 discard. New Construction rows are already typed `new construction` and are already
-excluded from every arms-length computation (`isArmsLength` is exact-match,
-[`orderTransactions.ts:119`](../../server/utils/orderTransactions.ts#L119)), so **storing them does
-not pollute spreads, ratios, or statuses.** The property gets whatever status §6.2 resolves. Optional
-nicety: a `propertyType`/flag surfacing "new construction" for display; not required for correctness.
-
-### 6.4 (Level-3 companion, deferred) property-level rollup
-
-Only needed **if** lever #1 is ever relaxed (§11): a denormalized
-`properties.has_corporate_activity boolean` (or `current_owner_type`) so the grid can cheaply exclude
-pure-individual properties without a transaction join. **With `cleanMarket` kept this is always true,
-so it's unnecessary now** — listed here so the option is on record.
-
----
-
-## 7. Consumer changes (before → after)
-
-**Before** (13 steps, two of them discards):
-```
-fetchQueue → markProcessing → batchLookup → getTransactions
-  → [step 3: DROP New Construction]         ← remove
-  → cleanTransactions → insertCompanies → resolvePropertyIds → resolveStatuses
-  → [step 8: DROP unresolved status]        ← remove
-  → cleanBeforeInsert → resolveArvFunded → insertProperties → … → markComplete/markFailed
-```
-
-**After** (straight line — enrich, classify, store):
-```
-fetchQueue → markProcessing → batchLookup → getTransactions
-  → cleanTransactions → insertCompanies → resolvePropertyIds
-  → resolveStatuses (now returns a fallback status, never a drop-signal)
-  → classifyParties (new: stamp partyType per tx — or fold into insert-properties)
-  → cleanBeforeInsert → resolveArvFunded → insertProperties → … → markComplete
-```
-
-Consequences:
-- The `markFailed` paths for `"Property is New Construction"` and `"Couldn't Resolve Status"`
-  disappear, shrinking the `failedSfrIds` bookkeeping at
-  [`consumer.ts:316-322`](../../server/jobs/data_v2/consumer.ts#L316-L322) and reducing queue noise.
-- Genuine failures (NOT_FOUND, partial batch, thrown errors) still `markFailed` — we're only removing
-  the *semantic* discards, not error handling.
-
----
-
-## 8. Read-side impact — and the invariant that bounds it
-
-### 8.1 With `cleanMarket` KEPT (the core plan) — impact is small
-
-Because lever #1 stays, **every property still has corporate activity**, and the only *new*
-properties are New-Construction and unresolved-status ones that **still passed corporate discovery.**
-So:
-- Queries that filter by a **company** or by `buyerId/sellerId IS NOT NULL` (the company leaderboards,
-  counts, "most bought/sold") are **naturally unaffected** — an individual transaction has null
-  company ids and drops out on its own.
-- Queries that filter by `transactionType = 'arms length'` are unaffected by New Construction (its
-  type isn't arms length).
-- The **grid's "current state" pick** (most-recent arms-length tx per property) is unchanged in
-  meaning — a corp→individual "sold" property already shows the individual as current owner; that's
-  correct.
-- **The one thing to verify:** the new kept-properties get a sensible status (§6.2) so they appear
-  where intended (and don't appear where they shouldn't). This is a *display/status* question, not a
-  query-correctness break.
-
-**Action for the core plan:** add `partyType` to the handful of queries that today lean on
-`buyerId IS NOT NULL` as a proxy for "corporate," so intent is explicit and future-proof. Re-verify
-the list in §8.3 during build — but none of these are *broken* by the core plan; they're *clarified*.
-
-### 8.2 If `cleanMarket` were ALSO removed (Level 3 — NOT in core plan)
-
-Then the invariant breaks: pure individual-to-individual properties enter, and **every read path that
-assumed "all properties are corporate-relevant" needs an explicit classification filter or it will
-surface homeowner-to-homeowner sales as if they were investor activity.** A read-side sweep
-(2026-06-26) flagged ~9–12 such sites — recorded here so the cost of Level 3 is on the table:
-
-| Area | File | Risk if i2i floods in |
-|---|---|---|
-| Grid `alSummary` / company filter / `hasDateSold` | `server/services/properties/properties.services.ts` | Grid fills with individually-owned homes; company match widens |
-| Leaderboards using `sortOrder=1` (most-properties, wholesalers, buys-wholesale, company property count, acquisition chart) | `server/services/companies/companies.services.ts` | Counts inflate with non-corporate final owners |
-| Map pins (date-range + company) | `server/services/properties/maps.services.ts` | Map shows non-investor sales |
-| Zip counts (date-range + company) | `server/services/properties/zipCounts.services.ts` | Zip aggregates inflate |
-| Top-buyers-by-zip | `server/services/deals/deals.services.ts` | Inflated; also a latent `'Arms Length'` case-sensitivity bug noted in passing |
-
-These line references are from a sweep and **must be re-verified** at implementation time. The point
-stands regardless of exact lines: **Level 3's cost is real and broad; the core plan avoids paying it
-by keeping lever #1.**
-
-### 8.3 Minimal explicit-filter list for the core plan
-
-Even with the invariant intact, make these read intent explicit by adding `partyType` (low-risk,
-high-clarity): the `sortOrder=1` "current owner" leaderboard/count queries in `companies.services.ts`
-and the acquisition chart (which has no type filter today). Treat as a clarity pass, not a fix.
-
----
-
-## 9. Migration & backfill
-
-1. **Schema:** add `property_transactions.party_type` + the index in
-   [`properties.schema.ts`](../../database/schemas/properties.schema.ts). **Use a targeted
-   `ALTER TABLE`, not `npm run db:push`** — push currently wants to truncate `market_scan_queue`
-   (known drift; run DB ops from the main repo, no `.env` in worktrees).
-2. **Backfill `party_type` for existing rows** — derivable in pure SQL from existing columns:
-   ```sql
-   UPDATE property_transactions SET party_type = CASE
-     WHEN buyer_id IS NOT NULL AND seller_id IS NOT NULL THEN 'corp_to_corp'
-     WHEN buyer_id IS NOT NULL                           THEN 'individual_to_corp'
-     WHEN seller_id IS NOT NULL                          THEN 'corp_to_individual'
-     ELSE 'individual_to_individual' END;
-   ```
-   (Name-based fallback for rows whose company was later deleted is optional; the FK is the primary
-   signal.)
-3. **No backfill needed for the dropped properties** — they were never stored. They re-enter
-   naturally as the scanners re-encounter their MSAs, or via a one-off re-scan once levers #2/#3 are
-   converted.
-4. **Status backfill** only if §14-A picks option (b) (new status value) — seed the `statuses` row.
-
----
-
-## 10. Rollout sequence (order matters)
-
-Do it in this order so we never briefly show mis-tagged data:
-
-1. **Add `party_type` column + index** (additive; nothing reads it yet).
-2. **Stamp `party_type` at insert** + **backfill** existing rows. Now the column is trustworthy.
-3. **Add explicit `partyType` clarity filters** to the §8.3 queries — *before* changing what's stored,
-   so the read side is ready.
-4. **Convert lever #2 (New Construction) to classify-and-keep.**
-5. **Convert lever #3 (unresolved status) to a fallback status** (§6.2 decision).
-6. **Update docs** (§13) and **add tests** (§12).
-7. **Observe** one full scan+consume cycle; confirm New-Construction/unresolved properties land with
-   sane statuses and the grid/map/leaderboards look right.
-
-Lever #1 (`cleanMarket`) is **not** touched in this sequence.
-
----
-
-## 11. "More data," done efficiently — coverage without blanket ingestion
-
-The biggest "more data" lever (every individual-to-individual property) is also the most expensive
-(§2.3) and the highest-risk (§8.2). Two efficient paths get the breadth where it actually pays off —
-choose per use case (§14-B):
-
-- **On-demand hydration (recommended for code violations).** When a complaint address (or a user's
-  search) doesn't match a property we have, run **that one address** through the existing
-  enrich-and-store pipeline. Bounded, high-value, reuses everything. The violation feed is itself a
-  pre-qualified worklist of "individual-owned properties worth a record."
-- **Cheap-breadth transaction ledger (optional).** The scanners *already fetch* the full
-  `/buyers/market` feed and then throw most of it away **before** it costs a per-property API call —
-  `cleanMarket` runs pre-queue. We could persist **all** market records (address, buyer, seller, date,
-  value) as a lightweight, address-keyed **transaction ledger**, and only **promote** corporate-touched
-  ones to full property enrichment. This buys breadth (every recorded sale, matchable by address) at
-  near-zero extra API cost, and it cleanly expresses the property-vs-transaction split at the data
-  layer: **enriched properties are the depth; the ledger is the breadth; an unpromoted ledger row is a
-  transaction with an address but no property yet.**
-
-Both avoid the §2.3 throughput wall. Blanket removal of `cleanMarket` (eager full enrichment of
-everything) remains the thing we are **not** doing.
-
----
-
-## 12. Testing (per [`testing.md`](../docs/standards/testing.md))
-
-- **Unit — `classifyParties` / `party_type` derivation:** all four combinations, plus null/empty
-  names and the trust edge case (`isFlippingCompany` excludes trusts,
-  [`dataSyncHelpers.ts:97`](../../server/utils/dataSyncHelpers.ts#L97)).
-- **Unit — status fallback:** a property whose most-recent arms-length tx is individual-to-individual
-  but with corporate history resolves to the §6.2 fallback (not `[]`/drop).
-- **Integration — consumer:** a New-Construction property and an unresolved-status property are now
-  **inserted** (not `markFailed`), with correct `party_type` on their transactions.
-- **Integration — read side:** the §8.3 queries return identical results before/after the clarity
-  filters on today's data (proves the filters are intent-preserving, not behavior-changing, while the
-  invariant holds).
-
----
-
-## 13. Docs to update (Agent Updater scope)
-
-- **`apps.md` (Data section)** — state the property-as-root model and the two classification axes;
-  correct the **stale pipeline paths** (it references `server/jobs/consumer.ts`; the real path is
-  `server/jobs/data_v2/consumer.ts`) and the "New Construction excluded / unresolved status excluded"
-  key-behaviors lines once levers #2/#3 change
-  ([`apps.md:244-247`](../docs/apps.md#L244)).
-- **`database.md`** — document `property_transactions.party_type` + index.
-- **`api.md`** — only if any response shape gains `partyType` (e.g. transaction lists).
-- **`access-control.md`** — no change expected (no new routes in the core plan).
-
----
-
-## 14. Open decisions (the product calls before build)
-
-- **A — Unresolved/New-Construction status fallback:** option (a) derive `'sold'`/existing bucket
-  *(recommended)*, or (b) add a new `'unknown'`/`'off-market'` status (schema + UI). Drives visibility
-  (§6.2).
-- **B — Breadth strategy for coverage:** on-demand hydration *(recommended, esp. for CV)*, the
-  cheap-breadth ledger, both, or neither for now (§11).
-- **C — Keep `cleanMarket`?** Recommended **yes** (core plan assumes it). Only revisit with a separate,
-  resourced ingestion strategy — not a one-line filter removal (§2.3, §8.2).
-- **D — `partyType` value names / granularity:** the four-value set above, or also split out
-  `non_arms_length`/trust transfers? (Recommend keeping `partyType` purely about corporate-ness and
-  leaving transfer kind to `transactionType`.)
-
----
-
-## 15. Risks
-
-- **Status visibility:** kept properties with a poor fallback status could clutter or hide oddly in the
-  grid/map (mitigated by §6.2 / decision A).
-- **Re-scan churn:** converting levers #2/#3 means previously-failed queue rows and un-ingested
-  properties re-enter over subsequent scans — expect a one-time bump in inserts and a (small) storage
-  increase, bounded by the corporate-activity invariant.
-- **Backfill correctness:** `party_type` backfill trusts `buyer_id`/`seller_id`; rows whose company was
-  deleted (`set null`) backfill as individual. Acceptable; name-based re-derivation is an optional
-  refinement.
-- **Scope creep into Level 3:** the breadth options in §11 are deliberately separate; don't let "get
-  more data" quietly become "remove `cleanMarket`" without pricing §8.2.
-
----
-
-## Appendix — key files
-
-| Concern | File |
+| Decision | Choice |
 |---|---|
-| Discovery filter | [`clean-market.ts`](../../server/jobs/data_v2/processes/clean-market.ts) |
-| Consumer + the two discards | [`consumer.ts`](../../server/jobs/data_v2/consumer.ts) (steps 3 & 8) |
-| Per-property API cost | [`get-transactions.ts`](../../server/jobs/data_v2/processes/get-transactions.ts) |
-| Buyer/seller → company resolution (the `partyType` signal) | [`resolve-ids.ts`](../../server/jobs/data_v2/processes/resolve-ids.ts) |
-| Status resolution (the §6.2 change) | [`resolve-status.ts`](../../server/jobs/data_v2/processes/resolve-status.ts) |
-| Transaction insert (where `partyType` is stamped) | [`insert-properties.ts`](../../server/jobs/data_v2/processes/insert-properties.ts) |
-| Corporate detection | [`dataSyncHelpers.ts`](../../server/utils/dataSyncHelpers.ts) |
-| Arms-length / spread / ratio (robust to extra rows) | [`orderTransactions.ts`](../../server/utils/orderTransactions.ts) |
-| Schema (`property_transactions`, `statuses`) | [`properties.schema.ts`](../../database/schemas/properties.schema.ts), [`statuses.schema.ts`](../../database/schemas/statuses.schema.ts) |
-| Status union | [`shared/types/properties.ts`](../../shared/types/properties.ts) |
-| Read-side consumers (Level-3 blast radius) | `properties.services.ts`, `companies.services.ts`, `maps.services.ts`, `zipCounts.services.ts`, `deals.services.ts` |
-| Companion feature | [`code-violation.md`](./code-violation.md) |
+| Scope | **Full redesign** — every SFR transaction in supported MSAs gets a fully enriched property (batch lookup + full transaction history + child tables) |
+| Visibility | **Stored but hidden** — default API views keep showing exactly what they show today; new properties exist for code violations, audits, and future features |
+| Backfill | **Forward only** — new rules apply from cutover; scan windows E / init stay available for later backfill if needed |
+| New construction | **Store all, hide builder-active** — ingest every property; hide from default views only while the most recent transaction is New Construction |
+
+Core principle: **transactions are the source of truth; classification happens at read time.**
+Today, classification (corporate-party detection, status resolution, new-construction detection)
+happens at *ingest* time, where a wrong answer means the data is never stored — permanent loss.
+After the redesign, a wrong answer is a display-filter bug, fixable retroactively because the
+underlying data exists.
+
+---
+
+## 1. How the pipeline works today
+
+Two-stage producer/consumer split around the `market_scan_queue` table
+(`database/schemas/sync.schema.ts` — one row per `(msa_id, sfr_property_id)` via
+`uq_msq_msa_property`; completed rows purged after 90 days by `clean-market-cache.ts`, nightly 23:50).
+
+### 1.1 Producer — scan windows (`server/jobs/data_v2/scan-window-*.ts`)
+
+Five near-identical jobs, each covering a sale-date range over all MSAs in the `msas` table:
+
+| Window | Range | Cron | Status |
+|---|---|---|---|
+| A | 0–15d | nightly 00:00 | active |
+| B | 15–30d | every 2 days 01:00 | active |
+| C | 30–60d | Mondays 02:00 | active |
+| D | 60–90d | 1st + 15th 03:00 | active |
+| E | 90–180d | — | **disabled** |
+| init | all windows (backfill) | — | **disabled** (manual) |
+
+Per MSA, each window runs:
+
+1. **`getMarket`** — pages SFR `/buyers/market` for the date range (100/page, 1s pacing, 3 retries).
+   No filtering.
+2. **`cleanMarket`** — **keeps a record only if buyer or seller looks corporate**
+   (`record.isCorporate === true` for buyer, `isFlippingCompany()` name-pattern matching for both
+   sides). Individual↔individual sales are discarded and never reach the queue.
+3. **`insertQueue`** — drops malformed records (missing either ID or either date); dedupes by
+   `sfr_property_id` keeping newest `recording_date`; **skips** a candidate when the queue already
+   has that property with `recording_date >=` incoming (any status, including `complete`); deletes
+   superseded non-processing rows; inserts `pending` rows with
+   `onConflictDoNothing({ target: sfrMarketId })`.
+
+### 1.2 Consumer (`server/jobs/data_v2/consumer.ts`)
+
+Cron `*/30 5-22` PT = **36 runs/day**. `MAX_PROPERTIES_PER_MSA = 5` per run
+→ throughput cap **180 properties/MSA/day** (~1,620/day across 9 MSAs). Per batch:
+
+| # | Step | What it does |
+|---|---|---|
+| 1 | `resetStaleProcessing` | resets `processing` rows older than 60 min (proxy: `enqueuedAt`) |
+| 2 | `fetchQueue` | DISTINCT ON `sfr_property_id`, newest `recording_date` first, LIMIT = remaining |
+| 3 | `markProcessing` | flips all matching rows (no status guard) |
+| 4 | `batchLookup` | SFR `/properties/batch` by address; overlays market record's sale/buyer/seller onto `last_sale`/`current_sale`; NOT_FOUND items dropped → later marked `failed` |
+| 5 | `getTransactions` | SFR `/properties/transactions` per property — **full history, all types** (arms length, non-arms length, REFI, HELOC, new construction) |
+| 6 | **New Construction gate** | drops the whole property if **any** transaction in history is type `New Construction` → `failed` |
+| 7 | `cleanTransactions` | harvests corporate names + counties from all transactions |
+| 8 | `insertCompanies` | upserts companies + `company_msas` + `company_counties` (loads full companies table into memory) |
+| 9 | `resolvePropertyIds` | name → company UUID on property + each transaction (loads full companies table again) |
+| 10 | `resolveStatuses` | wholesale / sold / in-renovation via chain-aware `sortTransactionsDesc`; `On Market` listing short-circuits to in-renovation |
+| 11 | **Unresolved-status gate** | drops properties with zero statuses (both parties individual) → `failed` |
+| 12 | `cleanBeforeInsert` + `resolveArvFunded` | county/type normalization; ARV-lender annotation |
+| 13 | `insertProperties` | upsert property + 11 child tables (address, structure, assessments, tax, valuations, parcel, school, exemption, pre-foreclosure, last/current sale); delete-and-replace all pipeline transactions, preserving user-created rows, recomputing `sort_order` |
+| 14 | SBT (CA) / ARV-client flags / purchase-to-ARV ratios | post-insert derived data |
+| 15 | `markComplete` / `markFailed` | no status guard on the UPDATE |
+
+### 1.3 Where data is lost today (the four gates)
+
+| Gate | Where | What's lost |
+|---|---|---|
+| Corporate-party filter | `cleanMarket` (producer) | any property whose triggering sale was individual↔individual — never enters the queue |
+| Malformed record | `insertQueue.toRow` | records missing IDs or dates (logged count only, raw data discarded) |
+| New Construction | consumer step 6 | whole property if **any** historical transaction is New Construction — including decades-old builder sales on since-flipped homes |
+| Unresolved status | consumer step 11 | properties whose most recent arms-length transaction has no corporate party |
+
+Plus the implicit gate: a property whose corporate transactions all fall outside scanned windows
+never enters the system — the root cause of the ~2-in-500 code-violation match rate.
+
+**Important framing:** for properties that pass the gates, we already store *every* transaction of
+*every* type. The pipeline drops whole *properties*, not individual transactions.
+
+### 1.4 Known bugs in the current pipeline
+
+| # | Bug | Where | Fate under redesign |
+|---|---|---|---|
+| B1 | New Construction gate uses `.some()` over full history — any historical builder sale permanently excludes the property | `consumer.ts:231-246` | **Obsoleted** — gate removed; §3.3 handles builder-active |
+| B2 | `isTrust` runs before `KNOWN_CORPORATE_NAMES` and the known-names check is exact-match — "OPENDOOR PROPERTY TRUST 1" classified as a trust and rejected | `dataSyncHelpers.ts:97-110` | **Still matters** (company creation + status resolution) — fix in Phase 1 |
+| B3 | `onConflictDoNothing({ target: sfrMarketId })` on an ID SFR *reassigns every run* — a new transaction can silently collide with a stale row's ID and be dropped | `insert-queue.ts:176-181` | Fixed by §3.2 conflict-target change |
+| B4 | Multi-row insert can abort a whole MSA's scan: conflict target is `sfrMarketId` only, so a candidate colliding with an in-flight `processing` row violates `uq_msq_msa_property` and throws | `insert-queue.ts:156-181` | Fixed by §3.2 |
+| B5 | Same-recording-date skip (`>=`): a double-close second leg published later by SFR never re-enqueues the property | `insert-queue.ts:135-147` | Fixed by §3.2 dedupe rule |
+| B6 | `markProcessing`/`markComplete`/`markFailed` have no status guard — a pending row inserted mid-batch gets marked `complete` unprocessed, and B5's `>=` check then blocks re-enqueueing forever | `mark-queue.ts` | Fixed in Phase 1 |
+| B7 | `resetStaleProcessing` uses `enqueuedAt` (rows are enqueued at midnight, processed hours later — everything is always "stale"); an overlapping consumer run resets in-flight rows and double-processes | `mark-queue.ts:17-27` | Fixed in Phase 1 (`processingStartedAt` + run-overlap guard) |
+| B8 | `resolvePropertyIds` + `insertCompanies` each load the **entire companies table** per batch, every 30 min | `resolve-ids.ts:48`, `insert-companies.ts:64` | Must fix before volume increases (Phase 2) |
+| B9 | `insertProperties` deletes-then-reinserts transactions with no DB transaction wrapper — crash mid-loop leaves a property with zero transactions until reprocessed | `insert-properties.ts:371-433` | Fixed in Phase 1 |
+| B10 | `is-arv-funded` picks latest arms-length by a plain date-max loop, not the chain-aware sort — same-day double closes can read the wrong leg's lender | `is-arv-funded.ts:35-41` | Fixed in Phase 1 |
+| B11 | `batchLookup` overlay sets `seller_1` unconditionally (buyer uses `??`) — a market record with no seller nulls out batch data | `batch-lookup.ts:236` | Fixed in Phase 1; matters more for the address-intake path (§6) |
+| B12 | Read layer defaults missing statuses to `'in-renovation'` — harmless today, catastrophic after the redesign (every unclassified property would masquerade as in-renovation) | `properties.services.ts:661-662`; legacy `properties.status` column defaults `'in-renovation'` (`properties.schema.ts:42`) | Fixed in Phase 3 — **must ship before ingest changes** |
+
+---
+
+## 2. How the pipeline works after the upgrade
+
+Same architecture — scan windows → queue → consumer — with the gates removed and classification
+moved to annotations:
+
+```
+/buyers/market (ALL records, no cleanMarket)
+        │
+        ▼
+market_scan_queue  (one row per property, newest transaction wins — unchanged shape,
+        │           fixed dedupe rules, fixed conflict targets)
+        ▼
+consumer (throughput raised, overlap-guarded)
+        │  batchLookup → getTransactions (unchanged — full history, all types)
+        │  cleanTransactions / insertCompanies    ← STILL corporate-gated (see §3.4)
+        │  resolvePropertyIds                     ← individuals simply resolve to null
+        │  resolveStatuses v3                     ← statuses now OPTIONAL (see §3.3)
+        │  insertProperties                       ← inserts even with zero statuses
+        ▼
+properties + property_transactions + child tables
+        │
+        ▼
+READ LAYER = the new gatekeeper (see §4)
+   default views: only properties with ≥1 status row (what users see today)
+   code violations / audits / future features: query everything
+```
+
+What changes for each gate:
+
+| Today's gate | After |
+|---|---|
+| `cleanMarket` corporate filter | **Removed.** All records enter the queue. (Keep the corporate/individual ratio as a log line for monitoring.) |
+| Malformed-record drop | Kept (a record with no IDs/dates is unprocessable), but log the raw record so nothing disappears invisibly. |
+| New Construction gate | **Removed.** Builder-active homes get zero statuses (§3.3) → hidden from default views. Once flipped, they surface with correct statuses. Fixes B1. |
+| Unresolved-status gate | **Removed.** Zero-status properties insert normally, marked `complete`, hidden by the read layer. |
+
+What deliberately does **not** change:
+
+- Full transaction history per property (already stored for kept properties).
+- Chain-aware ordering (`sortTransactionsDesc`), spread, wholesale detection, SBT, ARV-funded,
+  purchase-to-ARV ratios.
+- The queue's one-row-per-property shape and the 90-day purge of completed rows.
+- Company creation stays corporate-only (§3.4).
+
+---
+
+## 3. Ingest design details
+
+### 3.1 Producer
+
+- `scan-window-a..e.ts`: delete the `cleanMarket` call; pass `getMarket` results straight to
+  `insertQueue`. Keep `cleanMarket`'s counting as a pure stats log (corporate vs individual ratio
+  per window) — free monitoring signal, no filtering.
+- Re-enable nothing new: E/init stay disabled (forward-only decision).
+
+### 3.2 `insertQueue` v2 — dedupe and conflict rules
+
+- **Conflict target:** `(msa_id, sfr_property_id)` (the real uniqueness), not `sfr_market_id`.
+  Drop the unique constraint on `sfr_market_id` — it's a vendor ID that SFR reassigns per scan and
+  it can only cause false-conflict data loss (B3) or batch-aborting violations (B4). Keep the
+  column for reference/debugging.
+- **Skip rule (replaces `>=`):** skip a candidate iff the queue already has the property with
+  - `recording_date >` incoming, **or**
+  - `recording_date =` incoming **and** same `sale_value` **and** same buyer `nameKey`.
+  An equal-date record with a different price/buyer is a double-close second leg → re-enqueue
+  (fixes B5). Reprocessing is idempotent — the consumer refetches full history.
+- Keep the stale-row delete (skip `processing`), now safe because the insert conflict-targets the
+  per-property constraint.
+
+### 3.3 `resolveStatuses` v3 — statuses become optional annotations
+
+Inputs and helpers unchanged (chain-aware `sortTransactionsDesc`, `isArmsLength`, token matching).
+New rules:
+
+1. **Builder-active override (implements the New Construction decision):** if the most recent
+   transaction overall (chain-sorted, any type) is type `New Construction` → `statuses = []`.
+2. **`On Market` guard:** today `listing_status === 'On Market'` unconditionally yields
+   `in-renovation`. New: apply only when the most recent arms-length buyer is corporate. Otherwise
+   an individual homeowner's listing (or a builder's) would surface as in-renovation. Without a
+   corporate buyer → contribute no status.
+3. Wholesale / sold / in-renovation checks: **unchanged**.
+4. `statuses = []` is a **valid outcome** — no `markFailed`, no exclusion. Remove the
+   `"Couldn't Resolve Status"` failure path in the consumer.
+5. Remove the `primaryStatus = statuses[0] ?? 'in-renovation'` fallback; `property.status` may be
+   null/absent.
+
+`insertProperties` change: with `statuses = []`, delete stale `property_statuses` rows and insert
+none. Everything else identical.
+
+### 3.4 Companies — the classifier moves, it doesn't die
+
+- `isFlippingCompany` **remains the gate for company creation** (`cleanTransactions` →
+  `insertCompanies`). Individuals never get company rows — their names are already stored on every
+  transaction row (`buyer_name` / `seller_name`), so they stay fully queryable without polluting
+  the companies table, the directory, or rankings.
+- Fix B2 while here: check `KNOWN_CORPORATE_NAMES` *before* `isTrust`, and match known names by
+  prefix/containment (`opendoor property trust 1` → Opendoor), not exact equality.
+- The win: a misclassified name is now recoverable. Re-run classification over stored
+  `buyer_name`/`seller_name` values offline (one SQL pass + `insertCompanies` + a targeted
+  `resolvePropertyIds` re-run) — no rescraping, no lost transactions.
+- B8 fix is a prerequisite for volume: replace both full-table loads with targeted
+  `inArray(companies.companyName, batchNames)` lookups.
+
+### 3.5 Consumer throughput and safety
+
+- **Overlap guard:** module-level `isRunning` flag (cron fires in-process) + `processingStartedAt`
+  column on the queue; `resetStaleProcessing` keys off it (fixes B7).
+- **Status guards** on `markProcessing` (`pending` only), `markComplete`/`markFailed`
+  (`processing` only) (fixes B6).
+- **Throughput:** keep `MAX_PROPERTIES_PER_MSA` as a per-run cap but raise it, and add a
+  wall-clock budget (e.g. stop pulling new batches after ~20 min). Make both env-tunable
+  (`PIPELINE_MAX_PER_MSA`, `PIPELINE_TIME_BUDGET_MS`). Sizing math in §7 — final numbers depend on
+  the Phase 0 measurement.
+- **Kill switch:** `PIPELINE_INGEST_ALL` env flag gating the removal of the corporate filter
+  (producer) — flipping it off restores today's behavior without a deploy revert.
+- Wrap each property's `insertProperties` work in `db.transaction()` (fixes B9).
+
+---
+
+## 4. Application changes — living with 3–6× more properties
+
+The read layer becomes the gatekeeper. The invariant to preserve: **every default view shows
+exactly what it shows today.**
+
+> ⚠️ **This section ships BEFORE the ingest change** (Phase 3 before Phase 4). The app must be
+> safe for unclassified properties before any exist.
+
+### 4.1 The visibility rule
+
+**Visible** = property has ≥1 `property_statuses` row (already indexed; the `EXISTS` subquery
+pattern is already used by the status filter). The default predicate:
+
+- Applied when a request carries **neither** a status filter **nor** a company filter:
+  `EXISTS (SELECT 1 FROM property_statuses ps WHERE ps.property_id = properties.id)`.
+- **Empty status filter = "all classified", not "everything."** Today every stored property is
+  classified, so this preserves current semantics exactly.
+- **Company-scoped queries deliberately skip the predicate.** A company's portfolio/sale history
+  must keep showing a property even after its current status empties out (e.g. the company sold
+  it, then it resold individual↔individual — the company's history is still real). This is
+  *more* correct than today, where that resale is invisible and the stale status lingers.
+- An explicit `includeUnclassified` escape hatch for internal/admin/code-violations callers.
+
+Today's classification lives client-side: `DEFAULT_STATUS_FILTERS = ['in-renovation']`
+(`client/src/constants/propertyStatus.constants.ts:15`) — the client always sends a status, so the
+backend default is defense-in-depth, not a behavior change. **No client changes needed.**
+
+### 4.2 Read-path audit (full checklist for Phase 3)
+
+Every code path reading `properties` / `property_transactions` / `addresses` /
+`property_statuses` was audited. Results:
+
+**Must fix — would leak or misprice individual-owned properties:**
+
+| Path | Location | Problem → fix |
+|---|---|---|
+| Main grid/table feed | `properties.services.ts:118-714` (`getProperties`) | Status `EXISTS` only applied when `statusesToUse` non-empty → apply default predicate; remove `?? 'in-renovation'` fallbacks (lines 661–662) |
+| Map pins | `maps.services.ts:303-421` (`getMapProperties`) | Status constraint only when filter provided → default predicate in `buildMapIdConditions` |
+| Map extent (bbox) | `maps.services.ts:431-460` (`getMapExtent`) | Same — extent would otherwise span all properties on first load |
+| Zip counts | `zipCounts.services.ts:17-124` (`getZipCounts`) | Same |
+| **Email campaigns** | `emailUpdates.ts:306-381` (`sendEmailUpdatesForMsa`) | Filters by MSA **only** — would start mailing individual home sales. Add status predicate to the WHERE clause |
+| Search autocomplete | `property.services.ts:31-74` (`getPropertySuggestions`) | No property filter at all → add visibility predicate |
+| Directory "most-properties" sort | `companies.services.ts:231-248` vs `:314-335` | One branch checks `property_statuses`, the other doesn't → unify (both status-checked) |
+
+**Performance, not correctness:**
+
+| Path | Location | Note |
+|---|---|---|
+| Global ratio recompute | `purchaseArvRatio.services.ts:130-150` (`recomputeAllPurchaseToArvRatios`) | Scans **all** properties → 3–6× slower. Ratios stay correct (keyed by resolved `seller_id`, null for individuals). Restrict the scan to properties with ≥1 non-null-seller transaction |
+
+**Safe by construction (verify, don't change):** single-property lookups
+(`getPropertyById`, `patchProperty`, `getPropertyTransactions`, `reprocessProperty`, SBT compute);
+all company-filtered queries (`getProperties`/maps/zip-counts with company filter — predicate
+deliberately skipped per §4.1); most-sold/most-bought rankings (`companies.services.ts:249-308`,
+`buyer_id`/`seller_id` non-null); deals top-buyers (`deals.services.ts:127-139`, arms-length +
+`buyerId` non-null); CV notify (scoped by match rows); enrich-companies (company-scoped).
+
+**Intentionally unfiltered — do NOT add the predicate:** code-violations `match-address.ts`
+(matching against *all* addresses is the entire point of this redesign) and `resolve-owner.ts`
+(individual-owned matches resolve to `isNotifiable = false` — the correct outcome; the violation
+still gets stored and linked).
+
+### 4.3 Legacy `properties.status` column
+
+`mapPropertyRow` never writes it but the schema default stamps `'in-renovation'` on every insert
+(`properties.schema.ts:42`). Audit remaining readers, drop the default, and (if unread) drop the
+column — a phantom status that contradicts `property_statuses` is a bug waiting to be displayed.
+
+### 4.4 Performance guardrails
+
+- The visibility `EXISTS` rides `idx_property_statuses_property_id`. If default-view query plans
+  degrade at 5× table size, the fallback design is a materialized `properties.is_classified`
+  boolean maintained by `insertProperties` (flip when statuses go 0↔n) with a partial index.
+  Don't build it preemptively — measure first.
+- `addresses.street_number` is already indexed (code-violation prefilter scales fine).
+- Watch: map bbox aggregates, `DISTINCT ON` in `fetchQueue`, and admin count queries — all scale
+  with total rows, not visible rows.
+
+---
+
+## 5. Storage & cost model
+
+Per new property: 1 `properties` row + ~1 row in each of up to 11 child tables + 5–15
+`property_transactions` rows + geocoded address. Rough multiplier on all property-family tables:
+**3–6×** (the inverse of `cleanMarket`'s keep rate — measured in Phase 0, not guessed).
+
+Neon is the cost surface: storage grows linearly; compute grows with consumer runtime (36
+runs/day doing more work each). No new table shapes are introduced by the core redesign (§6 adds
+one small queue table).
+
+---
+
+## 6. Code-violations integration
+
+Motivating feature. Current state: violations upload → parse → match against `addresses` →
+`no_match` for most (property not in our universe) → terminal.
+
+**After the redesign,** every property that *transacted* in a supported MSA exists, so match rates
+rise immediately. The remainder (long-held, never-transacted properties) needs an address-driven
+intake:
+
+1. **New table `address_scan_queue`:** `id`, `raw_address`, parsed parts, `source`
+   (`code_violation` | `manual`), `source_ref` (cv_violation id), `status`
+   (`pending`/`processing`/`complete`/`not_found`/`failed`), `sfr_property_id?`, timestamps.
+   Dedupe on normalized address.
+2. **Producer:** when the CV consumer marks a violation `no_match`, also enqueue its parsed
+   address. (Plus an admin/manual enqueue path for arbitrary address lists.)
+3. **Consumer:** batch pending addresses → `/properties/batch` (address-keyed, exactly like
+   `batchLookup`) → for found properties, run the standard enrichment chain
+   (`getTransactions → cleanTransactions → insertCompanies → resolvePropertyIds →
+   resolveStatuses → insertProperties`) with a synthesized record (no market overlay — B11's
+   `seller_1` fix matters here). NOT_FOUND → `not_found` for review. MSA comes from the SFR batch
+   response.
+4. **Rematch:** after inserting, flip the source violations from `no_match` back to `pending` so
+   the CV consumer re-matches them. Result: **every violation is stored and permanently linked**
+   to a property; notification still fires only when owner → company → user resolves (unchanged).
+
+Individual-owned matched properties won't notify anyone (no company/user link) — expected; the
+violation history accrues for future use.
+
+---
+
+## 7. Capacity math (finalized in Phase 0)
+
+- Current consumer capacity: 5/MSA/run × 36 runs = **180 properties/MSA/day** (~1,620 total).
+- Cost per property ≈ 1 `/properties/transactions` call + 1/100th of a `/properties/batch` call,
+  at 0.5–1s pacing → ~1.5–3s/property observed. A 30-min slot could sustain several hundred
+  properties/run per MSA — **wall clock is not the binding constraint; SFR quota is.**
+- Post-redesign steady-state inflow = today's inflow ÷ keep-rate. `cleanMarket` already logs
+  `kept/removed` per window — Phase 0 harvests those numbers.
+- Cutover transient: the first post-cutover scans re-enqueue previously-filtered properties from
+  the active windows (0–90d), producing a temporary backlog spike. The queue absorbs it
+  (`pending` rows just wait); raise throughput before flipping the flag.
+
+**Phase 0 measurements (do first, ~1 hr):**
+1. Keep-rates per MSA/window from recent scan logs (`Clean market: X kept, Y removed`).
+2. Current DB baseline: `SELECT count(*) FROM properties; SELECT count(*) FROM
+   property_transactions;` + table sizes (`pg_total_relation_size`) for the property family.
+3. SFR contract check: rate limit and per-call/monthly pricing → sets the throughput ceiling and
+   the real dollar cost of the multiplier.
+
+---
+
+## 8. Implementation plan
+
+Each phase = one PR, independently shippable, `npm run check` + tests green.
+
+### Phase 0 — Measure (no code)
+Keep-rates, DB baseline, SFR quota/pricing (§7). Output: final numbers for Phase 5 sizing.
+
+### Phase 1 — Correctness fixes (valuable regardless of redesign)
+- B2: known-corporate before trust check, prefix matching (`dataSyncHelpers.ts`)
+- B6: status guards in `mark-queue.ts`
+- B7: `processingStartedAt` column + overlap guard (consumer + schema + migration)
+- B9: `db.transaction()` around per-property insert (`insert-properties.ts`)
+- B10: chain-aware latest-arms-length in `is-arv-funded.ts`
+- B11: `seller_1 ?? currentSale.seller_1` in `batch-lookup.ts`
+- Tests: unit coverage for each fix (esp. B2 name-classification table, B10 same-day ordering).
+
+### Phase 2 — Queue & scale prep
+- B3/B4/B5: `insertQueue` v2 dedupe + conflict target (§3.2); migration dropping the
+  `sfr_market_id` unique constraint
+- B8: targeted company lookups in `resolve-ids.ts` / `insert-companies.ts`
+- Tests: dedupe-rule unit tests (double-close same-date case explicitly).
+
+### Phase 3 — Read-layer guardrails (**before any ingest change**)
+- All seven "must fix" items from §4.2 (visibility predicate in `getProperties`, maps, extent,
+  zip counts; email WHERE clause; suggestions; directory-sort unification) + the
+  `recomputeAllPurchaseToArvRatios` scan restriction.
+- Remove the in-renovation fallbacks; legacy `status` column audit/drop (§4.3).
+- Tests: integration tests asserting each default view (grid, map pins, extent, zip counts,
+  suggestions, email selection) excludes a seeded zero-status property, includes it with
+  `includeUnclassified`, and that company-scoped queries still return it (§4.1 semantics).
+- **Verification gate:** deploy; confirm zero behavior change in prod (data still 100% classified).
+
+### Phase 4 — Ingest cutover
+- Remove `cleanMarket` filtering (keep ratio logging) behind `PIPELINE_INGEST_ALL`
+- Remove New Construction gate; `resolveStatuses` v3 (§3.3); statuses-optional insert
+- Remove the two `markFailed` exclusion paths
+- Tests: resolve-status v3 unit suite (builder-active, on-market individual, individual↔individual
+  → `[]`; existing wholesale/sold/in-renovation cases unchanged).
+- **Verification gate:** flag on in prod for 48h; watch queue depth, failure rate, and that
+  default API responses are byte-identical for a sampled property set.
+
+### Phase 5 — Throughput raise
+- `PIPELINE_MAX_PER_MSA` + time budget (§3.5), sized from Phase 0; queue-depth per MSA logged
+  each run.
+- **Verification gate:** backlog drains; steady-state queue depth ~0 by end of each day.
+
+### Phase 6 — Code-violations address intake
+- `address_scan_queue` schema + producer hook in CV consumer + intake consumer + rematch (§6).
+- Tests: intake consumer integration test (address → property → violation rematches).
+
+### Phase 7 — Docs
+- Update `.claude/docs/apps.md` (Data pipeline section — already stale: points at
+  `server/jobs/consumer.ts` instead of `data_v2/`), `.claude/docs/database.md` (new
+  column/table, dropped constraint), and this plan's status.
+
+---
+
+## 9. Risks
+
+| Risk | Mitigation |
+|---|---|
+| SFR quota/pricing makes 3–6× volume expensive | Phase 0 before any code; throughput knobs are env-tunable; kill switch reverts ingest instantly |
+| An unfixed read path leaks individual homes into the UI | Phase 3 ships first with its own verification gate; read-path audit checklist |
+| Default-view query plans degrade at 5× rows | `EXISTS` rides an existing index; measured fallback = materialized `is_classified` flag (§4.2) |
+| Cutover backlog spike overwhelms consumer | Phase 5 sizing before flag flip; queue absorbs pressure by design |
+| Status semantics drift (e.g. builder sales typed Arms Length in some counties would read as "sold") | resolve-status v3 unit suite + 48h prod sampling in Phase 4 gate |
+
+## 10. Open questions
+
+1. **SFR quota and pricing** — the one true blocker for Phase 5 sizing. What's the rate limit,
+   and is billing per-call or flat?
+2. **Queue retention** — keep the 90-day purge of completed rows, or extend now that the queue
+   doubles as an ingest audit trail? (Cheap either way; `property_transactions` is the permanent
+   record.)
+3. **Legacy `properties.status` column** — drop entirely (preferred) or keep null-defaulted for
+   one release as a safety net?
+4. **Admin visibility** — should the admin panel get an "unclassified properties" view/count in
+   Phase 3, or is DB access enough for now?

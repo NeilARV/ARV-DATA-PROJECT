@@ -14,6 +14,7 @@ import {
     currentSales,
     streetviewCache,
     propertyTransactions,
+    supplementalTaxBills,
 } from '../schemas/properties.schema';
 import {
     insertPropertySchema,
@@ -30,6 +31,7 @@ import {
     insertCurrentSaleSchema,
     insertStreetviewCacheSchema,
     insertPropertyTransactionSchema,
+    insertSupplementalTaxBillSchema,
     manualPropertyEntrySchema,
 } from '../inserts/properties.insert';
 import {
@@ -82,5 +84,8 @@ export type InsertStreetviewCache = z.infer<typeof insertStreetviewCacheSchema>;
 
 export type PropertyTransaction = typeof propertyTransactions.$inferSelect;
 export type InsertPropertyTransaction = z.infer<typeof insertPropertyTransactionSchema>;
+
+export type SupplementalTaxBill = typeof supplementalTaxBills.$inferSelect;
+export type InsertSupplementalTaxBill = z.infer<typeof insertSupplementalTaxBillSchema>;
 
 export type ManualPropertyEntry = z.infer<typeof manualPropertyEntrySchema>;

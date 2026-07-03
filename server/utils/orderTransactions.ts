@@ -69,9 +69,15 @@ function pickNum(tx: TxRow, ...keys: string[]): number | null {
     return null;
 }
 
-const recordingOf = (tx: TxRow) => pickDate(tx, 'recordingDate', 'RECORDING_DATE', 'recording_date');
-const typeOf = (tx: TxRow) => pickStr(tx, 'transactionType', 'TRANSACTION_TYPE', 'transaction_type');
-const priceOf = (tx: TxRow) => pickNum(tx, 'salePrice', 'SALE_AMT', 'sale_amt');
+const recordingOf = (tx: TxRow) =>
+    pickDate(tx, 'recordingDate', 'RECORDING_DATE', 'recording_date');
+const typeOf = (tx: TxRow) =>
+    pickStr(tx, 'transactionType', 'TRANSACTION_TYPE', 'transaction_type');
+
+/** Sale price across key variants (null if none parse) — the shared qualifying-price test. */
+export function priceOf(tx: TxRow): number | null {
+    return pickNum(tx, 'salePrice', 'SALE_AMT', 'sale_amt');
+}
 const buyerIdOf = (tx: TxRow) => pickStr(tx, 'buyerId', 'buyer_id');
 const sellerIdOf = (tx: TxRow) => pickStr(tx, 'sellerId', 'seller_id');
 
@@ -105,14 +111,62 @@ export function nameKey(name: string | null | undefined): string {
     return k;
 }
 
+/** SFR truncates some name fields (notably SELLER1_NAME) at exactly this width. */
+const SFR_NAME_TRUNCATION_WIDTH = 40;
+
+/**
+ * Repairs SFR's 40-char name truncation within one property's transactions so the
+ * name-token matchers (traceAcquisition, computeSaleRatios) can link a truncated
+ * seller to its full buyer record (e.g. seller "…DEVELOPMENT GR" ↔ buyer
+ * "…DEVELOPMENT GROUP INC"). A name is expanded only when it is exactly the
+ * truncation width, exactly one longer name in the history extends it (normalized),
+ * and the extension continues MID-WORD — an extension that adds a whole new word
+ * ("… II LLC" → "… II LLC SERIES B") is a related-but-distinct entity, not a
+ * truncation artifact, and is left untouched, as are ambiguous prefixes.
+ *
+ * Reads/writes the mapped DB field names (buyerName/sellerName); callers on the raw
+ * SFR shape must map first. Applied by the supplemental-tax trace and by
+ * purchase-to-ARV ratio accumulation — other name-matching consumers (spread,
+ * status/owner resolution) can adopt it the same way.
+ */
+export function expandTruncatedNames<
+    T extends { buyerName: string | null; sellerName: string | null },
+>(txs: T[]): T[] {
+    const fullNames: string[] = [];
+    for (const tx of txs) {
+        for (const name of [tx.buyerName, tx.sellerName]) {
+            if (name && name.length > SFR_NAME_TRUNCATION_WIDTH) fullNames.push(name);
+        }
+    }
+    if (fullNames.length === 0) return txs;
+
+    const fullEntries = fullNames.map((full) => ({ full, key: nameKey(full) }));
+
+    const expand = (name: string | null): string | null => {
+        if (!name || name.length !== SFR_NAME_TRUNCATION_WIDTH) return name;
+        const prefix = nameKey(name);
+        // Mid-word continuation only: a space at the cut point means the shorter name
+        // is complete and the longer one merely adds a word — a different entity.
+        const matches = fullEntries.filter(
+            (e) =>
+                e.key.length > prefix.length &&
+                e.key.startsWith(prefix) &&
+                e.key[prefix.length] !== ' ',
+        );
+        const distinct = new Set(matches.map((e) => e.key));
+        return distinct.size === 1 ? matches[0].full : name;
+    };
+
+    return txs.map((tx) => ({
+        ...tx,
+        buyerName: expand(tx.buyerName),
+        sellerName: expand(tx.sellerName),
+    }));
+}
+
 /** Normalize a transaction type for tolerant matching ("Arm's Length", "Arms-Length"). */
 function normalizeType(type: string): string {
-    return type
-        .toLowerCase()
-        .replace(/'/g, '')
-        .replace(/-/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    return type.toLowerCase().replace(/'/g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /** Arms Length (tolerant of apostrophes, hyphens, casing). */
@@ -295,6 +349,20 @@ function traceAcquisition<T extends TxRow>(
     return null;
 }
 
+/**
+ * The seller's own acquisition (price + date) for the Arms Length sale at `index` in a
+ * most-recent-first transaction list — traced through Non-Arms Length transfers to the
+ * seller's arm's-length purchase. The single qualification/trace step shared by
+ * computeSaleRatios and the supplemental-tax prior value (the seller's traced
+ * acquisition price is the property's current Prop-13 base value).
+ */
+export function traceSellerAcquisition<T extends TxRow>(
+    sorted: T[],
+    index: number,
+): { price: number; date: string } | null {
+    return traceAcquisition(sorted.slice(index + 1), sellerTokens(sorted[index]), new Set());
+}
+
 type SpreadResult<T extends TxRow> = {
     buyerPurchasePrice: number | null;
     buyerPurchaseDate: string | null;
@@ -436,7 +504,7 @@ export function computeSaleRatios<T extends TxRow>(txs: T[]): SaleRatio[] {
 
         // Trace the seller's acquisition among strictly-older transactions — everything
         // after this sale in most-recent-first order is older (or a same-day chain link).
-        const acquisition = traceAcquisition(sorted.slice(i + 1), sellerTokens(saleTx), new Set());
+        const acquisition = traceSellerAcquisition(sorted, i);
         if (!acquisition || acquisition.price <= 0) continue;
 
         ratios.push({

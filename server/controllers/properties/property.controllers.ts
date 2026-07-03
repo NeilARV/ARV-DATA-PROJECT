@@ -7,10 +7,13 @@ import {
     getPropertySuggestions,
     patchProperty,
 } from 'server/services/properties/property.services';
+import { isAdminOrOwner } from 'server/services/users/users.services';
 
 export async function getProperty(req: Request, res: Response) {
     try {
-        const property = await getPropertyById(req.params.id);
+        // Supplemental tax data is admin/owner-only; resolve from the session, not the query.
+        const includeSupplementalTax = await isAdminOrOwner(req.session.userId);
+        const property = await getPropertyById(req.params.id, { includeSupplementalTax });
         if (!property) {
             return res.status(404).json({ message: 'Property not found' });
         }

@@ -28,6 +28,7 @@ Drizzle ORM + PostgreSQL (Neon). All schemas live in `database/schemas/`. This d
 | `claim_type` | `claim`, `dispute` | companies.schema.ts |
 | `member_role` | `owner`, `member` | companies.schema.ts |
 | `deal_type` | `wholesale`, `agent`, `sold`, `reo` | deals.schema.ts |
+| `supplemental_bill_type` | `bill`, `refund` | properties.schema.ts |
 | `channel_type` | `public`, `private`, `dm`, `group_dm` | mastermind.schema.ts (Phase 1 uses only `public`) |
 | `channel_member_role` | `owner`, `admin`, `member` | mastermind.schema.ts |
 | `notification_type` | `mention`, `channel_mention`, `deal_bid`, `announcement`,  | mastermind.schema.ts |
@@ -679,6 +680,31 @@ Full transaction history per property. Buyer/seller linked to `companies`.
 - `idx_pt_assignor` on `(assignor_id)` — company-filter assignor branch + per-company "properties assigned" count
 
 > **Assignments** are recorded as columns on the actual arms-length **sale** row (`is_assignment` + `assignor_*`), not as a separate `transaction_type = 'assignment'` row. An assignment is a wholesale flip where a middleman ("assignor") never takes title, so the recorded deed is a direct seller→buyer sale; the assignor is surfaced as metadata on that sale. Admins set this per-transaction in the Edit Property dialog. The data pipeline preserves these columns across its per-property transaction rebuild (see `insert-properties.ts`).
+
+---
+
+### `supplemental_tax_bills`
+CA supplemental tax bills (Prop 13 reassessment on change of ownership, R&T §75.41). One row per (triggering arm's-length transaction, fiscal year): a Jan–May event yields two rows (current FY prorated + next FY at factor 1.00), a June event a single next-FY row, Jul–Dec events a single current-FY row. Rows are upserted on `(property_transaction_id, fiscal_year)` by pipeline Step 12 and `backfill:supplemental-tax`; pipeline transactions are recreated each sync, so their bills cascade and are rewritten, while bills on user-created transactions are refreshed in place. Amounts are positive magnitudes — direction lives in `bill_type`.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `supplemental_tax_bills_id` | `serial` | PK |
+| `property_id` | `uuid` | NOT NULL, FK → `properties.id` (cascade) |
+| `property_transaction_id` | `integer` | NOT NULL, FK → `property_transactions.property_transactions_id` (cascade) |
+| `fiscal_year` | `integer` | NOT NULL — starting calendar year of the fiscal year (2026 = FY 2026-27) |
+| `bill_type` | `supplemental_bill_type` enum | NOT NULL — `bill` / `refund` |
+| `prior_assessed_value` | `decimal(15,2)` | nullable |
+| `new_base_value` | `decimal(15,2)` | NOT NULL — the sale price the property is reassessed to |
+| `net_supplemental_value` | `decimal(15,2)` | NOT NULL — `|new_base_value − prior_assessed_value|` |
+| `tax_rate` | `decimal(6,4)` | NOT NULL — flat `0.0125` in v1 |
+| `proration_factor` | `decimal(5,4)` | NOT NULL — statutory §75.41(c) factor (`1.00` for a full-year bill) |
+| `amount` | `decimal(15,2)` | NOT NULL — `round(net_supplemental_value × tax_rate × proration_factor)` |
+| `prior_value_source` | `varchar(20)` | NOT NULL — `assessment` \| `prior_transaction` |
+| `created_at` | `timestamp` | NOT NULL, default now |
+
+**Constraints / Indexes:**
+- `uq_sbt_transaction_fiscal_year` UNIQUE on `(property_transaction_id, fiscal_year)` — the upsert target; its index also serves transaction-id lookups
+- `idx_sbt_property_id` on `(property_id)`
 
 ---
 
