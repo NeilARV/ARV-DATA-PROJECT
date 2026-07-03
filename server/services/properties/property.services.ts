@@ -27,7 +27,7 @@ import { insertPropertyRelatedData, SfrPropertyData } from 'server/utils/propert
 import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { appendPropertyTransactions, reprocessProperty } from './propertyTransactions.services';
+import { markTransactionAssignments, reprocessProperty } from './propertyTransactions.services';
 import { getSupplementalTaxTotalsByTxId } from './properties.services';
 import { formatContactName } from '@shared/utils/formatContactName';
 
