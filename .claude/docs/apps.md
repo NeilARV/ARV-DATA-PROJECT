@@ -152,25 +152,26 @@ panel — so the previously-anonymous map teaser is no longer reachable through 
 - **`getProperties(filters)`** (`properties.services.ts`) — core query. Builds SQL
   dynamically (full-text address search, EXISTS subqueries for company/status, date range,
   price/bed/bath comparisons). **Transaction display logic** decides which company shows on
-  each card: company selected → most recent Arms Length/Assignment tx involving it; no company
-  → most recent Arms Length tx; detects the "assignor" pattern (Assignment seller between two
-  Arms Length txs) and surfaces it separately. Sorts: recently-sold, days-held,
-  price-high-low, price-low-high.
+  each card: company selected → most recent Arms Length tx where it's buyer/seller (falling back
+  to the latest Arms Length when it's only the assignor); no company → most recent Arms Length tx.
+  Reads the "assignor" off the flagged sale row (`is_assignment` + `assignor_*`) and surfaces it
+  separately. Sorts: recently-sold, days-held, price-high-low, price-low-high.
 - **`getMapProperties(...)`** — lightweight `MapPin[]`; pin color set on frontend by status +
   company role.
 - **`getContacts(params)`** (`companies.services.ts`) — directory listing; 7 sort modes each
   use different count aggregates over `property_transactions`; county filter via EXISTS on
   `company_counties`.
 - **`getCompanyById(id, county)`** — full detail: all property counts (owned, sold/bought
-  YTD & all-time, wholesale), 90-day acquisition by month, contacts list with sort order.
+  YTD & all-time, wholesale, assigned), 90-day acquisition by month, contacts list with sort order.
 
 ## Database Schema (key tables)
 
 **Properties:** `properties` (status, MSA, county, isArvFunded, sfrPropertyId), `addresses`
 (1:1, lat/lng + address parts), `structures` (1:1, beds/baths/sqft/year/condition),
 `assessments` (1:many, assessed/market value by year), `property_transactions` (the heart —
-buyerId/sellerId FK→companies, price, dateSold, transactionType arms-length/assignment,
-sortOrder), `property_statuses` (M:M with `statuses`), `statuses` (lookup).
+buyerId/sellerId FK→companies, price, dateSold, transactionType, sortOrder, and assignment
+metadata `is_assignment`/`assignor_id`/`assignor_name` on the sale row), `property_statuses`
+(M:M with `statuses`), `statuses` (lookup).
 
 **Companies:** `companies` (companyName unique, isArvClient), `company_contacts` (name, email,
 phone, title, sortOrder), `company_counties` (activity counties), `company_details`
@@ -440,7 +441,7 @@ max 3; adminNotes/onBehalfOfEmail/isArvExclusive stripped server-side for non-pr
   email to client, CC poster's RM; without: email to poster, CC requester's RM.
 - **Submit offer** → `SendOfferForm` (amount + name/email/phone) → insert `deal_bids` row (full
   history) → two fire-and-forget side-effects: a `deal_bid` bell notification to the poster, and an
-  offer email (`sendDealOfferNotification`, `POSTMARK_DEAL_OFFER_TEMPLATE_ALIAS`). The email mirrors
+  offer email (`sendDealOfferNotification`, `POSTMARK_TEMPLATES.DEAL_OFFER`). The email mirrors
   request-info routing — on-behalf-of deal: To = client, Cc = poster's RM/default + bidder; normal
   deal: To = poster, Cc = bidder's RM/default + bidder; From = bidder's RM (or default), Reply-To =
   bidder. Always sent on submit (not gated by the subscriber-notification system). Poster reads

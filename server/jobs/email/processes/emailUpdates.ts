@@ -10,6 +10,7 @@ import {
     sendTemplateToUsers,
     getWhitelistRecipientsForMsa,
 } from 'server/services/postmark/email.services';
+import { POSTMARK_TEMPLATES } from 'server/services/postmark/templates';
 import { formatAddress } from '@shared/utils/formatAddress';
 import { formatCompanyName } from '@shared/utils/formatCompanyName';
 import { formatPhoneNumber } from '@shared/utils/formatPhoneNumber';
@@ -496,7 +497,7 @@ export async function sendEmailUpdatesForMsa(
 
         const { sent: sentCount, failed: failedRecipients } = await sendTemplateToUsers({
             recipients: emailRecipients,
-            templateAlias: `${process.env.POSTMARK_TEMPLATE_ALIAS}`,
+            templateAlias: POSTMARK_TEMPLATES.PROPERTY_UPDATE,
             templateModelForRecipient: (r) => {
                 const props = userPropertiesMap.get(r.email) ?? defaultProperties;
                 return {

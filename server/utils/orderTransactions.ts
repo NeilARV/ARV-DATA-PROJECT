@@ -427,6 +427,40 @@ export function calculateSpread<T extends TxRow>(txs: T[]): SpreadResult<T> {
     };
 }
 
+// ── Assignor ───────────────────────────────────────────────────────────────────────
+
+/** The assignment metadata carried on a flagged sale row. */
+export interface AssignorInfo {
+    assignorId: string | null;
+    assignorName: string | null;
+}
+
+/**
+ * Reads the assignor off the most-recent flagged sale row. An assignment lives on the
+ * arms-length sale transaction (is_assignment = true); the row with the lowest sortOrder
+ * (1 = most recent per pipeline convention) is the property's current assignment. Input
+ * may be in any order — recency is resolved by sortOrder here, not by caller ordering.
+ *
+ * @param txs a property's transaction rows (needs isAssignment, sortOrder, assignor*)
+ * @returns the assignor id/name, or nulls when the property has no assignment
+ */
+export function getAssignorFromTxs(
+    txs: Array<{
+        isAssignment: boolean;
+        sortOrder: number | null;
+        assignorId: string | null;
+        assignorName: string | null;
+    }>,
+): AssignorInfo {
+    const assignmentTx = txs
+        .filter((tx) => tx.isAssignment)
+        .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))[0];
+    return {
+        assignorId: assignmentTx?.assignorId ?? null,
+        assignorName: assignmentTx?.assignorName ?? null,
+    };
+}
+
 // ── Purchase-to-ARV ratio ──────────────────────────────────────────────────────────
 
 /** One Arms Length sale's purchase-to-ARV ratio for a single property. */

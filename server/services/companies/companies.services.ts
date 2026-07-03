@@ -459,8 +459,11 @@ export async function getContacts(params: GetContactsParams): Promise<GetContact
 export async function getWholesaleLeaderboard(county?: string) {
     const normalizedCounty = county ? county.trim().toLowerCase() : null;
 
+    // Ranks the top wholesalers — the assignors on wholesale-status sales. An assignor is the
+    // middleman on a wholesale flip; assignor_id is set only on rows flagged is_assignment, so
+    // filtering on it (not on a now-removed 'assignment' transaction type) is what surfaces them.
     const wholesaleWhereParts: ReturnType<typeof sql>[] = [
-        sql`LOWER(TRIM(${propertyTransactions.transactionType})) IN ('arms length', 'assignment')`,
+        sql`${propertyTransactions.assignorId} IS NOT NULL`,
         sql`EXISTS (
             SELECT 1 FROM property_statuses ps
             JOIN statuses s ON s.id = ps.status_id
@@ -478,34 +481,34 @@ export async function getWholesaleLeaderboard(county?: string) {
     }
     const countRows = await db
         .select({
-            sellerId: propertyTransactions.sellerId,
+            assignorId: propertyTransactions.assignorId,
             count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int`,
         })
         .from(propertyTransactions)
         .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
         .leftJoin(addresses, eq(properties.id, addresses.propertyId))
         .where(and(...wholesaleWhereParts))
-        .groupBy(propertyTransactions.sellerId)
+        .groupBy(propertyTransactions.assignorId)
         .orderBy(sql`count(DISTINCT ${propertyTransactions.propertyId}) desc`)
         .limit(3);
 
     if (countRows.length === 0) return [];
 
-    const sellerIds = countRows.map((r) => r.sellerId).filter(Boolean) as string[];
+    const assignorIds = countRows.map((r) => r.assignorId).filter(Boolean) as string[];
     const [companyRows, primaryContacts] = await Promise.all([
         db
             .select({ id: companies.id, companyName: companies.companyName })
             .from(companies)
-            .where(inArray(companies.id, sellerIds)),
-        fetchPrimaryContacts(sellerIds),
+            .where(inArray(companies.id, assignorIds)),
+        fetchPrimaryContacts(assignorIds),
     ]);
 
     const companyById = new Map(companyRows.map((c) => [c.id, c]));
     return countRows
         .map((row, index) => {
-            const company = row.sellerId ? companyById.get(row.sellerId) : null;
+            const company = row.assignorId ? companyById.get(row.assignorId) : null;
             if (!company) return null;
-            const primary = row.sellerId ? (primaryContacts.get(row.sellerId) ?? null) : null;
+            const primary = row.assignorId ? (primaryContacts.get(row.assignorId) ?? null) : null;
             return {
                 rank: index + 1,
                 companyId: company.id,
@@ -705,7 +708,7 @@ export async function getCompanyById(id: string, county?: string) {
         propertyCount = propertyCountResult?.count ?? 0;
     }
 
-    const [chartAcquisitions, contactsList] = await Promise.all([
+    const [chartAcquisitions, contactsList, assignedCountRows] = await Promise.all([
         // Powers BOTH the bar graph and the 90-day total: every acquisition from the
         // start of the earliest displayed month through today. A superset of the 90-day
         // window, which is recovered by filtering this result below.
@@ -727,7 +730,21 @@ export async function getCompanyById(id: string, county?: string) {
             .from(companyContacts)
             .where(eq(companyContacts.companyId, id))
             .orderBy(companyContacts.sortOrder, companyContacts.id),
+        // Distinct properties this company assigned (is the assignor on the sale row).
+        db
+            .select({ count: sql<number>`count(DISTINCT ${propertyTransactions.propertyId})::int` })
+            .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .leftJoin(addresses, eq(properties.id, addresses.propertyId))
+            .where(
+                and(
+                    eq(propertyTransactions.assignorId, id),
+                    ...(countyCondition ? [countyCondition] : []),
+                ),
+            ),
     ]);
+
+    const propertiesAssignedCount = assignedCountRows[0]?.count ?? 0;
 
     const primaryContact = contactsList[0] ?? null;
 
@@ -774,6 +791,7 @@ export async function getCompanyById(id: string, county?: string) {
         propertyCount,
         propertiesSoldCount: sellerCountResult?.count ?? 0,
         propertiesSoldCountAllTime: sellerCountAllTimeResult?.count ?? 0,
+        propertiesAssignedCount,
         acquisition90DayTotal,
         acquisition90DayByMonth: months,
     };

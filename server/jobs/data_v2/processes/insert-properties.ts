@@ -15,7 +15,7 @@ import {
     currentSales,
 } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc, inArray, sql } from 'drizzle-orm';
 import { normalizeDateToYMD } from 'server/utils/normalization';
 import { sortTransactionsDesc } from 'server/utils/orderTransactions';
 import type { PropertyWithStatus } from './resolve-status';
@@ -170,6 +170,52 @@ export async function insertProperties(
     // Cache status name → id from DB once per batch
     const statusRows = await db.select({ id: statuses.id, name: statuses.name }).from(statuses);
     const statusMap = new Map(statusRows.map((s) => [s.name, s.id]));
+
+    // Assignments are an admin annotation on a pipeline-owned arms-length sale row, so the
+    // per-property delete below would wipe them. Capture every existing annotation for the
+    // whole batch in ONE query up front (keyed by property id), then re-apply after re-insert.
+    type AssignorAnnotation = {
+        recordingDate: string | null;
+        buyerId: string | null;
+        buyerName: string | null;
+        assignorId: string | null;
+        assignorName: string | null;
+    };
+    const assignorAnnotationsByPropertyId = new Map<string, AssignorAnnotation[]>();
+    const batchSfrIds = items
+        .map((it) => Number((it.property as Record<string, unknown>).property_id ?? 0))
+        .filter((n) => n > 0);
+    if (batchSfrIds.length > 0) {
+        const annotationRows = await db
+            .select({
+                propertyId: propertyTransactions.propertyId,
+                recordingDate: propertyTransactions.recordingDate,
+                buyerId: propertyTransactions.buyerId,
+                buyerName: propertyTransactions.buyerName,
+                assignorId: propertyTransactions.assignorId,
+                assignorName: propertyTransactions.assignorName,
+            })
+            .from(propertyTransactions)
+            .innerJoin(properties, eq(propertyTransactions.propertyId, properties.id))
+            .where(
+                and(
+                    inArray(properties.sfrPropertyId, batchSfrIds),
+                    eq(propertyTransactions.userCreated, false),
+                    eq(propertyTransactions.isAssignment, true),
+                ),
+            );
+        for (const row of annotationRows) {
+            const list = assignorAnnotationsByPropertyId.get(row.propertyId) ?? [];
+            list.push({
+                recordingDate: row.recordingDate,
+                buyerId: row.buyerId,
+                buyerName: row.buyerName,
+                assignorId: row.assignorId,
+                assignorName: row.assignorName,
+            });
+            assignorAnnotationsByPropertyId.set(row.propertyId, list);
+        }
+    }
 
     for (const item of items) {
         const p = item.property as Record<string, unknown>;
@@ -436,6 +482,51 @@ export async function insertProperties(
                     .set({ sortOrder })
                     .where(eq(propertyTransactions.propertyTransactionsId, entry.id));
             }
+        }
+
+        // Re-apply captured assignor annotations to the re-inserted arms-length sale row.
+        const assignorAnnotations = assignorAnnotationsByPropertyId.get(propertyId) ?? [];
+        for (const a of assignorAnnotations) {
+            // buyer_name (raw from SFR) is stable across syncs; buyer_id is re-derived every
+            // run and can drift, so match on the name and fall back to the id only when the
+            // name is absent.
+            const buyerMatch = a.buyerName
+                ? sql`LOWER(TRIM(${propertyTransactions.buyerName})) = ${a.buyerName.trim().toLowerCase()}`
+                : a.buyerId
+                  ? eq(propertyTransactions.buyerId, a.buyerId)
+                  : null;
+            if (!buyerMatch || !a.recordingDate) continue;
+
+            // Target the single most-recent matching arms-length sale row. Assignments live
+            // only on arms-length sales (see markTransactionAssignments), so a non-match here
+            // means the sale is gone from SFR — log rather than silently drop.
+            const [target] = await db
+                .select({ id: propertyTransactions.propertyTransactionsId })
+                .from(propertyTransactions)
+                .where(
+                    and(
+                        eq(propertyTransactions.propertyId, propertyId),
+                        eq(propertyTransactions.recordingDate, a.recordingDate),
+                        sql`LOWER(TRIM(${propertyTransactions.transactionType})) = 'arms length'`,
+                        buyerMatch,
+                    ),
+                )
+                .orderBy(asc(propertyTransactions.sortOrder))
+                .limit(1);
+
+            if (!target) {
+                console.warn(
+                    `[${cityCode} SYNC] Assignment re-apply: no arms-length sale matched for ` +
+                        `property ${propertyId} (recordingDate ${a.recordingDate}, ` +
+                        `buyer ${a.buyerName ?? a.buyerId}); annotation dropped.`,
+                );
+                continue;
+            }
+
+            await db
+                .update(propertyTransactions)
+                .set({ isAssignment: true, assignorId: a.assignorId, assignorName: a.assignorName })
+                .where(eq(propertyTransactions.propertyTransactionsId, target.id));
         }
     }
 
