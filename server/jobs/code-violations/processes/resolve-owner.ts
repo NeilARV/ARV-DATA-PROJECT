@@ -32,9 +32,9 @@ export type OwnerResolution =
  * Uses the Data app's canonical owner logic — `sortTransactionsDesc` (recording_date DESC, with
  * same-day ownership-chain reconstruction) — to find the most-recent arms-length transaction, whose
  * buyer is the current owning company. We deliberately do NOT trust `getPropertyTransactions`'
- * stored `sort_order`: user-appended transactions (`insertAtEnd`) and assignments
- * (`insertAssignment`) leave sort_order out of recency order, so trusting it would resolve a stale
- * owner and alert the wrong company. A row with only a `buyerName` (no `buyerId`) is an
+ * stored `sort_order`: user-appended transactions (`insertAtEnd`) leave sort_order out of recency
+ * order, so trusting it would resolve a stale owner and alert the wrong company. A row with only a
+ * `buyerName` (no `buyerId`) is an
  * individual/unlinked owner: stored, never emailed. A company with no `company_members` is stored but
  * not emailed (nobody to tell yet) — note we gate on **`company_members`**, never `company_contacts`.
  *

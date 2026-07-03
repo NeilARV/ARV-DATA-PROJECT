@@ -33,6 +33,7 @@ export type CompanyContactDetail = Company & {
     propertyCount: number;
     propertiesSoldCount: number;
     propertiesSoldCountAllTime?: number;
+    propertiesAssignedCount: number;
     acquisition90DayTotal: number;
     acquisition90DayByMonth: Array<{ key: string; count: number }>;
     contacts: CompanyContact[];

@@ -671,6 +671,28 @@ export default function CompanyDirectory(_props: CompanyDirectoryProps) {
                                             </span>
                                         </div>
 
+                                        {/* Properties Assigned */}
+                                        <div className="flex items-center gap-2">
+                                            <RefreshCw className="w-4 h-4 text-primary" />
+                                            <span className="text-sm">
+                                                <span className="text-muted-foreground">
+                                                    Properties Assigned:{' '}
+                                                </span>
+                                                {expandedCompanyDetail?.propertiesAssignedCount !==
+                                                undefined ? (
+                                                    <span className="font-semibold text-foreground">
+                                                        {
+                                                            expandedCompanyDetail.propertiesAssignedCount
+                                                        }
+                                                    </span>
+                                                ) : (
+                                                    <span className="italic text-muted-foreground">
+                                                        Loading...
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </div>
+
                                         {/* Market Ranking */}
                                         <div className="flex items-center gap-2">
                                             <Trophy className="w-4 h-4 text-primary" />

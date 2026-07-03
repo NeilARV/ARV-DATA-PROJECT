@@ -22,9 +22,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Check, X, CalendarIcon, Trash2 } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+import { formatCompanyName } from '@shared/utils/formatCompanyName';
+import { Loader2, Check, X, Trash2, Tag, Pencil } from 'lucide-react';
+import { cn } from '@/utils/merge';
 
 // ─── Property form ─────────────────────────────────────────────────────────
 
@@ -56,19 +56,72 @@ export type UpdatePropertyContentProps = {
     onSuccess?: () => void;
 };
 
-// ─── Transaction types ─────────────────────────────────────────────────────
+// ─── Transaction rows ──────────────────────────────────────────────────────
 
-const TRANSACTION_TYPES = ['Assignment'] as const;
-
-const TX_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-    'Arms Length': { bg: '#3B82F6', text: '#fff' },
-    'Non-Arms Length': { bg: '#F59E0B', text: '#fff' },
-    Assignment: { bg: '#9333EA', text: '#fff' },
-    'REFI LOANS': { bg: '#F97316', text: '#fff' },
-    '2ND TRUST DEEDS': { bg: '#6366F1', text: '#fff' },
-    HELOCS: { bg: '#EC4899', text: '#fff' },
-    'New Construction': { bg: '#22C55E', text: '#fff' },
+// Transaction-type badge palette — the sanctioned categorical hexes from the design system
+// (see .claude/docs/design-guidelines.md → "Transaction Type Colors"): translucent fill,
+// saturated border, darker same-hue text. Keyed by lower(trimmed) type; unmapped types fall
+// back to muted tokens.
+const TX_TYPE_COLORS: Record<string, string> = {
+    'arms length': 'bg-[#22C55E]/15 text-[#16A34A] border-[#22C55E]/30',
+    'non-arms length': 'bg-[#F59E0B]/15 text-[#D97706] border-[#F59E0B]/30',
+    assignment: 'bg-[#9333EA]/15 text-[#7E22CE] border-[#9333EA]/30',
+    refinance: 'bg-[#3B82F6]/15 text-[#1D4ED8] border-[#3B82F6]/30',
+    'refi loans': 'bg-[#3B82F6]/15 text-[#1D4ED8] border-[#3B82F6]/30',
+    heloc: 'bg-[#06B6D4]/15 text-[#0E7490] border-[#06B6D4]/30',
+    helocs: 'bg-[#06B6D4]/15 text-[#0E7490] border-[#06B6D4]/30',
+    '2nd trust deeds': 'bg-[#6366F1]/15 text-[#4F46E5] border-[#6366F1]/30',
+    'new construction': 'bg-[#EF4444]/15 text-[#DC2626] border-[#EF4444]/30',
+    acquisition: 'bg-[#69C9E1]/15 text-[#0891B2] border-[#69C9E1]/30',
 };
+
+const TYPE_BADGE_FALLBACK = 'bg-muted text-muted-foreground border-border';
+
+function typeBadgeClass(type: string): string {
+    return TX_TYPE_COLORS[type.trim().toLowerCase()] ?? TYPE_BADGE_FALLBACK;
+}
+
+/** "2024-01-05" → "Jan 5, 2024". Returns "—" for empty, echoes non-ISO input unchanged. */
+function formatTxDate(d: string): string {
+    if (!d) return '—';
+    const [y, m, day] = d.split('-');
+    if (!y || !m || !day) return d;
+    const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+    ];
+    return `${months[Number(m) - 1] ?? m} ${Number(day)}, ${y}`;
+}
+
+function formatTxPrice(price: string): string {
+    if (!price) return '—';
+    const n = Number(price);
+    return isNaN(n) ? '—' : `$${n.toLocaleString()}`;
+}
+
+/** Colored transaction-type / assignment pill. `type` selects the palette; `label` is shown. */
+function TxBadge({ label, type }: { label: string; type: string }) {
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold',
+                typeBadgeClass(type),
+            )}
+        >
+            {label}
+        </span>
+    );
+}
 
 type TxRow = {
     _key: string;
@@ -82,36 +135,12 @@ type TxRow = {
     sellerName: string;
     salePrice: string;
     firstMtgLenderName: string;
+    isAssignment: boolean;
+    assignorName: string;
+    // Original assignment state as fetched — Save only sends rows that changed.
+    origIsAssignment: boolean;
+    origAssignorName: string;
 };
-
-type TxEditForm = Omit<TxRow, '_key' | 'id' | 'sortOrder' | 'userCreated' | 'saleDate'>;
-
-function emptyTxRow(key: string): TxRow {
-    return {
-        _key: key,
-        id: null,
-        sortOrder: null,
-        userCreated: true,
-        transactionType: '',
-        recordingDate: '',
-        saleDate: '',
-        buyerName: '',
-        sellerName: '',
-        salePrice: '',
-        firstMtgLenderName: '',
-    };
-}
-
-function emptyEditForm(): TxEditForm {
-    return {
-        transactionType: '',
-        recordingDate: '',
-        buyerName: '',
-        sellerName: '',
-        salePrice: '',
-        firstMtgLenderName: '',
-    };
-}
 
 // ─── Company autocomplete ──────────────────────────────────────────────────
 
@@ -200,157 +229,48 @@ function CompanyAutocomplete({
     );
 }
 
-// ─── Date helpers ─────────────────────────────────────────────────────────
+// ─── Assignor inline editor ────────────────────────────────────────────────
 
-function parseDateStr(s: string): Date | undefined {
-    if (!s || s.length !== 10) return undefined;
-    const d = new Date(s + 'T00:00:00');
-    return isNaN(d.getTime()) ? undefined : d;
-}
-
-function toDateStr(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-}
-
-// ─── Transaction inline edit row ───────────────────────────────────────────
-
-function TxEditRow({
-    form,
+/** Inline editor for marking a sale transaction as an assignment (naming the assignor). */
+function TxAssignRow({
+    value,
     onChange,
     onApply,
     onCancel,
     county,
 }: {
-    form: TxEditForm;
-    onChange: (field: keyof TxEditForm, val: string) => void;
+    value: string;
+    onChange: (val: string) => void;
     onApply: () => void;
     onCancel: () => void;
     county?: string | null;
 }) {
-    const [recordingOpen, setRecordingOpen] = useState(false);
-    const missingRequired = !form.recordingDate;
-
     return (
-        <div className="border border-primary/50 rounded-lg p-3 space-y-3 bg-muted/30">
-            <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground mb-1 block">Type</label>
-                    <Select
-                        value={form.transactionType}
-                        onValueChange={(v) => onChange('transactionType', v)}
-                    >
-                        <SelectTrigger className="h-8 text-sm">
-                            <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent className="z-[10003]">
-                            {TRANSACTION_TYPES.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                    {t}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground mb-1 block">
-                        Recording Date <span className="text-destructive">*</span>
-                    </label>
-                    <Popover open={recordingOpen} onOpenChange={setRecordingOpen}>
-                        <PopoverTrigger asChild>
-                            <button
-                                type="button"
-                                className="flex items-center gap-1.5 h-8 w-full rounded-md border border-input bg-background px-3 text-xs hover:bg-accent transition-colors"
-                            >
-                                <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                                <span
-                                    className={
-                                        form.recordingDate
-                                            ? 'text-foreground'
-                                            : 'text-muted-foreground'
-                                    }
-                                >
-                                    {form.recordingDate || 'Pick a date'}
-                                </span>
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 z-[10004]" align="start">
-                            <Calendar
-                                mode="single"
-                                selected={parseDateStr(form.recordingDate)}
-                                defaultMonth={parseDateStr(form.recordingDate)}
-                                onSelect={(date) => {
-                                    if (date) onChange('recordingDate', toDateStr(date));
-                                    setRecordingOpen(false);
-                                }}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
-                </div>
-
-                <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground mb-1 block">Buyer</label>
-                    <CompanyAutocomplete
-                        value={form.buyerName}
-                        onChange={(v) => onChange('buyerName', v)}
-                        county={county}
-                        placeholder="Buyer name"
-                    />
-                </div>
-
-                <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground mb-1 block">Seller</label>
-                    <CompanyAutocomplete
-                        value={form.sellerName}
-                        onChange={(v) => onChange('sellerName', v)}
-                        county={county}
-                        placeholder="Seller name"
-                    />
-                </div>
-
-                <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Sale Price</label>
-                    <Input
-                        value={form.salePrice}
-                        onChange={(e) => onChange('salePrice', e.target.value)}
-                        placeholder="e.g. 450000"
-                        className="h-8 text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Lender</label>
-                    <Input
-                        value={form.firstMtgLenderName}
-                        onChange={(e) => onChange('firstMtgLenderName', e.target.value)}
-                        placeholder="Lender name"
-                        className="h-8 text-sm"
-                    />
-                </div>
+        <div className="rounded-xl border border-[#9333EA]/30 bg-[#9333EA]/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-[#7E22CE]" />
+                <span className="text-sm font-semibold text-foreground">Mark as assignment</span>
             </div>
-
-            <div className="flex gap-2">
-                <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={onCancel}
-                    className="flex-1"
-                >
-                    <X className="w-3 h-3 mr-1" /> Cancel
+            <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-muted-foreground">
+                    Assignor{' '}
+                    <span className="font-normal text-muted-foreground/70">
+                        — the wholesaler who assigned the contract
+                    </span>
+                </label>
+                <CompanyAutocomplete
+                    value={value}
+                    onChange={onChange}
+                    county={county}
+                    placeholder="Assignor company or individual"
+                />
+            </div>
+            <div className="flex justify-end gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+                    <X className="w-3.5 h-3.5 mr-1" /> Cancel
                 </Button>
-                <Button
-                    type="button"
-                    size="sm"
-                    onClick={onApply}
-                    disabled={missingRequired}
-                    className="flex-1"
-                >
-                    <Check className="w-3 h-3 mr-1" /> Apply
+                <Button type="button" size="sm" onClick={onApply} disabled={!value.trim()}>
+                    <Check className="w-3.5 h-3.5 mr-1" /> Apply
                 </Button>
             </div>
         </div>
@@ -359,26 +279,56 @@ function TxEditRow({
 
 // ─── Transaction display card ──────────────────────────────────────────────
 
-function TxDisplayCard({ tx, onDelete }: { tx: TxRow; onDelete?: () => void }) {
-    const typeStyle = tx.transactionType ? TX_TYPE_COLORS[tx.transactionType] : null;
+/** Assignments live only on Arms Length sales — see markTransactionAssignments (server). */
+function isArmsLength(type: string): boolean {
+    return type.trim().toLowerCase() === 'arms length';
+}
+
+/** Compact label-over-value cell used in a transaction card's field grid. */
+function Field({
+    label,
+    value,
+    className,
+}: {
+    label: string;
+    value: string;
+    className?: string;
+}) {
+    return (
+        <div className={cn('min-w-0', className)}>
+            <div className="text-xs font-medium text-muted-foreground">{label}</div>
+            <div className="text-sm text-foreground break-words">{value}</div>
+        </div>
+    );
+}
+
+function TxDisplayCard({
+    tx,
+    onDelete,
+    onStartAssign,
+    onClearAssign,
+    disabled = false,
+}: {
+    tx: TxRow;
+    onDelete?: () => void;
+    onStartAssign: () => void;
+    onClearAssign: () => void;
+    // True while another row's assignor editor is open — freezes this card's actions so an
+    // in-progress edit can't be silently discarded by clicking a sibling row.
+    disabled?: boolean;
+}) {
+    // Company names are stored ALL-CAPS; format before rendering (ARV.RAW-COMPANY-NAME).
+    const buyer = formatCompanyName(tx.buyerName) ?? '—';
+    const seller = formatCompanyName(tx.sellerName) ?? '—';
+    const showAssignmentRow = tx.id != null && (isArmsLength(tx.transactionType) || tx.isAssignment);
 
     return (
-        <div className="border border-border rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                    {typeStyle ? (
-                        <span
-                            className="text-xs font-semibold px-3 py-0.5 rounded shadow-sm"
-                            style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
-                        >
-                            {tx.transactionType}
-                        </span>
-                    ) : (
-                        <span className="text-xs text-muted-foreground">
-                            {tx.transactionType || '—'}
-                        </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">{tx.recordingDate || '—'}</span>
+        <div className="rounded-xl border border-card-border bg-card p-4 space-y-3">
+            {/* Header: type + assignment badges, sort order, delete */}
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <TxBadge label={tx.transactionType || 'Unknown'} type={tx.transactionType} />
+                    {tx.isAssignment && <TxBadge label="Assignment" type="assignment" />}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     {tx.sortOrder != null && (
@@ -390,41 +340,77 @@ function TxDisplayCard({ tx, onDelete }: { tx: TxRow; onDelete?: () => void }) {
                         <button
                             type="button"
                             onClick={onDelete}
-                            className="text-muted-foreground hover:text-destructive transition-colors"
+                            disabled={disabled}
+                            className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Delete transaction"
                         >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                         </button>
                     )}
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 text-xs">
-                <div>
-                    <span className="text-muted-foreground">Sale Date: </span>
-                    <span>{tx.saleDate || '—'}</span>
-                </div>
-                <div>
-                    <span className="text-muted-foreground">Buyer: </span>
-                    <span>{tx.buyerName || '—'}</span>
-                </div>
-                <div>
-                    <span className="text-muted-foreground">Seller: </span>
-                    <span>{tx.sellerName || '—'}</span>
-                </div>
-                {tx.salePrice && (
-                    <div>
-                        <span className="text-muted-foreground">Price: </span>
-                        <span>${Number(tx.salePrice).toLocaleString()}</span>
-                    </div>
-                )}
+            {/* Dates + price */}
+            <div className="grid grid-cols-3 gap-x-6 gap-y-3">
+                <Field label="Recording Date" value={formatTxDate(tx.recordingDate)} />
+                <Field label="Sale Date" value={formatTxDate(tx.saleDate)} />
+                <Field label="Sale Price" value={formatTxPrice(tx.salePrice)} />
+            </div>
+
+            {/* Parties */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <Field label="Buyer" value={buyer} />
+                <Field label="Seller" value={seller} />
                 {tx.firstMtgLenderName && (
-                    <div>
-                        <span className="text-muted-foreground">Lender: </span>
-                        <span>{tx.firstMtgLenderName}</span>
-                    </div>
+                    <Field label="Lender" value={tx.firstMtgLenderName} className="col-span-2" />
                 )}
             </div>
+
+            {/* Assignment — only on Arms Length sales (or an existing mark, so it can still be
+                edited/removed). Non-sale rows can't be assignments. */}
+            {showAssignmentRow &&
+                (tx.isAssignment ? (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#9333EA]/20 bg-[#9333EA]/10 px-3 py-2">
+                        <div className="min-w-0">
+                            <div className="text-xs font-semibold text-[#7E22CE]">Assignor</div>
+                            <div className="truncate text-sm font-medium text-foreground">
+                                {tx.assignorName ? formatCompanyName(tx.assignorName) : '—'}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={onStartAssign}
+                                disabled={disabled}
+                                className="h-7 px-2 text-xs"
+                            >
+                                <Pencil className="w-3 h-3 mr-1" /> Edit
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={onClearAssign}
+                                disabled={disabled}
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                            >
+                                <Trash2 className="w-3 h-3 mr-1" /> Remove
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <Button
+                        type="button"
+                        size="sm"
+                        onClick={onStartAssign}
+                        disabled={disabled}
+                        className="h-8 gap-1.5 text-xs"
+                    >
+                        <Tag className="w-3.5 h-3.5" /> Mark as assignment
+                    </Button>
+                ))}
         </div>
     );
 }
@@ -442,8 +428,8 @@ export function UpdatePropertyDialog({
 
     const [transactions, setTransactions] = useState<TxRow[]>([]);
     const [txLoading, setTxLoading] = useState(true);
-    const [editingKey, setEditingKey] = useState<string | null>(null);
-    const [editForm, setEditForm] = useState<TxEditForm>(emptyEditForm());
+    const [assigningKey, setAssigningKey] = useState<string | null>(null);
+    const [assignInput, setAssignInput] = useState('');
     const [deletedTxIds, setDeletedTxIds] = useState<number[]>([]);
 
     useEffect(() => {
@@ -462,6 +448,8 @@ export function UpdatePropertyDialog({
                         sellerName: string | null;
                         salePrice: string | null;
                         firstMtgLenderName: string | null;
+                        isAssignment: boolean;
+                        assignorName: string | null;
                     }>,
                 ) => {
                     setTransactions(
@@ -477,6 +465,10 @@ export function UpdatePropertyDialog({
                             sellerName: tx.sellerName ?? '',
                             salePrice: tx.salePrice ?? '',
                             firstMtgLenderName: tx.firstMtgLenderName ?? '',
+                            isAssignment: tx.isAssignment ?? false,
+                            assignorName: tx.assignorName ?? '',
+                            origIsAssignment: tx.isAssignment ?? false,
+                            origAssignorName: tx.assignorName ?? '',
                         })),
                     );
                 },
@@ -485,39 +477,39 @@ export function UpdatePropertyDialog({
             .finally(() => setTxLoading(false));
     }, [propertyId]);
 
-    function startAdd() {
-        const key = `new-${Date.now()}`;
-        setEditingKey(key);
-        setEditForm(emptyEditForm());
-        setTransactions((prev) => [emptyTxRow(key), ...prev]);
+    function startAssign(tx: TxRow) {
+        setAssigningKey(tx._key);
+        setAssignInput(tx.assignorName);
     }
 
-    function applyEdit() {
+    function applyAssign() {
+        const name = assignInput.trim();
         setTransactions((prev) =>
             prev.map((tx) =>
-                tx._key === editingKey
-                    ? {
-                          _key: tx._key,
-                          id: tx.id,
-                          sortOrder: tx.sortOrder,
-                          userCreated: tx.userCreated,
-                          ...editForm,
-                          saleDate: editForm.recordingDate,
-                      }
-                    : tx,
+                tx._key === assigningKey ? { ...tx, isAssignment: true, assignorName: name } : tx,
             ),
         );
-        setEditingKey(null);
+        setAssigningKey(null);
+        setAssignInput('');
     }
 
-    function cancelEdit() {
-        setTransactions((prev) => prev.filter((tx) => tx._key !== editingKey));
-        setEditingKey(null);
+    function cancelAssign() {
+        setAssigningKey(null);
+        setAssignInput('');
+    }
+
+    function clearAssign(tx: TxRow) {
+        setTransactions((prev) =>
+            prev.map((t) =>
+                t._key === tx._key ? { ...t, isAssignment: false, assignorName: '' } : t,
+            ),
+        );
     }
 
     function handleDeleteTx(tx: TxRow) {
         setTransactions((prev) => prev.filter((t) => t._key !== tx._key));
-        if (tx.id) setDeletedTxIds((prev) => [...prev, tx.id!]);
+        const id = tx.id;
+        if (id != null) setDeletedTxIds((prev) => [...prev, id]);
     }
 
     const safeStatuses = initialData.statuses.filter((s): s is PropertyStatus =>
@@ -535,20 +527,27 @@ export function UpdatePropertyDialog({
     const handleSubmit = async (data: UpdatePropertyFormValues) => {
         setIsLoading(true);
         try {
-            const newTransactions = transactions.filter((tx) => tx._key.startsWith('new-'));
+            // Only send assignment rows whose flag or assignor changed. Compare trimmed names
+            // and only diff the name when the row is actually an assignment, so a no-op edit
+            // (or a stored name that isn't in canonical trimmed form) isn't re-sent.
+            const assignmentChanges = transactions.flatMap((tx) => {
+                if (tx.id == null) return [];
+                const changed =
+                    tx.isAssignment !== tx.origIsAssignment ||
+                    (tx.isAssignment && tx.assignorName.trim() !== tx.origAssignorName.trim());
+                if (!changed) return [];
+                return [
+                    {
+                        transactionId: tx.id,
+                        isAssignment: tx.isAssignment,
+                        assignorName: tx.isAssignment ? tx.assignorName || null : null,
+                    },
+                ];
+            });
             await apiRequest('PATCH', `/api/properties/${propertyId}`, {
                 isArvFunded: data.isArvFunded,
                 statuses: data.statuses,
-                ...(newTransactions.length > 0 && {
-                    transactions: newTransactions.map((tx) => ({
-                        transactionType: tx.transactionType || null,
-                        recordingDate: tx.recordingDate,
-                        buyerName: tx.buyerName || null,
-                        sellerName: tx.sellerName || null,
-                        salePrice: tx.salePrice || null,
-                        firstMtgLenderName: tx.firstMtgLenderName || null,
-                    })),
-                }),
+                ...(assignmentChanges.length > 0 && { assignments: assignmentChanges }),
                 ...(deletedTxIds.length > 0 && { deletedTransactionIds: deletedTxIds }),
             });
             toast({
@@ -578,6 +577,9 @@ export function UpdatePropertyDialog({
         <>
             <DialogHeader>
                 <DialogTitle>Edit Property</DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                    Update funding, listing status, and transaction assignments.
+                </p>
             </DialogHeader>
 
             <Form {...form}>
@@ -663,56 +665,48 @@ export function UpdatePropertyDialog({
                     />
 
                     {/* Transactions */}
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <label className="text-sm font-medium leading-none">Transactions</label>
-                            {!editingKey && (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 gap-1 text-xs px-2"
-                                    onClick={startAdd}
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    Add Transaction
-                                </Button>
+                            <label className="text-sm font-semibold leading-none">
+                                Transactions
+                            </label>
+                            {!txLoading && transactions.length > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                    {transactions.length} recorded
+                                </span>
                             )}
                         </div>
 
                         {txLoading ? (
-                            <div className="flex items-center justify-center py-4">
-                                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                            <div className="flex items-center justify-center rounded-xl border border-dashed border-border py-8">
+                                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                             </div>
-                        ) : transactions.length === 0 && !editingKey ? (
-                            <p className="text-xs text-muted-foreground">
+                        ) : transactions.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
                                 No transactions recorded.
-                            </p>
+                            </div>
                         ) : (
                             <div
-                                className="overflow-y-auto pr-1 space-y-2"
-                                style={{ maxHeight: '20rem' }}
+                                className="max-h-[26rem] space-y-3 overflow-y-auto pr-1"
                                 onWheel={(e) => e.stopPropagation()}
                             >
                                 {transactions.map((tx) => (
                                     <div key={tx._key}>
-                                        {editingKey === tx._key ? (
-                                            <TxEditRow
-                                                form={editForm}
-                                                onChange={(field, val) =>
-                                                    setEditForm((prev) => ({
-                                                        ...prev,
-                                                        [field]: val,
-                                                    }))
-                                                }
-                                                onApply={applyEdit}
-                                                onCancel={cancelEdit}
+                                        {assigningKey === tx._key ? (
+                                            <TxAssignRow
+                                                value={assignInput}
+                                                onChange={setAssignInput}
+                                                onApply={applyAssign}
+                                                onCancel={cancelAssign}
                                                 county={initialData.county}
                                             />
                                         ) : (
                                             <TxDisplayCard
                                                 tx={tx}
                                                 onDelete={() => handleDeleteTx(tx)}
+                                                onStartAssign={() => startAssign(tx)}
+                                                onClearAssign={() => clearAssign(tx)}
+                                                disabled={assigningKey !== null}
                                             />
                                         )}
                                     </div>
@@ -735,7 +729,7 @@ export function UpdatePropertyDialog({
                         <Button
                             type="submit"
                             className="flex-1"
-                            disabled={isLoading || !!editingKey}
+                            disabled={isLoading || !!assigningKey}
                             data-testid="button-save-update-property"
                         >
                             {isLoading ? (

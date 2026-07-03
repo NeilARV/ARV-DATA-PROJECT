@@ -2,33 +2,36 @@ import { z } from 'zod';
 
 const PROPERTY_STATUSES = ['in-renovation', 'on-market', 'sold', 'wholesale'] as const;
 
-const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+// An assignment always names its assignor: isAssignment=true requires a non-empty
+// assignorName; clearing (isAssignment=false) leaves assignorName null/absent. This makes
+// the "marked but nameless" state unrepresentable at the API boundary.
+const assignmentUpdateSchema = z
+    .object({
+        transactionId: z.number().int().positive(),
+        isAssignment: z.boolean(),
+        assignorName: z.string().nullable().optional(),
+    })
+    .refine((data) => !data.isAssignment || (data.assignorName?.trim().length ?? 0) > 0, {
+        message: 'assignorName is required when isAssignment is true',
+        path: ['assignorName'],
+    });
 
-const patchTransactionInputSchema = z.object({
-    transactionType: z.string().nullable().optional(),
-    recordingDate: z.string().regex(dateRegex, 'Must be YYYY-MM-DD'),
-    buyerName: z.string().nullable().optional(),
-    sellerName: z.string().nullable().optional(),
-    salePrice: z.string().nullable().optional(),
-    firstMtgLenderName: z.string().nullable().optional(),
-});
-
-export type PatchTransactionInput = z.infer<typeof patchTransactionInputSchema>;
+export type AssignmentUpdateInput = z.infer<typeof assignmentUpdateSchema>;
 
 export const patchPropertySchema = z
     .object({
         isArvFunded: z.boolean().optional(),
         statuses: z.array(z.enum(PROPERTY_STATUSES)).min(1).optional(),
-        transactions: z.array(patchTransactionInputSchema).optional(),
         deletedTransactionIds: z.array(z.number().int().positive()).optional(),
+        assignments: z.array(assignmentUpdateSchema).optional(),
     })
     .strict()
     .refine(
         (data) =>
             data.isArvFunded !== undefined ||
             data.statuses !== undefined ||
-            data.transactions !== undefined ||
-            data.deletedTransactionIds !== undefined,
+            data.deletedTransactionIds !== undefined ||
+            data.assignments !== undefined,
         { message: 'At least one field must be provided' },
     );
 

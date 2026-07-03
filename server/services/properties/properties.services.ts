@@ -9,7 +9,8 @@ import {
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { companyContacts } from '@database/schemas/companies.schema';
 import { trimCompanyName } from 'server/utils/normalization';
-import { calculateSpread } from 'server/utils/orderTransactions';
+import { calculateSpread, getAssignorFromTxs } from 'server/utils/orderTransactions';
+import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { eq, sql, or, and, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -47,38 +48,13 @@ interface GetPropertiesResult {
     limit: number;
 }
 
-// Txs are already ordered by COALESCE(sort_order, 999999) ASC (most recent first).
-function detectAssignorFromSortedTxs(
-    txs: Array<{
-        transactionType: string | null;
-        buyerId: string | null;
-        sellerName: string | null;
-        sellerId: string | null;
-    }>,
-): { assignorId: string | null; assignorCompanyName: string | null } {
-    const latestAL = txs.find(
-        (tx) => (tx.transactionType ?? '').trim().toLowerCase() === 'arms length',
-    );
-    if (!latestAL?.buyerId) return { assignorId: null, assignorCompanyName: null };
-
-    const assignmentTx = txs.find(
-        (tx) =>
-            (tx.transactionType ?? '').trim().toLowerCase() === 'assignment' &&
-            tx.buyerId === latestAL.buyerId,
-    );
-    return {
-        assignorId: assignmentTx?.sellerId ?? null,
-        assignorCompanyName: assignmentTx?.sellerName ?? null,
-    };
-}
-
 /**
  * Returns the transaction to use for display (buyer name, seller name, price, date).
  *
- * Company selected → most recent AL or Assignment tx where company is buyer or seller.
- *   Exception: if the match is an Assignment tx where the company is the SELLER (assigner),
- *   fall back to the most recent Arms Length tx. The assigner role is already surfaced via
- *   assignorId/assignorCompanyName; the display tx should show the actual sale.
+ * Company selected → most recent Arms Length tx where company is buyer or seller; if the
+ *   company is involved only as the assignor (not a buyer/seller on any sale), fall back
+ *   to the most recent Arms Length tx — the assignor role is surfaced separately via
+ *   assignorId/assignorCompanyName.
  * No company → most recent Arms Length tx.
  *
  * Txs must be ordered COALESCE(sort_order, 999999) ASC so the first match is most recent.
@@ -98,21 +74,10 @@ function findDisplayTx<
     const companyTx =
         txs.find((tx) => {
             const type = (tx.transactionType ?? '').trim().toLowerCase();
-            return (
-                (type === 'arms length' || type === 'assignment') &&
-                (tx.buyerId === companyId || tx.sellerId === companyId)
-            );
+            return type === 'arms length' && (tx.buyerId === companyId || tx.sellerId === companyId);
         }) ?? null;
 
-    if (!companyTx) return latestAL;
-
-    // If the company's involvement is as the assigner (seller in an Assignment tx),
-    // show the Arms Length tx instead — the assigner role appears separately on the card.
-    const isAssigner =
-        (companyTx.transactionType ?? '').trim().toLowerCase() === 'assignment' &&
-        companyTx.sellerId === companyId;
-
-    return isAssigner ? latestAL : companyTx;
+    return companyTx ?? latestAL;
 }
 
 export async function getProperties(filters: GetPropertiesFilters): Promise<GetPropertiesResult> {
@@ -187,23 +152,11 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
     const companyIdTrimmed = companyId && typeof companyId === 'string' ? companyId.trim() : '';
     const hasCompanyFilter = companyIdTrimmed !== '';
 
-    // Company ID filter: match properties where company appears in any Arms Length or Assignment
-    // transaction. companyRole restricts to buyer-only or seller-only when set.
+    // Company ID filter: match properties where the company is the buyer/seller on an
+    // Arms Length sale, or (when no role is pinned) the assignor on any sale. Shared with
+    // the map and zip-count queries via companyInvolvementExists so they can't diverge.
     if (hasCompanyFilter) {
-        const roleCondition =
-            companyRole === 'buyer'
-                ? sql`pt.buyer_id = ${companyIdTrimmed}::uuid`
-                : companyRole === 'seller'
-                  ? sql`pt.seller_id = ${companyIdTrimmed}::uuid`
-                  : sql`(pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)`;
-        conditions.push(
-            sql`EXISTS (
-                SELECT 1 FROM property_transactions pt
-                WHERE pt.property_id = ${properties.id}
-                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND ${roleCondition}
-            )`,
-        );
+        conditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
     }
 
     // Status filter and optional name-based company filter.
@@ -496,6 +449,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             id: propertyTransactions.propertyTransactionsId,
             sortOrder: propertyTransactions.sortOrder,
             firstMtgLenderName: propertyTransactions.firstMtgLenderName,
+            isAssignment: propertyTransactions.isAssignment,
+            assignorId: propertyTransactions.assignorId,
+            assignorName: propertyTransactions.assignorName,
         })
         .from(propertyTransactions)
         .where(inArray(propertyTransactions.propertyId, idsForPage))
@@ -560,12 +516,15 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
         }
     }
 
-    // Pre-pass: collect assignor company IDs for contact info
+    // Pre-pass: compute each property's assignor once (reused in the main map below) and
+    // collect the company IDs for contact lookup.
+    const assignorInfoByPropertyId = new Map<string, ReturnType<typeof getAssignorFromTxs>>();
     const assignorCompanyIds = new Set<string>();
     for (const prop of rawPropertiesList) {
         const txs = transactionsByPropertyId.get(prop.id) ?? [];
-        const { assignorId } = detectAssignorFromSortedTxs(txs);
-        if (assignorId) assignorCompanyIds.add(assignorId);
+        const info = getAssignorFromTxs(txs);
+        assignorInfoByPropertyId.set(prop.id, info);
+        if (info.assignorId) assignorCompanyIds.add(info.assignorId);
     }
     const assignorContactMap = new Map<string, CompanyContact>();
     if (assignorCompanyIds.size > 0) {
@@ -608,7 +567,9 @@ export async function getProperties(filters: GetPropertiesFilters): Promise<GetP
             spread,
             latestArmsLengthTx,
         } = calculateSpread(txs);
-        const { assignorId, assignorCompanyName } = detectAssignorFromSortedTxs(txs);
+        const { assignorId, assignorName: assignorCompanyName } = assignorInfoByPropertyId.get(
+            prop.id,
+        ) ?? { assignorId: null, assignorName: null };
         const assignorContact = assignorId ? (assignorContactMap.get(assignorId) ?? null) : null;
 
         // displayTx is the source of truth for buyer/seller/price/date

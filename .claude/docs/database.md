@@ -651,6 +651,9 @@ Full transaction history per property. Buyer/seller linked to `companies`.
 | `seller_name` | `varchar(200)` | nullable |
 | `buyer_id` | `uuid` | FK → `companies.id` (set null), nullable |
 | `buyer_name` | `varchar(200)` | nullable |
+| `is_assignment` | `boolean` | NOT NULL, default false — this sale was a wholesale assignment |
+| `assignor_id` | `uuid` | FK → `companies.id` (set null), nullable — assignor company (set only when it matches an existing company) |
+| `assignor_name` | `varchar(200)` | nullable — assignor display name (may be an individual with no company) |
 | `apn` | `varchar(50)` | nullable |
 | `transaction_type` | `varchar(50)` | nullable |
 | `sale_date` | `date` | NOT NULL |
@@ -673,6 +676,9 @@ Full transaction history per property. Buyer/seller linked to `companies`.
 - `idx_pt_buyer_date` on `(buyer_id, recording_date)` — most-bought-properties YTD/all-time queries
 - `idx_pt_buyer_sort1` (partial) on `(buyer_id)` WHERE `sort_order = 1` — most recent transaction per buyer
 - `idx_pt_property_seller` on `(property_id, seller_id)`
+- `idx_pt_assignor` on `(assignor_id)` — company-filter assignor branch + per-company "properties assigned" count
+
+> **Assignments** are recorded as columns on the actual arms-length **sale** row (`is_assignment` + `assignor_*`), not as a separate `transaction_type = 'assignment'` row. An assignment is a wholesale flip where a middleman ("assignor") never takes title, so the recorded deed is a direct seller→buyer sale; the assignor is surfaced as metadata on that sale. Admins set this per-transaction in the Edit Property dialog. The data pipeline preserves these columns across its per-property transaction rebuild (see `insert-properties.ts`).
 
 ---
 

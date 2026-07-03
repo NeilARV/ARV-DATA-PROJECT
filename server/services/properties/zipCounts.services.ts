@@ -3,6 +3,7 @@ import { properties, addresses, propertyTransactions } from '@database/schemas/p
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { eq, sql, and, or, inArray } from 'drizzle-orm';
 import { resolveDateRange } from 'server/utils/resolveDateRange';
+import { companyInvolvementExists } from 'server/utils/companyTransactionFilters';
 import type { ZipCount } from '@shared/types/properties';
 
 /**
@@ -69,20 +70,7 @@ export async function getZipCounts(
     }
 
     if (hasCompanyFilter) {
-        const roleCondition =
-            companyRole === 'buyer'
-                ? sql`pt.buyer_id = ${companyIdTrimmed}::uuid`
-                : companyRole === 'seller'
-                  ? sql`pt.seller_id = ${companyIdTrimmed}::uuid`
-                  : sql`(pt.buyer_id = ${companyIdTrimmed}::uuid OR pt.seller_id = ${companyIdTrimmed}::uuid)`;
-        idConditions.push(
-            sql`EXISTS (
-                SELECT 1 FROM property_transactions pt
-                WHERE pt.property_id = ${properties.id}
-                AND LOWER(TRIM(pt.transaction_type)) IN ('arms length', 'assignment')
-                AND ${roleCondition}
-            )`,
-        );
+        idConditions.push(companyInvolvementExists(companyIdTrimmed, companyRole));
     }
 
     const idWhereClause = idConditions.length > 0 ? and(...idConditions) : undefined;
