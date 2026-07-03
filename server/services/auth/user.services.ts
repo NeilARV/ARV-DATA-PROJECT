@@ -163,7 +163,7 @@ export async function removeUserRelationshipManager(
  * Hashes a temporary password, writes it to the user with the given email, and
  * flags the account so the user is forced to set a new password on next login.
  * Returns the updated user (without the password hash), or null if no user matched.
- * Used by both the self-serve forgot-password flow and the manual reset-one-user script.
+ * Used by the self-serve forgot-password flow.
  */
 export async function resetUserPassword(email: string, newPassword: string) {
     const passwordHash = await bcrypt.hash(newPassword, 10);

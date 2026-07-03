@@ -50,8 +50,8 @@ export const users = pgTable(
         email: text('email').unique().notNull(),
         passwordHash: text('password_hash').notNull(),
         mustResetPassword: boolean('must_reset_password').notNull().default(false),
-        // Null = unverified. Existing users are grandfathered to verified by the
-        // one-off backfill in scripts/grandfather-email-verified.ts.
+        // Null = unverified. Existing users were grandfathered to verified by a
+        // one-off rollout backfill (UPDATE users SET email_verified_at = now()).
         emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
         createdAt: timestamp('created_at').notNull().defaultNow(),
         notifications: boolean('notifications').notNull().default(true),

@@ -422,7 +422,7 @@ explicitly out of scope for this part** (the `group_dm` channel type stays reser
 two user ids, so the existing `UNIQUE(channels.name)` enforces "exactly one conversation per pair"
 and get-or-create is race-safe. The synthetic name is never shown to users (the UI keys off the
 counterparty and routes by their id). `notification_type` gains `direct_message` (applied as a
-targeted `ALTER TYPE … ADD VALUE`, per the db:push drift note — see `scripts/add-dm-notification-enum.ts`).
+targeted `ALTER TYPE … ADD VALUE`, per the db:push drift note).
 
 **Routing:** `/mastermind/dm/:userId` — keyed on the **counterparty's** user id (clean, stable,
 doesn't leak the synthetic name). A bare/unknown id behaves like an unknown channel.
