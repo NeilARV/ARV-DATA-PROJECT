@@ -1,6 +1,6 @@
 # Supplemental Tax Bill (SBT) — Design & Plan
 
-> Status: **v1 built and merged to `main` (PR #81, 2026-07-02)** — schema, calculator, pipeline Step 12, backfill, API, UI all live. **§12 (v2 ownership-window display) is the active plan.**
+> Status: **v1 built and merged to `main` (PR #81, 2026-07-02)** — schema, calculator, pipeline Step 12, backfill, API, UI all live. **§12 (v2 ownership-window display) is the active plan — read §12.10 first (display moves to an admin-only transaction history on property detail; card line removed). Blocked on the §12.10 UX discussion before build.**
 > Scope: **California properties only** for v1 (see §1 for why this is correct, not just a cut).
 > Owner decisions captured in §0 and §12.3; open items flagged in §9.
 
@@ -443,6 +443,8 @@ Sources: [BOE — Supplemental Assessment](https://www.boe.ca.gov/proptaxes/supp
 
 ### 12.2 Unified rule
 
+> **Party-selection below superseded by §12.10** — the rule's first half stands (window semantics, month granularity, derived from stored rows), but the flip-vs-held *party choice* dissolves once display moves to per-transaction rows: every row simply shows its own buyer's window.
+
 > **The displayed supplemental amount always describes the displayed party's actual ownership window**, at month granularity, derived from the stored statutory rows.
 
 - **Completed flip** (the card has spread context — seller's traced acquisition + the displayed resale): show the **seller's finalized hold-period amount** — the bills triggered by the seller's *own acquisition*, prorated from their acquisition's presumed month to the resale's presumed month. This is the flip cost that belongs next to the spread.
@@ -456,6 +458,9 @@ Sources: [BOE — Supplemental Assessment](https://www.boe.ca.gov/proptaxes/supp
 | 2 | Completed-flip display | **Seller's hold-period bill only** (not the new buyer's accruing bill) |
 | 3 | Storage | **Unchanged** — `supplemental_tax_bills` stays the statutory artifact; all windowing is read-time |
 | 4 | Zero-amount lines | Suppressed — same-month flips and just-bought (0 accrued months) render no line |
+| 5 | Display surface | **Transaction history on the property detail view** — SBT is removed from property cards entirely (§12.10) |
+| 6 | Visibility | **Admin-only** (the internal team — `admin`/`owner` roles, same gate as the v1 field); regular users never see SBT anywhere |
+| 7 | At-a-glance card visibility | **Consciously given up for now** — acceptable loss; revisit only if the review workflow demands it |
 
 ### 12.4 The accrual math (pure, month-granularity)
 
@@ -493,6 +498,8 @@ export function accrueSupplementalOverWindow(input: {
 
 ### 12.5 Service changes (read-time only — no schema, pipeline, or backfill changes)
 
+> **Field placement superseded by §12.10** — the accrual mechanics and rows-not-totals fetch below stand, but the result attaches to each transaction in the **detail** response instead of one card-level field; the list endpoint drops SBT entirely, and the `party` discriminator is no longer needed.
+
 - **`getSupplementalTaxTotalsByTxId` → `getSupplementalTaxRowsByTxId`** — return per-row `{ fiscalYear, billType, amount }` keyed by transaction ID instead of a pre-summed signed total (the sum loses the per-FY structure the accrual needs).
 - **Which transaction's rows to fetch:** the display party's *acquisition* transaction —
   - flip: the seller's traced acquisition tx (`calculateSpread` / `traceSellerAcquisition` already resolve it; expose its **transaction ID** alongside the existing `sellerPurchasePrice`/`sellerPurchaseDate`),
@@ -510,6 +517,8 @@ export function accrueSupplementalOverWindow(input: {
   in `properties.services.ts` (list), `property.services.ts` (detail), and the client mirror in `client/src/types/property.ts`. **Admin/owner gating unchanged.** This is a breaking rename on purpose — a lingering `supplementalTaxBill` consumer should fail the type check, not silently show the old semantics.
 
 ### 12.6 UI (`PropertyContent.tsx`)
+
+> **Superseded by §12.10** — the card line is **removed entirely**, not relabeled. Kept for the record of what was considered.
 
 One labeled line replacing the current one, same placement and admin/owner gate, colors as today (negative red / positive green):
 
@@ -547,8 +556,59 @@ Integration — update `supplemental-tax-visibility.integration.test.ts` for the
 
 ### 12.9 Build order
 
+> **Superseded by §12.10.6.**
+
 1. Pure function + unit tests green.
 2. `orderTransactions.ts` seller-acquisition tx exposure.
 3. Services (list + detail) + type rename ripple → `npm run check`.
 4. UI line + label.
 5. Integration tests via `/test`; docs via agent-updater.
+
+### 12.10 Display surface revision — transaction history on property detail (owner decision, 2026-07-06; supersedes 12.2 party-selection, 12.5 field placement, 12.6, 12.9)
+
+**Decision:** SBT comes **off the property cards entirely** and moves to a **transaction history display on the single-property (detail) view** — click a property, see its transaction history, and see the supplemental tax that *was* owed (finalized) or *is* owed so far (accruing) for each transaction. **Admin-only** (internal team: `admin`/`owner` roles — the same `isAdmin || isOwner` gate v1 uses; regular users see no SBT anywhere). The loss of at-a-glance card visibility is accepted for now.
+
+**Why this beats the card (and the two-labeled-lines / review-table alternatives):**
+
+- The cards are **transaction-centric** (`displayTx` — latest sale, or the selected company's transaction as buyer *or* seller depending on the view), so any single card-level SBT number is inherently ambiguous about whose cost it is. The views flip perspective; the number can't.
+- On a **transaction row**, ownership is self-evident: the bill always belongs to **that row's buyer**, and their hold window ends where the next transaction up the list begins (or today, if none). No `party` discriminator, no flip-vs-held branching — the §12.2 party-selection logic dissolves.
+- The flip economics fall out for free: a flipper's finalized hold cost is simply their *purchase* row's line; the new owner's accruing bill is the row above.
+- It is the verification surface the team needs (see per-row breakdown below) without building a separate admin review table.
+
+**Mechanics (unchanged from 12.4/12.5 where not stated):**
+
+- The detail page is already a **single-property API request** (`getPropertyById`) that returns the transaction list — each arm's-length transaction gains an optional `supplementalTax` object (admin-gated, else omitted/null):
+  ```ts
+  supplementalTax: {
+      amount: number;              // signed: bill −, refund +
+      monthsOwned: number;
+      status: 'accruing' | 'final';
+  } | null
+  ```
+  computed as `accrueSupplementalOverWindow(rowsOfThisTx, thisTx.saleDate, nextArmsLengthTransferDate ?? null, today)` — one fetch of all the property's bill rows (`getSupplementalTaxRowsByTxId` over all its tx IDs), window ends resolved from the already-sorted transaction list.
+- **List endpoint:** drop `supplementalTaxBill` and its `getSupplementalTaxTotalsByTxId` call entirely (cards no longer show SBT). The v1 pre-summed helper is deleted, not kept alongside.
+- The `orderTransactions.ts` seller-acquisition-ID exposure from 12.5/12.9 is **no longer needed** — per-row display never has to trace across transactions; the window logic only needs each row's *next* transfer.
+
+**Verification affordance (why admins are looking at this at all):** the stored rows carry the full audit breakdown (`prior_assessed_value`, `prior_value_source`, `net_supplemental_value`, `tax_rate`, `proration_factor`, per-FY `amount`). The detail response should expose these per bill row (admin-gated) so a number can be checked without querying the DB — exact presentation TBD below.
+
+**Component contract (owner requirement, 2026-07-06):** the transaction history is a **separate, purely presentational React component** in `client/src/components/data/` (e.g. `TransactionHistory.tsx`):
+
+- Receives the transactions (with their optional `supplementalTax` objects) **as props** — no server calls, no TanStack Query, no hooks that fetch. The property detail page/parent does the single-property fetch and passes the data down.
+- Rationale: isolation — the component renders any transaction array it's handed, so it's trivially testable with fixture data and reusable wherever the detail data is already loaded (panel, modal, page).
+- The admin gate stays with the **caller/data layer** (the service already omits `supplementalTax` for non-admins); the component just renders what it receives and shows no SBT line when the field is absent.
+
+**Open — UI/UX discussion still required before build (the "cards are messy" conversation):**
+
+1. Where the transaction history lives on the detail view (the detail panel/modal already shows some transaction info — extend it, or a dedicated section/tab?) and what each row shows.
+2. Whether each row's `supplementalTax` line expands to the statutory breakdown (per-FY bills, prior value + source, rate, factor) inline, in a tooltip, or on click.
+3. General property-card cleanup is a separate conversation — SBT removal is decided, but no other card changes are in this plan's scope.
+
+**No code changes yet — this section records the decision and the remaining discussion items.**
+
+#### 12.10.6 Revised build order (replaces 12.9)
+
+0. **UX discussion** — settle the two open presentation questions above.
+1. Pure function `accrueSupplementalOverWindow` + unit tests green (12.4 spec stands; drop `party` from the result).
+2. Detail service: per-transaction accrual + audit fields, admin gate; **remove** the list-endpoint field and `getSupplementalTaxTotalsByTxId` → `npm run check`.
+3. UI: remove the card line from `PropertyContent.tsx`; build the presentational `TransactionHistory` component in `client/src/components/data/` (props-only, per the component contract above) and mount it on the detail view.
+4. Integration tests via `/test` (update `supplemental-tax-visibility` for the new shape and the list-endpoint removal); docs via agent-updater (`api.md`, `apps.md`).
