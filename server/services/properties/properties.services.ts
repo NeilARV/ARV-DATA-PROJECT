@@ -5,7 +5,6 @@ import {
     structures,
     lastSales,
     propertyTransactions,
-    supplementalTaxBills,
 } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { companyContacts } from '@database/schemas/companies.schema';
@@ -47,40 +46,6 @@ interface GetPropertiesResult {
     hasMore: boolean;
     page: number;
     limit: number;
-}
-
-interface GetPropertiesOptions {
-    /** Resolved by the controller from the requester's role (admin/owner only) — never from
-     *  query params, so clients can't opt themselves in. */
-    includeSupplementalTax?: boolean;
-}
-
-/**
- * Signed supplemental-tax total per transaction: bills are stored as positive magnitudes with
- * the direction in bill_type, and a Jan–May event has two fiscal-year rows — so sum the signed
- * amounts (refund = +, bill = −) to get one display value per triggering transaction.
- */
-export async function getSupplementalTaxTotalsByTxId(
-    txIds: number[],
-): Promise<Map<number, number>> {
-    const totals = new Map<number, number>();
-    if (txIds.length === 0) return totals;
-    const rows = await db
-        .select({
-            propertyTransactionId: supplementalTaxBills.propertyTransactionId,
-            billType: supplementalTaxBills.billType,
-            amount: supplementalTaxBills.amount,
-        })
-        .from(supplementalTaxBills)
-        .where(inArray(supplementalTaxBills.propertyTransactionId, txIds));
-    for (const row of rows) {
-        const signed = (row.billType === 'refund' ? 1 : -1) * Number(row.amount);
-        totals.set(
-            row.propertyTransactionId,
-            (totals.get(row.propertyTransactionId) ?? 0) + signed,
-        );
-    }
-    return totals;
 }
 
 // Txs are already ordered by COALESCE(sort_order, 999999) ASC (most recent first).
@@ -134,16 +99,15 @@ function findDisplayTx<
     const companyTx =
         txs.find((tx) => {
             const type = (tx.transactionType ?? '').trim().toLowerCase();
-            return type === 'arms length' && (tx.buyerId === companyId || tx.sellerId === companyId);
+            return (
+                type === 'arms length' && (tx.buyerId === companyId || tx.sellerId === companyId)
+            );
         }) ?? null;
 
     return companyTx ?? latestAL;
 }
 
-export async function getProperties(
-    filters: GetPropertiesFilters,
-    { includeSupplementalTax = false }: GetPropertiesOptions = {},
-): Promise<GetPropertiesResult> {
+export async function getProperties(filters: GetPropertiesFilters): Promise<GetPropertiesResult> {
     const {
         zipcode,
         city,
@@ -546,13 +510,6 @@ export async function getProperties(
         }
     }
 
-    // Supplemental tax bills attach to the displayed sale (admin/owner-only field).
-    const supplementalTaxByTxId = includeSupplementalTax
-        ? await getSupplementalTaxTotalsByTxId(
-              Array.from(displayTxByPropertyId.values()).map((tx) => tx.id),
-          )
-        : new Map<number, number>();
-
     type CompanyContact = {
         id: string;
         contactName: string | null;
@@ -719,9 +676,6 @@ export async function getProperties(
             assignorContactEmail: assignorContact?.contactEmail ?? null,
             assignorContactPhone: assignorContact?.phoneNumber ?? null,
             isFinancedByARV,
-            supplementalTaxBill: displayTx
-                ? (supplementalTaxByTxId.get(displayTx.id) ?? null)
-                : null,
             lenderName: displayTx?.firstMtgLenderName ?? prop.lastSaleLender ?? null,
             sellerName: sellerDisplayName,
             propertyOwner: buyerDisplayName || sellerDisplayName || null,

@@ -1,11 +1,17 @@
 import { db } from 'server/storage';
-import type { PropertySuggestion } from '@shared/types/properties';
+import type {
+    PropertyDetailTransaction,
+    PropertySuggestion,
+    SupplementalTaxBillRow,
+    TransactionSupplementalTax,
+} from '@shared/types/properties';
 import {
     properties,
     addresses,
     structures,
     lastSales,
     propertyTransactions,
+    supplementalTaxBills,
 } from '@database/schemas/properties.schema';
 import { statuses, propertyStatuses } from '@database/schemas/statuses.schema';
 import { companies, companyContacts, companyMsas } from '@database/schemas/companies.schema';
@@ -20,7 +26,9 @@ import {
     sortTransactionsDesc,
     calculateSpread,
     getAssignorFromTxs,
+    isArmsLength,
 } from 'server/utils/orderTransactions';
+import { accrueSupplementalOverWindow } from 'server/utils/supplementalTax';
 import { ARV_LENDER } from 'server/constants/transactions.constants';
 import { isUniqueViolation } from 'server/utils/dbErrors';
 import { insertPropertyRelatedData, SfrPropertyData } from 'server/utils/propertyDataHelpers';
@@ -28,7 +36,6 @@ import { addCountiesToCompanyIfNeeded } from 'server/utils/dataSyncHelpers';
 import { eq, sql, or, and, desc, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { markTransactionAssignments, reprocessProperty } from './propertyTransactions.services';
-import { getSupplementalTaxTotalsByTxId } from './properties.services';
 import { formatContactName } from '@shared/utils/formatContactName';
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -86,6 +93,111 @@ interface GetPropertyByIdOptions {
     includeSupplementalTax?: boolean;
 }
 
+/**
+ * Stored statutory bill rows per transaction, numeric-typed for the API payload and
+ * grouped by property_transaction_id (a Jan–May event carries two fiscal-year rows).
+ */
+export async function getSupplementalTaxRowsByTxId(
+    txIds: number[],
+): Promise<Map<number, SupplementalTaxBillRow[]>> {
+    const rowsByTxId = new Map<number, SupplementalTaxBillRow[]>();
+    if (txIds.length === 0) return rowsByTxId;
+    const rows = await db
+        .select()
+        .from(supplementalTaxBills)
+        .where(inArray(supplementalTaxBills.propertyTransactionId, txIds))
+        .orderBy(supplementalTaxBills.fiscalYear);
+    for (const row of rows) {
+        const bucket = rowsByTxId.get(row.propertyTransactionId) ?? [];
+        bucket.push({
+            fiscalYear: row.fiscalYear,
+            billType: row.billType,
+            amount: Number(row.amount),
+            priorAssessedValue:
+                row.priorAssessedValue != null ? Number(row.priorAssessedValue) : null,
+            priorValueSource: row.priorValueSource,
+            netSupplementalValue: Number(row.netSupplementalValue),
+            taxRate: Number(row.taxRate),
+            prorationFactor: Number(row.prorationFactor),
+        });
+        rowsByTxId.set(row.propertyTransactionId, bucket);
+    }
+    return rowsByTxId;
+}
+
+interface BuildTransactionHistoryInput {
+    /** Transactions newest-first (sortTransactionsDesc order). */
+    sortedTxs: Array<{
+        id: number;
+        transactionType: string | null;
+        saleDate: string | null;
+        recordingDate: string | null;
+        salePrice: string | null;
+        buyerId: string | null;
+        buyerName: string | null;
+        sellerId: string | null;
+        sellerName: string | null;
+        isAssignment: boolean | null;
+        assignorName: string | null;
+    }>;
+    /** Stored statutory rows per transaction; pass an empty map for non-admin callers. */
+    billRowsByTxId: Map<number, SupplementalTaxBillRow[]>;
+    state: string | null;
+    /** Evaluation date (YYYY-MM-DD) closing still-held ownership windows. */
+    asOf: string | null;
+}
+
+/**
+ * Assemble the detail payload's transaction history (newest first). Each arm's-length
+ * row's ownership window runs from its own presumed date (§75.41(b)) to the next
+ * arm's-length transfer up the sorted list — or to `asOf` while still held — and its
+ * stored bill rows are accrued over that window (admin/owner-only fields).
+ */
+function buildTransactionHistory({
+    sortedTxs,
+    billRowsByTxId,
+    state,
+    asOf,
+}: BuildTransactionHistoryInput): PropertyDetailTransaction[] {
+    const transactions: PropertyDetailTransaction[] = [];
+    let nextTransferDate: string | null = null; // sortedTxs is newest-first
+    for (const tx of sortedTxs) {
+        const isAl = isArmsLength(tx);
+        const saleDate = normalizeDateToYMD(tx.saleDate);
+        const billRows = billRowsByTxId.get(tx.id) ?? [];
+
+        let supplementalTax: TransactionSupplementalTax | null = null;
+        if (isAl && billRows.length > 0 && saleDate && asOf) {
+            supplementalTax = accrueSupplementalOverWindow({
+                rows: billRows,
+                acquisitionDate: saleDate,
+                resaleDate: nextTransferDate,
+                asOf,
+                state,
+            });
+        }
+
+        const salePrice = tx.salePrice != null ? Number(tx.salePrice) : null;
+        transactions.push({
+            id: tx.id,
+            transactionType: tx.transactionType ?? null,
+            saleDate,
+            recordingDate: normalizeDateToYMD(tx.recordingDate),
+            salePrice: salePrice != null && !Number.isNaN(salePrice) ? salePrice : null,
+            buyerId: tx.buyerId ?? null,
+            buyerName: tx.buyerName ?? null,
+            sellerId: tx.sellerId ?? null,
+            sellerName: tx.sellerName ?? null,
+            isAssignment: tx.isAssignment ?? false,
+            assignorName: tx.assignorName ?? null,
+            supplementalTax,
+            supplementalTaxBills: billRows,
+        });
+        if (isAl && saleDate) nextTransferDate = saleDate;
+    }
+    return transactions;
+}
+
 /** The property-detail payload returned by {@link getPropertyById} (GET /api/properties/:id). */
 export interface PropertyDetail {
     id: string;
@@ -126,8 +238,8 @@ export interface PropertyDetail {
     sellerPurchasePrice: number | null;
     sellerPurchaseDate: string | null;
     spread: number | null;
-    /** Signed supplemental-tax total (bill = −, refund = +); null unless the caller is admin/owner. */
-    supplementalTaxBill: number | null;
+    /** Transaction history, newest first; supplemental-tax fields are admin/owner-only. */
+    transactions: PropertyDetailTransaction[];
     isFinancedByARV: boolean;
     lenderName: string | null;
     companyId: string | null;
@@ -234,8 +346,7 @@ export async function getPropertyById(
     const txBuyerId = latest?.buyerId ?? null;
     const txSellerId = latest?.sellerId ?? null;
 
-    const { assignorName: rawAssignorName, assignorId: rawAssignorId } =
-        getAssignorFromTxs(allTxs);
+    const { assignorName: rawAssignorName, assignorId: rawAssignorId } = getAssignorFromTxs(allTxs);
 
     let assignorContactName: string | null = null;
     let assignorContactEmail: string | null = null;
@@ -294,12 +405,16 @@ export async function getPropertyById(
     const txBuyerCompany = txBuyerId ? (txCompanyMap.get(txBuyerId) ?? null) : null;
     const txSellerCompany = txSellerId ? (txCompanyMap.get(txSellerId) ?? null) : null;
 
-    // Supplemental tax bills attach to the displayed sale (admin/owner-only field).
-    let supplementalTaxBill: number | null = null;
-    if (includeSupplementalTax && latest) {
-        const supplementalTaxByTxId = await getSupplementalTaxTotalsByTxId([latest.id]);
-        supplementalTaxBill = supplementalTaxByTxId.get(latest.id) ?? null;
-    }
+    // Per-transaction ownership-window supplemental tax (admin/owner-only fields).
+    const billRowsByTxId = includeSupplementalTax
+        ? await getSupplementalTaxRowsByTxId(sortedTxs.map((tx) => tx.id))
+        : new Map<number, SupplementalTaxBillRow[]>();
+    const transactions = buildTransactionHistory({
+        sortedTxs,
+        billRowsByTxId,
+        state: result.state,
+        asOf: normalizeDateToYMD(new Date()),
+    });
 
     // DB column is the authoritative manual override; fall back to transaction lender check
     const isFinancedByARV =
@@ -374,7 +489,7 @@ export async function getPropertyById(
         sellerPurchasePrice,
         sellerPurchaseDate,
         spread,
-        supplementalTaxBill,
+        transactions,
         isFinancedByARV,
         lenderName: latest?.firstMtgLenderName ?? result.lender ?? null,
         companyId: resolvedBuyerId || resolvedSellerId || null,

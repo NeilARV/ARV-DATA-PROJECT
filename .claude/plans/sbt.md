@@ -1,6 +1,6 @@
 # Supplemental Tax Bill (SBT) — Design & Plan
 
-> Status: **v1 built and merged to `main` (PR #81, 2026-07-02)** — schema, calculator, pipeline Step 12, backfill, API, UI all live. **§12 (v2 ownership-window display) is the active plan — read §12.10 first (display moves to an admin-only transaction history on property detail; card line removed). Blocked on the §12.10 UX discussion before build.**
+> Status: **v1 built and merged to `main` (PR #81, 2026-07-02). v2 (§12.10) built on `upgrade/stb-v2` (2026-07-06)** — `accrueSupplementalOverWindow` + unit tests, per-transaction detail payload (`transactions[]` with admin-gated `supplementalTax` + `supplementalTaxBills` audit rows), list-endpoint SBT removed (`getSupplementalTaxTotalsByTxId` deleted), card line removed, presentational `TransactionHistory` component mounted on the detail panel + modal (admin/owner-gated). §12.10's two open presentation questions were resolved at build time — see the note in §12.10.
 > Scope: **California properties only** for v1 (see §1 for why this is correct, not just a cut).
 > Owner decisions captured in §0 and §12.3; open items flagged in §9.
 
@@ -597,13 +597,11 @@ Integration — update `supplemental-tax-visibility.integration.test.ts` for the
 - Rationale: isolation — the component renders any transaction array it's handed, so it's trivially testable with fixture data and reusable wherever the detail data is already loaded (panel, modal, page).
 - The admin gate stays with the **caller/data layer** (the service already omits `supplementalTax` for non-admins); the component just renders what it receives and shows no SBT line when the field is absent.
 
-**Open — UI/UX discussion still required before build (the "cards are messy" conversation):**
+**UI/UX questions — resolved at build time (2026-07-06):**
 
-1. Where the transaction history lives on the detail view (the detail panel/modal already shows some transaction info — extend it, or a dedicated section/tab?) and what each row shows.
-2. Whether each row's `supplementalTax` line expands to the statutory breakdown (per-FY bills, prior value + source, rate, factor) inline, in a tooltip, or on click.
-3. General property-card cleanup is a separate conversation — SBT removal is decided, but no other card changes are in this plan's scope.
-
-**No code changes yet — this section records the decision and the remaining discussion items.**
+1. **Where it lives:** a dedicated "Transaction History" section appended below `PropertyContent` in both the detail panel and the modal, mounted admin/owner-only by the callers (`PropertyDetailPanel.tsx`, `PropertyModal.tsx`). Each row shows the type badge, sale date, buyer/seller (via `formatCompanyName`), price, an "Assigned by" note when flagged, and — when present — the buyer's accrued SBT line. Row styling mirrors the compact list in `PropertyTransactions.tsx`.
+2. **Breakdown:** expands **on click** (chevron next to the amount) to the per-FY statutory rows — fiscal year, bill/refund, amount, prior value + source, net, rate, factor.
+3. General property-card cleanup remains a separate conversation — SBT removal is the only card change made.
 
 #### 12.10.6 Revised build order (replaces 12.9)
 

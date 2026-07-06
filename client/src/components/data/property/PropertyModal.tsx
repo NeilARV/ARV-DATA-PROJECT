@@ -4,6 +4,7 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useProperty } from '@/hooks/useProperty';
 import { useDeleteProperty } from '@/hooks/properties/useDeleteProperty';
 import { PropertyContent } from './PropertyContent';
+import { AdminTransactionHistorySection } from './AdminTransactionHistorySection';
 import AppDialog from '@/components/modals/Dialog';
 import ConfirmationContent from '@/components/modals/Confirmation';
 import { UpdatePropertyDialog } from './UpdatePropertyDialog';
@@ -41,6 +42,8 @@ export default function PropertyModalContent({ onClose }: PropertyModalContentPr
                     onClose();
                 }}
             />
+
+            <AdminTransactionHistorySection transactions={property.transactions} />
 
             <AppDialog
                 nested

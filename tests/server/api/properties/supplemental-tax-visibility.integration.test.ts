@@ -11,10 +11,12 @@ import { setupIntegrationUsers } from '../../../helpers/setup';
 import { assignRole, assignSubscription, getTestDb } from '../../../helpers/db';
 import { isAdminOrOwner } from 'server/services/users/users.services';
 
-// Field-level visibility of `supplementalTaxBill` (access-control.md §5.2): the signed
-// supplemental-tax total on GET /api/properties and GET /api/properties/:id is returned
-// only to admin/owner callers — resolved from the session via isAdminOrOwner, never from
-// query params. Everyone else receives null; this is response shaping, not a 403.
+// Field-level visibility of supplemental-tax data (access-control.md §5.2): the detail
+// route's per-transaction `supplementalTax` accrual and `supplementalTaxBills` audit rows
+// are returned only to admin/owner callers — resolved from the session via isAdminOrOwner,
+// never from query params. Everyone else receives null / [] on every transaction; this is
+// response shaping, not a 403. The LIST route carries no supplemental-tax data at all
+// (the v1 `supplementalTaxBill` card field was removed in v2).
 //
 // server/storage is NOT mocked — routes, middleware, and services run real DB queries
 // against the Neon test branch, so removing the controller gate breaks these tests.
@@ -29,13 +31,19 @@ const { getApp } = setupIntegrationUsers(ACTING_USER_ID, TARGET_USER_ID);
 const SFR_PROPERTY_ID = 954_321_780_001;
 const TEST_ZIP = '99981';
 
-// Seeded bills on the displayed sale: one bill (−100.00) + one refund (+25.00) across the
-// two fiscal years of a Jan–May event → signed total −75 (bill = −, refund = +).
-const EXPECTED_SIGNED_TOTAL = -75;
+// Seeded bills on the April acquisition: one bill (−100.00, FY 2025) + one refund
+// (+25.00, FY 2026) across the two fiscal years of a Jan–May event. The August resale
+// closes the buyer's window at 4 presumed-date months (May 1 → Sep 1), so the accrual
+// is deterministic regardless of when the tests run: the FY-2025 slot (billed May–Jun)
+// is fully owned (−100) and the FY-2026 full-year slot is owned Jul–Aug = 2/12
+// (+25 × 2/12 = +4.17) → −95.83, final.
+const EXPECTED_ACCRUED = { amount: -95.83, monthsOwned: 4, status: 'final' };
 
 const db = getTestDb();
 
 let propertyId: string;
+let acquisitionTxId: number;
+let resaleTxId: number;
 
 beforeAll(async () => {
     // Idempotent cleanup in case a prior run died before afterAll.
@@ -54,7 +62,7 @@ beforeAll(async () => {
         zipCode: TEST_ZIP,
     });
 
-    const [tx] = await db
+    const [acquisitionTx] = await db
         .insert(propertyTransactions)
         .values({
             propertyId,
@@ -66,11 +74,28 @@ beforeAll(async () => {
             sellerName: 'VISIBILITY TEST SELLER',
         })
         .returning({ id: propertyTransactions.propertyTransactionsId });
+    acquisitionTxId = acquisitionTx.id;
+
+    // The resale closes the acquisition buyer's ownership window (flip) so the accrued
+    // amount is time-independent. It has no bill rows of its own.
+    const [resaleTx] = await db
+        .insert(propertyTransactions)
+        .values({
+            propertyId,
+            transactionType: 'Arms Length',
+            saleDate: '2026-08-15',
+            recordingDate: '2026-08-17',
+            salePrice: '520000.00',
+            buyerName: 'VISIBILITY TEST NEXT BUYER LLC',
+            sellerName: 'VISIBILITY TEST BUYER LLC',
+        })
+        .returning({ id: propertyTransactions.propertyTransactionsId });
+    resaleTxId = resaleTx.id;
 
     await db.insert(supplementalTaxBills).values([
         {
             propertyId,
-            propertyTransactionId: tx.id,
+            propertyTransactionId: acquisitionTxId,
             fiscalYear: 2025,
             billType: 'bill',
             priorAssessedValue: '285000.00',
@@ -83,7 +108,7 @@ beforeAll(async () => {
         },
         {
             propertyId,
-            propertyTransactionId: tx.id,
+            propertyTransactionId: acquisitionTxId,
             fiscalYear: 2026,
             billType: 'refund',
             priorAssessedValue: '285000.00',
@@ -98,7 +123,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    // Cascades to the address, transaction, and bills.
+    // Cascades to the address, transactions, and bills.
     await db.delete(properties).where(eq(properties.id, propertyId));
 });
 
@@ -113,63 +138,117 @@ function getList(userId?: string) {
     return userId ? req.set('x-test-user-id', userId) : req;
 }
 
-// ── GET /api/properties/:id — public route, admin/owner-only field ─────────
-describe('GET /api/properties/:id — supplementalTaxBill visibility (integration)', () => {
-    it('GET /api/properties/:id — admin — includes the signed supplemental-tax total', async () => {
+type DetailTx = {
+    id: number;
+    supplementalTax: { amount: number; monthsOwned: number; status: string } | null;
+    supplementalTaxBills: Array<Record<string, unknown>>;
+};
+
+function findTx(body: { transactions: DetailTx[] }, txId: number): DetailTx | undefined {
+    return body.transactions.find((tx) => tx.id === txId);
+}
+
+// ── GET /api/properties/:id — public route, admin/owner-only fields ────────
+describe('GET /api/properties/:id — per-transaction supplementalTax visibility (integration)', () => {
+    it('GET /api/properties/:id — admin — acquisition row carries the accrued ownership-window amount', async () => {
         await assignRole(ACTING_USER_ID, 'admin');
         const res = await getDetail(ACTING_USER_ID);
         expect(res.status).toBe(200);
-        expect(res.body.supplementalTaxBill).toBe(EXPECTED_SIGNED_TOTAL);
+
+        // Transactions come back newest-first: resale, then acquisition.
+        expect(res.body.transactions.map((tx: DetailTx) => tx.id)).toEqual([
+            resaleTxId,
+            acquisitionTxId,
+        ]);
+
+        const acquisition = findTx(res.body, acquisitionTxId);
+        expect(acquisition?.supplementalTax).toEqual(EXPECTED_ACCRUED);
+
+        // Audit breakdown: the stored statutory rows, numeric-typed.
+        expect(acquisition?.supplementalTaxBills).toHaveLength(2);
+        expect(acquisition?.supplementalTaxBills[0]).toMatchObject({
+            fiscalYear: 2025,
+            billType: 'bill',
+            amount: 100,
+            priorAssessedValue: 285000,
+            priorValueSource: 'prior_transaction',
+            netSupplementalValue: 125000,
+            taxRate: 0.0125,
+            prorationFactor: 0.17,
+        });
     });
 
-    it('GET /api/properties/:id — owner — includes the signed supplemental-tax total', async () => {
+    it('GET /api/properties/:id — admin — resale row (no bills) has null supplementalTax', async () => {
+        await assignRole(ACTING_USER_ID, 'admin');
+        const res = await getDetail(ACTING_USER_ID);
+        expect(res.status).toBe(200);
+        const resale = findTx(res.body, resaleTxId);
+        expect(resale?.supplementalTax).toBeNull();
+        expect(resale?.supplementalTaxBills).toEqual([]);
+    });
+
+    it('GET /api/properties/:id — owner — includes the accrued amount', async () => {
         await assignRole(ACTING_USER_ID, 'owner');
         const res = await getDetail(ACTING_USER_ID);
         expect(res.status).toBe(200);
-        expect(res.body.supplementalTaxBill).toBe(EXPECTED_SIGNED_TOTAL);
+        expect(findTx(res.body, acquisitionTxId)?.supplementalTax).toEqual(EXPECTED_ACCRUED);
     });
 
-    it('GET /api/properties/:id — member (boundary role) — supplementalTaxBill is null', async () => {
+    it('GET /api/properties/:id — member (boundary role) — transactions present, SBT fields empty', async () => {
         await assignRole(ACTING_USER_ID, 'member');
         const res = await getDetail(ACTING_USER_ID);
         expect(res.status).toBe(200);
-        expect(res.body.supplementalTaxBill).toBeNull();
+        expect(res.body.transactions).toHaveLength(2);
+        for (const tx of res.body.transactions as DetailTx[]) {
+            expect(tx.supplementalTax).toBeNull();
+            expect(tx.supplementalTaxBills).toEqual([]);
+        }
     });
 
-    it('GET /api/properties/:id — unauthenticated — 200 (public route) with null supplementalTaxBill', async () => {
+    it('GET /api/properties/:id — unauthenticated — 200 (public route) with SBT fields empty', async () => {
         const res = await getDetail();
         expect(res.status).toBe(200);
-        expect(res.body.supplementalTaxBill).toBeNull();
+        for (const tx of res.body.transactions as DetailTx[]) {
+            expect(tx.supplementalTax).toBeNull();
+            expect(tx.supplementalTaxBills).toEqual([]);
+        }
+    });
+
+    it('GET /api/properties/:id — the v1 supplementalTaxBill field is gone', async () => {
+        await assignRole(ACTING_USER_ID, 'admin');
+        const res = await getDetail(ACTING_USER_ID);
+        expect(res.status).toBe(200);
+        expect(res.body).not.toHaveProperty('supplementalTaxBill');
     });
 });
 
-// ── GET /api/properties — requireSub-gated route, admin/owner-only field ───
-describe('GET /api/properties — supplementalTaxBill visibility (integration)', () => {
-    it('GET /api/properties — admin — includes the signed supplemental-tax total', async () => {
+// ── GET /api/properties — requireSub-gated route, no supplemental-tax data ─
+describe('GET /api/properties — supplemental tax removed from list rows (integration)', () => {
+    it('GET /api/properties — admin — list rows carry no supplementalTaxBill field', async () => {
         await assignRole(ACTING_USER_ID, 'admin');
         const res = await getList(ACTING_USER_ID);
         expect(res.status).toBe(200);
         const row = res.body.properties.find((p: { id: string }) => p.id === propertyId);
         expect(row).toBeDefined();
-        expect(row.supplementalTaxBill).toBe(EXPECTED_SIGNED_TOTAL);
+        expect(row).not.toHaveProperty('supplementalTaxBill');
     });
 
-    it('GET /api/properties — member (bypass role) — supplementalTaxBill is null', async () => {
+    it('GET /api/properties — member (bypass role) — list rows carry no supplementalTaxBill field', async () => {
         await assignRole(ACTING_USER_ID, 'member');
         const res = await getList(ACTING_USER_ID);
         expect(res.status).toBe(200);
         const row = res.body.properties.find((p: { id: string }) => p.id === propertyId);
         expect(row).toBeDefined();
-        expect(row.supplementalTaxBill).toBeNull();
+        expect(row).not.toHaveProperty('supplementalTaxBill');
     });
 
-    it('GET /api/properties — basic subscriber, no role — supplementalTaxBill is null', async () => {
+    it('GET /api/properties — basic subscriber, no role — 200 without supplemental-tax data', async () => {
         await assignSubscription(ACTING_USER_ID, 'basic');
         const res = await getList(ACTING_USER_ID);
         expect(res.status).toBe(200);
         const row = res.body.properties.find((p: { id: string }) => p.id === propertyId);
         expect(row).toBeDefined();
-        expect(row.supplementalTaxBill).toBeNull();
+        expect(row).not.toHaveProperty('supplementalTaxBill');
     });
 
     it('GET /api/properties — authenticated, no sub, no role — returns 403', async () => {

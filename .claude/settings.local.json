@@ -62,7 +62,11 @@
       "Bash(grep -n \"GET /api/properties\\\\b\\\\|GET /api/properties$\\\\|/api/properties/:id\\\\|## Properties\\\\|### GET /api/properties\" .claude/docs/api.md)",
       "Bash(NODE_PATH=/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/node_modules npx tsx /private/tmp/claude-501/-Users-justindosaj-Documents-GitHub-ARV-DATA-PROJECT/35fc6013-ff3e-4ae5-84f1-613c2c7da583/scratchpad/apply-sbt-ddl-test-branch.ts)",
       "Bash(grep -n \"findDisplayTx\" server/services/properties/properties.services.ts | head; echo \"---\"; sed -n '/function findDisplayTx/,/^}/p' server/services/properties/properties.services.ts | head -60)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(echo \"exit: $?\")",
+      "Skill(tests)",
+      "Skill(tests:*)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/package.json'\\)\\); print\\(json.dumps\\(d.get\\('devDependencies',{}\\), indent=1\\)\\)\")"
     ],
     "additionalDirectories": [
       "/Users/justindosaj/Documents/GitHub/ARV-DATA-PROJECT/.github/workflows",

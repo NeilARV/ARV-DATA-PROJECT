@@ -108,7 +108,7 @@ export function PropertyContent({
     isAdminOrOwner,
     onCompanyClick,
 }: PropertyContentProps) {
-    const { canAccessAdminPanel, isAdmin, isOwner } = useAuth();
+    const { canAccessAdminPanel } = useAuth();
     const [imageUrl, setImageUrl] = useState('');
     const [isImageLoading, setIsImageLoading] = useState(true);
 
@@ -181,10 +181,6 @@ export function PropertyContent({
     const showSpread = (isWholesale || isSold) && property.spread != null && hasBothPurchasePrices;
     const spreadLabel = isWholesale ? 'Wholesale Fee' : 'Gross Profit';
 
-    // Admin/owner-only (the API already omits it for everyone else). Signed:
-    // negative = bill owed (red), positive = refund (green).
-    const supplementalTaxBill = isAdmin || isOwner ? (property.supplementalTaxBill ?? null) : null;
-
     const priceLabel = isSold ? 'Sold Price' : 'Purchase Price';
     const dateLabel =
         isWholesale || statusNorm === PROPERTY_STATUS.IN_RENOVATION
@@ -252,11 +248,6 @@ export function PropertyContent({
             : variant === 'modal'
               ? `text-spread-${property.id}-modal`
               : `text-spread-${property.id}-panel`,
-        supplementalTax: isCard
-            ? `text-supplemental-tax-${property.id}`
-            : variant === 'modal'
-              ? `text-supplemental-tax-${property.id}-modal`
-              : `text-supplemental-tax-${property.id}-panel`,
         assignorCompanyName: isCard ? `text-assignor-${property.id}` : 'text-assignor-company-name',
         assignorContact: isCard ? `text-assignor-contact-${property.id}` : 'text-assignor-contact',
         assignorEmail: isCard ? `text-assignor-email-${property.id}` : undefined,
@@ -698,26 +689,6 @@ export function PropertyContent({
                     >
                         {isNegative(property.spread!) ? '-' : cfg.spreadPositivePrefix}$
                         {Number(Math.abs(property.spread!)).toLocaleString()}
-                    </span>
-                </div>
-            )}
-
-            {/* Supplemental tax bill (admin/owner only) */}
-            {supplementalTaxBill !== null && (
-                <div className="mt-1 flex justify-center items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">
-                        Supplemental Tax Bill:
-                    </span>
-                    <span
-                        className={`text-sm font-semibold ${
-                            isNegative(supplementalTaxBill)
-                                ? 'text-spread-negative'
-                                : 'text-spread-positive'
-                        }`}
-                        data-testid={tid.supplementalTax}
-                    >
-                        {isNegative(supplementalTaxBill) ? '-' : cfg.spreadPositivePrefix}$
-                        {Math.abs(supplementalTaxBill).toLocaleString()}
                     </span>
                 </div>
             )}
